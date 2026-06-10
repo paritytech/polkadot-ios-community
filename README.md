@@ -91,8 +91,8 @@ Polkadot iOS is a self-custodial superapp: your keys are created on your phone, 
 
 ### What it doesn't do
 
-- It does **not** hold your keys or your money — there is no custodian, and nobody (including the developers) can freeze, recover, or move your account. If you lose your device and have no backup, the account is gone.
-- It does **not** route your chats and calls through company messaging servers — messages travel through the public chain, calls go peer-to-peer.
+- There is no custodian, and nobody (including the developers) can freeze, recover, or move your account. If you lose your device and have no backup, the account is gone.
+- It does **not** route your chats and calls through any 1st or 3rd party messaging servers — messages travel through the public chain, voice and video calls go peer-to-peer.
 - It is **not** a production-hardened product — treat it as a reference implementation (see the warning at the top).
 
 ### Under the hood
