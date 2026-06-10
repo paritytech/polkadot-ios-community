@@ -1,0 +1,6 @@
+OTHER_SWIFT_FLAGS = $(inherited) "-DF_DEV" "-DUNSTABLE" "-DTESTNET_FEATURE"
+
+APP_NAME = Polkadot Dev
+ICON_SUFFIX = Dev
+BUNDLE = io.paritytech.polkadotapp.develop
+DEEPLINK = polkadotappdev

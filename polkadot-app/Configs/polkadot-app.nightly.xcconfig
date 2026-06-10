@@ -1,0 +1,5 @@
+OTHER_SWIFT_FLAGS = $(inherited) "-DNIGHTLY" "-DTESTNET_FEATURE" "-DW3S"
+
+APP_NAME = Polkadot
+BUNDLE = io.paritytech.polkadotapp
+DEEPLINK = polkadotapp

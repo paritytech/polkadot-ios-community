@@ -1,0 +1,47 @@
+import Foundation
+import SubstrateSdk
+import BigInt
+import XcmDefinition
+import Individuality
+
+///     Signed extension setup consists of the 2 parts:
+///      - provide signed extension class that contains parameters for the extrinsic's signed extra
+///      - provide coders to encode/decode signed extension's parameters part of signed extra
+protocol ExtrinsicTransactionExtensionMaking {
+    func createExtensions() -> [TransactionExtending]
+
+    func createCoders(for metadata: RuntimeMetadataProtocol) -> [TransactionExtensionCoding]
+}
+
+final class ExtrinsicTransactionExtensionFactory {}
+
+extension ExtrinsicTransactionExtensionFactory: ExtrinsicTransactionExtensionMaking {
+    func createExtensions() -> [TransactionExtending] {
+        [
+            TransactionExtension.ChargeAssetTxPayment<JSON>(),
+            OriginRestrictionPallet.TransactionExtension(enabled: false),
+            ValueTransferAuthPallet.TransactionExtension(
+                signer: W3SAuthorizedSigner()
+            )
+        ]
+    }
+
+    func createCoders(for metadata: RuntimeMetadataProtocol) -> [TransactionExtensionCoding] {
+        DefaultSignedExtensionCoders.createDefaultCoders(for: metadata)
+    }
+}
+
+enum DefaultSignedExtensionCoders {
+    static func createDefaultCoders(for metadata: RuntimeMetadataProtocol) -> [TransactionExtensionCoding] {
+        let extensionId = Extrinsic.TransactionExtensionId.assetTxPayment
+
+        let extraType = metadata.getSignedExtensionType(for: extensionId)
+
+        return [
+            DefaultTransactionExtensionCoder(
+                txExtensionId: extensionId,
+                extensionExplicitType: extraType ?? "pallet_asset_tx_payment.ChargeAssetTxPayment"
+            )
+        ]
+    }
+}

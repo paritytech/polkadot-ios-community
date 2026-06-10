@@ -1,0 +1,34 @@
+# Secret and per-developer build-time configuration.
+#
+# Copy this file to `env-vars.sh` (same directory) and fill in real values:
+#
+#     cp polkadot-app/env-vars.sh.template polkadot-app/env-vars.sh
+#
+# `env-vars.sh` is gitignored and MUST NEVER be committed. The values here are
+# read by Scripts/inject-keys.sh and baked into the gitignored
+# CIKeys.generated.swift at build time. Anything left empty simply disables the
+# corresponding feature (e.g. an empty SENTRY_DSN means Sentry is not started).
+#
+# Non-secret endpoints and links have placeholder defaults inlined in
+# Scripts/inject-keys.sh and only need to be set here to override them.
+
+# --- Secrets -----------------------------------------------------------------
+
+# Web3 Summit authorisation seed (hex). Required for W3S signing flows.
+export W3S_AUTH_KEY=""
+
+# PostHog product-analytics project API key (starts with "phc_").
+export POSTHOG_API_KEY=""
+
+# Sentry Data Source Name (DSN) for crash/issue reporting.
+export SENTRY_DSN=""
+
+# Meld fiat on-ramp basic auth token ("<key>:<secret>").
+export MELD_BASIC_AUTH_TOKEN=""
+
+# --- Optional overrides ------------------------------------------------------
+# Uncomment to point a local build at different infrastructure.
+# export POSTHOG_HOST="https://eu.i.posthog.com"
+# Recipients for the in-app "report issue" and "send logs" mail drafts.
+# export REPORT_ISSUE_EMAIL="issues@your-domain.example"
+# export LOGS_EMAIL="logs@your-domain.example"

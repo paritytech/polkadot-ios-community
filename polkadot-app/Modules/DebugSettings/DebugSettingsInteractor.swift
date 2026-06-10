@@ -1,0 +1,105 @@
+import Operation_iOS
+import Keystore_iOS
+import KeyDerivation
+import NovaCrypto
+import StructuredConcurrency
+
+final class DebugSettingsInteractor {
+    weak var presenter: DebugSettingsInteractorOutputProtocol?
+
+    let mnemonicBackupHelper: MnemonicBackupHelperProtocol
+    let logsDraftFactory: LogsEmailDraftMaking
+    let keystore: KeystoreProtocol
+    let entropyManager: RootEntropyManaging
+
+    init(
+        mnemonicBackupHelper: MnemonicBackupHelperProtocol,
+        logsDraftFactory: LogsEmailDraftMaking,
+        keystore: KeystoreProtocol,
+        entropyManager: RootEntropyManaging
+    ) {
+        self.mnemonicBackupHelper = mnemonicBackupHelper
+        self.logsDraftFactory = logsDraftFactory
+        self.keystore = keystore
+        self.entropyManager = entropyManager
+    }
+}
+
+extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
+    func setup() {
+        Task { @MainActor in
+            provideClearBackup()
+            provideClearReferral()
+            provideJWTTokenState()
+        }
+    }
+
+    func clearBackup() {
+        Task { [weak self, mnemonicBackupHelper, keystore] in
+            try? await ClosureOperation {
+                try? mnemonicBackupHelper.deleteMnemonic()
+                try? keystore.deleteKey(for: "coin-index")
+                try? keystore.deleteKey(for: "voucher-index")
+                JWTTokenStore(keychain: keystore, sessionIdStore: BackendSessionIdStore()).deleteAll()
+            }
+            .asyncExecute()
+            self?.provideClearBackup()
+        }
+    }
+
+    func clearReferral() {
+        Task { [weak self, keystore] in
+            try? await ClosureOperation {
+                try keystore.deleteKey(for: KeystoreTag.receivedRefferalTag())
+            }
+            .asyncExecute()
+            self?.provideClearReferral()
+        }
+    }
+
+    func clearJWTToken() {
+        JWTTokenStore(keychain: keystore, sessionIdStore: BackendSessionIdStore()).deleteAll()
+        provideJWTTokenState()
+    }
+
+    func makeLogsDraft() -> EmailDraft? {
+        logsDraftFactory.makeLogsDraft()
+    }
+
+    func replaceWithRandomEntropy() {
+        do {
+            let mnemonic = try IRMnemonicCreator().randomMnemonic(.entropy128)
+            try entropyManager.createRootEntropy(mnemonic.entropy())
+        } catch {
+            Logger.shared.error("Failed to generate entropy: \(error)")
+        }
+    }
+}
+
+private extension DebugSettingsInteractor {
+    func provideClearBackup() {
+        Task { [weak presenter] in
+            guard let hasBackup = try? mnemonicBackupHelper.checkForBackup() else {
+                return
+            }
+            await presenter?.didReceive(canClearBackup: hasBackup)
+        }
+    }
+
+    func provideClearReferral() {
+        Task { [weak presenter] in
+            guard let hasBackup = try? keystore.checkKey(for: KeystoreTag.receivedRefferalTag()) else {
+                return
+            }
+            await presenter?.didReceive(canClearReferral: hasBackup)
+        }
+    }
+
+    func provideJWTTokenState() {
+        Task { [weak presenter] in
+            let hasToken = JWTTokenStore(keychain: keystore, sessionIdStore: BackendSessionIdStore())
+                .fetchToken() != nil
+            await presenter?.didReceive(hasJWTToken: hasToken)
+        }
+    }
+}

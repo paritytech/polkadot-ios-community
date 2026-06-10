@@ -1,0 +1,314 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "balance.info.available.now.info.section1.detail1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is the amount you can use for a payment right away."
+          }
+        }
+      }
+    },
+    "balance.info.available.now.info.section1.detail2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It may include funds that are already ready for private sending, funds that can be prepared instantly for a payment, and funds that can be sent now with slightly less privacy."
+          }
+        }
+      }
+    },
+    "balance.info.available.now.info.section1.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What does “Available now” mean?"
+          }
+        }
+      }
+    },
+    "balance.info.available.now.info.section2.detail1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some funds are ready to send, but have not completed all privacy preparation steps yet. If you use them now, they may reveal a little more on-chain information than fully private funds."
+          }
+        }
+      }
+    },
+    "balance.info.available.now.info.section2.detail2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To make them private, you don’t need to do anything. Just wait — they will become private-ready automatically."
+          }
+        }
+      }
+    },
+    "balance.info.available.now.info.section2.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why are some funds less private?"
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.info.detail1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These funds are still being made private and cannot be sent yet."
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.info.detail2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They may include funds from recent payments that are still settling, or change that is being made ready for future private sends."
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.info.detail3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They will become available automatically once processing is complete. Usually takes around 1-5 minutes."
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.info.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What does “Available soon” mean?"
+          }
+        }
+      }
+    },
+    "balance.info.available.now.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funds you can use for payments right away"
+          }
+        }
+      }
+    },
+    "balance.info.available.now.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available now"
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funds being made private. Processing usually takes around 1-5 minutes"
+          }
+        }
+      }
+    },
+    "balance.info.available.soon.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available soon"
+          }
+        }
+      }
+    },
+    "balance.info.low.privacy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— Low privacy"
+          }
+        }
+      }
+    },
+    "balance.info.secured" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "— Secured"
+          }
+        }
+      }
+    },
+    "balance.info.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See what makes up your balance"
+          }
+        }
+      }
+    },
+    "balance.info.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balance details"
+          }
+        }
+      }
+    },
+    "balance.info.total.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everything in your balance"
+          }
+        }
+      }
+    },
+    "balance.info.total.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total balance"
+          }
+        }
+      }
+    },
+    "sheet.action.learn.more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why is %1$(degraded)@ less private?"
+          }
+        }
+      }
+    },
+    "sheet.action.send.full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send %1$(full)@ with less privacy"
+          }
+        }
+      }
+    },
+    "sheet.action.send.privately" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send %1$(nonDegraded)@ privately"
+          }
+        }
+      }
+    },
+    "sheet.degraded.learn.more.details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some funds are ready for the most private send flow, while others still need an extra privacy step.\n\nYou can still send them now, and the payment will work normally. However, those funds may reveal a little more information on-chain than funds that are fully ready for private sending.\n\nFor the strongest privacy, send only the private-ready amount or wait until the rest of your funds are ready.\n"
+          }
+        }
+      }
+    },
+    "sheet.degraded.learn.more.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why are some funds less private?"
+          }
+        }
+      }
+    },
+    "sheet.degraded.message.full" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To send the full %1$(full)@, some funds will use lower-privacy sources."
+          }
+        }
+      }
+    },
+    "sheet.degraded.message.with.degraded" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can send %1$(nonDegraded)@ privately.\n\nTo send the full %2$(full)@, the remaining %3$(degraded)@ will use lower-privacy funds."
+          }
+        }
+      }
+    },
+    "sheet.degraded.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some funds are less private"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.1"
+}

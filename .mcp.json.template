@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "Sentry": {
+      "url": "https://mcp.sentry.dev/mcp/YOUR_SENTRY_ORG/YOUR_SENTRY_PROJECT"
+    }
+  }
+}

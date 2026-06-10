@@ -1,0 +1,72 @@
+import Foundation
+import CoreData
+import Operation_iOS
+import SubstrateSdk
+
+final class ChatMessageStatusUpdateMapper {
+    typealias DataProviderModel = Chat.ChatMessageStatusUpdate
+    typealias CoreDataEntity = CDChatMessage
+
+    var entityIdentifierFieldName: String {
+        #keyPath(CDChatMessage.messageId)
+    }
+}
+
+extension ChatMessageStatusUpdateMapper: CoreDataMapperProtocol {
+    func transform(entity: CoreDataEntity) throws -> DataProviderModel {
+        guard let messageId = entity.messageId else {
+            throw CoreDataMapperError.missingRequiredData(
+                keyPath: #keyPath(CDChatMessage.messageId)
+            )
+        }
+
+        guard let status = Chat.LocalMessage.Status(rawValue: entity.status) else {
+            throw ChatMessageEntityMapper.MapperError.invalidStatus(entity.status)
+        }
+
+        return .init(messageId: messageId, status: status)
+    }
+
+    func populate(
+        entity: CoreDataEntity,
+        from model: DataProviderModel,
+        using context: NSManagedObjectContext
+    ) throws {
+        let seenRawValue = Chat.LocalMessage.Status.incoming(.seen).rawValue
+        let isAlreadySeen = entity.status == seenRawValue
+        let hasStatusChanged = entity.status != model.status.rawValue
+
+        // Update the status if the message hasn't been marked as seen
+        if !isAlreadySeen, hasStatusChanged {
+            entity.status = model.status.rawValue
+            entity.markModified()
+            entity.touchParent()
+        }
+
+        guard !entity.isSystem,
+              let incomingStatus = model.status.ensureIncomingStatus() else {
+            return
+        }
+
+        let finalStatus = isAlreadySeen ? .seen : incomingStatus
+        let existingUnread: CDChatUnreadMessage? = try context.first(for: .unreadMessage(for: model.messageId))
+
+        switch finalStatus {
+        case .new where existingUnread == nil:
+            guard let chatEntity = entity.chat else {
+                throw CoreDataMapperError.missingRequiredData(
+                    keyPath: #keyPath(CDChatMessage.chat)
+                )
+            }
+            let newUnread = CDChatUnreadMessage(context: context)
+            newUnread.messageId = model.messageId
+            newUnread.chat = chatEntity
+        case .new:
+            break
+        case .seen:
+            if let existingUnread {
+                context.delete(existingUnread)
+            }
+        }
+    }
+}

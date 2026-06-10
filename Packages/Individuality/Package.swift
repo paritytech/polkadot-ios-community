@@ -1,0 +1,48 @@
+// swift-tools-version: 5.10
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "Individuality",
+    platforms: [.iOS(.v17)],
+    products: [
+        .library(
+            name: "Individuality",
+            targets: ["Individuality"]
+        )
+    ],
+    dependencies: [
+        .package(
+            url: "https://github.com/novasamatech/substrate-sdk-ios",
+            from: "5.7.0"
+        ),
+        .package(
+            url: "https://github.com/novasamatech/extrinsic-service-ios",
+            from: "1.8.0"
+        ),
+        .package(path: "../StructuredConcurrency"),
+        .package(path: "../KeyDerivation"),
+        .package(path: "../SubstrateSdkExt"),
+        .package(path: "../ChainStore"),
+        .package(path: "../SubstrateOperation"),
+        .package(path: "../BulletinChain")
+    ],
+    targets: [
+        .target(
+            name: "Individuality",
+            dependencies: [
+                .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
+                .product(name: "SubstrateStorageQuery", package: "substrate-sdk-ios"),
+                .product(name: "SubstrateStorageSubscription", package: "substrate-sdk-ios"),
+                .product(name: "ExtrinsicService", package: "extrinsic-service-ios"),
+                "StructuredConcurrency",
+                "KeyDerivation",
+                "SubstrateSdkExt",
+                "ChainStore",
+                "SubstrateOperation",
+                "BulletinChain"
+            ]
+        )
+    ]
+)

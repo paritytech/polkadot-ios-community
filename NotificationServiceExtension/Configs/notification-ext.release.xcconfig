@@ -1,0 +1,3 @@
+OTHER_SWIFT_FLAGS = $(inherited)
+BUNDLE = io.paritytech.polkadotapp.NotificationServiceExtension
+APP_MAIN_BUNDLE = io.paritytech.polkadotapp

@@ -1,0 +1,40 @@
+{
+  "configurations" : [
+    {
+      "id" : "E22A14AD-DE47-48B3-93EB-891D0F30B2AE",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "ChainSyncServiceTests"
+          },
+          {
+            "name" : "DeviceSyncSessionRecoveryTests"
+          },
+          {
+            "name" : "FiatOnrampTransactionTrackingTests"
+          },
+          {
+            "name" : "IdentityProfileServiceTests"
+          }
+        ]
+      },
+      "target" : {
+        "containerPath" : "container:polkadot-app.xcodeproj",
+        "identifier" : "A5EDAAE22E93ECB0005DDA62",
+        "name" : "polkadot-appTests"
+      }
+    }
+  ],
+  "version" : 2
+}
