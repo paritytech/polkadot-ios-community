@@ -1,6 +1,7 @@
 import Foundation
 import Foundation_iOS
 
+@MainActor
 protocol UsernameValidationFactoryProtocol {
     func notViolatingMinLength(
         for partialUsername: String,
@@ -14,9 +15,9 @@ protocol UsernameValidationFactoryProtocol {
 
     func notTaken(from checkResult: UsernameAvailableType?) -> DataValidating
     func notValid(from availableType: UsernameAvailableType?) -> DataValidating
-    func hasValidDigits(from digitsFieldState: DigitsFieldState) -> DataValidating
 }
 
+@MainActor
 class UsernameValidationFactory {
     weak var view: ControllerValidationResultPresentable?
 
@@ -101,18 +102,6 @@ extension UsernameValidationFactory: UsernameValidationFactoryProtocol {
             default:
                 return true
             }
-        })
-    }
-
-    func hasValidDigits(from digitsFieldState: DigitsFieldState) -> DataValidating {
-        ErrorConditionViolation(onError: { [weak self] in
-            guard let view = self?.view else {
-                return
-            }
-
-            self?.presentable.presentDigitsTaken(from: view)
-        }, preservesCondition: {
-            digitsFieldState != .invalid
         })
     }
 }

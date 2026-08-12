@@ -4,6 +4,7 @@ import Products
 import SubstrateSdk
 import KeyDerivation
 import DesignSystem
+import ChainRegistry
 
 /// Concrete implementation of ``ProductsNativeApiProtocol`` that bridges
 /// JS bot commands to native wallet, chain registry, and chat capabilities.
@@ -12,12 +13,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let context: ChatExtensionDiscoverContextProtocol?
     let chainRegistry: ChainRegistryProtocol
     let usernameStorage: UsernameStoring
-    let signingRouter: SigningRouting
+    let productsRouter: ProductsRouting
     let navigationRouter: ProductsNavigationRouting
-    let topUpRequestRouter: TopUpRequestRouting
-    let paymentRequestRouter: PaymentRequestRouting
     let localStorage: ProductLocalStorageProtocol
-    let nonProductAccountRegistry: NonProductAccountRegistring
     let notificationService: UserNotificationServicing
     let notificationScheduler: ProductNotificationScheduling
     let entropyManager: RootEntropyManaging
@@ -26,6 +24,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let permissionGuard: ProductPermissionGuarding
     let paymentsSupport: PaymentsSupport?
     let accountManager: ProductsAccountManaging
+    let createProofHandler: APCreateProofHandling
+    let aliasHandler: APAliasHandling
+    let signVrfHandler: APSignVrfHandling
     let resourceKeyManager: ProductResourceKeyManaging
     let sponsorFactory: TransactionSponsorMaking
     let themeManager: ThemeManagerProtocol
@@ -36,9 +37,11 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     lazy var signingHandler: TransactionSigningHandling = TransactionSigningHandler(
         pgasSponsor: sponsorFactory.makePGasSponsor(),
         chainRegistry: chainRegistry,
-        router: signingRouter,
+        router: productsRouter,
         logger: logger
     )
+
+    lazy var accountResolver: IdentityAccountResolving = IdentityAccountResolver()
 
     let operationQueue: OperationQueue
     let logger: LoggerProtocol
@@ -48,12 +51,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         messagingSupport: MessagingSupport?,
         chainRegistry: ChainRegistryProtocol,
         usernameStorage: UsernameStoring,
-        signingRouter: SigningRouting,
+        productsRouter: ProductsRouting,
         navigationRouter: ProductsNavigationRouting,
-        topUpRequestRouter: TopUpRequestRouting,
-        paymentRequestRouter: PaymentRequestRouting,
         localStorage: ProductLocalStorageProtocol,
-        nonProductAccountRegistry: NonProductAccountRegistring,
         notificationService: UserNotificationServicing,
         notificationScheduler: ProductNotificationScheduling,
         entropyManager: RootEntropyManaging,
@@ -62,6 +62,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         permissionGuard: ProductPermissionGuarding,
         paymentsSupport: PaymentsSupport?,
         accountManager: ProductsAccountManaging,
+        createProofHandler: APCreateProofHandling,
+        aliasHandler: APAliasHandling,
+        signVrfHandler: APSignVrfHandling,
         resourceKeyManager: ProductResourceKeyManaging,
         sponsorFactory: TransactionSponsorMaking,
         themeManager: ThemeManagerProtocol,
@@ -73,12 +76,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.productId = productId
         self.chainRegistry = chainRegistry
         self.usernameStorage = usernameStorage
-        self.signingRouter = signingRouter
+        self.productsRouter = productsRouter
         self.navigationRouter = navigationRouter
-        self.topUpRequestRouter = topUpRequestRouter
-        self.paymentRequestRouter = paymentRequestRouter
         self.localStorage = localStorage
-        self.nonProductAccountRegistry = nonProductAccountRegistry
         self.notificationService = notificationService
         self.notificationScheduler = notificationScheduler
         self.entropyManager = entropyManager
@@ -87,6 +87,9 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.permissionGuard = permissionGuard
         self.paymentsSupport = paymentsSupport
         self.accountManager = accountManager
+        self.createProofHandler = createProofHandler
+        self.aliasHandler = aliasHandler
+        self.signVrfHandler = signVrfHandler
         self.resourceKeyManager = resourceKeyManager
         self.sponsorFactory = sponsorFactory
         self.themeManager = themeManager

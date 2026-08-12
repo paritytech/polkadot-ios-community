@@ -2,13 +2,8 @@ import UIKit
 import Products
 import UIKitExt
 
+@MainActor
 final class SPAWireframe: SPAWireframeProtocol, ChatNavigating {
-    private let flowState: SPAFlowState
-
-    init(flowState: SPAFlowState) {
-        self.flowState = flowState
-    }
-
     func openChat(
         from view: ControllerBackedProtocol?,
         chatId: Chat.Id
@@ -22,20 +17,8 @@ final class SPAWireframe: SPAWireframeProtocol, ChatNavigating {
         navigateToChat(with: chatId, force: false)
     }
 
-    func showProductSPA(from view: ControllerBackedProtocol?, productHost: ProductHost) {
-        let configuration = SPAConfiguration.product(host: productHost)
-
-        guard
-            let spaView = SPAViewFactory.createView(
-                configuration: configuration,
-                flowState: flowState
-            ) else {
-            return
-        }
-
-        let navigationController = SPAViewFactory.makeCardNavigationController(for: spaView)
-        navigationController.modalPresentationStyle = .fullScreen
-        view?.controller.present(navigationController, animated: true)
+    func showProductSPA(from _: ControllerBackedProtocol?, productHost: ProductHost) {
+        UIApplication.shared.mainTabBarController?.openProduct(page: ProductPage(host: productHost))
     }
 
     func showMoreActions(
@@ -57,5 +40,13 @@ final class SPAWireframe: SPAWireframeProtocol, ChatNavigating {
 
         let sheet = ShareViewFactory.createView(items: [.url(url)], host: view)
         view.controller.present(sheet.controller, animated: true)
+    }
+
+    func minimize() {
+        UIApplication.shared.mainTabBarController?.minimizeSPA()
+    }
+
+    func close(tabId: UUID) {
+        UIApplication.shared.mainTabBarController?.closeSPA(tabId: tabId)
     }
 }

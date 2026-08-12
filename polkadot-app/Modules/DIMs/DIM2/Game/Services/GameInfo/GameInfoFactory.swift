@@ -59,12 +59,12 @@ extension GameInfoFactory: GameInfoMaking {
             reportingEndDate: reportingEndDate,
             maxGroupSize: UInt(game.maxGroupSize),
             requiredScoreOverride: game.personhoodScoreOverride.map { Int($0) },
-            airdropScheduled: game.airdropScheduled ?? false
+            airdropScheduled: (game.airdropsScheduled ?? 0) > 0
         )
 
         Logger.shared.debug(
             "[GameDebug] GameInfo decode: index=\(game.index) "
-                + "airdropScheduled(raw)=\(String(describing: game.airdropScheduled))"
+                + "airdropsScheduled(raw)=\(String(describing: game.airdropsScheduled))"
         )
 
         return info

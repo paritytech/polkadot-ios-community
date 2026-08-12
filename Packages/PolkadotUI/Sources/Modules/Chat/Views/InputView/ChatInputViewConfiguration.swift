@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import UIKit
 
 public struct ChatInputViewConfiguration: ChatInputViewConfigurationProtocol, Equatable {
@@ -7,6 +8,8 @@ public struct ChatInputViewConfiguration: ChatInputViewConfigurationProtocol, Eq
     let canPay: Bool
     let canAttachFile: Bool
     let canSendWithoutText: Bool
+    let inputAccessibilityId: String?
+    let sendAccessibilityId: String?
 
     public init(
         placeholder: String,
@@ -14,7 +17,9 @@ public struct ChatInputViewConfiguration: ChatInputViewConfigurationProtocol, Eq
         maxCharacterCount: Int,
         canPay: Bool,
         canAttachFile: Bool,
-        canSendWithoutText: Bool
+        canSendWithoutText: Bool,
+        inputAccessibilityId: (any AccessibilityIdentifying)? = nil,
+        sendAccessibilityId: (any AccessibilityIdentifying)? = nil
     ) {
         self.placeholder = placeholder
         self.maxNumberOfLines = maxNumberOfLines
@@ -22,6 +27,8 @@ public struct ChatInputViewConfiguration: ChatInputViewConfigurationProtocol, Eq
         self.canPay = canPay
         self.canAttachFile = canAttachFile
         self.canSendWithoutText = canSendWithoutText
+        self.inputAccessibilityId = inputAccessibilityId?.rawValue
+        self.sendAccessibilityId = sendAccessibilityId?.rawValue
     }
 
     public var activateOnAppear: Bool {
@@ -45,14 +52,22 @@ public struct ChatInputViewConfiguration: ChatInputViewConfigurationProtocol, Eq
         return self == otherChatInputConfig
     }
 
-    public static func chat(canPay: Bool, canAttachFile: Bool, canSendWithoutText: Bool = false) -> Self {
+    public static func chat(
+        canPay: Bool,
+        canAttachFile: Bool,
+        canSendWithoutText: Bool = false,
+        inputAccessibilityId: (any AccessibilityIdentifying)? = AccessibilityID.Chat.messageInput,
+        sendAccessibilityId: (any AccessibilityIdentifying)? = AccessibilityID.Chat.sendButton
+    ) -> Self {
         .init(
             placeholder: String(localized: .chatInputPlaceholder),
             maxNumberOfLines: 7,
             maxCharacterCount: 500,
             canPay: canPay,
             canAttachFile: canAttachFile,
-            canSendWithoutText: canSendWithoutText
+            canSendWithoutText: canSendWithoutText,
+            inputAccessibilityId: inputAccessibilityId,
+            sendAccessibilityId: sendAccessibilityId
         )
     }
 }

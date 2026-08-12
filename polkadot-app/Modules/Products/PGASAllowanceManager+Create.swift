@@ -4,6 +4,8 @@ import KeyDerivation
 import Operation_iOS
 import SubstrateStorageQuery
 import SubstrateSdk
+import ChainRegistry
+import BackgroundExecution
 
 extension PGASAllowanceManager {
     static func create(
@@ -42,12 +44,19 @@ extension PGASAllowanceManager {
             return nil
         }
 
+        let chainTimeProvider = ChainTimeProvider(
+            chainId: ahChain.chainId,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
+        )
+
         let slotInfoProvider = PGASSlotInfoProvider(
             chainId: ahChain.chainId,
             peopleChainId: AppConfig.Chains.usernameChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
-            keyResolver: keyResolver
+            keyResolver: keyResolver,
+            chainTimeProvider: chainTimeProvider
         )
 
         let allocator = PGASSlotAllocator(
@@ -59,9 +68,10 @@ extension PGASAllowanceManager {
         )
 
         return PGASAllowanceManager(
-            repository: AllowanceRepositoryFactory(storageFacade: userStorageFacade).createRepository(),
+            repository: AllowanceRepositoryFactory(storageFacade: userStorageFacade).createPGASRepository(),
             allocator: allocator,
-            slotInfoProvider: slotInfoProvider
+            slotInfoProvider: slotInfoProvider,
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry)
         )
     }
 }

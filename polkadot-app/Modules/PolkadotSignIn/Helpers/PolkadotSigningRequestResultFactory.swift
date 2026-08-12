@@ -3,10 +3,12 @@ import Products
 import SubstrateSdk
 import KeyDerivation
 import BigInt
+import ChainRegistry
+import SubstrateSdkExt
 
 protocol PolkadotSigningRequestResultMaking {
     func makeParsedResult(
-        signingContext: PolkadotSigningContextProtocol
+        signingContext: PolkadotSigningRequestProviding
     ) async throws -> PolkadotParsedSigningRequestResult
 }
 
@@ -14,6 +16,7 @@ final class PolkadotSigningRequestResultFactory {
     private let chainRegistry: ChainRegistryProtocol
     private let jsonPrinter: JSONPrettyPrinting
     private let extensionResolver: CreateTransactionExtensionResolver
+    private let renderer: PolkadotSigningCallRenderer
 
     init(
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
@@ -23,58 +26,83 @@ final class PolkadotSigningRequestResultFactory {
         self.chainRegistry = chainRegistry
         self.jsonPrinter = jsonPrinter
         self.extensionResolver = extensionResolver
+        renderer = PolkadotSigningCallRenderer(jsonPrinter: jsonPrinter)
     }
 }
 
 extension PolkadotSigningRequestResultFactory: PolkadotSigningRequestResultMaking {
     func makeParsedResult(
-        signingContext: PolkadotSigningContextProtocol
+        signingContext: PolkadotSigningRequestProviding
+    ) async throws -> PolkadotParsedSigningRequestResult {
+        try await parseRequest(signingContext: signingContext)
+    }
+}
+
+private extension PolkadotSigningRequestResultFactory {
+    func parseRequest(
+        signingContext: PolkadotSigningRequestProviding
     ) async throws -> PolkadotParsedSigningRequestResult {
         let requester = signingContext.requester
 
-        switch signingContext.signingModel {
+        return switch signingContext.signingModel {
         case let .signingRequest(request):
-            return try await makeParsedSigningRequest(
+            try await makeParsedSigningRequest(
                 request: request,
                 requester: requester,
                 signingContext: signingContext
             )
         case let .createTransaction(payload):
-            return try await makeParsedCreateTransaction(
+            try await makeParsedCreateTransaction(
                 payload: payload,
-                requester: requester,
-                signingContext: signingContext
+                wallet: signingContext.resolveWallet(for: payload.signer),
+                requester: requester
+            )
+        case let .legacyRawPayload(account, type):
+            try makeParsedRawDataResult(
+                wallet: signingContext.resolveWallet(for: account),
+                type: type,
+                requester: requester
+            )
+        case let .legacyCreateTransaction(payload):
+            try await makeParsedCreateTransaction(
+                payload: payload,
+                wallet: signingContext.resolveWallet(for: payload.signer.accountId),
+                requester: requester
+            )
+        case let .legacySignPayload(payload):
+            try await makeParsedLegacyTransaction(
+                transaction: payload,
+                wallet: signingContext.resolveWallet(for: payload.account.accountId),
+                requester: requester
             )
         }
     }
-}
 
-private extension PolkadotSigningRequestResultFactory {
     func makeParsedSigningRequest(
         request: PolkadotHostRemoteMessage.SigningRequest,
         requester: PolkadotSigningRequester,
-        signingContext: PolkadotSigningContextProtocol
+        signingContext: PolkadotSigningRequestProviding
     ) async throws -> PolkadotParsedSigningRequestResult {
         switch request {
         case let .transaction(transaction):
             try await makeParsedLegacyTransaction(
                 transaction: transaction,
-                requester: requester,
-                signingContext: signingContext
+                wallet: signingContext.resolveWallet(for: transaction.account),
+                requester: requester
             )
         case let .rawPayload(rawPayload):
             try makeParsedRawDataResult(
-                rawPayload: rawPayload,
-                requester: requester,
-                signingContext: signingContext
+                wallet: signingContext.resolveWallet(for: rawPayload.account),
+                type: rawPayload.type,
+                requester: requester
             )
         }
     }
 
     func makeParsedLegacyTransaction(
-        transaction: SignTransactionPayload,
-        requester: PolkadotSigningRequester,
-        signingContext: PolkadotSigningContextProtocol
+        transaction: SignTransactionPayload<some Any>,
+        wallet: WalletManaging,
+        requester: PolkadotSigningRequester
     ) async throws -> PolkadotParsedSigningRequestResult {
         let genesisHash = transaction.genesisHash.toHex()
 
@@ -89,9 +117,7 @@ private extension PolkadotSigningRequestResultFactory {
             throw PolkadotSigningError.missingRuntimeProvider
         }
 
-        let wallet = try signingContext.resolveWallet(for: transaction.account)
-
-        let call = try makeCall(
+        let call = makeCall(
             codingFactory: codingFactory,
             transaction: transaction
         )
@@ -135,29 +161,20 @@ private extension PolkadotSigningRequestResultFactory {
 
     func makeCall(
         codingFactory: RuntimeCoderFactoryProtocol,
-        transaction: SignTransactionPayload
-    ) throws -> PolkadotParsedTransactionCall {
-        let methodDecoder = try codingFactory.createDecoder(from: transaction.method)
-
-        if let callableMethod: RuntimeCall<JSON> = try? methodDecoder.read(
-            of: KnownType.call.name,
-            with: codingFactory.createRuntimeJsonContext().toRawContext()
-        ) {
-            return .callable(value: callableMethod)
-        } else {
-            return .raw(bytes: transaction.method)
-        }
+        transaction: SignTransactionPayload<some Any>
+    ) -> PolkadotParsedTransactionCall {
+        renderer.parseCall(from: transaction.method, codingFactory: codingFactory)
     }
 
     func makeEra(
-        transaction: SignTransactionPayload
+        transaction: SignTransactionPayload<some Any>
     ) throws -> Era {
         let decoder = try ScaleDecoder(data: transaction.era)
         return try Era(scaleDecoder: decoder)
     }
 
     func makeVersion(
-        transaction: SignTransactionPayload
+        transaction: SignTransactionPayload<some Any>
     ) throws -> PolkadotLegacyTransaction.Version {
         switch transaction.version {
         case 4: return .version4
@@ -184,10 +201,11 @@ private extension PolkadotSigningRequestResultFactory {
     }
 
     func makeParsedCreateTransaction(
-        payload: CreateTransactionPayload<ProductAccountId>,
-        requester: PolkadotSigningRequester,
-        signingContext: PolkadotSigningContextProtocol
+        payload: CreateTransactionPayload<some Any>,
+        wallet: WalletManaging,
+        requester: PolkadotSigningRequester
     ) async throws -> PolkadotParsedSigningRequestResult {
+        let callData = payload.callData
         let genesisHash = payload.genesisHash.toHex()
 
         guard let chain = chainRegistry.getChainByGenesis(for: genesisHash) else {
@@ -201,17 +219,15 @@ private extension PolkadotSigningRequestResultFactory {
             throw PolkadotSigningError.missingRuntimeProvider
         }
 
-        let wallet = try signingContext.resolveWallet(for: payload.signer)
         let resolved = try extensionResolver.resolve(
             extensions: payload.extensions,
             codingFactory: codingFactory
         )
 
-        let call = try makeCall(codingFactory: codingFactory, callData: payload.callData)
+        let call = makeCall(codingFactory: codingFactory, callData: callData)
 
         let parsedCreateTx = PolkadotParsedCreateTransaction(
-            signer: payload.signer,
-            callData: payload.callData,
+            callData: callData,
             call: call,
             resolvedExtensions: resolved,
             genesisHash: genesisHash,
@@ -234,44 +250,23 @@ private extension PolkadotSigningRequestResultFactory {
     func makeCall(
         codingFactory: RuntimeCoderFactoryProtocol,
         callData: Data
-    ) throws -> PolkadotParsedTransactionCall {
-        let methodDecoder = try codingFactory.createDecoder(from: callData)
-
-        if let callableMethod: RuntimeCall<JSON> = try? methodDecoder.read(
-            of: KnownType.call.name,
-            with: codingFactory.createRuntimeJsonContext().toRawContext()
-        ) {
-            return .callable(value: callableMethod)
-        } else {
-            return .raw(bytes: callData)
-        }
+    ) -> PolkadotParsedTransactionCall {
+        renderer.parseCall(from: callData, codingFactory: codingFactory)
     }
 
     func makeCreateTransactionDetailsText(
         call: PolkadotParsedTransactionCall,
         codingFactory: RuntimeCoderFactoryProtocol
     ) throws -> String {
-        let callJSON: JSON =
-            switch call {
-            case let .raw(bytes):
-                .stringValue(bytes.toHex(includePrefix: true))
-            case let .callable(value):
-                try value.toScaleCompatibleJSON(
-                    with: codingFactory.createRuntimeJsonContext().toRawContext()
-                )
-            }
-
-        return try jsonPrinter.prettyPrintedString(from: callJSON)
+        try renderer.callDetailsText(call, codingFactory: codingFactory)
     }
 
     func makeParsedRawDataResult(
-        rawPayload: PolkadotHostRemoteMessage.SigningRawPayload,
-        requester: PolkadotSigningRequester,
-        signingContext: PolkadotSigningContextProtocol
+        wallet: WalletManaging,
+        type: PolkadotHostRemoteMessage.SigningRawPayload.PayloadType,
+        requester: PolkadotSigningRequester
     ) throws -> PolkadotParsedSigningRequestResult {
-        let wallet = try signingContext.resolveWallet(for: rawPayload.account)
-
-        let rawBytes = try makeRawBytes(rawPayload: rawPayload)
+        let rawBytes = try makeRawBytes(type: type)
         let detailsText = rawBytes.toHex(includePrefix: true)
 
         return PolkadotParsedSigningRequestResult(
@@ -283,47 +278,13 @@ private extension PolkadotSigningRequestResultFactory {
     }
 
     func makeRawBytes(
-        rawPayload: PolkadotHostRemoteMessage.SigningRawPayload
+        type: PolkadotHostRemoteMessage.SigningRawPayload.PayloadType
     ) throws -> Data {
-        switch rawPayload.type {
+        switch type {
         case let .bytes(data):
-            data
+            try renderer.wrappedBytes(data)
         case let .payload(string):
-            try makeRawBytes(string: string)
+            try renderer.wrappedBytes(fromString: string)
         }
-    }
-
-    func makeRawBytes(string: String) throws -> Data {
-        let message = try makeSerializedMessage(string: string)
-        return try makeWrappedMessage(message: message)
-    }
-
-    func makeSerializedMessage(string: String) throws -> Data {
-        guard !string.isHex() else {
-            return try Data(hexString: string)
-        }
-        guard let data = string.data(using: .utf8) else {
-            throw PolkadotSigningError.rawDataCorrupted
-        }
-        return data
-    }
-
-    func makeWrappedMessage(message: Data) throws -> Data {
-        let prefix = "<Bytes>"
-        let suffix = "</Bytes>"
-
-        guard
-            let suffixData = suffix.data(using: .ascii),
-            let prefixData = prefix.data(using: .ascii)
-        else {
-            throw PolkadotSigningError.rawDataCorrupted
-        }
-
-        if message.prefix(prefixData.count) == prefixData,
-           message.suffix(suffixData.count) == suffixData {
-            return message
-        }
-
-        return prefixData + message + suffixData
     }
 }

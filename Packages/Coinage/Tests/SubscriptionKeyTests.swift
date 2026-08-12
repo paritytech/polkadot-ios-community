@@ -4,7 +4,7 @@ import Testing
 @Suite("SubscriptionKey Tests")
 struct SubscriptionKeyTests {
     @Test("Test member key mapping")
-    func testMemberKeyMapping() {
+    func memberKeyMapping() {
         let key = SubscriptionKey.member(derivationIndex: 123)
         let mapping = key.mappingKey
 
@@ -13,7 +13,7 @@ struct SubscriptionKeyTests {
     }
 
     @Test("Test ringStatus key mapping")
-    func testRingStatusKeyMapping() {
+    func ringStatusKeyMapping() {
         let key = SubscriptionKey.ringStatus(derivationIndex: 7)
         let mapping = key.mappingKey
 
@@ -22,7 +22,7 @@ struct SubscriptionKeyTests {
     }
 
     @Test("Test invalid mapping keys return nil")
-    func testInvalidMappingKeys() {
+    func invalidMappingKeys() {
         #expect(SubscriptionKey(mappingKey: "x:123") == nil)
         #expect(SubscriptionKey(mappingKey: "m") == nil)
         #expect(SubscriptionKey(mappingKey: "m:abc") == nil)

@@ -13,6 +13,15 @@ excluded:
   - "**/Packages/"
   - "**/.swiftpm/"
   - "*.xcodeproj"
+custom_rules:
+  raw_accessibility_identifier:
+    name: "Raw accessibilityIdentifier"
+    regex: 'accessibilityIdentifier\s*(\(|=[^=])'
+    message: "Use the typed accessibilityId(_:) applier from ExternalAccessibility; instance-selection logic belongs in an AccessibilityID+<Domain>.swift file."
+    excluded:
+      - ".*/AccessibilityID\\+.*\\.swift"
+      - ".*/RoundedTextView\\.swift"
+    severity: error
 identifier_name:
   excluded:
     - id
@@ -36,3 +45,16 @@ opt_in_rules:
   - multiline_parameters_brackets
   - vertical_whitespace_closing_braces
   - vertical_whitespace_opening_braces
+function_body_length: 100
+file_length: 500
+type_name:
+  max_length:
+    warning: 50
+    error: 100
+function_parameter_count: 6
+line_length:
+  warning: 120
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true

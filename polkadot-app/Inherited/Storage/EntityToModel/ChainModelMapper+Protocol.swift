@@ -2,6 +2,7 @@ import CoreData
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 extension ChainModelMapper: CoreDataMapperProtocol {
     func transform(entity: CDChain) throws -> ChainModel {

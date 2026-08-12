@@ -88,7 +88,8 @@ private extension CoreDataMapperTests.ContactDeviceSettingsMapperTests {
             imageData: nil,
             source: .chat,
             isBlocked: false,
-            devices: devices
+            devices: devices,
+            pendingDevicesFanOut: false
         )
 
         try await contactRepository.saveOperation({ [contact] }, { [] }).asyncExecute()
@@ -114,7 +115,7 @@ private extension CoreDataMapperTests.ContactDeviceSettingsMapperTests {
     func makeDevice(accountByte: UInt8, keyByte: UInt8) -> Chat.PeerDevice {
         Chat.PeerDevice(
             statementAccountId: Data(repeating: accountByte, count: 32),
-            encryptionPublicKey: Data(repeating: keyByte, count: 65)
+            encryptionPublicKey: Data(repeating: keyByte, count: 32)
         )
     }
 }

@@ -1,6 +1,8 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 enum SelectTokenViewFactory {
     static func createView(
         supportedTokens: [ChainAssetId],

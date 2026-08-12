@@ -50,12 +50,11 @@ struct SNKeyFactoryTests {
 
     // MARK: - Non-canonical input (previously crashed inside Rust FFI)
 
-    @Test("All-zero secret returns error instead of crashing")
-    func allZeroSecretThrows() {
+    @Test("All-zero secret is accepted by the FFI and yields a public key without crashing")
+    func allZeroSecretProducesPublicKey() throws {
         let secret = Data(repeating: 0x00, count: Self.secretSize)
-        #expect(throws: (any Error).self) {
-            _ = try keysFactory.createPublicKey(fromSecret: secret)
-        }
+        let publicKey = try keysFactory.createPublicKey(fromSecret: secret)
+        #expect(publicKey.rawData().count == Self.seedSize)
     }
 
     @Test("All-ones secret returns error instead of crashing")

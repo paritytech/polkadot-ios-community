@@ -1,5 +1,6 @@
 import Foundation
 import Keystore_iOS
+import EventCenter
 
 protocol BalanceSyncStateStoring: AnyObject {
     var isRestorePending: Bool { get set }

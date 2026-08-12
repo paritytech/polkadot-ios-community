@@ -92,7 +92,13 @@ struct PolkadotSigningRequestResultFactoryTests {
     func rawBytesHappyPath() async throws {
         let wallet = SsoTestData.makeWallet()
         let account = SsoTestData.makeAccount()
+
         let rawData = Data([0xDE, 0xAD, 0xBE, 0xEF])
+
+        let suffixData = "</Bytes>".data(using: .ascii)!
+        let prefixData = "<Bytes>".data(using: .ascii)!
+
+        let targetData = prefixData + rawData + suffixData
 
         let rawPayload = PolkadotHostRemoteMessage.SigningRawPayload(
             account: account,
@@ -107,7 +113,7 @@ struct PolkadotSigningRequestResultFactoryTests {
         #expect(!result.isTransaction)
 
         if case let .rawBytes(data) = result.parsedRequest {
-            #expect(data == rawData)
+            #expect(data == targetData)
         } else {
             Issue.record("Expected .rawBytes")
         }

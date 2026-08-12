@@ -37,7 +37,6 @@ extension CommonRetryable where Self: AlertPresentable {
         )
     }
 
-    // swiftlint:disable:next function_parameter_count
     func presentRequestStatus(
         on view: ControllerBackedProtocol?,
         title: String,

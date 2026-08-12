@@ -7,6 +7,7 @@ import HydrationSdk
 import ExtrinsicService
 import ChainStore
 import KeyDerivation
+import ChainRegistry
 
 final class AssetsHydraExchangeProvider: AssetsExchangeBaseProvider {
     private var supportedChains: [ChainModel.Id: ChainModel]?
@@ -56,7 +57,7 @@ final class AssetsHydraExchangeProvider: AssetsExchangeBaseProvider {
             chainRegistry: chainRegistry,
             substrateStorageFacade: substrateStorageFacade,
             customFeeEstimator: customFeeEstimatingFactory,
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             extrinsicVersion: .V4,
             operationQueue: operationQueue
         )

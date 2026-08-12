@@ -5,6 +5,7 @@ protocol TattooFamilyDetailsViewProtocol: ControllerBackedProtocol {
     func didReceive(_ viewModel: TattooFamilyDetailsViewModel)
 }
 
+@MainActor
 protocol TattooFamilyDetailsPresenterProtocol: AnyObject {
     func setup()
     func perform(_ action: TattooFamilyDetailsAction)
@@ -16,11 +17,13 @@ protocol TattooFamilyDetailsInteractorInputProtocol: AnyObject {
     func retryReserved()
 }
 
+@MainActor
 protocol TattooFamilyDetailsInteractorOutputProtocol: AnyObject {
     func didReceiveReservedDesigns(_ reservedDesigns: ProofOfInkPallet.ReservedDesignsResult)
     func didReceiveError(_ error: TattooFamilyDetailsInteractorError)
 }
 
+@MainActor
 protocol TattooFamilyDetailsWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryable {
     func showTattooCommit(from view: TattooFamilyDetailsViewProtocol?, choice: ProofOfInk.Choice)
 }

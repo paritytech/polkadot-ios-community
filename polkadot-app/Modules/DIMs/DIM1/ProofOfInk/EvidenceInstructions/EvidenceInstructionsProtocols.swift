@@ -6,6 +6,7 @@ protocol EvidenceInstructionsViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: InstructionSheetViewModel)
 }
 
+@MainActor
 protocol EvidenceInstructionsPresenterProtocol: AnyObject {
     func setup()
     func willDisappear()
@@ -13,6 +14,7 @@ protocol EvidenceInstructionsPresenterProtocol: AnyObject {
     func didTapProceed()
 }
 
+@MainActor
 protocol EvidenceInstructionsWireframeProtocol: AnyObject {
     func close(view: EvidenceInstructionsViewProtocol?, completion: (() -> Void)?)
     func showLowStorage(from view: EvidenceInstructionsViewProtocol?, onProceed: @escaping () -> Void)

@@ -4,7 +4,9 @@ import Keystore_iOS
 import Operation_iOS
 import MessageExchangeKit
 import UIKitExt
+import ChainRegistry
 
+@MainActor
 enum ChatViewFactory {
     static func createChatView(
         with openModel: ChatOpenModel,

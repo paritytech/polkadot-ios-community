@@ -17,27 +17,27 @@ public struct Sr25519VrfSignature: Codable {
 }
 
 public extension GamePallet {
-    enum AirdropVrf: Codable {
-        case account(Sr25519VrfSignature)
+    enum AirdropVrfs: Codable {
+        case account([Sr25519VrfSignature])
         case alias(AliasFields)
 
         public struct AliasFields: Codable {
             enum CodingKeys: String, CodingKey {
-                case proof
+                case proofs
                 case ringIndex
                 case revision
             }
 
-            @BytesCodable public var proof: Data
+            let proofs: [BytesCodable]
             @StringCodable public var ringIndex: MembersPallet.RingIndex
             @StringCodable public var revision: MembersPallet.RevisionIndex
 
             public init(
-                proof: Data,
+                proofs: [Data],
                 ringIndex: MembersPallet.RingIndex,
                 revision: MembersPallet.RevisionIndex
             ) {
-                _proof = BytesCodable(wrappedValue: proof)
+                self.proofs = proofs.map { BytesCodable(wrappedValue: $0) }
                 _ringIndex = StringCodable(wrappedValue: ringIndex)
                 _revision = StringCodable(wrappedValue: revision)
             }
@@ -49,15 +49,15 @@ public extension GamePallet {
 
             switch variant {
             case "Account":
-                let vrf = try container.decode(Sr25519VrfSignature.self)
-                self = .account(vrf)
+                let signatures = try container.decode([Sr25519VrfSignature].self)
+                self = .account(signatures)
             case "Alias":
                 let fields = try container.decode(AliasFields.self)
                 self = .alias(fields)
             default:
                 throw DecodingError.dataCorruptedError(
                     in: container,
-                    debugDescription: "Unsupported AirdropVrf variant: \(variant)"
+                    debugDescription: "Unsupported AirdropVrfs variant: \(variant)"
                 )
             }
         }
@@ -66,9 +66,9 @@ public extension GamePallet {
             var container = encoder.unkeyedContainer()
 
             switch self {
-            case let .account(vrf):
+            case let .account(signatures):
                 try container.encode("Account")
-                try container.encode(vrf)
+                try container.encode(signatures)
             case let .alias(fields):
                 try container.encode("Alias")
                 try container.encode(fields)

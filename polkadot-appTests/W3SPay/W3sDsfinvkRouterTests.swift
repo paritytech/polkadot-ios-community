@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import Testing
+import ChainRegistry
 
 @testable import polkadot_app
 
@@ -118,15 +119,9 @@ private final class StubRemoteConfig: RemoteConfigManaging, @unchecked Sendable 
             identityBackendUrl: URL(string: "https://polkadot-app-stg.parity.io/"),
             ipfsGatewayUrl: nil,
             gameDashboardUrl: nil,
-            dotNsResolver: nil,
-            web3SummitDotNsUrl: nil,
-            web3SummitContractAddress: nil
+            dotNsResolver: nil
         )
     }
-
-    func syncedWeb3SummitGateMode() -> String? { nil }
-
-    func syncedWeb3SummitStartGate() -> String? { nil }
 
     func asyncWaitW3sMerchants<T: Decodable>() -> CompoundOperationWrapper<T> {
         switch merchants {

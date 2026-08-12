@@ -2,6 +2,7 @@ import UIKit
 import PolkadotUI
 import SwiftUI
 
+@MainActor
 enum CurrencyPickerViewFactory {
     static func createView(
         selectedCurrencyManager: SelectedCurrencyManaging = SelectedCurrencyManager.shared

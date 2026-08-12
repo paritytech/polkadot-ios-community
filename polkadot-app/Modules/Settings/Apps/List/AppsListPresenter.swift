@@ -2,6 +2,7 @@ import Foundation
 import PolkadotUI
 import Products
 
+@MainActor
 final class AppsListPresenter {
     weak var view: AppsListViewProtocol?
 

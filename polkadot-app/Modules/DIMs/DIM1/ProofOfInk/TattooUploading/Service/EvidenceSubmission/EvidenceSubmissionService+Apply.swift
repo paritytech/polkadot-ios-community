@@ -4,6 +4,7 @@ import SubstrateSdk
 import ExtrinsicService
 import Operation_iOS
 import Individuality
+import ChainRegistry
 
 extension EvidenceSubmissionService {
     func applySubmissionAllocation(
@@ -418,7 +419,6 @@ extension EvidenceSubmissionService {
                     case let .failure(extrinsic):
                         self?.failCompleteEvidenceSubmission(for: extrinsic.error)
                     }
-
                 } catch {
                     self?.failCompleteEvidenceSubmission(for: error)
                 }

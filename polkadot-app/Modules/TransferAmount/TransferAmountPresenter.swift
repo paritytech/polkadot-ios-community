@@ -1,9 +1,11 @@
+import AsyncExtensions
 import Foundation
 import BigInt
 import ExtrinsicService
 import SubstrateSdk
 import Coinage
 import UIKitExt
+import ChainRegistry
 
 final class TransferAmountPresenter {
     weak var view: TransferAmountViewProtocol?
@@ -26,6 +28,12 @@ final class TransferAmountPresenter {
     private var lockedBalance: Balance?
 
     private var transferTask: Task<Void, Never>?
+    private var statusTask: Task<Void, Never>?
+
+    deinit {
+        transferTask?.cancel()
+        statusTask?.cancel()
+    }
 
     init(
         interactor: TransferAmountInteractorInputProtocol,
@@ -310,6 +318,7 @@ private extension TransferAmountPresenter {
     func doSubmit(validation: TransferPreviewValidation, sendFullAmount: Bool) {
         view?.didStartSubmission()
         transferTask?.cancel()
+        statusTask?.cancel()
 
         transferTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -321,12 +330,61 @@ private extension TransferAmountPresenter {
                 if !config.recipientIsPlaceholder {
                     interactor.saveRecentContact()
                 }
-                showTransferSuccess()
+
+                observeLifecycle()
             } catch {
-                view?.didStopSubmission()
-                showTransferFailed(error)
+                failSubmission(error)
             }
         }
+    }
+
+    /// Drives completion from the lifecycle stream after a successful submission.
+    /// The stream terminates after the last meaningful status; a graceful finish
+    /// without an `.error` status means the transfer succeeded. Flows without
+    /// tracking finish immediately, completing right after submission.
+    ///
+    /// Runs in a separate task that holds `self` weakly per iteration, so a long
+    /// claim wait never retains the presenter after the screen is dismissed.
+    func observeLifecycle() {
+        let statusStream = interactor.lifecycleStream()
+
+        statusTask = Task { @MainActor [weak self] in
+            var failed = false
+
+            do {
+                for try await status in statusStream {
+                    if case .error = status {
+                        failed = true
+                    }
+                    self?.apply(transferStatus: status)
+                }
+            } catch {
+                failed = true
+            }
+
+            guard !Task.isCancelled else { return }
+            guard !failed else {
+                self?.failSubmission(TransferLifecycleError.transferFailed)
+                return
+            }
+            self?.completeTransfer()
+        }
+    }
+
+    func apply(transferStatus: ClaimStatus) {
+        view?.didReceive(transferStatus: transferStatus)
+        if case .sent = transferStatus {
+            view?.didUnlockNavigation()
+        }
+    }
+
+    func failSubmission(_ error: Error) {
+        view?.didStopSubmission()
+        showTransferFailed(error)
+    }
+
+    func completeTransfer() {
+        showTransferSuccess()
     }
 
     func formattedAmount(_ amount: BigUInt) -> String {

@@ -3,7 +3,7 @@ import Kingfisher
 import Operation_iOS
 import UIKit
 
-final class AssetLogoCreationOperation: BaseOperation<UIImage> {
+final class AssetLogoCreationOperation: BaseOperation<UIImage>, @unchecked Sendable {
     let image: UIImage
     let brandColor: UIColor
 

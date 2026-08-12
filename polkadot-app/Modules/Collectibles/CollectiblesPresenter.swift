@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class CollectiblesPresenter {
     weak var view: CollectiblesViewProtocol?
 

@@ -4,6 +4,7 @@ import NovaCrypto
 import Keystore_iOS
 import KeyDerivation
 
+@MainActor
 enum AccountRecoveryViewFactory {
     static func createView(
         observer: RootStateObserving

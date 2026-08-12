@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import AssetExchange
+import ChainRegistry
 
 protocol DepositCalculating {
     func calculateMin(for fee: AssetExchangeFee, chainAssetId: ChainAssetId) throws -> Balance

@@ -36,7 +36,7 @@ extension PreviewImageViewModel: ImageViewModelProtocol {
                     targetSize: settings.targetSize
                 )
                 try Task.checkCancellation()
-                await updateImageView(imageView, with: image)
+                updateImageView(imageView, with: image)
                 completion?(true)
             } catch {
                 completion?(false)

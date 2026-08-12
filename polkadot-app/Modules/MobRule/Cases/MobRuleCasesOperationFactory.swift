@@ -3,6 +3,7 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
 import Individuality
+import ChainRegistry
 
 protocol MobRuleCasesOperationFactoryProtocol {
     func fetchCasesInfo(

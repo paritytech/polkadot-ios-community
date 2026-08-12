@@ -4,8 +4,8 @@ import WebRTC
 final class CallAcceptor: CallCreator {
     private var processingTask: Task<Void, Never>?
 
-    override func clearTasks() {
-        super.clearTasks()
+    override func stopNegotiation() {
+        super.stopNegotiation()
 
         processingTask?.cancel()
         processingTask = nil
@@ -17,7 +17,7 @@ private extension CallAcceptor {
         logger.debug("Setup signal processing")
 
         processingTask = Task { [weak self, connectionWrapper, signaling, logger] in
-            let incomingSignals = signaling.signals.eraseToAnyAsyncSequence()
+            let incomingSignals = await (signaling.signals).eraseToAnyAsyncSequence()
 
             do {
                 for try await signal in incomingSignals {
@@ -30,34 +30,51 @@ private extension CallAcceptor {
                     switch signal {
                     case let .offer(sdp):
                         let remoteSdp = RTCSessionDescription(type: .offer, sdp: sdp)
-                        try await connectionWrapper.connection.setRemoteDescription(remoteSdp)
-                        await self?.drainPendingRemoteCandidates(on: connectionWrapper.connection)
+                        try await connectionWrapper.setRemoteDescription(remoteSdp)
+                        try Task.checkCancellation()
+
+                        await self?.drainPendingRemoteCandidates(on: connectionWrapper)
+                        try Task.checkCancellation()
+
                         logger.debug("Set remote offer successfully")
 
-                        self?.applyLocalTracks()
+                        await self?.applyLocalTracks()
+                        try Task.checkCancellation()
+
                         logger.debug("Media tracks set")
 
                         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
 
-                        let answer = try await connectionWrapper.connection.answer(for: constraints)
+                        let answer = try await connectionWrapper.answer(for: constraints)
+                        try Task.checkCancellation()
+
                         logger.debug("Local answer created")
 
-                        try await connectionWrapper.connection.setLocalDescription(answer)
+                        try await connectionWrapper.setLocalDescription(answer)
+                        try Task.checkCancellation()
+
                         logger.debug("Local answer set")
 
-                        _ = try await signaling.send(.answer(answer.sdp))
+                        let sendResult = try await signaling.send([.answer(answer.sdp)])
 
+                        guard sendResult.isFullySent else {
+                            throw CallCreatorError.negotiationFailed
+                        }
+
+                        try Task.checkCancellation()
                         self?.negotiated.send(true)
                     case .answer:
                         logger.error("Unexpected answer received by acceptor")
                     case let .candidates(candidates):
-                        await self?.handleRemoteCandidates(candidates, on: connectionWrapper.connection)
+                        await self?.handleRemoteCandidates(candidates, on: connectionWrapper)
                     case .closed:
                         await self?.clearPendingRemoteCandidates()
                         logger.debug("Remote closed signal received; stopping offer processing")
                         return
                     }
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 self?.negotiated.send(false)
                 logger.error("Error signal received: \(error)")
@@ -72,9 +89,5 @@ extension CallAcceptor: CallCreatorProtocol {
 
         processLocalCandidates(from: connectionWrapper)
         processCallOffer()
-    }
-
-    func throttle() {
-        clearTasks()
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import FoundationExt
 import UIKit
 import PolkadotUI
 import SubstrateSdk
@@ -18,6 +19,8 @@ final class DIM2ChatExtension: ChatExtensionBot, ChatExtensionDelegateProvidable
     private let settings: ChatExtensionBotSettings
     private let interactor: DIM2ChatInteracting
     private let wireframe: WeeklyGameWireframeProtocol
+    private let cameraPermissionService: CameraPermissionServicing
+    private let applicationStateStreamFactory: ApplicationStateStreamFactory
     private let personActions: [ChatExtensionActions.ActionModel]
     private let logger: LoggerProtocol
     private var gameDepositContext: GameDepositProcessingContext?
@@ -64,12 +67,16 @@ final class DIM2ChatExtension: ChatExtensionBot, ChatExtensionDelegateProvidable
         settings: ChatExtensionBotSettings,
         interactor: DIM2ChatInteracting,
         wireframe: WeeklyGameWireframeProtocol,
+        cameraPermissionService: CameraPermissionServicing,
+        applicationStateStreamFactory: ApplicationStateStreamFactory,
         personActions: [ChatExtensionActions.ActionModel],
         logger: LoggerProtocol = Logger.shared
     ) {
         self.settings = settings
         self.interactor = interactor
         self.wireframe = wireframe
+        self.cameraPermissionService = cameraPermissionService
+        self.applicationStateStreamFactory = applicationStateStreamFactory
         self.personActions = personActions
         self.logger = logger
 
@@ -176,21 +183,23 @@ extension DIM2ChatExtension {
 // MARK: - ChatExtensionBotProtocol
 
 extension DIM2ChatExtension: DIM2ChatExtending {
-    static var identifier: ChatExtension.Id = "WeeklyGame"
+    nonisolated static let identifier: ChatExtension.Id = "WeeklyGame"
 
     var identifier: ChatExtension.Id { Self.identifier }
 
     var peerMetadata: Chat.PeerMetadata {
         #if W3S
             let name = String(localized: .WeeklyGame.polkadotPrizesChatName)
+            let icon = Chat.PeerMetadata.Icon.image(UIImage(resource: .WeeklyGame.prizesIcon).pngData())
         #else
             let name = String(localized: .WeeklyGame.chatName)
+            let icon = Chat.PeerMetadata.Icon.bot
         #endif
 
         return Chat.PeerMetadata(
             name: name,
             contactSource: .chat,
-            icon: .bot,
+            icon: icon,
             input: .empty,
             moreActions: [.custom(makeGameAlarmAction())]
         )
@@ -390,7 +399,7 @@ private extension DIM2ChatExtension {
             for try await state in interactor.observeWidgetState() {
                 await MainActor.run { [footerContentConfiguration] in
                     let config = self.mapToFooterConfiguration(state)
-                    self.logger.debug("Yielding config: \(config)")
+                    self.logger.debug("Yielding config: \(String(describing: config))")
                     footerContentConfiguration.send(config)
                 }
             }
@@ -410,6 +419,7 @@ private extension DIM2ChatExtension {
         }
     }
 
+    @MainActor
     func mapToGameWidgetConfiguration(_ state: DIM2WidgetState) -> GameWidgetConfigProvider {
         let actions = mapFooterActions(from: state)
         let upgradeUsername = mapUpgradeUsername(from: state)
@@ -490,6 +500,7 @@ private extension DIM2ChatExtension {
 // MARK: - Widget Action Handling
 
 private extension DIM2ChatExtension {
+    @MainActor
     func handleWidgetAction(_ action: GameWidgetConfigProvider.Action, context: GameWidgetConfigContext) {
         switch action {
         case .register:
@@ -499,6 +510,7 @@ private extension DIM2ChatExtension {
         }
     }
 
+    @MainActor
     func handleRegisterAction(for state: DIM2WidgetState.GameRegistrationState) {
         switch state {
         case .unknown:
@@ -511,6 +523,7 @@ private extension DIM2ChatExtension {
         }
     }
 
+    @MainActor
     func handleUpgradeUsernameAction(for state: DIM2WidgetState.PersonRegistrationState) {
         guard case let .needsFullUsername(upgradeData) = state else {
             logger.error("Unexpected state during handling username upgrade: \(state)")
@@ -520,20 +533,55 @@ private extension DIM2ChatExtension {
         wireframe.showUpgradeUsername(upgradeData)
     }
 
+    @MainActor
     func register(for state: DIM2WidgetState.GameRegistrationState) {
         Task { [weak self] in
             await self?.performRegistration(for: state)
         }
     }
 
+    @MainActor
     func performRegistration(for state: DIM2WidgetState.GameRegistrationState) async {
+        await requestCameraPermissionIfNeeded()
+
         do {
             try await interactor.register { [weak self] error in
                 await self?.resolve(error: error, for: state) ?? .cancel
             }
         } catch {
             logger.error("Registration failed: \(error)")
-            await wireframe.present(error: error)
+            wireframe.present(error: error)
+        }
+    }
+
+    @MainActor
+    func requestCameraPermissionIfNeeded() async {
+        let permission = await cameraPermissionService.requestPermission()
+        guard permission == .denied else { return }
+        await waitForCameraPermissionAlert()
+    }
+
+    @MainActor
+    func waitForCameraPermissionAlert() async {
+        let shouldWaitForActive = await withCheckedContinuation { [wireframe] continuation in
+            wireframe.askOpenApplicationSettings(
+                with: String(localized: .Game.gameCameraPermissionRegistrationMessage),
+                title: String(localized: .Game.gameCameraPermissionTitle),
+                from: wireframe.view,
+                completion: { result in
+                    continuation.resume(returning: result == .openedSettings)
+                }
+            )
+        }
+
+        guard shouldWaitForActive else {
+            return
+        }
+
+        let activeEvents = applicationStateStreamFactory.stream(for: .didBecomeActive)
+
+        for await _ in activeEvents {
+            return
         }
     }
 
@@ -642,20 +690,28 @@ private extension DIM2ChatExtension {
 }
 
 private extension DIM2ChatExtension {
-    func makeGameAlarmAction() -> Chat.CustomPeerAction {
-        Chat.CustomPeerAction(
-            titleProvider: {
-                let current = SettingsManager.shared.gameAlarmTimingSeconds
-                let option = String(localized: .Game.gameAlarmSettingsAlertOption(sec: current))
-                return String(localized: .Game.gameAlarmSettingsAlertRow(selectedOption: option))
-            },
-            image: .WeeklyGame.alarm
-        ) { [weak wireframe, weak interactor] in
-            let model = GameAlarmSettingsModel {
-                Task { await interactor?.rescheduleGameAlarm() }
-            }
-            wireframe?.showGameAlarmSettings(model: model)
+    nonisolated func makeGameAlarmAction() -> Chat.CustomPeerAction {
+        let titleProvider = {
+            let current = SettingsManager.shared.gameAlarmTimingSeconds
+            let option = String(localized: .Game.gameAlarmSettingsAlertOption(sec: current))
+            return String(localized: .Game.gameAlarmSettingsAlertRow(selectedOption: option))
         }
+
+        let handler: () -> Void = { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                let model = GameAlarmSettingsModel { [weak self] in
+                    Task { await self?.interactor.rescheduleGameAlarm() }
+                }
+                self.wireframe.showGameAlarmSettings(model: model)
+            }
+        }
+
+        return Chat.CustomPeerAction(
+            titleProvider: titleProvider,
+            image: .WeeklyGame.alarm,
+            handler: handler
+        )
     }
 }
 

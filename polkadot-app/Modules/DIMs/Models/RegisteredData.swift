@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 extension People {
     struct RegisteredData: Hashable {

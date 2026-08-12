@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import OperationExt
 import Individuality
+import SubstrateSdkExt
 
 enum ProceduralTattoo {
     case procedural(ProofOfInkPallet.ProceduralSeed)

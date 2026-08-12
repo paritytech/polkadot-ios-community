@@ -23,7 +23,7 @@ final class MobRulesChatExtension: ChatExtensionBot {
         settings: ChatExtensionBotSettings,
         interactor: MobRuleInteracting,
         logger: LoggerProtocol = Logger.shared,
-        wireframe: MobRuleWireframeProtocol = MobRuleWireframe()
+        wireframe: MobRuleWireframeProtocol
     ) {
         self.settings = settings
         self.interactor = interactor

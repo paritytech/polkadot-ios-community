@@ -6,16 +6,7 @@ import MessageExchangeKit
 import AsyncExtensions
 import Operation_iOS
 import FoundationExt
-
-struct DeviceSyncRestartDelayPolicy {
-    let maxDelaySeconds: Int = 30
-
-    func delay(forAttempt attempt: Int) -> Duration {
-        let exponent = min(max(attempt - 1, 0), 5)
-        let seconds = min(1 << exponent, maxDelaySeconds)
-        return .seconds(seconds)
-    }
-}
+@preconcurrency import WebRTC
 
 protocol DeviceSyncServicing {
     func setup(configuration: DeviceSyncServiceConfiguration) async
@@ -31,24 +22,21 @@ struct DeviceSyncServiceConfiguration {
 }
 
 actor DeviceSyncService {
+    typealias PeerEngineFactory = (
+        Data,
+        any DeviceSyncPeerEngineContextMaking
+    ) -> any DeviceSyncPeerEngining
+
     private let ownStatementAccountId: Data
     private let configFactory: WebRTCConfigMaking
-    private let remoteContactResolver: RemoteContactResolving
-    private let deviceDataProviderFactory: LocalDeviceDataProviderMaking
-    private let deviceRepositoryFactory: LocalDeviceRepositoryMaking
-    private let contactRepositoryFactory: ChatContactRepositoryMaking
-    private let chatRepositoryFactory: ChatRepositoryMaking
-    private let messageRepositoryFactory: ChatMessageRepositoryMaking
-    private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
-    private let messageExchangeModeProvider: MessageExchangeModeProviding
-    private let updateIdProvider: DeviceSyncUpdateIdProviding
+    private let peerConnectionFactory: RTCPeerConnectionFactory
+    private let storageDependencies: DeviceSyncServiceStorageDependencies
     private let restartDelayPolicy: DeviceSyncRestartDelayPolicy
-    private let foregroundRecoveryController: DeviceSyncForegroundRecoveryController
     private let logger: LoggerProtocol
+    private let exchangeDependencies: DeviceSyncExchangeDependencies
+    private let peerEngineFactory: PeerEngineFactory
 
-    private var syncSessions = [Data: DeviceSyncSession]()
-    private var restartTasks = [Data: Task<Void, Never>]()
-    private var restartAttempts = [Data: Int]()
+    private var peerEngines = [Data: any DeviceSyncPeerEngining]()
     private var deviceSubscriptionTask: Task<Void, Never>?
 
     private var configuration: DeviceSyncServiceConfiguration?
@@ -57,36 +45,49 @@ actor DeviceSyncService {
         ownStatementAccountId: Data,
         messageExchangeModeProvider: MessageExchangeModeProviding,
         configFactory: WebRTCConfigMaking,
+        peerConnectionFactory: RTCPeerConnectionFactory = WebRTCPeerConnectionFactoryProvider.make(),
         remoteContactResolver: RemoteContactResolving = RemoteContactOperationFactory(),
-        deviceDataProviderFactory: LocalDeviceDataProviderMaking = LocalDeviceDataProviderFactory(),
-        deviceRepositoryFactory: LocalDeviceRepositoryMaking = LocalDeviceRepositoryFactory(),
-        contactRepositoryFactory: ChatContactRepositoryMaking = ChatContactRepositoryFactory(),
-        chatRepositoryFactory: ChatRepositoryMaking = ChatRepositoryFactory(),
-        messageRepositoryFactory: ChatMessageRepositoryMaking = ChatMessageRepositoryFactory(),
-        removedChatRepositoryFactory: RemovedChatRepositoryMaking = RemovedChatRepositoryFactory(),
+        storageDependencies: DeviceSyncServiceStorageDependencies = .init(),
+        contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
+        storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         updateIdProvider: DeviceSyncUpdateIdProviding = DeviceSyncUpdateIdProvider(),
         restartDelayPolicy: DeviceSyncRestartDelayPolicy = DeviceSyncRestartDelayPolicy(),
-        applicationStateStreamFactory: ApplicationStateStreamFactory = ApplicationStateStreamFactory(),
-        foregroundRecoveryController: DeviceSyncForegroundRecoveryController? = nil,
-        logger: LoggerProtocol = Logger.shared
+        logger: LoggerProtocol = Logger.shared,
+        peerEngineFactory: @escaping PeerEngineFactory = { peerAccountId, contextFactory in
+            DeviceSyncPeerEngine(
+                peerStatementAccountId: peerAccountId,
+                contextFactory: contextFactory
+            )
+        }
     ) {
         self.ownStatementAccountId = ownStatementAccountId
         self.configFactory = configFactory
-        self.remoteContactResolver = remoteContactResolver
-        self.deviceDataProviderFactory = deviceDataProviderFactory
-        self.deviceRepositoryFactory = deviceRepositoryFactory
-        self.contactRepositoryFactory = contactRepositoryFactory
-        self.chatRepositoryFactory = chatRepositoryFactory
-        self.messageRepositoryFactory = messageRepositoryFactory
-        self.removedChatRepositoryFactory = removedChatRepositoryFactory
-        self.messageExchangeModeProvider = messageExchangeModeProvider
-        self.updateIdProvider = updateIdProvider
+        self.peerConnectionFactory = peerConnectionFactory
+        self.storageDependencies = storageDependencies
         self.restartDelayPolicy = restartDelayPolicy
         self.logger = logger
-        self.foregroundRecoveryController = foregroundRecoveryController ?? DeviceSyncForegroundRecoveryController(
-            applicationStateStreamFactory: applicationStateStreamFactory,
-            logger: logger
+        exchangeDependencies = DeviceSyncExchangeDependencies(
+            remoteContactResolver: remoteContactResolver,
+            deviceRepositoryFactory: storageDependencies.deviceRepositoryFactory,
+            contactRepositoryFactory: storageDependencies.contactRepositoryFactory,
+            chatRepositoryFactory: storageDependencies.chatRepositoryFactory,
+            messageRepositoryFactory: storageDependencies.messageRepositoryFactory,
+            removedChatRepositoryFactory: storageDependencies.removedChatRepositoryFactory,
+            outgoingUpdateTimeRepositoryFactory: storageDependencies.outgoingUpdateTimeRepositoryFactory,
+            contactDataProviderFactory: ChatContactDataProviderFactory(
+                repositoryFactory: storageDependencies.contactRepositoryFactory,
+                logger: logger
+            ),
+            messageDataProviderFactory: ChatMessageDataProviderFactory(
+                repositoryFactory: storageDependencies.messageRepositoryFactory,
+                logger: logger
+            ),
+            messageExchangeModeProvider: messageExchangeModeProvider,
+            contactsStorageService: contactsStorageService,
+            storageFacade: storageFacade,
+            updateIdProvider: updateIdProvider
         )
+        self.peerEngineFactory = peerEngineFactory
     }
 
     deinit {
@@ -98,31 +99,32 @@ actor DeviceSyncService {
 
 extension DeviceSyncService: DeviceSyncServicing {
     func setup(configuration: DeviceSyncServiceConfiguration) async {
+        if self.configuration != nil {
+            await throttle()
+        }
+
         self.configuration = configuration
 
         startDeviceSubscription()
-        await foregroundRecoveryController.start { [weak self] in
-            await self?.recoverForegroundSessions()
-        }
     }
 
     func throttle() async {
-        deviceSubscriptionTask?.cancel()
+        let subscriptionTask = deviceSubscriptionTask
+        subscriptionTask?.cancel()
         deviceSubscriptionTask = nil
-        await foregroundRecoveryController.stop()
-
-        for (_, task) in restartTasks {
-            task.cancel()
-        }
-        restartTasks.removeAll()
-        restartAttempts.removeAll()
-
-        for (_, session) in syncSessions {
-            await session.close()
-        }
-        syncSessions.removeAll()
-
         configuration = nil
+
+        await subscriptionTask?.value
+
+        let engines = Array(peerEngines.values)
+        peerEngines.removeAll()
+        await withTaskGroup(of: Void.self) { group in
+            for engine in engines {
+                group.addTask {
+                    await engine.dispose()
+                }
+            }
+        }
     }
 }
 
@@ -137,15 +139,11 @@ private extension DeviceSyncService {
     }
 
     func runDeviceSubscription() async {
-        let stream = deviceDataProviderFactory.subscribeDevices()
+        let stream = storageDependencies.deviceDataProviderFactory.subscribeDevices()
 
-        do {
-            for try await devices in stream {
-                guard !Task.isCancelled else { return }
-                await handleDevicesUpdate(devices)
-            }
-        } catch {
-            logger.error("Device subscription failed: \(error)")
+        for await devices in stream {
+            guard !Task.isCancelled else { return }
+            await handleDevicesUpdate(devices)
         }
     }
 
@@ -155,139 +153,148 @@ private extension DeviceSyncService {
         }
         let remoteAccountIds = Set(remoteDevices.map(\.statementAccountId))
 
-        // Remove sessions for devices that are no longer present
-        let removedIds = Set(syncSessions.keys).subtracting(remoteAccountIds)
+        // Remove engines for devices that are no longer present
+        let removedIds = Set(peerEngines.keys).subtracting(remoteAccountIds)
+        var removedEngines = [any DeviceSyncPeerEngining]()
         for removedId in removedIds {
-            logger.debug("Removing sync session for device \(removedId.toHex())")
-            restartTasks[removedId]?.cancel()
-            restartTasks.removeValue(forKey: removedId)
-            restartAttempts.removeValue(forKey: removedId)
-            await syncSessions[removedId]?.close()
-            syncSessions.removeValue(forKey: removedId)
-        }
-
-        // Start sessions for new devices
-        for device in remoteDevices {
-            guard syncSessions[device.statementAccountId] == nil else {
-                continue
+            logger.debug("Removing sync peer engine for device \(removedId.toHex())")
+            if let engine = peerEngines.removeValue(forKey: removedId) {
+                removedEngines.append(engine)
             }
-            await startSyncSession(for: device)
+        }
+
+        await withTaskGroup(of: Void.self) { group in
+            for engine in removedEngines {
+                group.addTask {
+                    await engine.dispose()
+                }
+            }
+
+            // New peers start while unrelated removed peers finish shutting down.
+            if !Task.isCancelled {
+                for device in remoteDevices {
+                    guard !Task.isCancelled else { break }
+                    guard peerEngines[device.statementAccountId] == nil else {
+                        continue
+                    }
+                    await startPeerEngine(for: device)
+                }
+            }
         }
     }
 
-    func startSyncSession(for device: Chat.LocalDevice) async {
-        guard device.supportsDeviceSyncSession else {
-            logger.debug("Skip device sync session for unsupported host: \(device.hostName)")
-            return
-        }
+    func startPeerEngine(for device: Chat.LocalDevice) async {
+        guard !Task.isCancelled else { return }
 
-        guard let configuration else {
-            logger.warning("Cannot start sync session: service not configured")
-            return
-        }
-
-        let transport = makeTransport(for: device, configuration: configuration)
-        await transport.open()
-
-        let role = determineSyncRole(peerAccountId: device.statementAccountId)
-        let (signaler, dataChannel) = createDataChannel(transport: transport, role: role)
-
-        logger.debug("Starting sync with \(device.statementAccountId.toHex()), role=\(role)")
-
-        let session = makeSyncSession(
-            for: device,
-            transport: transport,
-            signaler: signaler,
-            dataChannel: dataChannel,
-            reconnectOfferId: device.lastSyncOfferId
-        )
-
-        syncSessions[device.statementAccountId] = session
-        await session.start()
-
-        if syncSessions[device.statementAccountId] === session {
-            restartAttempts[device.statementAccountId] = 0
-        }
-    }
-
-    func makeTransport(
-        for device: Chat.LocalDevice,
-        configuration: DeviceSyncServiceConfiguration
-    ) -> DeviceSyncMessageTransport {
-        DeviceSyncMessageTransport(
-            connection: configuration.connection,
-            signerManager: configuration.signerManager,
-            encryptionManager: configuration.encryptionManager,
-            ownSignKeyId: configuration.ownSignKeyId,
-            ownEncryptionKeyId: configuration.ownEncryptionKeyId,
-            peerStatementAccountId: device.statementAccountId,
-            peerEncryptionPublicKey: device.encryptionPublicKey,
+        let peerAccountId = device.statementAccountId
+        let peerLogger = TaggedLogger(
+            tag: "DeviceSync:\(peerAccountId.toHex().prefix(8))",
             logger: logger
         )
+        let componentFactory = makeComponentFactory(for: device, peerLogger: peerLogger)
+        let sessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: peerLogger)
+        let contextFactory = DeviceSyncPeerEngineContextFactory(
+            componentFactory: componentFactory,
+            sessionDelegate: sessionDelegate,
+            persistedOfferId: device.lastSyncOfferId,
+            offerIdPersistenceHandler: makeOfferIdPersistenceHandler(for: peerAccountId),
+            restartDelayPolicy: restartDelayPolicy,
+            peerLogger: peerLogger
+        )
+        let engine = peerEngineFactory(peerAccountId, contextFactory)
+
+        guard !Task.isCancelled else {
+            await engine.dispose()
+            return
+        }
+
+        peerEngines[peerAccountId] = engine
+        peerLogger.debug("Starting peer engine")
+        await engine.start()
     }
 
-    func makeSyncSession(
+    func makeComponentFactory(
         for device: Chat.LocalDevice,
-        transport: DeviceSyncMessageTransport,
-        signaler: DeviceSyncPeerConnectionSignaler,
-        dataChannel: DeviceSyncDataChannel,
-        reconnectOfferId: String?
-    ) -> DeviceSyncSession {
-        DeviceSyncSession(
-            peerStatementAccountId: device.statementAccountId,
-            initialCheckpoint: device.outgoingUpdateTime,
-            transport: transport,
-            signaler: signaler,
-            dataChannel: dataChannel,
-            remoteContactResolver: remoteContactResolver,
-            deviceRepositoryFactory: deviceRepositoryFactory,
-            contactRepositoryFactory: contactRepositoryFactory,
-            chatRepositoryFactory: chatRepositoryFactory,
-            messageRepositoryFactory: messageRepositoryFactory,
-            contactDataProviderFactory: ChatContactDataProviderFactory(
-                repositoryFactory: contactRepositoryFactory,
-                logger: logger
-            ),
-            messageDataProviderFactory: ChatMessageDataProviderFactory(
-                repositoryFactory: messageRepositoryFactory,
-                logger: logger
-            ),
-            removedChatRepositoryFactory: removedChatRepositoryFactory,
-            messageExchangeModeProvider: messageExchangeModeProvider,
-            outgoingUpdateTimeRepositoryFactory: OutgoingUpdateTimeRepositoryFactory(),
-            updateIdProvider: updateIdProvider,
-            logger: logger,
-            pushInitialUpdate: true,
-            reconnectOfferId: reconnectOfferId,
-            entityApplyOverride: nil,
-            failureHandler: { [weak self] session, peerStatementAccountId, failure in
-                await self?.handleSessionFailure(
-                    session: session,
-                    peerStatementAccountId: peerStatementAccountId,
-                    failure: failure
+        peerLogger: LoggerProtocol
+    ) -> DeviceSyncPeerComponentFactory {
+        let role = determineSyncRole(peerAccountId: device.statementAccountId)
+        let configFactory = configFactory
+        let peerConnectionFactory = peerConnectionFactory
+        let sessionFactory = DeviceSyncSessionFactory(peerLogger: peerLogger)
+
+        return DeviceSyncPeerComponentFactory(
+            sessionFactory: { [weak self] delegate, offerIdHandler in
+                guard let self, let configuration = await configuration else {
+                    throw DeviceSyncPeerEngineError.dependenciesUnavailable
+                }
+                return try await sessionFactory.makeSession(
+                    device: device,
+                    configuration: configuration,
+                    role: role,
+                    delegate: delegate,
+                    offerIdHandler: offerIdHandler
+                )
+            },
+            flowFactory: { session in
+                DeviceSyncPeerConnectionFlow(
+                    signaler: session,
+                    role: role,
+                    configFactory: configFactory,
+                    peerConnectionFactory: peerConnectionFactory,
+                    peerLogger: peerLogger
+                )
+            },
+            exchangeFactory: { [weak self] flow, failureHandler in
+                guard let self else {
+                    throw DeviceSyncPeerEngineError.dependenciesUnavailable
+                }
+                guard let currentDevice = try await fetchDevice(device.statementAccountId) else {
+                    throw DeviceSyncPeerEngineError.dependenciesUnavailable
+                }
+                return await makeExchange(
+                    for: currentDevice,
+                    flow: flow,
+                    peerLogger: peerLogger,
+                    failureHandler: failureHandler
                 )
             }
         )
     }
 
-    func createDataChannel(
-        transport: DeviceSyncMessageTransporting,
-        role: CallRole
-    ) -> (DeviceSyncPeerConnectionSignaler, DeviceSyncDataChannel) {
-        let signaler = DeviceSyncPeerConnectionSignaler(
-            transport: transport,
-            role: role,
-            logger: logger
+    func fetchDevice(_ peerAccountId: Data) async throws -> Chat.LocalDevice? {
+        try await storageDependencies.deviceRepositoryFactory
+            .createRepository(forFilter: nil)
+            .fetchOperation(by: { peerAccountId.toHex() }, options: .init())
+            .asyncExecute()
+    }
+
+    func makeExchange(
+        for device: Chat.LocalDevice,
+        flow: any DeviceSyncPeerConnectionFlowing,
+        peerLogger: LoggerProtocol,
+        failureHandler: @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
+    ) -> DeviceSyncExchange {
+        DeviceSyncExchange(
+            peer: .init(
+                statementAccountId: device.statementAccountId,
+                initialCheckpoint: device.outgoingUpdateTime
+            ),
+            flow: flow,
+            dependencies: exchangeDependencies,
+            peerLogger: peerLogger,
+            behavior: .init(),
+            handlers: .init(failure: failureHandler)
+        )
+    }
+
+    func persistLastSyncOfferId(_ offerId: String, for peerAccountId: Data) async throws {
+        let update = Chat.LastSyncOfferIdUpdate(
+            statementAccountId: peerAccountId,
+            lastSyncOfferId: offerId
         )
 
-        let dataChannel = DeviceSyncDataChannel(
-            signaler: signaler,
-            role: role,
-            configFactory: configFactory,
-            logger: logger
-        )
-
-        return (signaler, dataChannel)
+        let repository = storageDependencies.lastSyncOfferIdRepositoryFactory.createRepository(forFilter: nil)
+        try await repository.saveOperation({ [update] }, { [] }).asyncExecute()
     }
 
     func determineSyncRole(peerAccountId: Data) -> CallRole {
@@ -298,125 +305,16 @@ private extension DeviceSyncService {
     }
 }
 
-// MARK: - Foreground Recovery
-
-private extension DeviceSyncService {
-    func recoverForegroundSessions() async {
-        guard configuration != nil else { return }
-
-        let peerAccountIds = Set(syncSessions.keys).union(restartTasks.keys)
-        guard !peerAccountIds.isEmpty else { return }
-
-        logger.debug("Recovering \(peerAccountIds.count) device sync session(s) on foreground")
-
-        for peerAccountId in peerAccountIds {
-            restartTasks[peerAccountId]?.cancel()
-            restartTasks.removeValue(forKey: peerAccountId)
-            restartAttempts[peerAccountId] = 0
-
-            await syncSessions[peerAccountId]?.close()
-            syncSessions.removeValue(forKey: peerAccountId)
-
-            scheduleRestart(for: peerAccountId, delay: nil)
-        }
-    }
-}
-
-// MARK: - Session Recovery
-
-private extension DeviceSyncService {
-    func handleSessionFailure(
-        session: DeviceSyncSession,
-        peerStatementAccountId: Data,
-        failure: DeviceSyncSessionFailure
-    ) async {
-        // Foreground recovery can close and replace a session while that old session is
-        // still unwinding from a connection timeout/disconnect. Ignore failures from
-        // sessions that are no longer registered as current, otherwise the stale failure
-        // can cancel the immediate foreground reconnect and replace it with backoff.
-        guard syncSessions[peerStatementAccountId] === session else {
-            logger.debug(
-                "Ignoring stale device sync session failure for \(peerStatementAccountId.toHex()): \(failure)"
-            )
-            return
-        }
-
-        logger.error(
-            "Device sync session failed for \(peerStatementAccountId.toHex()), scheduling recovery: \(failure)"
-        )
-
-        await syncSessions[peerStatementAccountId]?.close()
-        syncSessions.removeValue(forKey: peerStatementAccountId)
-
-        scheduleRestart(for: peerStatementAccountId)
-    }
-
-    func scheduleRestart(for peerStatementAccountId: Data) {
-        let attempt = (restartAttempts[peerStatementAccountId] ?? 0) + 1
-        restartAttempts[peerStatementAccountId] = attempt
-
-        scheduleRestart(
-            for: peerStatementAccountId,
-            delay: restartDelayPolicy.delay(forAttempt: attempt)
-        )
-    }
-
-    func scheduleRestart(
-        for peerStatementAccountId: Data,
-        delay: Duration?
-    ) {
-        restartTasks[peerStatementAccountId]?.cancel()
-
-        logger.debug(
-            "Scheduling device sync restart for \(peerStatementAccountId.toHex()) in \(String(describing: delay))"
-        )
-
-        restartTasks[peerStatementAccountId] = Task { [weak self] in
-            if let delay {
-                do {
-                    try await Task.sleep(for: delay)
-                } catch {
-                    return
-                }
-            } else {
-                await Task.yield()
+extension DeviceSyncService {
+    /// Test seam for verifying durable offer-id persistence without constructing WebRTC resources.
+    func makeOfferIdPersistenceHandler(
+        for peerAccountId: Data
+    ) -> @Sendable (String) async throws -> Void {
+        { [weak self] offerId in
+            guard let self else {
+                throw DeviceSyncPeerEngineError.dependenciesUnavailable
             }
-
-            guard !Task.isCancelled else { return }
-
-            await self?.restartSyncSession(for: peerStatementAccountId)
-        }
-    }
-
-    func restartSyncSession(for peerStatementAccountId: Data) async {
-        restartTasks.removeValue(forKey: peerStatementAccountId)
-
-        guard syncSessions[peerStatementAccountId] == nil else {
-            return
-        }
-
-        do {
-            let device = try await deviceRepositoryFactory
-                .createRepository(forFilter: nil)
-                .fetchOperation(by: { peerStatementAccountId.toHex() }, options: .init())
-                .asyncExecute()
-
-            guard let device else {
-                logger.debug("Skip device sync restart, device removed: \(peerStatementAccountId.toHex())")
-                restartAttempts.removeValue(forKey: peerStatementAccountId)
-                return
-            }
-
-            guard device.supportsDeviceSyncSession else {
-                logger.debug("Skip device sync restart for unsupported host: \(device.hostName)")
-                restartAttempts.removeValue(forKey: peerStatementAccountId)
-                return
-            }
-
-            await startSyncSession(for: device)
-        } catch {
-            logger.error("Failed to restart device sync session: \(error)")
-            scheduleRestart(for: peerStatementAccountId)
+            try await persistLastSyncOfferId(offerId, for: peerAccountId)
         }
     }
 }

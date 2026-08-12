@@ -1,7 +1,9 @@
+import ExternalAccessibility
 import Foundation
 import PolkadotUI
 import Foundation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 protocol ContactsListViewModelMaking {
     func createViewModel(
@@ -68,7 +70,8 @@ extension ContactsListViewModelFactory: ContactsListViewModelMaking {
                 messageKind: messageKind(for: chat.message),
                 date: messageDate,
                 hasReaction: chat.hasIncomingReaction,
-                unreadCount: unreadCount
+                unreadCount: unreadCount,
+                accessibilityId: AccessibilityID.Chats.chatListRow(chat)
             )
             let identifiable = IdentifiableContentConfiguration(
                 id: chat.identifier,
@@ -162,7 +165,7 @@ private extension ContactsListViewModelFactory {
         return String(localized: .chatLastMessageMediaFile)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    // swiftlint:disable:next cyclomatic_complexity
     func lastMessageText(
         for chatWithPeerMetadata: ChatWithPeerMetadata,
         assetDisplayInfo: AssetBalanceDisplayInfo

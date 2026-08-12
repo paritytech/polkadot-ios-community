@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import UIKitExt
 
 final class DebugSettingsPresenter {
     weak var view: DebugSettingsViewProtocol?
@@ -76,6 +77,33 @@ extension DebugSettingsPresenter: DebugSettingsPresenterProtocol {
 
         view?.controller.present(alert, animated: true)
     }
+
+    func toggleStrategyDebug() {
+        interactor.toggleStrategyDebug()
+    }
+
+    func toggleTruApiRuntime() {
+        interactor.toggleTruApiRuntime()
+
+        let viewModel = AlertPresentableViewModel(
+            title: "Restart Required",
+            message: "TrUAPI runtime changed. Restart the app to apply the new runtime.",
+            actions: [
+                AlertPresentableAction(title: "Restart") { [weak self] in
+                    self?.interactor.restartApp()
+                },
+                AlertPresentableAction(title: "Cancel", style: .cancel) { [weak self] in
+                    self?.interactor.toggleTruApiRuntime()
+                }
+            ]
+        )
+
+        wireframe.present(viewModel: viewModel, style: .alert, from: view)
+    }
+
+    func openTrUAPIPlayground() {
+        wireframe.showTrUAPIPlayground(from: view)
+    }
 }
 
 extension DebugSettingsPresenter: DebugSettingsInteractorOutputProtocol {
@@ -89,5 +117,13 @@ extension DebugSettingsPresenter: DebugSettingsInteractorOutputProtocol {
 
     func didReceive(hasJWTToken: Bool) {
         view?.didReceive(hasJWTToken: hasJWTToken)
+    }
+
+    func didReceive(strategyDebugEnabled: Bool) {
+        view?.didReceive(strategyDebugEnabled: strategyDebugEnabled)
+    }
+
+    func didReceive(truApiRuntimeEnabled: Bool) {
+        view?.didReceive(truApiRuntimeEnabled: truApiRuntimeEnabled)
     }
 }

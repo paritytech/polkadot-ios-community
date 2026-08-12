@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import OperationExt
+import ChainRegistry
 
 protocol PriceProviderFactoryProtocol {
     func getPriceStreamableProvider(

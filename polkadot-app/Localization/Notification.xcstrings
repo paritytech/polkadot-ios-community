@@ -232,6 +232,50 @@
         }
       }
     },
+    "game.notification.registration.closing.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Register now – prizes and collectibles await!"
+          }
+        }
+      }
+    },
+    "game.notification.registration.closing.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game starts in an hour"
+          }
+        }
+      }
+    },
+    "game.notification.registration.open.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prizes and other perks await!"
+          }
+        }
+      }
+    },
+    "game.notification.registration.open.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Register for the next game now"
+          }
+        }
+      }
+    },
     "game.notification.waiting.room.body" : {
       "extractionState" : "manual",
       "localizations" : {

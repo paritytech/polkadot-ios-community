@@ -53,7 +53,7 @@ extension ProceduralTattooViewModel: ImageViewModelProtocol {
         }
     }
 
-    func cancel(on imageView: UIImageView) {
+    @MainActor func cancel(on imageView: UIImageView) {
         imageView.image = nil
     }
 }

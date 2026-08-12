@@ -1,12 +1,17 @@
 import Foundation
+import FoundationExt
 import EventKit
 import SubstrateSdk
 import SubstrateStateCall
 import AssetExchange
 import Keystore_iOS
 import KeyDerivation
+import ChainRegistry
+import BackgroundExecution
+import UIKit.UIApplication
 
 enum WeeklyGameFactory {
+    @MainActor
     static func create(
         settings: ChatExtensionBotSettings,
         dependencies: DIM2Depending,
@@ -19,19 +24,22 @@ enum WeeklyGameFactory {
 
         let wireframe = WeeklyGameWireframe(
             assetId: AppConfig.Assets.dimAsset,
-            notificationService: UserNotificationService.shared
+            notificationService: UserNotificationService.shared,
+            application: UIApplication.shared
         )
 
         return DIM2ChatExtension(
             settings: settings,
             interactor: interactor,
             wireframe: wireframe,
+            cameraPermissionService: CameraPermissionService(),
+            applicationStateStreamFactory: ApplicationStateStreamFactory(),
             personActions: personActions,
             logger: Logger.shared
         )
     }
 
-    // swiftlint:disable:next function_body_length
+    @MainActor
     private static func createInteractor(dependencies: DIM2Depending) -> DIM2ChatInteractor? {
         let logger = Logger.shared
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
@@ -63,7 +71,7 @@ enum WeeklyGameFactory {
             chainRegistry: dim2FlowState.chainRegistry,
             substrateStorageFacade: SubstrateDataStorageFacade.shared,
             customFeeEstimator: ExtrinsicCustomFeeEstimatorFactory(providers: []),
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             operationQueue: operationQueue,
             logger: logger
         )
@@ -103,10 +111,13 @@ enum WeeklyGameFactory {
             balanceTrackingFactory: BalanceTrackingFactory(),
             requiredBalanceOperationFactory: requiredBalanceOperationFactory,
             remainingGamesOperationFactory: remainingGamesOperationFactory,
+            backgroundExecutor: ConnectionRetainingExecutor(provider: dim2FlowState.chainRegistry),
+            localNetworkPermissionService: LocalNetworkPermissionService.shared,
             logger: logger
         )
     }
 
+    // swiftlint:disable:next function_parameter_count
     private static func makeInvitationRegistrationService(
         chain: ChainModel,
         candidateWallet: WalletManaging,

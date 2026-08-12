@@ -175,7 +175,7 @@ private extension ProductsScriptExecutor {
 
         return ProductsScriptExecutor(
             productUrl: productUrl,
-            containerScriptProvider: BundledContainerScriptProvider(),
+            scriptsFactory: ChatNativeRuntimeScriptsFactory(),
             engineFactory: {
                 WKWebViewJSEngine(
                     engineBaseUrl: baseURL,

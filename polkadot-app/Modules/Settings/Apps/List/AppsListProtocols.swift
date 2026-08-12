@@ -7,6 +7,7 @@ protocol AppsListViewProtocol: ControllerBackedProtocol {
     func didReceive(items: [AppsListViewLayout.Item])
 }
 
+@MainActor
 protocol AppsListPresenterProtocol: AnyObject {
     func setup()
     func selectApp(_ item: AppsListViewLayout.Item)
@@ -21,6 +22,7 @@ protocol AppsListInteractorOutputProtocol: AnyObject {
     func didReceive(productIds: [ProductId])
 }
 
+@MainActor
 protocol AppsListWireframeProtocol: AnyObject {
     func showAppDetail(productId: ProductId, from view: AppsListViewProtocol?)
 }

@@ -21,6 +21,14 @@ let package = Package(
             url: "https://github.com/novasamatech/Crypto-iOS",
             from: "0.3.0"
         ),
+        .package(
+            url: "https://github.com/swift-libp2p/swift-cid.git",
+            .upToNextMajor(from: "0.0.4")
+        ),
+        .package(
+            url: "https://github.com/novasamatech/logger-ios",
+            from: "0.0.1"
+        ),
         .package(path: "../FoundationExt"),
         .package(path: "../StructuredConcurrency"),
     ],
@@ -30,6 +38,9 @@ let package = Package(
             dependencies: [
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "NovaCrypto", package: "crypto-ios"),
+                .product(name: "FoundationExt", package: "FoundationExt"),
+                .product(name: "CID", package: "swift-cid"),
+                .product(name: "SDKLogger", package: "logger-ios"),
                 .product(name: "StructuredConcurrency", package: "StructuredConcurrency")
             ]
         ),

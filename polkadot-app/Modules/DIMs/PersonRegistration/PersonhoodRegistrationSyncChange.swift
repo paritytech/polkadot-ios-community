@@ -34,7 +34,6 @@ struct PersonhoodRegistrationSyncChange: BatchStorageSubscriptionResult {
     let ringsState: UncertainStorage<MembersPallet.RingMembersState?>
     let blockHash: Data?
 
-    // swiftlint:disable:next function_body_length
     init(
         values: [BatchStorageSubscriptionResultValue],
         blockHashJson: JSON,

@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 protocol ScanAddressPresentable {
     func showAddressScan(
         from view: ControllerBackedProtocol?,

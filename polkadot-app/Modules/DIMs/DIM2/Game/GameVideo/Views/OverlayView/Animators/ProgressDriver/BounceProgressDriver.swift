@@ -92,8 +92,8 @@ final class BounceProgressDriver: ProgressDriver {
     }
 
     private func normalized(range: ClosedRange<CGFloat>) -> ClosedRange<CGFloat> {
-        let lo = min(max(range.lowerBound, 0), 1)
-        let hi = min(max(range.upperBound, 0), 1)
-        return min(lo, hi) ... max(lo, hi)
+        let lower = min(max(range.lowerBound, 0), 1)
+        let upper = min(max(range.upperBound, 0), 1)
+        return min(lower, upper) ... max(lower, upper)
     }
 }

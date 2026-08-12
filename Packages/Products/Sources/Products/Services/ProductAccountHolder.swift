@@ -2,11 +2,6 @@ import Foundation
 import KeyDerivation
 import SubstrateSdk
 
-public enum ProductAccountHolderError: Error {
-    case failedToDeriveKeypair
-    case notImplemented
-}
-
 public final class ProductAccountHolder: @unchecked Sendable {
     private let entropyManager: RootEntropyManaging
 
@@ -17,23 +12,17 @@ public final class ProductAccountHolder: @unchecked Sendable {
 
 extension ProductAccountHolder: ProductAccountHolding {
     public func deriveAccount(_ productAccountId: ProductAccountId) throws -> AccountId {
-        let wallet = DynamicDerivedWallet(
-            derivationPath: productAccountId.derivationPath,
+        let wallet = try DynamicDerivedWallet(
+            derivationPath: productAccountId.derivationPath(),
             entropyManager: entropyManager
         )
         return try wallet.getRawPublicKey()
     }
 
-    public func deriveAlias(_ productAccountId: ProductAccountId) throws -> ProductsAlias {
-        let context = try Data(productAccountId.derivationPath.utf8).blake2b32()
-
-        let alias = try BandersnatchKeyManager(
-            entropyDeriver: RootBandersnatchDeriver(),
-            entropyManager: entropyManager
-        )
-        .deriveAlias(for: context)
-
-        return ProductsAlias(context: context, alias: alias)
+    public func deriveProductSubtreePublicKey(for productId: ProductId) throws -> Data {
+        let path = try ProductDerivationPath.productRoot(productId: productId)
+        let wallet = DynamicDerivedWallet(derivationPath: path, entropyManager: entropyManager)
+        return try wallet.getRawPublicKey()
     }
 
     public func deriveStatementStoreAccount(for productId: ProductId) throws -> any WalletManaging {
@@ -58,17 +47,18 @@ extension ProductAccountHolder: ProductAccountHolding {
 
     public func deriveSmartContractAccount(
         for productId: ProductId,
-        derivationIndex: UInt32
+        derivationIndex: ProductAccountSelector
     ) throws -> any WalletManaging {
         let accountId = ProductAccountId(productId: productId, derivationIndex: derivationIndex)
-        return DynamicDerivedWallet(
-            derivationPath: accountId.derivationPath,
+        return try DynamicDerivedWallet(
+            derivationPath: accountId.derivationPath(),
             entropyManager: entropyManager
         )
     }
 
-    public func deriveAutoSigningSecrets(for _: ProductId) throws -> AutoSigningSecrets {
-        throw ProductAccountHolderError.notImplemented
+    public func deriveAutoSigningSecrets(for productId: ProductId) throws -> AutoSigningSecrets {
+        let path = try ProductDerivationPath.productRoot(productId: productId)
+        return try AutoSigningSecrets(productRootPrivateKey: derivePrivateKey(at: path))
     }
 }
 

@@ -18,6 +18,7 @@ extension Chat.LocalMessage {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func resolveCallState() -> Chat.CallState? {
         guard let offer = callOffer else { return nil }
 

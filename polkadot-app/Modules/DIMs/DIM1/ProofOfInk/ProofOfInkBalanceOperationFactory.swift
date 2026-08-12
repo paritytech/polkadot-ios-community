@@ -7,6 +7,7 @@ import ExtrinsicService
 import SubstrateStorageQuery
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol ProofOfInkBalanceFactoryProtocol {
     func flowRequiredBalanceWrapper(

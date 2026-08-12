@@ -45,7 +45,12 @@ final class QRCaptureService: NSObject {
             return
         }
 
-        let device = AVCaptureDevice.devices(for: .video).first { $0.position == .back }
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera],
+            mediaType: .video,
+            position: .back
+        )
+        let device = discoverySession.devices.first
 
         guard let camera = device else {
             throw QRCaptureServiceError.deviceAccessRestricted
@@ -108,6 +113,12 @@ final class QRCaptureService: NSObject {
             }
         } else {
             block()
+        }
+    }
+
+    deinit {
+        QRCaptureService.processingQueue.async { [captureSession] in
+            captureSession?.stopRunning()
         }
     }
 }

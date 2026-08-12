@@ -3,6 +3,7 @@ import SubstrateSdk
 import Operation_iOS
 import SubstrateStorageQuery
 import Individuality
+import ChainRegistry
 
 protocol DIM1BackgroundQueryFactoryProtocol {
     func querySyncState(

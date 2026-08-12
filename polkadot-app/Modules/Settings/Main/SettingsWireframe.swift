@@ -49,6 +49,17 @@ final class SettingsWireframe: SettingsWireframeProtocol {
         )
     }
 
+    func showPaymentHistory(from view: (any SettingsViewProtocol)?) {
+        guard let historyView = PaymentHistoryViewFactory.createView() else {
+            return
+        }
+
+        view?.controller.navigationController?.pushViewController(
+            historyView.controller,
+            animated: true
+        )
+    }
+
     func showCurrencyPicker(from view: (any SettingsViewProtocol)?) {
         let pickerController = CurrencyPickerViewFactory.createView()
         view?.controller.navigationController?.pushViewController(pickerController, animated: true)

@@ -24,6 +24,7 @@ final class TattooFamilyViewModelFactory {
 }
 
 extension TattooFamilyViewModelFactory: TattooFamilyViewModelFactoryProtocol {
+    // swiftlint:disable:next cyclomatic_complexity
     func createViewModel(
         from collections: [ProofOfInk.Collection],
         reservedDesigns: ProofOfInkPallet.ReservedDesignsResult,

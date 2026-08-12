@@ -5,7 +5,7 @@ import SDKLogger
 
 protocol PeerSessionInitializing {
     func initializeSession()
-    func setLastHandledResponseId(_ responseId: String?)
+    func setLastHandledResponseId(_ responseId: String?, route: PeerSessionRoute)
 }
 
 struct SessionInitializationSuccess<Message: MessageExchange.CodableMessage> {
@@ -32,21 +32,21 @@ struct SessionInitializationSuccess<Message: MessageExchange.CodableMessage> {
 }
 
 struct OutgoingInitializationState<Message: MessageExchange.CodableMessage> {
-    let outgoingRequest: OutgoingRequest<Message>?
-    let peerResponse: MessageExchange.Response?
+    let outgoingRequests: [PeerSessionRoute: OutgoingRequest<Message>]
+    let peerResponses: [PeerSessionRoute: MessageExchange.Response]
     let initializedMessages: [Message]
 
     static var empty: Self {
         .init(
-            outgoingRequest: nil,
-            peerResponse: nil,
+            outgoingRequests: [:],
+            peerResponses: [:],
             initializedMessages: []
         )
     }
 }
 
 struct IncomingInitializationState<Message: MessageExchange.CodableMessage> {
-    let peerRequests: [MessageExchange.Request<Message>]
+    let peerRequests: [PeerSessionRequest<Message>]
 
     static var empty: Self {
         .init(
@@ -66,28 +66,31 @@ final class PeerSessionInitializer<M: MessageExchange.CodableMessage> {
     weak var delegate: AnyPeerSessionInitializerDelegate<M>?
 
     private let priorityProvider: PeerSessionPriorityProviding
-    private let ownPoller: StatementSubscribing
-    private let peerSubscription: StatementSubscribing
+    private let ownSubscription: any PeerSessionStatementSubscribing
+    private let peerSubscription: any PeerSessionStatementSubscribing
     private let workQueue: DispatchQueue
     private let statementDataCoder: StatementDataCoding
+    private let supportedRoutes: [PeerSessionRoute]
     private let logger: SDKLoggerProtocol?
 
     private var isInitializing = false
-    private var lastHandledResponseId: String?
+    private var lastHandledResponseIds = [PeerSessionRoute: String]()
 
     init(
         priorityProvider: PeerSessionPriorityProviding,
-        ownPoller: StatementSubscribing,
-        peerSubscription: StatementSubscribing,
+        ownSubscription: any PeerSessionStatementSubscribing,
+        peerSubscription: any PeerSessionStatementSubscribing,
         workQueue: DispatchQueue,
         statementDataCoder: StatementDataCoding,
+        supportedRoutes: [PeerSessionRoute],
         logger: SDKLoggerProtocol?
     ) {
         self.priorityProvider = priorityProvider
-        self.ownPoller = ownPoller
+        self.ownSubscription = ownSubscription
         self.peerSubscription = peerSubscription
         self.workQueue = workQueue
         self.statementDataCoder = statementDataCoder
+        self.supportedRoutes = supportedRoutes
         self.logger = logger
     }
 }
@@ -99,12 +102,21 @@ extension PeerSessionInitializer: PeerSessionInitializing {
         }
     }
 
-    func setLastHandledResponseId(_ responseId: String?) {
-        lastHandledResponseId = responseId
+    func setLastHandledResponseId(
+        _ responseId: String?,
+        route: PeerSessionRoute
+    ) {
+        lastHandledResponseIds[route] = responseId
     }
 }
 
 private extension PeerSessionInitializer {
+    struct DecodedStatement {
+        let statementData: StatementData<Message>
+        let statement: Statement
+        let route: PeerSessionRoute
+    }
+
     func performSessionInitialization() {
         guard !isInitializing else {
             logger?.debug("Already initializing")
@@ -113,19 +125,19 @@ private extension PeerSessionInitializer {
 
         isInitializing = true
 
-        ownPoller.resetSeenHashes()
+        ownSubscription.resetSeenHashes()
         peerSubscription.resetSeenHashes()
 
         let group = DispatchGroup()
 
-        var ownStatements = [Statement]()
+        var ownStatements = [PeerSessionStatement]()
         var ownError: StatementSubscriptionError?
 
-        var peerStatements = [Statement]()
+        var peerStatements = [PeerSessionStatement]()
         var peerError: StatementSubscriptionError?
 
         group.enter()
-        ownPoller.fetchOnce(handler: {
+        ownSubscription.fetchOnce(handler: {
             ownStatements.append($0)
             return true
         }, completion: { error in
@@ -153,8 +165,8 @@ private extension PeerSessionInitializer {
     }
 
     func continueAfterFetch(
-        ownStatements: [Statement],
-        peerStatements: [Statement],
+        ownStatements: [PeerSessionStatement],
+        peerStatements: [PeerSessionStatement],
         ownError: StatementSubscriptionError?,
         peerError: StatementSubscriptionError?
     ) {
@@ -163,7 +175,7 @@ private extension PeerSessionInitializer {
         if let ownError { logger?.error("Own error: \(ownError)") }
         if let peerError { logger?.error("Peer error: \(peerError)") }
 
-        let expiry = priorityProvider.initialExpiry(from: ownStatements)
+        let expiry = priorityProvider.initialExpiry(from: ownStatements.map(\.statement))
 
         logger?.debug("Resolved priority: \(expiry)")
 
@@ -173,9 +185,9 @@ private extension PeerSessionInitializer {
             }
 
             let sortedOwnStatements = ownStatements
-                .sorted { ($0.getExpiry() ?? 0) > ($1.getExpiry() ?? 0) }
+                .sorted { ($0.statement.getExpiry() ?? 0) > ($1.statement.getExpiry() ?? 0) }
             let sortedPeerStatements = peerStatements
-                .sorted { ($0.getExpiry() ?? 0) > ($1.getExpiry() ?? 0) }
+                .sorted { ($0.statement.getExpiry() ?? 0) > ($1.statement.getExpiry() ?? 0) }
 
             let ownStatementDataList = try makeStatementDataList(from: sortedOwnStatements)
             let peerStatementDataList = try makeStatementDataList(from: sortedPeerStatements)
@@ -187,8 +199,7 @@ private extension PeerSessionInitializer {
 
             let outgoingState = try makeOutgoingState(
                 ownStatementDataList: ownStatementDataList,
-                peerStatementDataList: peerStatementDataList,
-                ownStatements: sortedOwnStatements
+                peerStatementDataList: peerStatementDataList
             )
 
             isInitializing = false
@@ -217,44 +228,96 @@ private extension PeerSessionInitializer {
         }
     }
 
-    func makeStatementDataList(from statements: [Statement]) throws -> [StatementData<Message>] {
-        try statements.compactMap { statement -> StatementData<Message>? in
-            try statement.getScaleEncodedPayload().map {
-                let senderAccountId = statement.getSenderAccountId()
-                let result: StatementDataDecodingResult<Message> = try statementDataCoder
-                    .decodeFromScaleEncodedPayload($0, senderAccountId: senderAccountId)
+    func makeStatementDataList(
+        from statements: [PeerSessionStatement]
+    ) throws -> [DecodedStatement] {
+        try statements.compactMap { sessionStatement -> DecodedStatement? in
+            let statement = sessionStatement.statement
 
-                switch result {
-                case let .statementData(statementData):
-                    return statementData
-                case let .requestId(requestId, _):
-                    // it is ok to return statement data for compatibility reason here
-                    // since we don't respond to requests in the initializer
-                    return StatementData.request(
-                        .init(requestId: requestId, messages: [])
-                    )
+            guard let payload = statement.getScaleEncodedPayload() else {
+                return nil
+            }
+
+            let senderAccountId = statement.getSenderAccountId()
+            let result: StatementDataDecodingResult<Message>
+
+            do {
+                result = try statementDataCoder.decodeFromScaleEncodedPayload(
+                    payload,
+                    senderAccountId: senderAccountId,
+                    route: sessionStatement.route
+                )
+            } catch {
+                if shouldSkipInitializerDecodeError(error, route: sessionStatement.route) {
+                    return nil
                 }
+                throw error
+            }
+
+            switch result {
+            case let .statementData(statementData):
+                return DecodedStatement(
+                    statementData: statementData,
+                    statement: statement,
+                    route: sessionStatement.route
+                )
+            case let .requestId(requestId, _):
+                // it is ok to return statement data for compatibility reason here
+                // since we don't respond to requests in the initializer
+                return DecodedStatement(
+                    statementData: StatementData.request(
+                        .init(requestId: requestId, messages: [])
+                    ),
+                    statement: statement,
+                    route: sessionStatement.route
+                )
             }
         }
     }
 
+    func shouldSkipInitializerDecodeError(
+        _ error: Error,
+        route: PeerSessionRoute
+    ) -> Bool {
+        guard route == .device else {
+            return false
+        }
+
+        guard let decodingError = error as? MultiDeviceDecodingError else {
+            return false
+        }
+
+        switch decodingError {
+        case .deviceEntryNotFound,
+             .oneshotKeyDecryptionFailed,
+             .payloadDecryptionFailed:
+            return true
+        case .payloadDecodingFailed:
+            return false
+        }
+    }
+
     func makeIncomingState(
-        ownStatementDataList: [StatementData<Message>],
-        peerStatementDataList: [StatementData<Message>]
+        ownStatementDataList: [DecodedStatement],
+        peerStatementDataList: [DecodedStatement]
     ) throws -> IncomingInitializationState<Message> {
-        let pendingPeerRequests = peerStatementDataList.compactMap { statementData
-            -> MessageExchange.Request<Message>? in
-            guard case let .request(peerRequest) = statementData else {
+        let pendingPeerRequests = peerStatementDataList.compactMap { decodedStatement
+            -> PeerSessionRequest<Message>? in
+            guard case let .request(peerRequest) = decodedStatement.statementData else {
                 return nil
             }
 
+            // TODO: Response statements share the same response channel, so init
+            // can only match request ids whose ACK is still visible in fetched peer
+            // statements. Revisit this if sender-side ACK recovery must cover every
+            // outstanding request id.
             let responseStatementData = matchingResponseStatementData(
-                forRequestStatementData: statementData,
+                forRequestStatementData: decodedStatement,
                 in: ownStatementDataList
             )
 
             if responseStatementData == nil {
-                return peerRequest
+                return .init(request: peerRequest, route: decodedStatement.route)
             } else {
                 return nil
             }
@@ -268,87 +331,83 @@ private extension PeerSessionInitializer {
     }
 
     func makeOutgoingState(
-        ownStatementDataList: [StatementData<Message>],
-        peerStatementDataList: [StatementData<Message>],
-        ownStatements: [Statement]
+        ownStatementDataList: [DecodedStatement],
+        peerStatementDataList: [DecodedStatement]
     ) throws -> OutgoingInitializationState<Message> {
-        guard let index = ownStatementDataList.firstIndex(where: { statementData in
-            if case .request = statementData {
-                true
-            } else {
-                false
+        let outgoingRequestStatements = supportedRoutes.compactMap { route in
+            ownStatementDataList.first(where: { decodedStatement in
+                if decodedStatement.route == route,
+                   case .request = decodedStatement.statementData {
+                    true
+                } else {
+                    false
+                }
+            })
+        }
+
+        guard !outgoingRequestStatements.isEmpty else {
+            return .empty
+        }
+
+        var outgoingRequests = [PeerSessionRoute: OutgoingRequest<Message>]()
+        var peerResponses = [PeerSessionRoute: MessageExchange.Response]()
+        var initializedMessages = [Message]()
+
+        for outgoingRequestStatement in outgoingRequestStatements {
+            guard
+                case let .request(request) = outgoingRequestStatement.statementData,
+                let scaleEncodedPayload = outgoingRequestStatement.statement.getScaleEncodedPayload()
+            else {
+                continue
             }
-        }) else {
-            return .empty
-        }
 
-        let outgoingRequestStatementData = ownStatementDataList[index]
-        let outgoingRequestStatement = ownStatements[index]
+            let responseStatementData = matchingResponseStatementData(
+                forRequestStatementData: outgoingRequestStatement,
+                in: peerStatementDataList
+            )
 
-        guard
-            case let .request(request) = outgoingRequestStatementData,
-            let scaleEncodedPayload = outgoingRequestStatement.getScaleEncodedPayload()
-        else {
-            return .empty
-        }
-
-        // TODO: Response statements share the same response channel, so init
-        // can only match request ids whose ACK is still visible in fetched peer
-        // statements. Revisit this if sender-side ACK recovery must cover every
-        // outstanding request id.
-        let responseStatementData = matchingResponseStatementData(
-            forRequestStatementData: outgoingRequestStatementData,
-            in: peerStatementDataList
-        )
-
-        let outgoingRequest: OutgoingRequest<Message>?
-        let peerResponse: MessageExchange.Response?
-        let initializedMessages: [Message]
-
-        if case let .response(response) = responseStatementData {
-            if response.requestId == lastHandledResponseId {
-                // request/response pair already handled
-                outgoingRequest = nil
-                peerResponse = nil
+            if case let .response(response) = responseStatementData {
+                if response.requestId != lastHandledResponseIds[outgoingRequestStatement.route] {
+                    outgoingRequests[outgoingRequestStatement.route] = .init(
+                        requestId: request.requestId,
+                        messages: request.messages,
+                        scaleEncodedPayload: scaleEncodedPayload,
+                        route: outgoingRequestStatement.route
+                    )
+                    peerResponses[outgoingRequestStatement.route] = response
+                }
             } else {
-                outgoingRequest = .init(
+                outgoingRequests[outgoingRequestStatement.route] = .init(
                     requestId: request.requestId,
                     messages: request.messages,
-                    scaleEncodedPayload: scaleEncodedPayload
+                    scaleEncodedPayload: scaleEncodedPayload,
+                    route: outgoingRequestStatement.route
                 )
-                peerResponse = response
+                initializedMessages += request.messages
             }
-            initializedMessages = []
-        } else {
-            outgoingRequest = .init(
-                requestId: request.requestId,
-                messages: request.messages,
-                scaleEncodedPayload: scaleEncodedPayload
-            )
-            peerResponse = nil
-            initializedMessages = request.messages
         }
 
         return .init(
-            outgoingRequest: outgoingRequest,
-            peerResponse: peerResponse,
+            outgoingRequests: outgoingRequests,
+            peerResponses: peerResponses,
             initializedMessages: initializedMessages
         )
     }
 
     func matchingResponseStatementData(
-        forRequestStatementData requestStatementData: StatementData<Message>,
-        in statementDataList: [StatementData<Message>]
+        forRequestStatementData requestStatementData: DecodedStatement,
+        in statementDataList: [DecodedStatement]
     ) -> StatementData<Message>? {
-        statementDataList.first(where: { statementData in
-            if case let .response(response) = statementData,
-               case let .request(request) = requestStatementData,
+        statementDataList.first(where: { decodedStatement in
+            if decodedStatement.route == requestStatementData.route,
+               case let .response(response) = decodedStatement.statementData,
+               case let .request(request) = requestStatementData.statementData,
                response.requestId == request.requestId {
                 true
             } else {
                 false
             }
-        })
+        })?.statementData
     }
 
     func makeInitializationError(error: Error) -> MessageExchange.InitializationError {

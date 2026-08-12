@@ -8,6 +8,7 @@ import CommonService
 import StructuredConcurrency
 import Coinage
 import AssetsManagement
+import ChainRegistry
 
 protocol DepositServiceProtocol: AsyncApplicationServicing {
     func fetchDepositInfo(for assetIn: ChainAssetId) async throws -> DepositServiceInfo
@@ -150,11 +151,6 @@ private extension DepositService {
 
         startMonitoringStats()
         subscribeVoucherTracking()
-
-        logger
-            .debug(
-                "[GameDebug] DepositService started — watching deposit wallet to onboard balances (e.g. airdrop CASH) into Coinage"
-            )
     }
 
     func performThrottle() async {
@@ -527,7 +523,7 @@ private extension DepositService {
             guard let self else { return }
 
             do {
-                let chain = try await chainRegistry.getChainOrError(for: setupModel.fundedAssetId.chainId)
+                let chain = try chainRegistry.getChainOrError(for: setupModel.fundedAssetId.chainId)
                 let chainAsset = try chain.chainAssetOrError(for: setupModel.fundedAssetId.assetId)
                 let stream = await balanceTrackingFactory.trackAccountAsset(
                     setupModel.accountToFund,

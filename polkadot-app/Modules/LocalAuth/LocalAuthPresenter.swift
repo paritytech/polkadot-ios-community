@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class LocalAuthPresenter {
     weak var view: LocalAuthViewProtocol?
     let wireframe: LocalAuthWireframeProtocol

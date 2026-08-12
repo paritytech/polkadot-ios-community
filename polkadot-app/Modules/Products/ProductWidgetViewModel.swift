@@ -7,7 +7,7 @@ final class ProductWidgetViewModel: WidgetNodeProviding {
     @MainActor private(set) var node: CustomMessageWidgetNode?
 
     private let messageId: String
-    private let scriptExecutor: ProductsScriptExecutorProtocol
+    private let runtime: ChatRuntimeProtocol
     private let tokenResolver: any WidgetDesignTokenResolving
     private let logger: LoggerProtocol
     private var renderTask: Task<Void, Never>?
@@ -16,19 +16,19 @@ final class ProductWidgetViewModel: WidgetNodeProviding {
         messageId: String,
         messageType: String,
         messageData: Data,
-        scriptExecutor: ProductsScriptExecutorProtocol,
+        runtime: ChatRuntimeProtocol,
         tokenResolver: any WidgetDesignTokenResolving,
         logger: LoggerProtocol
     ) {
         self.messageId = messageId
-        self.scriptExecutor = scriptExecutor
+        self.runtime = runtime
         self.tokenResolver = tokenResolver
         self.logger = logger
 
         renderTask = Task { [weak self] in
             guard let self else { return }
 
-            let stream = await scriptExecutor.renderMessage(
+            let stream = await runtime.renderMessage(
                 messageId: messageId,
                 messageType: messageType,
                 messageData: messageData

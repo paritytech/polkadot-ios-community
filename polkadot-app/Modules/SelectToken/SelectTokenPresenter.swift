@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 class SelectTokenPresenter: TokensPresenter {
     weak var view: SelectTokenViewProtocol?
@@ -38,6 +39,7 @@ class SelectTokenPresenter: TokensPresenter {
     }
 }
 
+@MainActor
 extension SelectTokenPresenter: SelectTokenPresenterProtocol {
     func setup() {
         interactor?.setup()

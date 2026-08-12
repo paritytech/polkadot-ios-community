@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import Foundation_iOS
 import UIKitExt
+import ChainRegistry
 
 protocol SearchAccountViewProtocol: ControllerBackedProtocol {
     var viewModel: SearchAccountViewModel { get }
@@ -11,9 +12,10 @@ protocol SearchAccountViewProtocol: ControllerBackedProtocol {
     func didStopLoading()
 }
 
+@MainActor
 protocol SearchAccountPresenterProtocol: AnyObject {
     func viewDidLoad()
-    func scanAddress()
+    func scanQRCode()
     func didEndEditingInput(_ input: String?)
     func searchAccount(_ account: String?)
     func selectAccount(_ cellType: SearchAccountViewController.Cell)
@@ -33,7 +35,9 @@ protocol SearchAccountInteractorOutputProtocol: AnyObject {
     func didReceiveRecentContacts(_ contacts: [DataProviderChange<RecentContactModelWithUsername>])
 }
 
-protocol SearchAccountWireframeProtocol: AnyObject, ScanAddressPresentable, AlertPresentable {
+@MainActor
+protocol SearchAccountWireframeProtocol: AnyObject, WalletQRScanPresentable, AlertPresentable {
+    func showQRScan(from view: SearchAccountViewProtocol?)
     func showTransfer(
         from view: SearchAccountViewProtocol?,
         recipient: RecipientModel,

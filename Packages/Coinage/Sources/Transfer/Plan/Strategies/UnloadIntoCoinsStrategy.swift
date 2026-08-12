@@ -70,6 +70,28 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
             throw TransferStrategyError.missingRecyclerInfo
         }
 
+        var collectedErrors = try await submitGroups(context: context, allVouchers: allVouchers)
+
+        // Process ready coins regardless of extrinsic errors — they require no on-chain submission.
+        if !readyCoins.isEmpty {
+            do {
+                try await context.process(spentCoins: readyCoins, destinationCoins: [])
+            } catch {
+                logger?.error("Failed to record ready coins locally: \(error)")
+                collectedErrors.append(error)
+            }
+        }
+
+        guard collectedErrors.isEmpty else {
+            throw TransferStrategyError.multiple(collectedErrors)
+        }
+    }
+}
+
+// MARK: - Private Helpers
+
+private extension UnloadIntoCoinsStrategy {
+    func submitGroups(context: TransferContext, allVouchers: [Voucher]) async throws -> [Error] {
         // Fetch finalized block hash upfront to ensure both operations query the same state
         let blockHash = try await blockInfoProvider.fetchCurrentHash()
 
@@ -156,7 +178,10 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
             switch groupResult {
             case let .success((spentVouchers, changeCoins, destinationCoins, walEntryId)):
                 do {
-                    logger?.info("Unload complete successfully")
+                    let voucherExponent = spentVouchers.first.map { "\($0.exponent)" } ?? "n/a"
+                    logger?.info(
+                        "Unload complete successfully: \(spentVouchers.count) vouchers, exponent \(voucherExponent)"
+                    )
                     try await context.process(
                         spentVouchers: spentVouchers,
                         change: changeCoins,
@@ -173,25 +198,9 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
             }
         }
 
-        // Process ready coins regardless of extrinsic errors — they require no on-chain submission.
-        if !readyCoins.isEmpty {
-            do {
-                try await context.process(spentCoins: readyCoins, destinationCoins: [])
-            } catch {
-                logger?.error("Failed to record ready coins locally: \(error)")
-                collectedErrors.append(error)
-            }
-        }
-
-        guard collectedErrors.isEmpty else {
-            throw TransferStrategyError.multiple(collectedErrors)
-        }
+        return collectedErrors
     }
-}
 
-// MARK: - Private Helpers
-
-private extension UnloadIntoCoinsStrategy {
     func buildCall(
         for groupCoins: RecyclerGroupCoins,
         revision: UInt32,

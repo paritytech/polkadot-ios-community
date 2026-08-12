@@ -67,6 +67,22 @@ extension CoinagePallet {
         let feeRecyclerValue: Int8
         let feeRecyclerIndex: UInt32
         let feeRecyclerRevision: UInt32
+        /// Expected next retry counter; must equal chain state or mismatch triggers AliasTemporarilyLocked.
+        /// Signed intent message is (aliasProofs[1...], retryCounter, inheritedImplication).
+        ///
+        /// Source from `RecyclerAliasStates[(feeRecyclerValue, feeRecyclerIndex, firstAlias)]`:
+        /// 0 when the entry is absent or `.unloaded`, `retries + 1` when `.locked`.
+        ///
+        /// The same entry also gates spendability, and not only for the fee alias: the chain runs
+        /// `ensure_alias_available` inside every alias proof validation, rejecting a `.locked` alias
+        /// while `now < LockInfo.until`. `.locked` is written only when a from-output-fee unload
+        /// fails after prepare, and the lock period grows as `2^retries * base`.
+        ///
+        /// Wiring this path therefore also requires excluding locked vouchers from the spendable
+        /// set (`VoucherLocationService`, `VoucherService`, `ExternalPaymentPlanner`), which needs a
+        /// `lockedUntil` on `Voucher` and a CoreData version bump. Compare against the chain's
+        /// `Timestamp.Now` rather than the device clock — the chain uses `UnixTime::now()`.
+        let retryCounter: UInt8
         /// All alias proofs including the first one (fee coin).
         let aliasProofs: [Data]
     }
@@ -141,6 +157,7 @@ extension CoinagePallet {
     struct PeopleProof: Codable {
         @BytesCodable var proof: Data
         @StringCodable var ring: UInt32
+        @StringCodable var revision: UInt32
     }
 
     struct AsUnloadTokenPaidMode: Codable {
@@ -155,6 +172,7 @@ extension CoinagePallet {
         @StringCodable var feeRecyclerValue: Int8
         @StringCodable var feeRecyclerIndex: UInt32
         @StringCodable var feeRecyclerRevision: UInt32
+        @StringCodable var retryCounter: UInt8
         let aliasProofs: [BytesCodable]
     }
 
@@ -232,6 +250,7 @@ extension CoinagePallet.AsCoinageTxExtension: TransactionExtending {
                     feeRecyclerValue: params.feeRecyclerValue,
                     feeRecyclerIndex: params.feeRecyclerIndex,
                     feeRecyclerRevision: params.feeRecyclerRevision,
+                    retryCounter: params.retryCounter,
                     aliasProofs: params.aliasProofs.map { BytesCodable(wrappedValue: $0) }
                 ))
 
@@ -282,7 +301,8 @@ private extension CoinagePallet.AsCoinageTxExtension {
         )
         let proofStruct = CoinagePallet.PeopleProof(
             proof: proof,
-            ring: params.peopleRingIndex
+            ring: params.peopleRingIndex,
+            revision: params.peopleProofParams.revision
         )
         return CoinagePallet.AsUnloadTokenPeopleMode(
             proof: proofStruct,

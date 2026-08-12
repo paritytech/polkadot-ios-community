@@ -1,5 +1,6 @@
 import Foundation
 import CarParser
+import AsyncExtensions
 
 public enum DotNsResolverError: Error {
     case resolutionFailed(String)
@@ -16,6 +17,9 @@ public protocol DotNsResolverProtocol {
     /// Fetch a metadata entry for a .dot domain (e.g., "url", "description").
     func getMetadataEntry(dotNsName: String, key: String) async throws -> String?
 
+    /// Observe load progress for a `.dot` domain. Emits `.idle` when nothing is in flight.
+    func progressStream(dotNsName: String) -> AnyAsyncSequence<DotNsLoadProgress>
+
     /// Check if the resolved content for a .dot domain contains a chat worker entry.
     func hasChatEntry(_ dotnsName: String) -> Bool
 
@@ -28,6 +32,7 @@ public final class DotNsResolver: DotNsResolverProtocol {
     private let carFetcher: CarFetcherProtocol
     private let contentStorage: DotNsContentStorageProtocol
     private let contentHashCache: ContentHashCacheProtocol
+    private let progressRegistry: any DotNsLoadProgressRegistryProtocol
 
     public init(
         contractApi: DotNsContractApiProtocol,
@@ -39,48 +44,47 @@ public final class DotNsResolver: DotNsResolverProtocol {
         self.carFetcher = carFetcher
         self.contentStorage = contentStorage
         self.contentHashCache = contentHashCache
+        progressRegistry = DotNsLoadProgressRegistry()
     }
 
     // TODO: Current implementation always fetch content hash from contract.
     // Target solution should warn a user if hash changed monitoring the cache
     public func resolveToLocalURL(dotNsName: String) async throws -> URL {
-        // 1. Resolve content hash from the on-chain resolver
         let contentHashBytes = try await contractApi.resolveContentHash(dotNsName: dotNsName)
         let hexHash = contentHashBytes.toHex()
 
-        // 2. Check if content is already cached on disk
         if let cachedDir = contentStorage.getContentDirectory(contentHash: hexHash) {
             contentHashCache.putContentHash(name: dotNsName, hash: hexHash)
+            progressRegistry.markCompleted(domain: dotNsName)
             return cachedDir
         }
 
-        // 3. Fetch CAR archive from IPFS
-        let carBytes = try await carFetcher.fetchCar(contentHash: contentHashBytes)
-
-        // 4. Parse CAR archive into file tree
-        let archive: UnpackedArchive
         do {
-            archive = try CarParser.parse(data: carBytes)
+            progressRegistry.markResolved(domain: dotNsName)
+
+            let carFileURL = try await carFetcher.fetchCarToFile(
+                contentHash: contentHashBytes,
+                onProgress: { [progressRegistry] downloaded, total in
+                    progressRegistry.markDownload(domain: dotNsName, downloaded: downloaded, total: total)
+                }
+            )
+
+            let contentDir = try saveResolvedContent(
+                carFileURL: carFileURL,
+                hexHash: hexHash,
+                dotNsName: dotNsName
+            )
+
+            progressRegistry.markCompleted(domain: dotNsName)
+            return contentDir
         } catch {
-            throw DotNsResolverError.carParseFailed(error)
+            progressRegistry.markFailed(domain: dotNsName, error: error)
+            throw error
         }
+    }
 
-        // 5. Save files to disk
-        do {
-            try contentStorage.saveContent(contentHash: hexHash, files: archive.files)
-        } catch {
-            throw DotNsResolverError.storageFailed(error)
-        }
-
-        // 6. Update cache
-        contentHashCache.putContentHash(name: dotNsName, hash: hexHash)
-
-        // 7. Return content directory URL
-        guard let contentDir = contentStorage.getContentDirectory(contentHash: hexHash) else {
-            throw DotNsResolverError.resolutionFailed("Failed to retrieve saved content for \(dotNsName)")
-        }
-
-        return contentDir
+    public func progressStream(dotNsName: String) -> AnyAsyncSequence<DotNsLoadProgress> {
+        progressRegistry.observe(domain: dotNsName)
     }
 
     public func hasChatEntry(_ dotnsName: String) -> Bool {
@@ -100,5 +104,32 @@ public final class DotNsResolver: DotNsResolverProtocol {
     public func clearCache() throws {
         try contentStorage.deleteAll()
         contentHashCache.clearAll()
+        progressRegistry.clear()
+    }
+}
+
+extension DotNsResolver {
+    private func saveResolvedContent(carFileURL: URL, hexHash: String, dotNsName: String) throws -> URL {
+        progressRegistry.markUnpacking(domain: dotNsName)
+        // Removing temp item
+        defer { try? FileManager.default.removeItem(at: carFileURL) }
+
+        do {
+            try contentStorage.saveContent(contentHash: hexHash) { writer in
+                try CarParser.unpack(fileURL: carFileURL, writer: writer)
+            }
+        } catch let error as CarParserError {
+            throw DotNsResolverError.carParseFailed(error)
+        } catch {
+            throw DotNsResolverError.storageFailed(error)
+        }
+
+        contentHashCache.putContentHash(name: dotNsName, hash: hexHash)
+
+        guard let contentDir = contentStorage.getContentDirectory(contentHash: hexHash) else {
+            throw DotNsResolverError.resolutionFailed("Failed to retrieve saved content for \(dotNsName)")
+        }
+
+        return contentDir
     }
 }

@@ -2,6 +2,7 @@ import BigInt
 import Coinage
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 final class PayDeeplinkService {
     private let coinageService: CoinageServicing

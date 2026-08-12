@@ -1,11 +1,39 @@
 import Foundation
 import Products
 
+enum SPAContentSource {
+    /// Resolve the dotNs product and serve it via the polkadot:// scheme handler.
+    case dotNs
+    /// Debug: load the URL as-is, skipping resolution. Rust runtime only.
+    case directURL(URL)
+}
+
 struct SPAConfiguration {
     let title: String?
     let isRootScreen: Bool
     let showMoreButton: Bool
     let page: ProductPage
+    let contentSource: SPAContentSource
+    let isBrowserTab: Bool
+    let browserTabId: UUID?
+
+    init(
+        title: String?,
+        isRootScreen: Bool,
+        showMoreButton: Bool,
+        page: ProductPage,
+        contentSource: SPAContentSource = .dotNs,
+        isBrowserTab: Bool = false,
+        browserTabId: UUID? = nil
+    ) {
+        self.title = title
+        self.isRootScreen = isRootScreen
+        self.showMoreButton = showMoreButton
+        self.page = page
+        self.contentSource = contentSource
+        self.isBrowserTab = isBrowserTab
+        self.browserTabId = browserTabId
+    }
 }
 
 extension SPAConfiguration {
@@ -15,15 +43,6 @@ extension SPAConfiguration {
             isRootScreen: true,
             showMoreButton: false,
             page: ProductPage(host: ProductHost(rawString: AppConfig.DotNs.dotNsBrowse)!)
-        )
-    }
-
-    static func product(host: ProductHost) -> SPAConfiguration {
-        SPAConfiguration(
-            title: nil,
-            isRootScreen: false,
-            showMoreButton: true,
-            page: ProductPage(host: host)
         )
     }
 }

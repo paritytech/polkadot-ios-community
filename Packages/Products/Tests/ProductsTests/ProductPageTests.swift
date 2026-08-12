@@ -23,8 +23,8 @@ struct ProductPageTests {
     }
 
     @Test func fromUrlKeepsFragmentInRelativePart() {
-        let page = ProductPage.fromUrl(URL(string: "https://web3summit.dot.li/#/onboarding")!)
-        #expect(page?.host.toDotDomain() == "web3summit.dot")
+        let page = ProductPage.fromUrl(URL(string: "https://browse.dot.li/#/onboarding")!)
+        #expect(page?.host.toDotDomain() == "browse.dot")
         #expect(page?.page == "/#/onboarding")
     }
 
@@ -47,10 +47,10 @@ struct ProductPageTests {
     }
 
     @Test func appliedReplacesEntryFileWithFragmentRoute() {
-        let host = ProductHost(rawString: "web3summit.dot")!
-        let base = URL(string: "product://web3summit.dot/index.html")!
+        let host = ProductHost(rawString: "browse.dot")!
+        let base = URL(string: "product://browse.dot/index.html")!
         let result = ProductPage(host: host, page: "/#/onboarding").applied(to: base)
-        #expect(result.absoluteString == "product://web3summit.dot/#/onboarding")
+        #expect(result.absoluteString == "product://browse.dot/#/onboarding")
     }
 
     @Test func appliedReplacesEntryFileWithPath() {
@@ -61,9 +61,9 @@ struct ProductPageTests {
     }
 
     @Test func appliedNormalizesPageMissingLeadingSlash() {
-        let host = ProductHost(rawString: "web3summit.dot")!
-        let base = URL(string: "product://web3summit.dot/index.html")!
+        let host = ProductHost(rawString: "browse.dot")!
+        let base = URL(string: "product://browse.dot/index.html")!
         let result = ProductPage(host: host, page: "#/onboarding").applied(to: base)
-        #expect(result.absoluteString == "product://web3summit.dot/#/onboarding")
+        #expect(result.absoluteString == "product://browse.dot/#/onboarding")
     }
 }

@@ -5,6 +5,7 @@ import SubstrateSdk
 import Keystore_iOS
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol FullUsernameClaimServicing {
     func claimUsername(

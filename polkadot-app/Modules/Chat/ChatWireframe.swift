@@ -3,7 +3,9 @@ import UIKit
 import SubstrateSdk
 import PhotosUI
 import UIKitExt
+import ChainRegistry
 
+@MainActor
 final class ChatWireframe: ChatWireframeProtocol {
     let chainAsset: ChainAsset
     let flowState: ChatFlowState
@@ -104,8 +106,11 @@ final class ChatWireframe: ChatWireframeProtocol {
                     self?.showBlockUserConfirmation(from: view, chatMetadata: chatMetadata, delegate: delegate)
                 }
             case let .custom(action):
-                UIAction(title: action.titleProvider(), image: action.image) { _ in
-                    action.handler()
+                UIDeferredMenuElement.uncached { completion in
+                    let item = UIAction(title: action.titleProvider(), image: action.image) { _ in
+                        action.handler()
+                    }
+                    completion([item])
                 }
             }
         }

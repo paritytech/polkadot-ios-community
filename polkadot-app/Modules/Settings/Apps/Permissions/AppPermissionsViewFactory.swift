@@ -1,6 +1,7 @@
 import Foundation
 import Products
 
+@MainActor
 enum AppPermissionsViewFactory {
     static func createView(
         productId: ProductId,

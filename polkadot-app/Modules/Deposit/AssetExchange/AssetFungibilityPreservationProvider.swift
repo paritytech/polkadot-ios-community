@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import AssetExchange
 import XcmTransfer
+import ChainRegistry
 
 final class AssetFungibilityPreservationProvider {
     let allAssets: Set<ChainModel.Id>

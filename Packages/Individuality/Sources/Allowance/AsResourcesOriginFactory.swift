@@ -1,7 +1,6 @@
 import Foundation
 import ExtrinsicService
 import SubstrateSdk
-import SubstrateStorageQuery
 import KeyDerivation
 import ChainStore
 
@@ -25,8 +24,6 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
     private let wallet: WalletManaging
     private let keyResolver: BandersnatchKeyResolving
     private let chainRegistry: ChainResourceProtocol
-
-    private lazy var requestFactory = StorageRequestFactory.asyncInit()
 
     public init(
         wallet: WalletManaging,
@@ -76,16 +73,12 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
             period: period,
             counter: counter
         )
-        let revision = try await fetchRevision(
-            for: personDeps.origin,
-            chain: chain
-        )
 
         let asResourcesOrigin = AsResourcesOriginDefinition(
             input: AsResourcesOriginInput(
                 personDeps: personDeps,
                 proofContext: proofContext,
-                kind: .claimLongTermStorage(revision: revision)
+                kind: .claimLongTermStorage
             )
         )
 
@@ -118,29 +111,5 @@ private extension AsResourcesOriginFactory {
             keyManager: personOrigin.keyManager,
             proofParamsFetcher: paramsProvider
         )
-    }
-
-    func fetchRevision(
-        for origin: PersonOrigin,
-        chain: ChainId
-    ) async throws -> UInt32 {
-        let connection = try chainRegistry.getRpcConnectionOrError(for: chain)
-        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
-        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
-
-        let collectionId = origin.collectionIdentifier
-
-        let ringRoot: MembersPallet.RingRoot? = try await requestFactory
-            .queryItems(
-                engine: connection,
-                keyParams1: { [BytesCodable(wrappedValue: collectionId)] },
-                keyParams2: { [StringCodable(wrappedValue: origin.ringIndex)] },
-                factory: { codingFactory },
-                storagePath: MembersPallet.Storage.root()
-            )
-            .asyncExecute()
-            .first?.value
-
-        return ringRoot?.revision ?? 0
     }
 }

@@ -22,7 +22,7 @@ final class AnalyticsService: AnalyticsServicing {
             guard !AppConfig.Analytics.posthogAPIKey.isEmpty else { return }
 
             let config = PostHogConfig(
-                apiKey: AppConfig.Analytics.posthogAPIKey,
+                projectToken: AppConfig.Analytics.posthogAPIKey,
                 host: AppConfig.Analytics.posthogHost
             )
             config.captureApplicationLifecycleEvents = true

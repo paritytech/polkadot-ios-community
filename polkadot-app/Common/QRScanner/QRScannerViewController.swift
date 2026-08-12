@@ -32,21 +32,19 @@ class QRScannerViewController: UIViewController, ViewHolder {
         view = QRScannerViewLayout()
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
+    override func viewIsAppearing(_ animated: Bool) {
+        super.viewIsAppearing(animated)
         presenter.setup()
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-
-        presenter.viewWillAppear()
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        presenter.viewDidAppear()
     }
 
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-
-        presenter.viewDidDisappear()
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        presenter.viewWillDisappear()
     }
 
     private func configureVideoLayer(with captureSession: AVCaptureSession) {
@@ -91,6 +89,10 @@ class QRScannerViewController: UIViewController, ViewHolder {
 }
 
 extension QRScannerViewController: QRScannerViewProtocol {
+    var isCoveredByModal: Bool {
+        sequence(first: self, next: \.parent).contains { $0.presentedViewController != nil }
+    }
+
     func didReceive(session: AVCaptureSession) {
         configureVideoLayer(with: session)
     }

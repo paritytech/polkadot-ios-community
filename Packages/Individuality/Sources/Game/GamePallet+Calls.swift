@@ -5,15 +5,15 @@ public extension GamePallet {
     struct SignUpWithAccountCall: Codable {
         enum CodingKeys: String, CodingKey {
             case identifierKey = "identifier_key"
-            case airdrop
+            case airdrops
         }
 
         @BytesCodable public var identifierKey: Data
-        @NullCodable public var airdrop: AirdropVrf?
+        @NullCodable public var airdrops: AirdropVrfs?
 
-        public init(identifierKey: Data, airdrop: AirdropVrf?) {
+        public init(identifierKey: Data, airdrops: AirdropVrfs?) {
             self.identifierKey = identifierKey
-            self.airdrop = airdrop
+            self.airdrops = airdrops
         }
 
         public func runtimeCall() -> RuntimeCall<Self> {
@@ -28,15 +28,15 @@ public extension GamePallet {
     struct SignUpWithInviteCall: Codable {
         enum CodingKeys: String, CodingKey {
             case identifierKey = "identifier_key"
-            case airdrop
+            case airdrops
         }
 
         @BytesCodable var identifierKey: Data
-        @NullCodable var airdrop: AirdropVrf?
+        @NullCodable var airdrops: AirdropVrfs?
 
-        public init(identifierKey: Data, airdrop: AirdropVrf?) {
+        public init(identifierKey: Data, airdrops: AirdropVrfs?) {
             self.identifierKey = identifierKey
-            self.airdrop = airdrop
+            self.airdrops = airdrops
         }
 
         public func runtimeCall() -> RuntimeCall<Self> {
@@ -53,24 +53,24 @@ public extension GamePallet {
             case identifierKey = "identifier_key"
             case statementAccount = "statement_account"
             case signature = "sig"
-            case airdrop
+            case airdrops
         }
 
         @BytesCodable var identifierKey: Data
         @BytesCodable var statementAccount: AccountId
         let signature: MultiSignature
-        @NullCodable var airdrop: AirdropVrf?
+        @NullCodable var airdrops: AirdropVrfs?
 
         public init(
             identifierKey: Data,
             statementAccount: AccountId,
             signature: MultiSignature,
-            airdrop: AirdropVrf?
+            airdrops: AirdropVrfs?
         ) {
             self.identifierKey = identifierKey
             self.statementAccount = statementAccount
             self.signature = signature
-            self.airdrop = airdrop
+            self.airdrops = airdrops
         }
 
         public func runtimeCall() -> RuntimeCall<Self> {
@@ -116,14 +116,17 @@ public extension GamePallet {
     struct ClaimAirdropCall: Codable {
         enum CodingKeys: String, CodingKey {
             case gameIndex = "game_index"
+            case airdropIndex = "airdrop_index"
             case beneficiary
         }
 
         @StringCodable public var gameIndex: UInt32
+        @StringCodable public var airdropIndex: UInt8
         @BytesCodable public var beneficiary: AccountId
 
-        public init(gameIndex: UInt32, beneficiary: AccountId) {
+        public init(gameIndex: UInt32, airdropIndex: UInt8, beneficiary: AccountId) {
             self.gameIndex = gameIndex
+            self.airdropIndex = airdropIndex
             self.beneficiary = beneficiary
         }
 

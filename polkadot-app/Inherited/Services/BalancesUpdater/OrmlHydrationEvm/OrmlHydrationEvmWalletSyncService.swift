@@ -1,6 +1,8 @@
 import Foundation
 import SubstrateSdk
 import CommonService
+import ChainRegistry
+import EventCenter
 
 final class OrmlHydrationEvmWalletSyncService: AssetBalanceBatchBaseUpdatingService {
     private let eventCenter: EventCenterProtocol
@@ -123,7 +125,7 @@ final class OrmlHydrationEvmWalletSyncService: AssetBalanceBatchBaseUpdatingServ
     }
 }
 
-extension OrmlHydrationEvmWalletSyncService: EventVisitorProtocol {
+extension OrmlHydrationEvmWalletSyncService: ChainRegistryEventVisiting {
     func processRuntimeCoderReady(event: RuntimeCoderCreated) {
         mutex.lock()
 

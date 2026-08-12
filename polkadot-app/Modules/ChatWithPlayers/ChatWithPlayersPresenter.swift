@@ -4,6 +4,7 @@ import SubstrateSdk
 
 import UIKit.UIImage
 
+@MainActor
 final class ChatWithPlayersPresenter {
     weak var view: ChatWithPlayersViewProtocol?
     let wireframe: ChatWithPlayersWireframeProtocol
@@ -64,7 +65,7 @@ extension ChatWithPlayersPresenter: ChatWithPlayersInteractorOutputProtocol {
 
     func didReceive(remoteContact: Chat.RemoteContact) {
         guard
-            let vote = votes.first(where: { $0.accountId == remoteContact.accountId })
+            votes.contains(where: { $0.accountId == remoteContact.accountId })
         else {
             return
         }

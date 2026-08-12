@@ -100,10 +100,10 @@ extension ChatWithPlayersInteractor: ChatWithPlayersInteractorInputProtocol {
 
                 try Task.checkCancellation()
 
-                let remoteContact = try Chat.RemoteContact(
+                let remoteContact = Chat.RemoteContact(
                     accountId: account,
                     username: username,
-                    chatPublicKey: Chat.PublicKey(rawData: identifier),
+                    chatPublicKey: identifier.localPublicKey,
                     imageData: imageData,
                     source: .game(gameIndex, gameDate)
                 )
@@ -118,7 +118,7 @@ extension ChatWithPlayersInteractor: ChatWithPlayersInteractorInputProtocol {
                 try Task.checkCancellation()
 
                 await presenter?.didReceive(remoteContact: remoteContact)
-            } catch let error as CancellationError {
+            } catch is CancellationError {
                 // Do nothing
             } catch {
                 await presenter?.didReceive(error: error)

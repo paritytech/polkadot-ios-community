@@ -4,5 +4,4 @@ enum UsernameValidationContext {
     case usernameTaken
     case usernameCheckFailed
     case usernameInvalid
-    case digitsInvalid
 }

@@ -5,16 +5,17 @@ import SubstrateSdk
 import ExtrinsicService
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol GameRegisterServicing {
     func registerForGame(
         with mode: GameRegisterMode,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission>
 
     func registerForGame(
         with invitation: Invitation,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission>
 }
 
@@ -30,7 +31,7 @@ final class GameRegisterService {
     private let candidateWallet: WalletManaging
     private let scoreWallet: WalletManaging
     private let extrinsicSubmitMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    private let chatPubKey: Data
+    private let encryptionIdentifier: Chat.OnChainEncryptionIdentifier
     private let personhoodOriginFactory: PersonhoodOriginFactoryProtocol
     private let candidateOriginFactory: CandidateOriginFactoryProtocol
 
@@ -38,7 +39,7 @@ final class GameRegisterService {
         chain: ChainModel,
         candidateWallet: WalletManaging,
         scoreWallet: WalletManaging,
-        chatPubKey: Data,
+        encryptionIdentifier: Chat.OnChainEncryptionIdentifier,
         extrinsicSubmitMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         candidateOriginFactory: CandidateOriginFactoryProtocol,
         personhoodOriginFactory: PersonhoodOriginFactoryProtocol
@@ -47,7 +48,7 @@ final class GameRegisterService {
         self.candidateWallet = candidateWallet
         self.scoreWallet = scoreWallet
         self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
-        self.chatPubKey = chatPubKey
+        self.encryptionIdentifier = encryptionIdentifier
         self.candidateOriginFactory = candidateOriginFactory
         self.personhoodOriginFactory = personhoodOriginFactory
     }
@@ -56,7 +57,7 @@ final class GameRegisterService {
 extension GameRegisterService: GameRegisterServicing {
     func registerForGame(
         with mode: GameRegisterMode,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
         switch mode {
         case let .player(isCredible):
@@ -68,14 +69,14 @@ extension GameRegisterService: GameRegisterServicing {
 
     func registerForGame(
         with invitation: Invitation,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
         registerForGame(invitation: invitation, airdrop: airdrop)
     }
 }
 
 private extension GameRegisterService {
-    func airdropVariantDescription(_ airdrop: GamePallet.AirdropVrf?) -> String {
+    func airdropVariantDescription(_ airdrop: GamePallet.AirdropVrfs?) -> String {
         switch airdrop {
         case .none: "nil"
         case .account: "Account"
@@ -85,7 +86,7 @@ private extension GameRegisterService {
 
     func registerForGame(
         isCrediblePlayer: Bool,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
         Logger.shared.debug(
             "[GameDebug] submit SignUpWithAccount: isCredible=\(isCrediblePlayer) "
@@ -106,9 +107,11 @@ private extension GameRegisterService {
                 }
 
             return extrinsicSubmitMonitor.submitAndMonitorWrapper(
-                extrinsicBuilderClosure: { [chatPubKey] builder in
-                    let call = GamePallet
-                        .SignUpWithAccountCall(identifierKey: chatPubKey, airdrop: airdrop)
+                extrinsicBuilderClosure: { [encryptionIdentifier] builder in
+                    let call = try GamePallet.SignUpWithAccountCall(
+                        identifierKey: encryptionIdentifier.scaleEncoded(),
+                        airdrops: airdrop
+                    )
                     return try builder.adding(call: call.runtimeCall())
                 },
                 origin: origin,
@@ -121,7 +124,7 @@ private extension GameRegisterService {
 
     func registerForGame(
         invitation: Invitation,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
         Logger.shared.debug(
             "[GameDebug] submit SignUpWithInvite: airdrop=\(airdropVariantDescription(airdrop))"
@@ -131,8 +134,10 @@ private extension GameRegisterService {
             let ticketId = try Data(hexString: invitation.publicKey)
             let signatureData = try Data(hexString: invitation.signature)
 
-            let call = GamePallet
-                .SignUpWithInviteCall(identifierKey: chatPubKey, airdrop: airdrop)
+            let call = try GamePallet.SignUpWithInviteCall(
+                identifierKey: encryptionIdentifier.scaleEncoded(),
+                airdrops: airdrop
+            )
 
             let origin = try candidateOriginFactory.createGameAsInvited(
                 for: candidateWallet,
@@ -156,7 +161,7 @@ private extension GameRegisterService {
 
     func registerForGame(
         asScoreAlias alias: Data,
-        airdrop: GamePallet.AirdropVrf?
+        airdrop: GamePallet.AirdropVrfs?
     ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
         Logger.shared.debug(
             "[GameDebug] submit SignUpWithAlias: alias=\(alias.toHex(includePrefix: true)) "
@@ -172,18 +177,18 @@ private extension GameRegisterService {
                 )
             )
             return extrinsicSubmitMonitor.submitAndMonitorWrapper(
-                extrinsicBuilderClosure: { [weak self, scoreWallet, chain, chatPubKey] builder in
+                extrinsicBuilderClosure: { [weak self, scoreWallet, chain, encryptionIdentifier] builder in
                     guard let self else {
                         throw BaseOperationError.unexpectedDependentResult
                     }
                     let signature = try makeScoreAliasSignature(alias: alias)
 
                     let scoreAccountId = try scoreWallet.fetchAccount(for: chain).accountId
-                    let call = GamePallet.SignUpWithAliasCall(
-                        identifierKey: chatPubKey,
+                    let call = try GamePallet.SignUpWithAliasCall(
+                        identifierKey: encryptionIdentifier.scaleEncoded(),
                         statementAccount: scoreAccountId,
                         signature: signature,
-                        airdrop: airdrop
+                        airdrops: airdrop
                     )
                     return try builder.adding(call: call.runtimeCall())
                 },

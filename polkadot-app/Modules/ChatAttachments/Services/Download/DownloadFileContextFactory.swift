@@ -18,11 +18,11 @@ final class DownloadFileContextFactory {
     }
 
     func createContext(
-        metadataHash: FileHash,
+        entryHash: FileHash,
         filename: String
     ) -> DownloadFileContext {
         DownloadFileContext(
-            metadataHash: metadataHash,
+            entryHash: entryHash,
             filename: filename,
             attachmentsStore: attachmentsStore,
             repository: repository,

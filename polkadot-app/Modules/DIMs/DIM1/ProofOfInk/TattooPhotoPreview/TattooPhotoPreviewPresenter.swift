@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 final class TattooPhotoPreviewPresenter {
     weak var view: TattooPhotoPreviewViewProtocol?
     let wireframe: TattooPhotoPreviewWireframeProtocol

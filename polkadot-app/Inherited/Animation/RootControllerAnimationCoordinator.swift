@@ -1,6 +1,5 @@
 import UIKit
 
-// swiftlint:disable:next type_name
 protocol RootControllerAnimationCoordinatorProtocol {
     func animateTransition(to controller: UIViewController)
     func animateTransition(to controller: UIViewController, in window: UIWindow)

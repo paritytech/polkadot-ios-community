@@ -1,11 +1,13 @@
 import Foundation
 import Foundation_iOS
+import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageSubscription
 import HydrationSdk
 import CommonService
 import ChainStore
 import AssetsManagement
+import ChainRegistry
 
 struct WalletRemoteSubscriptionUpdate {
     let balance: AssetBalance?

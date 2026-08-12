@@ -1,4 +1,5 @@
 import UIKit
+import ExternalAccessibility
 import PolkadotUI
 import UIKit_iOS
 import SnapKit
@@ -35,6 +36,7 @@ final class SearchAccountViewLayout: UIView {
 
         backgroundColor = .bgSurfaceMain
         configureView()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -63,5 +65,13 @@ final class SearchAccountViewLayout: UIView {
         loadingView.snp.makeConstraints {
             $0.center.equalToSuperview()
         }
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension SearchAccountViewLayout: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [.init(addressInputView.textField, AccessibilityID.SendPayment.recipientInput)]
     }
 }

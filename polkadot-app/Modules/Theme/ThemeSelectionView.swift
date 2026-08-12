@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import PolkadotUI
 import SwiftUI
 
@@ -319,6 +320,7 @@ private extension ThemeSelectionView {
                     model.confirm()
                 }
                 .padding(.horizontal, DSSpacings.mediumIncreased)
+                .accessibilityId(AccessibilityID.Onboarding.themeContinueButton)
             }
         }
         .geometryGroup()

@@ -3,6 +3,7 @@ import SDKLogger
 import SubstrateSdk
 import AssetExchange
 import XcmTransfer
+import ChainRegistry
 
 enum TokenDepositEventMatcherFactoryError: Error {
     case unexpectedChainAsset(ChainAssetProtocol)

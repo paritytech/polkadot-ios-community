@@ -4,6 +4,7 @@ import AssetHubSdk
 import XcmDefinition
 import BigInt
 import AssetsManagement
+import ChainRegistry
 
 final class AssetHubTokenConverter {}
 

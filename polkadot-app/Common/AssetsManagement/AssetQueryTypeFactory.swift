@@ -1,6 +1,7 @@
 import AssetsManagement
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 final class AssetQueryTypeFactory: AssetQueryTypeMaking {
     func deriveQueryType(_ chainAsset: ChainAssetProtocol) -> AssetQueryType? {

@@ -36,6 +36,7 @@ public struct WebPresentableStyle {
 
 public protocol WebPresentable: AnyObject {
     func prewarmURLs(_ urls: [URL?]) -> SFSafariViewController.PrewarmingToken
+    @MainActor
     func showWeb(url: URL, from view: ControllerBackedProtocol, style: WebPresentableStyle)
 }
 
@@ -48,6 +49,7 @@ public extension WebPresentable {
         SFSafariViewController.prewarmConnections(to: urls.compactMap { $0 })
     }
 
+    @MainActor
     func showWeb(
         url: URL,
         from view: ControllerBackedProtocol,

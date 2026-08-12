@@ -3,9 +3,10 @@ import UIKit
 import Keystore_iOS
 import KeyDerivation
 import SubstrateOperation
+import ChainRegistry
 
 extension ChatExtensionsRegistry {
-    // swiftlint:disable:next function_body_length
+    @MainActor
     static func createDimExtensions(
         syncStateStore: DetermineStateSyncStore,
         personDataStore: DetermineStatePersonDataStore,
@@ -108,7 +109,7 @@ extension ChatExtensionsRegistry {
                     .init(
                         title: String(localized: .ChatExtension.polkadotPeerActionDim2Title),
                         subtitle: String(localized: .ChatExtension.polkadotPeerActionDim2Subtitle),
-                        identifier: dim2.identifier
+                        identifier: DIM2ChatExtension.identifier
                     )
                 ]
 
@@ -130,6 +131,7 @@ extension ChatExtensionsRegistry {
 }
 
 private extension ChatExtensionsRegistry {
+    @MainActor
     static func createPolkadotPeer(
         flowState: DIMSSharedFlowStateProtocol,
         actions: [ChatExtensionActions.ActionModel],
@@ -137,7 +139,7 @@ private extension ChatExtensionsRegistry {
     ) -> PolkadotPeer? {
         PolkadotPeer(
             actions: actions,
-            wireframe: PolkadotPeerWireframe(),
+            wireframe: PolkadotPeerWireframe(application: UIApplication.shared),
             interactor: PolkadotPeerInteractor(flowState: flowState),
             logger: logger
         )

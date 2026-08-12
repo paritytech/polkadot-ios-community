@@ -3,6 +3,8 @@ import Operation_iOS
 import StructuredConcurrency
 import SubstrateSdk
 import KeyDerivation
+import ChainRegistry
+import SubstrateSdkExt
 
 final class IdentityDetailsInteractor {
     weak var presenter: IdentityDetailsInteractorOutputProtocol?

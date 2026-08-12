@@ -1,3 +1,4 @@
-OTHER_SWIFT_FLAGS = $(inherited) "-DF_DEV" "-DUNSTABLE"
-BUNDLE = io.paritytech.polkadotapp.develop.NotificationServiceExtension
-APP_MAIN_BUNDLE = io.paritytech.polkadotapp.develop
+#include "../../Configs/base.debug.xcconfig"
+
+OTHER_SWIFT_FLAGS = $(inherited) $(BASE_SWIFT_FLAGS)
+BUNDLE = $(APP_MAIN_BUNDLE).NotificationServiceExtension

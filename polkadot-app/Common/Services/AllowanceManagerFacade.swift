@@ -1,10 +1,15 @@
 import Foundation
 import Individuality
+import ChainRegistry
 
 struct AllowanceManagerFacade {
     let bulletInManager: AllowanceManaging
     let sssManager: AllowanceManaging
     let smartContractManager: AllowanceManaging
+
+    var allManagers: [AllowanceManaging] {
+        [bulletInManager, sssManager, smartContractManager]
+    }
 }
 
 extension AllowanceManagerFacade {

@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateMetadataHash
 import SubstrateSdk
+import ChainRegistry
 
 final class RuntimeMetadataItemProvider {
     let runtimeMetadataRepositoryFactory: RuntimeMetadataRepositoryFactoryProtocol

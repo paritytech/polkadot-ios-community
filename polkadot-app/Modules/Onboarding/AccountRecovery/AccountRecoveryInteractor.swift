@@ -27,7 +27,9 @@ extension AccountRecoveryInteractor: AccountRecoveryInteractorInputProtocol {
     func proceed(withWords words: String) {
         guard let mnemonic = try? mnemonicGenerator.mnemonic(fromList: words) else {
             logger.debug("Invalid mnemonic format")
-            presenter?.didReceiveInvalidMnemonicFormat()
+            MainActor.assumeIsolated {
+                presenter?.didReceiveInvalidMnemonicFormat()
+            }
             return
         }
 
@@ -37,9 +39,11 @@ extension AccountRecoveryInteractor: AccountRecoveryInteractorInputProtocol {
 
 private extension AccountRecoveryInteractor {
     func performCreateWallets(with metadata: AccountCreateMetadata) {
-        presenter?.authorizeUser { [weak self] isAuthorized in
-            if isAuthorized {
-                self?.continueCreateWallets(with: metadata)
+        MainActor.assumeIsolated {
+            presenter?.authorizeUser { [weak self] isAuthorized in
+                if isAuthorized {
+                    self?.continueCreateWallets(with: metadata)
+                }
             }
         }
     }
@@ -47,10 +51,14 @@ private extension AccountRecoveryInteractor {
     func continueCreateWallets(with metadata: AccountCreateMetadata) {
         do {
             try walletSetupManager.createWallets(with: metadata)
-            presenter?.didRestoreWallets()
+            MainActor.assumeIsolated {
+                presenter?.didRestoreWallets()
+            }
         } catch {
             logger.error("Unexpected wallet create error: \(error)")
-            presenter?.didDecideBroken()
+            MainActor.assumeIsolated {
+                presenter?.didDecideBroken()
+            }
         }
     }
 }

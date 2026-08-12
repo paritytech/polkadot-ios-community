@@ -1,6 +1,7 @@
 import DesignSystem
 import UIKit
 internal import SnapKit
+internal import UIKit_iOS
 
 public final class SearchContactViewLayout: DiffableCollectionViewProviderView<String, String> {
     private let searchHeader = SearchContactHeaderView()
@@ -20,6 +21,8 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
         $0.textAlignment = .center
     }
 
+    private let loadingView = SearchContactLoadingView()
+
     private lazy var separatorConfiguration = createSeparatorConfiguration()
 
     public var selectionHandler: ((ItemIdentifierType) -> Void)?
@@ -33,11 +36,13 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
         // hidden by default
         searchHintLabel.setHidden(true)
         noResultsLabel.setHidden(true)
+        loadingView.setHidden(true)
 
         addSubview(searchHeader)
         addSubview(collectionView)
         addSubview(searchHintLabel)
         addSubview(noResultsLabel)
+        addSubview(loadingView)
 
         // keyboard to search field
         let centeringLayoutGuide = UILayoutGuide()
@@ -65,6 +70,10 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
             $0.centerY.equalTo(centeringLayoutGuide.snp.centerY)
             $0.width.lessThanOrEqualTo(centeringLayoutGuide.snp.width)
             $0.height.lessThanOrEqualTo(centeringLayoutGuide.snp.height)
+        }
+
+        loadingView.snp.makeConstraints {
+            $0.edges.equalTo(centeringLayoutGuide)
         }
 
         collectionView.snp.makeConstraints {
@@ -95,15 +104,21 @@ public extension SearchContactViewLayout {
         let contactsById: [IdentifiableContentConfiguration<ItemIdentifierType, SearchContactListConfiguration>]
         let showHint: Bool
         let searchFailReason: NSAttributedString?
+        let showsLoader: Bool
+        let loaderText: String?
 
         public init(
             contactsById: [IdentifiableContentConfiguration<String, SearchContactListConfiguration>],
             showHint: Bool,
-            searchFailReason: NSAttributedString?
+            searchFailReason: NSAttributedString?,
+            showsLoader: Bool,
+            loaderText: String?
         ) {
             self.contactsById = contactsById
             self.showHint = showHint
             self.searchFailReason = searchFailReason
+            self.showsLoader = showsLoader
+            self.loaderText = loaderText
         }
     }
 
@@ -117,11 +132,18 @@ public extension SearchContactViewLayout {
         set { searchHeader.cancelHandler = newValue }
     }
 
+    var scanHandler: (() -> Void)? {
+        get { searchHeader.scanHandler }
+        set { searchHeader.scanHandler = newValue }
+    }
+
     func bind(viewModel: ViewModel) {
         configureCollectionView(viewModel: viewModel)
         searchHintLabel.setHidden(!viewModel.showHint)
         noResultsLabel.attributedText = viewModel.searchFailReason
         noResultsLabel.setHidden(viewModel.searchFailReason == nil)
+        loadingView.bind(text: viewModel.loaderText)
+        loadingView.setLoading(viewModel.showsLoader)
     }
 
     func focusSearchInput() {
@@ -183,6 +205,67 @@ private extension SearchContactViewLayout {
     }
 }
 
+private final class SearchContactLoadingView: UIView {
+    private enum Constants {
+        static let loadingViewSize = CGFloat(64)
+    }
+
+    private let loadingView: LoadingView = create {
+        $0.contentBackgroundColor = .clear
+        $0.contentSize = .init(width: Constants.loadingViewSize, height: Constants.loadingViewSize)
+        $0.indicatorImage = UIImage(resource: .searchingUsername)
+        $0.tintColor = .fgPrimary
+    }
+
+    private let textLabel: Label = create {
+        $0.numberOfLines = 0
+        $0.textAlignment = .center
+        $0.typography = .bodyLargeEmphasized
+        $0.textColor = .fgSecondary
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        setupLayout()
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func bind(text: String?) {
+        textLabel.text = text
+        textLabel.setHidden(text == nil)
+    }
+
+    func setLoading(_ loading: Bool) {
+        setHidden(!loading)
+
+        if loading {
+            loadingView.startAnimating()
+        } else {
+            loadingView.stopAnimating()
+        }
+    }
+
+    private func setupLayout() {
+        addSubview(loadingView)
+        addSubview(textLabel)
+
+        loadingView.snp.makeConstraints {
+            $0.center.equalToSuperview()
+            $0.size.equalTo(Constants.loadingViewSize)
+        }
+
+        textLabel.snp.makeConstraints {
+            $0.top.equalTo(loadingView.snp.bottom).offset(8)
+            $0.leading.trailing.equalToSuperview().inset(24)
+        }
+    }
+}
+
 extension SearchContactViewLayout: UICollectionViewDelegate {
     public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard collectionView.cellForItem(at: indexPath)?.contentView is SearchContactListView,
@@ -208,7 +291,9 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
     let viewModel = SearchContactViewLayout.ViewModel(
         contactsById: contacts.identifiedByUUIDs(),
         showHint: false,
-        searchFailReason: nil
+        searchFailReason: nil,
+        showsLoader: false,
+        loaderText: nil
     )
     layout.bind(viewModel: viewModel)
     return layout
@@ -220,7 +305,9 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
     let viewModel = SearchContactViewLayout.ViewModel(
         contactsById: [],
         showHint: false,
-        searchFailReason: string
+        searchFailReason: string,
+        showsLoader: false,
+        loaderText: nil
     )
     layout.bind(viewModel: viewModel)
     return layout
@@ -231,7 +318,22 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
     let viewModel = SearchContactViewLayout.ViewModel(
         contactsById: [],
         showHint: true,
-        searchFailReason: nil
+        searchFailReason: nil,
+        showsLoader: false,
+        loaderText: nil
+    )
+    layout.bind(viewModel: viewModel)
+    return layout
+}
+
+#Preview("Loading") {
+    let layout = SearchContactViewLayout()
+    let viewModel = SearchContactViewLayout.ViewModel(
+        contactsById: [],
+        showHint: false,
+        searchFailReason: nil,
+        showsLoader: true,
+        loaderText: "Search is taking longer than usual"
     )
     layout.bind(viewModel: viewModel)
     return layout

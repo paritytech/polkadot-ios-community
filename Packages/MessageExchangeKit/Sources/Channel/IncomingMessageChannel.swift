@@ -10,8 +10,7 @@ final class IncomingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
     weak var delegate: AnyIncomingMessageChannelDelegate<M>?
 
     private let workQueue: DispatchQueue
-    private let sessionId: MessageExchange.SessionId
-    private let channelId: StatementFixedFieldConvertible
+    private let routeContexts: PeerSessionRoute.Contexts
     private let submitter: StatementStoreSubmitting
     private let signer: StatementStoreSigning
     private let priorityProvider: PeerSessionPriorityProviding
@@ -19,12 +18,11 @@ final class IncomingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
     private let operationQueue: OperationQueue
     private let logger: SDKLoggerProtocol?
 
-    private var submissionTask: Task<Void, Never>?
+    private var submissionTasks = [PeerSessionRoute: Task<Void, Never>]()
 
     init(
         workQueue: DispatchQueue,
-        sessionId: MessageExchange.SessionId,
-        channelId: StatementFixedFieldConvertible,
+        routeContexts: PeerSessionRoute.Contexts,
         submitter: StatementStoreSubmitting,
         signer: StatementStoreSigning,
         priorityProvider: PeerSessionPriorityProviding,
@@ -33,8 +31,7 @@ final class IncomingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
         logger: SDKLoggerProtocol?
     ) {
         self.workQueue = workQueue
-        self.sessionId = sessionId
-        self.channelId = channelId
+        self.routeContexts = routeContexts
         self.submitter = submitter
         self.signer = signer
         self.priorityProvider = priorityProvider
@@ -47,34 +44,40 @@ final class IncomingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
 extension IncomingMessageChannel: IncomingMessageChanneling {
     func sendResponse(
         with responseCode: MessageExchange.ResponseCode,
-        forRequestId requestId: String
+        forRequestId requestId: String,
+        route: PeerSessionRoute
     ) {
         assert(delegate != nil, "Delegate should not be nil")
 
-        guard let scaleEncodedPayload = makeScaleEncodedPayload(response: .init(
-            requestId: requestId,
-            responseCode: responseCode
-        )) else {
+        guard let scaleEncodedPayload = makeScaleEncodedPayload(
+            response: .init(
+                requestId: requestId,
+                responseCode: responseCode
+            ),
+            route: route
+        )
+        else {
             return
         }
 
         let expiry = priorityProvider.incrementedExpiry()
+        let routeContext = routeContexts.context(for: route)
 
         let builder = StatementSubmitParametersBuilder(
             signer: signer,
             logger: logger
         )
-        .addTopic1(sessionId.own)
-        .addChannel(channelId)
+        .addTopic1(routeContext.sessionId.own)
+        .addChannel(routeContext.responseChannelId)
         .addExpiry(expiry)
         .addScaleEncodedPayload(scaleEncodedPayload)
 
         logger?.debug("Going to send \(responseCode) for request \(requestId) with priority \(expiry)")
 
-        // it is ok to cancel submission task since we can have this case
-        // only when a peer replaced the statement we were responding to
-        submissionTask?.cancel()
-        submissionTask = Task { [weak self] in
+        // Same-route responses share the same response statement. Replacing a response
+        // on one route must not cancel another route's response submission.
+        submissionTasks[route]?.cancel()
+        submissionTasks[route] = Task { [weak self] in
             do {
                 try await self?.submitter.submitStatement(with: builder)
                 self?.logger?.debug("\(responseCode) sent for request \(requestId)")
@@ -90,10 +93,13 @@ extension IncomingMessageChannel: IncomingMessageChanneling {
 }
 
 private extension IncomingMessageChannel {
-    func makeScaleEncodedPayload(response: MessageExchange.Response) -> Data? {
+    func makeScaleEncodedPayload(
+        response: MessageExchange.Response,
+        route: PeerSessionRoute
+    ) -> Data? {
         do {
             let statementData = StatementData<Message>.response(response)
-            return try statementDataCoder.encodeToScaleEncodedPayload(statementData)
+            return try statementDataCoder.encodeToScaleEncodedPayload(statementData, route: route)
         } catch {
             logger?.error("Failed to encode response: \(error)")
             return nil

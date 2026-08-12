@@ -2,6 +2,7 @@ import Foundation
 import HandoffService
 import Individuality
 import SDKLogger
+import ChainRegistry
 
 extension ServiceCoordinator {
     static func createAttachmentUploadService(

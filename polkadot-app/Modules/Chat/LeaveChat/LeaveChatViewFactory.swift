@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum LeaveChatViewFactory {
     static func createView(
         username: String,

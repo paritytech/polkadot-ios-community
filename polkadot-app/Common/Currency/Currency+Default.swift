@@ -498,6 +498,6 @@ extension Currency {
             category: .fiat,
             isPopular: false,
             coingeckoId: "uyu"
-        ),
+        )
     ]
 }

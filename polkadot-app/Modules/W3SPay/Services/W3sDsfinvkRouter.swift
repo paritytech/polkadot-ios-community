@@ -1,4 +1,5 @@
 import Foundation
+import Coinage
 import Operation_iOS
 import SDKLogger
 import StructuredConcurrency
@@ -44,5 +45,24 @@ final class W3sDsfinvkRouter: W3sDsfinvkRouting {
         } catch {
             logger?.error("W3S DSFinV-K: failed to load merchants config: \(error)")
         }
+    }
+}
+
+extension W3sDsfinvkRouter {
+    static func createDefault(coinageService: CoinageServicing) -> W3sDsfinvkRouting {
+        let logger = Logger.shared
+        let historyStorage = W3sPaymentHistoryCoreDataStore(storageFacade: UserDataStorageFacade.shared)
+
+        let launcher = W3sPayLauncher(
+            coinageService: coinageService,
+            historyStore: historyStorage,
+            logger: logger
+        )
+
+        return W3sDsfinvkRouter(
+            remoteConfig: FirebaseFacade.shared,
+            launcher: launcher,
+            logger: logger
+        )
     }
 }

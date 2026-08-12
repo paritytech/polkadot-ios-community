@@ -22,11 +22,13 @@ public extension PeoplePallet.AsPersonTxExtension {
         enum CodingKeys: String, CodingKey {
             case proof = "0"
             case ringIndex = "1"
-            case context = "2"
+            case revision = "2"
+            case context = "3"
         }
 
         @BytesCodable var proof: Data
         @StringCodable var ringIndex: MembersPallet.RingIndex
+        @StringCodable var revision: MembersPallet.RevisionIndex
         @BytesCodable var context: Data
     }
 
@@ -74,12 +76,14 @@ public extension PeoplePallet.AsPersonTxExtension {
             case nonce = "0"
             case proof = "1"
             case ringIndex = "2"
-            case context = "3"
+            case revision = "3"
+            case context = "4"
         }
 
         @StringCodable var nonce: AccountNonce
         @BytesCodable var proof: Data
         @StringCodable var ringIndex: MembersPallet.RingIndex
+        @StringCodable var revision: MembersPallet.RevisionIndex
         @BytesCodable var context: Data
     }
 
@@ -256,6 +260,7 @@ extension PeoplePallet.AsPersonTxExtension: TransactionExtending {
         let model = AsPersonalAliasWithProofMode(
             proof: proof,
             ringIndex: params.ringIndex,
+            revision: params.proofParams.revision,
             context: params.context
         )
 
@@ -322,6 +327,7 @@ extension PeoplePallet.AsPersonTxExtension: TransactionExtending {
             nonce: params.nonce,
             proof: proof,
             ringIndex: params.ringIndex,
+            revision: params.proofParams.revision,
             context: params.context
         )
 

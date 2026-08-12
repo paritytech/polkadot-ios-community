@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import Foundation
 import Foundation_iOS
 import PolkadotUI
@@ -5,6 +6,7 @@ import UIKitExt
 
 protocol BackupSyncPresentable: AnyObject {}
 
+@MainActor
 extension BackupSyncPresentable {
     func showCancelBackupConfirmation(
         from view: (any ControllerBackedProtocol)?,
@@ -24,7 +26,8 @@ extension BackupSyncPresentable {
                             type: .success
                         )
                     }
-                }
+                },
+                accessibilityId: AccessibilityID.Wallet.backupDoneConfirmButton
             ),
             secondaryAction: nil
         )

@@ -4,5 +4,5 @@ import Products
 import SubstrateSdk
 
 extension PolkadotHostRemoteMessage {
-    typealias ResourceAllocationResult = HostResult<[AllocationOutcome]>
+    typealias ResourceAllocationResult = HostResult<[AllocationOutcome], String>
 }

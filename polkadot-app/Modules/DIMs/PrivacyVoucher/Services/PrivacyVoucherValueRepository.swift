@@ -3,6 +3,7 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateOperation
 import SubstrateStorageQuery
+import ChainRegistry
 
 protocol PrivacyVoucherValueRepositoryProtocol {
     func fetchRewardsVoucherValue(

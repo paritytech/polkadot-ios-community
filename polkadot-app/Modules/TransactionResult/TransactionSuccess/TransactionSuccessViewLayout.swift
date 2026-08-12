@@ -6,19 +6,18 @@ final class TransactionSuccessViewLayout: UIView {
     let iconView: GenericBorderedView<UIImageView> = .create { view in
         view.backgroundView.applyBackgroundStyle(.bgStatusSuccess, cornerRadius: 40)
         view.contentInsets = UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
-        view.contentView.image = .tick40
+        view.contentView.image = .tick40.withRenderingMode(.alwaysTemplate)
+        view.contentView.tintColor = .fgStaticWhite
     }
 
-    let titleLabel: UILabel = .create { view in
-        view.font = .headlineSmall
+    let titleLabel: Label = .create { view in
+        view.typography = .headlineSmall
         view.textColor = .fgPrimary
         view.numberOfLines = 0
         view.textAlignment = .center
     }
 
-    let doneButton: RoundedButton = .create { button in
-        button.applyMainStyle()
-    }
+    let doneButton = DSButtonView("", size: .large, expands: true)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -50,7 +49,7 @@ final class TransactionSuccessViewLayout: UIView {
         doneButton.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(UIConstants.horizontalInsetWide)
             make.bottom.equalTo(safeAreaLayoutGuide.snp.bottom).offset(-20)
-            make.height.equalTo(UIConstants.actionHeight)
+            make.height.equalTo(doneButton.proposedHeight)
         }
     }
 }

@@ -19,21 +19,53 @@ public protocol TransferClaimServicing: Actor {
         context: DenominationBreakdownContext
     ) async throws -> BigUInt
 
-    /// Revokes spent coins by deriving public keys from secret keys and transferring
-    /// them to new destinations, without persisting a claim plan.
-    /// This is used for user-initiated recovery of locally-spent coins that may still
-    /// be claimable on-chain.
-    /// Returns the total planks of successfully revoked coins.
-    func revokeFromSecretKeys(
-        secretKeys: [Data],
+    /// Recovers locally-spent coins that may still be on-chain:
+    /// - Coins whose on-chain age has reached `coinMaxAge` are flipped back to
+    ///   `.available` locally — the chain would reject a transfer for them, so we
+    ///   leave them in place and rely on the recycling service to sweep them next.
+    /// - Younger coins are revoked by transferring them to fresh destinations.
+    /// Returns the total planks recovered across both paths.
+    func recoverSpentCoins(
+        spentCoins: [Coin],
         context: DenominationBreakdownContext
     ) async throws -> BigUInt
+}
+
+/// Outcome of a send confirmation that tolerates a recipient claim.
+public enum SendConfirmation: Sendable {
+    /// At least one coin is still on-chain — send confirmed, awaiting claim.
+    case onChain
+    /// All coins are confirmed sent then spent — the recipient already claimed.
+    case alreadyClaimed
 }
 
 /// Waits until outgoing transfer coins have appeared on-chain, or throws on timeout.
 public protocol TransferSendVerifying: Actor {
     func awaitSendOnChain(memo: TransferMemo, blockTimeout: UInt32) async throws
     func awaitClaimOnChain(memo: TransferMemo, blockTimeout: UInt32) async throws
+
+    /// Confirms the transfer reached the chain even if the recipient already claimed some or all
+    /// coins. `anchorBlock` (e.g. submit-time finalized block + send window) enables a historical
+    /// probe for coins spent before this watch began. Throws `CoinOnChainQueryError.timeout` only
+    /// when a coin is neither present now, nor seen during the watch, nor present at the anchor —
+    /// i.e. a genuine lost send.
+    func awaitSendOrClaimed(
+        memo: TransferMemo,
+        anchorBlock: BlockNumber?,
+        blockTimeout: UInt32
+    ) async throws -> SendConfirmation
+}
+
+public extension TransferSendVerifying {
+    /// Default: fall back to strict presence detection (no claim tolerance).
+    func awaitSendOrClaimed(
+        memo: TransferMemo,
+        anchorBlock _: BlockNumber?,
+        blockTimeout: UInt32
+    ) async throws -> SendConfirmation {
+        try await awaitSendOnChain(memo: memo, blockTimeout: blockTimeout)
+        return .onChain
+    }
 }
 
 /// Combined protocol for services that handle both claiming and send verification.
@@ -100,6 +132,33 @@ actor TransferRecipientService {
     }
 }
 
+// MARK: - Cancellable async sequence wrapper
+
+private extension AsyncSequence where Element: Sendable, AsyncIterator: Sendable {
+    /// Bridges a non-cancellation-aware async sequence (e.g. an AsyncExtensions multicast
+    /// subject) into an AsyncStream that finishes promptly when the consuming task is
+    /// cancelled, instead of staying suspended until the next upstream element.
+    func cancellable() -> AsyncStream<Element> {
+        AsyncStream { continuation in
+            let task = Task {
+                do {
+                    for try await element in self {
+                        continuation.yield(element)
+                    }
+                } catch {}
+                continuation.finish()
+            }
+            // `onTermination` fires immediately when the consumer's task is cancelled (AsyncStream
+            // iterators are cancellation-aware), so the counter loop unblocks at once. The pump task,
+            // however, is suspended on the upstream multicast subject, which is NOT cancellation-aware:
+            // it only observes this `cancel()` on the next upstream element (or upstream finish).
+            // So the pump — and its consumer slot on the shared head subscription — may linger up to
+            // one block before tearing down. Bounded and self-healing; do not "fix" by awaiting it.
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
 extension TransferRecipientService: OngoingTransferServicing {
     func claim(memo: TransferMemo, messageId: String) async throws {
         logger?.debug("Claiming memo with \(memo.entries.count) entries")
@@ -151,7 +210,7 @@ extension TransferRecipientService: OngoingTransferServicing {
         }
 
         logger?.debug(
-            "Claim completed - claimed: \(report.claimed.count), already transferred: \(report.alreadyTransferred.count)"
+            "Claim completed - claimed: \(report.claimed.count)/\(memo.entries.count), already transferred: \(report.alreadyTransferred.count)"
         )
     }
 
@@ -182,27 +241,39 @@ extension TransferRecipientService: OngoingTransferServicing {
         return total
     }
 
-    func revokeFromSecretKeys(
-        secretKeys: [Data],
+    func recoverSpentCoins(
+        spentCoins: [Coin],
         context: DenominationBreakdownContext
     ) async throws -> BigUInt {
-        guard !secretKeys.isEmpty else { return .zero }
+        guard !spentCoins.isEmpty else { return .zero }
 
-        let senderKeys = try secretKeys.enumerated().map { index, privateKey in
+        let senderKeys: [SenderKey] = try spentCoins.enumerated().map { index, coin in
+            let privateKey = try coinKeyFactory.derivePrivateKey(for: coin)
             let publicKey = try snKeyFactory.createPublicKey(fromSecret: privateKey).rawData()
-            return (index: index, privateKey: privateKey, publicKey: publicKey)
+            return (index, privateKey, publicKey)
         }
 
         let sourceCoins = try await coinOnChainQuery.fetchCoins(for: senderKeys.map(\.publicKey))
 
+        let restoredPlanks = try await restoreMaxAgeCoins(
+            spentCoins: spentCoins,
+            sourceCoins: sourceCoins,
+            context: context
+        )
+
+        let (transferableKeys, transferableSources) = filterTransferable(
+            senderKeys: senderKeys,
+            sourceCoins: sourceCoins
+        )
+
         var failures: [EntryFailure] = []
         let (prepared, _) = await allocateDestinations(
-            senderKeys: senderKeys,
-            sourceCoins: sourceCoins,
+            senderKeys: transferableKeys,
+            sourceCoins: transferableSources,
             failures: &failures
         )
 
-        guard !prepared.isEmpty else { return .zero }
+        guard !prepared.isEmpty else { return restoredPlanks }
 
         let (claimed, submitFailures) = await submitTransfers(prepared)
         failures.append(contentsOf: submitFailures)
@@ -216,8 +287,8 @@ extension TransferRecipientService: OngoingTransferServicing {
             logger?.error("Revoke had \(failures.count) failures")
         }
 
-        let total = claimed.reduce(.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
-        return total
+        let transferredPlanks = claimed.reduce(.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
+        return restoredPlanks + transferredPlanks
     }
 
     /// Derives sender public keys, then races a finalized-block counter against the coin subscription.
@@ -235,11 +306,18 @@ extension TransferRecipientService: OngoingTransferServicing {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
+        logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+
         try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask {
+            group.addTask { [logger] in
                 var count: UInt32 = 0
-                for try await _ in stream {
+                for try await header in stream.cancellable() {
                     count += 1
+                    if count == 1 {
+                        logger?.debug(
+                            "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
+                        )
+                    }
                     if count >= blockTimeout {
                         throw CoinOnChainQueryError.timeout
                     }
@@ -272,11 +350,18 @@ extension TransferRecipientService: OngoingTransferServicing {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
-        try await withThrowingTaskGroup(of: Void.self) { group in
+        logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+
+        try await withThrowingTaskGroup(of: Void.self) { [logger] group in
             group.addTask {
                 var count: UInt32 = 0
-                for try await _ in stream {
+                for try await header in stream.cancellable() {
                     count += 1
+                    if count == 1 {
+                        logger?.debug(
+                            "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
+                        )
+                    }
                     if count >= blockTimeout {
                         throw CoinOnChainQueryError.timeout
                     }
@@ -290,6 +375,93 @@ extension TransferRecipientService: OngoingTransferServicing {
 
             try await group.next()
             group.cancelAll()
+        }
+    }
+
+    func awaitSendOrClaimed(
+        memo: TransferMemo,
+        anchorBlock: BlockNumber?,
+        blockTimeout: UInt32
+    ) async throws -> SendConfirmation {
+        guard !memo.entries.isEmpty else { return .onChain }
+
+        let publicKeys: [PublicKey] = try memo.entries.map {
+            try snKeyFactory.createPublicKey(fromSecret: $0).rawData()
+        }
+
+        var confirmed = Set<Int>()
+        var anyPresentNow = false
+
+        // 1. Current on-chain state.
+        let current = try await coinOnChainQuery.fetchCoins(for: publicKeys, atBlockHash: nil)
+        for (index, coin) in current.enumerated() where coin != nil {
+            confirmed.insert(index)
+            anyPresentNow = true
+        }
+
+        // 2. Historical probe: a coin spent before this watch is absent now but was present at the
+        //    anchor block. Best-effort — a future/unavailable anchor simply skips this step.
+        if confirmed.count < publicKeys.count, let anchorBlock {
+            let absentIndices = (0 ..< publicKeys.count).filter { !confirmed.contains($0) }
+            if let anchorHash = try? await blockNumberProvider.fetchBlockHash(anchorBlock) {
+                let absentKeys = absentIndices.map { publicKeys[$0] }
+                let historical = try await coinOnChainQuery.fetchCoins(
+                    for: absentKeys,
+                    atBlockHash: anchorHash
+                )
+                for (offset, coin) in historical.enumerated() where coin != nil {
+                    confirmed.insert(absentIndices[offset])
+                }
+            }
+        }
+
+        if confirmed.count == publicKeys.count {
+            return anyPresentNow ? .onChain : .alreadyClaimed
+        }
+
+        // 3. Live subscription for the remaining keys: confirm via present-or-spent, racing timeout.
+        let remainingKeys = (0 ..< publicKeys.count)
+            .filter { !confirmed.contains($0) }
+            .map { publicKeys[$0] }
+
+        let anyRemainingPresent = try await raceCoinsSentOrClaimed(
+            for: remainingKeys,
+            blockTimeout: blockTimeout
+        )
+
+        return (anyPresentNow || anyRemainingPresent) ? .onChain : .alreadyClaimed
+    }
+
+    private func raceCoinsSentOrClaimed(for publicKeys: [Data], blockTimeout: UInt32) async throws -> Bool {
+        let stream = acquireHeadStream()
+        defer { releaseHeadStream() }
+
+        logger?.debug("start, timeout \(blockTimeout) blocks")
+
+        return try await withThrowingTaskGroup(of: Bool.self) { group in
+            group.addTask { [logger] in
+                var count: UInt32 = 0
+                for try await header in stream.cancellable() {
+                    count += 1
+                    if count == 1 {
+                        logger?.debug(
+                            "started from block \(header.number.hexBlockNumber)"
+                        )
+                    }
+                    if count >= blockTimeout {
+                        throw CoinOnChainQueryError.timeout
+                    }
+                }
+                throw CoinOnChainQueryError.subscriptionTerminated
+            }
+
+            group.addTask { [self] in
+                try await coinOnChainQuery.awaitAllCoinsSentOrClaimed(for: publicKeys)
+            }
+
+            let result = try await group.next() ?? false
+            group.cancelAll()
+            return result
         }
     }
 
@@ -391,112 +563,146 @@ private extension TransferRecipientService {
 
     /// Claims coins using pre-allocated destinations from an existing plan (avoids double allocation).
     ///
-    /// Derives all sender keys synchronously, then batch-fetches source coins in a single RPC call.
-    /// Entries whose source coins are already spent are checked for existing destination coins
-    /// (indicating a previously completed transfer).
+    /// Destination-first recovery: a transfer is "done" iff its destination coin exists on-chain,
+    /// regardless of the source. Entries with a landed destination are reported as already
+    /// transferred; the rest have their source coins fetched and are (re)submitted.
     func claimFromPlan(_ plan: ClaimPlan, memo: TransferMemo) async -> ClaimReport {
-        /// A plan entry enriched with derived sender key pair for batch processing.
-        struct ValidEntry {
-            let planEntry: ClaimPlanEntry
-            let privateKey: Data
-            let publicKey: Data
-        }
+        let privateKeys = planPrivateKeys(plan: plan, memo: memo)
 
-        let validEntries: [ValidEntry] = plan.entries.compactMap { entry in
-            guard entry.entryIndex < memo.entries.count else { return nil }
-            let privateKey = memo.entries[entry.entryIndex]
-            guard let publicKey = try? snKeyFactory.createPublicKey(fromSecret: privateKey).rawData() else {
-                return nil
-            }
-            return ValidEntry(
-                planEntry: entry,
-                privateKey: privateKey,
-                publicKey: publicKey
-            )
-        }
+        // Entries whose destination coin already exists were completed by a prior run.
+        let landedIndices = await landedDestinationIndices(plan.entries)
+        let remaining = plan.entries.filter { !landedIndices.contains($0.entryIndex) }
 
-        // Batch-fetch all source coins in a single RPC call
-        let sourceCoins = await (try? coinOnChainQuery.fetchCoins(for: validEntries.map(\.publicKey))) ??
-            Array(repeating: nil, count: validEntries.count)
+        let (prepared, externallySpent) = await prepareTransfers(for: remaining, privateKeys: privateKeys)
+        let (claimed, failures) = await submitTransfers(prepared)
 
-        // Match results back by index
-        var prepared: [PreparedEntry] = []
-        for (entry, sourceCoin) in zip(validEntries, sourceCoins) {
-            guard let sourceCoin else { continue }
-
-            prepared.append(PreparedEntry(
-                index: entry.planEntry.entryIndex,
-                privateKey: entry.privateKey,
-                senderPublicKey: entry.publicKey,
-                sourceCoin: sourceCoin,
-                destinationCoin: entry.planEntry.destinationCoin
-            ))
-        }
-
-        guard !prepared.isEmpty else {
-            // All source coins are gone — check if destination coins already exist on-chain
-            let alreadyTransferred = await findExistingDestinationCoins(plan: plan)
-            return ClaimReport(
-                claimed: [],
-                alreadyTransferred: alreadyTransferred,
-                externallySpent: plan.entries.count - alreadyTransferred.count,
-                failures: []
-            )
-        }
-
-        var failures: [EntryFailure] = []
-        let (claimed, transferFailures) = await submitTransfers(prepared)
-        failures.append(contentsOf: transferFailures)
-
-        // Also check destination coins for entries where source is gone
-        let preparedIndices = Set(prepared.map(\.index))
-        let alreadyTransferred = await findExistingDestinationCoins(
-            plan: plan,
-            excludingIndices: preparedIndices
-        )
+        // A submit that fails but actually lands is not recovered here: its destination coin is not
+        // yet finalized at this point. The entry stays in `failures`, the plan retries, and the next
+        // run's `landedDestinationIndices` pass detects the now-finalized destination as completed.
+        let alreadyTransferred = plan.entries
+            .filter { landedIndices.contains($0.entryIndex) }
+            .map(\.destinationCoin)
 
         return ClaimReport(
             claimed: claimed,
             alreadyTransferred: alreadyTransferred,
-            externallySpent: 0,
+            externallySpent: externallySpent,
             failures: failures
         )
     }
 
-    /// Batch-checks which destination coins from a plan already exist on-chain.
-    ///
-    /// Derives all destination public keys, then performs a single RPC batch query.
-    /// Returns coins whose on-chain counterparts were found (indicating completed transfers).
-    ///
-    /// - Parameters:
-    ///   - plan: The claim plan containing destination coin allocations.
-    ///   - excludingIndices: Entry indices to skip (e.g. entries already handled via `submitTransfers`).
-    private func findExistingDestinationCoins(
-        plan: ClaimPlan,
-        excludingIndices: Set<Int> = []
-    ) async -> [Coin] {
-        let entriesToCheck = plan.entries.filter { !excludingIndices.contains($0.entryIndex) }
-        guard !entriesToCheck.isEmpty else { return [] }
+    /// Maps each in-bounds plan entry to its memo private key.
+    private func planPrivateKeys(plan: ClaimPlan, memo: TransferMemo) -> [Int: Data] {
+        var result: [Int: Data] = [:]
+        for entry in plan.entries where entry.entryIndex < memo.entries.count {
+            result[entry.entryIndex] = memo.entries[entry.entryIndex]
+        }
+        return result
+    }
 
-        // Derive all destination public keys, tracking which entries succeeded
-        var derivedEntries: [(entry: ClaimPlanEntry, publicKey: Data)] = []
-        for entry in entriesToCheck {
+    /// Returns the entry indices whose destination coin already exists on-chain (transfer complete).
+    /// A single batch RPC; derivation failures are skipped (treated as not-yet-transferred).
+    private func landedDestinationIndices(_ entries: [ClaimPlanEntry]) async -> Set<Int> {
+        guard !entries.isEmpty else { return [] }
+
+        var derivable: [(index: Int, publicKey: Data)] = []
+        for entry in entries {
             guard let pubKey = try? coinKeyFactory.derivePublicKey(for: entry.destinationCoin) else {
                 continue
             }
-            derivedEntries.append((entry, pubKey))
+            derivable.append((entry.entryIndex, pubKey))
         }
 
-        guard !derivedEntries.isEmpty else { return [] }
+        guard !derivable.isEmpty else { return [] }
 
-        // Single batch fetch
-        let coins = await (try? coinOnChainQuery.fetchCoins(for: derivedEntries.map(\.publicKey))) ??
-            Array(repeating: nil, count: derivedEntries.count)
+        let coins = await (try? coinOnChainQuery.fetchCoins(for: derivable.map(\.publicKey))) ??
+            Array(repeating: nil, count: derivable.count)
 
-        // Collect entries whose destination coin exists on-chain
-        return zip(derivedEntries, coins).compactMap { tuple, coin in
-            coin != nil ? tuple.entry.destinationCoin : nil
+        var result: Set<Int> = []
+        for (item, coin) in zip(derivable, coins) where coin != nil {
+            result.insert(item.index)
         }
+        return result
+    }
+
+    /// Fetches source coins for the given entries and builds submittable transfers.
+    /// Entries with no derivable key or no on-chain source are dropped and counted as
+    /// externally spent (source gone and destination absent ⇒ unrecoverable).
+    private func prepareTransfers(
+        for entries: [ClaimPlanEntry],
+        privateKeys: [Int: Data]
+    ) async -> (prepared: [PreparedEntry], externallySpent: Int) {
+        var info: [(index: Int, privateKey: Data, publicKey: Data, destination: Coin)] = []
+        for entry in entries {
+            guard let privateKey = privateKeys[entry.entryIndex],
+                  let publicKey = try? snKeyFactory.createPublicKey(fromSecret: privateKey).rawData() else {
+                continue
+            }
+            info.append((entry.entryIndex, privateKey, publicKey, entry.destinationCoin))
+        }
+
+        guard !info.isEmpty else { return ([], entries.count) }
+
+        let sourceCoins = await (try? coinOnChainQuery.fetchCoins(for: info.map(\.publicKey))) ??
+            Array(repeating: nil, count: info.count)
+
+        var prepared: [PreparedEntry] = []
+        for (item, source) in zip(info, sourceCoins) {
+            guard let source else { continue }
+            prepared.append(PreparedEntry(
+                index: item.index,
+                privateKey: item.privateKey,
+                senderPublicKey: item.publicKey,
+                sourceCoin: source,
+                destinationCoin: item.destination
+            ))
+        }
+
+        return (prepared, entries.count - prepared.count)
+    }
+
+    /// Flips spent coins whose on-chain age has reached `coinMaxAge` back to `.available`
+    /// locally and refreshes their stored age. Returns the total planks of restored coins.
+    func restoreMaxAgeCoins(
+        spentCoins: [Coin],
+        sourceCoins: [OnChainCoin?],
+        context: DenominationBreakdownContext
+    ) async throws -> BigUInt {
+        var coinsToRestore: [Coin] = []
+        var totalPlanks: BigUInt = .zero
+
+        for (spent, source) in zip(spentCoins, sourceCoins) {
+            guard let source, source.age >= CoinageConstants.coinMaxAge else { continue }
+            coinsToRestore.append(spent.changing(state: .available).changing(age: source.age))
+            totalPlanks += context.valueInPlanks(for: spent.exponent)
+        }
+
+        if !coinsToRestore.isEmpty {
+            try await coinService.save(coins: coinsToRestore)
+            logger?.debug("Restored \(coinsToRestore.count) max-age spent coins to .available")
+        }
+
+        return totalPlanks
+    }
+
+    /// Drops entries already handled by `restoreMaxAgeCoins`. Externally-spent entries
+    /// (nil source) stay so `allocateDestinations` can still count them.
+    func filterTransferable(
+        senderKeys: [SenderKey],
+        sourceCoins: [OnChainCoin?]
+    ) -> (keys: [SenderKey], sources: [OnChainCoin?]) {
+        var keys: [SenderKey] = []
+        var sources: [OnChainCoin?] = []
+
+        for (key, source) in zip(senderKeys, sourceCoins) {
+            if let source, source.age >= CoinageConstants.coinMaxAge {
+                continue
+            }
+            keys.append(key)
+            sources.append(source)
+        }
+
+        return (keys, sources)
     }
 
     func deriveSenderKeys(from memo: TransferMemo, failures: inout [EntryFailure]) -> [SenderKey] {
@@ -578,5 +784,13 @@ private extension TransferRecipientService {
         }
 
         return (claimed, failures)
+    }
+}
+
+private extension String {
+    /// Decodes a hex-encoded block number (e.g. a header's `number` field) into a decimal string.
+    /// Falls back to the raw hex when the value is not valid hex or overflows `UInt32`.
+    var hexBlockNumber: String {
+        BigUInt.fromHexString(self).flatMap { UInt32(exactly: $0) }.map(String.init) ?? self
     }
 }

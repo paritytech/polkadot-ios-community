@@ -7,6 +7,7 @@ import AssetHubSdk
 import ExtrinsicService
 import ChainStore
 import KeyDerivation
+import ChainRegistry
 
 final class AssetsHubExchangeProvider: AssetsExchangeBaseProvider {
     private var supportedChains: [ChainModel.Id: ChainModel]?
@@ -56,7 +57,7 @@ final class AssetsHubExchangeProvider: AssetsExchangeBaseProvider {
             chainRegistry: chainRegistry,
             substrateStorageFacade: substrateStorageFacade,
             customFeeEstimator: customFeeEstimatingFactory,
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             extrinsicVersion: .V4,
             operationQueue: operationQueue
         )

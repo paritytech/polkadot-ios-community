@@ -36,7 +36,9 @@ extension AccountRecoveryPresenter: AccountRecoveryPresenterProtocol {
 
 extension AccountRecoveryPresenter: AccountRecoveryInteractorOutputProtocol {
     func didRestoreWallets() {
-        wireframe.didRestoreWallets()
+        MainActor.assumeIsolated {
+            wireframe.didRestoreWallets()
+        }
     }
 
     func didReceiveInvalidMnemonicFormat() {
@@ -44,7 +46,9 @@ extension AccountRecoveryPresenter: AccountRecoveryInteractorOutputProtocol {
     }
 
     func didDecideBroken() {
-        wireframe.didDecideBroken()
+        MainActor.assumeIsolated {
+            wireframe.didDecideBroken()
+        }
     }
 
     func authorizeUser(completion: @escaping AuthorizationCompletionBlock) {
@@ -54,6 +58,7 @@ extension AccountRecoveryPresenter: AccountRecoveryInteractorOutputProtocol {
 
 // MARK: - Private
 
+@MainActor
 private extension AccountRecoveryPresenter {
     func provideInputViewModel() {
         let placeholder = String(localized: .accountRecoveryInputPlaceholder)

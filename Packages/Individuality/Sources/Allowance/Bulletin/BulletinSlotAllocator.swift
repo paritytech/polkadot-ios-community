@@ -5,6 +5,7 @@ import SubstrateStorageQuery
 import KeyDerivation
 import FoundationExt
 import ChainStore
+import StructuredConcurrency
 
 public final class BulletinSlotAllocator {
     private let submissionChainId: ChainId
@@ -26,24 +27,32 @@ public final class BulletinSlotAllocator {
 }
 
 extension BulletinSlotAllocator: AllowanceSlotAllocating {
-    public func assignSlot(accountId: AccountId) async throws {
-        let slotInfo = try await slotInfoProvider.fetchFreeSlotInfo()
+    public func assignSlot(accountId: AccountId, priority _: AllowanceRecord.Priority) async throws -> UInt32 {
+        try await markStallActivity("Reserving Bulletin slot") {
+            let slotInfo = try await markStallRegion("Reading chain state") {
+                try await self.slotInfoProvider.fetchFreeSlotInfo()
+            }
 
-        try await submitter.submit(
-            call: ResourcesPallet.ClaimLongTermStorageCall(
-                period: slotInfo.period,
-                counter: slotInfo.counter,
-                accountId: accountId
-            )(),
-            makeOrigin: { [originFactory] chainId in
-                try await originFactory.createLTSOrigin(
-                    personOrigin: slotInfo.personOrigin,
-                    period: slotInfo.period,
-                    counter: slotInfo.counter,
-                    chain: chainId
+            try await markStallRegion("Submitting") {
+                try await self.submitter.submit(
+                    call: ResourcesPallet.ClaimLongTermStorageCall(
+                        period: slotInfo.period,
+                        counter: slotInfo.counter,
+                        accountId: accountId
+                    )(),
+                    makeOrigin: { [originFactory = self.originFactory] chainId in
+                        try await originFactory.createLTSOrigin(
+                            personOrigin: slotInfo.personOrigin,
+                            period: slotInfo.period,
+                            counter: slotInfo.counter,
+                            chain: chainId
+                        )
+                    },
+                    chainId: self.submissionChainId
                 )
-            },
-            chainId: submissionChainId
-        )
+            }
+
+            return slotInfo.period
+        }
     }
 }

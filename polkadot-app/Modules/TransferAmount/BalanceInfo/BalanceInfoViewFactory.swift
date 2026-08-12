@@ -3,6 +3,7 @@ import UIKit_iOS
 import PolkadotUI
 import DesignSystem
 
+@MainActor
 enum BalanceInfoViewFactory {
     static func createView(from model: BalanceInfoModel) -> UIViewController {
         let wireframe = BalanceInfoWireframe()

@@ -80,8 +80,8 @@ extension CollectiblesWebViewController: CollectiblesViewProtocol {
             return
         }
         guard let json = encodeJSON(collection) else { return }
-        let js = "window.setCollection && window.setCollection(\(json));"
-        webView.evaluateJavaScript(js, completionHandler: nil)
+        let script = "window.setCollection && window.setCollection(\(json));"
+        webView.evaluateJavaScript(script, completionHandler: nil)
     }
 }
 
@@ -96,6 +96,7 @@ private extension CollectiblesWebViewController {
         return String(data: data, encoding: .utf8)
     }
 
+    // swiftlint:disable line_length
     static func installConsoleHook(into controller: WKUserContentController) {
         let source = """
         (function(){
@@ -135,6 +136,7 @@ private extension CollectiblesWebViewController {
         )
         controller.addUserScript(script)
     }
+    // swiftlint:enable line_length
 }
 
 extension CollectiblesWebViewController: WKNavigationDelegate {

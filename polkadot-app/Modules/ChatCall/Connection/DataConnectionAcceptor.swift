@@ -4,19 +4,22 @@ import AsyncExtensions
 import AsyncAlgorithms
 
 final class DataConnectionAcceptor: DataConnectionCreator {
-    private var signalingTask: Task<Void, Never>?
+    private let acceptorContext = Context()
 
-    override func clearTasks() {
-        super.clearTasks()
+    override func stopNegotiation() async {
+        await super.stopNegotiation()
+        await acceptorContext.stopNegotiation()
+    }
 
-        signalingTask?.cancel()
-        signalingTask = nil
+    override func closeResources() async {
+        await acceptorContext.closeResources()
+        await super.closeResources()
     }
 }
 
 private extension DataConnectionAcceptor {
-    func processSignaling(on connection: RTCPeerConnection) {
-        signalingTask = Task { [weak self, context, logger] in
+    func processSignaling(on wrapper: AsyncPeerConnectionWrapper) async {
+        let task = Task { [weak self, context, logger] in
             let incomingSignals = await context.signals
 
             do {
@@ -31,8 +34,11 @@ private extension DataConnectionAcceptor {
 
                         // Create remote description
                         let remoteSdp = RTCSessionDescription(type: .offer, sdp: sdp)
-                        try await connection.setRemoteDescription(remoteSdp)
-                        await self?.drainPendingRemoteCandidates(on: connection)
+                        try await wrapper.setRemoteDescription(remoteSdp)
+                        try Task.checkCancellation()
+
+                        await self?.drainPendingRemoteCandidates(on: wrapper)
+                        try Task.checkCancellation()
 
                         logger.debug("Set remote offer")
 
@@ -41,12 +47,17 @@ private extension DataConnectionAcceptor {
                             mandatoryConstraints: nil,
                             optionalConstraints: nil
                         )
-                        let answer = try await connection.answer(for: constraints)
-                        try await connection.setLocalDescription(answer)
+                        let answer = try await wrapper.answer(for: constraints)
+                        try Task.checkCancellation()
+
+                        try await wrapper.setLocalDescription(answer)
+                        try Task.checkCancellation()
 
                         logger.debug("Set local answer")
 
                         await context.sendSignalAndFlushBuffer(.answer(answer.sdp))
+                        try Task.checkCancellation()
+
                         await context.startAutoflush()
 
                         logger.debug("Sent answer \(answer.sdp.count)")
@@ -55,7 +66,7 @@ private extension DataConnectionAcceptor {
                         logger.error("Unexpected answer received by acceptor")
 
                     case let .candidates(sdpList):
-                        await self?.handleRemoteCandidates(sdpList, on: connection)
+                        await self?.handleRemoteCandidates(sdpList, on: wrapper)
 
                     case .closed:
                         await self?.clearPendingRemoteCandidates()
@@ -65,42 +76,58 @@ private extension DataConnectionAcceptor {
                 }
 
                 logger.debug("Signaling processing completed")
+            } catch is CancellationError {
+                return
             } catch {
-                logger.error("No signal received")
+                logger.error("Data connection signaling failed: \(error)")
+                await self?.cancel()
             }
         }
+
+        await acceptorContext.setSignalingTask(task)
     }
 
     func createStateSequence(
         for connectionWrapper: AsyncPeerConnectionWrapper
     ) -> AnyAsyncSequence<PeerDataConnectionState> {
         let signalingState = connectionWrapper.signalingState.eraseToAnyAsyncSequence()
+        let iceState = connectionWrapper.iceConnectionState.eraseToAnyAsyncSequence()
         let openedDataChannels = connectionWrapper.openedDataChannels.eraseToAnyAsyncSequence()
 
-        return combineLatest(signalingState, openedDataChannels)
-            .map { [logger] optSignalingState, dataChannels in
-                logger.debug("Signaling: \(String(describing: optSignalingState))")
-                logger.debug("Data channels: \(dataChannels.count)")
+        return combineLatest(
+            combineLatest(signalingState, iceState),
+            openedDataChannels
+        )
+        .map { [logger] connectionStates, dataChannels in
+            let (optSignalingState, optIceState) = connectionStates
 
-                switch optSignalingState {
-                case .stable:
-                    if let dataChannelWrapper = dataChannels.first {
-                        let model = PeerDataConnectionState.Connected(
-                            connection: connectionWrapper,
-                            dataChannel: dataChannelWrapper
-                        )
+            logger.debug("Signaling: \(String(describing: optSignalingState))")
+            logger.debug("ICE: \(String(describing: optIceState))")
+            logger.debug("Data channels: \(dataChannels.count)")
 
-                        return .connected(model)
-                    } else {
-                        return .connecting
-                    }
-                case .closed:
-                    return .disconnected
-                default:
+            if let optIceState, optIceState.isTerminal {
+                return .disconnected
+            }
+
+            switch optSignalingState {
+            case .stable:
+                if let dataChannelWrapper = dataChannels.first {
+                    let model = PeerDataConnectionState.Connected(
+                        connection: connectionWrapper,
+                        dataChannel: dataChannelWrapper
+                    )
+
+                    return .connected(model)
+                } else {
                     return .connecting
                 }
+            case .closed:
+                return .disconnected
+            default:
+                return .connecting
             }
-            .eraseToAnyAsyncSequence()
+        }
+        .eraseToAnyAsyncSequence()
     }
 }
 
@@ -108,13 +135,42 @@ extension DataConnectionAcceptor: DataConnectionCreating {
     func connect() async throws -> AnyAsyncSequence<PeerDataConnectionState> {
         let connectionWrapper = try await setupConnection()
 
-        processSignaling(on: connectionWrapper.connection)
-        processLocalCandidates(from: connectionWrapper)
+        await processSignaling(on: connectionWrapper)
+        await processLocalCandidates(from: connectionWrapper)
 
         return createStateSequence(for: connectionWrapper)
     }
+}
 
-    func throttle() {
-        clearTasks()
+private extension DataConnectionAcceptor {
+    actor Context {
+        private var signalingTask: Task<Void, Never>?
+        private var isNegotiationStopped = false
+        private var isClosingResources = false
+
+        deinit {
+            signalingTask?.cancel()
+        }
+
+        func setSignalingTask(_ task: Task<Void, Never>) {
+            guard !isNegotiationStopped, !isClosingResources else {
+                task.cancel()
+                return
+            }
+
+            signalingTask?.cancel()
+            signalingTask = task
+        }
+
+        func stopNegotiation() {
+            isNegotiationStopped = true
+            signalingTask?.cancel()
+            signalingTask = nil
+        }
+
+        func closeResources() {
+            isClosingResources = true
+            stopNegotiation()
+        }
     }
 }

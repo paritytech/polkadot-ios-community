@@ -853,6 +853,20 @@
     return createCodec((v) => fn().enc(v), (v) => fn().dec(v));
   }
 
+  // node_modules/@novasamatech/scale/dist/bytes.js
+  function Bytes2(size) {
+    const codec = size === void 0 ? Bytes() : enhanceCodec(Bytes(size), (value) => {
+      if (value.length > size)
+        throw new Error(`Bytes(${size}): value is too long (${value.length} bytes)`);
+      if (value.length === size)
+        return value;
+      const padded = new Uint8Array(size);
+      padded.set(value);
+      return padded;
+    }, (value) => value);
+    return Object.assign(codec, { size });
+  }
+
   // node_modules/@polkadot-api/utils/dist/hex.js
   var HEX_STR = "0123456789abcdef";
   function toHex(bytes) {
@@ -916,7 +930,10 @@
   };
 
   // node_modules/@novasamatech/scale/dist/hex.js
-  var Hex = (length) => enhanceCodec(Bytes(length), fromHex2, (v) => toHex(v));
+  function Hex(size) {
+    const bytes = size === void 0 ? Bytes2() : Bytes2(size);
+    return Object.assign(enhanceCodec(bytes, fromHex2, (v) => toHex(v)), { size });
+  }
 
   // node_modules/@novasamatech/scale/dist/nullable.js
   function Nullable(inner) {
@@ -1030,20 +1047,26 @@
   }
 
   // node_modules/@novasamatech/host-api/dist/protocol/commonCodecs.js
-  var GenesisHash = Hex();
+  var GenesisHash = Hex(32);
   var GenericErr = Struct({
     reason: str
   });
   var GenericError = Err2("GenericError", GenericErr, ({ reason }) => `Unknown error: ${reason}`);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/accounts.js
-  var AccountId = Bytes(32);
-  var PublicKey = Bytes();
+  var AccountId = Bytes2(32);
+  var PublicKey = Bytes2();
   var DotNsIdentifier = str;
-  var DerivationIndex = u32;
+  var RawDerivationIndex = Bytes2(32);
+  var DerivationIndex = Enum2({
+    Index: u32,
+    Raw: RawDerivationIndex
+  });
   var ProductAccountId = Tuple(DotNsIdentifier, DerivationIndex);
-  var RingVrfProof = Bytes();
-  var RingVrgAlias = Bytes();
+  var RingVrgAlias = Bytes2();
+  var ProductId = DotNsIdentifier;
+  var ProductProofContextSuffix = DerivationIndex;
+  var ProductProofContext = Tuple(ProductId, ProductProofContextSuffix);
   var ProductAccount = Struct({
     publicKey: PublicKey
   });
@@ -1055,16 +1078,30 @@
     primaryUsername: DotNsIdentifier
   });
   var ContextualAlias = Struct({
-    context: Bytes(32),
+    context: Bytes2(32),
     alias: RingVrgAlias
   });
-  var RingLocationHint = Struct({
-    palletInstance: Option(u32)
+  var RingVrfProof = Struct({
+    proof: Bytes2(),
+    contextualAlias: ContextualAlias,
+    ringIndex: u32,
+    ringRevision: u32
+  });
+  var RingLocationJunction = Enum2({
+    PalletInstance: u8,
+    CollectionId: Bytes2()
   });
   var RingLocation = Struct({
-    genesisHash: GenesisHash,
-    ringRootHash: Hex(),
-    hints: Option(RingLocationHint)
+    chainId: GenesisHash,
+    junctions: Vector(RingLocationJunction)
+  });
+  var VrfTranscriptItem = Struct({
+    label: Bytes2(),
+    value: Bytes2()
+  });
+  var VrfSignature = Struct({
+    preOutput: Bytes2(32),
+    proof: Bytes2(64)
   });
   var RequestCredentialsErr = ErrEnum("RequestCredentialsErr", {
     NotConnected: [_void, "RequestCredentials: not connected"],
@@ -1074,13 +1111,25 @@
   });
   var CreateProofErr = ErrEnum("CreateProofErr", {
     RingNotFound: [_void, "CreateProof: ring not found"],
+    NotMember: [_void, "CreateProof: selected member key is not a member of the ring"],
     Rejected: [_void, "CreateProof: rejected"],
     Unknown: [GenericErr, "CreateProof: unknown error"]
+  });
+  var GetAliasErr = ErrEnum("GetAliasErr", {
+    RingNotFound: [_void, "GetAlias: ring not found"],
+    NotMember: [_void, "GetAlias: selected member key is not a member of the ring"],
+    Rejected: [_void, "GetAlias: rejected"],
+    Unknown: [GenericErr, "GetAlias: unknown error"]
   });
   var GetUserIdErr = ErrEnum("GetUserIdErr", {
     PermissionDenied: [_void, "GetUserId: permission denied"],
     NotConnected: [_void, "GetUserId: not connected"],
     Unknown: [GenericErr, "GetUserId: unknown error"]
+  });
+  var SignVrfErr = ErrEnum("SignVrfErr", {
+    NotConnected: [_void, "SignVrf: not connected"],
+    Rejected: [_void, "SignVrf: rejected"],
+    Unknown: [GenericErr, "SignVrf: unknown error"]
   });
   var AccountConnectionStatus = Status("disconnected", "connected");
   var AccountConnectionStatusV1_start = _void;
@@ -1090,10 +1139,16 @@
   var GetUserIdV1_response = Result2(UserIdentity, GetUserIdErr);
   var AccountGetV1_request = ProductAccountId;
   var AccountGetV1_response = Result2(ProductAccount, RequestCredentialsErr);
-  var AccountGetAliasV1_request = ProductAccountId;
-  var AccountGetAliasV1_response = Result2(ContextualAlias, RequestCredentialsErr);
-  var AccountCreateProofV1_request = Tuple(ProductAccountId, RingLocation, Bytes());
+  var AccountGetAliasV1_request = Tuple(ProductProofContext, RingLocation);
+  var AccountGetAliasV1_response = Result2(ContextualAlias, GetAliasErr);
+  var AccountCreateProofV1_request = Tuple(ProductProofContext, RingLocation, Bytes2());
   var AccountCreateProofV1_response = Result2(RingVrfProof, CreateProofErr);
+  var AccountSignVrfV1_request = Struct({
+    account: ProductAccountId,
+    transcriptLabel: Bytes2(),
+    items: Vector(VrfTranscriptItem)
+  });
+  var AccountSignVrfV1_response = Result2(VrfSignature, SignVrfErr);
   var GetLegacyAccountsV1_request = _void;
   var GetLegacyAccountsV1_response = Result2(Vector(LegacyAccount), RequestCredentialsErr);
   var LoginResult = Status("success", "alreadyConnected", "rejected");
@@ -1257,7 +1312,7 @@
   });
   var ChatCustomMessage = Struct({
     messageType: str,
-    payload: Bytes()
+    payload: Bytes2()
   });
   var ChatMessageContent = Enum2({
     Text: str,
@@ -1283,7 +1338,7 @@
   var ActionTrigger = Struct({
     messageId: str,
     actionId: str,
-    payload: Option(Bytes())
+    payload: Option(Bytes2())
   });
   var ChatCommand = Struct({
     command: str,
@@ -1302,7 +1357,7 @@
   var ChatActionSubscribeV1_start = _void;
   var ChatActionSubscribeV1_receive = ReceivedChatAction;
   var ChatActionSubscribeV1_interrupt = _void;
-  var ChatCustomMessageRenderingV1_start = Struct({ messageId: str, messageType: str, payload: Bytes() });
+  var ChatCustomMessageRenderingV1_start = Struct({ messageId: str, messageType: str, payload: Bytes2() });
   var ChatCustomMessageRenderingV1_receive = CustomRendererNode;
   var ChatCustomMessageRenderingV1_interrupt = _void;
 
@@ -1323,12 +1378,12 @@
      * Explicit "extra" to sign (goes into the extrinsic body).
      * SCALE-encoded per the extension's "extra" type as defined in the metadata.
      */
-    extra: Bytes(),
+    extra: Bytes2(),
     /**
      * "Implicit" data to sign (known by the chain, not included into the extrinsic body).
      * SCALE-encoded per the extension's "additionalSigned" type as defined in the metadata.
      */
-    additionalSigned: Bytes()
+    additionalSigned: Bytes2()
   });
   function GenericTxPayloadV1(signer) {
     return Struct({
@@ -1336,11 +1391,11 @@
       /**
        * Chain identifier where transaction will be executed
        */
-      genesisHash: Bytes(32),
+      genesisHash: GenesisHash,
       /**
        * SCALE-encoded Call (module indicator + function indicator + params).
        */
-      callData: Bytes(),
+      callData: Bytes2(),
       /**
        * Transaction extensions supplied by the caller (order irrelevant).
        * The consumer SHOULD provide every extension that is relevant to them.
@@ -1361,16 +1416,16 @@
   var ProductAccountTransaction = GenericTxPayloadV1(ProductAccountId);
   var LegacyTransaction = GenericTxPayloadV1(AccountId);
   var CreateTransactionV1_request = ProductAccountTransaction;
-  var CreateTransactionV1_response = Result2(Bytes(), CreateTransactionErr);
+  var CreateTransactionV1_response = Result2(Bytes2(), CreateTransactionErr);
   var CreateTransactionWithLegacyAccountV1_request = LegacyTransaction;
-  var CreateTransactionWithLegacyAccountV1_response = Result2(Bytes(), CreateTransactionErr);
+  var CreateTransactionWithLegacyAccountV1_response = Result2(Bytes2(), CreateTransactionErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/deriveEntropy.js
   var DeriveEntropyErr = ErrEnum("DeriveEntropyErr", {
     Unknown: [GenericErr, "Unknown derive entropy error"]
   });
-  var Entropy = Bytes(32);
-  var DeriveEntropyV1_request = Bytes();
+  var Entropy = Bytes2(32);
+  var DeriveEntropyV1_request = Bytes2();
   var DeriveEntropyV1_response = Result2(Entropy, DeriveEntropyErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/handshake.js
@@ -1388,7 +1443,7 @@
     Unknown: [GenericErr, "Unknown storage error"]
   });
   var StorageKey = str;
-  var StorageValue = Bytes();
+  var StorageValue = Bytes2();
   var StorageReadV1_request = StorageKey;
   var StorageReadV1_response = Result2(Option(StorageValue), StorageErr);
   var StorageWriteV1_request = Tuple(StorageKey, StorageValue);
@@ -1421,10 +1476,11 @@
   var PushNotificationCancelV1_response = Result2(_void, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/payments.js
-  var Sr25519SecretKey = Bytes(64);
+  var Sr25519SecretKey = Bytes2(64);
   var PaymentId = str;
   var CoinPaymentPurseId = u32;
   var PaymentTopUpSource = Enum2({
+    // Account of the calling product, addressed by the RFC-0022 selector.
     ProductAccount: DerivationIndex,
     PrivateKey: Sr25519SecretKey,
     Coins: Vector(Sr25519SecretKey)
@@ -1476,7 +1532,7 @@
   var PaymentRequestV1_request = Struct({
     from: Option(CoinPaymentPurseId),
     amount: u128,
-    destination: Bytes(32)
+    destination: Bytes2(32)
   });
   var PaymentRequestV1_response = Result2(PaymentReceipt, PaymentRequestErr);
   var PaymentStatusSubscribeV1_start = PaymentId;
@@ -1485,7 +1541,7 @@
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/preimage.js
   var PreimageKey = Hex();
-  var PreimageValue = Bytes();
+  var PreimageValue = Bytes2();
   var PreimageLookupSubscribeV1_start = PreimageKey;
   var PreimageLookupSubscribeV1_receive = Nullable(PreimageValue);
   var PreimageLookupSubscribeV1_interrupt = _void;
@@ -1499,6 +1555,7 @@
   var AllocatableResource = Enum2({
     StatementStoreAllowance: _void,
     BulletinAllowance: _void,
+    // Account the allowance is granted for, addressed by the RFC-0022 selector.
     SmartContractAllowance: DerivationIndex,
     AutoSigning: _void
   });
@@ -1525,7 +1582,7 @@
     signedTransaction: Option(Hex())
   });
   var RawPayload = Enum2({
-    Bytes: Bytes(),
+    Bytes: Bytes2(),
     Payload: str
   });
   var SigningRawPayload = Struct({
@@ -1544,7 +1601,7 @@
     blockHash: Hex(),
     blockNumber: Hex(),
     era: Hex(),
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     method: Hex(),
     nonce: Hex(),
     specVersion: Hex(),
@@ -1571,24 +1628,24 @@
   var SignPayloadWithLegacyAccountV1_response = Result2(SigningResult, SigningErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/statementStore.js
-  var Topic = Bytes(32);
-  var Channel = Bytes(32);
-  var DecryptionKey = Bytes(32);
+  var Topic = Bytes2(32);
+  var Channel = Bytes2(32);
+  var DecryptionKey = Bytes2(32);
   var Sr25519StatementProof = Struct({
-    signature: Bytes(64),
-    signer: Bytes(32)
+    signature: Bytes2(64),
+    signer: Bytes2(32)
   });
   var Ed25519StatementProof = Struct({
-    signature: Bytes(64),
-    signer: Bytes(32)
+    signature: Bytes2(64),
+    signer: Bytes2(32)
   });
   var EcdsaStatementProof = Struct({
-    signature: Bytes(65),
-    signer: Bytes(33)
+    signature: Bytes2(65),
+    signer: Bytes2(33)
   });
   var OnChainStatementProof = Struct({
-    who: Bytes(32),
-    blockHash: Bytes(32),
+    who: Bytes2(32),
+    blockHash: Bytes2(32),
     event: u64
   });
   var StatementProof = Enum2({
@@ -1603,7 +1660,7 @@
     expiry: Option(u64),
     channel: Option(Channel),
     topics: Vector(Topic),
-    data: Option(Bytes())
+    data: Option(Bytes2())
   });
   var SignedStatement = Struct({
     proof: StatementProof,
@@ -1611,7 +1668,7 @@
     expiry: Option(u64),
     channel: Option(Channel),
     topics: Vector(Topic),
-    data: Option(Bytes())
+    data: Option(Bytes2())
   });
   var TopicFilter = Enum2({
     MatchAll: Vector(Topic),
@@ -1691,7 +1748,7 @@
     LimitReached: _void
   });
   var ChainHeadFollowV1_start = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     withRuntime: bool
   });
   var ChainHeadEvent = Enum2({
@@ -1741,19 +1798,19 @@
   var ChainHeadFollowV1_receive = ChainHeadEvent;
   var ChainHeadFollowV1_interrupt = _void;
   var ChainHeadHeaderV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     hash: BlockHash
   });
   var ChainHeadHeaderV1_response = Result2(Nullable(Hex()), GenericError);
   var ChainHeadBodyV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     hash: BlockHash
   });
   var ChainHeadBodyV1_response = Result2(OperationStartedResult, GenericError);
   var ChainHeadStorageV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     hash: BlockHash,
     items: Vector(StorageQueryItem),
@@ -1761,7 +1818,7 @@
   });
   var ChainHeadStorageV1_response = Result2(OperationStartedResult, GenericError);
   var ChainHeadCallV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     hash: BlockHash,
     function: str,
@@ -1769,36 +1826,36 @@
   });
   var ChainHeadCallV1_response = Result2(OperationStartedResult, GenericError);
   var ChainHeadUnpinV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     hashes: Vector(BlockHash)
   });
   var ChainHeadUnpinV1_response = Result2(_void, GenericError);
   var ChainHeadContinueV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     operationId: OperationId
   });
   var ChainHeadContinueV1_response = Result2(_void, GenericError);
   var ChainHeadStopOperationV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     followSubscriptionId: str,
     operationId: OperationId
   });
   var ChainHeadStopOperationV1_response = Result2(_void, GenericError);
-  var ChainSpecGenesisHashV1_request = GenesisHash;
+  var ChainSpecGenesisHashV1_request = Hex();
   var ChainSpecGenesisHashV1_response = Result2(Hex(), GenericError);
-  var ChainSpecChainNameV1_request = GenesisHash;
+  var ChainSpecChainNameV1_request = Hex();
   var ChainSpecChainNameV1_response = Result2(str, GenericError);
-  var ChainSpecPropertiesV1_request = GenesisHash;
+  var ChainSpecPropertiesV1_request = Hex();
   var ChainSpecPropertiesV1_response = Result2(str, GenericError);
   var TransactionBroadcastV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     transaction: Hex()
   });
   var TransactionBroadcastV1_response = Result2(Nullable(str), GenericError);
   var TransactionStopV1_request = Struct({
-    genesisHash: GenesisHash,
+    genesisHash: Hex(),
     operationId: str
   });
   var TransactionStopV1_response = Result2(_void, GenericError);
@@ -1810,7 +1867,7 @@
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/feature.js
   var Feature = Enum2({
-    Chain: GenesisHash
+    Chain: Hex()
   });
   var FeatureV1_request = Feature;
   var FeatureV1_response = Result2(bool, GenericError);
@@ -2043,6 +2100,12 @@
     }),
     host_push_notification_cancel: versionedRequest(indexer.request(), {
       v1: [PushNotificationCancelV1_request, PushNotificationCancelV1_response]
+    }),
+    // Prefix 28 skips indices 136-163, reserved upstream by the truapi coin-payment
+    // methods this SDK does not implement, so `sign_vrf` lands on its specified
+    // `request_id = 164` (RFC-0023).
+    host_account_sign_vrf: versionedRequest(indexer.request(28), {
+      v1: [AccountSignVrfV1_request, AccountSignVrfV1_response]
     })
   };
 
@@ -2349,15 +2412,11 @@
             return;
           let interrupted = false;
           const unsubscribe = handler(payload.value, (value) => {
-            if (disposed)
-              return;
             const receivePayload = enumValue(receiveAction, value);
             transport.postMessage(requestId, receivePayload);
           }, (value) => {
             interrupted = true;
             subscriptions.delete(requestId);
-            if (disposed)
-              return;
             transport.postMessage(requestId, enumValue(interruptAction, value));
           });
           if (interrupted) {
@@ -2367,21 +2426,13 @@
           }
         });
         const unsubStop = transport.listenMessages(stopAction, (requestId) => {
-          const unsubscribe = subscriptions.get(requestId);
-          if (unsubscribe) {
-            subscriptions.delete(requestId);
-            unsubscribe();
-          }
+          subscriptions.get(requestId)?.();
         });
-        const teardown = () => {
+        return () => {
           subscriptions.forEach((unsub) => unsub());
-          subscriptions.clear();
           unsubStart();
           unsubStop();
-          unsubDestroy();
         };
-        const unsubDestroy = transport.onDestroy(teardown);
-        return teardown;
       },
       postMessage(requestId, payload) {
         checks();
@@ -3683,9 +3734,10 @@
     const handleGetUserIdSlot = makeNotImplementedSlot("host_get_user_id", () => new GetUserIdErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleRequestLoginSlot = makeNotImplementedSlot("host_request_login", () => new LoginErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleAccountGetSlot = makeNotImplementedSlot("host_account_get", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountGetAliasSlot = makeNotImplementedSlot("host_account_get_alias", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleAccountGetAliasSlot = makeNotImplementedSlot("host_account_get_alias", () => new GetAliasErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleGetLegacyAccountsSlot = makeNotImplementedSlot("host_get_legacy_accounts", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleAccountCreateProofSlot = makeNotImplementedSlot("host_account_create_proof", () => new CreateProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleAccountSignVrfSlot = makeNotImplementedSlot("host_account_sign_vrf", () => new SignVrfErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleDeriveEntropySlot = makeNotImplementedSlot("host_derive_entropy", () => new DeriveEntropyErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleLocalStorageReadSlot = makeNotImplementedSlot("host_local_storage_read", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleLocalStorageWriteSlot = makeNotImplementedSlot("host_local_storage_write", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
@@ -3767,10 +3819,13 @@
         return handleV1Request(handleAccountGetSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
       },
       handleAccountGetAlias(handler) {
-        return handleV1Request(handleAccountGetAliasSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountGetAliasSlot, () => new GetAliasErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
       },
       handleAccountCreateProof(handler) {
         return handleV1Request(handleAccountCreateProofSlot, () => new CreateProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleAccountSignVrf(handler) {
+        return handleV1Request(handleAccountSignVrfSlot, () => new SignVrfErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
       },
       handleGetLegacyAccounts(handler) {
         return handleV1Request(handleGetLegacyAccountsSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
@@ -3854,6 +3909,7 @@
         init();
         const manager = createChainConnectionManager(factory);
         const cleanups = [];
+        const liveBroadcasts = /* @__PURE__ */ new Set();
         cleanups.push(transport.handleSubscription("remote_chain_head_follow_subscribe", (params, send, interrupt) => {
           if (!isEnumVariant(params, "v1")) {
             interrupt(enumValue("v1", void 0));
@@ -4062,12 +4118,18 @@
             return enumValue("v1", resultErr(new GenericError({ reason: "Chain not supported" })));
           }
           try {
-            const result = await manager.sendRequest(genesisHash, "transaction_v1_broadcast", [transaction2]);
-            return enumValue("v1", resultOk(result ?? null));
+            const operationId = await manager.sendRequest(genesisHash, "transaction_v1_broadcast", [
+              transaction2
+            ]);
+            if (operationId) {
+              liveBroadcasts.add(`${genesisHash}:${operationId}`);
+            } else {
+              manager.releaseChain(genesisHash);
+            }
+            return enumValue("v1", resultOk(operationId));
           } catch (e) {
-            return enumValue("v1", resultErr(new GenericError({ reason: String(e) })));
-          } finally {
             manager.releaseChain(genesisHash);
+            return enumValue("v1", resultErr(new GenericError({ reason: String(e) })));
           }
         }));
         cleanups.push(transport.handleRequest("remote_chain_transaction_stop", async (message) => {
@@ -4075,17 +4137,16 @@
             return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
           }
           const { genesisHash, operationId } = message.value;
-          const entry = manager.getOrCreateChain(genesisHash);
-          if (!entry) {
-            return enumValue("v1", resultErr(new GenericError({ reason: "Chain not supported" })));
+          if (!liveBroadcasts.delete(`${genesisHash}:${operationId}`)) {
+            return enumValue("v1", resultOk(void 0));
           }
           try {
             await manager.sendRequest(genesisHash, "transaction_v1_stop", [operationId]);
-            manager.releaseChain(genesisHash);
             return enumValue("v1", resultOk(void 0));
           } catch (e) {
-            manager.releaseChain(genesisHash);
             return enumValue("v1", resultErr(new GenericError({ reason: String(e) })));
+          } finally {
+            manager.releaseChain(genesisHash);
           }
         }));
         let disposed = false;
@@ -4120,6 +4181,669 @@
     };
   }
 
+  // node_modules/@noble/hashes/utils.js
+  function isBytes(a) {
+    return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
+  }
+  function anumber(n, title = "") {
+    if (typeof n !== "number") {
+      const prefix = title && `"${title}" `;
+      throw new TypeError(`${prefix}expected number, got ${typeof n}`);
+    }
+    if (!Number.isSafeInteger(n) || n < 0) {
+      const prefix = title && `"${title}" `;
+      throw new RangeError(`${prefix}expected integer >= 0, got ${n}`);
+    }
+  }
+  function abytes(value, length, title = "") {
+    const bytes = isBytes(value);
+    const len = value?.length;
+    const needsLen = length !== void 0;
+    if (!bytes || needsLen && len !== length) {
+      const prefix = title && `"${title}" `;
+      const ofLen = needsLen ? ` of length ${length}` : "";
+      const got = bytes ? `length=${len}` : `type=${typeof value}`;
+      const message = prefix + "expected Uint8Array" + ofLen + ", got " + got;
+      if (!bytes)
+        throw new TypeError(message);
+      throw new RangeError(message);
+    }
+    return value;
+  }
+  function aexists(instance, checkFinished = true) {
+    if (instance.destroyed)
+      throw new Error("Hash instance has been destroyed");
+    if (checkFinished && instance.finished)
+      throw new Error("Hash#digest() has already been called");
+  }
+  function aoutput(out, instance) {
+    abytes(out, void 0, "digestInto() output");
+    const min = instance.outputLen;
+    if (out.length < min) {
+      throw new RangeError('"digestInto() output" expected to be of length >=' + min);
+    }
+  }
+  function u322(arr) {
+    return new Uint32Array(arr.buffer, arr.byteOffset, Math.floor(arr.byteLength / 4));
+  }
+  function clean(...arrays) {
+    for (let i = 0; i < arrays.length; i++) {
+      arrays[i].fill(0);
+    }
+  }
+  var isLE = /* @__PURE__ */ (() => new Uint8Array(new Uint32Array([287454020]).buffer)[0] === 68)();
+  function byteSwap(word) {
+    return word << 24 & 4278190080 | word << 8 & 16711680 | word >>> 8 & 65280 | word >>> 24 & 255;
+  }
+  var swap8IfBE = isLE ? (n) => n : (n) => byteSwap(n) >>> 0;
+  function byteSwap32(arr) {
+    for (let i = 0; i < arr.length; i++) {
+      arr[i] = byteSwap(arr[i]);
+    }
+    return arr;
+  }
+  var swap32IfBE = isLE ? (u) => u : byteSwap32;
+  function createHasher(hashCons, info = {}) {
+    const hashC = (msg, opts) => hashCons(opts).update(msg).digest();
+    const tmp = hashCons(void 0);
+    hashC.outputLen = tmp.outputLen;
+    hashC.blockLen = tmp.blockLen;
+    hashC.canXOF = tmp.canXOF;
+    hashC.create = (opts) => hashCons(opts);
+    Object.assign(hashC, info);
+    return Object.freeze(hashC);
+  }
+
+  // node_modules/@noble/hashes/_blake.js
+  var BSIGMA = /* @__PURE__ */ Uint8Array.from([
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    14,
+    10,
+    4,
+    8,
+    9,
+    15,
+    13,
+    6,
+    1,
+    12,
+    0,
+    2,
+    11,
+    7,
+    5,
+    3,
+    11,
+    8,
+    12,
+    0,
+    5,
+    2,
+    15,
+    13,
+    10,
+    14,
+    3,
+    6,
+    7,
+    1,
+    9,
+    4,
+    7,
+    9,
+    3,
+    1,
+    13,
+    12,
+    11,
+    14,
+    2,
+    6,
+    5,
+    10,
+    4,
+    0,
+    15,
+    8,
+    9,
+    0,
+    5,
+    7,
+    2,
+    4,
+    10,
+    15,
+    14,
+    1,
+    11,
+    12,
+    6,
+    8,
+    3,
+    13,
+    2,
+    12,
+    6,
+    10,
+    0,
+    11,
+    8,
+    3,
+    4,
+    13,
+    7,
+    5,
+    15,
+    14,
+    1,
+    9,
+    12,
+    5,
+    1,
+    15,
+    14,
+    13,
+    4,
+    10,
+    0,
+    7,
+    6,
+    3,
+    9,
+    2,
+    8,
+    11,
+    13,
+    11,
+    7,
+    14,
+    12,
+    1,
+    3,
+    9,
+    5,
+    0,
+    15,
+    4,
+    8,
+    6,
+    2,
+    10,
+    6,
+    15,
+    14,
+    9,
+    11,
+    3,
+    0,
+    8,
+    12,
+    2,
+    13,
+    7,
+    1,
+    4,
+    10,
+    5,
+    10,
+    2,
+    8,
+    4,
+    7,
+    6,
+    1,
+    5,
+    15,
+    11,
+    9,
+    14,
+    3,
+    12,
+    13,
+    0,
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    14,
+    10,
+    4,
+    8,
+    9,
+    15,
+    13,
+    6,
+    1,
+    12,
+    0,
+    2,
+    11,
+    7,
+    5,
+    3,
+    // Blake1, unused in others
+    11,
+    8,
+    12,
+    0,
+    5,
+    2,
+    15,
+    13,
+    10,
+    14,
+    3,
+    6,
+    7,
+    1,
+    9,
+    4,
+    7,
+    9,
+    3,
+    1,
+    13,
+    12,
+    11,
+    14,
+    2,
+    6,
+    5,
+    10,
+    4,
+    0,
+    15,
+    8,
+    9,
+    0,
+    5,
+    7,
+    2,
+    4,
+    10,
+    15,
+    14,
+    1,
+    11,
+    12,
+    6,
+    8,
+    3,
+    13,
+    2,
+    12,
+    6,
+    10,
+    0,
+    11,
+    8,
+    3,
+    4,
+    13,
+    7,
+    5,
+    15,
+    14,
+    1,
+    9
+  ]);
+
+  // node_modules/@noble/hashes/_u64.js
+  var U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
+  var _32n = /* @__PURE__ */ BigInt(32);
+  function fromBig(n, le = false) {
+    if (le)
+      return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
+    return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
+  }
+  var rotrSH = (h, l, s) => h >>> s | l << 32 - s;
+  var rotrSL = (h, l, s) => h << 32 - s | l >>> s;
+  var rotrBH = (h, l, s) => h << 64 - s | l >>> s - 32;
+  var rotrBL = (h, l, s) => h >>> s - 32 | l << 64 - s;
+  var rotr32H = (_h, l) => l;
+  var rotr32L = (h, _l) => h;
+  function add(Ah, Al, Bh, Bl) {
+    const l = (Al >>> 0) + (Bl >>> 0);
+    return { h: Ah + Bh + (l / 2 ** 32 | 0) | 0, l: l | 0 };
+  }
+  var add3L = (Al, Bl, Cl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0);
+  var add3H = (low, Ah, Bh, Ch) => Ah + Bh + Ch + (low / 2 ** 32 | 0) | 0;
+
+  // node_modules/@noble/hashes/blake2.js
+  var B2B_IV = /* @__PURE__ */ Uint32Array.from([
+    4089235720,
+    1779033703,
+    2227873595,
+    3144134277,
+    4271175723,
+    1013904242,
+    1595750129,
+    2773480762,
+    2917565137,
+    1359893119,
+    725511199,
+    2600822924,
+    4215389547,
+    528734635,
+    327033209,
+    1541459225
+  ]);
+  var BBUF = /* @__PURE__ */ new Uint32Array(32);
+  function G1b(a, b, c, d, msg, x) {
+    const Xl = msg[x], Xh = msg[x + 1];
+    let Al = BBUF[2 * a], Ah = BBUF[2 * a + 1];
+    let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
+    let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
+    let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
+    let ll = add3L(Al, Bl, Xl);
+    Ah = add3H(ll, Ah, Bh, Xh);
+    Al = ll | 0;
+    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
+    ({ Dh, Dl } = { Dh: rotr32H(Dh, Dl), Dl: rotr32L(Dh, Dl) });
+    ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
+    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
+    ({ Bh, Bl } = { Bh: rotrSH(Bh, Bl, 24), Bl: rotrSL(Bh, Bl, 24) });
+    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+  }
+  function G2b(a, b, c, d, msg, x) {
+    const Xl = msg[x], Xh = msg[x + 1];
+    let Al = BBUF[2 * a], Ah = BBUF[2 * a + 1];
+    let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
+    let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
+    let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
+    let ll = add3L(Al, Bl, Xl);
+    Ah = add3H(ll, Ah, Bh, Xh);
+    Al = ll | 0;
+    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
+    ({ Dh, Dl } = { Dh: rotrSH(Dh, Dl, 16), Dl: rotrSL(Dh, Dl, 16) });
+    ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
+    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
+    ({ Bh, Bl } = { Bh: rotrBH(Bh, Bl, 63), Bl: rotrBL(Bh, Bl, 63) });
+    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+  }
+  function checkBlake2Opts(outputLen, opts = {}, keyLen, saltLen, persLen) {
+    anumber(keyLen);
+    if (outputLen <= 0 || outputLen > keyLen)
+      throw new Error("outputLen bigger than keyLen");
+    const { key, salt, personalization } = opts;
+    if (key !== void 0 && (key.length < 1 || key.length > keyLen))
+      throw new Error('"key" expected to be undefined or of length=1..' + keyLen);
+    if (salt !== void 0)
+      abytes(salt, saltLen, "salt");
+    if (personalization !== void 0)
+      abytes(personalization, persLen, "personalization");
+  }
+  var _BLAKE2 = class {
+    constructor(blockLen, outputLen) {
+      __publicField(this, "buffer");
+      __publicField(this, "buffer32");
+      __publicField(this, "finished", false);
+      __publicField(this, "destroyed", false);
+      __publicField(this, "length", 0);
+      __publicField(this, "pos", 0);
+      __publicField(this, "blockLen");
+      __publicField(this, "outputLen");
+      __publicField(this, "canXOF", false);
+      anumber(blockLen);
+      anumber(outputLen);
+      this.blockLen = blockLen;
+      this.outputLen = outputLen;
+      this.buffer = new Uint8Array(blockLen);
+      this.buffer32 = u322(this.buffer);
+    }
+    update(data) {
+      aexists(this);
+      abytes(data);
+      const { blockLen, buffer, buffer32 } = this;
+      const len = data.length;
+      const offset = data.byteOffset;
+      const buf = data.buffer;
+      for (let pos = 0; pos < len; ) {
+        if (this.pos === blockLen) {
+          swap32IfBE(buffer32);
+          this.compress(buffer32, 0, false);
+          swap32IfBE(buffer32);
+          this.pos = 0;
+        }
+        const take = Math.min(blockLen - this.pos, len - pos);
+        const dataOffset = offset + pos;
+        if (take === blockLen && !(dataOffset % 4) && pos + take < len) {
+          const data32 = new Uint32Array(buf, dataOffset, Math.floor((len - pos) / 4));
+          swap32IfBE(data32);
+          for (let pos32 = 0; pos + blockLen < len; pos32 += buffer32.length, pos += blockLen) {
+            this.length += blockLen;
+            this.compress(data32, pos32, false);
+          }
+          swap32IfBE(data32);
+          continue;
+        }
+        buffer.set(data.subarray(pos, pos + take), this.pos);
+        this.pos += take;
+        this.length += take;
+        pos += take;
+      }
+      return this;
+    }
+    digestInto(out) {
+      aexists(this);
+      aoutput(out, this);
+      const { pos, buffer32 } = this;
+      this.finished = true;
+      clean(this.buffer.subarray(pos));
+      swap32IfBE(buffer32);
+      this.compress(buffer32, 0, true);
+      swap32IfBE(buffer32);
+      if (out.byteOffset & 3)
+        throw new RangeError('"digestInto() output" expected 4-byte aligned byteOffset, got ' + out.byteOffset);
+      const state = this.get();
+      const out32 = u322(out);
+      const full = Math.floor(this.outputLen / 4);
+      for (let i = 0; i < full; i++)
+        out32[i] = swap8IfBE(state[i]);
+      const tail = this.outputLen % 4;
+      if (!tail)
+        return;
+      const off = full * 4;
+      const word = state[full];
+      for (let i = 0; i < tail; i++)
+        out[off + i] = word >>> 8 * i;
+    }
+    digest() {
+      const { buffer, outputLen } = this;
+      this.digestInto(buffer);
+      const res = buffer.slice(0, outputLen);
+      this.destroy();
+      return res;
+    }
+    _cloneInto(to) {
+      const { buffer, length, finished, destroyed, outputLen, pos } = this;
+      to || (to = new this.constructor({ dkLen: outputLen }));
+      to.set(...this.get());
+      to.buffer.set(buffer);
+      to.destroyed = destroyed;
+      to.finished = finished;
+      to.length = length;
+      to.pos = pos;
+      to.outputLen = outputLen;
+      return to;
+    }
+    clone() {
+      return this._cloneInto();
+    }
+  };
+  var _BLAKE2b = class extends _BLAKE2 {
+    constructor(opts = {}) {
+      const olen = opts.dkLen === void 0 ? 64 : opts.dkLen;
+      super(128, olen);
+      // Same IV words as SHA-512 / BLAKE2b, encoded as LE u32 low/high halves.
+      __publicField(this, "v0l", B2B_IV[0] | 0);
+      __publicField(this, "v0h", B2B_IV[1] | 0);
+      __publicField(this, "v1l", B2B_IV[2] | 0);
+      __publicField(this, "v1h", B2B_IV[3] | 0);
+      __publicField(this, "v2l", B2B_IV[4] | 0);
+      __publicField(this, "v2h", B2B_IV[5] | 0);
+      __publicField(this, "v3l", B2B_IV[6] | 0);
+      __publicField(this, "v3h", B2B_IV[7] | 0);
+      __publicField(this, "v4l", B2B_IV[8] | 0);
+      __publicField(this, "v4h", B2B_IV[9] | 0);
+      __publicField(this, "v5l", B2B_IV[10] | 0);
+      __publicField(this, "v5h", B2B_IV[11] | 0);
+      __publicField(this, "v6l", B2B_IV[12] | 0);
+      __publicField(this, "v6h", B2B_IV[13] | 0);
+      __publicField(this, "v7l", B2B_IV[14] | 0);
+      __publicField(this, "v7h", B2B_IV[15] | 0);
+      checkBlake2Opts(olen, opts, 64, 16, 16);
+      let { key, personalization, salt } = opts;
+      let keyLength = 0;
+      if (key !== void 0) {
+        abytes(key, void 0, "key");
+        keyLength = key.length;
+      }
+      this.v0l ^= this.outputLen | keyLength << 8 | 1 << 16 | 1 << 24;
+      if (salt !== void 0) {
+        abytes(salt, void 0, "salt");
+        const slt = u322(salt);
+        this.v4l ^= swap8IfBE(slt[0]);
+        this.v4h ^= swap8IfBE(slt[1]);
+        this.v5l ^= swap8IfBE(slt[2]);
+        this.v5h ^= swap8IfBE(slt[3]);
+      }
+      if (personalization !== void 0) {
+        abytes(personalization, void 0, "personalization");
+        const pers = u322(personalization);
+        this.v6l ^= swap8IfBE(pers[0]);
+        this.v6h ^= swap8IfBE(pers[1]);
+        this.v7l ^= swap8IfBE(pers[2]);
+        this.v7h ^= swap8IfBE(pers[3]);
+      }
+      if (key !== void 0) {
+        const tmp = new Uint8Array(this.blockLen);
+        tmp.set(key);
+        this.update(tmp);
+      }
+    }
+    // prettier-ignore
+    get() {
+      let { v0l, v0h, v1l, v1h, v2l, v2h, v3l, v3h, v4l, v4h, v5l, v5h, v6l, v6h, v7l, v7h } = this;
+      return [v0l, v0h, v1l, v1h, v2l, v2h, v3l, v3h, v4l, v4h, v5l, v5h, v6l, v6h, v7l, v7h];
+    }
+    // prettier-ignore
+    set(v0l, v0h, v1l, v1h, v2l, v2h, v3l, v3h, v4l, v4h, v5l, v5h, v6l, v6h, v7l, v7h) {
+      this.v0l = v0l | 0;
+      this.v0h = v0h | 0;
+      this.v1l = v1l | 0;
+      this.v1h = v1h | 0;
+      this.v2l = v2l | 0;
+      this.v2h = v2h | 0;
+      this.v3l = v3l | 0;
+      this.v3h = v3h | 0;
+      this.v4l = v4l | 0;
+      this.v4h = v4h | 0;
+      this.v5l = v5l | 0;
+      this.v5h = v5h | 0;
+      this.v6l = v6l | 0;
+      this.v6h = v6h | 0;
+      this.v7l = v7l | 0;
+      this.v7h = v7h | 0;
+    }
+    compress(msg, offset, isLast) {
+      this.get().forEach((v, i) => BBUF[i] = v);
+      BBUF.set(B2B_IV, 16);
+      let { h, l } = fromBig(BigInt(this.length));
+      BBUF[24] = B2B_IV[8] ^ l;
+      BBUF[25] = B2B_IV[9] ^ h;
+      if (isLast) {
+        BBUF[28] = ~BBUF[28];
+        BBUF[29] = ~BBUF[29];
+      }
+      let j = 0;
+      const s = BSIGMA;
+      for (let i = 0; i < 12; i++) {
+        G1b(0, 4, 8, 12, msg, offset + 2 * s[j++]);
+        G2b(0, 4, 8, 12, msg, offset + 2 * s[j++]);
+        G1b(1, 5, 9, 13, msg, offset + 2 * s[j++]);
+        G2b(1, 5, 9, 13, msg, offset + 2 * s[j++]);
+        G1b(2, 6, 10, 14, msg, offset + 2 * s[j++]);
+        G2b(2, 6, 10, 14, msg, offset + 2 * s[j++]);
+        G1b(3, 7, 11, 15, msg, offset + 2 * s[j++]);
+        G2b(3, 7, 11, 15, msg, offset + 2 * s[j++]);
+        G1b(0, 5, 10, 15, msg, offset + 2 * s[j++]);
+        G2b(0, 5, 10, 15, msg, offset + 2 * s[j++]);
+        G1b(1, 6, 11, 12, msg, offset + 2 * s[j++]);
+        G2b(1, 6, 11, 12, msg, offset + 2 * s[j++]);
+        G1b(2, 7, 8, 13, msg, offset + 2 * s[j++]);
+        G2b(2, 7, 8, 13, msg, offset + 2 * s[j++]);
+        G1b(3, 4, 9, 14, msg, offset + 2 * s[j++]);
+        G2b(3, 4, 9, 14, msg, offset + 2 * s[j++]);
+      }
+      this.v0l ^= BBUF[0] ^ BBUF[16];
+      this.v0h ^= BBUF[1] ^ BBUF[17];
+      this.v1l ^= BBUF[2] ^ BBUF[18];
+      this.v1h ^= BBUF[3] ^ BBUF[19];
+      this.v2l ^= BBUF[4] ^ BBUF[20];
+      this.v2h ^= BBUF[5] ^ BBUF[21];
+      this.v3l ^= BBUF[6] ^ BBUF[22];
+      this.v3h ^= BBUF[7] ^ BBUF[23];
+      this.v4l ^= BBUF[8] ^ BBUF[24];
+      this.v4h ^= BBUF[9] ^ BBUF[25];
+      this.v5l ^= BBUF[10] ^ BBUF[26];
+      this.v5h ^= BBUF[11] ^ BBUF[27];
+      this.v6l ^= BBUF[12] ^ BBUF[28];
+      this.v6h ^= BBUF[13] ^ BBUF[29];
+      this.v7l ^= BBUF[14] ^ BBUF[30];
+      this.v7h ^= BBUF[15] ^ BBUF[31];
+      clean(BBUF);
+    }
+    destroy() {
+      this.destroyed = true;
+      clean(this.buffer32);
+      this.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    }
+  };
+  var blake2b = /* @__PURE__ */ createHasher((opts) => new _BLAKE2b(opts));
+
+  // node_modules/@novasamatech/host-container/dist/deriveEntropy.js
+  var textEncoder2 = new TextEncoder();
+  var DOMAIN_SEPARATOR = textEncoder2.encode("product-entropy-derivation");
+
+  // node_modules/@novasamatech/host-container/dist/derivationIndex.js
+  var textEncoder3 = new TextEncoder();
+  var INDEX_MAGIC_LENGTH = 28;
+  var INDEX_MAGIC = blake2b(textEncoder3.encode("product-account-index"), { dkLen: 32 }).slice(0, INDEX_MAGIC_LENGTH);
+
   // src/native-transport.ts
   function createNativeTransport(sendToNative) {
     const pending = /* @__PURE__ */ new Map();
@@ -4133,7 +4857,8 @@
         entry.resolve?.(msg.value);
         pending.delete(id2);
       } else if ("error" in msg) {
-        const e = new Error(msg.error);
+        const rawError = msg.error;
+        const e = rawError !== null && typeof rawError === "object" ? Object.assign(new Error(rawError.message ?? "Unknown error"), { code: rawError.code }) : new Error(rawError);
         entry.reject?.(e);
         entry.onError?.(e);
         pending.delete(id2);
@@ -4374,7 +5099,6 @@
   var WAIT_BASE = 250;
   var getSyncProvider = (input) => (onMessage) => {
     let proxy = getProxy(onMessage);
-    let lastHalt = Date.now();
     let consecutiveHalts = 0;
     let token;
     const getWaitTime = () => consecutiveHalts && 2 ** Math.min(5, consecutiveHalts) * WAIT_BASE;
@@ -4390,16 +5114,20 @@
           else if (proxy)
             proxy.connect((onMsg, onHalt) => {
               let isOn = true;
-              return cb(onMsg, (e) => {
-                if (isOn) {
-                  isOn = false;
-                  const diff = Date.now() - lastHalt;
-                  consecutiveHalts += diff > WAIT_BASE + getWaitTime() ? -consecutiveHalts : 1;
-                  lastHalt += diff;
-                  onHalt(e);
-                  start();
+              return cb(
+                (msg) => {
+                  consecutiveHalts = 0;
+                  onMsg(msg);
+                },
+                (e) => {
+                  if (isOn) {
+                    isOn = false;
+                    consecutiveHalts++;
+                    onHalt(e);
+                    start();
+                  }
                 }
-              });
+              );
             });
         });
         if (isWaiting)
@@ -4937,10 +5665,55 @@
     }
   };
 
+  // src/webrtc-manager.ts
+  var WebRtcManager = class {
+    constructor(nativeConnectionClass, requestAccess) {
+      this.permissions = /* @__PURE__ */ new WeakMap();
+      this.requestAccess = requestAccess;
+      this.connectionClass = this.makeConnectionClass(nativeConnectionClass);
+    }
+    makeConnectionClass(nativeConnectionClass) {
+      const ensureAllowed = (connection, method) => this.ensureAllowed(connection, method);
+      return class GatedRTCPeerConnection extends nativeConnectionClass {
+        createOffer(...args) {
+          return ensureAllowed(this, "createOffer").then(() => super.createOffer(...args));
+        }
+        createAnswer(...args) {
+          return ensureAllowed(this, "createAnswer").then(() => super.createAnswer(...args));
+        }
+        setLocalDescription(...args) {
+          return ensureAllowed(this, "setLocalDescription").then(() => super.setLocalDescription(...args));
+        }
+        setRemoteDescription(...args) {
+          return ensureAllowed(this, "setRemoteDescription").then(() => super.setRemoteDescription(...args));
+        }
+        addIceCandidate(...args) {
+          return ensureAllowed(this, "addIceCandidate").then(() => super.addIceCandidate(...args));
+        }
+      };
+    }
+    async ensureAllowed(connection, method) {
+      console.log("[webRtc] api accessed:", method);
+      let permission = this.permissions.get(connection);
+      if (!permission) {
+        console.log("[webRtc] requesting access");
+        permission = this.requestAccess();
+        this.permissions.set(connection, permission);
+      }
+      if (!await permission) {
+        console.warn("[webRtc] access denied, blocking:", method);
+        connection.close();
+        throw new TypeError("WebRTC access is not allowed");
+      }
+      console.log("[webRtc] access granted:", method);
+    }
+  };
+
   // src/index.ts
   var _nativeFetch = window.fetch.bind(window);
   var _NativeXMLHttpRequest = window.XMLHttpRequest;
   var _NativeWebSocket = window.WebSocket;
+  var _NativeRTCPeerConnection = window.RTCPeerConnection;
   var _BlockedWebSocket = new Proxy(window.WebSocket, {
     construct() {
       throw new TypeError("Network access is not allowed");
@@ -4973,7 +5746,6 @@
     }
   }
   freezeValue(window, "WebSocket", _BlockedWebSocket);
-  freezeAndDelete(window, "RTCPeerConnection");
   freezeAndDelete(window, "EventSource");
   freezeValue(navigator, "sendBeacon", () => false);
   freezeAndDelete(window, "indexedDB");
@@ -5038,6 +5810,17 @@
     };
     return xhr;
   });
+  if (_NativeRTCPeerConnection) {
+    console.log("[webRtc] RTCPeerConnection available, installing permission-gated proxy");
+    const webRtcManager = new WebRtcManager(
+      _NativeRTCPeerConnection,
+      () => callNative("allowWebRtcAccess", {}).then((response) => response?.allowed === true)
+    );
+    freezeValue(window, "RTCPeerConnection", webRtcManager.connectionClass);
+  } else {
+    console.log("[webRtc] RTCPeerConnection unavailable, removing global");
+    freezeAndDelete(window, "RTCPeerConnection");
+  }
   var { port1, port2 } = new MessageChannel();
   window.__HOST_API_PORT__ = port1;
   var subscribers = /* @__PURE__ */ new Set();
@@ -5063,8 +5846,14 @@
     }
   };
   var container = createContainer(containerProvider);
+  function toNativeDerivationIndex(index) {
+    return index.tag === "Index" ? index.value : toHex2(index.value);
+  }
+  function toNativeAccountId([productId, derivationIndex]) {
+    return [productId, toNativeDerivationIndex(derivationIndex)];
+  }
   container.handleAccountGet((account, { ok: ok2, err: err2 }) => {
-    return callNative("accountGet", { account }).then(
+    return callNative("accountGet", { account: toNativeAccountId(account) }).then(
       (result) => ok2({
         publicKey: fromHex3(result.publicKey)
       }),
@@ -5084,13 +5873,96 @@
       }
     );
   });
-  container.handleAccountGetAlias((account, { ok: ok2, err: err2 }) => {
-    return callNative("accountGetAlias", { account }).then(
+  function toNativeContext(context) {
+    const [productId, suffix] = context;
+    return { productId, suffix: toNativeDerivationIndex(suffix) };
+  }
+  function toNativeRing(ring) {
+    return {
+      chainId: ring.chainId,
+      junctions: ring.junctions.map((junction) => ({
+        tag: junction.tag,
+        value: junction.tag === "CollectionId" ? toHex2(junction.value) : junction.value
+      }))
+    };
+  }
+  container.handleAccountGetAlias((params, { ok: ok2, err: err2 }) => {
+    const [context, ring] = params;
+    return callNative("accountGetAlias", {
+      context: toNativeContext(context),
+      ring: toNativeRing(ring)
+    }).then(
       (result) => ok2({
         context: fromHex3(result.context),
         alias: fromHex3(result.alias)
       }),
-      (e) => err2(new RequestCredentialsErr.Unknown({ reason: String(e) }))
+      (e) => {
+        switch (e?.code) {
+          case "RingNotFound":
+            return err2(new GetAliasErr.RingNotFound());
+          case "NotMember":
+            return err2(new GetAliasErr.NotMember());
+          case "Rejected":
+            return err2(new GetAliasErr.Rejected());
+          default:
+            return err2(new GetAliasErr.Unknown({ reason: String(e?.message ?? e) }));
+        }
+      }
+    );
+  });
+  container.handleAccountCreateProof((params, { ok: ok2, err: err2 }) => {
+    const [context, ring, message] = params;
+    return callNative("accountCreateProof", {
+      context: toNativeContext(context),
+      ring: toNativeRing(ring),
+      message: toHex2(message)
+    }).then(
+      (result) => ok2({
+        proof: fromHex3(result.proof),
+        contextualAlias: {
+          context: fromHex3(result.contextualAlias.context),
+          alias: fromHex3(result.contextualAlias.alias)
+        },
+        ringIndex: result.ringIndex,
+        ringRevision: result.ringRevision
+      }),
+      (e) => {
+        switch (e?.code) {
+          case "RingNotFound":
+            return err2(new CreateProofErr.RingNotFound());
+          case "NotMember":
+            return err2(new CreateProofErr.NotMember());
+          case "Rejected":
+            return err2(new CreateProofErr.Rejected());
+          default:
+            return err2(new CreateProofErr.Unknown({ reason: String(e?.message ?? e) }));
+        }
+      }
+    );
+  });
+  container.handleAccountSignVrf((params, { ok: ok2, err: err2 }) => {
+    return callNative("accountSignVrf", {
+      account: toNativeAccountId(params.account),
+      transcriptLabel: toHex2(params.transcriptLabel),
+      items: params.items.map((item) => ({
+        label: toHex2(item.label),
+        value: toHex2(item.value)
+      }))
+    }).then(
+      (result) => ok2({
+        preOutput: fromHex3(result.preOutput),
+        proof: fromHex3(result.proof)
+      }),
+      (e) => {
+        switch (e?.code) {
+          case "NotConnected":
+            return err2(new SignVrfErr.NotConnected());
+          case "Rejected":
+            return err2(new SignVrfErr.Rejected());
+          default:
+            return err2(new SignVrfErr.Unknown({ reason: String(e?.message ?? e) }));
+        }
+      }
     );
   });
   container.handleGetLegacyAccounts((_params, { ok: ok2, err: err2 }) => {
@@ -5136,7 +6008,7 @@
   window.__resumeConnections__ = () => connectionManager.resumeAll();
   container.handleSignPayload(async ({ account, payload }, { ok: ok2, err: err2 }) => {
     try {
-      const result = await callNative("signPayload", { account, ...payload });
+      const result = await callNative("signPayload", { account: toNativeAccountId(account), ...payload });
       return ok2({ signature: result.signature, signedTransaction: result.signedTx ?? void 0 });
     } catch {
       return err2(new SigningErr.Rejected());
@@ -5145,7 +6017,7 @@
   container.handleSignRaw(async ({ account, payload }, { ok: ok2, err: err2 }) => {
     try {
       const nativeData = payload.tag === "Bytes" ? { data: toHex2(payload.value) } : { payload: payload.value };
-      const result = await callNative("signRaw", { account, ...nativeData });
+      const result = await callNative("signRaw", { account: toNativeAccountId(account), ...nativeData });
       return ok2({ signature: result.signature, signedTransaction: result.signedTx ?? void 0 });
     } catch {
       return err2(new SigningErr.Rejected());
@@ -5154,8 +6026,43 @@
   container.handleCreateTransaction(async (payload, { ok: ok2, err: err2 }) => {
     try {
       const result = await callNative("createTransaction", {
-        signer: payload.signer,
-        genesisHash: toHex2(payload.genesisHash),
+        signer: toNativeAccountId(payload.signer),
+        genesisHash: payload.genesisHash,
+        callData: toHex2(payload.callData),
+        extensions: payload.extensions.map((e) => ({
+          id: e.id,
+          explicit: toHex2(e.extra),
+          implicit: toHex2(e.additionalSigned)
+        })),
+        txExtVersion: payload.txExtVersion
+      });
+      return ok2(fromHex3(result.signedTx));
+    } catch (e) {
+      return err2(new CreateTransactionErr.Unknown({ reason: String(e) }));
+    }
+  });
+  container.handleSignPayloadWithLegacyAccount(async ({ signer, payload }, { ok: ok2, err: err2 }) => {
+    try {
+      const result = await callNative("signPayloadLegacy", { account: signer, ...payload });
+      return ok2({ signature: result.signature, signedTransaction: result.signedTx ?? void 0 });
+    } catch {
+      return err2(new SigningErr.Rejected());
+    }
+  });
+  container.handleSignRawWithLegacyAccount(async ({ signer, payload }, { ok: ok2, err: err2 }) => {
+    try {
+      const nativeData = payload.tag === "Bytes" ? { data: toHex2(payload.value) } : { payload: payload.value };
+      const result = await callNative("signRawLegacy", { account: signer, ...nativeData });
+      return ok2({ signature: result.signature, signedTransaction: result.signedTx ?? void 0 });
+    } catch {
+      return err2(new SigningErr.Rejected());
+    }
+  });
+  container.handleCreateTransactionWithLegacyAccount(async (payload, { ok: ok2, err: err2 }) => {
+    try {
+      const result = await callNative("createTransactionLegacy", {
+        signer: toHex2(payload.signer),
+        genesisHash: payload.genesisHash,
         callData: toHex2(payload.callData),
         extensions: payload.extensions.map((e) => ({
           id: e.id,
@@ -5291,7 +6198,7 @@
   container.handleStatementStoreCreateProof(async ([account, statement], { ok: ok2, err: err2 }) => {
     try {
       const result = await callNative("createStatementProof", {
-        account,
+        account: toNativeAccountId(account),
         channel: statement.channel ? toHex2(statement.channel) : void 0,
         expiry: statement.expiry?.toString() ?? void 0,
         topics: statement.topics.map((t) => toHex2(t)),
@@ -5345,7 +6252,7 @@
       const dtos = resources.map((r) => {
         switch (r.tag) {
           case "SmartContractAllowance":
-            return { kind: r.tag, dest: r.value };
+            return { kind: r.tag, dest: toNativeDerivationIndex(r.value) };
           case "StatementStoreAllowance":
           case "BulletinAllowance":
           case "AutoSigning":
@@ -5494,7 +6401,7 @@
         sourceTag: params.source.tag
       };
       if (params.source.tag === "ProductAccount") {
-        nativeParams.sourceDerivationIndex = params.source.value;
+        nativeParams.sourceDerivationIndex = toNativeDerivationIndex(params.source.value);
       } else if (params.source.tag === "PrivateKey") {
         nativeParams.sourceKeyHex = toHex2(params.source.value);
       } else if (params.source.tag === "Coins") {
@@ -5503,7 +6410,12 @@
       await callNative("paymentTopUp", nativeParams);
       return ok2(void 0);
     } catch (e) {
-      return err2(new PaymentTopUpErr.Unknown({ reason: String(e) }));
+      const msg = String(e instanceof Error ? e.message : e);
+      const partial = msg.match(/PartialPayment:(\d+)/);
+      if (partial) {
+        return err2(new PaymentTopUpErr.PartialPayment({ credited: BigInt(partial[1]) }));
+      }
+      return err2(new PaymentTopUpErr.Unknown({ reason: msg }));
     }
   });
   container.handlePaymentStatusSubscribe((paymentId, send, interrupt) => {

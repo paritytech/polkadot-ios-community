@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum TransactionFailureViewFactory {
     static func createView(
         for onRetry: TransactionFailureCompletion?

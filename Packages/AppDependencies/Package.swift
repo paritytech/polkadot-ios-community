@@ -5,13 +5,13 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "extrinsic-service-ios",
         url: "https://github.com/novasamatech/extrinsic-service-ios",
-        version: .exact("1.9.0"),
+        version: .exact("1.12.0"),
         products: ["ExtrinsicService"]
     ),
     .init(
         name: "verifiable-swift",
         url: "https://github.com/novasamatech/verifiable-swift",
-        version: .exact("0.7.0"),
+        version: .exact("0.8.0"),
         products: ["BandersnatchApi"]
     ),
     .init(
@@ -50,7 +50,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "substrate-sdk-ios",
         url: "https://github.com/novasamatech/substrate-sdk-ios",
-        version: .exact("5.8.0"),
+        version: .exact("5.10.0"),
         products: [
             "SubstrateSdk",
             "SubstrateMetadataHash"
@@ -113,8 +113,14 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "WebRTC",
         url: "https://github.com/stasel/WebRTC",
-        version: .exact("125.0.0"),
+        version: .exact("149.0.0"),
         products: ["WebRTC"]
+    ),
+    .init(
+        name: "truapi",
+        url: "https://github.com/paritytech/truapi",
+        version: .exact("0.5.0"),
+        products: ["TrUAPIHost"]
     ),
     .init(
         name: "lottie-ios",
@@ -183,6 +189,8 @@ struct DependencyConfig {
         case upToNextMajor(String)
         case exact(String)
         case commit(String)
+        case branch(String)
+        case local
     }
 }
 
@@ -195,6 +203,10 @@ extension DependencyConfig {
             .package(url: url, exact: Version(stringLiteral: version))
         case let .commit(hash):
             .package(url: url, revision: hash)
+        case let .branch(name):
+            .package(url: url, branch: name)
+        case .local:
+            .package(path: url)
         }
     }
 

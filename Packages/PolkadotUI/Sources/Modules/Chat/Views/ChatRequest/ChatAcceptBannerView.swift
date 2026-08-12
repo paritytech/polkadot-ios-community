@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import SwiftUI
 import FoundationExt
 
@@ -34,6 +35,7 @@ public struct ChatAcceptBannerView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.mainDark44)
+                .accessibilityId(AccessibilityID.Chat.acceptRequestButton)
             }
             .padding(.top, 16)
         }

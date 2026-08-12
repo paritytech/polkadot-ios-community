@@ -8,7 +8,7 @@ extension CoinagePallet {
         case consumedFreeUnloadTokens
         case recyclersCoinToRecycler
         case coinsByOwner
-        case recyclersUnloaded
+        case recyclerAliasStates
     }
 }
 
@@ -21,8 +21,8 @@ extension CoinagePallet.Storage: StoragePathConvertible {
             "ConsumedFreeUnloadTokens"
         case .coinsByOwner:
             "CoinsByOwner"
-        case .recyclersUnloaded:
-            "RecyclersUnloaded"
+        case .recyclerAliasStates:
+            "RecyclerAliasStates"
         }
     }
 

@@ -8,11 +8,7 @@ public protocol MessageExchangeEncrypting {
     func decrypt(_ message: Data) throws -> Data
 }
 
-enum MessageExchangeEncryptionError: Error {
-    case missingCombinedData
-}
-
-public final class AESEncryptor {
+public final class ChaChaPolyEncryptor {
     private let internalSharedSecret: SharedSecret
     private let internalSymmetricKey: SymmetricKey
 
@@ -27,23 +23,17 @@ public final class AESEncryptor {
     }
 }
 
-extension AESEncryptor: MessageExchangeEncrypting {
+extension ChaChaPolyEncryptor: MessageExchangeEncrypting {
     public var sharedSecret: Data {
         internalSharedSecret.withUnsafeBytes { Data($0) }
     }
 
     public func encrypt(_ message: Data) throws -> Data {
-        let box = try AES.GCM.seal(message, using: internalSymmetricKey) // default nonce = 12, tag = 16
-
-        guard let combined = box.combined else {
-            throw MessageExchangeEncryptionError.missingCombinedData
-        }
-
-        return combined
+        try ChaChaPoly.seal(message, using: internalSymmetricKey).combined // nonce = 12, tag = 16
     }
 
     public func decrypt(_ message: Data) throws -> Data {
-        let box = try AES.GCM.SealedBox(combined: message) // default nonce = 12, tag = 16
-        return try AES.GCM.open(box, using: internalSymmetricKey)
+        let box = try ChaChaPoly.SealedBox(combined: message) // nonce = 12, tag = 16
+        return try ChaChaPoly.open(box, using: internalSymmetricKey)
     }
 }

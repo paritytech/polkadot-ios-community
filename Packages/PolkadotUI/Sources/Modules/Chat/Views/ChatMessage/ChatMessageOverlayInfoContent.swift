@@ -57,7 +57,7 @@ public extension ChatMessageOverlayInfoViewConfiguration {
     static func mediaUploadFailed() -> Self {
         .init(
             icon: .init(icon: UIImage(resource: .exclamationMark), position: .leading),
-            title: String(localized: .chatMediaUploadFailedRetry),
+            title: String(localized: .chatMediaUploadFailed),
             backgroundColor: .bgStatusError
         )
     }
@@ -73,7 +73,7 @@ public extension ChatMessageOverlayInfoViewConfiguration {
     static func mediaDownloadFailed() -> Self {
         .init(
             icon: .init(icon: UIImage(resource: .exclamationMark), position: .leading),
-            title: String(localized: .chatMediaDownloadFailedRetry),
+            title: String(localized: .chatMediaDownloadFailed),
             backgroundColor: .bgStatusError
         )
     }

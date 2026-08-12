@@ -31,6 +31,7 @@ protocol SettingsWireframeProtocol: AnyObject, WebPresentable, AlertPresentable 
     func showBackupFlow(from view: SettingsViewProtocol?)
     func showLinkedDevices(from view: SettingsViewProtocol?)
     func showRecoverPendingTransactions(from view: SettingsViewProtocol?)
+    func showPaymentHistory(from view: SettingsViewProtocol?)
     func showCurrencyPicker(from view: SettingsViewProtocol?)
     func openMailComposer(from view: SettingsViewProtocol?)
     func showContactEmailFallback(_ email: String, from view: SettingsViewProtocol?)

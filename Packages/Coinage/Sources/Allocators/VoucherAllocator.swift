@@ -25,11 +25,13 @@ actor VoucherAllocator: VoucherAllocating {
         let index = try storage.getNextIndex()
         let delay = delayProvider.timeInterval()
 
+        let allocatedAt = Date.now
+
         return Voucher(
             exponent: exponent,
             derivationIndex: index,
-            allocatedAt: .now,
-            readyAt: .now.addingTimeInterval(delay)
+            allocatedAt: allocatedAt,
+            readyAt: allocatedAt.addingTimeInterval(delay)
         )
     }
 }

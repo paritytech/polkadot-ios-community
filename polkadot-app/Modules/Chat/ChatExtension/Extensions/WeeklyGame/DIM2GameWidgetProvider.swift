@@ -3,7 +3,8 @@ import AsyncExtensions
 import Individuality
 import PolkadotUI
 
-final class DIM2GameWidgetProvider {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class DIM2GameWidgetProvider: @unchecked Sendable {
     private let flowState: DIM2SharedFlowStateProtocol
     private weak var wireframe: WeeklyGameWireframeProtocol?
     private let logger: LoggerProtocol

@@ -2,7 +2,7 @@ import Foundation
 import os
 import Operation_iOS
 
-open class AsyncTaskOperation<ResultType>: BaseOperation<ResultType> {
+open class AsyncTaskOperation<ResultType>: BaseOperation<ResultType>, @unchecked Sendable {
     private let closure: () async throws -> ResultType
     private let taskLock = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 

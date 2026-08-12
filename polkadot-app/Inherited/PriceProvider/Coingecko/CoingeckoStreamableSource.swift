@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import Combine
+import ChainRegistry
 
 final class CoingeckoStreamableSource: StreamableSourceProtocol {
     typealias Model = PriceData

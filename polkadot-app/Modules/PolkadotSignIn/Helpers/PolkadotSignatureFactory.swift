@@ -6,6 +6,8 @@ import Operation_iOS
 import Products
 import SubstrateSdk
 import KeyDerivation
+import ChainRegistry
+import SubstrateSdkExt
 
 enum PolkadotHostSigningResult {
     case signedPayload(signature: Data, signedTransaction: Data?)
@@ -21,14 +23,17 @@ protocol PolkadotSignatureMaking {
 }
 
 final class PolkadotSignatureFactory {
-    private let extensionsFactory: ExtrinsicTransactionExtensionMaking
+    private let defaultExtensionsFactory: ExtrinsicTransactionExtensionMaking
+    private let requiredExtensionsFactory: ExtrinsicTransactionExtensionMaking
     private let extrinsicVersionProvider: ExtrinsicVersionProviding
 
     init(
-        extensionsFactory: ExtrinsicTransactionExtensionMaking = ExtrinsicTransactionExtensionFactory(),
+        defaultExtensionsFactory: ExtrinsicTransactionExtensionMaking = DefaultTxExtensionFactory(),
+        requiredExtensionsFactory: ExtrinsicTransactionExtensionMaking = RequiredTxExtensionFactory(),
         extrinsicVersionProvider: ExtrinsicVersionProviding = ExtrinsicVersionProvider()
     ) {
-        self.extensionsFactory = extensionsFactory
+        self.defaultExtensionsFactory = defaultExtensionsFactory
+        self.requiredExtensionsFactory = requiredExtensionsFactory
         self.extrinsicVersionProvider = extrinsicVersionProvider
     }
 }
@@ -119,8 +124,12 @@ private extension PolkadotSignatureFactory {
             builder = builder.with(tip: transaction.tip)
         }
 
-        for appExtension in extensionsFactory.createExtensions() {
-            builder = builder.adding(transactionExtension: appExtension)
+        for defaultExtension in defaultExtensionsFactory.createExtensions() {
+            builder = builder.adding(transactionExtension: defaultExtension)
+        }
+
+        for requiredExtension in requiredExtensionsFactory.createExtensions() {
+            builder = builder.adding(transactionExtension: requiredExtension)
         }
 
         return (builder, codingFactory)
@@ -185,13 +194,17 @@ private extension PolkadotSignatureFactory {
 
         builder = try builder.adding(rawCall: createTransaction.callData)
 
-        // App extensions first, then resolved ones override
-        for appExtension in extensionsFactory.createExtensions() {
-            builder = builder.adding(transactionExtension: appExtension)
+        // Default extensions, then the transaction-supplied ones, finally required overrides.
+        for defaultExtension in defaultExtensionsFactory.createExtensions() {
+            builder = builder.adding(transactionExtension: defaultExtension)
         }
 
         for customExtension in resolved.customExtensions {
             builder = builder.adding(transactionExtension: customExtension)
+        }
+
+        for requiredExtension in requiredExtensionsFactory.createExtensions() {
+            builder = builder.adding(transactionExtension: requiredExtension)
         }
 
         return (builder, codingFactory)

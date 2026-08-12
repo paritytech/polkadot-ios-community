@@ -3,6 +3,7 @@ import UIKitExt
 import Foundation_iOS
 import PolkadotUI
 
+@MainActor
 final class TransferAmountWireframe: TransferAmountWireframeProtocol {
     let recipient: RecipientModel
 

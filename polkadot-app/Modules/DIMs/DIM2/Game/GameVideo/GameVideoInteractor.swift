@@ -2,7 +2,8 @@ import UIKit
 import SubstrateSdk
 import Keystore_iOS
 
-final class GameVideoInteractor {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class GameVideoInteractor: @unchecked Sendable {
     weak var presenter: GameVideoInteractorOutputProtocol?
 
     let accountId: AccountId
@@ -28,6 +29,7 @@ final class GameVideoInteractor {
     private var lastTrackedHost: AccountId?
     private var alarmCancelationTask: Task<Void, Error>?
     private var intendedGameCheckTask: Task<Void, Error>?
+    private var isGameThrottled = false
 
     init(
         accountId: AccountId,
@@ -57,8 +59,10 @@ final class GameVideoInteractor {
     }
 
     deinit {
+        logger.debug("GameVideoInteractor.deinit")
         alarmCancelationTask?.cancel()
         intendedGameCheckTask?.cancel()
+        throttleGameResources(isGameFinished: false)
     }
 }
 
@@ -72,8 +76,8 @@ extension GameVideoInteractor: GameVideoInteractorInputProtocol {
         loadBannedPlayers()
     }
 
-    func throttle() {
-        gameVideoService.throttle()
+    func throttle(isGameFinished: Bool) {
+        throttleGameResources(isGameFinished: isGameFinished)
     }
 
     func performVotingAction(for player: AccountId, vote: GameVideoVotingState?) {
@@ -188,6 +192,17 @@ extension GameVideoInteractor: GameVideoServiceDelegate {
 }
 
 private extension GameVideoInteractor {
+    func throttleGameResources(isGameFinished: Bool) {
+        guard !isGameThrottled else {
+            logger.debug("Already throttled")
+            return
+        }
+
+        isGameThrottled = true
+        logger.debug("Throttling game resources")
+        gameVideoService.throttle(isGameFinished: isGameFinished)
+    }
+
     func handleState(_ state: GameStateMachine.State?) {
         updateGameId(from: state)
         clearGestureAcceptancesIfNeeded(from: state)
@@ -231,8 +246,6 @@ private extension GameVideoInteractor {
         switch round.state {
         case let .hosting(hosting):
             handleHosting(hosting, players: round.players)
-        default:
-            break
         }
     }
 
@@ -501,12 +514,16 @@ private extension GameVideoInteractor {
 
     func provideTutorialTooltipState() {
         let playerTooltipShown = settingsManager.value(for: .playerTooltipShown)
-        presenter?.didReceive(playerTooltipShown: playerTooltipShown)
+        MainActor.assumeIsolated {
+            presenter?.didReceive(playerTooltipShown: playerTooltipShown)
+        }
     }
 
     func provideSwipeTooltipState() {
         let swipeTooltipShown = settingsManager.value(for: .swipeTooltipShown)
-        presenter?.didReceive(swipeTooltipShown: swipeTooltipShown)
+        MainActor.assumeIsolated {
+            presenter?.didReceive(swipeTooltipShown: swipeTooltipShown)
+        }
     }
 
     func loadBannedPlayers() {

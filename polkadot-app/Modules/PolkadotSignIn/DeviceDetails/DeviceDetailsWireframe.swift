@@ -1,6 +1,7 @@
 import UIKit
 import PolkadotUI
 
+@MainActor
 final class DeviceDetailsWireframe: DeviceDetailsWireframeProtocol {
     private let serviceCoordinator: ServiceCoordinatorProtocol
 

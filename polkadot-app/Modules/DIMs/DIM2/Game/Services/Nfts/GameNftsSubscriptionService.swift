@@ -6,6 +6,7 @@ import Operation_iOS
 import StructuredConcurrency
 import AsyncExtensions
 import Individuality
+import ChainRegistry
 
 protocol GameNftsSubscriptionServicing: AnyObject {
     func observeMints(

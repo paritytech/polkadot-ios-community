@@ -1,6 +1,7 @@
 import Foundation
 import Products
 
+@MainActor
 enum AppDetailViewFactory {
     static func createView(productId: ProductId) -> AppDetailViewProtocol? {
         let wireframe = AppDetailWireframe()

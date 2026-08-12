@@ -2,6 +2,8 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageSubscription
+import ChainRegistry
+import SubstrateSdkExt
 
 protocol OrmlTokenSubscriptionFactoryProtocol {
     func createOrmlAccountSubscription(remoteStorageKey: Data, localStorageKey: String) -> StorageChildSubscribing

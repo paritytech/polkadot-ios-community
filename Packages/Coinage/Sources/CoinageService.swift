@@ -7,6 +7,7 @@ import Operation_iOS
 import AsyncExtensions
 import SDKLogger
 import StateMachine
+import StructuredConcurrency
 
 /// Protocol defining the coinage facade operations.
 public protocol CoinageServicing: Actor {
@@ -86,10 +87,11 @@ public protocol CoinageServicing: Actor {
     ) async throws -> (coins: ScanResult<Coin>, vouchers: ScanResult<Voucher>)
 
     /// Recover spent coins by re-sweeping them back into the user's balance.
-    /// Enumerates locally spent coins, derives their secret keys, and transfers them via
-    /// `transferCoinsFromSecretKeys(transferCoins: true)`.
-    /// - Returns: Total planks recovered and transferred
-    /// - Throws: Errors from coin enumeration, key derivation, or transfer execution
+    /// Enumerates locally spent coins and delegates to
+    /// `OngoingTransferServicing.recoverSpentCoins(spentCoins:context:)`, which transfers
+    /// younger on-chain coins and restores max-age ones to `.available` locally.
+    /// - Returns: Total planks recovered (transferred + restored).
+    /// - Throws: Errors from coin enumeration, key derivation, or transfer execution.
     func recoverSpentCoinsOnChain() async throws -> BigUInt
 }
 
@@ -98,7 +100,7 @@ public actor CoinageService {
     // Coins and vouchers management
     private let coinService: CoinServiceProtocol
     private let voucherService: VoucherServiceProtocol
-    private let coinKeypairFactory: CoinKeyDeriving
+    private let coinKeypairFactory: any CoinKeyDeriving
 
     // Transfers
     private let senderService: TransferSenderServicing
@@ -142,7 +144,7 @@ public actor CoinageService {
     init(
         coinService: CoinServiceProtocol,
         voucherService: VoucherServiceProtocol,
-        coinKeypairFactory: CoinKeyDeriving,
+        coinKeypairFactory: any CoinKeyDeriving,
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
         transferRecoveryService: any TransferRecoveryServicing,
@@ -319,11 +321,13 @@ extension CoinageService: CoinageServicing {
         amount: BigUInt,
         externalAssetHolder: any WalletManaging
     ) async throws {
-        try await voucherService.load(
-            amount: amount,
-            externalAssetHolder: externalAssetHolder,
-            breakdownContext: requireContext()
-        )
+        try await markStallRegion("Loading vouchers") {
+            try await voucherService.load(
+                amount: amount,
+                externalAssetHolder: externalAssetHolder,
+                breakdownContext: requireContext()
+            )
+        }
     }
 
     public func coinageBalanceService() async throws -> CoinageBalanceServiceProtocol {
@@ -366,10 +370,9 @@ extension CoinageService: CoinageServicing {
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {
         let spentCoins = try await coinService.fetchAllCoins().filter { $0.state == .spent }
         guard !spentCoins.isEmpty else { return .zero }
-        let secretKeys = try spentCoins.map { try coinKeypairFactory.derivePrivateKey(for: $0) }
         let context = try await denominationContext()
-        return try await ongoingTransferService.revokeFromSecretKeys(
-            secretKeys: secretKeys,
+        return try await ongoingTransferService.recoverSpentCoins(
+            spentCoins: spentCoins,
             context: context
         )
     }
@@ -423,7 +426,7 @@ private extension CoinageService {
 
         appStateTask = Task { [recyclingService] in
             for await _ in foregroundEvents {
-                await recyclingService.scheduleRecycling()
+                await recyclingService.recycleOldCoins()
             }
         }
     }

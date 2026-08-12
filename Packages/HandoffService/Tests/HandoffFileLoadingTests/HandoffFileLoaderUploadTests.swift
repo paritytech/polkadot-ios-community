@@ -7,9 +7,12 @@ import AsyncExtensions
 
 struct HandoffFileLoaderUploadTests {
     let chunkSize = 100
+    let inlineMargin = 64
     let dummyPubKey = MultiSigner.sr25519(Data(repeating: 1, count: 32))
 
-    // MARK: - Tests
+    var inlineThreshold: Int { chunkSize - inlineMargin }
+
+    // MARK: - Chunked
 
     @Test func freshUploadCompletesSuccessfully() async throws {
         let fileData = try Data.randomOrError(of: 250)
@@ -29,7 +32,7 @@ struct HandoffFileLoaderUploadTests {
         #expect(progressEvents.count == 3)
         #expect(finishedEvents.count == 1)
 
-        // 3 chunks + 1 metadata = 4 submits
+        // 3 chunks + 1 root entry = 4 submits
         #expect(service.submitCallCount == 4)
 
         // Each chunk saved to store
@@ -86,7 +89,7 @@ struct HandoffFileLoaderUploadTests {
         // 1 initial resume progress + 1 chunk remaining = 2 progress events
         #expect(progressValues.count == 2)
 
-        // Only 1 chunk submitted + 1 metadata = 2 submits
+        // Only 1 chunk submitted + 1 root entry = 2 submits
         #expect(service.submitCallCount == 2)
 
         // Only 1 new chunk saved
@@ -129,7 +132,7 @@ struct HandoffFileLoaderUploadTests {
         #expect(store.finishCalled == false)
     }
 
-    @Test func uploadMetadataContainsAllChunkHashes() async throws {
+    @Test func uploadRootEntryContainsAllChunkHashes() async throws {
         let fileData = try Data.randomOrError(of: 200)
         let (loader, service) = makeLoader()
         let store = MockUploadFileContext(fileData: fileData)
@@ -140,20 +143,116 @@ struct HandoffFileLoaderUploadTests {
             recipients: makeRecipients()
         ))
 
-        let metadataHash = events.compactMap { if case let .onFinished(f) = $0 { f.metadataHash } else { nil } }.first!
+        let finished = events.compactMap { if case let .onFinished(f) = $0 { f } else { nil } }.first
 
-        // Decode the stored metadata
+        guard case let .chunked(metadataHash) = finished else {
+            Issue.record("Expected chunked finish, got \(String(describing: finished))")
+            return
+        }
+
+        // Decode the stored root entry
         let metadataData = service.storage[metadataHash]!
-        let uploadedFile = try UploadedFile.scaleDecode(from: metadataData)
+        let envelope = try VersionedUploadedFile.scaleDecode(from: metadataData)
 
-        #expect(uploadedFile.chunks.count == 2)
-        #expect(uploadedFile.totalSize == 200)
+        guard case let .v1(.chunked(chunkedFile)) = envelope else {
+            Issue.record("Expected chunked payload")
+            return
+        }
+
+        #expect(chunkedFile.chunks.count == 2)
+        #expect(chunkedFile.totalSize == 200)
+    }
+
+    // MARK: - Inline
+
+    @Test func smallFileUploadsInline() async throws {
+        let fileData = try Data.randomOrError(of: inlineThreshold)
+        let (loader, service) = makeLoader()
+        let store = MockUploadFileContext(fileData: fileData)
+
+        let events = try await collectUploadEvents(from: loader.uploadFile(
+            store: store,
+            sender: NoProofProvider(),
+            recipients: makeRecipients()
+        ))
+
+        let progressValues = events.compactMap { if case let .onProgress(p) = $0 { p } else { nil } }
+        let finished = events.compactMap { if case let .onFinished(f) = $0 { f } else { nil } }.first
+
+        guard case let .inline(fileHash) = finished else {
+            Issue.record("Expected inline finish, got \(String(describing: finished))")
+            return
+        }
+
+        // Single pool entry carrying the file itself, no chunk bookkeeping
+        #expect(service.submitCallCount == 1)
+        #expect(store.savedChunks.isEmpty)
+        #expect(store.finishCalled == true)
+
+        #expect(progressValues.count == 1)
+        #expect(progressValues[0].uploaded == fileData.count)
+        #expect(progressValues[0].total == fileData.count)
+
+        let envelope = try VersionedUploadedFile.scaleDecode(from: service.storage[fileHash]!)
+        #expect(envelope == .v1(.inline(fileData)))
+    }
+
+    @Test func fileAboveThresholdUploadsChunked() async throws {
+        let fileData = try Data.randomOrError(of: inlineThreshold + 1)
+        let (loader, service) = makeLoader()
+        let store = MockUploadFileContext(fileData: fileData)
+
+        let events = try await collectUploadEvents(from: loader.uploadFile(
+            store: store,
+            sender: NoProofProvider(),
+            recipients: makeRecipients()
+        ))
+
+        let finished = events.compactMap { if case let .onFinished(f) = $0 { f } else { nil } }.first
+
+        guard case .chunked = finished else {
+            Issue.record("Expected chunked finish, got \(String(describing: finished))")
+            return
+        }
+
+        // 1 chunk + 1 root entry = 2 submits
+        #expect(service.submitCallCount == 2)
+        #expect(store.savedChunks.count == 1)
+    }
+
+    @Test func resumedUploadStaysChunkedBelowThreshold() async throws {
+        let fileData = try Data.randomOrError(of: inlineThreshold)
+        let (loader, service) = makeLoader()
+        let store = MockUploadFileContext(fileData: fileData)
+
+        // Progress persisted by a previous chunked run forces the chunked flow
+        let chunkHash = try fileData.blake2b32()
+        store.resumeProgress = .init(uploadedHashes: [chunkHash], uploadedSize: fileData.count)
+
+        let events = try await collectUploadEvents(from: loader.uploadFile(
+            store: store,
+            sender: NoProofProvider(),
+            recipients: makeRecipients()
+        ))
+
+        let finished = events.compactMap { if case let .onFinished(f) = $0 { f } else { nil } }.first
+
+        guard case .chunked = finished else {
+            Issue.record("Expected chunked finish, got \(String(describing: finished))")
+            return
+        }
+
+        // Only the root entry is submitted
+        #expect(service.submitCallCount == 1)
     }
 }
 
 private extension HandoffFileLoaderUploadTests {
     func makeLoader(service: MockHandoffService = MockHandoffService()) -> (HandoffFileLoader, MockHandoffService) {
-        let loader = HandoffFileLoader(service: service, chunkSize: chunkSize)
+        let loader = HandoffFileLoader(
+            service: service,
+            config: HandoffFileLoadConfig(chunkSize: chunkSize, inlineMargin: inlineMargin)
+        )
         return (loader, service)
     }
 

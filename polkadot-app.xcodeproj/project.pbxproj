@@ -24,6 +24,7 @@
 		0CA3EA882EAA711100C43F10 /* AssetHubSdk in Frameworks */ = {isa = PBXBuildFile; productRef = 0CA3EA872EAA711100C43F10 /* AssetHubSdk */; };
 		0CA60CC22FB20D4D008817A9 /* BulletinChain in Frameworks */ = {isa = PBXBuildFile; productRef = 0CA60CC12FB20D4D008817A9 /* BulletinChain */; };
 		0CEC59AC2F08EBFC0009CC37 /* FoundationExt in Frameworks */ = {isa = PBXBuildFile; productRef = 0CEC59AB2F08EBFC0009CC37 /* FoundationExt */; };
+		2D0A51D72FFE94810095ECAE /* BackgroundExecution in Frameworks */ = {isa = PBXBuildFile; productRef = 2D0A51D62FFE94810095ECAE /* BackgroundExecution */; };
 		A526CB302EBBA06D00D2987B /* PolkadotUI in Frameworks */ = {isa = PBXBuildFile; productRef = A526CB2F2EBBA06D00D2987B /* PolkadotUI */; };
 		A57CAF662F45ECB70066D722 /* StructuredConcurrency in Frameworks */ = {isa = PBXBuildFile; productRef = A57CAF652F45ECB70066D722 /* StructuredConcurrency */; };
 		A57CAF682F45ED940066D722 /* StructuredConcurrency in Frameworks */ = {isa = PBXBuildFile; productRef = A57CAF672F45ED940066D722 /* StructuredConcurrency */; };
@@ -36,7 +37,13 @@
 		A5FB979E2F855E9D001A2D6A /* FoundationExt in Frameworks */ = {isa = PBXBuildFile; productRef = A5FB979D2F855E9D001A2D6A /* FoundationExt */; };
 		B10000022F7C000000000AAA /* Products in Frameworks */ = {isa = PBXBuildFile; productRef = B10000012F7C000000000AAA /* Products */; };
 		B10000042F7C000000000BBB /* BulletinChain in Frameworks */ = {isa = PBXBuildFile; productRef = B10000032F7C000000000BBB /* BulletinChain */; };
+		B1A2C3D42F8A000000000001 /* BlurHash in Frameworks */ = {isa = PBXBuildFile; productRef = B1A2C3D42F8A000000000002 /* BlurHash */; };
+		CC0CC0102FBA000100CCAA01 /* ChainRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0202FBA000100CCAA02 /* ChainRegistry */; };
+		CC0CC0302FBA000100CCAA03 /* ChainRegistry in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0402FBA000100CCAA04 /* ChainRegistry */; };
+		CC0CC0502FBA000100CCAA05 /* EventCenter in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0602FBA000100CCAA06 /* EventCenter */; };
+		CC0CC0702FBA000100CCAA07 /* EventCenter in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0802FBA000100CCAA08 /* EventCenter */; };
 		E9C7172E2ECDD6730014841F /* JailbreakDetection in Frameworks */ = {isa = PBXBuildFile; productRef = E9C7172D2ECDD6730014841F /* JailbreakDetection */; };
+		EA11ACCE000000000000B001 /* ExternalAccessibility in Frameworks */ = {isa = PBXBuildFile; productRef = EA11ACCE000000000000B002 /* ExternalAccessibility */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +86,8 @@
 
 /* Begin PBXFileReference section */
 		0C6EC9592EC629FB00C9B292 /* NotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0C88BDA32FEED6A800895B94 /* MetadataShortenerApi.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MetadataShortenerApi.xcodeproj; sourceTree = "<group>"; };
+		0C88CD992FEED62E00895B94 /* MetadataShortenerApi.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MetadataShortenerApi.xcodeproj; sourceTree = "<group>"; };
 		0CA025802F74DBAF0000CDC9 /* ProtocolBuffers_iOS.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_iOS.xcodeproj; sourceTree = "<group>"; };
 		0CA025812F74DBAF0000CDC9 /* ProtocolBuffers_OSX.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_OSX.xcodeproj; sourceTree = "<group>"; };
 		0CA025822F74DBAF0000CDC9 /* ProtocolBuffers_tvOS.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_tvOS.xcodeproj; sourceTree = "<group>"; };
@@ -131,22 +140,8 @@
 				Inherited/BalanceFormatting/PrimitiveBalanceViewModelFactory.swift,
 				Inherited/BalanceFormatting/PrimitiveBalanceViewModelFactoryProtocol.swift,
 				Inherited/BalanceFormatting/TransferAmountViewModelFactoryProtocol.swift,
-				Inherited/Helpers/AddressConversion.swift,
-				Inherited/Helpers/DispatchQueueHelper.swift,
 				Inherited/Helpers/EnviromentVariables.swift,
 				"Inherited/Helpers/String+Processing.swift",
-				Inherited/Model/Chain/LocalChain/AssetModel.swift,
-				Inherited/Model/Chain/LocalChain/ChainAsset.swift,
-				Inherited/Model/Chain/LocalChain/ChainModel.swift,
-				"Inherited/Model/Chain/LocalChain/ChainModel+Substrate.swift",
-				Inherited/Model/Chain/LocalChain/ChainNodeModel.swift,
-				Inherited/Model/Chain/LocalChain/ChainSyncMode.swift,
-				Inherited/Model/Chain/LocalChain/LocalChainExternalApi.swift,
-				Inherited/Model/Chain/LocalChain/StakingType.swift,
-				Inherited/Model/Chain/RemoteChain/RemoteAssetModel.swift,
-				Inherited/Model/Chain/RemoteChain/RemoteChainExternalApi.swift,
-				Inherited/Model/Chain/RemoteChain/RemoteChainModel.swift,
-				Inherited/Model/Chain/RemoteChain/RemoteChainNodeModel.swift,
 				Inherited/Model/CoreDataMapperError.swift,
 				Inherited/Operation/OperationManagerFacade.swift,
 				Inherited/PriceProvider/PriceData.swift,
@@ -186,6 +181,7 @@
 				Modules/Chat/Model/CoreData/ChatMessageStatusUpdateMapper.swift,
 				Modules/Chat/Model/CoreData/ChatRoomMetadataEntityMapper.swift,
 				Modules/Chat/Model/CoreData/ContactDeviceSettingsMapper.swift,
+				Modules/Chat/Model/CoreData/ContactDevicesFanOutSettingsMapper.swift,
 				Modules/Chat/Model/CoreData/ContactIncomingSettingsMapper.swift,
 				Modules/Chat/Model/CoreData/ContactOutgoingSettingsMapper.swift,
 				Modules/Chat/Model/CoreData/LastSyncOfferIdMapper.swift,
@@ -235,9 +231,9 @@
 				Chat/Mocks/MockChatParticipant.swift,
 				Chat/Mocks/MockStatement.swift,
 				Chat/Mocks/MockStatementStore.swift,
-				Helpers/MockEntropyIdStore.swift,
-				Helpers/MockLogger.swift,
-				Helpers/MockMnemonicBackupHelper.swift,
+				Helpers/Mocks/MockEntropyIdStore.swift,
+				Helpers/Mocks/MockLogger.swift,
+				Helpers/Mocks/MockMnemonicBackupHelper.swift,
 				Helpers/SubstrateStorageTestFacade.swift,
 				Helpers/UserDataStorageTestFacade.swift,
 			);
@@ -266,6 +262,11 @@
 		65E2C5D72E971DC0004FBA34 /* polkadot-appIntegrationTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "polkadot-appIntegrationTests";
+			sourceTree = "<group>";
+		};
+		A5C8A5B13020EE3A00A2D0D3 /* Configs */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Configs;
 			sourceTree = "<group>";
 		};
 		A5EDAAD72E93ECAF005DDA62 /* polkadot-app */ = {
@@ -305,6 +306,8 @@
 				0C2A9D552F868F7400E753AE /* SubstrateSdkExt in Frameworks */,
 				A5B250302F47482000E46E09 /* KeyDerivation in Frameworks */,
 				0CA60CC22FB20D4D008817A9 /* BulletinChain in Frameworks */,
+				CC0CC0302FBA000100CCAA03 /* ChainRegistry in Frameworks */,
+				CC0CC0702FBA000100CCAA07 /* EventCenter in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,6 +336,7 @@
 				0C2A9D532F868F4F00E753AE /* SubstrateSdkExt in Frameworks */,
 				A57CAF662F45ECB70066D722 /* StructuredConcurrency in Frameworks */,
 				0CEC59AC2F08EBFC0009CC37 /* FoundationExt in Frameworks */,
+				EA11ACCE000000000000B001 /* ExternalAccessibility in Frameworks */,
 				0C62514C2F50808100A92259 /* HandoffService in Frameworks */,
 				A526CB302EBBA06D00D2987B /* PolkadotUI in Frameworks */,
 				0C148EF22EAA61E2002497EC /* XcmTransfer in Frameworks */,
@@ -340,6 +344,10 @@
 				B10000022F7C000000000AAA /* Products in Frameworks */,
 				B10000042F7C000000000BBB /* BulletinChain in Frameworks */,
 				0C4C2FB62FB056C60038B9C6 /* UIKitExt in Frameworks */,
+				CC0CC0102FBA000100CCAA01 /* ChainRegistry in Frameworks */,
+				CC0CC0502FBA000100CCAA05 /* EventCenter in Frameworks */,
+				2D0A51D72FFE94810095ECAE /* BackgroundExecution in Frameworks */,
+				B1A2C3D42F8A000000000001 /* BlurHash in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -353,6 +361,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0C88C2662FEED6A800895B94 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0C88CD9C2FEED62E00895B94 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		0CA02DE42F74DBAF0000CDC9 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -384,6 +406,7 @@
 		A5EDAACC2E93ECAF005DDA62 = {
 			isa = PBXGroup;
 			children = (
+				A5C8A5B13020EE3A00A2D0D3 /* Configs */,
 				A5F1EC872E9543A6009C1723 /* Packages */,
 				A5EDAAD72E93ECAF005DDA62 /* polkadot-app */,
 				A5EDAAE62E93ECB0005DDA62 /* polkadot-appTests */,
@@ -433,6 +456,8 @@
 				A5FB979D2F855E9D001A2D6A /* FoundationExt */,
 				0C0D0E1A2F90FE3E00D9D574 /* Individuality */,
 				0CA60CC12FB20D4D008817A9 /* BulletinChain */,
+				CC0CC0402FBA000100CCAA04 /* ChainRegistry */,
+				CC0CC0802FBA000100CCAA08 /* EventCenter */,
 			);
 			productName = NotificationServiceExtension;
 			productReference = 0C6EC9592EC629FB00C9B292 /* NotificationServiceExtension.appex */;
@@ -493,6 +518,7 @@
 				A526CB2F2EBBA06D00D2987B /* PolkadotUI */,
 				E9C7172D2ECDD6730014841F /* JailbreakDetection */,
 				0CEC59AB2F08EBFC0009CC37 /* FoundationExt */,
+				EA11ACCE000000000000B002 /* ExternalAccessibility */,
 				A57CAF652F45ECB70066D722 /* StructuredConcurrency */,
 				A5B2502D2F47481900E46E09 /* KeyDerivation */,
 				0C62514B2F50808100A92259 /* HandoffService */,
@@ -504,6 +530,10 @@
 				0C0DFC2E2F90983800D9D574 /* Individuality */,
 				0C4C2FB52FB056C60038B9C6 /* UIKitExt */,
 				0C60583F2FB598D70008050F /* AssetsManagement */,
+				CC0CC0202FBA000100CCAA02 /* ChainRegistry */,
+				CC0CC0602FBA000100CCAA06 /* EventCenter */,
+				2D0A51D62FFE94810095ECAE /* BackgroundExecution */,
+				B1A2C3D42F8A000000000002 /* BlurHash */,
 			);
 			productName = "polkadot-app";
 			productReference = A5EDAAD52E93ECAF005DDA62 /* polkadot-app.app */;
@@ -571,6 +601,14 @@
 			productRefGroup = A5EDAAD62E93ECAF005DDA62 /* Products */;
 			projectDirPath = "";
 			projectReferences = (
+				{
+					ProductGroup = 0C88CD9C2FEED62E00895B94 /* Products */;
+					ProjectRef = 0C88CD992FEED62E00895B94 /* MetadataShortenerApi.xcodeproj */;
+				},
+				{
+					ProductGroup = 0C88C2662FEED6A800895B94 /* Products */;
+					ProjectRef = 0C88BDA32FEED6A800895B94 /* MetadataShortenerApi.xcodeproj */;
+				},
 				{
 					ProductGroup = 0CA02DE42F74DBAF0000CDC9 /* Products */;
 					ProjectRef = 0CA025802F74DBAF0000CDC9 /* ProtocolBuffers_iOS.xcodeproj */;
@@ -681,7 +719,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"$RUN_IN_CI\" == \"true\" ] || [ \"${CONFIGURATION}\" == \"DevCI\" ]; then\n    echo \"Skipping Swfitlint in CI environment\"\n    exit 0\nfi\n\nsource \"${SRCROOT}/Runscripts/homebrew_run.sh\"\n\nsetup_environment\n# 1 - tool, 2 - arguments, 3 - fallback url  \nhandle_tool \"swiftlint\" \"--config \\\"\\${SRCROOT}/.swiftlint.yml\\\"\" \"https://github.com/realm/swiftlint\"\n\n";
+			shellScript = "if [ \"$RUN_IN_CI\" == \"true\" ] || [ \"${CONFIGURATION}\" == \"DevCI\" ]; then\n    echo \"Skipping SwiftLint in CI environment\"\n    exit 0\nfi\n\nsource \"${SRCROOT}/Runscripts/homebrew_run.sh\"\nsetup_environment\n\nARGS=\"\"\nif [ -f \"swiftlint-baseline.json\" ]; then\n    ARGS=\"--baseline swiftlint-baseline.json\"\nfi\n\n# 1 - tool, 2 - arguments, 3 - fallback url\nhandle_tool \"swiftlint\" \"$ARGS\" \"https://github.com/realm/swiftlint\"\n";
 		};
 		F06E600066544128849BC813 /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -696,7 +734,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"${CONFIGURATION}\" == \"Debug\" ] || [ \"${CONFIGURATION}\" == \"Release\" ] ; then\necho \"Skip Sentry debug symbols upload for ${CONFIGURATION}\"\nexit 0\nfi\n\n# Uploads debug symbols and source context to Sentry. Set SENTRY_ORG,\n# SENTRY_PROJECT and SENTRY_AUTH_TOKEN in your environment (see docs/PUBLISHING.md).\n# Skipped automatically when they are not configured.\nif [ -z \"${SENTRY_ORG:-}\" ] || [ -z \"${SENTRY_PROJECT:-}\" ]; then\n  echo \"Sentry org/project not set - skipping dSYM upload\"\n  exit 0\nfi\nif which sentry-cli >/dev/null; then\n  ERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\n  if [ ! $? -eq 0 ]; then\n    echo \"warning: sentry-cli - $ERROR\"\n  fi\nelse\n  echo \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
+			shellScript = "if [ \"${CONFIGURATION}\" == \"Debug\" || [ \"${CONFIGURATION}\" == \"Release\" ] ; then\necho \"Skip Sentry debug symbols upload for Debug\"\nexit 0\nfi\n\n# This script is responsible for uploading debug symbols and source context for Sentry.\nif which sentry-cli >/dev/null; then\n  export SENTRY_ORG=paritytech\n  export SENTRY_PROJECT=polkadot-ios\n  ERROR=$(sentry-cli debug-files upload --include-sources \"$DWARF_DSYM_FOLDER_PATH\" 2>&1 >/dev/null)\n  if [ ! $? -eq 0 ]; then\n    echo \"warning: sentry-cli - $ERROR\"\n  fi\nelse\n  echo \"warning: sentry-cli not installed, download from https://github.com/getsentry/sentry-cli/releases\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -768,7 +806,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -800,7 +838,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -833,7 +871,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -857,7 +895,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appIntegrationTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appIntegrationTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -879,7 +917,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appIntegrationTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appIntegrationTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -901,7 +939,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appIntegrationTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appIntegrationTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -1007,7 +1045,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1033,7 +1071,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1192,7 +1230,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1238,7 +1276,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1264,7 +1302,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1287,7 +1325,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1384,7 +1422,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1410,7 +1448,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1432,7 +1470,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "io.paritytech.polkadotapp.polkadot-appIntegrationTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "io.parity.polkadotapp.polkadot-appIntegrationTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -1464,7 +1502,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 0.9.2;
+				MARKETING_VERSION = 0.10.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -1604,6 +1642,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = FoundationExt;
 		};
+		2D0A51D62FFE94810095ECAE /* BackgroundExecution */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BackgroundExecution;
+		};
 		A526CB2F2EBBA06D00D2987B /* PolkadotUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = PolkadotUI;
@@ -1652,9 +1694,33 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = BulletinChain;
 		};
+		B1A2C3D42F8A000000000002 /* BlurHash */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = BlurHash;
+		};
+		CC0CC0202FBA000100CCAA02 /* ChainRegistry */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ChainRegistry;
+		};
+		CC0CC0402FBA000100CCAA04 /* ChainRegistry */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ChainRegistry;
+		};
+		CC0CC0602FBA000100CCAA06 /* EventCenter */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EventCenter;
+		};
+		CC0CC0802FBA000100CCAA08 /* EventCenter */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = EventCenter;
+		};
 		E9C7172D2ECDD6730014841F /* JailbreakDetection */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = JailbreakDetection;
+		};
+		EA11ACCE000000000000B002 /* ExternalAccessibility */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ExternalAccessibility;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 extension Dictionary where Key == ChainModel.Id {
     subscript<T>(chainAssetId: ChainAssetId) -> T? where Value == [AssetModel.Id: T] {

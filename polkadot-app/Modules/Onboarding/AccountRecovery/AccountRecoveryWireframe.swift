@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class AccountRecoveryWireframe: AccountRecoveryWireframeProtocol {
     private let observer: RootStateObserving
     init(observer: RootStateObserving) {

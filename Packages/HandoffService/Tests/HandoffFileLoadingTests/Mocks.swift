@@ -13,6 +13,7 @@ final class MockHandoffService: HandoffServicing, @unchecked Sendable {
 
     var submitError: Error?
     var claimError: Error?
+    var claimErrorsByHash: [Data: Error] = [:]
 
     @discardableResult
     func submitData(
@@ -37,6 +38,7 @@ final class MockHandoffService: HandoffServicing, @unchecked Sendable {
         recipient _: RecipientProofProviding
     ) async throws -> Data? {
         if let error = claimError { throw error }
+        if let error = claimErrorsByHash[dataHash] { throw error }
         claimCallCount += 1
         return storage[dataHash]
     }
@@ -47,9 +49,94 @@ final class MockHandoffService: HandoffServicing, @unchecked Sendable {
     ) async throws {
         ackedHashes.append(dataHash)
     }
+}
 
-    func getPoolStatus() async throws -> PoolStatus {
-        PoolStatus(entryCount: 0, totalBytes: 0, maxBytes: 10_000_000)
+// MARK: - JSON-RPC Engine
+
+final class MockJSONRPCEngine: JSONRPCEngine, @unchecked Sendable {
+    let callbackQueue: DispatchQueue
+
+    var result: Result<String, Error>?
+    private(set) var lastMethod: String?
+    private(set) var lastParams: [String]?
+
+    init(callbackQueue: DispatchQueue = DispatchQueue(label: "io.parity.tests.mock-jsonrpc-engine")) {
+        self.callbackQueue = callbackQueue
+    }
+
+    func callMethod<T: Decodable>(
+        _ method: String,
+        params: (some Encodable)?,
+        options _: JSONRPCOptions,
+        completion closure: ((Result<T, Error>) -> Void)?
+    ) throws -> UInt16 {
+        lastMethod = method
+
+        if let params, let encoded = try? JSONEncoder().encode(params) {
+            lastParams = try? JSONDecoder().decode([String].self, from: encoded)
+        }
+
+        let callResult: Result<T, Error> =
+            switch result {
+            case let .success(value):
+                if let typed = value as? T {
+                    .success(typed)
+                } else {
+                    .failure(TestError.intentional)
+                }
+            case let .failure(error):
+                .failure(error)
+            case nil:
+                .failure(TestError.intentional)
+            }
+
+        callbackQueue.async {
+            closure?(callResult)
+        }
+
+        return 0
+    }
+
+    func subscribe<T: Decodable>(
+        _: String,
+        params _: (some Encodable)?,
+        unsubscribeMethod _: String,
+        options _: JSONRPCOptions,
+        onSubscribed _: ((JSONRPCSubscriptionId) -> Void)?,
+        updateClosure _: @escaping (T) -> Void,
+        failureClosure _: @escaping (Error, Bool) -> Void
+    ) throws -> UInt16 {
+        throw TestError.intentional
+    }
+
+    func cancelForIdentifiers(_: [UInt16], sendUnsubscribe _: Bool) {}
+
+    func addBatchCallMethod(_: String, params _: (some Encodable)?, batchId _: JSONRPCBatchId) throws {
+        throw TestError.intentional
+    }
+
+    func submitBatch(
+        for _: JSONRPCBatchId,
+        options _: JSONRPCOptions,
+        completion _: (([Result<JSON, Error>]) -> Void)?
+    ) throws -> [UInt16] {
+        throw TestError.intentional
+    }
+
+    func clearBatch(for _: JSONRPCBatchId) {}
+}
+
+// MARK: - Remote Store
+
+final class MockLongTermRemoteStore: LongTermRemoteStoring, @unchecked Sendable {
+    var storage: [Data: Data] = [:]
+    var error: Error?
+    private(set) var requestedHashes: [Data] = []
+
+    func downloadData(by fileHash: FileHash) async throws -> Data? {
+        if let error { throw error }
+        requestedHashes.append(fileHash)
+        return storage[fileHash]
     }
 }
 
@@ -66,7 +153,8 @@ final class NoProofProvider: SenderProofProviding {
     func getProof(for _: FileHash) async throws -> SenderProof {
         SenderProof(
             sender: .sr25519(Data(repeating: 0, count: 32)),
-            signature: .sr25519(data: Data(repeating: 0, count: 64))
+            signature: .sr25519(data: Data(repeating: 0, count: 64)),
+            submitTimestamp: 0
         )
     }
 }
@@ -112,22 +200,32 @@ final class MockUploadFileContext: UploadFileContextProtocol, @unchecked Sendabl
 // MARK: - Download Store
 
 final class MockDownloadFileContext: DownloadFileContextProtocol, @unchecked Sendable {
-    let metadataHash: FileHash
+    let entryHash: FileHash
 
-    private(set) var savedMetadata: Data?
-    private(set) var savedTotalChunks: Int?
+    private(set) var savedEntry: DownloadedEntry?
     private(set) var appendedChunks: [(data: Data, index: Int)] = []
     private(set) var finishCalled: Bool?
 
     var resumeInfo: ResumeDownloadInfo?
 
-    init(metadataHash: FileHash) {
-        self.metadataHash = metadataHash
+    init(entryHash: FileHash) {
+        self.entryHash = entryHash
     }
 
-    func saveMetadata(_ data: Data, totalChunks: Int) async throws {
-        savedMetadata = data
-        savedTotalChunks = totalChunks
+    var savedMetadata: Data? {
+        if case let .chunked(metadata, _) = savedEntry { metadata } else { nil }
+    }
+
+    var savedTotalChunks: Int? {
+        if case let .chunked(_, totalChunks) = savedEntry { totalChunks } else { nil }
+    }
+
+    var savedInlineData: Data? {
+        if case let .inline(fileData) = savedEntry { fileData } else { nil }
+    }
+
+    func saveEntry(_ entry: DownloadedEntry) async throws {
+        savedEntry = entry
     }
 
     func fetchResumeInfo() async throws -> ResumeDownloadInfo? {
@@ -143,7 +241,11 @@ final class MockDownloadFileContext: DownloadFileContextProtocol, @unchecked Sen
     }
 
     func assembleFile() -> Data {
-        appendedChunks.sorted { $0.index < $1.index }
+        if let savedInlineData {
+            return savedInlineData
+        }
+
+        return appendedChunks.sorted { $0.index < $1.index }
             .reduce(Data()) { $0 + $1.data }
     }
 }

@@ -6,17 +6,17 @@ import SwiftUI
 final class ProductMessageDecoder: ChatMessageCustomDecoding {
     let identifier: MessageDecoderIdentifier = .product
 
-    private let scriptExecutor: ProductsScriptExecutorProtocol
+    private let runtime: ChatRuntimeProtocol
     private let tokenResolver: any WidgetDesignTokenResolving
     private let logger: LoggerProtocol
     private var viewModels: [String: ProductWidgetViewModel] = [:]
 
     init(
-        scriptExecutor: ProductsScriptExecutorProtocol,
+        runtime: ChatRuntimeProtocol,
         tokenResolver: any WidgetDesignTokenResolving,
         logger: LoggerProtocol
     ) {
-        self.scriptExecutor = scriptExecutor
+        self.runtime = runtime
         self.tokenResolver = tokenResolver
         self.logger = logger
     }
@@ -26,7 +26,7 @@ final class ProductMessageDecoder: ChatMessageCustomDecoding {
             messageId: context.messageId,
             messageType: context.identifier,
             messageData: data,
-            scriptExecutor: scriptExecutor,
+            runtime: runtime,
             tokenResolver: tokenResolver,
             logger: logger
         )

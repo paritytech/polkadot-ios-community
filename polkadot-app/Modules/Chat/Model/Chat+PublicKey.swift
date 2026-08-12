@@ -6,7 +6,7 @@ extension Chat {
     }
 
     struct PublicKey {
-        static let keySize = 65
+        static let keySize = 32
 
         let rawData: Data
 

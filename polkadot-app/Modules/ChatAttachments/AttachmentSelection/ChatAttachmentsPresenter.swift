@@ -4,6 +4,7 @@ import PolkadotUI
 import UniformTypeIdentifiers
 import Kingfisher
 
+@MainActor
 final class ChatAttachmentsPresenter {
     weak var view: ChatAttachmentsViewProtocol?
     let wireframe: ChatAttachmentsWireframeProtocol
@@ -34,7 +35,8 @@ private extension ChatAttachmentsPresenter {
             switch attachment.meta {
             case .image:
                 let imageViewModel = LocalImageViewModel(
-                    provider: LocalFileImageDataProvider(fileURL: attachment.fileUrl)
+                    provider: LocalFileImageDataProvider(fileURL: attachment.fileUrl),
+                    keepsCurrentImageWhileLoading: false
                 )
 
                 return AttachmentSelectionViewModel.image(imageViewModel)

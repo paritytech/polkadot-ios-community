@@ -1,6 +1,7 @@
 import UIKit
 import UIKit_iOS
 import SnapKit
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -64,7 +65,7 @@ final class BackupButtonsView: UIView {
 
         configureView()
         configureActions()
-        setupAccessibilityIdentifiers()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -94,10 +95,6 @@ final class BackupButtonsView: UIView {
     }
 
     // MARK: Private methods
-
-    private func setupAccessibilityIdentifiers() {
-        backupAccount.accessibilityIdentifier = "backup_to_icloud_button"
-    }
 
     private func configureView() {
         buttonsView = .vStack(
@@ -143,4 +140,15 @@ final class BackupButtonsView: UIView {
 private enum Constants {
     static let spacingBetweenButtons: CGFloat = 16
     static let cornerRadiusLoadingButton: CGFloat = 24
+}
+
+// MARK: - AccessibilityBound
+
+extension BackupButtonsView: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(backupAccount, AccessibilityID.Backup.toIcloudButton),
+            .init(viewSecretPhaseButton, AccessibilityID.Settings.viewRecoveryPhraseButton)
+        ]
+    }
 }

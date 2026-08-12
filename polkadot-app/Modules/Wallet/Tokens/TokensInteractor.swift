@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 class TokensInteractor {
     weak var tokensPresenter: TokensOutputProtocol?
@@ -23,7 +24,9 @@ class TokensInteractor {
             return assets?[chainAssetId.assetId]
         }
 
-        tokensPresenter?.didReceive(chainAssets: chainAssets)
+        MainActor.assumeIsolated {
+            tokensPresenter?.didReceive(chainAssets: chainAssets)
+        }
     }
 
     private func subscribeChains() {
@@ -71,7 +74,9 @@ class TokensInteractor {
                 self?.supportedAssetIds = supportedAssetIds
                 self?.subscribeChains()
             case let .failure(error):
-                self?.tokensPresenter?.didReceive(error: .fetchFailed(error))
+                MainActor.assumeIsolated {
+                    self?.tokensPresenter?.didReceive(error: .fetchFailed(error))
+                }
             }
         }
     }

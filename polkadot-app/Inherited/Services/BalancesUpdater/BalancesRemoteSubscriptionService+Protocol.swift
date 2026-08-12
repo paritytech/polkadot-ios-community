@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 extension BalanceRemoteSubscriptionService: BalanceRemoteSubscriptionServiceProtocol {
     private func createCacheKey(from accountId: AccountId, chainId: ChainModel.Id) -> String {

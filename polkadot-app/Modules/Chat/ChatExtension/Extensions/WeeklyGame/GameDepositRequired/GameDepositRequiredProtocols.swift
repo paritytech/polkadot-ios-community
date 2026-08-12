@@ -11,6 +11,7 @@ protocol GameDepositRequiredViewProtocol: ControllerBackedProtocol {
     func didReceive(amountString: String)
 }
 
+@MainActor
 protocol GameDepositRequiredPresenterProtocol: AnyObject {
     func setup()
     func didTapDeposit()

@@ -26,8 +26,8 @@ extension ProductsAccountManager: ProductsAccountManaging {
         try accountHolder.deriveAccount(productAccountId)
     }
 
-    public func deriveAlias(_ productAccountId: ProductAccountId) throws -> ProductsAlias {
-        try accountHolder.deriveAlias(productAccountId)
+    public func deriveProductSubtreePublicKey(for productId: ProductId) throws -> Data {
+        try accountHolder.deriveProductSubtreePublicKey(for: productId)
     }
 
     @MainActor
@@ -122,13 +122,21 @@ private extension ProductsAccountManager {
             case .statementStoreAllowance:
                 let wallet = try accountHolder.deriveStatementStoreAccount(for: productId)
                 let accountId = try wallet.getRawPublicKey()
-                try await allowanceSupport.sssManager.allocate(accountId: accountId, policy: policy)
+                try await allowanceSupport.sssManager.allocate(
+                    accountId: accountId,
+                    policy: policy,
+                    priority: .normal
+                )
                 let privateKey = try wallet.fetchRawSecretKey()
                 return .allocated(.statementStoreAllowance(privateKey: privateKey))
             case .bulletInAllowance:
                 let wallet = try accountHolder.deriveBulletInAccount(for: productId)
                 let accountId = try wallet.getRawPublicKey()
-                try await allowanceSupport.bulletInManager.allocate(accountId: accountId, policy: policy)
+                try await allowanceSupport.bulletInManager.allocate(
+                    accountId: accountId,
+                    policy: policy,
+                    priority: .normal
+                )
                 let privateKey = try wallet.fetchRawSecretKey()
                 return .allocated(.bulletInAllowance(privateKey: privateKey))
             case let .smartContractAllowance(dest):
@@ -137,7 +145,11 @@ private extension ProductsAccountManager {
                     derivationIndex: dest
                 )
                 let accountId = try wallet.getRawPublicKey()
-                try await allowanceSupport.smartContractManager.allocate(accountId: accountId, policy: policy)
+                try await allowanceSupport.smartContractManager.allocate(
+                    accountId: accountId,
+                    policy: policy,
+                    priority: .normal
+                )
                 return .allocated(.smartContractAllowance)
             }
         } catch {

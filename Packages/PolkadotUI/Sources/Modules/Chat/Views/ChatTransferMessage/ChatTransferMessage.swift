@@ -1,5 +1,6 @@
 import UIKit
 import DesignSystem
+import ExternalAccessibility
 internal import SnapKit
 
 public struct ChatTransferMessageConfiguration: HashableContentConfiguration {
@@ -125,6 +126,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         super.init(frame: .zero)
         setupViews()
         apply(configuration)
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -309,6 +311,17 @@ private extension ChatTransferMessageConfiguration.State {
         case .error:
             String(localized: .transferStatusError)
         }
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension ChatTransferMessageView: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(bubbleView, AccessibilityID.Chat.transferMessageBubble),
+            .init(subtitleLabel, AccessibilityID.Chat.transferStatusLabel)
+        ]
     }
 }
 

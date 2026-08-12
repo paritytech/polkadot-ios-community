@@ -91,6 +91,7 @@ struct CoinageServiceTests {
     private func makeSUT(
         coinService: MockCoinService = MockCoinService(),
         voucherService: MockVoucherService = MockVoucherService(),
+        coinKeypairFactory: MockCoinKeyFactory = MockCoinKeyFactory(),
         transferService: MockTransferSenderService = MockTransferSenderService(),
         recipientService: MockTransferRecipientService = MockTransferRecipientService(),
         contextLoader: MockDenominationContextLoader = MockDenominationContextLoader(),
@@ -102,6 +103,7 @@ struct CoinageServiceTests {
         return CoinageService(
             coinService: coinService,
             voucherService: voucherService,
+            coinKeypairFactory: coinKeypairFactory,
             senderService: transferService,
             ongoingTransferService: recipientService,
             transferRecoveryService: MockTransferRecoveryService(),
@@ -159,6 +161,7 @@ struct CoinageServiceTests {
         let sut = CoinageService(
             coinService: MockCoinService(),
             voucherService: MockVoucherService(),
+            coinKeypairFactory: MockCoinKeyFactory(),
             senderService: MockTransferSenderService(),
             ongoingTransferService: MockTransferRecipientService(),
             transferRecoveryService: MockTransferRecoveryService(),
@@ -656,6 +659,18 @@ private extension CoinageServiceTests {
         }
     }
 
+    final class MockCoinKeyFactory: CoinKeyDeriving {
+        typealias Model = Coin
+
+        func derivePublicKey(for _: Coin) throws -> Data {
+            Data(repeating: 0, count: 32)
+        }
+
+        func derivePrivateKey(for _: Coin) throws -> Data {
+            Data(repeating: 0, count: 64)
+        }
+    }
+
     final class MockCoinService: CoinServiceProtocol, @unchecked Sendable {
         func markRecycling(coinIds: [String]) async throws {
             if let error = shouldThrow {
@@ -796,6 +811,16 @@ private extension CoinageServiceTests {
             }
             return 0
         }
+
+        func recoverSpentCoins(
+            spentCoins _: [Coin],
+            context _: DenominationBreakdownContext
+        ) async throws -> BigUInt {
+            if let error = shouldThrow {
+                throw error
+            }
+            return 0
+        }
     }
 
     final class MockCoinageBackupRecoveryService: CoinageBackupRecoveryServicing {
@@ -855,6 +880,8 @@ private extension CoinageServiceTests {
         }
 
         func recycleCoins(_: [Coin]) async throws {}
+
+        func recycleOldCoins() async {}
     }
 
     final actor MockTransferSenderService: TransferSenderServicing {
@@ -920,7 +947,8 @@ private extension CoinageServiceTests {
             try await context.process(
                 spentCoins: expectation.spentCoins,
                 spentVouchers: expectation.spentVouchers,
-                change: expectation.changeCoins
+                change: expectation.changeCoins,
+                destinationCoins: []
             )
 
             return expectation.memo

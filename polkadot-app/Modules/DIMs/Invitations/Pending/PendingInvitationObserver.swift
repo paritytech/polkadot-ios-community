@@ -3,6 +3,7 @@ import SubstrateSdk
 import CommonService
 import SubstrateStorageSubscription
 import Individuality
+import ChainRegistry
 
 protocol PendingInvitationObserving: BaseObservableStateStore<Bool>, ApplicationServiceProtocol {}
 

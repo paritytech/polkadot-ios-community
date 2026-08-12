@@ -2,7 +2,7 @@ import Kingfisher
 import UIKit
 import PolkadotUI
 
-final class StaticImageViewModel: @preconcurrency ImageViewModelProtocol {
+final class StaticImageViewModel: ImageViewModelProtocol {
     let image: UIImage?
     private let optionsFactory: ImageProcessingOptionsProducing
 

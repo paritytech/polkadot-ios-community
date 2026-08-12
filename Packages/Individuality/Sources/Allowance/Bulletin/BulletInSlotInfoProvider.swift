@@ -66,6 +66,7 @@ public final class BulletInSlotInfoProvider {
     let keyResolver: BandersnatchKeyResolving
     let bulletInBlockProvider: BlockInfoProviding
     let operationQueue: OperationQueue
+    let chainTimeProvider: ChainTimeProviding
 
     let storageRequestFactory: StorageRequestFactoryProtocol
 
@@ -74,13 +75,15 @@ public final class BulletInSlotInfoProvider {
         peopleChainId: ChainId,
         chainRegistry: ChainResourceProtocol,
         keyResolver: BandersnatchKeyResolving,
-        operationQueue: OperationQueue
+        operationQueue: OperationQueue,
+        chainTimeProvider: ChainTimeProviding
     ) {
         self.bulletInChainId = bulletInChainId
         self.peopleChainId = peopleChainId
         self.chainRegistry = chainRegistry
         self.keyResolver = keyResolver
         self.operationQueue = operationQueue
+        self.chainTimeProvider = chainTimeProvider
         bulletInBlockProvider = BlockInfoProvider(
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
@@ -118,7 +121,8 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
             throw AllowanceSlotAssignmentError.noSlotsAvailable
         }
 
-        let period = UInt32(Date().timeIntervalSince1970 / TimeInterval(periodDuration))
+        let nowSeconds = try await chainTimeProvider.nowSeconds()
+        let period = UInt32(TimeInterval(nowSeconds) / TimeInterval(periodDuration))
 
         let aliases = try (0 ..< maxClaims).map { counter -> Data in
             let context = BulletinSlotContextBuilder.context(period: period, counter: counter)

@@ -2,11 +2,11 @@ import Foundation
 import SubstrateSdk
 import NovaCrypto
 
-public final class WalletSecretKeypairFactory {
-    private let secretProvider: () throws -> Data
+public final class WalletSecretKeypairFactory: @unchecked Sendable {
+    private let secretProvider: @Sendable () throws -> Data
     private lazy var keypairFactory = SR25519KeypairFactory()
 
-    public init(secretProvider: @escaping () throws -> Data) {
+    public init(secretProvider: @Sendable @escaping () throws -> Data) {
         self.secretProvider = secretProvider
     }
 }
@@ -19,7 +19,7 @@ extension WalletSecretKeypairFactory: WalletKeypairFactoryProtocol {
 
         let privateKey = try SNPrivateKey(rawData: secretKey)
 
-        return try IRCryptoKeypair(publicKey: publicKey, privateKey: privateKey)
+        return IRCryptoKeypair(publicKey: publicKey, privateKey: privateKey)
     }
 
     public func derivePublicKey() throws -> IRPublicKeyProtocol {

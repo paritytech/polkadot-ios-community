@@ -81,8 +81,8 @@ private extension PolkadotHostMessageSender {
         try await withCheckedThrowingContinuation { continuation in
             continuationsByMessageId[messageId] = continuation
 
-            exchangeService.addMessageToQueue(
-                OpaquePolkadotHostRemoteMessage(message: message),
+            exchangeService.addMessagesToQueue(
+                [OpaquePolkadotHostRemoteMessage(message: message)],
                 for: .init(
                     accountId: host.accountId,
                     publicKey: host.publicKey,

@@ -5,6 +5,7 @@ protocol ChatExtensionDelegate: AnyObject {
     func didDisableExtensions(_ extensionIds: Set<ChatExtension.Id>)
 }
 
+@MainActor
 protocol ChatExtensionDelegateProvidable: AnyObject {
     var delegate: ChatExtensionDelegate? { get set }
 }

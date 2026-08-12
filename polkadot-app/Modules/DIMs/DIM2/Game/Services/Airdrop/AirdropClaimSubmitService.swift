@@ -47,7 +47,11 @@ extension AirdropClaimSubmitService {
         do {
             return try extrinsicSubmitMonitor.submitAndMonitorWrapper(
                 extrinsicBuilderClosure: { builder in
-                    let call = GamePallet.ClaimAirdropCall(gameIndex: gameIndex, beneficiary: beneficiary)
+                    let call = GamePallet.ClaimAirdropCall(
+                        gameIndex: gameIndex,
+                        airdropIndex: 0,
+                        beneficiary: beneficiary
+                    )
                     return try builder.adding(call: call.runtimeCall())
                 },
                 origin: makeOrigin(usesScoreAlias: usesScoreAlias),

@@ -2,6 +2,7 @@ import SubstrateSdk
 import UIKit
 import SnapKit
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 
 final class SearchAccountTableViewCell: PlainBaseTableViewCell<SearchAccountContentView> {
@@ -33,6 +34,7 @@ final class SearchAccountContentView: UIView {
         super.init(frame: frame)
 
         configureConstraints()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -78,5 +80,13 @@ private extension SearchAccountViewModel.AccountType {
             text: String(title.prefix(1)),
             colorSeed: (try? accountAddress.toAccountId().toHex()) ?? accountAddress
         )
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension SearchAccountContentView: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [.init(self, AccessibilityID.SendPayment.searchResultRow)]
     }
 }

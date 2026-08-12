@@ -3,6 +3,7 @@ import SubstrateSdk
 import Operation_iOS
 import Combine
 import KeyDerivation
+import SubstrateSdkExt
 
 struct ClaimLiteUsernameDependency {
     let walletSetupManagerFactory: () -> WalletSetupManaging
@@ -16,7 +17,7 @@ struct ClaimLiteUsernameDependency {
 }
 
 final class ClaimLiteUsernameInteractor {
-    weak var presenter: ClaimUsernameInteractorOutputProtocol?
+    weak var presenter: ClaimLiteUsernameInteractorOutputProtocol?
 
     private var walletCreated: Bool
     let dependencies: ClaimLiteUsernameDependency
@@ -60,7 +61,9 @@ extension ClaimLiteUsernameInteractor: ClaimUsernameInteractorInputProtocol {
 
     func save(username: Username) {
         usernameStorage.username = username
-        presenter?.didSaveUsername()
+        MainActor.assumeIsolated {
+            presenter?.didSaveUsername()
+        }
     }
 }
 
@@ -106,7 +109,7 @@ private extension ClaimLiteUsernameInteractor {
                     candidateSignature: $0.accountIdProofSignature,
                     ringVrfKey: $0.personMemberKey,
                     proofOfOwnership: $0.membershipProofSignature,
-                    identifierKey: $0.chatPublicKey,
+                    identifierKey: $0.encryptionIdentifier.scaleEncoded(),
                     consumerRegistrationSignature: $0.resourcesSignature
                 )
             }
@@ -121,7 +124,9 @@ private extension ClaimLiteUsernameInteractor {
     }
 
     func createWalletsThenClaimUsername(_ username: Username) -> AnyPublisher<Username, Error> {
-        presenter?.didChangeAccountCreation(inProgress: true)
+        MainActor.assumeIsolated {
+            presenter?.didChangeAccountCreation(inProgress: true)
+        }
 
         return authorizeUser()
             .flatMap { [dependencies] _ -> AnyPublisher<Void, Error> in
@@ -142,10 +147,14 @@ private extension ClaimLiteUsernameInteractor {
             }
             .handleEvents(
                 receiveCompletion: { [weak self] _ in
-                    self?.presenter?.didChangeAccountCreation(inProgress: false)
+                    Task { @MainActor in
+                        self?.presenter?.didChangeAccountCreation(inProgress: false)
+                    }
                 },
                 receiveCancel: { [weak self] in
-                    self?.presenter?.didChangeAccountCreation(inProgress: false)
+                    Task { @MainActor in
+                        self?.presenter?.didChangeAccountCreation(inProgress: false)
+                    }
                 }
             )
             .eraseToAnyPublisher()
@@ -158,11 +167,13 @@ private extension ClaimLiteUsernameInteractor {
                 return
             }
 
-            presenter.authorizeUser { authorized in
-                if authorized {
-                    promise(.success(()))
-                } else {
-                    promise(.failure(FlowError.internalError))
+            MainActor.assumeIsolated {
+                presenter.authorizeUser { authorized in
+                    if authorized {
+                        promise(.success(()))
+                    } else {
+                        promise(.failure(FlowError.internalError))
+                    }
                 }
             }
         }

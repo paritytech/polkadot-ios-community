@@ -3,6 +3,7 @@ import Operation_iOS
 import HandoffService
 import AsyncExtensions
 import CommonService
+import StructuredConcurrency
 
 protocol AttachmentDownloadingServicing: AttachmentLoadProgressProvidable, ApplicationServiceProtocol {}
 
@@ -74,29 +75,37 @@ private extension MixnetDownloadService {
         ) { [logger, loaderFactory, downloadContextFactory, hopNodeProvider, weak self] in
             Task {
                 do {
-                    let fileVariant = downloadData.fileVariant
+                    try await markStallActivity("Receiving attachment") {
+                        let fileVariant = downloadData.fileVariant
 
-                    guard hopNodeProvider.isNodeAllowed(fileVariant.node) else {
-                        logger.error("Untrusted HOP node rejected: \(fileVariant.node)")
-                        throw HOPFileLoaderError.untrustedNode
-                    }
+                        guard hopNodeProvider.isNodeAllowed(fileVariant.node) else {
+                            logger.error("Untrusted HOP node rejected: \(fileVariant.node)")
+                            throw HOPFileLoaderError.untrustedNode
+                        }
 
-                    let fileDownloadContext = downloadContextFactory.createContext(
-                        metadataHash: fileVariant.identifier,
-                        filename: fileVariant.filename
-                    )
+                        let fileDownloadContext = downloadContextFactory.createContext(
+                            entryHash: fileVariant.identifier,
+                            filename: fileVariant.filename
+                        )
 
-                    let claimer = try FileClaimer(ticket: fileVariant.claimTicket)
-                    let loader = try loaderFactory.makeLoader(for: fileVariant.node)
+                        let claimer = try FileClaimer(ticket: fileVariant.claimTicket)
+                        let loader = try loaderFactory.makeLoader(for: fileVariant.node)
 
-                    let stream = loader.downloadFile(
-                        using: fileVariant.identifier,
-                        claimer: claimer,
-                        store: fileDownloadContext
-                    )
+                        let stream = loader.downloadFile(
+                            using: fileVariant.identifier,
+                            claimer: claimer,
+                            store: fileDownloadContext
+                        )
 
-                    for try await event in stream {
-                        await self?.handleDownloadingEvent(event, downloadData: downloadData)
+                        try await markStallRegion("Downloading file") {
+                            for try await event in stream {
+                                if case let .onError(error) = event {
+                                    throw error
+                                }
+
+                                await self?.handleDownloadingEvent(event, downloadData: downloadData)
+                            }
+                        }
                     }
 
                     logger.debug("Download task completed")

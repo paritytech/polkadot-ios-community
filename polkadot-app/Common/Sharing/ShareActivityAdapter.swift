@@ -8,6 +8,7 @@ enum ShareActivityResult {
 }
 
 /// Protocol that provides ability to share items using system component
+@MainActor
 protocol ShareActivityPresenting: AnyObject {
     /// Method dependency injection for presenter that will present share sheet
     /// - Parameter presenter: View Controller to present share sheet
@@ -49,6 +50,7 @@ final class ShareActivityAdapter: ShareActivityPresenting {
         self.presenter = presenter
     }
 
+    @MainActor
     func share(activityItems: [Any], _ completion: @escaping (ShareActivityResult) -> Void) {
         let shareController = activityViewClass.init(
             activityItems: activityItems,

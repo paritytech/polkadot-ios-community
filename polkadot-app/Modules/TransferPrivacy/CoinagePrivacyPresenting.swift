@@ -1,5 +1,6 @@
 import UIKitExt
 
+@MainActor
 protocol CoinagePrivacyPresenting {
     func showDegradedPrivacy(
         model: TransferPrivacyModel,

@@ -3,6 +3,7 @@ import UIKitExt
 
 protocol BottomSheetErrorPresentable: BottomSheetMessagePresentable, ErrorPresentable {}
 
+@MainActor
 extension BottomSheetErrorPresentable {
     func present(error: ErrorContent, from view: ControllerBackedProtocol?) -> Bool {
         guard let view else {

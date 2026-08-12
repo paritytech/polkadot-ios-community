@@ -7,6 +7,7 @@ protocol TopUpRequestViewProtocol: ControllerBackedProtocol {
     func didReceive(warningMessage: String?)
 }
 
+@MainActor
 protocol TopUpRequestPresenterProtocol: AnyObject {
     func setup()
     func didTapClaim()

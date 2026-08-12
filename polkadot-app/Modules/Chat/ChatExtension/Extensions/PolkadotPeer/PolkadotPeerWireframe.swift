@@ -7,6 +7,7 @@ import UIKitExt
 protocol PolkadotPeerWireframeProtocol: ChatExtensionWireframeProtocol, AlertPresentable, ErrorPresentable,
     ChatExtensionNavigating {}
 
+@MainActor
 final class PolkadotPeerWireframe {
     weak var view: ControllerBackedProtocol?
     weak var registryDelegate: ChatExtensionDelegate?
@@ -16,7 +17,7 @@ final class PolkadotPeerWireframe {
 
     init(
         botSettings: ChatExtensionBotSettings = SettingsManager.shared,
-        application: UIApplication = UIApplication.shared
+        application: UIApplication
     ) {
         self.botSettings = botSettings
         self.application = application

@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 extension AssetModel {
     func getOrmlCurrencyId<T: Decodable>(for codingFactory: RuntimeCoderFactoryProtocol) throws -> T? {

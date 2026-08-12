@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class DiscardNotificationsPresenter {
     weak var view: DiscardNotificationsViewProtocol?
 

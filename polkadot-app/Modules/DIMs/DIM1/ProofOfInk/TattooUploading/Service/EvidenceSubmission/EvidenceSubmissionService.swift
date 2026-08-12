@@ -7,6 +7,7 @@ import ExtrinsicService
 import AssetExchange
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol EvidenceSubmissionServiceProtocol: ApplicationServiceProtocol {
     func retry()
@@ -107,7 +108,7 @@ final class EvidenceSubmissionService {
             chainRegistry: chainRegistry,
             substrateStorageFacade: substrateStorageFacade,
             customFeeEstimator: ExtrinsicCustomFeeEstimatorFactory(providers: []),
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             extrinsicVersion: extrinsicVersion,
             operationQueue: operationQueue
         )

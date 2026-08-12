@@ -4,23 +4,25 @@ import Products
 import SubstrateSdk
 
 extension PolkadotHostRemoteMessage {
+    /// RFC-0004 Accounts Protocol `get_account_alias` request. The calling product
+    /// is named explicitly because the host acts on a product's behalf here.
     struct AliasRequest {
-        let accountId: ProductAccountId
         let callingProductId: ProductId
+        let context: ProductProofContext
+        let ring: RingLocation
     }
 }
 
 extension PolkadotHostRemoteMessage.AliasRequest: MessageExchange.CodableMessage {
     init(scaleDecoder: any ScaleDecoding) throws {
-        let productId = try String(scaleDecoder: scaleDecoder)
-        let derivationIndex = try UInt32(scaleDecoder: scaleDecoder)
-        accountId = ProductAccountId(productId: productId, derivationIndex: derivationIndex)
         callingProductId = try String(scaleDecoder: scaleDecoder)
+        context = try ProductProofContext(scaleDecoder: scaleDecoder)
+        ring = try RingLocation(scaleDecoder: scaleDecoder)
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
-        try accountId.productId.encode(scaleEncoder: scaleEncoder)
-        try accountId.derivationIndex.encode(scaleEncoder: scaleEncoder)
         try callingProductId.encode(scaleEncoder: scaleEncoder)
+        try context.encode(scaleEncoder: scaleEncoder)
+        try ring.encode(scaleEncoder: scaleEncoder)
     }
 }

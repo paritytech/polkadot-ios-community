@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum CollectiblesViewFactory {
     static func createView(
         url: URL,

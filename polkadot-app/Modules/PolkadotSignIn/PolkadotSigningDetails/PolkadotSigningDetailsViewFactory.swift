@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum PolkadotSigningDetailsViewFactory {
     static func createView(
         detailsText: String,

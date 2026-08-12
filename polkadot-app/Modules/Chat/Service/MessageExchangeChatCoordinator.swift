@@ -5,6 +5,7 @@ import StatementStore
 import SubstrateSdk
 import CommonService
 import OperationExt
+import ChainRegistry
 
 protocol MessageExchangeChatCoordinating: ApplicationServiceProtocol {
     var inboxService: ChatInboxServicing { get }
@@ -23,6 +24,7 @@ final class MessageExchangeChatCoordinator {
     private let operationQueue: OperationQueue
     private let senderDeviceActivator: SenderDeviceActivator
     private let deviceMessageBroadcaster: DeviceMessageBroadcaster
+    private let pendingDeviceFanOutProcessor: PendingDeviceFanOutProcessor
     private let messageExchangeModeProvider: MessageExchangeModeProviding
 
     private var contactsProvider: StreamableProvider<Chat.Contact>?
@@ -126,6 +128,11 @@ final class MessageExchangeChatCoordinator {
             messageExchangeModeProvider: messageExchangeModeProvider,
             logger: logger
         )
+        pendingDeviceFanOutProcessor = MultideviceComponentFactory.makePendingDeviceFanOutProcessor(
+            chatContactDataProviderFactory: chatContactDataProviderFactory,
+            messageExchangeModeProvider: messageExchangeModeProvider,
+            logger: logger
+        )
         self.logger = logger
         self.operationQueue = operationQueue
     }
@@ -182,6 +189,9 @@ private extension MessageExchangeChatCoordinator {
             )
 
             subscribeToAllContacts()
+            Task { [pendingDeviceFanOutProcessor] in
+                await pendingDeviceFanOutProcessor.setup()
+            }
         } catch {
             logger.error("Can't complete setup: \(error)")
         }
@@ -194,6 +204,9 @@ private extension MessageExchangeChatCoordinator {
         contactsByAccountId = [:]
         outboxService.setContactsByAccountId([:])
         exchangeService?.updateSessions([])
+        Task { [pendingDeviceFanOutProcessor] in
+            await pendingDeviceFanOutProcessor.throttle()
+        }
     }
 
     func apply(changes: [DataProviderChange<Chat.Contact>]) {
@@ -206,8 +219,6 @@ private extension MessageExchangeChatCoordinator {
                 updatedByIdentifier[contact.identifier] = contact
                 updatedByAccountId[contact.accountId] = contact
             case let .update(contact):
-                let oldContact = contactsByAccountId[contact.accountId]
-                broadcastLocalDevicesOnUpdate(oldContact: oldContact, newContact: contact)
                 updatedByIdentifier[contact.identifier] = contact
                 updatedByAccountId[contact.accountId] = contact
             case let .delete(identifier):
@@ -242,30 +253,10 @@ private extension MessageExchangeChatCoordinator {
         }
 
         for (_, contact) in sessionContacts {
-            let request = MessageExchange.SessionRequest(
-                own: contact.ownKeyId.toMessageExchangeOwn(),
-                peer: contact.toMessageExchangePeer()
-            )
-            sessionRequests.insert(request)
+            sessionRequests.insert(contact.toMessageExchangeSessionRequest())
         }
 
         exchangeService.updateSessions(sessionRequests)
-    }
-
-    func broadcastLocalDevicesOnUpdate(
-        oldContact: Chat.Contact?,
-        newContact: Chat.Contact
-    ) {
-        Task { [deviceMessageBroadcaster, logger] in
-            do {
-                try await deviceMessageBroadcaster.broadcastLocalDevicesOnUpdate(
-                    oldContact: oldContact,
-                    newContact: newContact
-                )
-            } catch {
-                logger.error("Failed to broadcast local devices: \(error)")
-            }
-        }
     }
 }
 
@@ -284,16 +275,29 @@ extension MessageExchangeChatCoordinator {
         to peer: MessageExchange.Peer,
         withError error: MessageExchange.OutgoingMessageError?
     ) {
-        outboxService.handleSentMessages(
-            messages,
-            to: peer,
-            withError: error
-        )
-        senderDeviceActivator.handleSentMessages(
-            messages,
-            to: peer,
-            withError: error
-        )
+        workQueue.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            if let contact = contactsByAccountId[peer.accountId] {
+                outboxService.handleSentMessages(
+                    messages,
+                    to: contact,
+                    withError: error
+                )
+            } else {
+                logger.warning("Missing contact for sent messages: \(peer.accountId.toHex())")
+            }
+
+            // TODO: Move sender device activation to delivered callback once MDS
+            // responses are stable.
+            senderDeviceActivator.handleSentMessages(
+                messages,
+                to: peer,
+                withError: error
+            )
+        }
     }
 
     func handleDeliveredMessages(
@@ -301,11 +305,22 @@ extension MessageExchangeChatCoordinator {
         to peer: MessageExchange.Peer,
         withError error: MessageExchange.OutgoingMessageError?
     ) {
-        outboxService.handleDeliveredMessages(
-            messages,
-            to: peer,
-            withError: error
-        )
+        workQueue.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            guard let contact = contactsByAccountId[peer.accountId] else {
+                logger.warning("Missing contact for delivered messages: \(peer.accountId.toHex())")
+                return
+            }
+
+            outboxService.handleDeliveredMessages(
+                messages,
+                to: contact,
+                withError: error
+            )
+        }
     }
 
     func handleIncomingMessages(

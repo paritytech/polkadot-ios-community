@@ -36,7 +36,7 @@ extension RequestDeviceInfo: ScaleCodable {
 // MARK: - MultiDeviceRequest
 
 /// Multi-device request envelope.
-/// `encryptedRequest` contains a `Request<M>` encrypted with a one-shot AES key (REQ_PK).
+/// `encryptedRequest` contains a `Request<M>` encrypted with a one-shot ChaCha20-Poly1305 key (REQ_PK).
 /// `devicesInfo` contains REQ_PK encrypted individually for each recipient device.
 public struct MultiDeviceRequest: Equatable {
     public let encryptedRequest: Data
@@ -66,7 +66,7 @@ extension MultiDeviceRequest: ScaleCodable {
 // MARK: - MultiDeviceResponse
 
 /// Multi-device response envelope.
-/// `encryptedResponse` contains a `Response` encrypted with a one-shot AES key (RES_PK).
+/// `encryptedResponse` contains a `Response` encrypted with a one-shot ChaCha20-Poly1305 key (RES_PK).
 /// `devicesInfo` contains RES_PK encrypted individually for each recipient device.
 public struct MultiDeviceResponse: Equatable {
     public let encryptedResponse: Data

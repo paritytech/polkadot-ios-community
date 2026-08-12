@@ -1,4 +1,5 @@
 import UIKit
+import ChainRegistry
 
 struct ChainAssetStyle {
     let displayTitle: String

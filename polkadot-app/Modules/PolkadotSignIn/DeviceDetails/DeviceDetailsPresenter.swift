@@ -1,6 +1,7 @@
 import Foundation
 import PolkadotUI
 
+@MainActor
 final class DeviceDetailsPresenter {
     weak var view: DeviceDetailsViewProtocol?
 

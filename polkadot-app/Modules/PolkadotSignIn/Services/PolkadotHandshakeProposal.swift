@@ -10,7 +10,7 @@ enum HandshakeProposal: ScaleDecodable {
     case v2(DataV2)
 
     private enum Constants {
-        static let scheme = "polkadotapp"
+        static var scheme: String { AppConfig.DeepLink.scheme }
         static let host = "pair"
         static let queryItem = "handshake"
     }
@@ -91,7 +91,7 @@ extension HandshakeProposal {
 
         init(scaleDecoder: any ScaleDecoding) throws {
             statementStorePublicKey = try scaleDecoder.readAndConfirm(count: 32)
-            encryptionPublicKey = try scaleDecoder.readAndConfirm(count: 65)
+            encryptionPublicKey = try scaleDecoder.readAndConfirm(count: 32)
             metadata = try String(scaleDecoder: scaleDecoder)
             hostVersion = try ScaleOption<String>(scaleDecoder: scaleDecoder).value
             osType = try ScaleOption<String>(scaleDecoder: scaleDecoder).value
@@ -110,7 +110,7 @@ extension HandshakeProposal {
 
         init(scaleDecoder: any ScaleDecoding) throws {
             statementAccountId = try scaleDecoder.readAndConfirm(count: 32)
-            encryptionPublicKey = try scaleDecoder.readAndConfirm(count: 65)
+            encryptionPublicKey = try scaleDecoder.readAndConfirm(count: 32)
 
             let entries = try [HandshakeMetadataEntry](scaleDecoder: scaleDecoder)
             metadata = Dictionary(entries.map { ($0.key, $0.value) }) { _, last in last }

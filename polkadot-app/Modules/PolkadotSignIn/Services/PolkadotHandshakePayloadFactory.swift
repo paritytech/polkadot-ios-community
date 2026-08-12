@@ -87,8 +87,8 @@ private extension PolkadotHandshakePayloadFactory {
     func makeEncryptor(
         deviceData: HandshakeDeviceData
     ) throws -> (encryptor: MessageExchangeEncrypting, publicKey: Data) {
-        let tempPrivateKey = P256.KeyAgreement.PrivateKey()
-        let tempEncryptorFactory = P256AESEncryptorFactory(privateKey: tempPrivateKey)
+        let tempPrivateKey = Curve25519.KeyAgreement.PrivateKey()
+        let tempEncryptorFactory = X25519ChaChaPolyEncryptorFactory(privateKey: tempPrivateKey)
         let encryptor = try tempEncryptorFactory.makeEncryptor(
             remotePublicKey: deviceData.encryptionPublicKey
         )

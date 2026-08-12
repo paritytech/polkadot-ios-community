@@ -13,7 +13,7 @@ extension AllocatableResource: ScaleCodable {
         case 1:
             self = .bulletInAllowance
         case 2:
-            let dest = try UInt32(scaleDecoder: scaleDecoder)
+            let dest = try ProductAccountSelector(scaleDecoder: scaleDecoder)
             self = .smartContractAllowance(dest: dest)
         case 3:
             self = .autoSigning
@@ -137,13 +137,13 @@ extension AllocatedResource: ScaleCodable {
 
 extension AutoSigningSecrets: ScaleCodable {
     public init(scaleDecoder: any ScaleDecoding) throws {
-        let secret = try String(scaleDecoder: scaleDecoder)
-        let key = try Data(scaleDecoder: scaleDecoder)
-        self.init(productDerivationSecret: secret, productRootPrivateKey: key)
+        // `Sr25519SecretKey` is `[u8; 64]` on the wire — raw bytes, no length prefix.
+        let key = try scaleDecoder.readAndConfirm(count: Self.privateKeyLength)
+        try self.init(productRootPrivateKey: key)
     }
 
     public func encode(scaleEncoder: any ScaleEncoding) throws {
-        try productDerivationSecret.encode(scaleEncoder: scaleEncoder)
-        try productRootPrivateKey.encode(scaleEncoder: scaleEncoder)
+        // Length invariant enforced by the memberwise init.
+        scaleEncoder.appendRaw(data: productRootPrivateKey)
     }
 }

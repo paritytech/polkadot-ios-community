@@ -1,6 +1,7 @@
 import Foundation
 import Foundation_iOS
 
+@MainActor
 public enum TitleDetailsSheetViewFactory {
     public static func createView(
         from viewModel: TitleDetailsSheetViewModel,

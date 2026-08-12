@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import Operation_iOS
 import CommonService
+import ChainRegistry
 
 protocol PrivacyVoucherStatusSynchronizing: BaseObservableStateStore<
     PrivacyVoucherStatusSynchronizer.State

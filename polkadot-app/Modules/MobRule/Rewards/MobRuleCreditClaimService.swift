@@ -4,6 +4,7 @@ import ExtrinsicService
 import Operation_iOS
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol MobRuleCreditClaimServicing: ApplicationServiceProtocol {}
 

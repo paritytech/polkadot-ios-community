@@ -1,3 +1,4 @@
+import Foundation
 import Operation_iOS
 import Keystore_iOS
 import KeyDerivation
@@ -31,6 +32,8 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
             provideClearBackup()
             provideClearReferral()
             provideJWTTokenState()
+            provideStrategyDebugState()
+            provideTruApiRuntimeState()
         }
     }
 
@@ -74,6 +77,23 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
             Logger.shared.error("Failed to generate entropy: \(error)")
         }
     }
+
+    func toggleStrategyDebug() {
+        let current = SettingsManager.shared.bool(for: SettingsKey.showTransferStrategyDebug.rawValue) ?? true
+        SettingsManager.shared.set(value: !current, for: SettingsKey.showTransferStrategyDebug.rawValue)
+        provideStrategyDebugState()
+    }
+
+    func toggleTruApiRuntime() {
+        let current = SettingsManager.shared.value(for: .truApiRuntimeEnabled)
+        SettingsManager.shared.set(value: !current, for: .truApiRuntimeEnabled)
+        provideTruApiRuntimeState()
+    }
+
+    func restartApp() {
+        Logger.shared.info("TrUAPI runtime changed — terminating for restart")
+        exit(0)
+    }
 }
 
 private extension DebugSettingsInteractor {
@@ -100,6 +120,20 @@ private extension DebugSettingsInteractor {
             let hasToken = JWTTokenStore(keychain: keystore, sessionIdStore: BackendSessionIdStore())
                 .fetchToken() != nil
             await presenter?.didReceive(hasJWTToken: hasToken)
+        }
+    }
+
+    func provideStrategyDebugState() {
+        let enabled = SettingsManager.shared.bool(for: SettingsKey.showTransferStrategyDebug.rawValue) ?? true
+        Task { @MainActor [weak presenter] in
+            presenter?.didReceive(strategyDebugEnabled: enabled)
+        }
+    }
+
+    func provideTruApiRuntimeState() {
+        let enabled = SettingsManager.shared.value(for: .truApiRuntimeEnabled)
+        Task { @MainActor [weak presenter] in
+            presenter?.didReceive(truApiRuntimeEnabled: enabled)
         }
     }
 }

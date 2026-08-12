@@ -3,7 +3,9 @@ import Foundation_iOS
 import SubstrateSdk
 import PolkadotUI
 import Coinage
+import ChainRegistry
 
+@MainActor
 final class AssetDetailsPresenter {
     weak var view: AssetDetailsViewProtocol?
 
@@ -287,7 +289,8 @@ private extension AssetDetailsPresenter {
                     CoinDetailViewModel(
                         id: coin.identifier,
                         exponent: "2^\(coin.exponent)",
-                        state: coin.state == .available ? "Available" : "Spent",
+                        state: coin.state == .available ? "Available" : coin
+                            .state == .recycling ? "Recycling" : "Spent",
                         age: coin.age.map { "\($0)" } ?? "Unknown"
                     )
                 }

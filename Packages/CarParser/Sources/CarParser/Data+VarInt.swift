@@ -9,7 +9,9 @@ enum VarIntBridgeError: Error {
 extension Data {
     /// Read unsigned LEB128 varint at the given byte offset.
     func readUVarInt(at offset: Int) throws -> (value: UInt64, bytesRead: Int) {
-        let slice = Array(self[(startIndex + offset)...])
+        let start = startIndex + offset
+        let end = Swift.min(start + 10, endIndex) // LEB128 UInt64 is at most 10 bytes
+        let slice = Array(self[start ..< end])
         let (value, bytesRead) = uVarInt(slice)
         if bytesRead == 0 { throw VarIntBridgeError.unexpectedEndOfData }
         if bytesRead < 0 { throw VarIntBridgeError.overflow }

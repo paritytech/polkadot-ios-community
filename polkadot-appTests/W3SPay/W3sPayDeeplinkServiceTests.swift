@@ -6,10 +6,8 @@ import Testing
 
 @Suite("W3sPayDeeplinkService")
 struct W3sPayDeeplinkServiceTests {
-    /// Real 33-byte compressed P256 public key — the service validates the key
-    /// bytes form an actual curve point, so we can't use a hand-rolled prefix
-    /// plus random bytes here.
-    private static let validKeyBytes = P256.KeyAgreement.PrivateKey().publicKey.compressedRepresentation
+    /// 32-byte X25519 public key from a fresh keypair.
+    private static let validKeyBytes = Curve25519.KeyAgreement.PrivateKey().publicKey.rawRepresentation
     private static var validKeyParam: String { validKeyBytes.base64URLEncodedString() }
 
     @MainActor
@@ -97,19 +95,17 @@ struct W3sPayDeeplinkServiceTests {
 
     // MARK: - key validation
 
-    @Test("Rejects merchant keys that are not 33 bytes of base64url-decoded data")
+    @Test("Rejects merchant keys that are not 32 bytes of base64url-decoded data")
     @MainActor
     func rejectsInvalidKeys() {
         let (service, launcher) = makeService()
-        // 32 bytes (one short).
-        let shortKey = Data(repeating: 0x01, count: 32).base64URLEncodedString()
-        // 34 bytes (one long).
-        let longKey = Data(repeating: 0x01, count: 34).base64URLEncodedString()
+        // 31 bytes (one short).
+        let shortKey = Data(repeating: 0x01, count: 31).base64URLEncodedString()
+        // 33 bytes (one long — the legacy compressed-P256 length).
+        let longKey = Data(repeating: 0x01, count: 33).base64URLEncodedString()
         // Standard-base64 "/" — strict decoder rejects.
         let badAlphabet = "A/" + String(repeating: "A", count: 42)
-        // Right length + right leading tag, but not a real P256 point on the curve.
-        let badCurvePoint = (Data([0x02]) + Data(repeating: 0xFF, count: 32)).base64URLEncodedString()
-        for key in [shortKey, longKey, badAlphabet, badCurvePoint] {
+        for key in [shortKey, longKey, badAlphabet] {
             let url = URL(string: "polkadotapp://w3spay.dot/pay-w3s?id=abc&amount=1&key=\(key)")!
             #expect(service.handle(url: url) == false, "key: \(key.prefix(10))…")
         }

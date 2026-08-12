@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import EventCenter
 
 final class BalanceTrackingService {
     private var substrateService: SubstrateAssetsUpdatingService?

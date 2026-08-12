@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import HandoffService
 import SDKLogger
+import ChainRegistry
 
 enum HOPFileLoaderError: Error {
     case invalidUrl
@@ -34,7 +35,13 @@ extension HOPFileLoaderFactory: HOPFileLoaderMaking {
         }
 
         let service = HandoffService(connection: connection)
-        return HandoffFileLoader(service: service)
+        let remoteStore = BitswapRemoteStore(connection: connection, logger: logger)
+        let decoratedService = HandoffServiceDecorator(
+            handoffService: service,
+            remoteStore: remoteStore
+        )
+
+        return HandoffFileLoader(service: decoratedService, config: HandoffFileLoadConfig())
     }
 }
 

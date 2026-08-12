@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class RecoveryWarningWireframe: RecoveryWarningWireframeProtocol {
     let action: () -> Void
     init(action: @escaping () -> Void) {

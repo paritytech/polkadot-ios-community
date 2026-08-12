@@ -16,6 +16,7 @@ protocol GameAlarmSettingsViewProtocol: ControllerBackedProtocol {
     func didReceive(options: [GameAlarmSettingsOption])
 }
 
+@MainActor
 protocol GameAlarmSettingsPresenterProtocol: AnyObject {
     func setup()
     func didSelect(seconds: Int)
@@ -26,6 +27,7 @@ protocol GameAlarmSettingsInteractorInputProtocol: AnyObject {
     func save(seconds: Int)
 }
 
+@MainActor
 protocol GameAlarmSettingsInteractorOutputProtocol: AnyObject {
     func didReceive(options: [Int], currentSeconds: Int)
     func didSave()

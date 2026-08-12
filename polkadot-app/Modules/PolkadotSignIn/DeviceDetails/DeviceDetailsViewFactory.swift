@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum DeviceDetailsViewFactory {
     static func createView(
         device: Chat.LocalDevice,

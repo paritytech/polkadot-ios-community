@@ -8,6 +8,8 @@ enum SettingsKey: String {
     case waitingRoomNotificationDate
     case gameStartNotificationDate
     case registrationStartNotificationDates
+    case gameAboutToStartNotificationDate
+    case registrationOpenNotificationDates
     case voucherInUseDismissed
     case playerTooltipShown
     case swipeTooltipShown
@@ -24,10 +26,12 @@ enum SettingsKey: String {
     case voucherScanHorizon
     case deviceEncryptId
     case nextSyncUpdateId
-    case web3SummitVerified
     case themeSelected
     case gameCalendarReminder
+    case localNetworkPermissionRequested
     case backendSessionId
+    case showTransferStrategyDebug
+    case truApiRuntimeEnabled
 }
 
 extension SettingsManagerProtocol {

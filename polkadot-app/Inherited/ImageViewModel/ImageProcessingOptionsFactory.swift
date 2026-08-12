@@ -12,7 +12,7 @@ final class ImageProcessingOptionsFactory: ImageProcessingOptionsProducing {
         animated: Bool
     ) -> KingfisherOptionsInfo {
         var processor: ImageProcessor = SVGImageProcessor()
-        if let targetSize = settings.targetSize {
+        if let targetSize = settings.targetSize, targetSize.width > 0, targetSize.height > 0 {
             processor = processor |> ResizingImageProcessor(referenceSize: targetSize, mode: .aspectFill) |>
                 CroppingImageProcessor(size: targetSize)
         }

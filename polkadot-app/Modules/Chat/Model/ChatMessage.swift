@@ -130,7 +130,7 @@ extension Chat.LocalMessage {
         case reply(Chat.RemoteMessageContentV1.MessageContent.ReplyContent)
         case chatAccepted(Chat.RemoteMessageContentV1.MessageContent.ChatAccepted)
         case unsupported(Data?)
-        case staticTextImageContent(StaticTextImageContent) // TODO: too narow case, worth to migrate to custom redendered
+        case staticTextImageContent(StaticTextImageContent) // TODO: migrate to custom renderer
         case extensionActionResponse(
             String,
             String
@@ -150,6 +150,7 @@ extension Chat.LocalMessage {
         enum CallSignalingPayload: Equatable {
             case offer(Chat.RemoteMessageContentV1.MessageContent.DataChannelOfferContent)
             case answer(Chat.RemoteMessageContentV1.MessageContent.DataChannelAnswerContent)
+            // TODO: We don't save candidates localy anymore. Remove on wipe
             case candidates(Chat.RemoteMessageContentV1.MessageContent.DataChannelCandidatesContent)
             case closed(Chat.RemoteMessageContentV1.MessageContent.DataChannelClosedContent)
         }
@@ -179,8 +180,8 @@ extension Chat.LocalMessage {
                 self = .call(.offer(content))
             case let .dataChannelAnswer(content):
                 self = .call(.answer(content))
-            case let .dataChannelCandidates(content):
-                self = .call(.candidates(content))
+            case .dataChannelCandidates:
+                return nil
             case let .dataChannelClosed(content):
                 self = .call(.closed(content))
             case let .reply(content):
@@ -488,7 +489,7 @@ extension Chat.LocalMessage {
     }
 
     // If groupingId is specified, it will be used to group messages in ChatMessageEntityMapper
-    var groupingId: String? {
+    var groupingId: String {
         switch content {
         case let .call(payload):
             switch payload {

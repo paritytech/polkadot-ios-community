@@ -1,8 +1,8 @@
 import Foundation
 
 public enum CoinageConstants {
-    /// Default interval between recycling runs (24 hours).
-    public static let recyclingInterval: TimeInterval = 24 * 60 * 60
+    /// Interval at which the background recycling task is scheduled (24 hours).
+    public static let backgroundRecyclingInterval: TimeInterval = 24 * 60 * 60
 
     /// Coin age threshold at which coin is still operatable
     public static let coinMaxAge: Int16 = 16

@@ -20,9 +20,11 @@ public enum CheckpointBlock: Sendable, Equatable {
 /// Determines recovery logic in ``TransferRecoveryService``:
 /// - `.intoCoins`: check expected output coins on-chain (existing behavior)
 /// - `.intoExternalAsset`: verify input vouchers consumed on-chain (no output coins)
+/// - `.recycleIntoVoucher`: input = 1 coin consumed on-chain, output = 1 voucher minted in the recycler
 public enum TransferOperationType: Int, Sendable {
     case intoCoins = 0
     case intoExternalAsset = 1
+    case recycleIntoVoucher = 2
 }
 
 /// "Write-Ahead Log" entry for a transfer extrinsic.

@@ -4,6 +4,7 @@ import Operation_iOS
 import SubstrateStorageQuery
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol PersonRegistrationQueryFactoryProtocol {
     func querySyncState(
@@ -36,7 +37,6 @@ final class PersonRegistrationQueryFactory {
 }
 
 extension PersonRegistrationQueryFactory: PersonRegistrationQueryFactoryProtocol {
-    // swiftlint:disable:next function_body_length
     func querySyncState(
         input: PersonRegistrationSyncInput,
         connection: JSONRPCEngine,

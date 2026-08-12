@@ -1,3 +1,4 @@
+import AsyncExtensions
 import Foundation
 import BigInt
 import ExtrinsicService
@@ -24,6 +25,9 @@ protocol TransferAmountViewProtocol: ControllerBackedProtocol, ValidationResultP
     func didStartLoading()
     func didStopLoading()
 
+    func didReceive(transferStatus: ClaimStatus)
+    func didUnlockNavigation()
+
     #if TESTNET_FEATURE
         func didReceive(strategyDebugInfo: TransferStrategyDebugInfo?)
     #endif
@@ -49,6 +53,7 @@ protocol TransferAmountInteractorInputProtocol: AnyObject {
     func setup()
     func retrySetup()
 
+    func lifecycleStream() -> AnyAsyncSequence<ClaimStatus>
     func previewTransfer(for amount: Decimal) async throws -> TransferPreviewValidation
     func confirmTransfer(validation: TransferPreviewValidation, sendFullAmount: Bool) async throws
     func saveRecentContact()
@@ -69,6 +74,7 @@ protocol TransferAmountInteractorOutputProtocol: AnyObject {
     #endif
 }
 
+@MainActor
 protocol TransferAmountWireframeProtocol: TransferValidationErrorPresentable,
     AlertPresentable,
     CommonRetryable,
@@ -85,8 +91,4 @@ enum TransferAmountInteractorError: Error {
     case feeFailed(Error)
     case transactionFailed(Error)
     case internalError
-}
-
-struct ExternalPaymentError: Error {
-    let reason: String
 }

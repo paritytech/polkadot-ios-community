@@ -9,6 +9,9 @@ extension AppConfig {
     enum DeepLink {
         static var scheme: String { appDeepLinkScheme }
 
+        /// Schemes across all build flavors; the active one depends on the configuration.
+        static let knownSchemes: Set<String> = ["polkadotapp", "polkadotappdev"]
+
         static func chat(_ chatId: Chat.Id, force: Bool) -> URL {
             let idPart = "id=\(chatId.rawRepresentation)"
             let forcePart = "force=\(force)"

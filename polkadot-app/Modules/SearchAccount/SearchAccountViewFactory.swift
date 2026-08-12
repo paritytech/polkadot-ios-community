@@ -1,6 +1,8 @@
 import Foundation
 import Coinage
+import ChainRegistry
 
+@MainActor
 enum SearchAccountViewFactory {
     static func createView(
         for chainAsset: ChainAsset,

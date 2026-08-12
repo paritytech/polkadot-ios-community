@@ -101,12 +101,12 @@ struct BalanceInfoView: View {
                 HStack(spacing: 4) {
                     Text(.Transfer.balanceInfoAvailableSoonTitle)
                         .typography(.titleMedium)
-                        .foregroundStyle(Color(.textAndIconsPrimaryDark))
+                        .foregroundStyle(.fgPrimary)
                         .fixedSize(horizontal: false, vertical: true)
                     Button(action: onAvailableSoonInfo) {
                         Image(.iconInfo20)
                             .renderingMode(.template)
-                            .foregroundStyle(Color(.textAndIconsTertiaryDark))
+                            .foregroundStyle(.fgTertiary)
                             .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
@@ -114,12 +114,12 @@ struct BalanceInfoView: View {
                 Spacer()
                 Text(model.availableSoon ?? "")
                     .typography(.titleMedium)
-                    .foregroundStyle(Color(.textAndIconsPrimaryDark))
+                    .foregroundStyle(.fgPrimary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Text(.Transfer.balanceInfoAvailableSoonSubtitle)
                 .typography(.bodyMedium)
-                .foregroundStyle(Color(.textAndIconsTertiaryDark))
+                .foregroundStyle(.fgTertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

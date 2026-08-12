@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import BigInt
 import AssetsManagement
+import ChainRegistry
 
 enum AssetStorageInfoError: Error {
     case unexpectedTypeExtras

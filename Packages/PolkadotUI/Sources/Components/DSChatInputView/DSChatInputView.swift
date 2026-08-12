@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import UIKit
 internal import SnapKit
 internal import UIKit_iOS
@@ -97,6 +98,10 @@ final class DSChatInputView: UIView {
         super.init(frame: .zero)
         setupViews()
         apply(configuration)
+        textView.accessibilityId(rawValue: configuration.inputAccessibilityId)
+        sendButton.accessibilityId(rawValue: configuration.sendAccessibilityId)
+        attachmentButton.accessibilityId(AccessibilityID.Chat.attachButton)
+        transferButton.accessibilityId(AccessibilityID.Chat.sendFundsButton)
     }
 
     @available(*, unavailable)

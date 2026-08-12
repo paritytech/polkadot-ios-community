@@ -1,5 +1,6 @@
 @testable import polkadot_app
 import Foundation
+import KeyDerivation
 import Products
 import SDKLogger
 import AsyncExtensions
@@ -35,18 +36,13 @@ final class MockChatScriptStorage: ChatScriptStorageProtocol {
 }
 
 final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
-    func requestResourceAllocation(resources: [Products.AllocatableResource]) async throws
-        -> [Products.AllocationOutcome] {
-        resources.map { _ in AllocationOutcome.notAvailable }
-    }
-
     enum APIError: Error {
         case timeout
     }
 
     var sentMessages: [ProductBotMessage] = []
     var accountGetCalls: [ProductAccountId] = []
-    var accountGetAliasCalls: [ProductAccountId] = []
+    var accountGetAliasCalls: [ProductProofContext] = []
     private let localStorage: ProductLocalStorageProtocol
 
     init(localStorage: ProductLocalStorageProtocol) {
@@ -60,12 +56,35 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         )
     }
 
-    func accountGetAlias(_ accountId: ProductAccountId) async throws -> AccountGetAliasResult {
-        accountGetAliasCalls.append(accountId)
+    func accountGetAlias(
+        context: ProductProofContext,
+        ring _: RingLocation
+    ) async throws -> AccountGetAliasResult {
+        accountGetAliasCalls.append(context)
 
         return AccountGetAliasResult(
-            context: "0x00",
-            alias: "0x0000000000000000000000000000000000000000000000000000000000000000"
+            context: Data([0x00]),
+            alias: Data(repeating: 0, count: 32)
+        )
+    }
+
+    func accountCreateProof(
+        context _: ProductProofContext,
+        ring _: RingLocation,
+        message _: Data
+    ) async throws -> RingVrfProofResult {
+        RingVrfProofResult(
+            proof: Data([0x00]),
+            contextualAlias: AccountGetAliasResult(context: Data([0x00]), alias: Data([0x00])),
+            ringIndex: 0,
+            ringRevision: 0
+        )
+    }
+
+    func signVrf(_: SignVrfPayload) async throws -> VrfSignature {
+        VrfSignature(
+            preOutput: Data(repeating: 0, count: 32),
+            proof: Data(repeating: 0, count: 64)
         )
     }
 
@@ -116,11 +135,19 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         .eraseToAnyAsyncSequence()
     }
 
-    func signPayload(_: SignTransactionPayload) async throws -> SignResult {
+    func signPayload(_: SignTransactionPayload<ProductAccountId>) async throws -> SignResult {
+        SignResult(signature: "0x00", signedTx: nil)
+    }
+
+    func signPayloadLegacy(_: SignTransactionPayload<SS58Account>) async throws -> SignResult {
         SignResult(signature: "0x00", signedTx: nil)
     }
 
     func signRaw(_: SigningRawPayload) async throws -> SignResult {
+        SignResult(signature: "0x00", signedTx: nil)
+    }
+
+    func signRawLegacy(_: SignRawLegacyPayload) async throws -> SignResult {
         SignResult(signature: "0x00", signedTx: nil)
     }
 
@@ -139,6 +166,10 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
     func navigateTo(destination _: String) async throws {}
 
     func allowNetworkAccess(url _: String) async throws -> Bool {
+        true
+    }
+
+    func allowWebRtcAccess() async throws -> Bool {
         true
     }
 
@@ -179,6 +210,12 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         fatalError("not implemented in mock")
     }
 
+    func createTransactionLegacy(_: Products
+        .CreateTransactionPayload<Products.LegacyAccountId>) async throws -> Products
+            .CreateTransactionResult {
+        fatalError("not implemented in mock")
+    }
+
     func submitStatement(_: StatementDto) async throws {}
 
     func subscribePaymentBalance() async throws -> AnyAsyncSequence<PaymentBalance> {
@@ -186,6 +223,20 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
     }
 
     func paymentTopUp(amount _: Balance, source _: PaymentTopUpSource) async throws {}
+
+    func requestPayment(amountInPlanks _: String, destination _: AccountId) async throws -> PaymentReceipt {
+        PaymentReceipt(paymentId: UUID().uuidString)
+    }
+
+    func subscribePaymentStatus(paymentId _: String) async throws -> AsyncExtensions
+        .AnyAsyncSequence<HostPaymentStatus> {
+        AsyncStream<HostPaymentStatus> { $0.finish() }.eraseToAnyAsyncSequence()
+    }
+
+    func requestResourceAllocation(resources: [Products.AllocatableResource]) async throws
+        -> [Products.AllocationOutcome] {
+        resources.map { _ in AllocationOutcome.notAvailable }
+    }
 
     func pushNotification(_: ScheduledNotificationRequest) async throws -> UInt32 { 0 }
     func cancelPushNotification(identifier _: UInt32) async throws {}

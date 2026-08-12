@@ -18,10 +18,6 @@ final class ProductSigningContext: PolkadotSigningContextProtocol {
         self.signingModel = signingModel
     }
 
-    func resolveWallet(for account: ProductAccountId) throws -> WalletManaging {
-        DynamicDerivedWallet(derivationPath: account.derivationPath)
-    }
-
     func setSignResultContinuation(_ continuation: CheckedContinuation<SignResult, Error>) {
         signResultContinuation = continuation
     }

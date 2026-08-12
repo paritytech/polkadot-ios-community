@@ -37,7 +37,7 @@ final class AirdropPrizeService: AirdropPrizeServicing {
         blockHash: Data?
     ) async throws -> AirdropPrizeReport? {
         let codingFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
-        let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex)
+        let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex, airdropIndex: 0)
         Logger.shared
             .debug(
                 "[GameDebug] airdrop.fetchReport start gameIndex=\(gameIndex) eventId=\(eventId.toHex()) " +

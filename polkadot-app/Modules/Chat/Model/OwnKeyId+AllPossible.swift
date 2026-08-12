@@ -4,14 +4,14 @@ extension Chat.Contact.Own {
     static func main() -> Chat.Contact.Own {
         Chat.Contact.Own(
             signKeyId: WalletDerivationPath.main,
-            encryptionKeyId: ChatDerivationPath.mainChat.rawValue
+            encryptionKeyId: ChatEncryptionDomain.mainChat.rawValue
         )
     }
 
     static func sso() -> Chat.Contact.Own {
         Chat.Contact.Own(
             signKeyId: WalletDerivationPath.main,
-            encryptionKeyId: ChatDerivationPath.sso.rawValue
+            encryptionKeyId: ChatEncryptionDomain.sso.rawValue
         )
     }
 
@@ -30,7 +30,7 @@ extension Chat.Contact.Own {
     }
 
     static func gameEncryptionKeyId() -> String {
-        ChatDerivationPath.gameChat.rawValue
+        ChatEncryptionDomain.game.rawValue
     }
 
     static func allPossibleIds() -> Set<Chat.Contact.Own> {

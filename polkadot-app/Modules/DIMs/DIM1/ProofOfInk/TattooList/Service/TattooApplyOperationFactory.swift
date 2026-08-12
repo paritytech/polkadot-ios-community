@@ -3,6 +3,7 @@ import Operation_iOS
 import Individuality
 import ExtrinsicService
 import KeyDerivation
+import ChainRegistry
 
 protocol TattooApplyOperationFactoryProtocol {
     func createApplyOperation() -> BaseOperation<Void>

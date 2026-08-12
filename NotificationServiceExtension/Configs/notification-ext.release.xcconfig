@@ -1,3 +1,4 @@
-OTHER_SWIFT_FLAGS = $(inherited)
-BUNDLE = io.paritytech.polkadotapp.NotificationServiceExtension
-APP_MAIN_BUNDLE = io.paritytech.polkadotapp
+#include "../../Configs/base.release.xcconfig"
+
+OTHER_SWIFT_FLAGS = $(inherited) $(BASE_SWIFT_FLAGS)
+BUNDLE = $(APP_MAIN_BUNDLE).NotificationServiceExtension

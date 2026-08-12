@@ -2,6 +2,7 @@ import UIKit
 import SubstrateSdk
 import Individuality
 import Operation_iOS
+import ChainRegistry
 
 final class TattooFamilyDetailsInteractor {
     weak var presenter: TattooFamilyDetailsInteractorOutputProtocol?
@@ -52,14 +53,16 @@ final class TattooFamilyDetailsInteractor {
             guard let self else {
                 return
             }
-            switch result {
-            case let .success(reservedItems):
-                let items = familyIndices.reduce(into: ProofOfInkPallet.ReservedDesignsResult()) {
-                    $0[$1] = reservedItems[$1]
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(reservedItems):
+                    let items = self.familyIndices.reduce(into: ProofOfInkPallet.ReservedDesignsResult()) {
+                        $0[$1] = reservedItems[$1]
+                    }
+                    self.presenter?.didReceiveReservedDesigns(items)
+                case let .failure(error):
+                    self.presenter?.didReceiveError(.reservedFailed(error))
                 }
-                presenter?.didReceiveReservedDesigns(items)
-            case let .failure(error):
-                presenter?.didReceiveError(.reservedFailed(error))
             }
         }
     }

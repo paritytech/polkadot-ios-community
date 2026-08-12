@@ -1,4 +1,5 @@
 import UIKit
+import ExternalAccessibility
 import PolkadotUI
 import UIKit_iOS
 import Combine
@@ -10,6 +11,8 @@ final class ContactsListViewController: UIViewController, ViewHolder, RootScreen
     let presenter: ContactsListPresenterProtocol
     var timerCancellable: AnyCancellable?
     var isLoading: Bool = true
+
+    private let statusTitleView = NetworkStatusTitleView()
 
     init(
         presenter: ContactsListPresenterProtocol
@@ -42,7 +45,7 @@ final class ContactsListViewController: UIViewController, ViewHolder, RootScreen
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        setTitle(String(localized: .chatMainTitle))
+        setTitleView(statusTitleView)
         addHandlers()
         setupBarItems()
 
@@ -95,6 +98,9 @@ private extension ContactsListViewController {
             image: .add24,
             primaryAction: action
         )
+
+        navigationItem.rightBarButtonItem?.accessibilityId(AccessibilityID.Chats.newChatButton)
+        titleView?.accessibilityId(AccessibilityID.Chats.title)
     }
 
     func addHandlers() {
@@ -114,5 +120,9 @@ extension ContactsListViewController: ContactsListViewProtocol {
         rootView.bind(viewModel: viewModel)
 
         setNeedsUpdateContentUnavailableConfiguration()
+    }
+
+    func didReceive(titleViewModel: NetworkStatusTitleView.ViewModel) {
+        statusTitleView.bind(viewModel: titleViewModel)
     }
 }

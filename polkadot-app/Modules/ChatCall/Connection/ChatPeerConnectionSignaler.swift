@@ -19,6 +19,8 @@ actor ChatPeerConnectionSignaler {
     nonisolated let sdpCoder = SdpCoder()
 
     private nonisolated let subject = AsyncReplaySubject<PeerConnectionSignal>(bufferSize: 100)
+    private nonisolated let messageEventsSubject = AsyncReplaySubject<CallMessageEvent>(bufferSize: 10)
+    private nonisolated let signalBatcher: PeerConnectionSignalBatching
 
     private var offerId: String?
     private var processedMessageIds = Set<Chat.MessageId>()
@@ -33,7 +35,8 @@ actor ChatPeerConnectionSignaler {
             label: "ChatPeerConnectionSignaler.queue",
             qos: .utility
         ),
-        logger: LoggerProtocol
+        signalBatcher: PeerConnectionSignalBatching = PeerConnectionSignalBatcher(),
+        logger: LoggerProtocol = Logger.shared
     ) {
         self.peerAccountId = peerAccountId
         self.callType = callType
@@ -41,6 +44,7 @@ actor ChatPeerConnectionSignaler {
         self.messagesStorageService = messagesStorageService
         self.providerFactory = providerFactory
         self.workQueue = workQueue
+        self.signalBatcher = signalBatcher
         self.logger = logger
     }
 
@@ -50,27 +54,7 @@ actor ChatPeerConnectionSignaler {
 }
 
 private extension ChatPeerConnectionSignaler {
-    enum Batch {
-        case offer(SdpCoderSetup)
-        case answer(SdpCoderSetup)
-        case candidates([PeerConnectionCandidate])
-        case closed
-    }
-
-    func makeBatch(_ signal: PeerConnectionSignal) -> Batch {
-        switch signal {
-        case let .offer(sdp):
-            .offer(SdpCoderSetup(setupSdp: sdp, candidates: []))
-        case let .answer(sdp):
-            .answer(SdpCoderSetup(setupSdp: sdp, candidates: []))
-        case let .candidates(candidates):
-            .candidates(candidates)
-        case .closed:
-            .closed
-        }
-    }
-
-    func sendBatch(_ batch: Batch) async throws -> Chat.MessageId? {
+    func sendBatch(_ batch: BatchedPeerConnectionSignal) async throws {
         switch batch {
         case let .offer(setup):
             let minimizedSdp = try sdpCoder.encodeSetup(setup)
@@ -83,9 +67,8 @@ private extension ChatPeerConnectionSignaler {
             logger.debug("Setup candidates: \(setup.candidates.count)")
 
             let message = makeLocalCallMessage(.offer(content))
-            offerId = message.messageId
             try await persistCallMessage(message)
-            return message.messageId
+            offerId = message.messageId
         case let .answer(setup):
             guard let offerId else {
                 throw ChatPeerConnectionSignalerError.undefinedOfferId
@@ -103,7 +86,6 @@ private extension ChatPeerConnectionSignaler {
 
             let message = makeLocalCallMessage(.answer(content))
             try await persistCallMessage(message)
-            return message.messageId
         case let .candidates(candidates):
             guard let offerId else {
                 throw ChatPeerConnectionSignalerError.undefinedOfferId
@@ -120,7 +102,6 @@ private extension ChatPeerConnectionSignaler {
 
             let remoteMessage = Chat.RemoteMessage.newMessage(with: .dataChannelCandidates(content))
             outboxService.sendDirectly(remoteMessage, to: peerAccountId)
-            return nil
         case .closed:
             guard let offerId else {
                 throw ChatPeerConnectionSignalerError.undefinedOfferId
@@ -134,7 +115,6 @@ private extension ChatPeerConnectionSignaler {
 
             let message = makeLocalCallMessage(.closed(content))
             try await persistCallMessage(message)
-            return message.messageId
         }
     }
 
@@ -154,25 +134,38 @@ private extension ChatPeerConnectionSignaler {
 }
 
 extension ChatPeerConnectionSignaler: PeerConnectionSignaling {
-    nonisolated var signals: AnyAsyncSequence<PeerConnectionSignal> {
+    var signals: AnyAsyncSequence<PeerConnectionSignal> {
         subject.eraseToAnyAsyncSequence()
     }
 
-    func send(_ signal: PeerConnectionSignal) async throws -> PeerConnectionSignalStateObserving? {
-        let batch = makeBatch(signal)
-        guard let messageId = try await sendBatch(batch) else {
-            return ImmediateSignalStateObserver()
+    @discardableResult
+    func send(
+        _ signals: [PeerConnectionSignal]
+    ) async throws -> PeerConnectionSignalSendResult {
+        var isFullySent = true
+
+        for batch in signalBatcher.batch(signals) {
+            do {
+                try await sendBatch(batch)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                logger.error("Signal batch send failed: \(error)")
+                isFullySent = false
+            }
         }
 
-        return ChatSignalStateObserver(
-            messageId: messageId,
-            providerFactory: providerFactory,
-            workQueue: workQueue
-        )
+        return PeerConnectionSignalSendResult(isFullySent: isFullySent)
     }
 }
 
-extension ChatPeerConnectionSignaler: ChatCallMessageReceiving {
+extension ChatPeerConnectionSignaler: CallMessageEventProviding {
+    nonisolated var messageEvents: AnyAsyncSequence<CallMessageEvent> {
+        messageEventsSubject.eraseToAnyAsyncSequence()
+    }
+}
+
+extension ChatPeerConnectionSignaler: ChatCallMessageHandling {
     func receive(message: Chat.RemoteMessage) async {
         guard !processedMessageIds.contains(message.messageId) else {
             logger.warning("Message already processed: \(message.messageId)")
@@ -236,5 +229,31 @@ extension ChatPeerConnectionSignaler: ChatCallMessageReceiving {
         } catch {
             logger.error("Sdp decoding failed: \(error)")
         }
+    }
+
+    func handleSent(message: Chat.RemoteMessage) async {
+        guard case let .dataChannelClosed(content) = message.versioned.ensureV1()?.content else {
+            return
+        }
+
+        guard content.offerId == offerId else {
+            logger.warning("Ignoring sent close with unexpected offer id: \(content.offerId)")
+            return
+        }
+
+        messageEventsSubject.send(.closedSent)
+    }
+
+    func handleDelivered(message: Chat.RemoteMessage) async {
+        guard case .dataChannelOffer = message.versioned.ensureV1()?.content else {
+            return
+        }
+
+        guard message.messageId == offerId else {
+            logger.warning("Ignoring delivered offer with unexpected id: \(message.messageId)")
+            return
+        }
+
+        messageEventsSubject.send(.offerDelivered)
     }
 }

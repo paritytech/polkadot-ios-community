@@ -20,20 +20,9 @@ final class GameVideoPlayerItemView: UIView {
 
     private let confettiHaloView = GameVideoPlayerConfettiHaloView()
 
-    let disconnectedView: GenericPairValueView<UIImageView, PolkadotUI.Label> = .create { view in
-        view.fView.image = .iconGameDisconnected
-        view.fView.contentMode = .scaleAspectFit
-        view.sView.typography = .paragraphSmall
-        view.sView.numberOfLines = 2
-        view.sView.textColor = .textAndIconsDisabled
-        view.sView.textAlignment = .center
-
-        view.spacing = 16
-        view.stackView.axis = .vertical
-        view.stackView.alignment = .center
-
-        view.sView.setContentCompressionResistancePriority(.required, for: .vertical)
-        view.sView.setContentHuggingPriority(.required, for: .vertical)
+    private let noiseView: GameVideoNoiseView = create {
+        $0.layer.cornerRadius = Constants.contentCornerRadius
+        $0.isHidden = true
     }
 
     private let frameView = TileFrameView(
@@ -94,19 +83,11 @@ extension GameVideoPlayerItemView {
     func applyHostIntroductionStyle() {
         frameStrength = .strong
         updateFrameViewStyle()
-
-        disconnectedView.sView.typography = .titleMedium
-        disconnectedView.sView.textColor = .textAndIconsDisabled
-        disconnectedView.fView.image = .iconGameDisconnectedLarge
     }
 
     func applyRegularStyle() {
         frameStrength = .soft
         updateFrameViewStyle()
-
-        disconnectedView.sView.typography = .paragraphSmall
-        disconnectedView.sView.textColor = .textAndIconsDisabled
-        disconnectedView.fView.image = .iconGameDisconnected
     }
 
     func prepareForReuse() {
@@ -119,6 +100,7 @@ extension GameVideoPlayerItemView {
 
         frameStrength = .soft
         setupAsPlaceholder(false)
+        hideNoise()
 
         banToggleButton.isHidden = true
         bannedOverlayView.isHidden = true
@@ -271,11 +253,9 @@ private extension GameVideoPlayerItemView {
             $0.edges.equalToSuperview()
         }
 
-        contentView.addSubview(disconnectedView)
-        disconnectedView.snp.makeConstraints { make in
-            make.center.equalToSuperview()
-            make.leading.lessThanOrEqualToSuperview()
-            make.top.greaterThanOrEqualToSuperview()
+        contentView.addSubview(noiseView)
+        noiseView.snp.makeConstraints {
+            $0.edges.equalTo(rendererViewContainer)
         }
 
         contentView.addSubview(bannedOverlayView)
@@ -363,6 +343,16 @@ private extension GameVideoPlayerItemView {
             currentViewModel?.state == .hostIntroduction
     }
 
+    private func showNoise() {
+        noiseView.isHidden = false
+        noiseView.startAnimating()
+    }
+
+    private func hideNoise() {
+        noiseView.stopAnimating()
+        noiseView.isHidden = true
+    }
+
     func bindRendering(
         for player: GameVideoViewLayout.Player,
         rendererManager: RTCRendererManaging
@@ -371,20 +361,16 @@ private extension GameVideoPlayerItemView {
         case .connected:
             connectRenderer(for: player, rendererManager: rendererManager)
             renderer?.view.isHidden = false
-            disconnectedView.isHidden = true
+            hideNoise()
         case .suspended:
             detachRenderer()
             renderer?.view.isHidden = false
-            disconnectedView.isHidden = true
+            hideNoise()
         case .disconnected:
             disconnectRenderer()
             renderer?.view.isHidden = true
-            disconnectedView.isHidden = false
+            showNoise()
         }
-
-        disconnectedView.sView.text = player.isHost
-            ? String(localized: .Game.videoHostDisconnected)
-            : String(localized: .Game.videoPlayerDisconnected)
 
         renderer?.updateProviders(
             overlays: player.filtersConfiguration.overlayProviders,

@@ -3,6 +3,8 @@ import SubstrateSdk
 import Operation_iOS
 import OperationExt
 import Individuality
+import BackgroundExecution
+import StructuredConcurrency
 
 final class GameReportInteractor {
     weak var presenter: GameReportInteractorOutputProtocol?
@@ -18,6 +20,7 @@ final class GameReportInteractor {
     private let claimUsesScoreAlias: Bool
     private let player: GamePallet.AccountOrPerson
     private let operationQueue: OperationQueue
+    private let backgroundExecutor: BackgroundExecuting
     private let workQueue = DispatchQueue(label: "GameReportInteractor.workQueue")
     private let logger: LoggerProtocol
 
@@ -41,6 +44,7 @@ final class GameReportInteractor {
         voteService: GameVoteServicing = GameVoteService(),
         dataProviderFactory: GameVoteDataProviderMaking = GameVoteDataProviderFactory(),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
+        backgroundExecutor: BackgroundExecuting,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.gameId = gameId
@@ -54,6 +58,7 @@ final class GameReportInteractor {
         self.voteService = voteService
         self.dataProviderFactory = dataProviderFactory
         self.operationQueue = operationQueue
+        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
     }
 
@@ -74,7 +79,8 @@ extension GameReportInteractor: GameReportInteractorInputProtocol {
             logger
                 .debug(
                     "[GameDebug] reportCurrentVotes blocked gameId=\(gameId.index) " +
-                        "currentIndex=\(String(describing: gameInfo?.index)) state=\(String(describing: gameInfo?.state))"
+                        "currentIndex=\(String(describing: gameInfo?.index)) " +
+                        "state=\(String(describing: gameInfo?.state))"
                 )
             return
         }
@@ -90,19 +96,58 @@ extension GameReportInteractor: GameReportInteractorInputProtocol {
         logger
             .debug(
                 "[GameDebug] reportCurrentVotes start gameIndex=\(gameIndex) votesCount=\(votesCount) " +
-                    "snapshot.maxGroupSize=\(gameSnapshot.maxGroupSize) snapshot.playerCount=\(gameSnapshot.playerCount)"
+                    "snapshot.maxGroupSize=\(gameSnapshot.maxGroupSize) " +
+                    "snapshot.playerCount=\(gameSnapshot.playerCount)"
             )
 
-        Task { [
-            weak presenter,
-            reportService,
-            personDataStore,
-            player,
-            claimBeneficiary,
-            claimUsesScoreAlias,
-            logger
-        ] in
-            do {
+        Task { [weak self] in
+            await markStallActivity("Reporting votes") {
+                await self?.performReport(
+                    gameIndex: gameIndex,
+                    gameSnapshot: gameSnapshot
+                )
+            }
+        }
+    }
+
+    func toggleVote(_ gameVote: GameVote) {
+        Task { [voteService] in
+            try await voteService.toggleVote(gameVote)
+        }
+    }
+}
+
+extension GameReportInteractor: GameVoteDataSubscribing, GameVoteDataHandling, AnyProviderAutoCleaning {
+    var gameVoteDataProviderFactory: GameVoteDataProviderMaking {
+        dataProviderFactory
+    }
+
+    func handleGameVotes(result: Result<[DataProviderChange<GameVote>], any Error>) {
+        switch result {
+        case let .success(changes):
+            updateVotes(with: changes)
+        case let .failure(error):
+            logger.error("Did receive error: \(error)")
+        }
+    }
+}
+
+private extension GameReportInteractor {
+    func performReport(
+        gameIndex: GamePallet.GameIndex,
+        gameSnapshot: GameContextSnapshot
+    ) async {
+        do {
+            // swiftlint:disable closure_parameter_position
+            try await backgroundExecutor.execute { [
+                weak presenter,
+                reportService,
+                personDataStore,
+                player,
+                claimBeneficiary,
+                claimUsesScoreAlias,
+                logger
+            ] in
                 await presenter?.didReceive(isReportInProgress: true)
 
                 let wasPerson = await MainActor.run {
@@ -140,37 +185,15 @@ extension GameReportInteractor: GameReportInteractorInputProtocol {
                         )
                     await presenter?.didReceive(error: dispathError.error)
                 }
-            } catch {
-                await presenter?.didReceive(isReportInProgress: false)
-                logger.error("[GameDebug] report extrinsic THREW error=\(error) gameIndex=\(gameIndex)")
-                await presenter?.didReceive(error: error)
             }
+            // swiftlint:enable closure_parameter_position
+        } catch {
+            await presenter?.didReceive(isReportInProgress: false)
+            logger.error("[GameDebug] report extrinsic THREW error=\(error) gameIndex=\(gameIndex)")
+            await presenter?.didReceive(error: error)
         }
     }
 
-    func toggleVote(_ gameVote: GameVote) {
-        Task { [voteService] in
-            try await voteService.toggleVote(gameVote)
-        }
-    }
-}
-
-extension GameReportInteractor: GameVoteDataSubscribing, GameVoteDataHandling, AnyProviderAutoCleaning {
-    var gameVoteDataProviderFactory: GameVoteDataProviderMaking {
-        dataProviderFactory
-    }
-
-    func handleGameVotes(result: Result<[DataProviderChange<GameVote>], any Error>) {
-        switch result {
-        case let .success(changes):
-            updateVotes(with: changes)
-        case let .failure(error):
-            logger.error("Did receive error: \(error)")
-        }
-    }
-}
-
-private extension GameReportInteractor {
     func subscribeToGameVotes() {
         clear(streamableProvider: &votesProvider)
 
@@ -206,7 +229,9 @@ private extension GameReportInteractor {
 
         logger.debug(
             "[GameDebug] gate gameId=\(gameId.index) currentIndex=\(String(describing: newInfo?.index)) "
-                + "state=\(String(describing: newInfo?.state)) isCurrent=\(isCurrentGame) votingAvailable=\(isVotingAvailable)"
+                + "state=\(String(describing: newInfo?.state)) " +
+                "isCurrent=\(isCurrentGame) " +
+                "votingAvailable=\(isVotingAvailable)"
         )
 
         if isVotingAvailable {

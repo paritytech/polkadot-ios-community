@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
 /// Fire-and-forget API used by the rest of the app.
 /// Callers never await delivery; the emitter owns retry, queueing, and lifecycle.

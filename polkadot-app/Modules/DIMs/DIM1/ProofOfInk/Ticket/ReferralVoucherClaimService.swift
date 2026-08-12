@@ -79,7 +79,8 @@ private extension ReferralVoucherClaimService {
             callFactory: { voucher in
                 ProofOfInkPallet.RegisterReferralVouchers(
                     voucherKey: voucher.key.memberKey
-                ).runtimeCall()
+                )
+                .runtimeCall()
             }
         ))
     }

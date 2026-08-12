@@ -86,7 +86,7 @@ final class DIM1ChatExtension: ChatExtensionBot, ChatExtensionDelegateProvidable
 // MARK: - ChatExtensionBotProtocol
 
 extension DIM1ChatExtension: ChatExtensionBotProtocol {
-    static let identifier: ChatExtension.Id = "DIM1Chat"
+    nonisolated static let identifier: ChatExtension.Id = "DIM1Chat"
 
     var identifier: ChatExtension.Id { Self.identifier }
 
@@ -202,7 +202,7 @@ private extension DIM1ChatExtension {
             return
         }
 
-        await wireframe.showEvidencePreview(
+        wireframe.showEvidencePreview(
             evidenceId: evidenceData.evidenceId,
             type: evidenceData.type
         )
@@ -269,7 +269,7 @@ private extension DIM1ChatExtension {
              .providePhotoEvidence:
             let faqActions = try await faqActions(for: state, context: context)
             let action = mainAction(for: state)
-            return await DIM1FooterConfiguration.footer(messages: faqActions, action: action)
+            return DIM1FooterConfiguration.footer(messages: faqActions, action: action)
         case .none:
             return nil
         }
@@ -315,7 +315,7 @@ private extension DIM1ChatExtension {
             guard !hasResponse else {
                 continue
             }
-            let action = await UIAction(
+            let action = UIAction(
                 title: faqItem.question,
                 handler: { [weak self, context] action in
                     Task {

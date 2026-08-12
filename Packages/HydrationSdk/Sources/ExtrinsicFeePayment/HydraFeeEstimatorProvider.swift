@@ -4,6 +4,7 @@ import SubstrateSdk
 import ExtrinsicService
 import AssetExchange
 import SDKLogger
+import BigInt
 
 public final class HydraFeeEstimatingFactory {
     let host: ExtrinsicFeeEstimatorHostProtocol

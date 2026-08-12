@@ -5,17 +5,22 @@ import Kingfisher
 final class LocalImageViewModel {
     private let imageProvider: ImageDataProvider
     private let optionsFactory: ImageProcessingOptionsProducing
+    private let keepsCurrentImageWhileLoading: Bool
 
+    /// When `keepsCurrentImageWhileLoading` is `true`, the caller must clear the image view's image
+    /// whenever its logical content changes to prevent a previous image from appearing while loading.
     init(
         provider: ImageDataProvider,
-        optionsFactory: ImageProcessingOptionsProducing = ImageProcessingOptionsFactory()
+        optionsFactory: ImageProcessingOptionsProducing = ImageProcessingOptionsFactory(),
+        keepsCurrentImageWhileLoading: Bool
     ) {
         imageProvider = provider
         self.optionsFactory = optionsFactory
+        self.keepsCurrentImageWhileLoading = keepsCurrentImageWhileLoading
     }
 }
 
-extension LocalImageViewModel: @preconcurrency ChatMessageMediaPreviewProviding {
+extension LocalImageViewModel: ChatMessageMediaPreviewProviding {
     var identifier: String {
         imageProvider.cacheKey
     }
@@ -27,7 +32,7 @@ extension LocalImageViewModel: @preconcurrency ChatMessageMediaPreviewProviding 
     }
 }
 
-extension LocalImageViewModel: @preconcurrency ImageViewModelProtocol {
+extension LocalImageViewModel: ImageViewModelProtocol {
     @MainActor
     func loadImage(
         on imageView: UIImageView,
@@ -35,7 +40,10 @@ extension LocalImageViewModel: @preconcurrency ImageViewModelProtocol {
         animated: Bool,
         completion: ((Bool) -> Void)?
     ) {
-        let options = optionsFactory.options(for: settings, animated: animated)
+        var options = optionsFactory.options(for: settings, animated: animated)
+        if keepsCurrentImageWhileLoading {
+            options.append(.keepCurrentImageWhileLoading)
+        }
         imageView.kf.setImage(with: imageProvider, options: options) { result in
             switch result {
             case .success:

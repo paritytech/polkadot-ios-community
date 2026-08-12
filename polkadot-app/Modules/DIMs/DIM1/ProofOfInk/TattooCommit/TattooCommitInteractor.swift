@@ -6,6 +6,7 @@ import ExtrinsicService
 import OperationExt
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetching {
     weak var presenter: TattooCommitInteractorOutputProtocol?
@@ -86,7 +87,9 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
 
             blockNumberProvider = subscribeToBlockNumber(for: bulletinChain.chainId)
         } catch {
-            presenter?.didReceive(error: .blockTimeServiceError(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .blockTimeServiceError(error))
+            }
         }
     }
 
@@ -96,7 +99,8 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
 
             let wrapper = try proofOfInkState.getBlockTimeOperationFactory(
                 for: bulletinChain.chainId
-            ).createBlockTimeOperation(
+            )
+            .createBlockTimeOperation(
                 from: peopleRuntimeProvider,
                 blockTimeEstimationService: blockTimeService
             )
@@ -107,15 +111,19 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
                 backingCallIn: blockTimeCancellable,
                 runningCallbackIn: .main
             ) { [weak self] result in
-                switch result {
-                case let .success(blockTime):
-                    self?.presenter?.didReceive(blockTime: blockTime)
-                case let .failure(error):
-                    self?.presenter?.didReceive(error: .blockTimeServiceError(error))
+                MainActor.assumeIsolated {
+                    switch result {
+                    case let .success(blockTime):
+                        self?.presenter?.didReceive(blockTime: blockTime)
+                    case let .failure(error):
+                        self?.presenter?.didReceive(error: .blockTimeServiceError(error))
+                    }
                 }
             }
         } catch {
-            presenter?.didReceive(error: .blockTimeServiceError(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .blockTimeServiceError(error))
+            }
         }
     }
 
@@ -125,11 +133,13 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
             runtimeCodingService: bulletinRuntimeProvider,
             operationQueue: operationQueue
         ) { [weak self] (result: Result<BlockNumber, Error>) in
-            switch result {
-            case let .success(period):
-                self?.presenter?.didReceive(commitmentTimeout: period)
-            case let .failure(error):
-                self?.presenter?.didReceive(error: .commitmentTimeout(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(period):
+                    self?.presenter?.didReceive(commitmentTimeout: period)
+                case let .failure(error):
+                    self?.presenter?.didReceive(error: .commitmentTimeout(error))
+                }
             }
         }
     }
@@ -140,11 +150,13 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
             runtimeCodingService: peopleRuntimeProvider,
             operationQueue: operationQueue
         ) { [weak self] (result: Result<OnChainHour, Error>) in
-            switch result {
-            case let .success(duration):
-                self?.presenter?.didReceive(minJudgementDuration: duration)
-            case let .failure(error):
-                self?.presenter?.didReceive(error: .judgementDuration(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(duration):
+                    self?.presenter?.didReceive(minJudgementDuration: duration)
+                case let .failure(error):
+                    self?.presenter?.didReceive(error: .judgementDuration(error))
+                }
             }
         }
 
@@ -153,11 +165,13 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
             runtimeCodingService: peopleRuntimeProvider,
             operationQueue: operationQueue
         ) { [weak self] (result: Result<OnChainHour, Error>) in
-            switch result {
-            case let .success(duration):
-                self?.presenter?.didReceive(maxJudgementDuration: duration)
-            case let .failure(error):
-                self?.presenter?.didReceive(error: .judgementDuration(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(duration):
+                    self?.presenter?.didReceive(maxJudgementDuration: duration)
+                case let .failure(error):
+                    self?.presenter?.didReceive(error: .judgementDuration(error))
+                }
             }
         }
     }
@@ -197,11 +211,13 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
             backingCallIn: extrinsicCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            switch result {
-            case let .success(commitResult):
-                self?.handleCommit(result: commitResult.status)
-            case let .failure(error):
-                self?.presenter?.didReceive(error: .confirmationFailed(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(commitResult):
+                    self?.handleCommit(result: commitResult.status)
+                case let .failure(error):
+                    self?.presenter?.didReceive(error: .confirmationFailed(error))
+                }
             }
         }
     }
@@ -209,9 +225,13 @@ final class TattooCommitInteractor: AnyProviderAutoCleaning, RuntimeConstantFetc
     private func handleCommit(result: SubstrateExtrinsicStatus) {
         switch result {
         case let .success(extrinsicHash):
-            presenter?.didConfirm(with: extrinsicHash.extrinsicHash)
+            MainActor.assumeIsolated {
+                presenter?.didConfirm(with: extrinsicHash.extrinsicHash)
+            }
         case let .failure(failure):
-            presenter?.didReceive(error: .confirmationFailed(failure.error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .confirmationFailed(failure.error))
+            }
         }
     }
 }
@@ -280,7 +300,9 @@ extension TattooCommitInteractor: SystemLocalDataSubscriber, SystemLocalDataHand
                 provideBulletinBlockTime()
             }
         case let .failure(error):
-            presenter?.didReceive(error: .blockTimeServiceError(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .blockTimeServiceError(error))
+            }
         }
     }
 }
@@ -292,9 +314,13 @@ extension TattooCommitInteractor: TattooMetadataLocalSubscriptionHandler, Tattoo
     ) {
         switch result {
         case let .success(metadata):
-            presenter?.didReceiveTattoo(metadata: metadata)
+            MainActor.assumeIsolated {
+                presenter?.didReceiveTattoo(metadata: metadata)
+            }
         case let .failure(error):
-            presenter?.didReceive(error: .tattooMetadataFailed(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .tattooMetadataFailed(error))
+            }
         }
     }
 }

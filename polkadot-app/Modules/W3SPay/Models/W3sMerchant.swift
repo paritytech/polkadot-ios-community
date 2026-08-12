@@ -5,7 +5,7 @@ import FoundationExt
 struct W3sMerchant: Decodable, Equatable {
     /// 32-byte topic the merchant terminal is listening on.
     let topic: Data
-    /// 33-byte compressed P256 public key — validated as a point on the curve at decode time.
+    /// 32-byte X25519 public key.
     let key: Data
     /// Optional human-readable label shown to the payer as the recipient.
     /// Blank/whitespace-only values are normalised to `nil` so the caller's
@@ -37,18 +37,14 @@ struct W3sMerchant: Decodable, Equatable {
         }
 
         let keyString = try container.decode(String.self, forKey: .key)
-        guard let key = Data(base64URLEncoded: keyString), key.count == 33 else {
+        guard
+            let key = Data(base64URLEncoded: keyString),
+            (try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: key)) != nil
+        else {
             throw DecodingError.dataCorruptedError(
                 forKey: .key,
                 in: container,
-                debugDescription: "Expected base64url-encoded 33-byte compressed P256 key"
-            )
-        }
-        guard (try? P256.KeyAgreement.PublicKey(compressedRepresentation: key)) != nil else {
-            throw DecodingError.dataCorruptedError(
-                forKey: .key,
-                in: container,
-                debugDescription: "Key bytes do not encode a valid compressed P256 public key"
+                debugDescription: "Expected base64url-encoded 32-byte X25519 key"
             )
         }
 

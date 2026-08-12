@@ -3,6 +3,10 @@ import ExtrinsicService
 import SubstrateSdk
 import KeyDerivation
 
+public enum SlotSubmissionError: Error {
+    case extrinsicFailed(Error)
+}
+
 public protocol SlotAssignmentSubmitting {
     func submit(
         call: any RuntimeCallable,
@@ -40,7 +44,7 @@ public final class SlotAssignmentSubmitter: SlotAssignmentSubmitting {
         case .success:
             return
         case let .failure(failedExtrinsic):
-            throw failedExtrinsic.error
+            throw SlotSubmissionError.extrinsicFailed(failedExtrinsic.error)
         }
     }
 }

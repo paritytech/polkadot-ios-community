@@ -26,7 +26,6 @@ handle_tool() {
 
     if command -v "$tool_name" >/dev/null 2>&1; then
         echo "$tool_name found. Upgrading and running..."
-        brew upgrade "$tool_name"
         eval "$tool_name $tool_arguments"
     else
         echo "$tool_name not installed. Attempting to install via Homebrew..."

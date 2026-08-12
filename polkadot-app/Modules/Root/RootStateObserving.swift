@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol RootStateObserving: AnyObject {
     func didCreateWallets()
     func didRestoreWallets()
@@ -7,5 +8,4 @@ protocol RootStateObserving: AnyObject {
     func didClaimUsername()
     func didDecideClaim()
     func didSelectTheme()
-    func proceedAfterWeb3Summit()
 }

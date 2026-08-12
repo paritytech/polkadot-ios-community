@@ -4,16 +4,11 @@ final class LinkedDevicesInteractor {
     weak var presenter: LinkedDevicesInteractorOutputProtocol?
 
     private let deviceDataProviderFactory: LocalDeviceDataProviderMaking
-    private let logger: LoggerProtocol
 
-    private var devicesSubscriptionTask: Task<Void, Error>?
+    private var devicesSubscriptionTask: Task<Void, Never>?
 
-    init(
-        deviceDataProviderFactory: LocalDeviceDataProviderMaking = LocalDeviceDataProviderFactory(),
-        logger: LoggerProtocol = Logger.shared
-    ) {
+    init(deviceDataProviderFactory: LocalDeviceDataProviderMaking = LocalDeviceDataProviderFactory()) {
         self.deviceDataProviderFactory = deviceDataProviderFactory
-        self.logger = logger
     }
 
     deinit {
@@ -30,15 +25,11 @@ extension LinkedDevicesInteractor: LinkedDevicesInteractorInputProtocol {
 private extension LinkedDevicesInteractor {
     func subscribeToDevices() {
         devicesSubscriptionTask = Task { [weak self] in
-            do {
-                guard let sequence = self?.deviceDataProviderFactory.subscribeDevices() else {
-                    return
-                }
-                for try await devices in sequence {
-                    await self?.reportNewDevices(devices)
-                }
-            } catch {
-                self?.logger.error("Local devices subscription error: \(error)")
+            guard let sequence = self?.deviceDataProviderFactory.subscribeDevices() else {
+                return
+            }
+            for await devices in sequence {
+                await self?.reportNewDevices(devices)
             }
         }
     }

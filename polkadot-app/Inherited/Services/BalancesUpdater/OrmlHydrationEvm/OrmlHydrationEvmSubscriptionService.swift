@@ -4,6 +4,7 @@ import SubstrateSdk
 import HydrationSdk
 import CommonService
 import AssetsManagement
+import ChainRegistry
 
 final class OrmlHydrationEvmSubscriptionService: BaseSyncService {
     let chainAssetId: ChainAssetId

@@ -5,6 +5,7 @@ import CommonService
 import ChainStore
 import HydrationSdk
 import AssetsManagement
+import ChainRegistry
 
 protocol OrmlHydrationEvmWalletQueryFactoryProtocol {
     func queryBalanceWrapper(

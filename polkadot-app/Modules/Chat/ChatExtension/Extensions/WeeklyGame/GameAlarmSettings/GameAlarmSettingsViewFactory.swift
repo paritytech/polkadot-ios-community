@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum GameAlarmSettingsViewFactory {
     static func createView(model: GameAlarmSettingsModel) -> GameAlarmSettingsViewProtocol {
         let interactor = GameAlarmSettingsInteractor()

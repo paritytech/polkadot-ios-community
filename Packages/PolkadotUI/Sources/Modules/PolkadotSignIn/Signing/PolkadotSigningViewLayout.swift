@@ -1,5 +1,6 @@
 import UIKit
 import DesignSystem
+import ExternalAccessibility
 internal import UIKit_iOS
 
 public final class PolkadotSigningViewLayout: BottomSheetOperationViewLayout<
@@ -63,6 +64,7 @@ public final class PolkadotSigningResultView: UIView {
     override public init(frame: CGRect) {
         super.init(frame: frame)
         setupLayout()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -136,5 +138,17 @@ public extension PolkadotSigningResultView {
         )
 
         labelsView.bottomLabel.text = viewModel.transactionDescription
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension PolkadotSigningResultView: AccessibilityBound {
+    public var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(labelsView.topLabel, AccessibilityID.Signing.requestTitle),
+            .init(signButton, AccessibilityID.Signing.approveButton),
+            .init(rejectButton, AccessibilityID.Signing.rejectButton)
+        ]
     }
 }

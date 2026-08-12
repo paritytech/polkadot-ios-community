@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import Foundation
 import SwiftUI
 import PolkadotUI
@@ -64,6 +65,7 @@ private extension SettingsViewModelFactory {
                 selectedCurrencyCode: selectedCurrencyCode,
                 selectedThemeName: selectedThemeName
             ),
+            accessibilityId: AccessibilityID.Settings.menuItem(for: cellType),
             action: { onSelect(cellType) }
         )
     }
@@ -74,6 +76,7 @@ private extension SettingsViewModelFactory {
         case .theme: .iconPalette
         case .currency: .iconDollar
         case .revoke: .iconRevoke
+        case .paymentHistory: .iconFile
         case .linkedDevices: .iconLaptopMinimal
         case .apps: .iconGrid
         case .blockedUsers: .iconBlock
@@ -99,6 +102,7 @@ private extension SettingsViewModelFactory {
             }
         case .backup,
              .revoke,
+             .paymentHistory,
              .linkedDevices,
              .apps,
              .blockedUsers,

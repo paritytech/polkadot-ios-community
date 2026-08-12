@@ -8,6 +8,7 @@ protocol AppPermissionsViewProtocol: ControllerBackedProtocol {
     func setTitle(_ title: String)
 }
 
+@MainActor
 protocol AppPermissionsPresenterProtocol: AnyObject {
     func setup()
     func toggle(_ item: AppPermissionsViewLayout.Item, isOn: Bool)
@@ -24,4 +25,5 @@ protocol AppPermissionsInteractorOutputProtocol: AnyObject {
     func didReceive(grants: [ProductPermissionGrant])
 }
 
+@MainActor
 protocol AppPermissionsWireframeProtocol: AnyObject, AlertPresentable {}

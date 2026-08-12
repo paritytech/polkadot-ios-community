@@ -2,8 +2,10 @@ import Foundation
 import Keystore_iOS
 import ExtrinsicService
 import SubstrateSdk
+import SubstrateSdkExt
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol ExtrinsicOriginFactoryProtocol {
     func createSignedOrigin(

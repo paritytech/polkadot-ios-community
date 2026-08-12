@@ -1,5 +1,6 @@
 import SwiftUI
 import DesignSystem
+import ExternalAccessibility
 
 public struct GameStateView: View, Hashable {
     private let viewModel: GameStateViewModel
@@ -11,10 +12,21 @@ public struct GameStateView: View, Hashable {
     public var body: some View {
         VStack(spacing: 8) {
             framedCard
+                .accessibilityId(cardAccessibilityId)
             externalContentView
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
+    }
+
+    private var cardAccessibilityId: (any AccessibilityIdentifying)? {
+        switch viewModel.state {
+        case .register:
+            AccessibilityID.Game.registerMessage
+        case .registered,
+             .starting:
+            nil
+        }
     }
 
     @ViewBuilder
@@ -160,6 +172,7 @@ public struct GameStateView: View, Hashable {
                 ? AnyButtonStyle(GameGradientButtonStyle())
                 : AnyButtonStyle(GameDisabledButtonStyle())
         )
+        .accessibilityId(AccessibilityID.Game.registerButton)
     }
 }
 

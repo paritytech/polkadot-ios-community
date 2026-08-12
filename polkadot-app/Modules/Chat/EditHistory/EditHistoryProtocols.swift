@@ -5,6 +5,7 @@ protocol EditHistoryViewProtocol: AnyObject {
     func didReceive(viewModel: EditHistoryViewModel)
 }
 
+@MainActor
 protocol EditHistoryPresenterProtocol: AnyObject {
     func setup()
 }

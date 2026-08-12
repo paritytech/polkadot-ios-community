@@ -7,6 +7,7 @@ protocol TattooPhotoPreviewViewProtocol: ControllerBackedProtocol {
     func didStopLoading()
 }
 
+@MainActor
 protocol TattooPhotoPreviewPresenterProtocol: AnyObject {
     func setup()
     func finishPreview()
@@ -19,12 +20,14 @@ protocol TattooPhotoViewInteractorInputProtocol: AnyObject {
     func discardPhotoEvidence()
 }
 
+@MainActor
 protocol TattooPhotoViewInteractorOutputProtocol: AnyObject {
     func didReceive(photoPreview: UIImage)
     func didInitiateEvidenceUploading()
     func didReceive(error: TattooPhotoPreviewInteractorError)
 }
 
+@MainActor
 protocol TattooPhotoPreviewWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryable {
     func showDiscardConfirmation(on view: TattooPhotoPreviewViewProtocol?, model: DiscardEvidenceModel)
     func goBackToCapturePhoto(from view: TattooPhotoPreviewViewProtocol?)

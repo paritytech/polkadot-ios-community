@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import AssetExchange
+import ChainRegistry
 
 protocol AssetPriceConverting {
     func convert(fiatAmount: Decimal, to chainAssetId: ChainAssetId) throws -> Balance

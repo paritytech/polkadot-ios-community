@@ -1,7 +1,9 @@
 import Foundation
 import Keystore_iOS
 import NovaCrypto
+import ChainRegistry
 
+@MainActor
 enum CheckUsernameViewFactory {
     static func createView(with observer: RootStateObserving) -> CheckUsernameViewProtocol? {
         let chainRegistry = ChainRegistryFacade.sharedRegistry

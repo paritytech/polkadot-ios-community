@@ -12,7 +12,7 @@ extension UnreadMessageCountService: UnreadMessageCountServicing {
         ChatMessageDataProviderFactory()
             .subscribeMessages(with: Self.badgeCountPredicate())
             .map { messages in
-                messages.count
+                Set(messages.map(\.groupingId)).count
             }
             .removeDuplicates()
             .eraseToAnyAsyncSequence()

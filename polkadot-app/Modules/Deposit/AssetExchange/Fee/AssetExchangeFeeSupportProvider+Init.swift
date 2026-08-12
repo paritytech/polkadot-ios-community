@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import AssetExchange
+import ChainRegistry
 
 extension AssetsExchangeFeeSupportProvider {
     convenience init(

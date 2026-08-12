@@ -3,6 +3,7 @@ import Foundation
 import PolkadotUI
 import UIKit
 
+@MainActor
 enum EditHistoryViewFactory {
     static func createView(messageId: String) -> EditHistoryViewController {
         let timestampFormatter = ContactTimestampFormatter()

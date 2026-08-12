@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import Keystore_iOS
 
+@MainActor
 enum ChatRequestListViewFactory {
     static func createView(for flowState: ChatFlowState) -> ChatRequestListViewProtocol? {
         let interactor = ChatRequestListInteractor(

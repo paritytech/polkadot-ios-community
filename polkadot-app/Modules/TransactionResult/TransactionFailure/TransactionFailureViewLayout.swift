@@ -4,28 +4,26 @@ import PolkadotUI
 
 final class TransactionFailureViewLayout: UIView {
     let iconView: GenericBorderedView<UIImageView> = .create { view in
-        view.backgroundView.applyBackgroundStyle(.systemError, cornerRadius: 40)
+        view.backgroundView.applyBackgroundStyle(.bgStatusError, cornerRadius: 40)
         view.contentInsets = UIEdgeInsets(top: 20, left: 20, bottom: 20, right: 20)
         view.contentView.image = .cross40
     }
 
-    let titleLabel: UILabel = .create { view in
-        view.font = .semibold24
-        view.textColor = .textAndIconsPrimaryDark
+    let titleLabel: Label = .create { view in
+        view.typography = .headlineSmall
+        view.textColor = .fgPrimary
         view.numberOfLines = 0
         view.textAlignment = .center
     }
 
-    let detailsLabel: UILabel = .create { view in
-        view.font = .body14
-        view.textColor = .textAndIconsSecondary
+    let detailsLabel: Label = .create { view in
+        view.typography = .bodyMedium
+        view.textColor = .fgSecondary
         view.numberOfLines = 0
         view.textAlignment = .center
     }
 
-    let actionButton: RoundedButton = .create { button in
-        button.applyMainStyle()
-    }
+    let actionButton = DSButtonView("", size: .large, expands: true)
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -64,7 +62,7 @@ final class TransactionFailureViewLayout: UIView {
             make.centerX.equalToSuperview()
             make.leading.equalToSuperview().inset(UIConstants.horizontalInsetWide)
             make.bottom.equalTo(safeAreaLayoutGuide.snp.bottom).offset(-20)
-            make.height.equalTo(UIConstants.actionHeight)
+            make.height.equalTo(actionButton.proposedHeight)
         }
     }
 }

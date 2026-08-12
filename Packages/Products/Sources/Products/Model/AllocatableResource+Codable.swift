@@ -17,7 +17,7 @@ extension AllocatableResource: Decodable {
         case "BulletinAllowance":
             self = .bulletInAllowance
         case "SmartContractAllowance":
-            let dest = try container.decode(UInt32.self, forKey: .dest)
+            let dest = try container.decode(ProductAccountSelector.self, forKey: .dest)
             self = .smartContractAllowance(dest: dest)
         case "AutoSigning":
             self = .autoSigning
@@ -71,13 +71,11 @@ extension AllocationOutcome: Encodable {
 
 extension AutoSigningSecrets: Encodable {
     enum CodingKeys: String, CodingKey {
-        case productDerivationSecret
         case productRootPrivateKey
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(productDerivationSecret, forKey: .productDerivationSecret)
         try container.encode(
             productRootPrivateKey.toHex(includePrefix: true),
             forKey: .productRootPrivateKey

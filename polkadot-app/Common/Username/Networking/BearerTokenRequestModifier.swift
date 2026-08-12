@@ -9,6 +9,7 @@ final class BearerTokenRequestModifier: HttpRequestModifier {
     }
 
     func visit(request: inout URLRequest) throws {
+        guard !token.isEmpty else { return }
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
     }
 }

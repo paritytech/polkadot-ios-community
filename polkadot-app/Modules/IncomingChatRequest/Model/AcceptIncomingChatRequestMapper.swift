@@ -84,6 +84,12 @@ private extension AcceptIncomingChatRequestMapper {
             messageExchangeMode: messageExchangeMode,
             acceptorDevice: acceptorDevice
         )
+
+        try markPendingDevicesFanOut(
+            for: remote.peerAccountId,
+            request: entity,
+            using: context
+        )
     }
 
     func populateExisting(
@@ -104,6 +110,7 @@ private extension AcceptIncomingChatRequestMapper {
         entity.status = Chat.RequestStatus.incoming(.accepted).rawValue
         entity.touchParent()
         entity.contact?.acceptedAt = Date()
+        entity.contact?.pendingDevicesFanOut = true
         entity.contact = nil
 
         try context.setupAcceptMessage(
@@ -112,6 +119,15 @@ private extension AcceptIncomingChatRequestMapper {
             messageExchangeMode: messageExchangeMode,
             acceptorDevice: acceptorDevice
         )
+    }
+
+    func markPendingDevicesFanOut(
+        for peerAccountId: AccountId,
+        request: CDChatRequest,
+        using context: NSManagedObjectContext
+    ) throws {
+        let contact = try request.contact ?? context.first(for: .contact(for: peerAccountId))
+        contact?.pendingDevicesFanOut = true
     }
 }
 

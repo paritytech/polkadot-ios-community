@@ -2,6 +2,7 @@ import Foundation
 import PolkadotUI
 import UIKit.UIImage
 
+@MainActor
 final class ChatRequestListPresenter {
     weak var view: ChatRequestListViewProtocol?
     let wireframe: ChatRequestListWireframeProtocol

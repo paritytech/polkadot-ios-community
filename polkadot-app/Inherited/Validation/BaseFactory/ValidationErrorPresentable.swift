@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol ValidationErrorPresentable {
     func presentEnterAmount(
         from view: ControllerValidationResultPresentable,

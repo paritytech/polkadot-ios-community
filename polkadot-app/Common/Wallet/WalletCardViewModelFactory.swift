@@ -1,5 +1,6 @@
 import Foundation
 import PolkadotUI
+import ChainRegistry
 
 protocol WalletCardViewModelFactoryProtocol {
     func createAssetViewModel(from asset: ChainAsset) -> WalletCardCreateViewModel

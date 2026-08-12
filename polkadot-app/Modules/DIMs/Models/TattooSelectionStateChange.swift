@@ -36,7 +36,8 @@ struct TattooSelectionStateChange: BatchStorageSubscriptionResult {
             values: values,
             mappingKey: Key.nextPersonalId.rawValue,
             context: context
-        ).map { $0.wrappedValue ?? 0 }
+        )
+        .map { $0.wrappedValue ?? 0 }
     }
 }
 

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum DiscardEvidenceViewFactory {
     static func createView(for model: DiscardEvidenceModel) -> DiscardEvidenceViewProtocol? {
         let wireframe = DiscardEvidenceWireframe()

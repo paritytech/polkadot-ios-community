@@ -21,7 +21,8 @@ extension CoreDataMapperTests {
         func roundTrip() async throws {
             let metadata = Data("test-metadata".utf8)
             let original = MixnetDownload(
-                metadataHashHex: "aabb01",
+                entryHashHex: "aabb01",
+                entryType: .metadata,
                 lastChunkIndex: 3,
                 totalChunks: 10,
                 metadata: metadata,
@@ -37,17 +38,44 @@ extension CoreDataMapperTests {
                 ).asyncExecute()
             )
 
-            #expect(result.metadataHashHex == original.metadataHashHex)
+            #expect(result.entryHashHex == original.entryHashHex)
+            #expect(result.entryType == original.entryType)
             #expect(result.lastChunkIndex == original.lastChunkIndex)
             #expect(result.totalChunks == original.totalChunks)
             #expect(result.metadata == metadata)
             #expect(result.downloadedBytes == original.downloadedBytes)
         }
 
+        @Test("roundTrip preserves inline entry type")
+        func roundTripInline() async throws {
+            let original = MixnetDownload(
+                entryHashHex: "ccdd02",
+                entryType: .inline,
+                lastChunkIndex: -1,
+                totalChunks: 0,
+                metadata: nil,
+                downloadedBytes: 512
+            )
+
+            try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
+
+            let result = try #require(
+                try await repo.fetchOperation(
+                    by: { original.identifier },
+                    options: .init()
+                ).asyncExecute()
+            )
+
+            #expect(result.entryType == .inline)
+            #expect(result.metadata == nil)
+            #expect(result.downloadedBytes == 512)
+        }
+
         @Test("chunkIndex mapper updates existing entity")
         func chunkIndexUpdatesEntity() async throws {
             let original = MixnetDownload(
-                metadataHashHex: "dd01",
+                entryHashHex: "dd01",
+                entryType: .metadata,
                 lastChunkIndex: -1,
                 totalChunks: 5,
                 metadata: Data("meta".utf8),
@@ -57,7 +85,7 @@ extension CoreDataMapperTests {
             try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
 
             let update = MixnetDownloadChunkIndex(
-                metadataHashHex: "dd01",
+                entryHashHex: "dd01",
                 lastChunkIndex: 2,
                 downloadedBytes: 2_048
             )
@@ -75,12 +103,13 @@ extension CoreDataMapperTests {
             #expect(result.downloadedBytes == 2_048)
             #expect(result.metadata == Data("meta".utf8))
             #expect(result.totalChunks == 5)
+            #expect(result.entryType == .metadata)
         }
 
         @Test("chunkIndex mapper throws for missing entity")
         func chunkIndexThrowsForMissing() async throws {
             let update = MixnetDownloadChunkIndex(
-                metadataHashHex: "nonexistent",
+                entryHashHex: "nonexistent",
                 lastChunkIndex: 0,
                 downloadedBytes: 100
             )

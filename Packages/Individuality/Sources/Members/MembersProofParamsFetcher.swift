@@ -137,13 +137,24 @@ extension MembershipProofParamsFetcher: MembershipProofParamsFetching {
         .asyncExecute()
         .first?.value
 
-        guard let keys = try await ringKeys, let ringSize = try await collection?.ringSize else {
+        async let revision: MembersPallet.RevisionIndex? = fetchCurrentRevision(
+            for: ringIndex,
+            collectionId: collectionId,
+            blockHash: blockHash
+        )
+
+        guard
+            let keys = try await ringKeys,
+            let ringSize = try await collection?.ringSize,
+            let revision = try await revision
+        else {
             return nil
         }
 
-        return try MembersProofParams(
+        return MembersProofParams(
             ringMembers: keys.includedMembers,
-            ringSize: ringSize.domainSize
+            ringSize: ringSize.domainSize,
+            revision: revision
         )
     }
 

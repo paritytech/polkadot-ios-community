@@ -1,5 +1,6 @@
 import UIKit
 import DesignSystem
+import ExternalAccessibility
 
 internal import SnapKit
 
@@ -31,6 +32,7 @@ public final class EmojiPickerInlineView: UIView {
         self.sections = sections
         super.init(frame: .zero)
         setupView()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -190,5 +192,13 @@ public enum EmojiPickerInline {
             self.title = title
             self.emojis = emojis
         }
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension EmojiPickerInlineView: AccessibilityBound {
+    public var accessibilityBindings: [AccessibilityBinding] {
+        [.init(self, AccessibilityID.Chat.reactionEmojiPanel)]
     }
 }

@@ -24,14 +24,16 @@ final class SVGImageProcessor: ImageProcessor {
 final class RemoteImageSerializer: CacheSerializer {
     static let shared = RemoteImageSerializer()
 
-    private lazy var internalCache = FormatIndicatedCacheSerializer.png
+    // `static let` (not stored `lazy var`): RemoteImageSerializer is Sendable, so instance storage must be immutable.
+    // Value is a stateless constant shared across instances.
+    private static let internalCache = FormatIndicatedCacheSerializer.png
 
     func data(with image: KFCrossPlatformImage, original: Data?) -> Data? {
-        internalCache.data(with: image, original: original)
+        Self.internalCache.data(with: image, original: original)
     }
 
     func image(with data: Data, options: KingfisherParsedOptionsInfo) -> KFCrossPlatformImage? {
-        if let uiImage = internalCache.image(with: data, options: options) {
+        if let uiImage = Self.internalCache.image(with: data, options: options) {
             return uiImage
         } else {
             let imsvg = SVGKImage(data: data)

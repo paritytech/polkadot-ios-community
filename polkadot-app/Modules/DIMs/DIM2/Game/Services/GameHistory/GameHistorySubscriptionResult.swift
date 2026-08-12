@@ -29,13 +29,15 @@ struct GameHistorySubscriptionResult: BatchStorageSubscriptionResult {
             values: values,
             mappingKey: Key.globalGameIndex.rawValue,
             context: context
-        ).map { $0?.value }
+        )
+        .map { $0?.value }
 
         attendanceHistory = try UncertainStorage<[StringCodable<GamePallet.GameIndex>]?>(
             values: values,
             mappingKey: Key.attendanceHistory.rawValue,
             context: context
-        ).map {
+        )
+        .map {
             guard let array = $0?.map(\.wrappedValue) else {
                 return nil
             }

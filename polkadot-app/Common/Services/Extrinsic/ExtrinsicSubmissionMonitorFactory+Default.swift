@@ -1,4 +1,5 @@
 import Foundation
+import ChainRegistry
 
 extension ExtrinsicSubmissionMonitorFacade {
     static func `default`() -> ExtrinsicSubmissionMonitorFacade {

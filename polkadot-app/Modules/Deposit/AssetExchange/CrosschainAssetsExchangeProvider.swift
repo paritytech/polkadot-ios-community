@@ -5,6 +5,7 @@ import AssetExchange
 import ExtrinsicService
 import XcmTransfer
 import KeyDerivation
+import ChainRegistry
 
 final class CrosschainAssetsExchangeProvider: AssetsExchangeBaseProvider {
     private var xcmTransfers: XcmTransfers?
@@ -78,7 +79,7 @@ final class CrosschainAssetsExchangeProvider: AssetsExchangeBaseProvider {
             chainRegistry: chainRegistry,
             substrateStorageFacade: substrateStorageFacade,
             customFeeEstimator: customFeeEstimatingFactory,
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             extrinsicVersion: .V4,
             operationQueue: operationQueue
         )

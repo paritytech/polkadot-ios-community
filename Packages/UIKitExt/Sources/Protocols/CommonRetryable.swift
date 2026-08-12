@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 public protocol CommonRetryable {
     // swiftlint:disable:next function_parameter_count
     func presentRequestStatus(

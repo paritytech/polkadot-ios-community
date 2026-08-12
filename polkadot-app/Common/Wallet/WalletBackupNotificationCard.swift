@@ -1,4 +1,5 @@
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -31,6 +32,7 @@ struct WalletBackupNotificationCard: View {
                 ) {
                     onCancel?()
                 }
+                .accessibilityId(AccessibilityID.Wallet.backupNotificationCloseButton)
                 DSButton(
                     .Common.update,
                     style: .primary,

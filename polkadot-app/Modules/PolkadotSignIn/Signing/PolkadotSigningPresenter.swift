@@ -2,6 +2,7 @@ import Foundation
 import PolkadotUI
 import Keystore_iOS
 
+@MainActor
 final class PolkadotSigningPresenter {
     weak var view: PolkadotSigningViewProtocol?
 

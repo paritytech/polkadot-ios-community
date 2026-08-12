@@ -8,6 +8,7 @@ import KeyDerivation
 import BandersnatchApi
 import SubstrateOperation
 import AsyncExtensions
+import BackgroundExecution
 
 @testable import Coinage
 
@@ -350,6 +351,15 @@ extension TransferSenderServiceTests {
 
         func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header> {
             AsyncStream<Block.Header> { _ in }.eraseToAnyAsyncSequence()
+        }
+    }
+
+    /// Runs the operation inline, no OS background assertion — deterministic for tests.
+    struct InlineBackgroundExecutor: BackgroundExecuting {
+        func execute<T: Sendable>(
+            _ operation: @escaping @Sendable () async throws -> T
+        ) async throws -> T {
+            try await operation()
         }
     }
 }

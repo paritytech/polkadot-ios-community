@@ -5,7 +5,8 @@ protocol IncomingMessageChanneling {
 
     func sendResponse(
         with responseCode: MessageExchange.ResponseCode,
-        forRequestId requestId: String
+        forRequestId requestId: String,
+        route: PeerSessionRoute
     )
 }
 
@@ -14,18 +15,23 @@ protocol IncomingMessageChanneling {
 final class AnyIncomingMessageChannel<M: MessageExchange.CodableMessage>: IncomingMessageChanneling {
     typealias Message = M
 
-    private let sendResponseClosure: (MessageExchange.ResponseCode, String) -> Void
+    private let sendResponseClosure: (
+        MessageExchange.ResponseCode,
+        String,
+        PeerSessionRoute
+    ) -> Void
 
     init<Channel: IncomingMessageChanneling>(_ targetChannel: Channel) where Channel.Message == M {
-        sendResponseClosure = { code, requestId in
-            targetChannel.sendResponse(with: code, forRequestId: requestId)
+        sendResponseClosure = { code, requestId, route in
+            targetChannel.sendResponse(with: code, forRequestId: requestId, route: route)
         }
     }
 
     func sendResponse(
         with responseCode: MessageExchange.ResponseCode,
-        forRequestId requestId: String
+        forRequestId requestId: String,
+        route: PeerSessionRoute
     ) {
-        sendResponseClosure(responseCode, requestId)
+        sendResponseClosure(responseCode, requestId, route)
     }
 }

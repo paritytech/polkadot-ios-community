@@ -43,6 +43,7 @@ public final class ChatViewLayout: DiffableCollectionViewProviderView<String, St
 
     private var isInitialScrollDone = false
     private var isAutoScrolling = false
+    private var pendingSendScroll = false
     private var scrollDownButtonVisible = false
     private var scrollToReactionButtonVisible = false
     private var dismissedReactionTargetId: String?
@@ -215,7 +216,6 @@ public extension ChatViewLayout {
             footer: viewModel.footerConfiguration
         )
 
-        updateScrollDownButtonVisibility()
         updateScrollToReactionButtonVisibility()
     }
 
@@ -321,7 +321,7 @@ private extension ChatViewLayout {
     /// Updates the view with new content
     /// Scroll behavior:
     /// - On initial load (!isInitialScrollDone): scroll to firstUnreadMessage or bottom
-    /// - On subsequent updates: only auto-scroll if user is already at bottom
+    /// - On subsequent updates: only auto-scroll if user is already at bottom or just sent a message
     /// - If user has scrolled away: maintain their position
     func updateView(
         sections: [Section],
@@ -439,7 +439,10 @@ private extension ChatViewLayout {
     }
 
     private func makeAutoScrollResult() -> AutoScrollResult {
-        guard !isInitialScrollDone || isAtBottom() else {
+        let shouldScroll = !isInitialScrollDone || pendingSendScroll || isAtBottom()
+        pendingSendScroll = false
+
+        guard shouldScroll else {
             return AutoScrollResult(
                 closure: nil,
                 isInitialScrolling: false
@@ -450,9 +453,9 @@ private extension ChatViewLayout {
 
         let closure: () -> Void = { [weak self] in
             guard let self else { return }
-            isAutoScrolling = true
             performScrollToBottom(animated: animated)
             isInitialScrollDone = true
+            updateScrollDownButtonVisibility()
         }
 
         return AutoScrollResult(
@@ -473,26 +476,23 @@ private extension ChatViewLayout {
         scrollToBottom(animated: animated)
     }
 
-    /// Checks if the user is currently scrolled to the bottom of the chat
-    /// Returns true if:
-    /// - Content is scrolled within tolerance of the bottom
-    /// - Content fits entirely in the visible area
     private func isAtBottom() -> Bool {
-        let contentHeight = collectionView.contentSize.height
-        let visibleHeight = collectionView.bounds.height
-        let bottomInset = collectionView.adjustedContentInset.bottom
+        let lastSection = collectionView.numberOfSections - 1
+        guard lastSection >= 0 else { return true }
+        let lastItem = collectionView.numberOfItems(inSection: lastSection) - 1
+        guard lastItem >= 0 else { return true }
 
-        // Bottom edge of the visible area above the keyboard/input bar.
-        let visibleBottomY = collectionView.contentOffset.y + visibleHeight - bottomInset
-        let tolerance: CGFloat = 40
-
-        // If the chat content fits within the visible area or is empty, we are considered "at the bottom".
-        let availableHeight = visibleHeight - bottomInset - collectionView.adjustedContentInset.top
-        if contentHeight <= availableHeight || contentHeight == 0 {
+        let lastIndexPath = IndexPath(item: lastItem, section: lastSection)
+        guard let lastAttributes = collectionView.layoutAttributesForItem(at: lastIndexPath) else {
             return true
         }
 
-        return visibleBottomY >= (contentHeight - tolerance)
+        let maxHiddenPart: CGFloat = 40
+
+        let visibleBottom = collectionView.bounds.maxY - collectionView.adjustedContentInset.bottom
+        let hiddenPart = lastAttributes.frame.maxY - visibleBottom
+
+        return hiddenPart < maxHiddenPart
     }
 
     private func scrollToBottom(animated: Bool) {
@@ -501,6 +501,9 @@ private extension ChatViewLayout {
               let lastItem = snapshot.itemIdentifiers(inSection: lastSection).last,
               let lastIndexPath = dataSource.indexPath(for: lastItem) else {
             return
+        }
+        if animated {
+            isAutoScrolling = true
         }
         collectionView.scrollToItem(at: lastIndexPath, at: .bottom, animated: animated)
     }
@@ -511,6 +514,9 @@ private extension ChatViewLayout {
         position: UICollectionView.ScrollPosition = .top
     ) {
         guard let indexPath = dataSource.indexPath(for: itemIdentifier) else { return }
+        if animated {
+            isAutoScrolling = true
+        }
         collectionView.scrollToItem(at: indexPath, at: position, animated: animated)
     }
 
@@ -732,6 +738,7 @@ extension ChatViewLayout: ChatInputHandling {
             onEditSendTap?(editingMessageId, text)
             clearEditContext()
         } else {
+            pendingSendScroll = true
             onSendTap?(text, replyToMessageId)
             clearReplyContext()
         }

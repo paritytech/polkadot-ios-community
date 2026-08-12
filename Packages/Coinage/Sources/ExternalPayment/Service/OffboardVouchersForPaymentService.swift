@@ -11,9 +11,9 @@ import SubstrateSdkExt
 /// and records state changes via ``ExternalPaymentTransferContext``.
 ///
 /// Each group's call must independently satisfy the pallet invariant:
-/// `input_value (= coin_value * alias_count) == external_asset_amount + sum(new_voucher_values)`
+/// `input_value (= coin_value * alias_count) == external_asset_amount + sum(loaded_coin_values)`
 ///
-/// Groups with surplus use `unload_recycler_into_external_asset_and_vouchers`.
+/// Groups with surplus use `unload_recycler_into_external_asset_and_loaded_coins`.
 /// Groups without surplus use `unload_recycler_into_external_asset`.
 final class OffboardVouchersForPaymentService {
     private let voucherKeyFactory: any VoucherKeyDeriving
@@ -347,23 +347,23 @@ private extension OffboardVouchersForPaymentService {
         aliases: [Data],
         key: RecyclerKey,
         submission: GroupSubmission
-    ) throws -> CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndVouchers {
-        let newVoucherEntries = try submission.details.surplusVouchers.map { voucher in
+    ) throws -> CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins {
+        let loadedCoinEntries = try submission.details.surplusVouchers.map { voucher in
             let memberKey = try voucherKeyFactory.derivePublicKey(for: voucher)
-            return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndVouchers.NewVoucher(
+            return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins.LoadedCoin(
                 coinValue: Int8(voucher.exponent),
                 memberKey: memberKey
             )
         }
 
-        return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndVouchers(
+        return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins(
             aliases: aliases,
             value: Int8(key.exponent),
             index: key.index,
             revision: submission.revision,
             to: submission.destination,
             externalAssetAmount: submission.details.externalAssetAmount,
-            newVouchers: newVoucherEntries
+            loadedCoins: loadedCoinEntries
         )
     }
 }

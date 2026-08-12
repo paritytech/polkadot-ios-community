@@ -29,6 +29,7 @@ enum ValidationResult {
     }
 }
 
+@MainActor
 protocol ValidationResultPresentable {
     func didReceiveValidation(result: ValidationResult)
 }

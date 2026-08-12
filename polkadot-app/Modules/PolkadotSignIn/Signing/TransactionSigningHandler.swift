@@ -1,5 +1,6 @@
 import Foundation
 import Products
+import ChainRegistry
 
 enum TransactionSigningHandlerError: Error {
     case signingUnavailable
@@ -15,13 +16,13 @@ protocol TransactionSigningHandling {
 final class TransactionSigningHandler: TransactionSigningHandling {
     private let pgasSponsor: PGasTransactionSponsoring
     private let chainRegistry: ChainRegistryProtocol
-    private let router: SigningRouting
+    private let router: ProductsRouting
     private let logger: LoggerProtocol
 
     init(
         pgasSponsor: PGasTransactionSponsoring,
         chainRegistry: ChainRegistryProtocol,
-        router: SigningRouting,
+        router: ProductsRouting,
         logger: LoggerProtocol
     ) {
         self.pgasSponsor = pgasSponsor
@@ -39,7 +40,7 @@ final class TransactionSigningHandler: TransactionSigningHandling {
         try await tryPGasSponsoring(for: model)
 
         let presented = await MainActor.run {
-            router.presentSigning(with: context) != nil
+            router.showSigning(with: context)
         }
 
         guard presented else {
@@ -61,6 +62,10 @@ private extension TransactionSigningHandler {
                 callData: payload.callData,
                 genesisHash: payload.genesisHash
             )
+        case .legacyRawPayload,
+             .legacyCreateTransaction,
+             .legacySignPayload:
+            break
         }
     }
 

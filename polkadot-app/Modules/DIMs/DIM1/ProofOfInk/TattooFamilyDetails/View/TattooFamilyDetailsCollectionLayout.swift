@@ -54,13 +54,12 @@ private extension TattooFamilyDetailsCollectionLayout {
         )
 
         let item = NSCollectionLayoutItem(layoutSize: itemSize)
-
         let group = NSCollectionLayoutGroup.horizontal(
             layoutSize: NSCollectionLayoutSize(
                 widthDimension: .fractionalWidth(1.0),
                 heightDimension: .absolute(itemWidth)
             ),
-            subitem: item,
+            repeatingSubitem: item,
             count: Constants.numberOfItemsPerRow
         )
         group.interItemSpacing = .fixed(Constants.interItemSpacing)

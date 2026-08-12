@@ -9,6 +9,7 @@ protocol TattooListViewProtocol: ControllerBackedProtocol {
     func didReceive(tattooApplyActivity active: Bool)
 }
 
+@MainActor
 protocol TattooListPresenterProtocol: AnyObject {
     func setup()
     func updateOnAppear()
@@ -33,6 +34,7 @@ protocol TattooListInteractorInputProtocol: AnyObject {
     #endif
 }
 
+@MainActor
 protocol TattooListInteractorOutputProtocol: AnyObject {
     func didReceiveDesignFamilies(_ families: ProofOfInkPallet.DesignFamiliesResult)
     func didReceiveReservedDesigns(_ reservedDesigns: ProofOfInkPallet.ReservedDesignsResult)
@@ -48,6 +50,7 @@ protocol TattooListInteractorOutputProtocol: AnyObject {
     func didReceiveTopUp(inProgress: Bool)
 }
 
+@MainActor
 protocol TattooListWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryable {
     func showTattooCollection(
         from view: TattooListViewProtocol?,

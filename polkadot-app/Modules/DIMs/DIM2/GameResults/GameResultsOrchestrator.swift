@@ -45,6 +45,7 @@ final class GameResultsOrchestrator {
 }
 
 private extension GameResultsOrchestrator {
+    // swiftlint:disable:next cyclomatic_complexity
     func handle(_ event: GameResultsInboundEvent) {
         logger.debug("[GameDebug] webview→app event=\(event)")
         switch event {

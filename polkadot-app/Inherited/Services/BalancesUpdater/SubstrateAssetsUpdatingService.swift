@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import EventCenter
 
 final class SubstrateAssetsUpdatingService: AssetBalanceBatchBaseUpdatingService {
     private let remoteSubscriptionService: BalanceRemoteSubscriptionServiceProtocol
@@ -127,7 +129,7 @@ final class SubstrateAssetsUpdatingService: AssetBalanceBatchBaseUpdatingService
     }
 }
 
-extension SubstrateAssetsUpdatingService: EventVisitorProtocol {
+extension SubstrateAssetsUpdatingService: ChainRegistryEventVisiting {
     func processRuntimeCoderReady(event: RuntimeCoderCreated) {
         mutex.lock()
 

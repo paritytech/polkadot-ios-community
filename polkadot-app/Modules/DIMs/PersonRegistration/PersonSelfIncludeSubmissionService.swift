@@ -5,6 +5,7 @@ import SubstrateSdk
 import Operation_iOS
 import StructuredConcurrency
 import CommonService
+import ChainRegistry
 
 protocol SelfIncludeSubmitting: AnyObject {
     func submitSelfInclude(callValidAt: UInt64) async throws

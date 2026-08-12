@@ -7,7 +7,8 @@ protocol GameStateTransition: BaseObservableStateStore<GameStateMachine.State> {
     func throttle()
 }
 
-final class GameStateMachine: BaseObservableStateStore<GameStateMachine.State> {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class GameStateMachine: BaseObservableStateStore<GameStateMachine.State>, @unchecked Sendable {
     private let infoSyncService: GameInfoSyncServicing
     private let timelineService: GameTimelineServicing
 
@@ -37,6 +38,7 @@ final class GameStateMachine: BaseObservableStateStore<GameStateMachine.State> {
 
     deinit {
         logger.debug("Deinit")
+        gameTask?.cancel()
     }
 }
 
@@ -72,7 +74,6 @@ private extension GameStateMachine {
             observer: self,
             queue: workQueue
         ) { [weak self] _, timeIntervalSinceStart in
-            self?.logger.debug("Got new time interval since start")
             self?.timeIntervalSinceStart = timeIntervalSinceStart
             self?.updateState()
         }

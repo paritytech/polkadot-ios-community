@@ -17,53 +17,59 @@ enum CoinRecycleResult {
     case failed(Error)
 }
 
+/// Persisted recycling intent handed from `prepareRecycle` to the submission step.
+private struct PreparedRecycle {
+    let voucher: Voucher
+    let walEntry: TransferWALEntry
+    let origin: any ExtrinsicOriginDefining
+    let builder: ExtrinsicBuilderClosure
+}
+
 /// Schedules and executes coin recycling to prevent expiration.
 /// Processes eligible coins sequentially with three-way error handling per coin.
 actor CoinageRecyclingService {
-    private static let scheduledDateKey = "io.coinage.recycler.scheduledDate"
-
     private let coinService: CoinServiceProtocol
     private let voucherAllocator: any VoucherAllocating
     private let voucherRepository: AnyDataProviderRepository<Voucher>
     private let coinKeypairFactory: any CoinKeyDeriving
     private let voucherKeypairFactory: any VoucherKeyDeriving
-    private let extrinsicMonitorFactory: ExtrinsicSubmitMonitorFactoryProtocol
+    private let coordinator: ExtrinsicSubmissionCoordinating
+    private let walStore: any TransferWALStoring
     private let originFactory: OriginCreating
-    private let connection: JSONRPCEngine
     private let logger: SDKLoggerProtocol
-    private let settingsManager: SettingsManagerProtocol
 
     private let schedulerFactory: CoinRecycleSchedulerMaking
-    private let recyclingInterval: TimeInterval
+    private let backgroundRecyclingInterval: TimeInterval
+    private let mortality: UInt32
     private let recycleAtAge: Int16
 
     init(
         schedulerFactory: CoinRecycleSchedulerMaking,
-        settingsManager: SettingsManagerProtocol,
         coinService: CoinServiceProtocol,
         voucherAllocator: any VoucherAllocating,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         coinKeypairFactory: any CoinKeyDeriving,
         voucherKeypairFactory: any VoucherKeyDeriving,
-        extrinsicMonitorFactory: ExtrinsicSubmitMonitorFactoryProtocol,
+        coordinator: ExtrinsicSubmissionCoordinating,
+        walStore: any TransferWALStoring,
         originFactory: OriginCreating,
-        connection: JSONRPCEngine,
         logger: SDKLoggerProtocol,
-        recyclingInterval: TimeInterval,
+        backgroundRecyclingInterval: TimeInterval,
+        mortality: UInt32,
         recycleAtAge: Int16
     ) {
         self.schedulerFactory = schedulerFactory
-        self.settingsManager = settingsManager
         self.coinService = coinService
         self.voucherAllocator = voucherAllocator
         self.voucherRepository = voucherRepository
         self.coinKeypairFactory = coinKeypairFactory
         self.voucherKeypairFactory = voucherKeypairFactory
-        self.extrinsicMonitorFactory = extrinsicMonitorFactory
+        self.coordinator = coordinator
+        self.walStore = walStore
         self.originFactory = originFactory
-        self.connection = connection
         self.logger = logger
-        self.recyclingInterval = recyclingInterval
+        self.backgroundRecyclingInterval = backgroundRecyclingInterval
+        self.mortality = mortality
         self.recycleAtAge = recycleAtAge
     }
 }
@@ -80,35 +86,23 @@ extension CoinageRecyclingService: CoinageRecyclingServicing {
         }
     }
 
-    func scheduleRecycling() async {
-        guard let scheduledTimestamp = settingsManager.double(for: Self.scheduledDateKey) else {
-            logger.debug("No scheduled recycling task found, scheduling new one")
-            await scheduleTask()
-            return
-        }
-
-        guard Date(timeIntervalSince1970: scheduledTimestamp) <= .now else {
-            logger.debug("Recycling task already scheduled, skipping")
-            return
-        }
-
-        logger.debug("Recycle now and schedule next")
-
+    func recycleOldCoins() async {
         await runRecycling()
-        await scheduleTask()
+    }
+
+    func scheduleRecycling() async {
+        await ensureScheduled()
+        await runRecycling()
     }
 }
 
 // MARK: - Private
 
 private extension CoinageRecyclingService {
-    func scheduleTask() async {
-        let plannedDate = Date(timeIntervalSinceNow: recyclingInterval)
-        settingsManager.set(value: plannedDate.timeIntervalSince1970, for: Self.scheduledDateKey)
-
+    func ensureScheduled() async {
         await schedulerFactory
             .makeScheduler()
-            .schedule(earliestBegin: recyclingInterval)
+            .schedule(earliestBegin: backgroundRecyclingInterval)
     }
 
     func runRecycling() async {
@@ -129,6 +123,8 @@ private extension CoinageRecyclingService {
             var failedCount = 0
 
             for coin in eligibleCoins {
+                if Task.isCancelled { break }
+
                 let result = await recycleCoin(coin)
                 switch result {
                 case .recycled: recycledCount += 1
@@ -145,64 +141,108 @@ private extension CoinageRecyclingService {
         }
     }
 
-    /// Executes the full recycling flow for a single coin:
-    /// 1. Lock coin as .recycling
-    /// 2. Allocate voucher and derive keys
-    /// 3. Build and submit load_recycler_with_coin extrinsic
-    /// 4. Handle three-way result: success, post-inclusion failure, pre-submission error
+    /// Executes the full recycling flow for a single coin, durable across crashes via the WAL:
+    /// 1. `prepareRecycle` locks the coin, allocates the voucher, and persists voucher + WAL before submitting
+    /// 2. Submit `load_recycler_with_coin` through the WAL-aware coordinator (captures the checkpoint block)
+    /// 3. `resolveSubmission` commits the on-chain outcome and clears the WAL
+    ///
+    /// A pre-submission error reverts the coin. A thrown submission leaves the WAL entry + `.recycling`
+    /// state for startup recovery to resolve against the chain.
     func recycleCoin(_ coin: Coin) async -> CoinRecycleResult {
+        let prepared: PreparedRecycle
         do {
-            // Lock coin as .recycling before extrinsic submission
-            try await coinService.markRecycling(coinIds: [coin.identifier])
-
-            // Allocate voucher and derive keys
-            let voucher = try await voucherAllocator.allocate(exponent: coin.exponent)
-            let memberKey = try voucherKeypairFactory.derivePublicKey(for: voucher)
-            let keyManager = try voucherKeypairFactory.createKeyManager(for: voucher)
-            let coinPublicKey = try coinKeypairFactory.derivePublicKey(for: coin)
-            let proof = try keyManager.sign(coinPublicKey)
-
-            // Build call and origin
-            let call = CoinagePallet.Calls.LoadRecyclerWithCoin(
-                memberKey: memberKey,
-                proofOfOwnership: proof
-            )
-            let coinWallet = try CoinDerivedWallet(
-                privateKey: coinKeypairFactory.derivePrivateKey(for: coin),
-                publicKey: coinPublicKey
-            )
-            let origin = try originFactory.createAsCoinOrigin(for: coinWallet)
-
-            let builder: ExtrinsicBuilderClosure = {
-                try $0.adding(call: call.callAsFunction())
-            }
-
-            // Submit and monitor
-            let result = try await extrinsicMonitorFactory.submitAndMonitorWrapper(
-                extrinsicBuilderClosure: builder,
-                origin: origin,
-                params: .empty
-            ).asyncExecute()
-
-            // Handle result
-            switch result.status {
-            case .success:
-                try? await voucherRepository.saveOperation({ [voucher] }, { [] }).asyncExecute()
-                try? await coinService.markSpent(coinIds: [coin.identifier])
-                logger.debug("Recycled coin \(coin.derivationIndex) -> voucher \(voucher.derivationIndex)")
-                return .recycled(voucher)
-
-            case let .failure(error):
-                logger.warning("Coin \(coin.derivationIndex) destroyed on-chain: \(error)")
-                try? await coinService.markSpent(coinIds: [coin.identifier])
-                return .destroyed
-            }
+            prepared = try await prepareRecycle(coin)
         } catch {
-            // TODO: We still might have a corner case when connection failed but an extrinsic reached the node
-            // Pre-submission error: coin safe, revert to .available
             logger.error("Pre-submission error for coin \(coin.derivationIndex): \(error)")
             try? await coinService.markAvailable(coinIds: [coin.identifier])
             return .failed(error)
+        }
+
+        do {
+            let submission = try await coordinator.submit(
+                walEntryId: prepared.walEntry.id,
+                builder: prepared.builder,
+                origin: prepared.origin
+            )
+            return try await resolveSubmission(submission, coin: coin, prepared: prepared)
+        } catch {
+            logger.error("Submission error for coin \(coin.derivationIndex), leaving for recovery: \(error)")
+            return .failed(error)
+        }
+    }
+
+    /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`) + WAL entry
+    /// before submission so a crash mid-flight is recoverable. Throws before anything is broadcast.
+    func prepareRecycle(_ coin: Coin) async throws -> PreparedRecycle {
+        // Lock the coin first: a crash at any later point leaves a recoverable `.recycling` coin.
+        try await coinService.markRecycling(coinIds: [coin.identifier])
+
+        let voucher = try await voucherAllocator
+            .allocate(exponent: coin.exponent)
+            .withLocalState(.pendingOnboarding)
+
+        let memberKey = try voucherKeypairFactory.derivePublicKey(for: voucher)
+        let keyManager = try voucherKeypairFactory.createKeyManager(for: voucher)
+        let coinPublicKey = try coinKeypairFactory.derivePublicKey(for: coin)
+        let proof = try keyManager.sign(coinPublicKey)
+
+        let call = CoinagePallet.Calls.LoadRecyclerWithCoin(
+            memberKey: memberKey,
+            proofOfOwnership: proof
+        )
+        let coinWallet = try CoinDerivedWallet(
+            privateKey: coinKeypairFactory.derivePrivateKey(for: coin),
+            publicKey: coinPublicKey
+        )
+        let origin = try originFactory.createAsCoinOrigin(for: coinWallet)
+        let builder: ExtrinsicBuilderClosure = { try $0.adding(call: call.callAsFunction()) }
+
+        // Persist the voucher and WAL before submission so a crash mid-flight is recoverable.
+        try await voucherRepository.saveOperation(
+            { [voucher] },
+            { [] }
+        ).asyncExecute()
+
+        let walEntry = TransferWALEntry(
+            operationType: .recycleIntoVoucher,
+            inputCoinIds: [coin.identifier],
+            expectedVoucherIndices: [voucher.derivationIndex],
+            mortality: mortality
+        )
+        try await walStore.save(walEntry)
+
+        return PreparedRecycle(voucher: voucher, walEntry: walEntry, origin: origin, builder: builder)
+    }
+
+    /// Commits the on-chain outcome and clears the WAL: success keeps the voucher and spends the coin,
+    /// on-chain failure drops the voucher and spends the coin.
+    func resolveSubmission(
+        _ submission: ExtrinsicMonitorSubmission,
+        coin: Coin,
+        prepared: PreparedRecycle
+    ) async throws -> CoinRecycleResult {
+        switch submission.status {
+        case .success:
+            try await voucherRepository
+                .saveOperation(
+                    { [prepared.voucher.withLocalState(.available)] },
+                    { [] }
+                ).asyncExecute()
+            try await coinService.markSpent(coinIds: [coin.identifier])
+            try await walStore.delete(id: prepared.walEntry.id)
+            logger.debug("Recycled coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
+            return .recycled(prepared.voucher)
+
+        case let .failure(error):
+            logger.warning("Coin \(coin.derivationIndex) destroyed on-chain: \(error)")
+            try await coinService.markSpent(coinIds: [coin.identifier])
+            try await voucherRepository.saveOperation(
+                { [] },
+                { [prepared.voucher.identifier] }
+            ).asyncExecute()
+            try await walStore.delete(id: prepared.walEntry.id)
+
+            return .destroyed
         }
     }
 

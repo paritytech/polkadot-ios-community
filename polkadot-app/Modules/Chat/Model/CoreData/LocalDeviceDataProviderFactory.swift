@@ -2,11 +2,10 @@ import Foundation
 import Foundation_iOS
 import Operation_iOS
 import OperationExt
-import AsyncExtensions
 import CoreData
 
 protocol LocalDeviceDataProviderMaking {
-    func subscribeDevices() -> AnyAsyncSequence<[Chat.LocalDevice]>
+    func subscribeDevices() -> AsyncStream<[Chat.LocalDevice]>
 }
 
 final class LocalDeviceDataProviderFactory {
@@ -25,7 +24,7 @@ final class LocalDeviceDataProviderFactory {
 }
 
 extension LocalDeviceDataProviderFactory: LocalDeviceDataProviderMaking {
-    func subscribeDevices() -> AnyAsyncSequence<[Chat.LocalDevice]> {
+    func subscribeDevices() -> AsyncStream<[Chat.LocalDevice]> {
         let syncQueue = DispatchQueue(label: "io.local.device.provider.async.updates")
 
         return AsyncStream { [weak self] continuation in
@@ -47,7 +46,6 @@ extension LocalDeviceDataProviderFactory: LocalDeviceDataProviderMaking {
                 cache.clear(for: uuid)
             }
         }
-        .eraseToAnyAsyncSequence()
     }
 }
 

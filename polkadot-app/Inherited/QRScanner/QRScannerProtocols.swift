@@ -3,6 +3,7 @@ import AVFoundation
 import UIKitExt
 
 protocol QRScannerViewProtocol: ControllerBackedProtocol {
+    var isCoveredByModal: Bool { get }
     func didReceive(session: AVCaptureSession)
     func present(message: String, animated: Bool, autoDismiss: Bool)
 }
@@ -13,12 +14,14 @@ extension QRScannerViewProtocol {
     }
 }
 
+@MainActor
 protocol QRScannerWireframeProtocol {
     func askOpenSettings(from view: QRScannerViewProtocol?)
 }
 
+@MainActor
 protocol QRScannerPresenterProtocol: AnyObject {
     func setup()
-    func viewWillAppear()
-    func viewDidDisappear()
+    func viewDidAppear()
+    func viewWillDisappear()
 }

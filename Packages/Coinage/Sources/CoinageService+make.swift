@@ -10,6 +10,7 @@ import SubstrateSdk
 import SubstrateStorageQuery
 import SubstrateOperation
 import FoundationExt
+import BackgroundExecution
 
 public extension CoinageService {
     // swiftlint:disable:next function_body_length
@@ -38,10 +39,10 @@ public extension CoinageService {
         planStore: any ClaimPlanStoring,
         walStore: any TransferWALStoring,
         schedulerFactory: CoinRecycleSchedulerMaking,
-        settingsManager: SettingsManagerProtocol,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
-        recyclingInterval: TimeInterval = CoinageConstants.recyclingInterval,
+        backgroundRecyclingInterval: TimeInterval = CoinageConstants.backgroundRecyclingInterval,
+        backgroundExecutor: any BackgroundExecuting,
         logger: SDKLoggerProtocol
     ) -> CoinageService {
         let operationQueue = OperationQueue()
@@ -130,6 +131,7 @@ public extension CoinageService {
             planFactory: planFactory,
             memoBuilder: memoBuilder,
             recyclerLoader: readinessLoader,
+            backgroundExecutor: backgroundExecutor,
             logger: logger
         )
 
@@ -213,17 +215,17 @@ public extension CoinageService {
 
         let recyclingService = CoinageRecyclingService(
             schedulerFactory: schedulerFactory,
-            settingsManager: settingsManager,
             coinService: coinService,
             voucherAllocator: voucherAllocator,
             voucherRepository: voucherRepository,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
-            extrinsicMonitorFactory: extrinsicMonitorFactory,
+            coordinator: submissionCoordinator,
+            walStore: walStore,
             originFactory: originFactory,
-            connection: connection,
             logger: logger,
-            recyclingInterval: recyclingInterval,
+            backgroundRecyclingInterval: backgroundRecyclingInterval,
+            mortality: CoinageConstants.walMortality,
             recycleAtAge: CoinageConstants.recycleAtAge
         )
 

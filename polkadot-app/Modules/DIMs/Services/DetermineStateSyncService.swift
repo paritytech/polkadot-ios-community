@@ -6,6 +6,7 @@ import CommonService
 import SubstrateStorageSubscription
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol DetermineStateSyncServiceObserver: AnyObject {
     func determineStateSyncChanged(by change: DetermineStateSync.MainChange)

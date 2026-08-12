@@ -8,12 +8,15 @@ import Operation_iOS
 import Keystore_iOS
 import EventKit
 import Individuality
+import BackgroundExecution
+import StructuredConcurrency
 
 final class DIM2ChatInteractor {
     let dependencies: DIM2Depending
     let logger: LoggerProtocol
 
     private let gameVoteRepositoryFactory: GameVoteRepositoryMaking
+    private let backgroundExecutor: BackgroundExecuting
 
     // Calendar & Notifications
     private let gameCalendarService: GameCalendarServicing
@@ -31,6 +34,7 @@ final class DIM2ChatInteractor {
 
     // Airdrop
     private let airdropRegistrationStore: AirdropRegistrationStoring
+    private let localNetworkPermissionService: LocalNetworkPermissionServicing
 
     // MARK: - State Actor
 
@@ -72,7 +76,9 @@ final class DIM2ChatInteractor {
         balanceTrackingFactory: BalanceTrackingFactoryProtocol,
         requiredBalanceOperationFactory: GamePalletBalanceFactoryProtocol,
         remainingGamesOperationFactory: RemainingGamesOperationMaking,
+        backgroundExecutor: BackgroundExecuting,
         airdropRegistrationStore: AirdropRegistrationStoring = AirdropRegistrationStore(),
+        localNetworkPermissionService: LocalNetworkPermissionServicing,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.dependencies = dependencies
@@ -83,7 +89,9 @@ final class DIM2ChatInteractor {
         self.balanceTrackingFactory = balanceTrackingFactory
         self.requiredBalanceOperationFactory = requiredBalanceOperationFactory
         self.remainingGamesOperationFactory = remainingGamesOperationFactory
+        self.backgroundExecutor = backgroundExecutor
         self.airdropRegistrationStore = airdropRegistrationStore
+        self.localNetworkPermissionService = localNetworkPermissionService
         self.logger = logger
         state = DIM2ChatInteractorState()
     }
@@ -346,7 +354,8 @@ private extension DIM2ChatInteractor {
             for: gameSchedule,
             currentGameInfo: gameInfo
         )
-        await addCalendarEventIfNeeded()
+        gameNotificationsService.scheduleRegistrationOpenNotifications(for: gameSchedule)
+        await ensureCalendarEventAdded()
         await ensureAirdropGateSubscription()
     }
 
@@ -389,6 +398,7 @@ private extension DIM2ChatInteractor {
             for: gameSchedule,
             currentGameInfo: gameInfo
         )
+        gameNotificationsService.scheduleRegistrationOpenNotifications(for: gameSchedule)
     }
 
     func handleGameHistoryUpdate(gameHistory: GameHistory?) async {
@@ -422,16 +432,40 @@ private extension DIM2ChatInteractor {
         fullUsernameClaimedSubject.send(content)
     }
 
-    func addCalendarEventIfNeeded() async {
-        guard let calendarEvent = await state.calendarEvent, !hasActiveCalendarReminder() else {
+    func requestCalendarAccessAfterRegistration() async {
+        guard !hasActiveCalendarReminder() else {
             return
         }
 
+        let calendarEvent = await state.calendarEvent
+        await requestCalendarAccessAndAddEvent(calendarEvent)
+    }
+
+    func ensureCalendarEventAdded() async {
+        guard
+            let calendarEvent = await state.calendarEvent,
+            !hasActiveCalendarReminder()
+        else {
+            return
+        }
+
+        await requestCalendarAccessAndAddEvent(calendarEvent)
+    }
+
+    func requestCalendarAccessAndAddEvent(_ calendarEvent: CalendarGameModel?) async {
         guard await gameCalendarService.requestWriteAccess() else {
             logger.error("Calendar write access denied")
             return
         }
 
+        guard let calendarEvent else {
+            return
+        }
+
+        addCalendarEvent(calendarEvent)
+    }
+
+    func addCalendarEvent(_ calendarEvent: CalendarGameModel) {
         do {
             try gameCalendarService.addEvent(for: calendarEvent)
         } catch {
@@ -490,7 +524,11 @@ private extension DIM2ChatInteractor {
 
         let airdrop = await resolveAirdropProof()
         do {
-            try await invitationRegistrationService.register(airdrop: airdrop)
+            try await backgroundExecutor.execute { [self] in
+                try await markStallActivity("Invitation game registration") {
+                    try await invitationRegistrationService.register(airdrop: airdrop)
+                }
+            }
             await handlePostRegistrationSuccess()
             await persistAirdropRegistration(airdrop: airdrop, usesScoreAlias: false)
             logger.debug(
@@ -520,19 +558,23 @@ private extension DIM2ChatInteractor {
         let registrationService = try dim2FlowState.setupGameRegistrationService()
         let airdrop = await resolveAirdropProof()
         do {
-            let result = try await registrationService.registerForGame(with: mode, airdrop: airdrop).asyncExecute()
+            try await backgroundExecutor.execute { [self] in
+                let result = try await markStallActivity("Game registration") {
+                    try await registrationService.registerForGame(with: mode, airdrop: airdrop).asyncExecute()
+                }
 
-            switch result.status {
-            case let .success(successExtrinsic):
-                logger.debug(
-                    "[GameDebug] registerForGame SUCCESS hash=\(successExtrinsic.extrinsicHash) "
-                        + "airdrop=\(airdrop != nil ? "present" : "nil")"
-                )
-                await handlePostRegistrationSuccess()
-                let usesScoreAlias = if case .scoreAlias = mode { true } else { false }
-                await persistAirdropRegistration(airdrop: airdrop, usesScoreAlias: usesScoreAlias)
-            case let .failure(failedExtrinsic):
-                throw failedExtrinsic.error
+                switch result.status {
+                case let .success(successExtrinsic):
+                    logger.debug(
+                        "[GameDebug] registerForGame SUCCESS hash=\(successExtrinsic.extrinsicHash) "
+                            + "airdrop=\(airdrop != nil ? "present" : "nil")"
+                    )
+                    await handlePostRegistrationSuccess()
+                    let usesScoreAlias = if case .scoreAlias = mode { true } else { false }
+                    await persistAirdropRegistration(airdrop: airdrop, usesScoreAlias: usesScoreAlias)
+                case let .failure(failedExtrinsic):
+                    throw failedExtrinsic.error
+                }
             }
         } catch {
             logger.error(
@@ -542,7 +584,7 @@ private extension DIM2ChatInteractor {
         }
     }
 
-    func resolveAirdropProof() async -> GamePallet.AirdropVrf? {
+    func resolveAirdropProof() async -> GamePallet.AirdropVrfs? {
         guard let gameInfo = await state.gameInfo else {
             logger.debug("[GameDebug] resolveAirdropProof: no gameInfo available -> nil")
             return nil
@@ -563,7 +605,7 @@ private extension DIM2ChatInteractor {
         }
     }
 
-    func persistAirdropRegistration(airdrop: GamePallet.AirdropVrf?, usesScoreAlias: Bool) async {
+    func persistAirdropRegistration(airdrop: GamePallet.AirdropVrfs?, usesScoreAlias: Bool) async {
         guard let airdrop, let gameIndex = await state.gameInfo?.index else { return }
         do {
             let beneficiary = try SelectedWallet.depositWallet.getMultiSigner().getAccountId()
@@ -577,7 +619,8 @@ private extension DIM2ChatInteractor {
             let variant = if case .alias = airdrop { "Alias" } else { "Account" }
             logger.debug(
                 "[GameDebug] airdrop registration persisted gameIndex=\(gameIndex) usesScoreAlias=\(usesScoreAlias) " +
-                    "airdropVariant=\(variant) beneficiary=depositWallet(\(beneficiary.toHex(includePrefix: true).prefix(12))…)"
+                    "airdropVariant=\(variant) " +
+                    "beneficiary=depositWallet(\(beneficiary.toHex(includePrefix: true).prefix(12))…)"
             )
         } catch {
             logger.error("[GameDebug] failed to persist airdrop registration: \(error)")
@@ -589,11 +632,14 @@ private extension DIM2ChatInteractor {
         let gameSchedule = await state.gameSchedule
 
         requestNotificationAuthorization(for: gameInfo, gameSchedule: gameSchedule)
-        requestAlarmNotificationAuthorization()
 
         await sendRegistrationTelemetry()
 
         gameRegistrationSubject.send(gameInfo)
+
+        await requestCalendarAccessAfterRegistration()
+        await requestAlarmNotificationAuthorization()
+        await localNetworkPermissionService.requestPermissionIfNeeded()
     }
 
     func sendRegistrationTelemetry() async {
@@ -651,17 +697,19 @@ private extension DIM2ChatInteractor {
             currentGameInfo: gameInfo
         )
 
+        gameNotificationsService.scheduleRegistrationOpenNotifications(for: gameSchedule)
+
         logger.debug("Registration start notification scheduled")
     }
 
-    func requestAlarmNotificationAuthorization() {
+    func requestAlarmNotificationAuthorization() async {
         if #available(iOS 26.1, *) {
-            Task {
-                let result = try? await AlarmManager.shared.requestAuthorization()
-                guard result == .authorized else {
-                    return
-                }
+            do {
+                let result = try await AlarmManager.shared.requestAuthorization()
+                guard result == .authorized else { return }
                 await rescheduleGameAlarm()
+            } catch {
+                logger.error("Alarm authorization request failed: \(error)")
             }
         }
     }

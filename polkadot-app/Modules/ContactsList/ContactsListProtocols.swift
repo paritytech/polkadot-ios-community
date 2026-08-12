@@ -1,11 +1,14 @@
 import Foundation
 import PolkadotUI
 import UIKitExt
+import ChainRegistry
 
 protocol ContactsListViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: ContactsListViewLayout.ViewModel)
+    func didReceive(titleViewModel: NetworkStatusTitleView.ViewModel)
 }
 
+@MainActor
 protocol ContactsListPresenterProtocol: AnyObject {
     func setup()
     func viewWillAppear()
@@ -25,9 +28,11 @@ protocol ContactsListInteractorInputProtocol: AnyObject {
 @MainActor
 protocol ContactsListInteractorOutputProtocol: AnyObject {
     func didReceive(model: ChatListModel)
+    func didReceive(networkStatus: NetworkStatus)
     func didReceive(error: Error)
 }
 
+@MainActor
 protocol ContactsListWireframeProtocol: AlertPresentable, ErrorPresentable {
     func showSearchContact(from view: ContactsListViewProtocol?)
     func showChat(from view: ContactsListViewProtocol?, for model: ChatOpenModel)

@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import UIKit
 internal import SnapKit
 import FoundationExt
@@ -31,7 +32,9 @@ public final class ChatAttachmentsViewLayout: UIView, KeyboardAdoptableViewLayou
         let configuration = ChatInputViewConfiguration.chat(
             canPay: false,
             canAttachFile: false,
-            canSendWithoutText: true
+            canSendWithoutText: true,
+            inputAccessibilityId: nil,
+            sendAccessibilityId: AccessibilityID.Chat.attachmentSendButton
         )
         return DSChatInputView(configuration: configuration, handler: nil)
     }()

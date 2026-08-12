@@ -31,7 +31,7 @@ public enum RemotePermissionRequest: Equatable, Sendable {
 public extension RemotePermissionRequest {
     private enum Tag {
         static let remote = "Remote"
-        static let webRTC = "WebRTC"
+        static let webRTC = "WebRtc"
         static let chainSubmit = "ChainSubmit"
         static let preimageSubmit = "PreimageSubmit"
         static let statementSubmit = "StatementSubmit"

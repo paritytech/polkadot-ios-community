@@ -1,69 +1,55 @@
 import Foundation
-import Keystore_iOS
-import NovaCrypto
-import SubstrateSdk
 import CryptoKit
-import MessageExchangeKit
 import KeyDerivation
 
 protocol ChatPrivateKeyMaking {
-    func derivePrivateKey() throws -> P256.KeyAgreement.PrivateKey
+    func derivePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey
 }
 
-final class ChatPrivateKeyFactory {
-    private let derivationPath: String
-    private let entropyManager: RootEntropyManaging
-    private let mnemonicGenerator: IRMnemonicCreatorProtocol
-    private let junctionFactory: JunctionFactoryProtocol
-    private let seedFactory: SeedFactoryProtocol
-    private let keypairFactory: KeypairFactoryProtocol
+enum ChatPrivateKeyFactoryError: Error {
+    case unknownEncryptionKeyId(String)
+}
 
-    init(
-        derivationPath: String,
-        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
-        mnemonicGenerator: IRMnemonicCreatorProtocol = IRMnemonicCreator(),
-        junctionFactory: JunctionFactoryProtocol = SubstrateJunctionFactory(),
-        seedFactory: SeedFactoryProtocol = SeedFactory(),
-        keypairFactory: KeypairFactoryProtocol = SR25519KeypairFactory()
-    ) {
-        self.derivationPath = derivationPath
-        self.entropyManager = entropyManager
-        self.mnemonicGenerator = mnemonicGenerator
-        self.junctionFactory = junctionFactory
-        self.seedFactory = seedFactory
-        self.keypairFactory = keypairFactory
+/// Key-agreement derivation domains for built-in chat surfaces.
+/// Raw values double as the persisted `encryptionKeyId` identifiers.
+enum ChatEncryptionDomain: String {
+    /// Post-MDS this key is shared across devices and authenticates chat requests;
+    /// per-device encryption keys are generated randomly.
+    case mainChat = "chat"
+    /// E2E encryption in the SSO transport.
+    case sso
+    // TODO: Products — remove once the Game migrates to the dim2.dot product and derives
+    // its key material via host_derive_entropy (RFC-0007) instead.
+    case game
+}
+
+/// Derives the X25519 key for a domain from the keyed-hash chain
+/// rooted at `hash(root_entropy, "ecdh")`; the 32-byte material is used directly
+/// as the private key (clamped per RFC 7748).
+final class ChatPrivateKeyFactory {
+    private let domain: ChatEncryptionDomain
+    private let keyMaterialDeriver: EcdhKeyMaterialDeriving
+
+    init(domain: ChatEncryptionDomain, keyMaterialDeriver: EcdhKeyMaterialDeriving) {
+        self.domain = domain
+        self.keyMaterialDeriver = keyMaterialDeriver
+    }
+
+    convenience init(encryptionKeyId: String, entropyManager: RootEntropyManaging) throws {
+        guard let domain = ChatEncryptionDomain(rawValue: encryptionKeyId) else {
+            throw ChatPrivateKeyFactoryError.unknownEncryptionKeyId(encryptionKeyId)
+        }
+
+        self.init(
+            domain: domain,
+            keyMaterialDeriver: EcdhKeyMaterialDeriver(entropyManager: entropyManager)
+        )
     }
 }
 
 extension ChatPrivateKeyFactory: ChatPrivateKeyMaking {
-    func derivePrivateKey() throws -> P256.KeyAgreement.PrivateKey {
-        let entropy = try entropyManager.fetchRootEntropy()
-        let mnemonic = try mnemonicGenerator.mnemonic(fromEntropy: entropy)
-
-        let junctionResult = try junctionFactory.parse(path: derivationPath)
-        let password = junctionResult.password ?? ""
-        let chaincodes = junctionResult.chaincodes
-
-        let seedResult = try seedFactory.deriveSeed(
-            from: mnemonic.toString(),
-            password: password
-        )
-
-        let substrateKeypair = try keypairFactory.createKeypairFromSeed(
-            seedResult.seed.miniSeed,
-            chaincodeList: chaincodes
-        )
-
-        let privateKey = try P256.KeyAgreement.PrivateKey(
-            rawRepresentation: substrateKeypair.privateKey().rawData().prefix(32).blake2b32()
-        )
-
-        return privateKey
+    func derivePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey {
+        let material = try keyMaterialDeriver.deriveKeyMaterial(for: domain.rawValue)
+        return try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: material)
     }
-}
-
-enum ChatDerivationPath: String {
-    case mainChat = "//wallet//chat"
-    case sso = "//wallet//sso"
-    case gameChat = "//candidate//popCandidate"
 }

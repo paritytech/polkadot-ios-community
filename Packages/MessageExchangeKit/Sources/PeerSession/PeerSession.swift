@@ -15,11 +15,11 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
     private let workQueue: DispatchQueue
     private let outgoingChannel: AnyOutgoingMessageChannel<M>
     private let incomingChannel: AnyIncomingMessageChannel<M>
-    private let peerSubscription: StatementSubscribing
+    private let peerSubscription: any PeerSessionStatementSubscribing
     private let initializer: PeerSessionInitializing
     private let priorityProvider: PeerSessionPriorityProviding
     private let statementDataCoder: StatementDataCoding
-    private let peerRequestChannelId: StatementFixedFieldConvertible
+    private let routeContexts: PeerSessionRoute.Contexts
     private let logger: SDKLoggerProtocol?
 
     private var state = PeerSessionState.idle {
@@ -32,11 +32,11 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         sessionId: MessageExchange.SessionId,
         outgoingChannel: AnyOutgoingMessageChannel<M>,
         incomingChannel: AnyIncomingMessageChannel<M>,
-        peerSubscription: StatementSubscribing,
+        peerSubscription: any PeerSessionStatementSubscribing,
         initializer: PeerSessionInitializing,
         priorityProvider: PeerSessionPriorityProviding,
         statementDataCoder: StatementDataCoding,
-        peerRequestChannelId: StatementFixedFieldConvertible,
+        routeContexts: PeerSessionRoute.Contexts,
         logger: SDKLoggerProtocol?
     ) {
         self.workQueue = workQueue
@@ -48,7 +48,7 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         self.initializer = initializer
         self.priorityProvider = priorityProvider
         self.statementDataCoder = statementDataCoder
-        self.peerRequestChannelId = peerRequestChannelId
+        self.routeContexts = routeContexts
         self.logger = logger
 
         initializeSession()
@@ -56,9 +56,9 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
 }
 
 extension PeerSession: PeerSessionProtocol {
-    func addMessageToQueue(_ message: Message) {
+    func addMessagesToQueue(_ messages: [Message]) {
         workQueue.async { [weak self] in
-            self?.outgoingChannel.addMessageToQueue(message)
+            self?.outgoingChannel.addMessagesToQueue(messages)
         }
     }
 }
@@ -74,7 +74,7 @@ extension PeerSession: PeerSessionInitializerDelegate {
         }
 
         priorityProvider.expiry = result.priority
-        outgoingChannel.restoreState(from: result.outgoingState.outgoingRequest)
+        outgoingChannel.restoreState(from: result.outgoingState.outgoingRequests)
         state = .active
 
         delegate?.peerSession(
@@ -87,11 +87,11 @@ extension PeerSession: PeerSessionInitializerDelegate {
         // offline sender. Message delivery is still done per request here; revisit
         // the protocol if sender-side ACK recovery must cover every request id.
         result.incomingState.peerRequests.forEach { peerRequest in
-            _ = handlePeerRequest(peerRequest)
+            _ = handlePeerRequest(peerRequest.request, route: peerRequest.route)
         }
 
-        if let peerResponse = result.outgoingState.peerResponse {
-            _ = handlePeerResponse(peerResponse)
+        for (route, peerResponse) in result.outgoingState.peerResponses {
+            _ = handlePeerResponse(peerResponse, route: route)
         }
 
         updatePolling()
@@ -187,8 +187,8 @@ private extension PeerSession {
 
     func updatePolling() {
         if state == .active {
-            peerSubscription.start { [weak self] statement in
-                self?.handlePollingStatement(statement) ?? false
+            peerSubscription.start { [weak self] sessionStatement in
+                self?.handlePollingStatement(sessionStatement) ?? false
             }
         } else {
             peerSubscription.stop()
@@ -219,8 +219,12 @@ private extension PeerSession {
         }
 
         switch submittionError {
-        case .rejected,
-             .invalid,
+        case let .rejected(reason):
+            // channelPriorityTooLow is delegated to the app: a routine burst of
+            // outgoing requests can outbid each other on expiry, and that does
+            // not warrant tearing down the session.
+            return reason != .channelPriorityTooLow
+        case .invalid,
              .internalError:
             return true
         case .unexpectedStatus:
@@ -228,7 +232,7 @@ private extension PeerSession {
         }
     }
 
-    func handlePollingStatement(_ statement: Statement) -> StatementHandlingStatus {
+    func handlePollingStatement(_ sessionStatement: PeerSessionStatement) -> StatementHandlingStatus {
         guard delegate != nil else {
             logger?.debug("Delegate is nil, skipping statement")
             return false
@@ -239,33 +243,42 @@ private extension PeerSession {
             return false
         }
 
+        let statement = sessionStatement.statement
+
         guard let encodedDataPayload = statement.getScaleEncodedPayload() else {
-            return handleIncomingMessageError(.decodingFailed, for: statement)
+            return handleIncomingMessageError(.decodingFailed, for: sessionStatement)
         }
 
         let senderAccountId = statement.getSenderAccountId()
 
         do {
             let outcome: StatementDataDecodingResult<Message> = try statementDataCoder
-                .decodeFromScaleEncodedPayload(encodedDataPayload, senderAccountId: senderAccountId)
+                .decodeFromScaleEncodedPayload(
+                    encodedDataPayload,
+                    senderAccountId: senderAccountId,
+                    route: sessionStatement.route
+                )
 
             switch outcome {
             case let .statementData(statementData):
-                return handleStatementData(statementData)
+                return handleStatementData(statementData, route: sessionStatement.route)
             case let .requestId(requestId, error):
-                return handleFailedPeerRequest(requestId, error: error)
+                return handleFailedPeerRequest(requestId, error: error, route: sessionStatement.route)
             }
         } catch {
-            return handleIncomingMessageError(makeIncomingMessageError(error: error), for: statement)
+            return handleIncomingMessageError(makeIncomingMessageError(error: error), for: sessionStatement)
         }
     }
 
-    func handleStatementData(_ statementData: StatementData<Message>) -> StatementHandlingStatus {
+    func handleStatementData(
+        _ statementData: StatementData<Message>,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
         switch statementData {
         case let .request(request):
-            return handlePeerRequest(request)
+            return handlePeerRequest(request, route: route)
         case let .response(response):
-            return handlePeerResponse(response)
+            return handlePeerResponse(response, route: route)
         case .multirequest,
              .multiresponse:
             // Peer sent a multi-device envelope but this session uses a legacy coder
@@ -276,10 +289,15 @@ private extension PeerSession {
         }
     }
 
-    func handlePeerRequest(_ request: MessageExchange.Request<Message>) -> StatementHandlingStatus {
+    func handlePeerRequest(
+        _ request: MessageExchange.Request<Message>,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
         let requestId = request.requestId
 
-        logger?.debug("Successfully received request \(requestId) with \(request.messages.count) messages")
+        logger?.debug(
+            "Successfully received request \(requestId) with \(request.messages.count) messages on route \(route)"
+        )
 
         delegate?.peerSession(
             self,
@@ -288,7 +306,8 @@ private extension PeerSession {
             self?.workQueue.async { [weak self] in
                 self?.incomingChannel.sendResponse(
                     with: responseCode,
-                    forRequestId: requestId
+                    forRequestId: requestId,
+                    route: route
                 )
             }
         }
@@ -296,14 +315,19 @@ private extension PeerSession {
         return true
     }
 
-    func handleFailedPeerRequest(_ requestId: String, error: Error) -> StatementHandlingStatus {
+    func handleFailedPeerRequest(
+        _ requestId: String,
+        error: Error,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
         logger?.debug("Received failed decoding request \(requestId) \(error)")
 
         delegate?.peerSessionDidReceiveMessagesError(self) { [weak self] responseCode in
             self?.workQueue.async { [weak self] in
                 self?.incomingChannel.sendResponse(
                     with: responseCode,
-                    forRequestId: requestId
+                    forRequestId: requestId,
+                    route: route
                 )
             }
         }
@@ -311,23 +335,32 @@ private extension PeerSession {
         return true
     }
 
-    func handlePeerResponse(_ response: MessageExchange.Response) -> StatementHandlingStatus {
-        if outgoingChannel.handleResponse(response) {
-            initializer.setLastHandledResponseId(response.requestId)
+    func handlePeerResponse(
+        _ response: MessageExchange.Response,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
+        if outgoingChannel.handleResponse(response, route: route) {
+            initializer.setLastHandledResponseId(response.requestId, route: route)
             return true
         } else {
+            logger?.debug("Response \(response.requestId) on route \(route) was not handled by outgoing channel")
             return false
         }
     }
 
     func handleIncomingMessageError(
         _ error: MessageExchange.IncomingMessageError,
-        for statement: Statement
+        for sessionStatement: PeerSessionStatement
     ) -> StatementHandlingStatus {
+        let statement = sessionStatement.statement
         let shouldIgnore = delegate?.peerSession(
             self,
             shouldIgnoreStatementAfter: error
         ) ?? MessageExchange.shouldIgnoreStatement
+
+        let peerRequestChannelId = routeContexts
+            .context(for: sessionStatement.route)
+            .peerRequestChannelId
 
         guard
             let channel = statement.getChannel(),

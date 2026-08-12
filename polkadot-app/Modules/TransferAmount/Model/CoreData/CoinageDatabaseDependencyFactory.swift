@@ -1,8 +1,10 @@
 import Foundation
 import Operation_iOS
 import Coinage
+@preconcurrency import SDKLogger
 
-struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring {
+// @unchecked: dependencies are effectively immutable + thread-safe; protocols not yet Sendable-annotated
+struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked Sendable {
     private let storageFacade: StorageFacadeProtocol
     private let operationQueue: OperationQueue
     private let logger: LoggerProtocol

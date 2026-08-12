@@ -87,14 +87,13 @@ final class TitleBalanceView: ControlView<UIView, TitleValueHorizontalView<IconL
         controlContentView.titleView.makeHorizontal(with: .detailsIcon, spacing: 8)
         controlContentView.usesSpacer = true
 
-        titleLabel.apply(style: .init(
-            textColor: .fgTertiary,
-            font: UIFont.bodyMedium
-        ))
+        titleLabel.textColor = .fgTertiary
+        titleLabel.font = UIFont.bodyMedium
 
         controlContentView.titleView.iconWidth = 16
 
-        detailsLabel.apply(style: .init(textColor: .fgPrimary, font: UIFont.bodyMedium))
+        detailsLabel.textColor = .fgPrimary
+        detailsLabel.font = UIFont.bodyMedium
 
         updateSelectionState()
     }

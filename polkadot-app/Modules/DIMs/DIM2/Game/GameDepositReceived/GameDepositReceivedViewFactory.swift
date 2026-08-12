@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum GameDepositReceivedViewFactory {
     static func createView(model: GameDepositReceivedModel) -> GameDepositReceivedViewProtocol? {
         let viewFactory = GameDepositReceivedViewModelFactory(

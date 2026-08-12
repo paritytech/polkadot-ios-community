@@ -32,6 +32,7 @@ extension ChatViewModelFactory {
 }
 
 private extension ChatViewModelFactory {
+    // swiftlint:disable:next cyclomatic_complexity
     func callMessageConfiguration(
         messageId: String,
         offer: Chat.RemoteMessageContentV1.MessageContent.DataChannelOfferContent,
@@ -99,8 +100,8 @@ private extension ChatViewModelFactory {
         return .init(messageId, configuration)
     }
 
-    func formatCallDuration(_ ms: UInt64) -> String {
-        let seconds = TimeInterval(ms) / 1_000
+    func formatCallDuration(_ milliseconds: UInt64) -> String {
+        let seconds = TimeInterval(milliseconds) / 1_000
         return DateComponentsFormatter.secondsMinutesAbbreviated.string(from: seconds) ?? ""
     }
 }

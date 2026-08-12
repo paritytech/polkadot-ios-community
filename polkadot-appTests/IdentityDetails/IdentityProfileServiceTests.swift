@@ -4,6 +4,7 @@ import CommonService
 import KeyDerivation
 import SubstrateSdk
 import StructuredConcurrency
+import EventCenter
 @testable import polkadot_app
 
 @Suite("IdentityProfileService")
@@ -22,7 +23,7 @@ struct IdentityProfileServiceTests {
         eventCenter = MockEventCenter()
     }
 
-    func createSut() -> (IdentityProfileServiceProtocol & EventVisitorProtocol) {
+    func createSut() -> (IdentityProfileServiceProtocol & AppEventVisiting) {
         IdentityProfileService(
             usernameStorage: storage,
             identityService: identityService,

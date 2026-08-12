@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import Coinage
+import ChainRegistry
 
 protocol WalletFlowContextProtocol {
     var depositService: DepositServiceProtocol { get }
@@ -10,6 +11,7 @@ protocol WalletFlowContextProtocol {
     var coinageBackupSyncService: CoinageBackupSyncServicing { get }
     var personDataStore: DetermineStatePersonDataStore { get }
     var balanceSyncStateStorage: BalanceSyncStateStoring { get }
+    var networkStatusService: NetworkStatusProviding { get }
 }
 
 final class WalletFlowContext: WalletFlowContextProtocol {
@@ -20,6 +22,7 @@ final class WalletFlowContext: WalletFlowContextProtocol {
     let coinageBackupSyncService: CoinageBackupSyncServicing
     let personDataStore: DetermineStatePersonDataStore
     let balanceSyncStateStorage: BalanceSyncStateStoring
+    let networkStatusService: NetworkStatusProviding
 
     init(
         depositService: DepositServiceProtocol,
@@ -28,6 +31,7 @@ final class WalletFlowContext: WalletFlowContextProtocol {
         coinageService: CoinageServicing,
         coinageBackupSyncService: CoinageBackupSyncServicing,
         personDataStore: DetermineStatePersonDataStore,
+        networkStatusService: NetworkStatusProviding,
         balanceSyncStateStorage: BalanceSyncStateStoring = BalanceSyncStateStorage()
     ) {
         self.depositService = depositService
@@ -36,6 +40,7 @@ final class WalletFlowContext: WalletFlowContextProtocol {
         self.coinageService = coinageService
         self.coinageBackupSyncService = coinageBackupSyncService
         self.personDataStore = personDataStore
+        self.networkStatusService = networkStatusService
         self.balanceSyncStateStorage = balanceSyncStateStorage
     }
 }

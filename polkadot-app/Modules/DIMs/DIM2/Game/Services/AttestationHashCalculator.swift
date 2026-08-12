@@ -13,19 +13,19 @@ enum AttestationHashCalculator {
     ) throws -> Data {
         let prefixEncoder = ScaleEncoder()
         prefixEncoder.appendRaw(data: bonusPrefixBytes)
-        let prefixBytesEnc = try prefixEncoder.encode()
+        let prefixBytesEnc = prefixEncoder.encode()
 
         let gameIndexEncoder = ScaleEncoder()
         try gameIndex.encode(scaleEncoder: gameIndexEncoder)
-        let gameIndexBytes = try gameIndexEncoder.encode()
+        let gameIndexBytes = gameIndexEncoder.encode()
 
         let playerEncoder = ScaleEncoder()
         try player.encode(scaleEncoder: playerEncoder)
-        let playerBytes = try playerEncoder.encode()
+        let playerBytes = playerEncoder.encode()
 
         let slotEncoder = ScaleEncoder()
         try UInt8(slot).encode(scaleEncoder: slotEncoder)
-        let slotBytes = try slotEncoder.encode()
+        let slotBytes = slotEncoder.encode()
 
         let fullInput = prefixBytesEnc + gameIndexBytes + playerBytes + slotBytes
         return try fullInput.blake2b32()
@@ -39,23 +39,23 @@ enum AttestationHashCalculator {
     ) throws -> Data {
         let prefixEncoder = ScaleEncoder()
         prefixEncoder.appendRaw(data: prefixBytes)
-        let prefixBytesEnc = try prefixEncoder.encode()
+        let prefixBytesEnc = prefixEncoder.encode()
 
         let gameIndexEncoder = ScaleEncoder()
         try gameIndex.encode(scaleEncoder: gameIndexEncoder)
-        let gameIndexBytes = try gameIndexEncoder.encode()
+        let gameIndexBytes = gameIndexEncoder.encode()
 
         let roundEncoder = ScaleEncoder()
         try round.encode(scaleEncoder: roundEncoder)
-        let roundBytes = try roundEncoder.encode()
+        let roundBytes = roundEncoder.encode()
 
         let attesterEncoder = ScaleEncoder()
         try attester.encode(scaleEncoder: attesterEncoder)
-        let attesterBytes = try attesterEncoder.encode()
+        let attesterBytes = attesterEncoder.encode()
 
         let attesteeEncoder = ScaleEncoder()
         try attestee.encode(scaleEncoder: attesteeEncoder)
-        let attesteeBytes = try attesteeEncoder.encode()
+        let attesteeBytes = attesteeEncoder.encode()
 
         let fullInput = prefixBytesEnc + gameIndexBytes + roundBytes + attesterBytes + attesteeBytes
         let hash = try fullInput.blake2b32()

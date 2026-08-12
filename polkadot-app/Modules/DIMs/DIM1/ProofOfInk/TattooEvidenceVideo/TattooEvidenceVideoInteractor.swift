@@ -54,7 +54,9 @@ extension TattooEvidenceVideoInteractor: TattooEvidVideoInteractorInputProtocol 
             idleStateMediator.isIdleTimerDisabled = true
             videoCaptureService.startRecording(to: videoUrl)
         } catch {
-            presenter?.didReceive(error: .videoFile(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .videoFile(error))
+            }
         }
     }
 
@@ -71,7 +73,9 @@ extension TattooEvidenceVideoInteractor: TattooEvidVideoInteractorInputProtocol 
 
             state = .discarding
         } catch {
-            presenter?.didReceive(error: .videoFile(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .videoFile(error))
+            }
         }
     }
 
@@ -90,23 +94,31 @@ extension TattooEvidenceVideoInteractor: VideoCaptureServiceDelegate {
     func videoCaptureDidSetup(captureSession: AVCaptureSession) {
         state = .sessionInitialized
 
-        presenter?.didReceive(captureSession: captureSession)
+        MainActor.assumeIsolated {
+            presenter?.didReceive(captureSession: captureSession)
+        }
     }
 
     func videoCaptureDidCompleteRecording(file _: URL) {
         switch state {
         case .completing:
             state = .sessionInitialized
-            presenter?.didCompleteRecording(with: recordings)
+            MainActor.assumeIsolated {
+                presenter?.didCompleteRecording(with: recordings)
+            }
 
         case .discarding:
             state = .sessionInitialized
 
             do {
                 try stateMediator.clearExistingVideo()
-                presenter?.didDiscardRecording()
+                MainActor.assumeIsolated {
+                    presenter?.didDiscardRecording()
+                }
             } catch {
-                presenter?.didReceive(error: .videoFile(error))
+                MainActor.assumeIsolated {
+                    presenter?.didReceive(error: .videoFile(error))
+                }
             }
 
         case .recording,
@@ -128,6 +140,8 @@ extension TattooEvidenceVideoInteractor: VideoCaptureServiceDelegate {
             break
         }
 
-        presenter?.didReceive(error: .videoCapture(error))
+        MainActor.assumeIsolated {
+            presenter?.didReceive(error: .videoCapture(error))
+        }
     }
 }

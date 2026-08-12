@@ -40,6 +40,7 @@ extension TattooVideoPreviewPresenter: TattooVideoPreviewPresenterProtocol {
         wireframe.showDiscardConfirmation(on: view, model: model)
     }
 
+    @MainActor
     func saveAndDiscardVideoEvidence() {
         wireframe.goBackToCaptureVideo(from: view)
     }

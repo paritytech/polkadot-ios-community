@@ -66,8 +66,8 @@ private extension UIViewController {
             return true
         }
 
-        let isGameVideoFlow = { (vc: UIViewController) in
-            vc is GameVideoViewController || vc is GameReportViewController
+        let isGameVideoFlow = { (controller: UIViewController) in
+            controller is GameVideoViewController || controller is GameReportViewController
         }
 
         if let nav = self as? UINavigationController,

@@ -1,5 +1,6 @@
 import Foundation
 import MessageExchangeKit
+import Products
 import SubstrateSdk
 
 struct PolkadotHostRemoteMessage {
@@ -34,15 +35,25 @@ extension PolkadotHostRemoteMessage {
         case resourceAllocationResponse(requestMessageId: String, result: ResourceAllocationResult)
         case createTransactionRequest(CreateTransactionRequest)
         case createTransactionResponse(requestMessageId: String, result: CreateTransactionResultAP)
+        case createTransactionLegacyRequest(CreateTransactionLegacyRequest)
+        case signRawLegacyRequest(SignRawLegacyRequest)
+        case signRawLegacyResponse(requestMessageId: String, result: SignRawLegacyResult)
+        case createProofRequest(CreateProofRequest)
+        case createProofResponse(requestMessageId: String, result: CreateProofResult)
+        case signVrfRequest(SignVrfRequest)
+        case signVrfResponse(requestMessageId: String, result: SignVrfHostResult)
+        case productSubtreeRequest(ProductSubtreeRequest)
+        case productSubtreeResponse(requestMessageId: String, result: ProductSubtreeResult)
     }
 
-    enum HostResult<Success> {
+    enum HostResult<Success, Failure> {
         case success(Success)
-        case failure(String)
+        case failure(Failure)
     }
 
-    typealias SigningResult = HostResult<Signature>
-    typealias AliasResult = HostResult<ContextualAlias>
+    typealias SigningResult = HostResult<Signature, String>
+    typealias AliasResult = HostResult<ContextualAlias, RingVrfError>
+    typealias SignRawLegacyResult = HostResult<Data, String>
 }
 
 extension PolkadotHostRemoteMessage: MessageExchange.CodableMessage {
@@ -97,9 +108,19 @@ extension PolkadotHostRemoteMessage.ContentV1: MessageExchange.CodableMessage {
         case .resourceAllocationResponse: 6
         case .createTransactionRequest: 7
         case .createTransactionResponse: 8
+        case .createTransactionLegacyRequest: 9
+        case .signRawLegacyRequest: 10
+        case .signRawLegacyResponse: 11
+        case .createProofRequest: 12
+        case .createProofResponse: 13
+        case .signVrfRequest: 14
+        case .signVrfResponse: 15
+        case .productSubtreeRequest: 16
+        case .productSubtreeResponse: 17
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     init(scaleDecoder: any ScaleDecoding) throws {
         let index = try UInt8(scaleDecoder: scaleDecoder)
 
@@ -134,11 +155,43 @@ extension PolkadotHostRemoteMessage.ContentV1: MessageExchange.CodableMessage {
             let requestMessageId = try String(scaleDecoder: scaleDecoder)
             let result = try PolkadotHostRemoteMessage.CreateTransactionResultAP(scaleDecoder: scaleDecoder)
             self = .createTransactionResponse(requestMessageId: requestMessageId, result: result)
+        case 9:
+            let value = try PolkadotHostRemoteMessage.CreateTransactionLegacyRequest(scaleDecoder: scaleDecoder)
+            self = .createTransactionLegacyRequest(value)
+        case 10:
+            let value = try PolkadotHostRemoteMessage.SignRawLegacyRequest(scaleDecoder: scaleDecoder)
+            self = .signRawLegacyRequest(value)
+        case 11:
+            let requestMessageId = try String(scaleDecoder: scaleDecoder)
+            let result = try PolkadotHostRemoteMessage.SignRawLegacyResult(scaleDecoder: scaleDecoder)
+            self = .signRawLegacyResponse(requestMessageId: requestMessageId, result: result)
+        case 12:
+            let value = try PolkadotHostRemoteMessage.CreateProofRequest(scaleDecoder: scaleDecoder)
+            self = .createProofRequest(value)
+        case 13:
+            let requestMessageId = try String(scaleDecoder: scaleDecoder)
+            let result = try PolkadotHostRemoteMessage.CreateProofResult(scaleDecoder: scaleDecoder)
+            self = .createProofResponse(requestMessageId: requestMessageId, result: result)
+        case 14:
+            let value = try PolkadotHostRemoteMessage.SignVrfRequest(scaleDecoder: scaleDecoder)
+            self = .signVrfRequest(value)
+        case 15:
+            let requestMessageId = try String(scaleDecoder: scaleDecoder)
+            let result = try PolkadotHostRemoteMessage.SignVrfHostResult(scaleDecoder: scaleDecoder)
+            self = .signVrfResponse(requestMessageId: requestMessageId, result: result)
+        case 16:
+            let value = try PolkadotHostRemoteMessage.ProductSubtreeRequest(scaleDecoder: scaleDecoder)
+            self = .productSubtreeRequest(value)
+        case 17:
+            let requestMessageId = try String(scaleDecoder: scaleDecoder)
+            let result = try PolkadotHostRemoteMessage.ProductSubtreeResult(scaleDecoder: scaleDecoder)
+            self = .productSubtreeResponse(requestMessageId: requestMessageId, result: result)
         default:
             throw ScaleCodingError.unexpectedDecodedValue
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func encode(scaleEncoder: any ScaleEncoding) throws {
         try scaleIndex.encode(scaleEncoder: scaleEncoder)
 
@@ -165,12 +218,34 @@ extension PolkadotHostRemoteMessage.ContentV1: MessageExchange.CodableMessage {
         case let .createTransactionResponse(requestMessageId, result):
             try requestMessageId.encode(scaleEncoder: scaleEncoder)
             try result.encode(scaleEncoder: scaleEncoder)
+        case let .createTransactionLegacyRequest(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .signRawLegacyRequest(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .signRawLegacyResponse(requestMessageId, result):
+            try requestMessageId.encode(scaleEncoder: scaleEncoder)
+            try result.encode(scaleEncoder: scaleEncoder)
+        case let .createProofRequest(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .createProofResponse(requestMessageId, result):
+            try requestMessageId.encode(scaleEncoder: scaleEncoder)
+            try result.encode(scaleEncoder: scaleEncoder)
+        case let .signVrfRequest(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .signVrfResponse(requestMessageId, result):
+            try requestMessageId.encode(scaleEncoder: scaleEncoder)
+            try result.encode(scaleEncoder: scaleEncoder)
+        case let .productSubtreeRequest(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .productSubtreeResponse(requestMessageId, result):
+            try requestMessageId.encode(scaleEncoder: scaleEncoder)
+            try result.encode(scaleEncoder: scaleEncoder)
         }
     }
 }
 
 extension PolkadotHostRemoteMessage.HostResult: MessageExchange.CodableMessage
-    where Success: MessageExchange.CodableMessage {
+    where Success: MessageExchange.CodableMessage, Failure: MessageExchange.CodableMessage {
     init(scaleDecoder: any ScaleDecoding) throws {
         let index = try UInt8(scaleDecoder: scaleDecoder)
 
@@ -178,7 +253,7 @@ extension PolkadotHostRemoteMessage.HostResult: MessageExchange.CodableMessage
         case 0:
             self = try .success(Success(scaleDecoder: scaleDecoder))
         case 1:
-            self = try .failure(String(scaleDecoder: scaleDecoder))
+            self = try .failure(Failure(scaleDecoder: scaleDecoder))
         default:
             throw ScaleCodingError.unexpectedDecodedValue
         }

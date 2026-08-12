@@ -91,7 +91,9 @@ extension SharePresenter: ShareInteractorOutputProtocol {
 private extension SharePresenter {
     func updateView() {
         let onSelection: (Chat.Id, Bool) -> Void = { [weak self] chatId, newValue in
-            self?.didToggleSelection(chatId: chatId, isSelected: newValue)
+            MainActor.assumeIsolated {
+                self?.didToggleSelection(chatId: chatId, isSelected: newValue)
+            }
         }
 
         let viewModel = viewModelFactory.createViewModel(

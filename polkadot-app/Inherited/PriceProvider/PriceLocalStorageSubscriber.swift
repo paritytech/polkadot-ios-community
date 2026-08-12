@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import OperationExt
+import ChainRegistry
 
 protocol PriceLocalStorageSubscriber: LocalStorageProviderObserving where Self: AnyObject {
     var priceLocalSubscriptionFactory: PriceProviderFactoryProtocol { get }

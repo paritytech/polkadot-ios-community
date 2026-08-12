@@ -52,11 +52,51 @@ final class DebugSettingsViewLayout: UIView {
         button.imageWithTitleView?.title = "Theme Selection"
     }
 
+    let strategyDebugSwitch = UISwitch()
+
+    private let strategyDebugLabel: Label = .create { (view: Label) in
+        view.typography = .bodyMedium
+        view.textColor = .fgPrimary
+        view.text = "Transfer Strategy Debug"
+    }
+
+    private let strategyDebugRow: UIStackView = .create { stack in
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.distribution = .equalSpacing
+    }
+
+    #if DEBUG
+        let openTrUAPIPlaygroundButton: RoundedButton = .create { button in
+            button.applyMainStyle()
+            button.imageWithTitleView?.title = "Open TrUAPI Playground"
+        }
+    #endif
+
+    let truApiRuntimeSwitch = UISwitch()
+
+    private let truApiRuntimeLabel: Label = .create { (view: Label) in
+        view.typography = .bodyMedium
+        view.textColor = .fgPrimary
+        view.text = "TrUAPI Runtime"
+    }
+
+    private let truApiRuntimeRow: UIStackView = .create { stack in
+        stack.axis = .horizontal
+        stack.alignment = .center
+        stack.distribution = .equalSpacing
+    }
+
     let chainLabel: Label = .create { (view: Label) in
         view.typography = .bodyMedium
         view.textColor = .fgSecondary
         view.lineBreakMode = .byTruncatingMiddle
         view.text = "Chain ID: \(AppConfig.Chains.usernameChain)"
+    }
+
+    private let scrollView: UIScrollView = .create { scrollView in
+        scrollView.alwaysBounceVertical = true
+        scrollView.showsVerticalScrollIndicator = true
     }
 
     private let stackView: UIStackView = .create { stackView in
@@ -78,13 +118,23 @@ final class DebugSettingsViewLayout: UIView {
     }
 
     private func setupLayout() {
-        addSubview(stackView)
-        stackView.snp.makeConstraints { make in
-            make.top.equalTo(safeAreaLayoutGuide).offset(16)
-            make.leading.trailing.equalToSuperview().inset(16)
+        addSubview(scrollView)
+        scrollView.snp.makeConstraints { make in
+            make.top.bottom.equalTo(safeAreaLayoutGuide)
+            make.leading.trailing.equalToSuperview()
         }
 
-        stackView.addArrangedSubviews([
+        scrollView.addSubview(stackView)
+        stackView.snp.makeConstraints { make in
+            make.top.equalTo(scrollView.contentLayoutGuide).offset(16)
+            make.bottom.equalTo(scrollView.contentLayoutGuide).offset(-16)
+            make.leading.trailing.equalTo(scrollView.frameLayoutGuide).inset(16)
+        }
+
+        strategyDebugRow.addArrangedSubviews([strategyDebugLabel, strategyDebugSwitch])
+        truApiRuntimeRow.addArrangedSubviews([truApiRuntimeLabel, truApiRuntimeSwitch])
+
+        var rows: [UIView] = [
             chainLabel,
             clearBackupButton,
             clearReferralButton,
@@ -95,10 +145,18 @@ final class DebugSettingsViewLayout: UIView {
             simulateCrash,
             replaceEntropyButton,
             themeSelectionButton
-        ])
+        ]
 
-        stackView.arrangedSubviews.forEach { button in
-            button.snp.makeConstraints { make in
+        #if DEBUG
+            rows.append(openTrUAPIPlaygroundButton)
+        #endif
+
+        rows.append(contentsOf: [strategyDebugRow, truApiRuntimeRow])
+
+        stackView.addArrangedSubviews(rows)
+
+        stackView.arrangedSubviews.forEach { row in
+            row.snp.makeConstraints { make in
                 make.height.equalTo(44)
             }
         }

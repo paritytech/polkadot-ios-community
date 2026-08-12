@@ -99,7 +99,6 @@ private extension ReferralTicketService {
                     case let .failure(dispatchError):
                         throw dispatchError.error
                     }
-
                 } catch {
                     completion(.failure(error))
                 }

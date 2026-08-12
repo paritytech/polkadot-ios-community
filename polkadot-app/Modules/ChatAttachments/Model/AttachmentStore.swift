@@ -1,6 +1,6 @@
 import Foundation
 
-protocol AttachmentStoring {
+protocol AttachmentStoring: Sendable {
     @discardableResult
     func store(attachment: Data, filename: String) throws -> URL
 
@@ -20,7 +20,7 @@ protocol AttachmentStoring {
     func moveFile(from sourceFilename: String, to destinationFilename: String) throws
 }
 
-final class AttachmentStore {
+final class AttachmentStore: @unchecked Sendable {
     let fileManager: FileManager
     let baseDirectory: URL
 
@@ -63,7 +63,7 @@ extension AttachmentStore: AttachmentStoring {
 
         let fileURL = baseDirectory.appendingPathComponent(filename)
 
-        try attachment.write(to: fileURL)
+        try attachment.write(to: fileURL, options: .atomic)
 
         return fileURL
     }

@@ -3,6 +3,8 @@ import NovaCrypto
 import Operation_iOS
 import Foundation_iOS
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
 final class RootInteractor {
     weak var presenter: RootInteractorOutputProtocol?
@@ -16,7 +18,6 @@ final class RootInteractor {
 
     let firebaseFacade = FirebaseFacade.shared
     let browsePrewarmer: ProductContentPrewarming
-    let web3SummitPrewarmer: ProductContentPrewarming
 
     private let setupTimeoutSeconds: TimeInterval = 5
     private var setupTimeoutTask: Task<Void, Never>?
@@ -33,8 +34,7 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
-        browsePrewarmer: ProductContentPrewarming,
-        web3SummitPrewarmer: ProductContentPrewarming
+        browsePrewarmer: ProductContentPrewarming
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -43,7 +43,6 @@ final class RootInteractor {
         self.resolver = resolver
         self.tokenManager = tokenManager
         self.browsePrewarmer = browsePrewarmer
-        self.web3SummitPrewarmer = web3SummitPrewarmer
     }
 
     deinit {
@@ -76,9 +75,6 @@ final class RootInteractor {
     @MainActor
     private func prewarmProducts(for destination: RootDestination) {
         switch destination {
-        case .onboarding,
-             .restoreFromCloud:
-            web3SummitPrewarmer.prewarm()
         case .dashboard:
             browsePrewarmer.prewarm()
         default:

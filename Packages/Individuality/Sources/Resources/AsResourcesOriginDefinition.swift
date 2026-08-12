@@ -12,7 +12,7 @@ enum AsResourcesOriginError: Error {
 public struct AsResourcesOriginInput {
     public enum Kind {
         case registerStatementStoreAllowance
-        case claimLongTermStorage(revision: UInt32)
+        case claimLongTermStorage
     }
 
     let personDeps: PersonProofDependency
@@ -76,12 +76,12 @@ public final class AsResourcesOriginDefinition: ExtrinsicOriginDefining {
                             proofContext: input.proofContext
                         )
                     )
-                case let .claimLongTermStorage(revision):
+                case .claimLongTermStorage:
                     .claimLongTermStorage(
                         ResourcesPallet.AsClaimLongTermStorageParams(
                             vrfManager: input.personDeps.keyManager,
                             ringIndex: input.personDeps.origin.ringIndex,
-                            revision: revision,
+                            revision: proofParams.revision,
                             proofParams: proofParams,
                             collection: collection,
                             proofContext: input.proofContext

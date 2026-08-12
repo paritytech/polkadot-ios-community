@@ -1,4 +1,6 @@
+import ChainRegistry
 import DesignSystem
+import StructuredConcurrency
 import UIKit
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
@@ -7,6 +9,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     let linkHandler: DeferredLinkHandling = DeferredLinkHandler.shared
 
     private var presenter: RootPresenterProtocol?
+
+    #if TESTNET_FEATURE
+        private var stallBannerPresenter: StallBannerPresenter?
+    #endif
 
     func scene(
         _ scene: UIScene,
@@ -45,6 +51,22 @@ extension SceneDelegate {
         window = rootWindow
 
         attachRootPresenter(to: rootWindow)
+
+        #if TESTNET_FEATURE
+            // Package-level instrumentation is inert until this is set.
+            // Must be set before any staleness flow can start.
+            StalenessReport.isEnabled = true
+
+            let board = StallBoard(sources: [StalenessReport.shared])
+
+            stallBannerPresenter = StallBannerPresenter(
+                board: board,
+                viewModelFactory: StallBannerViewModelFactory(),
+                windowScene: scene
+            )
+            stallBannerPresenter?.setup()
+        #endif
+
         window?.makeKeyAndVisible()
     }
 

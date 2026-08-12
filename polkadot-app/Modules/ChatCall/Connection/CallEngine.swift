@@ -1,6 +1,7 @@
 import Foundation
 import WebRTC
 import AsyncExtensions
+import StructuredConcurrency
 
 enum CallEngineError: Error {
     case peerConnectionClosed
@@ -10,7 +11,7 @@ enum CallEngineError: Error {
 protocol CallEngineProtocol: AnyObject {
     func observeState() -> AnyAsyncSequence<CallEngineState>
     func connect()
-    func endCall(notifiesRemote: Bool) async -> PeerConnectionSignalStateObserving?
+    func endCall(notifiesRemote: Bool) async
 
     func attach(localRenderer: RTCVideoRenderer)
     func attach(remoteRenderer: RTCVideoRenderer)
@@ -60,12 +61,25 @@ private actor CallEngineActor {
         localRenderer = renderer
     }
 
-    func setRemoteTracks(_ tracks: CallTracks?) {
+    func setRemoteTracks(_ tracks: CallTracks?) -> CallEngine.RemoteVideoTrackChange {
+        let oldVideoTrack = remoteTracks?.videoTrack
         remoteTracks = tracks
+
+        return CallEngine.RemoteVideoTrackChange(
+            oldVideoTrack: oldVideoTrack,
+            newVideoTrack: tracks?.videoTrack,
+            renderer: remoteRenderer
+        )
     }
 
-    func setRemoteRenderer(_ renderer: RTCVideoRenderer) {
+    func setRemoteRenderer(_ renderer: RTCVideoRenderer) -> CallEngine.RemoteRendererBinding {
+        let oldRenderer = remoteRenderer
         remoteRenderer = renderer
+
+        return CallEngine.RemoteRendererBinding(
+            oldRenderer: oldRenderer,
+            videoTrack: remoteTracks?.videoTrack
+        )
     }
 
     func setCallCreator(_ callCreator: CallCreatorProtocol) {
@@ -126,7 +140,9 @@ private actor CallEngineActor {
 }
 
 final class CallEngine {
-    let signaling: PeerConnectionSignaling
+    static let closedSignalSentTimeout: TimeInterval = 10
+
+    let signaling: PeerConnectionSignaling & CallMessageEventProviding
     let role: CallRole
     let logger: LoggerProtocol
     let peerConnectionFactory: RTCPeerConnectionFactory
@@ -158,11 +174,12 @@ final class CallEngine {
     }
 
     init(
-        signaling: PeerConnectionSignaling,
+        signaling: PeerConnectionSignaling & CallMessageEventProviding,
         role: CallRole,
         initialCallType: ChatCallType,
         purpose: String,
         configFactory: WebRTCConfigMaking,
+        peerConnectionFactory: RTCPeerConnectionFactory,
         logger: LoggerProtocol
     ) {
         self.signaling = signaling
@@ -170,17 +187,10 @@ final class CallEngine {
         callType = initialCallType
         self.purpose = purpose
         self.configFactory = configFactory
+        self.peerConnectionFactory = peerConnectionFactory
         self.logger = logger
 
-        let encoderFactory = RTCDefaultVideoEncoderFactory()
-        let decoderFactory = RTCDefaultVideoDecoderFactory()
-
-        peerConnectionFactory = RTCPeerConnectionFactory(
-            encoderFactory: encoderFactory,
-            decoderFactory: decoderFactory
-        )
-
-        videoCaptureStrategy = VideoCaptureStrategy(preferences: .defaultPreferences)
+        videoCaptureStrategy = VideoCaptureStrategy(preferences: .init(profile: .call))
 
         switch role {
         case .initiator:
@@ -194,6 +204,19 @@ final class CallEngine {
 
     deinit {
         logger.debug("Deinit")
+    }
+}
+
+private extension CallEngine {
+    struct RemoteVideoTrackChange {
+        let oldVideoTrack: RTCVideoTrack?
+        let newVideoTrack: RTCVideoTrack?
+        let renderer: RTCVideoRenderer?
+    }
+
+    struct RemoteRendererBinding {
+        let oldRenderer: RTCVideoRenderer?
+        let videoTrack: RTCVideoTrack?
     }
 }
 
@@ -248,19 +271,27 @@ private extension CallEngine {
         for dataConnected: PeerDataConnectionState.Connected,
         tracks: CallTracks
     ) -> CallCreatorProtocol {
+        let transceiverConfigStrategy = TransceiverConfigStrategy(
+            peerConnectionFactory: peerConnectionFactory,
+            videoProfile: .call,
+            logger: logger
+        )
+
         switch role {
         case .initiator:
-            CallInitiator(
+            return CallInitiator(
                 connectionWrapper: dataConnected.connection,
                 dataChannelWrapper: dataConnected.dataChannel,
                 localTracks: tracks,
+                transceiverConfigStrategy: transceiverConfigStrategy,
                 logger: logger
             )
         case .acceptor:
-            CallAcceptor(
+            return CallAcceptor(
                 connectionWrapper: dataConnected.connection,
                 dataChannelWrapper: dataConnected.dataChannel,
                 localTracks: tracks,
+                transceiverConfigStrategy: transceiverConfigStrategy,
                 logger: logger
             )
         }
@@ -310,7 +341,8 @@ private extension CallEngine {
 
                     logger.debug("Call ready: audio=\(hasAudio), video=\(hasVideo)")
 
-                    await stateModel.setRemoteTracks(model)
+                    let videoTrackChange = await stateModel.setRemoteTracks(model)
+                    await applyRemoteVideoTrackChange(videoTrackChange)
 
                     stateSubject.send(.connected)
                 case .closed:
@@ -326,7 +358,7 @@ private extension CallEngine {
     func performConnection() async {
         let dataChannelCreator = makeDataConnectionCreator()
 
-        observeOfferDelivery(from: dataChannelCreator)
+        observeOfferDelivery()
 
         guard let connectionStateSequence = try? await dataChannelCreator.connect() else {
             logger.error("Data channel creation failed")
@@ -345,7 +377,7 @@ private extension CallEngine {
 
         logger.debug("Data channel established")
 
-        dataChannelCreator.throttle()
+        await dataChannelCreator.throttle()
 
         let localTracks = createTracks()
 
@@ -425,24 +457,25 @@ private extension CallEngine {
         iceFailureTask = nil
     }
 
-    func observeOfferDelivery(from creator: DataConnectionCreating) {
+    func observeOfferDelivery() {
         guard role == .initiator else {
             return
         }
 
-        offerDeliveryTask = Task { [weak self, creator] in
+        let eventObserver = signaling
+
+        offerDeliveryTask = Task { [weak self, eventObserver, logger] in
             do {
-                for try await (signal, observer) in creator.sentSignals {
-                    guard case .offer = signal else { continue }
-                    try await observer.wait(for: .delivered)
-                    guard let self, !Task.isCancelled else { return }
-                    if stateSubject.value == .contacting {
-                        stateSubject.send(.waiting)
+                for try await event in eventObserver.messageEvents {
+                    guard !Task.isCancelled else { return }
+
+                    if event == .offerDelivered {
+                        await self?.handleOfferDelivered()
+                        return
                     }
-                    return
                 }
             } catch {
-                self?.logger.error("Offer delivery observation failed: \(error)")
+                logger.error("Signal event observation failed: \(error)")
             }
         }
     }
@@ -465,7 +498,9 @@ private extension CallEngine {
     func observeRemoteClose() {
         remoteCloseTask = Task { [weak self, signaling, logger] in
             do {
-                for try await signal in signaling.signals {
+                let signals = await signaling.signals
+
+                for try await signal in signals {
                     guard !Task.isCancelled else { return }
 
                     if case .closed = signal {
@@ -478,6 +513,60 @@ private extension CallEngine {
                 logger.error("Remote close observation failed: \(error)")
             }
         }
+    }
+
+    func handleOfferDelivered() async {
+        guard role == .initiator else {
+            return
+        }
+
+        guard stateSubject.value == .contacting else {
+            return
+        }
+
+        logger.debug("Offer delivered, switching to waiting")
+        stateSubject.send(.waiting)
+    }
+
+    func sendRemoteClosed() async -> Task<Void, Never>? {
+        let closedSentTask = makeClosedSentTask()
+
+        do {
+            logger.debug("Sending closed message")
+            try await signaling.send([.closed])
+            logger.debug("Waiting for closedSent event")
+            return closedSentTask
+        } catch {
+            closedSentTask.cancel()
+            logger.error("Failed to send close signal: \(error)")
+            return nil
+        }
+    }
+
+    func makeClosedSentTask() -> Task<Void, Never> {
+        Task { [signaling, logger] in
+            try? await withTimeout(.seconds(Self.closedSignalSentTimeout)) {
+                for try await event in signaling.messageEvents {
+                    guard !Task.isCancelled else { return }
+                    guard event == .closedSent else { continue }
+                    logger.debug("Got closedSent event")
+                    return
+                }
+            }
+        }
+    }
+
+    @MainActor
+    func applyRemoteVideoTrackChange(_ change: RemoteVideoTrackChange) {
+        guard
+            let renderer = change.renderer,
+            change.oldVideoTrack !== change.newVideoTrack
+        else {
+            return
+        }
+
+        change.oldVideoTrack?.remove(renderer)
+        change.newVideoTrack?.add(renderer)
     }
 }
 
@@ -492,10 +581,10 @@ extension CallEngine: CallEngineProtocol {
         }
     }
 
-    func endCall(notifiesRemote: Bool) async -> PeerConnectionSignalStateObserving? {
+    func endCall(notifiesRemote: Bool) async {
         guard await stateModel.markEndedIfFirst() else {
             logger.debug("endCall ignored — already ended")
-            return nil
+            return
         }
         logger.debug("Ending call")
 
@@ -504,25 +593,22 @@ extension CallEngine: CallEngineProtocol {
         clearOfferDeliveryTask()
         clearIceFailureTask()
 
-        var observer: PeerConnectionSignalStateObserving?
-
-        if notifiesRemote {
-            do {
-                observer = try await signaling.send(.closed)
-            } catch {
-                logger.error("Failed to send close signal: \(error)")
-            }
-        }
+        let closedSentTask = notifiesRemote ? await sendRemoteClosed() : nil
 
         await stateModel.clearVideoCapture()
         await stateModel.clearTracks()
         await stateModel.clearCallCreator()
 
-        await stateModel.connectionWrapper?.connection.close()
+        if let wrapper = await stateModel.connectionWrapper {
+            await wrapper.close()
+        }
 
-        logger.debug("Call ended")
+        logger.debug("Cleanup done")
 
-        return observer
+        if let closedSentTask {
+            await closedSentTask.value
+            logger.debug("Close sent")
+        }
     }
 
     func attach(localRenderer: RTCVideoRenderer) {
@@ -562,22 +648,18 @@ extension CallEngine: CallEngineProtocol {
 
     func attach(remoteRenderer: RTCVideoRenderer) {
         Task { @MainActor [stateModel] in
-            let remoteTracks = await stateModel.remoteTracks
-            let currentRenderer = await stateModel.remoteRenderer
+            let rendererBinding = await stateModel.setRemoteRenderer(remoteRenderer)
 
-            guard
-                let videoTrack = remoteTracks?.videoTrack,
-                currentRenderer !== remoteRenderer else {
+            guard rendererBinding.oldRenderer !== remoteRenderer else {
                 return
             }
 
-            await stateModel.setRemoteRenderer(remoteRenderer)
-
-            if let currentRenderer {
-                videoTrack.remove(currentRenderer)
+            if let oldRenderer = rendererBinding.oldRenderer,
+               let videoTrack = rendererBinding.videoTrack {
+                videoTrack.remove(oldRenderer)
             }
 
-            videoTrack.add(remoteRenderer)
+            rendererBinding.videoTrack?.add(remoteRenderer)
         }
     }
 

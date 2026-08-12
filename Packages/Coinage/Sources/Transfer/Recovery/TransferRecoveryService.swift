@@ -1,4 +1,3 @@
-import AsyncExtensions
 import Foundation
 import SDKLogger
 import SubstrateSdk
@@ -7,13 +6,6 @@ import KeyDerivation
 import StructuredConcurrency
 import ExtrinsicService
 import SubstrateOperation
-
-public enum RecoveryStatus {
-    case idle
-    case recovering
-    case completed
-    case failed(Error)
-}
 
 public protocol TransferRecoveryServicing: Actor {
     /// Runs recovery. Must complete before sync services start.
@@ -45,12 +37,7 @@ public actor TransferRecoveryService {
     private let blockNumberProvider: any BlockInfoProviding
     private let logger: SDKLoggerProtocol?
 
-    private nonisolated let statusSubject = AsyncCurrentValueSubject<RecoveryStatus>(.idle)
     private var isRecovering = false
-
-    public nonisolated var statusStream: AnyAsyncSequence<RecoveryStatus> {
-        statusSubject.eraseToAnyAsyncSequence()
-    }
 
     init(
         walStore: any TransferWALStoring,
@@ -90,8 +77,6 @@ extension TransferRecoveryService: TransferRecoveryServicing {
         isRecovering = true
         defer { isRecovering = false }
 
-        statusSubject.send(.recovering)
-
         do {
             logger?.debug("Starting recovery")
 
@@ -119,10 +104,8 @@ extension TransferRecoveryService: TransferRecoveryServicing {
             )
 
             logger?.debug("Recovery completed")
-            statusSubject.send(.completed)
         } catch {
             logger?.error("Recovery failed: \(error)")
-            statusSubject.send(.failed(error))
         }
     }
 }
@@ -190,6 +173,8 @@ extension TransferRecoveryService {
             return try await resolveIntoCoins(entry, atBlockHash: atBlockHash, finalizedBlock: finalizedBlock)
         case .intoExternalAsset:
             return try await resolveIntoExternalAsset(entry, atBlockHash: atBlockHash, finalizedBlock: finalizedBlock)
+        case .recycleIntoVoucher:
+            return try await resolveRecycleIntoVoucher(entry, atBlockHash: atBlockHash, finalizedBlock: finalizedBlock)
         }
     }
 
@@ -248,6 +233,29 @@ extension TransferRecoveryService {
         let inputsConsumed = try await checkInputsConsumed(for: entry, atBlockHash: atBlockHash)
         if inputsConsumed {
             logger?.debug("WAL entry \(entry.id): vouchers consumed on-chain, marking spent")
+            try await markInputsSpent(for: entry)
+            try await confirmSurplusVouchers(for: entry, atBlockHash: atBlockHash)
+            try await walStore.delete(id: entry.id)
+            return true
+        }
+
+        return try await resolveByExpiry(entry, finalizedBlock: finalizedBlock)
+    }
+
+    /// Resolves a `.recycleIntoVoucher` WAL entry: input is one coin, output is one voucher
+    /// minted in the recycler.
+    ///
+    /// - Input coin consumed → mark coin spent, confirm the recycler voucher available, delete WAL
+    /// - Input coin still present + expired → revert coin to available, delete the voucher, delete WAL
+    /// - Input coin still present + within mortality → leave pending
+    private func resolveRecycleIntoVoucher(
+        _ entry: TransferWALEntry,
+        atBlockHash: BlockHashData,
+        finalizedBlock: UInt32
+    ) async throws -> Bool {
+        let inputsConsumed = try await checkInputsConsumed(for: entry, atBlockHash: atBlockHash)
+        if inputsConsumed {
+            logger?.debug("WAL entry \(entry.id): recycled coin consumed on-chain, marking spent")
             try await markInputsSpent(for: entry)
             try await confirmSurplusVouchers(for: entry, atBlockHash: atBlockHash)
             try await walStore.delete(id: entry.id)
@@ -324,8 +332,14 @@ extension TransferRecoveryService {
         }
     }
 
-    /// Returns `true` when all parseable input coins and vouchers are absent on-chain at
-    /// the specified block hash, indicating the transfer extrinsic confirmed and inputs were consumed.
+    /// Returns `true` when all parseable input coins are absent on-chain and all vouchers
+    /// are either absent or marked unloaded at the specified block hash, indicating the
+    /// transfer extrinsic confirmed and inputs were consumed.
+    ///
+    /// A voucher counts as consumed when marked `AliasState.unloaded` because a successful
+    /// unload marks the alias in `RecyclerAliasStates` without removing the `RecyclersCoinToRecycler`
+    /// mapping or ring key (cleared later by ring-expiration cleanup). Thus, `fetchVouchers`
+    /// may return a non-nil voucher info for a genuinely spent voucher.
     ///
     /// Returns `false` when any input is still present (transfer did not confirm) or when
     /// no valid derivation indices can be parsed (conservative: treat as unconfirmed).
@@ -353,7 +367,8 @@ extension TransferRecoveryService {
         }()
 
         let (coins, vouchers) = try await (coinResults, voucherResults)
-        return coins.allSatisfy { $0 == nil } && vouchers.allSatisfy { $0 == nil }
+        let vouchersConsumed = vouchers.allSatisfy { $0 == nil || $0?.isUnloaded == true }
+        return coins.allSatisfy { $0 == nil } && vouchersConsumed
     }
 
     /// Returns `true` when the extrinsic's mortality window has definitely closed.
@@ -431,7 +446,7 @@ extension TransferRecoveryService {
         let allCoins = try await coinService.fetchAllCoins()
         let pendingCoinIds = Set(
             allCoins
-                .filter { $0.state == .pendingTransfer }
+                .filter { $0.state == .pendingTransfer || $0.state == .recycling }
                 .map(\.identifier)
         )
         let orphanedCoinIds = pendingCoinIds.subtracting(walCoveredCoinIds)

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum LocalAuthViewFactory {
     static func createView(
         with authDismissable: AuthorizationDismissable,

@@ -3,6 +3,7 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
 import AssetsManagement
+import ChainRegistry
 
 final class AssetsBalanceUpdater {
     let chainAssetId: ChainAssetId

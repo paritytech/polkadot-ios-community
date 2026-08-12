@@ -6,6 +6,7 @@ import MessageExchangeKit
 import StatementStore
 import AsyncExtensions
 import SDKLogger
+import SubstrateSdkExt
 
 protocol IncomingChatRequestServicing {
     func subscribe(

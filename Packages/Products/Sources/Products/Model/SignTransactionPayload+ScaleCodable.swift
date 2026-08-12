@@ -1,9 +1,9 @@
 import Foundation
 import SubstrateSdk
 
-extension SignTransactionPayload: ScaleCodable {
+extension SignTransactionPayload: ScaleCodable where Signer: ScaleCodable {
     public init(scaleDecoder: any ScaleDecoding) throws {
-        let account = try ProductAccountId(scaleDecoder: scaleDecoder)
+        let account = try Signer(scaleDecoder: scaleDecoder)
         let blockHash = try Data(scaleDecoder: scaleDecoder)
         let blockNumber = try Data(scaleDecoder: scaleDecoder)
         let era = try Data(scaleDecoder: scaleDecoder)

@@ -37,6 +37,7 @@ struct EmailAttachment {
 }
 
 /// Protocol that provides ability to compose emails using system Mail app
+@MainActor
 protocol EmailComposePresenting: AnyObject {
     /// Method dependency injection for presenter that will present share sheet
     /// - Parameter presenter: A view controller that conforms to ControllerBackedProtocol
@@ -64,6 +65,7 @@ final class EmailComposeAdapter: NSObject, EmailComposePresenting, MFMailCompose
         self.presenter = presenter
     }
 
+    @MainActor
     func presentEmail(with draft: EmailDraft, _ completion: @escaping (EmailComposeResult) -> Void) {
         if !mailComposerClass.canSendMail() {
             completion(.failure(.serviceUnavailable))

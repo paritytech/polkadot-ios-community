@@ -1,6 +1,7 @@
 import UIKit
 import Keystore_iOS
 import KeyDerivation
+import EventCenter
 
 final class BackupInteractor {
     // MARK: Properties
@@ -39,14 +40,20 @@ extension BackupInteractor: BackupInteractorInputProtocol {
     func checkBackupStatus() {
         let icloudIsAvailable = cloudKeychain.isAvailable
         if !icloudIsAvailable {
-            presenter?.didReceiveBackupStatus(.cloudIsOff)
+            MainActor.assumeIsolated {
+                presenter?.didReceiveBackupStatus(.cloudIsOff)
+            }
         } else {
             do {
                 let hasBackup = try checkBackup()
-                presenter?.didReceiveBackupStatus(hasBackup ? .created : .notFound)
+                MainActor.assumeIsolated {
+                    presenter?.didReceiveBackupStatus(hasBackup ? .created : .notFound)
+                }
             } catch {
                 logger.debug(error.localizedDescription)
-                presenter?.didReceiveBackupStatus(.cloudIsOff)
+                MainActor.assumeIsolated {
+                    presenter?.didReceiveBackupStatus(.cloudIsOff)
+                }
             }
         }
     }
@@ -56,13 +63,19 @@ extension BackupInteractor: BackupInteractorInputProtocol {
             let entropy = try entropyManager.fetchRootEntropy()
             try cloudKeychain.addKey(entropy, with: backupTag)
             if try checkBackup() {
-                presenter?.didReceiveBackupComplete(with: .success(()))
+                MainActor.assumeIsolated {
+                    presenter?.didReceiveBackupComplete(with: .success(()))
+                }
                 eventCenter.notify(with: BackupStatusChanged())
             } else {
-                presenter?.didReceiveBackupComplete(with: .failure(BackupInteractorError.failedCreateBackup))
+                MainActor.assumeIsolated {
+                    presenter?.didReceiveBackupComplete(with: .failure(BackupInteractorError.failedCreateBackup))
+                }
             }
         } catch {
-            presenter?.didReceiveBackupComplete(with: .failure(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceiveBackupComplete(with: .failure(error))
+            }
         }
     }
 }

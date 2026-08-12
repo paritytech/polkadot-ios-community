@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class EnableNotificationsPresenter {
     weak var view: EnableNotificationsViewProtocol?
 

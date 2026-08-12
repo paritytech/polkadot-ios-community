@@ -33,7 +33,7 @@ public protocol ProductsScriptExecutorProtocol: AnyObject {
 
 public actor ProductsScriptExecutor: ProductsScriptExecutorProtocol {
     private let productUrl: URL
-    private let containerScriptProvider: ContainerScriptProviding
+    private let scriptsFactory: ChatScriptsMaking
     private let engineFactory: @Sendable () -> JSEngineProtocol
     private let logger: SDKLoggerProtocol
 
@@ -49,12 +49,12 @@ public actor ProductsScriptExecutor: ProductsScriptExecutorProtocol {
 
     public init(
         productUrl: URL,
-        containerScriptProvider: ContainerScriptProviding,
+        scriptsFactory: ChatScriptsMaking,
         engineFactory: @Sendable @escaping () -> JSEngineProtocol,
         logger: SDKLoggerProtocol
     ) {
         self.productUrl = productUrl
-        self.containerScriptProvider = containerScriptProvider
+        self.scriptsFactory = scriptsFactory
         self.engineFactory = engineFactory
         self.logger = logger
     }
@@ -229,8 +229,9 @@ private extension ProductsScriptExecutor {
         await modBridge.install()
         moduleBridge = modBridge
 
-        let containerScript = try containerScriptProvider.loadContainerScript()
-        try await jsEngine.evaluate(containerScript)
+        for script in try scriptsFactory.makeScripts() {
+            try await jsEngine.evaluate(script)
+        }
 
         containerLoaded = true
     }

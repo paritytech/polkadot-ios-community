@@ -5,10 +5,13 @@ import SubstrateSdk
 import Individuality
 import SubstrateStorageQuery
 import Operation_iOS
+import ChainRegistry
 
 extension ServiceCoordinator {
+    // swiftlint:disable:next function_parameter_count
     static func createChatExtensionsRegistry(
         accountManager: ProductsAccountManaging,
+        truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
         syncStore: DetermineStateSyncStore,
         personDataStore: DetermineStatePersonDataStore,
         syncService: DetermineStateSyncServicing,
@@ -29,6 +32,7 @@ extension ServiceCoordinator {
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             usernameStorage: UsernameStorage(),
             notificationService: UserNotificationService.shared,
+            runtimeProvider: truapiRuntimeProvider,
             accountManager: accountManager
         )
 
@@ -37,14 +41,16 @@ extension ServiceCoordinator {
             botFactory: botFactory
         )
 
-        return ChatExtensionsRegistry.createDefault(
-            syncStateStore: syncStore,
-            personDataStore: personDataStore,
-            syncService: syncService,
-            personhoodRegistrationService: personhoodRegistrationService,
-            claimStatusStore: claimStatusStore,
-            productBotProvider: productBotProvider,
-            audioSessionManager: audioSessionManager
-        )
+        return MainActor.assumeIsolated {
+            ChatExtensionsRegistry.createDefault(
+                syncStateStore: syncStore,
+                personDataStore: personDataStore,
+                syncService: syncService,
+                personhoodRegistrationService: personhoodRegistrationService,
+                claimStatusStore: claimStatusStore,
+                productBotProvider: productBotProvider,
+                audioSessionManager: audioSessionManager
+            )
+        }
     }
 }

@@ -1,5 +1,7 @@
 import Foundation
+import Operation_iOS
 import AssetsManagement
+import ChainRegistry
 
 typealias BalanceProcessorCallback = (AssetBalance) -> Void
 

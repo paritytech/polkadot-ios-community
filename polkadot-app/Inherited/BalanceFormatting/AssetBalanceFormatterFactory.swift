@@ -68,7 +68,6 @@ class AssetBalanceFormatterFactory {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     private func createCompoundFormatter(
         for preferredPrecision: UInt16,
         minimumFractionDigits: UInt16,

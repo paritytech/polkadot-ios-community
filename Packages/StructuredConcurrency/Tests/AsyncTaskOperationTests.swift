@@ -3,7 +3,6 @@ import Foundation
 import Operation_iOS
 @testable import StructuredConcurrency
 
-@Suite
 struct AsyncTaskOperationTests {
     @Test func deliversResult() throws {
         let operation = AsyncTaskOperation<Int> { 42 }

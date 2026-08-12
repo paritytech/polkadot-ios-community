@@ -4,7 +4,9 @@ import Keystore_iOS
 import KeyDerivation
 import MessageExchangeKit
 import StatementStore
+@preconcurrency import WebRTC
 
+@MainActor
 enum GameVideoViewFactory {
     static func createView(
         serviceCoordinator: ServiceCoordinatorProtocol,
@@ -33,7 +35,12 @@ enum GameVideoViewFactory {
         turnService: TURNCredentialsProviding,
         intendedGameId: Game.Identifier? = nil
     ) -> GameVideoViewProtocol? {
-        let rtcClient = RTCClient(isAudioEnabled: false)
+        let peerConnectionFactory = WebRTCPeerConnectionFactoryProvider.make()
+        let rtcClient = RTCClient(
+            peerConnectionFactory: peerConnectionFactory,
+            isAudioEnabled: false,
+            videoProfile: .game
+        )
 
         guard let interactor = createInteractor(
             flowState: flowState,
@@ -53,6 +60,7 @@ enum GameVideoViewFactory {
             interactor: interactor,
             wireframe: wireframe,
             rtcClient: rtcClient,
+            cameraPermissionService: CameraPermissionService(),
             viewModelFactory: GameVideoViewModelFactory(
                 accountId: interactor.accountId
             )
@@ -66,7 +74,6 @@ enum GameVideoViewFactory {
         return view
     }
 
-    // swiftlint:disable:next function_body_length
     private static func createInteractor(
         flowState: DIM2SharedFlowStateProtocol,
         rtcClient: RTCClient,
@@ -99,6 +106,7 @@ enum GameVideoViewFactory {
                 messageExchangeModeProvider: FixedMessageExchangeModeProvider(mode: .identity),
                 entropyManager: RootEntropyManager.shared,
                 deviceEncryptionKeyFactory: nil,
+                messageRouteSelector: { _ in .identity },
                 maxStatementSize: MessageExchangeCoordinatorFactory.Constants.maxChatStatementSize,
                 logger: logger
             )
@@ -115,18 +123,22 @@ enum GameVideoViewFactory {
             ownSignKeyId: gameSignKeyId,
             serviceFactoryProvider: serviceFactoryProvider,
             identifierService: identifierService,
-            chainRegistry: chainRegistry,
-            logger: logger
+            chainRegistry: chainRegistry
         )
 
         let attemptTracker = ConnectionAttemptTracker()
 
-        let connectionManager = VideoGameConnectionManager(
+        let peerEngineContextFactory = VideoGamePeerEngineContextFactory(
             localAccountId: account.accountId,
             sessionFactory: sessionFactory,
             attemptTracker: attemptTracker,
+            turnService: turnService
+        )
+
+        let connectionManager = VideoGameConnectionManager(
+            localAccountId: account.accountId,
+            contextFactory: peerEngineContextFactory,
             callbackQueue: workQueue,
-            turnService: turnService,
             logger: logger
         )
 

@@ -15,7 +15,7 @@ protocol AirdropProofFactoryProtocol {
     func makeProof(
         gameIndex: GamePallet.GameIndex,
         player: GamePallet.AccountOrPerson
-    ) async throws -> GamePallet.AirdropVrf?
+    ) async throws -> GamePallet.AirdropVrfs?
 }
 
 final class AirdropProofFactory {
@@ -47,7 +47,7 @@ extension AirdropProofFactory: AirdropProofFactoryProtocol {
     func makeProof(
         gameIndex: GamePallet.GameIndex,
         player: GamePallet.AccountOrPerson
-    ) async throws -> GamePallet.AirdropVrf? {
+    ) async throws -> GamePallet.AirdropVrfs? {
         let memberInfo = try await memberService.fetchMemberInfo(player: player, blockHash: nil)
         let isRecognized = memberInfo?.isRecognized ?? false
 
@@ -78,15 +78,22 @@ extension AirdropProofFactory: AirdropProofFactoryProtocol {
 }
 
 private extension AirdropProofFactory {
-    func makeAccountProof(gameIndex: GamePallet.GameIndex) throws -> GamePallet.AirdropVrf {
-        let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex)
+    func makeAccountProof(gameIndex: GamePallet.GameIndex) throws -> GamePallet.AirdropVrfs {
+        let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex, airdropIndex: 0)
 
         Logger.shared.debug(
             "[GameDebug] airdropProof.account: gameIndex=\(gameIndex) "
                 + "eventId=\(eventId.toHex())"
         )
 
-        let signature = try AirdropVrfSigner.sign(wallet: candidateWallet, eventId: eventId)
+        let signature = try Sr25519VrfSigner.sign(
+            wallet: candidateWallet,
+            transcriptLabel: AirdropVrfTranscript.label,
+            items: AirdropVrfTranscript.items(
+                eventId: eventId,
+                publicKey: candidateWallet.getRawPublicKey()
+            )
+        )
 
         Logger.shared.debug(
             "[GameDebug] airdropProof.account: SIGNED variant=Account "
@@ -94,15 +101,15 @@ private extension AirdropProofFactory {
                 + "proofPrefix=\(signature.proof.prefix(8).toHex())"
         )
 
-        return .account(Sr25519VrfSignature(preOutput: signature.preOutput, proof: signature.proof))
+        return .account([Sr25519VrfSignature(preOutput: signature.preOutput, proof: signature.proof)])
     }
 
     func makeAliasProof(
         gameIndex: GamePallet.GameIndex,
         player: GamePallet.AccountOrPerson,
         ringIndex: MembersPallet.RingIndex
-    ) async throws -> GamePallet.AirdropVrf {
-        let context = try NewAirdropPallet.airdropContext(forGameIndex: gameIndex)
+    ) async throws -> GamePallet.AirdropVrfs {
+        let context = try NewAirdropPallet.airdropContext(forGameIndex: gameIndex, airdropIndex: 0)
         let message = NewAirdropPallet.RegistrationEntry.proofMessage(for: player)
 
         Logger.shared.debug(
@@ -152,7 +159,7 @@ private extension AirdropProofFactory {
 
         return .alias(
             .init(
-                proof: proof,
+                proofs: [proof],
                 ringIndex: ringIndex,
                 revision: ringRevision
             )

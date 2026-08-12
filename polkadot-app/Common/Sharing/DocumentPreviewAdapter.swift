@@ -7,6 +7,7 @@ enum PreviewDocumentResult {
 }
 
 /// Protocol that provides ability to preview a document using system component
+@MainActor
 protocol DocumentPreviewPresenting: AnyObject {
     /// Method dependency injection for presenter that will present document preview
     /// - Parameter presenter: View Controller to present document preview
@@ -18,6 +19,7 @@ protocol DocumentPreviewPresenting: AnyObject {
     func previewDocument(at documentURL: URL, _ completion: @escaping (PreviewDocumentResult) -> Void)
 }
 
+@MainActor
 final class DocumentPreviewAdapter: NSObject, DocumentPreviewPresenting {
     private weak var presenter: ControllerBackedProtocol!
 
@@ -42,7 +44,7 @@ final class DocumentPreviewAdapter: NSObject, DocumentPreviewPresenting {
     }
 }
 
-extension DocumentPreviewAdapter: UIDocumentInteractionControllerDelegate {
+extension DocumentPreviewAdapter: @MainActor UIDocumentInteractionControllerDelegate {
     func documentInteractionControllerViewControllerForPreview(_: UIDocumentInteractionController)
         -> UIViewController {
         existingTintColor = presenter.controller.navigationController?.navigationBar.tintColor

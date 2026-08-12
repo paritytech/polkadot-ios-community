@@ -2,7 +2,9 @@ import Foundation
 import PolkadotUI
 import Products
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 final class TopUpRequestPresenter {
     weak var view: TopUpRequestViewProtocol?
     let wireframe: TopUpRequestWireframeProtocol

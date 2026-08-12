@@ -42,10 +42,22 @@ enum MultideviceComponentFactory {
         )
     }
 
+    static func makePendingDeviceFanOutProcessor(
+        chatContactDataProviderFactory: ChatContactDataProviderMaking,
+        messageExchangeModeProvider: MessageExchangeModeProviding,
+        logger: LoggerProtocol = Logger.shared
+    ) -> PendingDeviceFanOutProcessor {
+        PendingDeviceFanOutProcessor(
+            chatContactDataProviderFactory: chatContactDataProviderFactory,
+            messageExchangeModeProvider: messageExchangeModeProvider,
+            logger: logger
+        )
+    }
+
     static func makeDeviceEncryptionKeyFactory(
         deviceEncryptionKeyManager: DeviceEncryptionKeyManaging
     ) throws -> MessageExchangeEncryptionMaking {
         let devicePrivateKey = try deviceEncryptionKeyManager.getOrCreatePrivateKey()
-        return P256AESEncryptorFactory(privateKey: devicePrivateKey)
+        return X25519ChaChaPolyEncryptorFactory(privateKey: devicePrivateKey)
     }
 }

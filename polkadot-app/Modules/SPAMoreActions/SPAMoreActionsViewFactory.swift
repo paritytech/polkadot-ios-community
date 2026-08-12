@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 enum SPAMoreActionsViewFactory {
     static func createView(
         actions: [SPAMoreAction],

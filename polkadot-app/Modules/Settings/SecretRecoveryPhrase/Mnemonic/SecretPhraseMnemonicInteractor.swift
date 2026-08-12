@@ -27,7 +27,9 @@ extension SecretPhraseMnemonicInteractor: SecretPhraseMnemonicInteractorInputPro
         do {
             let data = try entropyManager.fetchRootEntropy()
             let mnemonic = try mnemonicGenerator.mnemonic(fromEntropy: data)
-            presenter?.didReceiveMnemonic(mnemonic)
+            MainActor.assumeIsolated {
+                presenter?.didReceiveMnemonic(mnemonic)
+            }
         } catch {
             logger.debug(error.localizedDescription)
         }

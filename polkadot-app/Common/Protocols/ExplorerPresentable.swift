@@ -1,7 +1,9 @@
 import Foundation
 import Foundation_iOS
 import UIKitExt
+import ChainRegistry
 
+@MainActor
 protocol ExplorerPresentable: WebPresentable {
     func show(extrinsicHash: String, in exlorer: ChainModel.Explorer, from view: ControllerBackedProtocol)
 }

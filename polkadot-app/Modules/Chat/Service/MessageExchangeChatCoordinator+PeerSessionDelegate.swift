@@ -10,6 +10,10 @@ extension MessageExchangeChatCoordinator: PeerSessionDelegate, TypeErasedDelegat
         didUpdateState state: PeerSessionState
     ) {
         logger.debug("Did change session state to \(state)")
+
+        if case .active = state {
+            outboxService.schedulePendingMessages()
+        }
     }
 
     func peerSession(

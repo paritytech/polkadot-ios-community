@@ -2,7 +2,10 @@ import Foundation
 import Keystore_iOS
 import SubstrateSdk
 import Coinage
+import ChainRegistry
+import BackgroundExecution
 
+@MainActor
 enum AssetDetailsViewFactory {
     static func createEmbeddedScene(
         context: WalletFlowContextProtocol,
@@ -23,7 +26,6 @@ enum AssetDetailsViewFactory {
         )
 
         let interactor = AssetDetailsInteractor(
-            depositWallet: SelectedWallet.depositWallet,
             priceLocalSubscriptionFactory: PriceProviderFactory.shared,
             fiatOnrampTrackingService: context.fiatOnrampTrackingService,
             chainAsset: chainAsset,
@@ -32,7 +34,8 @@ enum AssetDetailsViewFactory {
             balanceSyncStateStorage: context.balanceSyncStateStorage,
             coinProvider: databaseFactory.makeCoinProvider(),
             voucherProvider: databaseFactory.makeVoucherProvider(),
-            voucherRepository: databaseFactory.makeVoucherRepository()
+            voucherRepository: databaseFactory.makeVoucherRepository(),
+            backgroundExecutor: ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry)
         )
 
         #if TESTNET_FEATURE

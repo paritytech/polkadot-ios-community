@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import UIKitExt
 
+@MainActor
 final class ClaimLiteUsernameWireframe: ClaimUsernameWireframeProtocol {
     let observer: RootStateObserving
 

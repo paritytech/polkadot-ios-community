@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class NoSlotsAvailablePresenter: NoSlotsAvailablePresenterProtocol {
     weak var view: NoSlotsAvailableViewProtocol?
     let wireframe: NoSlotsAvailableWireframeProtocol

@@ -30,6 +30,7 @@ protocol DIM1WireframeProtocol: ChatExtensionWireframeProtocol,
     func showSwitchDIMConfirmation(onSwitch: @escaping () -> Void)
 }
 
+@MainActor
 final class DIM1Wireframe {
     var mediaPreviewActiveDataSources: [PhotoPreviewDataSource] = []
 

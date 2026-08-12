@@ -2,6 +2,7 @@ import UIKit
 import UIKit_iOS
 import Foundation_iOS
 
+@MainActor
 final class BackupWireframe: BackupWireframeProtocol {
     func showEnableCloud(from view: BackupViewProtocol?) {
         let controller = EnableCloudViewController()

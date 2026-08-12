@@ -3,8 +3,10 @@
     import SubstrateSdk
     import ExtrinsicService
     import NovaCrypto
+    import ChainRegistry
     import BigInt
     import AssetsManagement
+    import StructuredConcurrency
 
     final class TopUpService {
         enum ServiceError: Error {
@@ -83,42 +85,47 @@
         }
 
         func topUp(_ wallet: MetaAccountModelProtocol, amount: Amount = .integer(50)) async throws {
-            let amount: Balance =
-                switch amount {
-                case let .integer(value):
-                    Decimal(min(50, value)).toSubstrateAmount(precision: Int16(chainAsset.asset.precision))!
-                case let .plank(value):
-                    min(
-                        Decimal(50).toSubstrateAmount(precision: Int16(chainAsset.asset.precision))!,
-                        value
-                    )
-                }
+            try await markStallRegion("Faucet topup") {
+                let amount: Balance =
+                    switch amount {
+                    case let .integer(value):
+                        Decimal(min(50, value)).toSubstrateAmount(precision: Int16(chainAsset.asset.precision))!
+                    case let .plank(value):
+                        min(
+                            Decimal(50).toSubstrateAmount(precision: Int16(chainAsset.asset.precision))!,
+                            value
+                        )
+                    }
 
-            let destination = try wallet.fetchAccount(for: chainAsset.chain).accountId
+                let destination = try wallet.fetchAccount(for: chainAsset.chain).accountId
 
-            let extrinsicMonitor = try extrinsicMonitorFactory.createMonitorFactory(
-                chain: chainAsset.chain
-            )
+                let extrinsicMonitor = try extrinsicMonitorFactory.createMonitorFactory(
+                    chain: chainAsset.chain
+                )
 
-            let originFactory = SignedExtrinsicOriginFactory(
-                chainRegistry: chainRegistry,
-                operationQueue: operationQueue,
-                logger: Logger.shared
-            )
+                let originFactory = SignedExtrinsicOriginFactory(
+                    chainRegistry: chainRegistry,
+                    operationQueue: operationQueue,
+                    logger: Logger.shared
+                )
 
-            let origin = try originFactory.extrinsicOriginDefiner(from: AppConfig.topupOrigin, chain: chainAsset.chain)
+                let origin = try originFactory.extrinsicOriginDefiner(
+                    from: AppConfig.topupOrigin,
+                    chain: chainAsset.chain
+                )
 
-            let assetStorageInfo = try await getAssetStorageInfo()
+                let assetStorageInfo = try await getAssetStorageInfo()
 
-            let closure = builderClosure(destination: destination, storageInfo: assetStorageInfo, amount: amount)
+                let closure = builderClosure(destination: destination, storageInfo: assetStorageInfo, amount: amount)
 
-            try await extrinsicMonitor.submitAndMonitorWrapper(
-                extrinsicBuilderClosure: closure,
-                origin: origin,
-                params: .empty
-            )
-            .asyncExecute()
-            .ensureSuccess()
+                try await extrinsicMonitor.submitAndMonitorWrapper(
+                    extrinsicBuilderClosure: closure,
+                    origin: origin,
+                    params: .empty
+                )
+                .asyncExecute()
+                .ensureSuccess()
+            }
         }
     }
 

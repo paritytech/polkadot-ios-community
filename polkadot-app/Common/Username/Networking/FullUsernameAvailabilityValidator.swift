@@ -5,6 +5,7 @@ import SubstrateStorageQuery
 import Operation_iOS
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 enum FullUsernameAvailability {
     case free

@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 final class EnableNotificationsWireframe: EnableNotificationsWireframeProtocol {
     func confirmDiscard(
         on view: EnableNotificationsViewProtocol?,

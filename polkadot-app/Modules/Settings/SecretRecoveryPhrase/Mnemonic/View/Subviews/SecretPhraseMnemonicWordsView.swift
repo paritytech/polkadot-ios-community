@@ -114,7 +114,7 @@ extension SecretPhraseMnemonicWordsView {
 
     private func createLayout() -> UICollectionViewLayout {
         let itemSize = NSCollectionLayoutSize(
-            widthDimension: .fractionalWidth(1),
+            widthDimension: .fractionalWidth(1 / 3),
             heightDimension: .absolute(Constants.itemHeight)
         )
         let item = NSCollectionLayoutItem(layoutSize: itemSize)
@@ -123,7 +123,11 @@ extension SecretPhraseMnemonicWordsView {
             widthDimension: .fractionalWidth(1),
             heightDimension: .absolute(Constants.itemHeight)
         )
-        let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: 3)
+        let group = NSCollectionLayoutGroup.horizontal(
+            layoutSize: groupSize,
+            repeatingSubitem: item,
+            count: 3
+        )
         group.interItemSpacing = .fixed(Constants.spacing)
 
         let section = NSCollectionLayoutSection(group: group)

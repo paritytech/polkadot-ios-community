@@ -2,6 +2,7 @@ import Foundation
 import UIKitExt
 import PolkadotUI
 
+@MainActor
 final class IdentityDetailsScene {
     let viewModel: IdentityDetailsViewModel
 

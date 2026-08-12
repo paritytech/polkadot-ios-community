@@ -1,18 +1,23 @@
 import SwiftUI
 import DesignSystem
+import ExternalAccessibility
 
 public struct AssetDetailsBalanceCard: View {
     let viewModel: ViewModel
     let isUpdating: Bool
+    let isExpanded: Bool
 
-    public init(viewModel: ViewModel, isUpdating: Bool) {
+    public init(viewModel: ViewModel, isUpdating: Bool, isExpanded: Bool = false) {
         self.viewModel = viewModel
         self.isUpdating = isUpdating
+        self.isExpanded = isExpanded
     }
 
     public var body: some View {
         content
+            .accessibilityId(AccessibilityID.Wallet.cashCard)
             .cardAspectRatio()
+            .motionShine(.balanceCard)
             .bordered(
                 width: 0.5,
                 cornerRadius: 24,
@@ -30,12 +35,27 @@ public struct AssetDetailsBalanceCard: View {
     private var content: some View {
         ZStack(alignment: .leading) {
             Image(.cashBg)
+                .resizable()
+                .scaledToFill()
+                .clipped()
+
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 5) {
                     Image(.iconCashLogo)
                     Text(.walletCardTitle)
                         .textStyle(.title18SemiBold())
+
+                    Spacer()
+
+                    if !isExpanded, let balance = viewModel.balance {
+                        Text(balance)
+                            .typography(.titleLarge)
+                            .foregroundStyle(Color.fgStaticWhite)
+                            .transition(.opacity)
+                            .accessibilityId(AccessibilityID.Wallet.cashCardBalance)
+                    }
                 }
+                .animation(.easeInOut, value: isExpanded)
                 Spacer()
 
                 Group {
@@ -62,6 +82,7 @@ public struct AssetDetailsBalanceCard: View {
                     Text(balance)
                         .typography(.headlineMedium)
                         .shimmering(active: isUpdating)
+                        .accessibilityId(AccessibilityID.Wallet.totalBalance)
                 }
             }
             .foregroundStyle(Color.white)

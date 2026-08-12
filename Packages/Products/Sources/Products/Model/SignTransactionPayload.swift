@@ -2,8 +2,8 @@ import Foundation
 import SubstrateSdk
 import SubstrateSdkExt
 
-public struct SignTransactionPayload: Equatable, Decodable {
-    public let account: ProductAccountId
+public struct SignTransactionPayload<Signer: Equatable & Decodable>: Equatable, Decodable {
+    public let account: Signer
     @HexCodable public var blockHash: Data
     @HexCodable public var blockNumber: Data
     @HexCodable public var era: Data
@@ -21,7 +21,7 @@ public struct SignTransactionPayload: Equatable, Decodable {
     public let withSignedTransaction: Bool?
 
     public init(
-        account: ProductAccountId,
+        account: Signer,
         blockHash: Data,
         blockNumber: Data,
         era: Data,

@@ -4,13 +4,14 @@ import KeyDerivation
 
 public protocol OriginPersonProviding {
     func pickPersonOrigin() async throws -> PersonOrigin
+    func pickPersonOrigins() async throws -> [PersonOrigin]
 }
 
 public enum OriginPersonProviderError: Error {
     case noPersonsExist
 }
 
-// checks ring status of both lite and full person, prefers full one
+// Returns all origins the person is a member of, full first. Checks ring status of both lite and full person.
 public final class OriginPersonProvider {
     let liteVrfManager: BandersnatchKeyManaging
     let liteCollectionId: MembersPallet.CollectionIdentifier
@@ -34,7 +35,7 @@ public final class OriginPersonProvider {
 }
 
 extension OriginPersonProvider: OriginPersonProviding {
-    public func pickPersonOrigin() async throws -> PersonOrigin {
+    public func pickPersonOrigins() async throws -> [PersonOrigin] {
         let fullMemberKey = try fullVrfManager.getMemberKey()
         let liteMemberKey = try liteVrfManager.getMemberKey()
 
@@ -46,14 +47,27 @@ extension OriginPersonProvider: OriginPersonProviding {
             blockHash: nil
         )
 
+        var origins: [PersonOrigin] = []
+
         if let fullRingIndex = statuses[fullMemberKey] {
-            return .full(fullRingIndex, fullVrfManager)
+            origins.append(.full(fullRingIndex, fullVrfManager))
         }
 
         if let liteRingIndex = statuses[liteMemberKey] {
-            return .lite(liteRingIndex, liteVrfManager)
+            origins.append(.lite(liteRingIndex, liteVrfManager))
         }
 
-        throw OriginPersonProviderError.noPersonsExist
+        guard !origins.isEmpty else {
+            throw OriginPersonProviderError.noPersonsExist
+        }
+
+        return origins
+    }
+
+    public func pickPersonOrigin() async throws -> PersonOrigin {
+        guard let origin = try await pickPersonOrigins().first else {
+            throw OriginPersonProviderError.noPersonsExist
+        }
+        return origin
     }
 }

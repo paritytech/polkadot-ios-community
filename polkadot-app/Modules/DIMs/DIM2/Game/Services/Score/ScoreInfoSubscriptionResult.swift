@@ -25,12 +25,12 @@ struct ScoreInfoSubscriptionResult: BatchStorageSubscriptionResult {
             context: context
         )
 
-        personhoodThreshold = try UncertainStorage<StringCodable<UInt32>?>(
+        personhoodThreshold = try UncertainStorage<StringCodable<UInt8>?>(
             values: values,
             mappingKey: Key.personhoodThreshold.rawValue,
             context: context
         )
-        .map { $0?.wrappedValue }
+        .map { $0.map { UInt32($0.wrappedValue) } }
 
         blockHash = try blockHashJson.map(to: Data?.self, with: context)
     }

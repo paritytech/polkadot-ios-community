@@ -1,12 +1,13 @@
 import Foundation
 import CryptoKit
 import StatementStore
+import ChainRegistry
 
 extension ServiceCoordinator {
     static func createDeviceSyncService(
         turnService: TURNCredentialsProviding,
         logger: LoggerProtocol
-    ) throws -> DeviceSyncService {
+    ) throws -> DeviceSyncServicing {
         do {
             let signerManager = ChatSignerManager()
             let signer = try signerManager.makeSigner(for: Chat.Contact.Own.main().signKeyId)

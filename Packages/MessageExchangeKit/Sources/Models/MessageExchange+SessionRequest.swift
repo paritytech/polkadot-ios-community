@@ -9,5 +9,13 @@ public extension MessageExchange {
             self.own = own
             self.peer = peer
         }
+
+        public func requiresSessionRecreation(comparedTo other: SessionRequest) -> Bool {
+            self != other
+        }
+
+        var hasPeerDevices: Bool {
+            !peer.devices.isEmpty
+        }
     }
 }

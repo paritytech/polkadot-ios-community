@@ -4,7 +4,9 @@ import UIKit
 import UIKitExt
 import Foundation_iOS
 import PolkadotUI
+import ChainRegistry
 
+@MainActor
 final class ChatTransferAmountWireframe: TransferAmountWireframeProtocol {
     let chainAsset: ChainAsset
 

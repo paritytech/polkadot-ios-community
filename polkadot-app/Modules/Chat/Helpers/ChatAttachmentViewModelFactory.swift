@@ -42,6 +42,24 @@ final class ChatAttachmentViewModelFactory {
 // MARK: - Private factory helpers
 
 private extension ChatAttachmentViewModelFactory {
+    struct ButtonConfigurations {
+        let success: ChatMessageMediaViewConfiguration.ButtonConfiguration?
+        let failure: ChatMessageMediaViewConfiguration.ButtonConfiguration?
+        let loading: ChatMessageMediaViewConfiguration.ButtonConfiguration?
+
+        init(
+            success: ChatMessageMediaViewConfiguration.ButtonConfiguration?,
+            failure: ChatMessageMediaViewConfiguration.ButtonConfiguration?,
+            loading: ChatMessageMediaViewConfiguration.ButtonConfiguration? = .init(
+                style: .loading(cancelable: false)
+            )
+        ) {
+            self.success = success
+            self.failure = failure
+            self.loading = loading
+        }
+    }
+
     func progressDrivenOverlayInfoProvider(
         needsLoading: Bool,
         service: AttachmentLoadProgressProvidable,
@@ -76,10 +94,10 @@ private extension ChatAttachmentViewModelFactory {
         service: AttachmentLoadProgressProvidable,
         attachmentId: AttachmentId,
         loadingDirection: LoadingDirection,
-        successButtonConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?
+        configurations: ButtonConfigurations
     ) -> (any ChatMessageMediaButtonConfigurationProviding)? {
         guard needsLoading else {
-            return successButtonConfiguration.map { StaticChatMessageMediaButtonConfigurationProvider($0) }
+            return configurations.success.map { StaticChatMessageMediaButtonConfigurationProvider($0) }
         }
         let progressViewModel = AttachmentProgressViewModel(
             service: service,
@@ -88,8 +106,50 @@ private extension ChatAttachmentViewModelFactory {
         )
         return ProgressDrivenButtonConfigurationProvider(
             progressViewModel: progressViewModel,
-            successConfiguration: successButtonConfiguration,
+            successConfiguration: configurations.success,
+            failureConfiguration: configurations.failure,
+            loadingConfiguration: configurations.loading,
             emitProgressOnSubscription: true
+        )
+    }
+
+    func downloadFailureOverlayProvider(
+        needsLoading: Bool,
+        attachmentId: AttachmentId
+    ) -> (any ChatMessageMediaFailureOverlayProviding)? {
+        guard needsLoading else { return nil }
+
+        return DownloadFailureOverlayProvider(
+            progressViewModel: AttachmentProgressViewModel(
+                service: attachmentDownloadStateProvider,
+                attachmentId: attachmentId,
+                loadingDirection: .download
+            )
+        )
+    }
+
+    func remotePreviewProvider(
+        thumbnail: Data?,
+        attachmentId: AttachmentId,
+        filename: String,
+        innerProvider: ImageDataProvider
+    ) -> BlurHashMediaPreviewProvider {
+        let hasFile = { [downloadAttachmentStore] in
+            downloadAttachmentStore.hasFile(for: filename)
+        }
+        let imageViewModel = LocalImageViewModel(
+            provider: LoadableAttachmentImageProvider(
+                attachmentId: attachmentId,
+                innerProvider: innerProvider,
+                service: attachmentDownloadStateProvider,
+                dataExistencePredicate: hasFile
+            ),
+            keepsCurrentImageWhileLoading: true
+        )
+        return BlurHashMediaPreviewProvider(
+            thumbnail: thumbnail,
+            dataExistencePredicate: hasFile,
+            mediaProvider: imageViewModel
         )
     }
 
@@ -111,7 +171,8 @@ private extension ChatAttachmentViewModelFactory {
                 provider: ThumbnailImageDataProvider(
                     url: fileUrl,
                     maxPixelSize: Self.maxThumbnailSize
-                )
+                ),
+                keepsCurrentImageWhileLoading: false
             )
 
             let buttonConfigurationProvider = progressDrivenButtonConfigurationProvider(
@@ -119,7 +180,7 @@ private extension ChatAttachmentViewModelFactory {
                 service: attachmentUploadStateProvider,
                 attachmentId: attachmentId,
                 loadingDirection: .upload,
-                successButtonConfiguration: nil
+                configurations: .init(success: nil, failure: nil)
             )
 
             let topLeadingInfoProvider = progressDrivenOverlayInfoProvider(
@@ -151,7 +212,8 @@ private extension ChatAttachmentViewModelFactory {
             )
 
             let imageViewModel = LocalImageViewModel(
-                provider: AVAssetImageDataProvider(assetURL: fileUrl, time: .zero)
+                provider: AVAssetImageDataProvider(assetURL: fileUrl, time: .zero),
+                keepsCurrentImageWhileLoading: false
             )
 
             let duration = try? durationFormatter.string(from: TimeInterval(videoMeta.duration))
@@ -164,7 +226,10 @@ private extension ChatAttachmentViewModelFactory {
                 service: attachmentUploadStateProvider,
                 attachmentId: attachmentId,
                 loadingDirection: .upload,
-                successButtonConfiguration: .init(style: .play, action: onSelection)
+                configurations: .init(
+                    success: .init(style: .play, action: onSelection),
+                    failure: nil
+                )
             )
 
             let topLeadingInfoProvider = progressDrivenOverlayInfoProvider(
@@ -201,112 +266,120 @@ private extension ChatAttachmentViewModelFactory {
         let filename = variant.filename
 
         switch variant.meta {
-        case .image:
-            let fileUrl = downloadAttachmentStore.fileURL(for: filename)
-
-            let attachmentId = AttachmentId(
+        case let .image(imageMeta):
+            return makeImageItem(
+                meta: imageMeta,
+                filename: filename,
                 messageId: messageId,
-                fileId: filename
+                onSelection: onSelection
             )
-
-            let imageViewModel = LocalImageViewModel(
-                provider: LoadableAttachmentImageProvider(
-                    attachmentId: attachmentId,
-                    innerProvider: ThumbnailImageDataProvider(
-                        url: fileUrl,
-                        maxPixelSize: Self.maxThumbnailSize
-                    ),
-                    service: attachmentDownloadStateProvider,
-                    dataExistencePredicate: { [downloadAttachmentStore] in
-                        downloadAttachmentStore.hasFile(for: filename)
-                    }
-                )
-            )
-
-            let buttonConfigurationProvider = progressDrivenButtonConfigurationProvider(
-                needsLoading: !downloadAttachmentStore.hasFile(for: filename),
-                service: attachmentDownloadStateProvider,
-                attachmentId: attachmentId,
-                loadingDirection: .download,
-                successButtonConfiguration: nil
-            )
-
-            let topLeadingInfoProvider = progressDrivenOverlayInfoProvider(
-                needsLoading: !downloadAttachmentStore.hasFile(for: filename),
-                service: attachmentDownloadStateProvider,
-                attachmentId: attachmentId,
-                loadingDirection: .download
-            )
-
-            // Corners are overridden later by the outer bubble composition based on tail side.
-            let mediaConfiguration = ChatMessageMediaViewConfiguration(
-                previewProvider: imageViewModel,
-                topLeadingInfoProvider: topLeadingInfoProvider,
-                buttonConfigurationProvider: buttonConfigurationProvider,
-                tapOnMedia: onSelection
-            )
-
-            return ChatRichTextMessageConfiguration.AttachmentItem(
-                identifier: attachmentId.stringValue,
-                mediaConfiguration: mediaConfiguration
-            )
-
         case let .video(videoMeta):
-            let fileUrl = downloadAttachmentStore.fileURL(for: filename)
-
-            let attachmentId = AttachmentId(
+            return makeVideoItem(
+                meta: videoMeta,
+                filename: filename,
                 messageId: messageId,
-                fileId: filename
+                onSelection: onSelection
             )
-
-            let imageViewModel = LocalImageViewModel(
-                provider: LoadableAttachmentImageProvider(
-                    attachmentId: attachmentId,
-                    innerProvider: AVAssetImageDataProvider(assetURL: fileUrl, time: .zero),
-                    service: attachmentDownloadStateProvider,
-                    dataExistencePredicate: { [downloadAttachmentStore] in
-                        downloadAttachmentStore.hasFile(for: filename)
-                    }
-                )
-            )
-
-            let duration = try? durationFormatter.string(from: TimeInterval(videoMeta.duration))
-            let durationConfiguration: ChatMessageOverlayInfoViewConfiguration? = duration.map {
-                .init(icon: nil, title: $0, backgroundColor: UIColor(resource: .black45))
-            }
-
-            let buttonConfigurationProvider = progressDrivenButtonConfigurationProvider(
-                needsLoading: !downloadAttachmentStore.hasFile(for: filename),
-                service: attachmentDownloadStateProvider,
-                attachmentId: attachmentId,
-                loadingDirection: .download,
-                successButtonConfiguration: .init(style: .play, action: onSelection)
-            )
-
-            let topLeadingInfoProvider = progressDrivenOverlayInfoProvider(
-                needsLoading: !downloadAttachmentStore.hasFile(for: filename),
-                service: attachmentDownloadStateProvider,
-                attachmentId: attachmentId,
-                loadingDirection: .download,
-                successConfiguration: durationConfiguration
-            )
-
-            // Corners are overridden later by the outer bubble composition based on tail side.
-            let mediaConfiguration = ChatMessageMediaViewConfiguration(
-                previewProvider: imageViewModel,
-                topLeadingInfoProvider: topLeadingInfoProvider,
-                buttonConfigurationProvider: buttonConfigurationProvider,
-                tapOnMedia: onSelection
-            )
-
-            return ChatRichTextMessageConfiguration.AttachmentItem(
-                identifier: attachmentId.stringValue,
-                mediaConfiguration: mediaConfiguration
-            )
-
         case .general:
             return nil
         }
+    }
+
+    func makeImageItem(
+        meta: ChatRemoteMessageContent.ImageFileMeta,
+        filename: String,
+        messageId: Chat.MessageId,
+        onSelection: @escaping () -> Void
+    ) -> ChatRichTextMessageConfiguration.AttachmentItem {
+        let attachmentId = AttachmentId(messageId: messageId, fileId: filename)
+        let needsLoading = !downloadAttachmentStore.hasFile(for: filename)
+        let previewProvider = remotePreviewProvider(
+            thumbnail: meta.thumbnail,
+            attachmentId: attachmentId,
+            filename: filename,
+            innerProvider: ThumbnailImageDataProvider(
+                url: downloadAttachmentStore.fileURL(for: filename),
+                maxPixelSize: Self.maxThumbnailSize
+            )
+        )
+        let infoProvider = progressDrivenOverlayInfoProvider(
+            needsLoading: needsLoading,
+            service: attachmentDownloadStateProvider,
+            attachmentId: attachmentId,
+            loadingDirection: .download
+        )
+
+        // Corners are overridden later by the outer bubble composition based on tail side.
+        let mediaConfiguration = ChatMessageMediaViewConfiguration(
+            previewProvider: previewProvider,
+            previewBackgroundColor: .bgSurfaceNested,
+            topLeadingInfoProvider: infoProvider,
+            failureOverlayProvider: downloadFailureOverlayProvider(
+                needsLoading: needsLoading,
+                attachmentId: attachmentId
+            ),
+            tapOnMedia: onSelection
+        )
+        return .init(identifier: attachmentId.stringValue, mediaConfiguration: mediaConfiguration)
+    }
+
+    func makeVideoItem(
+        meta: ChatRemoteMessageContent.VideoFileMeta,
+        filename: String,
+        messageId: Chat.MessageId,
+        onSelection: @escaping () -> Void
+    ) -> ChatRichTextMessageConfiguration.AttachmentItem {
+        let attachmentId = AttachmentId(messageId: messageId, fileId: filename)
+        let needsLoading = !downloadAttachmentStore.hasFile(for: filename)
+        let previewProvider = remotePreviewProvider(
+            thumbnail: meta.thumbnail,
+            attachmentId: attachmentId,
+            filename: filename,
+            innerProvider: AVAssetImageDataProvider(
+                assetURL: downloadAttachmentStore.fileURL(for: filename),
+                time: .zero
+            )
+        )
+        let duration = try? durationFormatter.string(from: TimeInterval(meta.duration))
+        let durationConfiguration = duration.map {
+            ChatMessageOverlayInfoViewConfiguration(
+                icon: nil,
+                title: $0,
+                backgroundColor: UIColor(resource: .black45)
+            )
+        }
+        let buttonProvider = progressDrivenButtonConfigurationProvider(
+            needsLoading: needsLoading,
+            service: attachmentDownloadStateProvider,
+            attachmentId: attachmentId,
+            loadingDirection: .download,
+            configurations: .init(
+                success: .init(style: .play, action: onSelection),
+                failure: nil,
+                loading: nil
+            )
+        )
+        let infoProvider = progressDrivenOverlayInfoProvider(
+            needsLoading: needsLoading,
+            service: attachmentDownloadStateProvider,
+            attachmentId: attachmentId,
+            loadingDirection: .download,
+            successConfiguration: durationConfiguration
+        )
+
+        // Corners are overridden later by the outer bubble composition based on tail side.
+        let mediaConfiguration = ChatMessageMediaViewConfiguration(
+            previewProvider: previewProvider,
+            previewBackgroundColor: .bgSurfaceNested,
+            topLeadingInfoProvider: infoProvider,
+            buttonConfigurationProvider: buttonProvider,
+            failureOverlayProvider: downloadFailureOverlayProvider(
+                needsLoading: needsLoading,
+                attachmentId: attachmentId
+            ),
+            tapOnMedia: onSelection
+        )
+        return .init(identifier: attachmentId.stringValue, mediaConfiguration: mediaConfiguration)
     }
 }
 

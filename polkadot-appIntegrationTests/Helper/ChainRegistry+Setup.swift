@@ -1,5 +1,6 @@
 import Foundation
 import SDKLogger
+import ChainRegistry
 @testable import polkadot_app
 
 extension ChainRegistryFacade {

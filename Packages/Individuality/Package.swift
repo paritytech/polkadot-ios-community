@@ -26,7 +26,8 @@ let package = Package(
         .package(path: "../SubstrateSdkExt"),
         .package(path: "../ChainStore"),
         .package(path: "../SubstrateOperation"),
-        .package(path: "../BulletinChain")
+        .package(path: "../BulletinChain"),
+        .package(path: "../BackgroundExecution")
     ],
     targets: [
         .target(
@@ -41,8 +42,15 @@ let package = Package(
                 "SubstrateSdkExt",
                 "ChainStore",
                 "SubstrateOperation",
-                "BulletinChain"
-            ]
+                "BulletinChain",
+                "BackgroundExecution"
+            ],
+            path: "Sources"
+        ),
+        .testTarget(
+            name: "IndividualityTests",
+            dependencies: ["Individuality", "BackgroundExecution"],
+            path: "Tests"
         )
     ]
 )

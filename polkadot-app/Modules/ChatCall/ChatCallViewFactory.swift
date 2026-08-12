@@ -2,7 +2,9 @@ import Foundation
 import SubstrateSdk
 import MessageExchangeKit
 
+@MainActor
 enum ChatCallViewFactory {
+    @MainActor
     static func createView(
         peer: CallPeer,
         engine: CallEngineProtocol,
@@ -12,7 +14,7 @@ enum ChatCallViewFactory {
         let interactor = ChatCallInteractor(
             callEngine: engine,
             audioSessionManager: CallAudioSessionManager.shared,
-            backgroundTaskManager: CallBackgroundTaskManager(),
+            backgroundTaskManager: CallBackgroundTaskManager(application: .shared),
             operatingSystemMediator: OperatingSystemMediator(),
             permissionsService: CallPermissionsService(),
             role: role,

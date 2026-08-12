@@ -1,5 +1,6 @@
 import Foundation
 import Coinage
+import ChainRegistry
 
 final class ChatFlowState {
     let extensionsRegistry: ChatExtensionsRegistering
@@ -12,6 +13,7 @@ final class ChatFlowState {
 
     let notificationsCleaner: any PushNotificationsCleaning
     let coinageService: CoinageServicing
+    let networkStatusService: NetworkStatusProviding
 
     init(
         extensionsRegistry: ChatExtensionsRegistering,
@@ -22,7 +24,8 @@ final class ChatFlowState {
         foregroundVisibilityReporter: PushForegroundVisibilityReporting?,
         audioSessionManager: AudioSessionManaging,
         notificationsCleaner: any PushNotificationsCleaning,
-        coinageService: CoinageServicing
+        coinageService: CoinageServicing,
+        networkStatusService: NetworkStatusProviding
     ) {
         self.extensionsRegistry = extensionsRegistry
         self.callCoordinator = callCoordinator
@@ -33,5 +36,6 @@ final class ChatFlowState {
         self.audioSessionManager = audioSessionManager
         self.notificationsCleaner = notificationsCleaner
         self.coinageService = coinageService
+        self.networkStatusService = networkStatusService
     }
 }

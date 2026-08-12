@@ -1,5 +1,7 @@
 import Foundation
+import ChainRegistry
 
+@MainActor
 final class SelectTokenWireframe: SelectTokenWireframeProtocol {
     let context: WalletFlowContextProtocol
 

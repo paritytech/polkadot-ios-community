@@ -77,7 +77,6 @@ private extension TattooPhotoPreviewViewController {
             highlightingAttributes: [
                 .foregroundColor: UIColor.textAndIconsTertiaryDark,
                 .font: UIFont.titleLarge
-
             ],
             defaultAttributes: [
                 .foregroundColor: UIColor.textAndIconsPrimaryDark,

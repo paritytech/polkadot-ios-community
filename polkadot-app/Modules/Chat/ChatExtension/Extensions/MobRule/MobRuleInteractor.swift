@@ -5,6 +5,7 @@ import Operation_iOS
 import AsyncExtensions
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol MobRuleInteracting: AnyObject {
     func setup() async

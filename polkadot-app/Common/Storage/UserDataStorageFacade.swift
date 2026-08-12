@@ -14,18 +14,13 @@ enum UserStorageParams {
     ///  and implement migration policy;
     ///  - update mappings between CoreData Entities and App Models;
     ///  - switch version of UserStorageParams.modelVersion;
-    static let modelVersion: UserStorageVersion = .version36
+    static let modelVersion: UserStorageVersion = .version41
     static let modelDirectory: String = "UserDataModel.momd"
     static let databaseName = "UserDataModel.sqlite"
 
-    static let sharedStorageDirectoryURL: URL = {
-        let baseURL = FileManager.default
-            .containerURL(
-                forSecurityApplicationGroupIdentifier: SharedContainerGroup.name
-            )?
-            .appendingPathComponent("CoreData")
-        return baseURL!
-    }()
+    static let sharedStorageDirectoryURL: URL = SharedContainerGroup
+        .containerURL
+        .appendingPathComponent("CoreData")
 
     static var storageURL: URL {
         sharedStorageDirectoryURL.appendingPathComponent(databaseName)
@@ -34,13 +29,13 @@ enum UserStorageParams {
     static var historyTrackingTargets: [String] {
         #if F_DEV
             return [
-                "io.paritytech.polkadotapp.develop",
-                "io.paritytech.polkadotapp.develop.NotificationServiceExtension"
+                "io.parity.polkadotapp.develop",
+                "io.parity.polkadotapp.develop.NotificationServiceExtension"
             ]
         #else
             return [
-                "io.paritytech.polkadotapp",
-                "io.paritytech.polkadotapp.NotificationServiceExtension"
+                "io.parity.polkadotapp",
+                "io.parity.polkadotapp.NotificationServiceExtension"
             ]
         #endif
     }

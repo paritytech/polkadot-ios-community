@@ -1,6 +1,10 @@
 import Foundation
 import SubstrateSdk
 
+private final class CallIdBox {
+    var value: UInt16?
+}
+
 public extension JSONRPCEngine {
     func asyncCallMethod<R: Decodable>(
         _ method: String,
@@ -8,7 +12,7 @@ public extension JSONRPCEngine {
         options: JSONRPCOptions
     ) async throws -> R {
         let mutex = NSLock()
-        var callId: UInt16? = nil
+        let callIdBox = CallIdBox()
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -19,7 +23,7 @@ public extension JSONRPCEngine {
                 }
 
                 do {
-                    callId = try self.callMethod(
+                    callIdBox.value = try self.callMethod(
                         method,
                         params: params,
                         options: options
@@ -30,16 +34,16 @@ public extension JSONRPCEngine {
                             mutex.unlock()
                         }
 
-                        guard callId != nil else {
+                        guard callIdBox.value != nil else {
                             return
                         }
 
-                        callId = nil
+                        callIdBox.value = nil
 
                         continuation.resume(with: result)
                     }
                 } catch {
-                    callId = nil
+                    callIdBox.value = nil
                     continuation.resume(throwing: error)
                 }
             }
@@ -50,8 +54,8 @@ public extension JSONRPCEngine {
                 mutex.unlock()
             }
 
-            if let cancellationIdentifier = callId {
-                callId = nil
+            if let cancellationIdentifier = callIdBox.value {
+                callIdBox.value = nil
                 cancelForIdentifier(cancellationIdentifier)
             }
         }

@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import PolkadotUI
 import UIKit
 import SnapKit
@@ -12,6 +13,8 @@ final class LiquidGlassChatNavigationBarController: ChatNavigationBarControlling
     private var headerConfiguration: ChatHeaderConfiguration?
     private var pinnedTitle: String?
     private var pinnedTitlePill: PolkadotPrizesNavTitlePill?
+    private var callActions: [ChatCallType] = []
+    private var contactMenu: UIMenu?
 
     init(
         navigationItem: UINavigationItem,
@@ -36,16 +39,13 @@ final class LiquidGlassChatNavigationBarController: ChatNavigationBarControlling
     }
 
     func apply(callActions: [ChatCallType]) {
-        let items = ChatCallBarButtons.make(for: callActions, onStartCall: onStartCall)
-        navigationItem?.rightBarButtonItems = items.isEmpty ? nil : items
+        self.callActions = callActions
+        refreshRightBarButtonItems()
     }
 
     func apply(contactMenu: UIMenu?) {
-        guard pinnedTitle == nil else {
-            navigationItem?.titleMenuProvider = nil
-            return
-        }
-        navigationItem?.titleMenuProvider = contactMenu.map { menu in { _ in menu } }
+        self.contactMenu = contactMenu
+        refreshContactMenuPresentation()
     }
 
     func update(headerConfiguration: ChatHeaderConfiguration) {
@@ -59,16 +59,17 @@ final class LiquidGlassChatNavigationBarController: ChatNavigationBarControlling
 
         if let title {
             let pill = PolkadotPrizesNavTitlePill(text: title)
+            pill.accessibilityId(AccessibilityID.Game.weeklyTitle)
             pinnedTitlePill = pill
             navigationItem?.style = .navigator
             navigationItem?.titleView = pill
-            navigationItem?.titleMenuProvider = nil
         } else {
             pinnedTitlePill = nil
             navigationItem?.style = .editor
             navigationItem?.titleView = nil
         }
 
+        refreshContactMenuPresentation()
         applyHeader()
     }
 }
@@ -100,5 +101,26 @@ private extension LiquidGlassChatNavigationBarController {
 
     static var titleTextAttributes: [NSAttributedString.Key: Any] {
         [.font: UIFont.titleLarge, .foregroundColor: UIColor.fgPrimary]
+    }
+
+    func refreshContactMenuPresentation() {
+        navigationItem?.titleMenuProvider = pinnedTitle == nil
+            ? contactMenu.map { menu in { _ in menu } }
+            : nil
+        refreshRightBarButtonItems()
+    }
+
+    func refreshRightBarButtonItems() {
+        var items: [UIBarButtonItem] = []
+        if pinnedTitle != nil, let contactMenu {
+            items.append(UIBarButtonItem(
+                title: nil,
+                image: UIImage(systemName: "ellipsis"),
+                primaryAction: nil,
+                menu: contactMenu
+            ))
+        }
+        items.append(contentsOf: ChatCallBarButtons.make(for: callActions, onStartCall: onStartCall))
+        navigationItem?.rightBarButtonItems = items.isEmpty ? nil : items
     }
 }

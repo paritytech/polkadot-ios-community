@@ -3,7 +3,8 @@ import Keystore_iOS
 import Operation_iOS
 
 extension ChatExtensionsRegistry {
-    static func createDefault(
+    // swiftlint:disable:next function_parameter_count
+    @MainActor static func createDefault(
         syncStateStore: DetermineStateSyncStore,
         personDataStore: DetermineStatePersonDataStore,
         syncService: DetermineStateSyncServicing,

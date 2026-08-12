@@ -26,18 +26,18 @@ public extension ImageViewModelSettings {
 }
 
 public protocol ImageViewModelProtocol {
-    func loadImage(
+    @MainActor func loadImage(
         on imageView: UIImageView,
         settings: ImageViewModelSettings,
         animated: Bool,
         completion: ((Bool) -> Void)?
     )
 
-    func cancel(on imageView: UIImageView)
+    @MainActor func cancel(on imageView: UIImageView)
 }
 
 public extension ImageViewModelProtocol {
-    func loadImage(
+    @MainActor func loadImage(
         on imageView: UIImageView,
         targetSize: CGSize,
         animated: Bool,
@@ -54,7 +54,7 @@ public extension ImageViewModelProtocol {
         loadImage(on: imageView, settings: settings, animated: animated, completion: completion)
     }
 
-    func loadImage(
+    @MainActor func loadImage(
         on imageView: UIImageView,
         targetSize: CGSize,
         cornerRadius: CGFloat,

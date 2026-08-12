@@ -1,6 +1,8 @@
 import Foundation
 import Kingfisher
 @preconcurrency import Products
+import PolkadotUI
+import SwiftUI
 
 enum ProductLinkIconImageDataProviderError: Error {
     case iconLinkNotFound
@@ -34,6 +36,12 @@ extension ProductLinkIconImageDataProvider: ImageDataProvider, @unchecked Sendab
             do {
                 let data = try await loadIconData()
                 handler(.success(data))
+            } catch ProductLinkIconImageDataProviderError.iconLinkNotFound {
+                if let fallback = await makeLetterIconData() {
+                    handler(.success(fallback))
+                } else {
+                    handler(.failure(ProductLinkIconImageDataProviderError.iconLinkNotFound))
+                }
             } catch {
                 logger.error("Failed to load product icon for \(domain): \(error)")
                 handler(.failure(error))
@@ -54,5 +62,18 @@ private extension ProductLinkIconImageDataProvider {
         }
         let iconURL = contentDirectory.appendingPathComponent(raw)
         return try Data(contentsOf: iconURL)
+    }
+
+    @MainActor
+    func makeLetterIconData() -> Data? {
+        let viewModel = AvatarViewModel.colored(
+            text: String(domain.prefix(1)),
+            colorSeed: domain
+        )
+
+        let renderer = ImageRenderer(content: DSAvatar(viewModel: viewModel, size: .s64))
+        renderer.scale = UIScreen.main.scale
+
+        return renderer.uiImage?.pngData()
     }
 }

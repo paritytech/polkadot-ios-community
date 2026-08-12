@@ -16,6 +16,7 @@ final class GameResultsWebViewController: UIViewController, ViewHolder, GameResu
     private let webView: WKWebView
     private let input: GameResultsInput?
     private let schemeHandler: ProductScriptSchemeHandler?
+    private let logger: LoggerProtocol = Logger.shared
 
     init(
         url: URL,
@@ -72,11 +73,11 @@ private extension GameResultsWebViewController {
     static let localProductId: ProductId = "game-results"
 
     static func makeLocalSchemeHandler(for fileURL: URL) -> ProductScriptSchemeHandler? {
-        let contentDirectory = fileURL.deletingLastPathComponent()
+        let contentURL = fileURL.deletingLastPathComponent()
         return ProductScriptSchemeHandler(
             productId: localProductId,
             entryRelativePath: fileURL.lastPathComponent,
-            productFileProvider: DotNsFileProvider(contentDirectory: contentDirectory)
+            productFileProvider: DotNsFileProvider(contentURL: contentURL)
         )
     }
 }
@@ -104,45 +105,45 @@ private extension GameResultsWebViewController {
 extension GameResultsWebViewController {
     func deliverInput(_ input: GameResultsInput) {
         guard let json = Self.encodeJSON(input) else {
-            Logger.shared.error("[GameDebug] deliverInput: encoding FAILED")
+            logger.error("[GameDebug] deliverInput: encoding FAILED")
             return
         }
-        Logger.shared.debug("[GameDebug] app→webview setGameResults len=\(json.count)\n\(json)")
-        let js = "window.setGameResults && window.setGameResults(\(json));"
-        webView.evaluateJavaScript(js) { result, error in
+        logger.debug("[GameDebug] app→webview setGameResults len=\(json.count)\n\(json)")
+        let script = "window.setGameResults && window.setGameResults(\(json));"
+        webView.evaluateJavaScript(script) { [weak self] result, error in
             if let error {
-                Logger.shared.error("[GameDebug] setGameResults JS eval error=\(error)")
+                self?.logger.error("[GameDebug] setGameResults JS eval error=\(error)")
             } else {
-                Logger.shared.debug("[GameDebug] setGameResults JS eval ok result=\(String(describing: result))")
+                self?.logger.debug("[GameDebug] setGameResults JS eval ok result=\(String(describing: result))")
             }
         }
     }
 
     func deliverOutcome(_ outcome: GameOutcome) {
         guard let json = Self.encodeJSON(outcome) else {
-            Logger.shared.error("[GameDebug] deliverOutcome: encoding FAILED")
+            logger.error("[GameDebug] deliverOutcome: encoding FAILED")
             return
         }
-        Logger.shared.debug("[GameDebug] app→webview setGameOutcome \(json)")
-        let js = "window.setGameOutcome && window.setGameOutcome(\(json));"
-        webView.evaluateJavaScript(js) { result, error in
+        logger.debug("[GameDebug] app→webview setGameOutcome \(json)")
+        let script = "window.setGameOutcome && window.setGameOutcome(\(json));"
+        webView.evaluateJavaScript(script) { [weak self] result, error in
             if let error {
-                Logger.shared.error("[GameDebug] setGameOutcome JS eval error=\(error)")
+                self?.logger.error("[GameDebug] setGameOutcome JS eval error=\(error)")
             } else {
-                Logger.shared.debug("[GameDebug] setGameOutcome JS eval ok result=\(String(describing: result))")
+                self?.logger.debug("[GameDebug] setGameOutcome JS eval ok result=\(String(describing: result))")
             }
         }
     }
 
     func deliverDisplayName(_ name: String) {
-        Logger.shared.debug("[GameDebug] app→webview setDisplayName name='\(name)'")
+        logger.debug("[GameDebug] app→webview setDisplayName name='\(name)'")
         let escaped = name
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        let js = "window.setDisplayName && window.setDisplayName(\"\(escaped)\");"
-        webView.evaluateJavaScript(js) { _, error in
+        let script = "window.setDisplayName && window.setDisplayName(\"\(escaped)\");"
+        webView.evaluateJavaScript(script) { [weak self] _, error in
             if let error {
-                Logger.shared.error("[GameDebug] setDisplayName JS eval error=\(error)")
+                self?.logger.error("[GameDebug] setDisplayName JS eval error=\(error)")
             }
         }
     }
@@ -156,15 +157,15 @@ extension GameResultsWebViewController {
             alternatives: alternatives
         )
         guard let json = Self.encodeJSON(payload) else {
-            Logger.shared.error("[GameDebug] deliverUsernameAvailability: encoding FAILED")
+            logger.error("[GameDebug] deliverUsernameAvailability: encoding FAILED")
             return
         }
-        Logger.shared
+        logger
             .debug("[GameDebug] app→webview setUsernameAvailability availability=\(availability) payload=\(json)")
-        let js = "window.setUsernameAvailability && window.setUsernameAvailability(\(json));"
-        webView.evaluateJavaScript(js) { _, error in
+        let script = "window.setUsernameAvailability && window.setUsernameAvailability(\(json));"
+        webView.evaluateJavaScript(script) { [weak self] _, error in
             if let error {
-                Logger.shared.error("[GameDebug] setUsernameAvailability JS eval error=\(error)")
+                self?.logger.error("[GameDebug] setUsernameAvailability JS eval error=\(error)")
             }
         }
     }
@@ -176,14 +177,14 @@ extension GameResultsWebViewController {
             highValue: highValue
         )
         guard let json = Self.encodeJSON(payload) else {
-            Logger.shared.error("[GameDebug] pushAttestation: encoding FAILED index=\(index) hash=\(hash)")
+            logger.error("[GameDebug] pushAttestation: encoding FAILED index=\(index) hash=\(hash)")
             return
         }
-        Logger.shared.debug("[GameDebug] app→webview pushAttestation index=\(index) hash=\(hash) payload=\(json)")
-        let js = "window.pushAttestation && window.pushAttestation(\(json));"
-        webView.evaluateJavaScript(js) { _, error in
+        logger.debug("[GameDebug] app→webview pushAttestation index=\(index) hash=\(hash) payload=\(json)")
+        let script = "window.pushAttestation && window.pushAttestation(\(json));"
+        webView.evaluateJavaScript(script) { [weak self] _, error in
             if let error {
-                Logger.shared.error("[GameDebug] pushAttestation JS eval error=\(error) index=\(index)")
+                self?.logger.error("[GameDebug] pushAttestation JS eval error=\(error) index=\(index)")
             }
         }
     }
@@ -227,6 +228,7 @@ private extension GameResultsWebViewController {
         return String(data: data, encoding: .utf8)
     }
 
+    // swiftlint:disable line_length
     static func installConsoleHook(into controller: WKUserContentController) {
         let source = """
         (function(){
@@ -266,35 +268,36 @@ private extension GameResultsWebViewController {
         )
         controller.addUserScript(script)
     }
+    // swiftlint:enable line_length
 }
 
 extension GameResultsWebViewController: WKNavigationDelegate {
     func webView(_: WKWebView, didStartProvisionalNavigation _: WKNavigation!) {
-        Logger.shared.debug("[GameDebug] webview didStartProvisionalNavigation url=\(loadRequestURL)")
+        logger.debug("[GameDebug] webview didStartProvisionalNavigation url=\(loadRequestURL)")
         if schemeHandler == nil {
             rootView.activityIndicatorView.startAnimating()
         }
     }
 
     func webView(_ webView: WKWebView, didFinish _: WKNavigation!) {
-        Logger.shared.debug("[GameDebug] webview didFinish currentURL=\(String(describing: webView.url))")
+        logger.debug("[GameDebug] webview didFinish currentURL=\(String(describing: webView.url))")
         rootView.activityIndicatorView.stopAnimating()
         onPageReady?()
         onPageReady = nil
     }
 
     func webView(_: WKWebView, didFailProvisionalNavigation _: WKNavigation!, withError error: Error) {
-        Logger.shared.error("[GameDebug] webview didFailProvisionalNavigation error=\(error)")
+        logger.error("[GameDebug] webview didFailProvisionalNavigation error=\(error)")
         rootView.activityIndicatorView.stopAnimating()
     }
 
     func webView(_: WKWebView, didFail _: WKNavigation!, withError error: Error) {
-        Logger.shared.error("[GameDebug] webview didFail error=\(error)")
+        logger.error("[GameDebug] webview didFail error=\(error)")
         rootView.activityIndicatorView.stopAnimating()
     }
 
     func webViewWebContentProcessDidTerminate(_: WKWebView) {
-        Logger.shared.error(
+        logger.error(
             "[GameDebug] webview WebContent process TERMINATED (renderer crash) — this is the black screen"
         )
     }

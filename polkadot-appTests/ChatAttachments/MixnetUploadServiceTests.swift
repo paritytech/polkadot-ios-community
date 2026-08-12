@@ -22,7 +22,7 @@ struct MixnetUploadServiceTests {
         mockLoader.uploadEvents = [
             .onProgress(.init(uploaded: 250, total: 500, uploadedHashes: [Data()])),
             .onProgress(.init(uploaded: 500, total: 500, uploadedHashes: [Data(), Data()])),
-            .onFinished(.init(metadataHash: Data(repeating: 0xFF, count: 32)))
+            .onFinished(.chunked(metadata: Data(repeating: 0xFF, count: 32)))
         ]
 
         let env = makeTestEnv(loaderFactory: MockHOPFileLoaderFactory(loader: mockLoader))
@@ -143,7 +143,7 @@ struct MixnetUploadServiceTests {
             let loader = MockHOPFileLoader()
             loader.uploadEvents = [
                 .onProgress(.init(uploaded: 250, total: 500, uploadedHashes: [Data()])),
-                .onFinished(.init(metadataHash: Data(repeating: 0xFF, count: 32)))
+                .onFinished(.chunked(metadata: Data(repeating: 0xFF, count: 32)))
             ]
             return loader
         }())

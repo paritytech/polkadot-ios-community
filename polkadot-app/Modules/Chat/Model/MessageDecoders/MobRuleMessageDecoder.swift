@@ -22,7 +22,6 @@ extension MobRuleMessageDecoder: ChatMessageCustomDecoding {
         guard let content = try? Self.decodeContent(from: data) else {
             return []
         }
-        let caseIndex = content.caseIndex
         let messageConfig = MobRuleMessageConfiguration(
             messageContent: content,
             activityHandler: {

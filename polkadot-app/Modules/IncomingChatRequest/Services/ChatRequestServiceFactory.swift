@@ -6,6 +6,7 @@ import NovaCrypto
 import Keystore_iOS
 import SDKLogger
 import KeyDerivation
+import ChainRegistry
 
 protocol ChatRequestServiceMaking {
     func makeDiscoveryService() async throws -> ChatDiscoveryServicing

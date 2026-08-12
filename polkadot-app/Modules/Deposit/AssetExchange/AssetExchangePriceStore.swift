@@ -3,6 +3,7 @@ import Operation_iOS
 import SubstrateSdk
 import AssetExchange
 import OperationExt
+import ChainRegistry
 
 final class AssetExchangePriceStore: AnyProviderAutoCleaning {
     private var store: [ChainAssetId: PriceData] = [:]

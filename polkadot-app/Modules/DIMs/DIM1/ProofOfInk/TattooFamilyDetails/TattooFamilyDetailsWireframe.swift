@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 
+@MainActor
 final class TattooFamilyDetailsWireframe: TattooFamilyDetailsWireframeProtocol {
     let state: ProofOfInkFlowStateProtocol
 

@@ -3,6 +3,8 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
 import SubstrateStorageSubscription
+import ChainRegistry
+import SubstrateSdkExt
 
 typealias RemoteSubscriptionClosure = (Result<Void, Error>) -> Void
 

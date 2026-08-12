@@ -51,6 +51,7 @@ final class ChatExtensionsRegistry {
 
     private let changeSubject = AsyncPassthroughSubject<ChatExtensionRegistryChange>()
 
+    @MainActor
     init(
         extensionStore: ChatExtensionStoring,
         storageFacade: StorageFacadeProtocol,
@@ -64,6 +65,8 @@ final class ChatExtensionsRegistry {
         self.operationQueue = operationQueue
         self.logger = logger
 
+        // extension's delegate uses wireframe.registryDelegate which is MainActor
+        // that's why init has to be MainActor as well, until properly updated
         extensionStore.allExtensions.forEach { ($0 as? ChatExtensionDelegateProvidable)?.delegate = self }
         extensionStore.delegate = self
     }

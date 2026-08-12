@@ -43,6 +43,7 @@ public struct AlertPresentableViewModel {
     }
 }
 
+@MainActor
 public protocol AlertPresentable: AnyObject {
     func present(
         message: String?,

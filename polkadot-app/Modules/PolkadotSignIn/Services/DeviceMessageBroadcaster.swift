@@ -12,30 +12,22 @@ protocol DeviceMessageBroadcasting {
     func broadcastDeviceRemoved(
         statementAccountId: Data
     ) async throws
-
-    func broadcastLocalDevicesOnUpdate(
-        oldContact: Chat.Contact?,
-        newContact: Chat.Contact
-    ) async throws
 }
 
 final class DeviceMessageBroadcaster {
     private let contactRepository: AnyDataProviderRepository<Chat.Contact>
     private let messageRepository: AnyDataProviderRepository<Chat.LocalMessage>
-    private let localDeviceRepository: AnyDataProviderRepository<Chat.LocalDevice>
     private let messageExchangeModeProvider: MessageExchangeModeProviding
     private let logger: LoggerProtocol
 
     init(
         contactRepositoryFactory: ChatContactRepositoryMaking = ChatContactRepositoryFactory(),
         messageRepositoryFactory: ChatMessageRepositoryMaking = ChatMessageRepositoryFactory(),
-        localDeviceRepositoryFactory: LocalDeviceRepositoryMaking = LocalDeviceRepositoryFactory(),
         messageExchangeModeProvider: MessageExchangeModeProviding,
         logger: LoggerProtocol = Logger.shared
     ) {
         contactRepository = contactRepositoryFactory.createRepository(forFilter: nil)
         messageRepository = messageRepositoryFactory.createRepository(forFilter: nil)
-        localDeviceRepository = localDeviceRepositoryFactory.createRepository(forFilter: nil)
         self.messageExchangeModeProvider = messageExchangeModeProvider
         self.logger = logger
     }
@@ -58,39 +50,6 @@ extension DeviceMessageBroadcaster: DeviceMessageBroadcasting {
             statementAccountId: statementAccountId
         ))
         try await broadcastToActiveContacts(content: content, debugLabel: "DeviceRemoved")
-    }
-
-    /// Sends `deviceAdded` for every local device to a contact that just
-    /// transitioned from identity-level (0 devices) to device-level.
-    func broadcastLocalDevicesOnUpdate(
-        oldContact: Chat.Contact?,
-        newContact: Chat.Contact
-    ) async throws {
-        // nil oldContact means .insert, not .update — skip
-        guard
-            let oldContact,
-            messageExchangeModeProvider.mode(for: newContact) == .multidevice,
-            oldContact.devices.isEmpty,
-            !newContact.devices.isEmpty
-        else {
-            return
-        }
-
-        let localDevices = try await localDeviceRepository
-            .fetchAllOperation(with: .init())
-            .asyncExecute()
-
-        let messages = localDevices.map { device in
-            Chat.LocalMessage.newMessageToPerson(
-                newContact.accountId,
-                content: .deviceAdded(.init(
-                    statementAccountId: device.statementAccountId,
-                    encryptionPublicKey: device.encryptionPublicKey
-                ))
-            )
-        }
-
-        try await saveMessages(messages, debugLabel: "DeviceAdded (on update)")
     }
 }
 

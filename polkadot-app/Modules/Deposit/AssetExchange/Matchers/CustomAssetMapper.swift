@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 struct CustomAssetMapper {
     struct ExtrasToValue<T> {

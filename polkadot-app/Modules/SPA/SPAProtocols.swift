@@ -4,20 +4,28 @@ import UIKitExt
 
 protocol SPAViewProtocol: ControllerBackedProtocol {
     func navigate(to url: URL)
+    func navigate(to page: ProductPage)
     func updateTitle(_ title: String)
     func reload()
     func showLoading()
     func hideLoading()
+    func updateLoadProgress(_ progress: DotNsLoadProgress)
 }
 
 @MainActor
 protocol SPAPresenterProtocol: AnyObject {
     func setup(engine: JSEngineProtocol)
     func didTapMoreButton()
+    func didTapMinimize()
+    func didTapClose()
     func didInterceptNavigation(to url: URL)
     func didUpdateWebViewTitle(_ title: String)
+    func hasChatEntry() -> Bool
+    func didTapOpenChat()
+    func didTapShare()
 }
 
+@MainActor
 protocol SPAInteractorInputProtocol: AnyObject {
     func setup(engine: JSEngineProtocol)
     func retry()
@@ -30,6 +38,7 @@ protocol SPAInteractorOutputProtocol: AnyObject {
     func didFail(error: Error)
     func didRequestNavigation(to url: URL)
     func didPrepareChat(chatId: Chat.Id)
+    func didUpdateLoadProgress(_ progress: DotNsLoadProgress)
 }
 
 @MainActor
@@ -46,4 +55,7 @@ protocol SPAWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryab
         from view: ControllerBackedProtocol?,
         chatId: Chat.Id
     )
+
+    func minimize()
+    func close(tabId: UUID)
 }

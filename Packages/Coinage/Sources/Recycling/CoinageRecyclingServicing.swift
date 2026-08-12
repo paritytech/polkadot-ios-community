@@ -6,4 +6,5 @@ public protocol CoinageRecyclingServicing: Actor {
     /// Recycles the given coins into vouchers.
     /// - Parameter coins: The coins to recycle.
     func recycleCoins(_ coins: [Coin]) async throws
+    func recycleOldCoins() async
 }

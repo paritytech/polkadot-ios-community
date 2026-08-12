@@ -4,14 +4,16 @@ import UIKit
 import DesignSystem
 import SubstrateSdk
 
+@MainActor
 final class SearchContactPresenter {
     weak var view: SearchContactViewProtocol?
     let wireframe: SearchContactWireframeProtocol
     let interactor: SearchContactInteractorInputProtocol
 
-    private var contacts: [Chat.RemoteContact] = []
-    private var query: String = ""
-    private var queryFailed: Bool = false
+    private var currentSearch = CurrentSearch(
+        query: "",
+        state: .result(.contacts([]))
+    )
 
     init(
         interactor: SearchContactInteractorInputProtocol,
@@ -31,8 +33,12 @@ extension SearchContactPresenter: SearchContactPresenterProtocol {
         interactor.search(username: username)
     }
 
+    func scanQRCode() {
+        wireframe.showQRScan(from: view)
+    }
+
     func didSelectContact(identifier: String) {
-        guard let contact = contacts.first(where: { $0.username == identifier }) else {
+        guard let contact = currentSearch.contacts.first(where: { $0.username == identifier }) else {
             return
         }
         interactor.decide(on: contact)
@@ -40,20 +46,11 @@ extension SearchContactPresenter: SearchContactPresenterProtocol {
 }
 
 extension SearchContactPresenter: SearchContactInteractorOutputProtocol {
-    func didReceive(searchResults results: [Chat.RemoteContact], for query: String) {
-        contacts = results.sorted { Username(value: $0.username) < Username(value: $1.username) }
-        self.query = query
-        queryFailed = false
-
-        provideViewModel()
-    }
-
-    func didReceive(searchError _: Error, for query: String) {
-        contacts = []
-        self.query = query
-        queryFailed = true
-
-        provideViewModel()
+    func didReceive(searchState state: SearchContactSearchState, for query: String) {
+        guard canApplySearchState(state, for: query) else {
+            return
+        }
+        applySearchState(state, for: query)
     }
 
     func didReceive(error: any Error) {
@@ -66,12 +63,26 @@ extension SearchContactPresenter: SearchContactInteractorOutputProtocol {
 }
 
 private extension SearchContactPresenter {
+    func canApplySearchState(_ state: SearchContactSearchState, for query: String) -> Bool {
+        if case .started = state {
+            return true
+        }
+        return query.isEmpty || currentSearch.query == query
+    }
+
+    func applySearchState(_ state: SearchContactSearchState, for query: String) {
+        currentSearch = CurrentSearch(query: query, state: state)
+        provideViewModel()
+    }
+
     func provideViewModel() {
-        let showHint = !queryFailed && contacts.isEmpty && query.isEmpty
+        let query = currentSearch.query
+        let contacts = currentSearch.contacts
+        let showHint = !currentSearch.isSearching && !currentSearch.queryFailed && contacts.isEmpty && query.isEmpty
 
         // TODO: Add Highlight for username + move to factory OR move logic into ui level
         let searchFailReason: NSAttributedString?
-        if queryFailed || (!query.isEmpty && contacts.isEmpty) {
+        if !currentSearch.isSearching, currentSearch.queryFailed || (!query.isEmpty && contacts.isEmpty) {
             let searchFailedString = String(localized: .searchContactNoSuchUsername(username: query))
             var attributes = LabelStyle.title16SemiBold().attributes(for: .center)
             attributes[.foregroundColor] = UIColor.fgSecondary
@@ -97,8 +108,58 @@ private extension SearchContactPresenter {
             }
             .identified { $0.userName },
             showHint: showHint,
-            searchFailReason: searchFailReason
+            searchFailReason: searchFailReason,
+            showsLoader: currentSearch.showsLoader,
+            loaderText: currentSearch.loaderText
         )
         view?.didReceive(viewModel: viewModel)
+    }
+
+    struct CurrentSearch {
+        let query: String
+        let state: SearchContactSearchState
+
+        var contacts: [Chat.RemoteContact] {
+            guard case let .result(.contacts(contacts)) = state else {
+                return []
+            }
+            return contacts.sorted { Username(value: $0.username) < Username(value: $1.username) }
+        }
+
+        var queryFailed: Bool {
+            guard case .result(.error) = state else {
+                return false
+            }
+            return true
+        }
+
+        var isSearching: Bool {
+            switch state {
+            case .started,
+                 .waiting,
+                 .waitingLong:
+                true
+            case .result:
+                false
+            }
+        }
+
+        var showsLoader: Bool {
+            switch state {
+            case .waiting,
+                 .waitingLong:
+                true
+            case .started,
+                 .result:
+                false
+            }
+        }
+
+        var loaderText: String? {
+            guard case .waitingLong = state else {
+                return nil
+            }
+            return String(localized: .searchContactLoadingLong)
+        }
     }
 }

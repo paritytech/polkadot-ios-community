@@ -62,8 +62,8 @@ extension ChatRequestFactory: ChatRequestFactoryProtocol {
             proof: proof
         )
 
-        let tempPrivateKey = P256.KeyAgreement.PrivateKey()
-        let tempEncryptorFactory = P256AESEncryptorFactory(privateKey: tempPrivateKey)
+        let tempPrivateKey = Curve25519.KeyAgreement.PrivateKey()
+        let tempEncryptorFactory = X25519ChaChaPolyEncryptorFactory(privateKey: tempPrivateKey)
         let tempEncryptor = try tempEncryptorFactory.makeEncryptor(remotePublicKey: peerEncryptionPubKey)
 
         let dataToEncrypt = try remoteModel.scaleEncoded()

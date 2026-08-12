@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 
+@MainActor
 enum BlockedUsersViewFactory {
     static func createView() -> BlockedUsersViewProtocol? {
         let interactor = BlockedUsersInteractor(

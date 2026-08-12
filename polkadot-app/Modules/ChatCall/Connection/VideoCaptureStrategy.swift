@@ -8,12 +8,20 @@ struct VideoCaptureParams {
 }
 
 struct VideoCapturePreferences {
-    let maxWidth: Int
-    let maxHeight: Int
-    let maxFps: Int
+    let targetWidth: Int
+    let targetHeight: Int
+    let targetFps: Int
 
-    static var defaultPreferences: VideoCapturePreferences {
-        VideoCapturePreferences(maxWidth: 1_280, maxHeight: 720, maxFps: 30)
+    init(maxWidth: Int, maxHeight: Int, maxFps: Int) {
+        targetWidth = maxWidth
+        targetHeight = maxHeight
+        targetFps = maxFps
+    }
+
+    init(profile: RTCVideoProfile) {
+        targetWidth = profile.captureTargetWidth
+        targetHeight = profile.captureTargetHeight
+        targetFps = profile.captureFps
     }
 }
 
@@ -37,60 +45,54 @@ final class VideoCaptureStrategy {
 }
 
 private extension VideoCaptureStrategy {
-    func fallbackWhenDimensionsNotMatch(for device: AVCaptureDevice) -> VideoCaptureParams? {
-        let allFormats = RTCCameraVideoCapturer.supportedFormats(for: device)
-        guard let format = allFormats.first else {
-            return nil
+    func makeCandidate(from format: AVCaptureDevice.Format, id: Int) -> VideoCaptureFormatCandidate {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+        let frameRateRanges = format.videoSupportedFrameRateRanges.map {
+            $0.minFrameRate ... $0.maxFrameRate
         }
 
-        let maxFps = Double(preferences.maxFps)
+        return VideoCaptureFormatCandidate(
+            id: id,
+            dimensions: dimensions,
+            frameRateRanges: frameRateRanges
+        )
+    }
 
-        let fps = format.videoSupportedFrameRateRanges
-            .filter { $0.maxFrameRate <= maxFps }
-            .sorted { $0.maxFrameRate < $1.maxFrameRate }
-            .last ?? format.videoSupportedFrameRateRanges.first
-
-        guard let fps else {
-            return nil
-        }
-
-        return VideoCaptureParams(format: format, fps: Int(fps.maxFrameRate))
+    func logSelectedFormat(_ selection: VideoCaptureFormatSelection) {
+        logger.debug(
+            """
+            Video capture format selected: target=\(preferences.targetWidth)x\(preferences.targetHeight)@\(preferences
+                .targetFps), \
+            selected=\(selection.candidate.dimensions.width)x\(selection.candidate.dimensions.height)@\(selection
+                .fps), \
+            exactFps=\(selection.supportsTargetFps), fitsDimensions=\(selection.fitsTargetDimensions)
+            """
+        )
     }
 }
 
 extension VideoCaptureStrategy: VideoCaptureStrategyProtocol {
     func deriveParams(for device: AVCaptureDevice) -> VideoCaptureParams? {
-        let suitableFormats = RTCCameraVideoCapturer.supportedFormats(for: device)
-            .filter { format in
-                let dimensions = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
-                return dimensions.width <= preferences.maxWidth && dimensions.height <= preferences.maxHeight
-            }
-            .sorted { form1, form2 -> Bool in
-                let width1 = CMVideoFormatDescriptionGetDimensions(form1.formatDescription).width
-                let width2 = CMVideoFormatDescriptionGetDimensions(form2.formatDescription).width
-                return width1 < width2
-            }
-
-        // Choose best format (highest resolution within constraints)
-        guard let format = suitableFormats.last else {
-            logger.warning("No format matching preferred dimensions. Using fallback")
-            return fallbackWhenDimensionsNotMatch(for: device)
+        let formats = RTCCameraVideoCapturer.supportedFormats(for: device)
+        let candidates = formats.enumerated().map { index, format in
+            makeCandidate(from: format, id: index)
         }
 
-        let maxFps = Double(preferences.maxFps)
-
-        let fps = format.videoSupportedFrameRateRanges
-            .filter { $0.maxFrameRate <= maxFps }
-            .sorted { $0.maxFrameRate < $1.maxFrameRate }
-            .last ?? format.videoSupportedFrameRateRanges.first
-
-        guard let fps else {
-            logger.error("No FPS range available")
+        guard let selection = VideoCaptureFormatSelector.select(from: candidates, preferences: preferences) else {
+            logger.error("No video capture format available")
             return nil
         }
 
-        let targetFps = min(Int(fps.maxFrameRate), preferences.maxFps)
+        if !selection.fitsTargetDimensions {
+            logger.warning("No video capture format matching preferred dimensions. Using fallback")
+        }
 
-        return VideoCaptureParams(format: format, fps: targetFps)
+        if !selection.supportsTargetFps {
+            logger.warning("No video capture format matching preferred fps. Using fallback")
+        }
+
+        logSelectedFormat(selection)
+
+        return VideoCaptureParams(format: formats[selection.candidate.id], fps: selection.fps)
     }
 }

@@ -1,5 +1,13 @@
 import Foundation
 import Products
+import SubstrateSdk
+
+extension AppConfig {
+    static let reviveAccountId: AccountId = {
+        let data = Data("modlpy/reviv".utf8)
+        return data + Data(repeating: 0, count: 32 - data.count)
+    }()
+}
 
 extension AppConfig {
     enum KnownIPFS {

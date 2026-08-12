@@ -1,20 +1,25 @@
 import Foundation
 import PolkadotUI
 
+@MainActor
 final class MainTabBarPresenter {
     weak var view: MainTabBarViewProtocol?
     let wireframe: MainTabBarWireframeProtocol
     let interactor: MainTabBarInteractorInputProtocol
 
-    var tabItems: [TabBarItem] = [.chat, .wallet, .browse, .settings]
+    let tabItems: [TabBarItem] = [.chat, .wallet, .scan, .browse, .settings]
+
+    private let chipViewModelFactory: SPATabChipViewModelFactory
     private var settingsBadge: TabBarBadge?
 
     init(
         interactor: MainTabBarInteractorInputProtocol,
-        wireframe: MainTabBarWireframeProtocol
+        wireframe: MainTabBarWireframeProtocol,
+        chipViewModelFactory: SPATabChipViewModelFactory
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
+        self.chipViewModelFactory = chipViewModelFactory
     }
 }
 
@@ -24,8 +29,7 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
     }
 
     func configureViews() {
-        view?.show(tabs: tabItems)
-        view?.select(tab: .wallet)
+        view?.show(tabs: tabItems, selecting: .wallet)
         view?.setBadge(settingsBadge, for: .settings)
     }
 }
@@ -56,5 +60,9 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
     func didReceivePolkadotSignInRequest(with url: URL) {
         wireframe.showPolkadotSignIn(with: url, view: view)
+    }
+
+    func didReceiveSPATabs(_ tabs: [SPATab]) {
+        view?.showSPATabs(chipViewModelFactory.createViewModels(for: tabs))
     }
 }

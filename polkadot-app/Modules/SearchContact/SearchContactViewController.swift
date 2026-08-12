@@ -44,6 +44,10 @@ private extension SearchContactViewController {
             self?.dismiss(animated: true)
         }
 
+        rootView.scanHandler = { [weak self] in
+            self?.presenter.scanQRCode()
+        }
+
         rootView.selectionHandler = { [weak self] identifier in
             self?.presenter.didSelectContact(identifier: identifier)
         }

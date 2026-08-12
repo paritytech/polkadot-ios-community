@@ -28,6 +28,14 @@ public enum OnExistingAllowancePolicy: Equatable, ScaleCodable {
 public protocol AllowanceManaging {
     func allocate(
         accountId: AccountId,
-        policy: OnExistingAllowancePolicy
+        policy: OnExistingAllowancePolicy,
+        priority: AllowanceRecord.Priority
     ) async throws
+    func renew() async throws
+    func release(accountId: AccountId) async throws
+}
+
+public extension AllowanceManaging {
+    func renew() async throws {}
+    func release(accountId _: AccountId) async throws {}
 }

@@ -8,18 +8,18 @@ struct DeviceSyncChatAcceptedApplier {
     private let storageFacade: StorageFacadeProtocol
     private let contactsStorageService: ContactsLocalStorageServicing
     private let messageExchangeModeProvider: MessageExchangeModeProviding
-    private let logger: LoggerProtocol
+    private let peerLogger: LoggerProtocol
 
     init(
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         messageExchangeModeProvider: MessageExchangeModeProviding,
-        logger: LoggerProtocol
+        peerLogger: LoggerProtocol
     ) {
         self.storageFacade = storageFacade
         self.contactsStorageService = contactsStorageService
         self.messageExchangeModeProvider = messageExchangeModeProvider
-        self.logger = logger
+        self.peerLogger = peerLogger
     }
 
     func apply(_ wireMessages: [Chat.DeviceSyncWireMessage]) async throws {
@@ -60,12 +60,12 @@ private extension DeviceSyncChatAcceptedApplier {
             .fetchOperation(by: { requestId }, options: .init())
             .asyncExecute()
         else {
-            logger.debug("No synced accepted request found with id: \(requestId)")
+            peerLogger.debug("No synced accepted request found with id: \(requestId)")
             return
         }
 
         guard request.contactAccountId == contactId else {
-            logger.error("Synced accepted request \(requestId) belongs to another contact")
+            peerLogger.error("Synced accepted request \(requestId) belongs to another contact")
             return
         }
 
@@ -87,12 +87,12 @@ private extension DeviceSyncChatAcceptedApplier {
         requestId: String
     ) async throws {
         guard request.isIncoming else {
-            logger.debug("Synced outgoing accept \(requestId) doesn't match incoming request, skipping")
+            peerLogger.debug("Synced outgoing accept \(requestId) doesn't match incoming request, skipping")
             return
         }
 
         try await markLocalIncomingRequestAccepted(requestId)
-        logger.debug("Accepted incoming request \(requestId) from sync")
+        peerLogger.debug("Accepted incoming request \(requestId) from sync")
     }
 
     func applyPeerAcceptedRequest(
@@ -102,7 +102,7 @@ private extension DeviceSyncChatAcceptedApplier {
         peerDevice: Chat.PeerDevice?
     ) async throws {
         guard request.isOutgoing else {
-            logger.debug("Synced incoming accept \(requestId) doesn't match outgoing request, skipping")
+            peerLogger.debug("Synced incoming accept \(requestId) doesn't match outgoing request, skipping")
             return
         }
 
@@ -110,7 +110,7 @@ private extension DeviceSyncChatAcceptedApplier {
             .getContact(by: contactId)
             .asyncExecute()
         else {
-            logger.error("Missing contact for synced accepted request")
+            peerLogger.error("Missing contact for synced accepted request")
             return
         }
 
@@ -125,7 +125,7 @@ private extension DeviceSyncChatAcceptedApplier {
             try await storePeerDevice(peerDevice, for: contactId)
         }
 
-        logger.debug("Accepted outgoing request \(requestId) from sync")
+        peerLogger.debug("Accepted outgoing request \(requestId) from sync")
     }
 
     func markLocalIncomingRequestAccepted(_ requestId: String) async throws {
@@ -163,7 +163,7 @@ private extension DeviceSyncChatAcceptedApplier {
         )
 
         try await contactsStorageService.updateDeviceSettings([settings]).asyncExecute()
-        logger.debug("Stored peer device from synced accept for \(contactId.toHex())")
+        peerLogger.debug("Stored peer device from synced accept for \(contactId.toHex())")
     }
 
     func chatAccepted(
@@ -231,6 +231,7 @@ extension SyncAcceptIncomingChatRequestMapper: CoreDataMapperProtocol {
         entity.status = Chat.RequestStatus.incoming(.accepted).rawValue
         entity.touchParent()
         entity.contact?.acceptedAt = Date()
+        entity.contact?.pendingDevicesFanOut = true
         entity.contact = nil
     }
 }

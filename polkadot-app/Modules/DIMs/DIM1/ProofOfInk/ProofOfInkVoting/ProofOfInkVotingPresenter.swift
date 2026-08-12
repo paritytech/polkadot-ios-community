@@ -1,6 +1,7 @@
 import Foundation
 import PolkadotUI
 
+@MainActor
 final class ProofOfInkVotingPresenter {
     weak var view: ProofOfInkVotingViewProtocol?
 

@@ -2,6 +2,8 @@ import Foundation
 import BigInt
 import SubstrateSdk
 import SDKLogger
+import BackgroundExecution
+import StructuredConcurrency
 
 /// Protocol for a coin unload to complete transfer.
 protocol TransferSenderServicing: Actor {
@@ -54,6 +56,7 @@ actor TransferSenderService {
     private let planFactory: TransferPlanCreating
     private let memoBuilder: MemoBuilding
     private let recyclerLoader: RecyclerReadinessLoading
+    private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol?
 
     private var cachedMaxVouchers: Int?
@@ -63,12 +66,14 @@ actor TransferSenderService {
         planFactory: TransferPlanCreating,
         memoBuilder: MemoBuilding,
         recyclerLoader: RecyclerReadinessLoading,
+        backgroundExecutor: any BackgroundExecuting,
         logger: SDKLoggerProtocol?
     ) {
         self.coinSelector = coinSelector
         self.planFactory = planFactory
         self.memoBuilder = memoBuilder
         self.recyclerLoader = recyclerLoader
+        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
     }
 }
@@ -109,9 +114,15 @@ extension TransferSenderService: TransferSenderServicing {
 
         try await context.reserve(coins: result.inputCoins, vouchers: result.inputVouchers)
 
-        Task { [strategy = plan.strategy, logger] in
+        Task { [strategy = plan.strategy, backgroundExecutor, logger] in
             do {
-                try await strategy.run(context: context)
+                try await backgroundExecutor.execute {
+                    try await markStallActivity("Send transfer") {
+                        try await markStallRegion("Execute transfer") {
+                            try await strategy.run(context: context)
+                        }
+                    }
+                }
                 logger?.debug("Strategy execution completed")
             } catch {
                 logger?.error("Strategy execution failed: \(error)")

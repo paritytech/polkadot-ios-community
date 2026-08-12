@@ -4,6 +4,7 @@ import SubstrateSdk
 import AssetExchange
 import KeyDerivation
 import AssetHubSdk
+import ChainRegistry
 
 protocol AssetExchangeServiceFactoryProtocol {
     func createService() throws -> AssetExchangeServiceFactoryResult

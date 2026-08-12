@@ -3,7 +3,7 @@ import CoreImage.CIFilterBuiltins
 import Operation_iOS
 import UIKit.UIImage
 
-final class Code128CreationOperation: BaseOperation<UIImage> {
+final class Code128CreationOperation: BaseOperation<UIImage>, @unchecked Sendable {
     let payloadClosure: () throws -> Data
     let height: Float
     let quietSpace: Float

@@ -38,14 +38,24 @@ extension DataChannelSignaler: PeerConnectionSignaling {
             .eraseToAnyAsyncSequence()
     }
 
-    func send(_ signal: PeerConnectionSignal) async throws -> PeerConnectionSignalStateObserving? {
-        do {
-            let data = try signal.scaleEncoded()
-            try multiplexedChannel.send(data: data, useCaseId: Self.useCaseId)
-        } catch {
-            logger.error("Signal send failed: \(error)")
+    @discardableResult
+    func send(
+        _ signals: [PeerConnectionSignal]
+    ) async throws -> PeerConnectionSignalSendResult {
+        var isFullySent = true
+
+        for signal in signals {
+            do {
+                let data = try signal.scaleEncoded()
+                try await multiplexedChannel.send(data: data, useCaseId: Self.useCaseId)
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                logger.error("Signal send failed: \(error)")
+                isFullySent = false
+            }
         }
-        // Observer can be implemented if it will be ever needed
-        return nil
+
+        return PeerConnectionSignalSendResult(isFullySent: isFullySent)
     }
 }

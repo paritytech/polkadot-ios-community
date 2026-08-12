@@ -1,8 +1,8 @@
 import Foundation
+import ChainRegistry
 
 extension StatemineAssetExtras {
     init(info: AssetsPalletStorageInfo) {
-        assetId = info.assetIdString
-        palletName = info.palletName
+        self.init(assetId: info.assetIdString, palletName: info.palletName)
     }
 }

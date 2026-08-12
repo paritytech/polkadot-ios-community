@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import AssetHubSdk
 import AssetsManagement
+import ChainRegistry
 
 enum AssetHubBulkTokensMapperFactoryError: Error {
     case unexpectedChain(ChainProtocol)

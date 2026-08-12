@@ -13,7 +13,7 @@ extension PolkadotHostRemoteMessage {
         let payload: VersionedCreateTransactionPayload
     }
 
-    typealias CreateTransactionResultAP = HostResult<Data>
+    typealias CreateTransactionResultAP = HostResult<Data, String>
 }
 
 // MARK: - VersionedCreateTransactionPayload

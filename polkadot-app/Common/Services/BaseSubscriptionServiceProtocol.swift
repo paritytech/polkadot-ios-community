@@ -6,6 +6,7 @@ import SubstrateStorageSubscription
 import SubstrateSdkExt
 import Combine
 import OperationExt
+import ChainRegistry
 
 enum SubscriptionServiceError: Error {
     case timeOut

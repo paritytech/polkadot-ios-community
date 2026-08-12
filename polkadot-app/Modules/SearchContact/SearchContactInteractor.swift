@@ -8,10 +8,8 @@ final class SearchContactInteractor {
     private let searchApi: RemoteContactOperationMaking
     private let chatRepositoryFactory: ChatRepositoryMaking
     private let ownAccountId: AccountId
-
-    private let debouncer = Debouncer(delay: 0.3, queue: .main)
+    private let searchRunner = SearchRunner()
     private var searchTask: Task<Void, Never>?
-    private var latestQuery: String = ""
 
     init(
         ownAccountId: AccountId,
@@ -24,25 +22,34 @@ final class SearchContactInteractor {
     }
 
     deinit {
-        cancelCurrentSearch()
+        cancelSearchTask()
     }
 }
 
 extension SearchContactInteractor: SearchContactInteractorInputProtocol {
     func search(username: String) {
-        guard !username.isEmpty else {
-            debouncer.cancel()
-            cancelCurrentSearch()
+        cancelSearchTask()
 
+        guard !username.isEmpty else {
             searchTask = Task { [weak self] in
-                await self?.presenter?.didReceive(searchResults: [], for: username)
+                guard !Task.isCancelled else { return }
+                await self?.presenter?.didReceive(searchState: .result(.contacts([])), for: username)
             }
             return
         }
 
-        latestQuery = username
-        debouncer.debounce { [weak self] in
-            self?.performSearch(query: username)
+        searchTask = Task { [weak presenter, searchRunner, searchApi, ownAccountId] in
+            let stateStream = searchRunner.run {
+                await Self.makeSearchResult(
+                    for: username,
+                    ownAccountId: ownAccountId,
+                    searchApi: searchApi
+                )
+            }
+            for await state in stateStream {
+                guard !Task.isCancelled else { return }
+                await presenter?.didReceive(searchState: state, for: username)
+            }
         }
     }
 
@@ -71,37 +78,30 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
 }
 
 private extension SearchContactInteractor {
-    func cancelCurrentSearch() {
+    func cancelSearchTask() {
         searchTask?.cancel()
         searchTask = nil
     }
 
-    func performSearch(query: String) {
-        cancelCurrentSearch()
-
-        searchTask = Task { [weak presenter, searchApi, ownAccountId] in
-            do {
-                if let accountId = try? query.toAccountId(),
-                   accountId != ownAccountId,
-                   let account = try? await searchApi.fetch(by: accountId) {
-                    try Task.checkCancellation()
-                    await presenter?.didReceive(searchResults: [account], for: query)
-                    return
-                }
-
-                let contacts = try await searchApi.search(by: query).asyncExecute()
-
-                let matchedContacts = contacts.filter { $0.accountId != ownAccountId }
-
+    static func makeSearchResult(
+        for query: String,
+        ownAccountId: AccountId,
+        searchApi: RemoteContactOperationMaking
+    ) async -> SearchContactSearchResult? {
+        do {
+            if let accountId = try? query.toAccountId(),
+               accountId != ownAccountId,
+               let account = try? await searchApi.fetch(by: accountId) {
                 try Task.checkCancellation()
-                await presenter?.didReceive(searchResults: matchedContacts, for: query)
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                await presenter?.didReceive(searchError: error, for: query)
+                return .contacts([account])
             }
+            let contacts = try await searchApi.search(by: query).asyncExecute()
+            let matchedContacts = contacts.filter { $0.accountId != ownAccountId }
+            try Task.checkCancellation()
+            return .contacts(matchedContacts)
+        } catch {
+            guard !Task.isCancelled else { return nil }
+            return .error(error)
         }
     }
 }

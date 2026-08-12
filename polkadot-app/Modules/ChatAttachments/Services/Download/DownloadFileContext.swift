@@ -4,7 +4,7 @@ import Operation_iOS
 import SDKLogger
 
 actor DownloadFileContext {
-    let metadataHash: FileHash
+    let entryHash: FileHash
     let filename: String
     let attachmentsStore: AttachmentStoring
     let repository: AnyDataProviderRepository<MixnetDownload>
@@ -15,7 +15,7 @@ actor DownloadFileContext {
     private var fileHandle: FileHandle?
 
     init(
-        metadataHash: FileHash,
+        entryHash: FileHash,
         filename: String,
         attachmentsStore: AttachmentStoring,
         repository: AnyDataProviderRepository<MixnetDownload>,
@@ -23,7 +23,7 @@ actor DownloadFileContext {
         fileManager: FileManager = FileManager.default,
         logger: LoggerProtocol = Logger.shared
     ) {
-        self.metadataHash = metadataHash
+        self.entryHash = entryHash
         self.filename = filename
         self.attachmentsStore = attachmentsStore
         self.repository = repository
@@ -34,18 +34,35 @@ actor DownloadFileContext {
 }
 
 extension DownloadFileContext: DownloadFileContextProtocol {
-    nonisolated var identifier: String { metadataHash.toHex() }
+    nonisolated var identifier: String { entryHash.toHex() }
 
-    func saveMetadata(_ data: Data, totalChunks: Int) async throws {
-        let model = MixnetDownload(
-            metadataHashHex: identifier,
-            lastChunkIndex: -1,
-            totalChunks: Int32(totalChunks),
-            metadata: data,
-            downloadedBytes: 0
-        )
+    func saveEntry(_ entry: DownloadedEntry) async throws {
+        switch entry {
+        case let .inline(fileData):
+            try saveInlineFile(fileData)
 
-        try await repository.saveOperation({ [model] }, { [] }).asyncExecute()
+            let model = MixnetDownload(
+                entryHashHex: identifier,
+                entryType: .inline,
+                lastChunkIndex: -1,
+                totalChunks: 0,
+                metadata: nil,
+                downloadedBytes: Int64(fileData.count)
+            )
+
+            try await repository.saveOperation({ [model] }, { [] }).asyncExecute()
+        case let .chunked(metadata, totalChunks):
+            let model = MixnetDownload(
+                entryHashHex: identifier,
+                entryType: .metadata,
+                lastChunkIndex: -1,
+                totalChunks: Int32(totalChunks),
+                metadata: metadata,
+                downloadedBytes: 0
+            )
+
+            try await repository.saveOperation({ [model] }, { [] }).asyncExecute()
+        }
     }
 
     func fetchResumeInfo() async throws -> ResumeDownloadInfo? {
@@ -57,39 +74,16 @@ extension DownloadFileContext: DownloadFileContextProtocol {
         )
         .asyncExecute()
 
-        guard
-            let download = optDownload,
-            let metadata = download.metadata else {
+        guard let download = optDownload else {
             return nil
         }
 
-        let actualFileSize = partialFileSize()
-
-        let lastChunkIndex: Int?
-        let downloadedBytes: Int
-
-        if download.downloadedBytes > Int64(actualFileSize) {
-            // DB is ahead of the file — the last chunk write was interrupted.
-            // Roll back to the previous chunk so it gets re-downloaded.
-            lastChunkIndex = download.lastChunkIndex > 0 ? Int(download.lastChunkIndex - 1) : nil
-            downloadedBytes = actualFileSize
-
-            logger.warning(
-                "Download state mismatch: DB expects \(download.downloadedBytes) bytes "
-                    + "but file has \(actualFileSize). Rolling back to chunk \(String(describing: lastChunkIndex))"
-            )
-        } else {
-            lastChunkIndex = download.lastChunkIndex >= 0 ? Int(download.lastChunkIndex) : nil
-            downloadedBytes = actualFileSize
+        switch download.entryType {
+        case .inline:
+            return try await inlineResumeInfo(for: download)
+        case .metadata:
+            return chunkedResumeInfo(for: download)
         }
-
-        logger.debug("Last chunk index: \(String(describing: lastChunkIndex)), downloaded bytes: \(downloadedBytes)")
-
-        return ResumeDownloadInfo(
-            metadata: metadata,
-            lastChunkIndex: lastChunkIndex,
-            downloadedBytes: downloadedBytes
-        )
     }
 
     func appendChunk(_ data: Data, at index: Int) async throws {
@@ -97,7 +91,7 @@ extension DownloadFileContext: DownloadFileContextProtocol {
         let currentEnd = try handle.seekToEnd()
 
         let update = MixnetDownloadChunkIndex(
-            metadataHashHex: identifier,
+            entryHashHex: identifier,
             lastChunkIndex: Int32(index),
             downloadedBytes: Int64(currentEnd) + Int64(data.count)
         )
@@ -127,6 +121,65 @@ extension DownloadFileContext: DownloadFileContextProtocol {
 private extension DownloadFileContext {
     var partialFilename: String {
         filename + ".part"
+    }
+
+    func saveInlineFile(_ fileData: Data) throws {
+        try attachmentsStore.store(attachment: fileData, filename: partialFilename)
+    }
+
+    func inlineResumeInfo(for download: MixnetDownload) async throws -> ResumeDownloadInfo? {
+        let actualFileSize = partialFileSize()
+
+        guard actualFileSize >= Int(download.downloadedBytes) else {
+            // The inline file write was interrupted — drop the state and restart fresh.
+            logger.warning(
+                "Inline download state mismatch: DB expects \(download.downloadedBytes) bytes "
+                    + "but file has \(actualFileSize). Restarting"
+            )
+
+            let id = identifier
+            try await repository.saveOperation({ [] }, { [id] }).asyncExecute()
+
+            return nil
+        }
+
+        return .inline(downloadedBytes: Int(download.downloadedBytes))
+    }
+
+    func chunkedResumeInfo(for download: MixnetDownload) -> ResumeDownloadInfo? {
+        guard let metadata = download.metadata else {
+            return nil
+        }
+
+        let actualFileSize = partialFileSize()
+
+        let lastChunkIndex: Int?
+        let downloadedBytes: Int
+
+        if download.downloadedBytes > Int64(actualFileSize) {
+            // DB is ahead of the file — the last chunk write was interrupted.
+            // Roll back to the previous chunk so it gets re-downloaded.
+            lastChunkIndex = download.lastChunkIndex > 0 ? Int(download.lastChunkIndex - 1) : nil
+            downloadedBytes = actualFileSize
+
+            logger.warning(
+                "Download state mismatch: DB expects \(download.downloadedBytes) bytes "
+                    + "but file has \(actualFileSize). Rolling back to chunk \(String(describing: lastChunkIndex))"
+            )
+        } else {
+            lastChunkIndex = download.lastChunkIndex >= 0 ? Int(download.lastChunkIndex) : nil
+            downloadedBytes = actualFileSize
+        }
+
+        logger.debug("Last chunk index: \(String(describing: lastChunkIndex)), downloaded bytes: \(downloadedBytes)")
+
+        let chunked = ResumeDownloadInfo.Chunked(
+            metadata: metadata,
+            lastChunkIndex: lastChunkIndex,
+            downloadedBytes: downloadedBytes
+        )
+
+        return .chunked(chunked)
     }
 
     func getOrCreateHandle() throws -> FileHandle {

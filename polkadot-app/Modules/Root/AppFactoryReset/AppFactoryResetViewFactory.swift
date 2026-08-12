@@ -1,6 +1,7 @@
 #if TESTNET_FEATURE
     import Foundation
 
+    @MainActor
     enum AppFactoryResetViewFactory {
         static func createView() -> AppFactoryResetViewProtocol {
             let wireframe = AppFactoryResetWireframe()

@@ -4,6 +4,7 @@ import SubstrateStorageQuery
 import StructuredConcurrency
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol PersonSelfIncludeStateFetching: AnyObject {
     func fetchEligibility() async throws -> PersonRegistration.SelfIncludeEligibility

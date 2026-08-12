@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 final class PolkadotSigningInteractor {
     weak var presenter: PolkadotSigningInteractorOutputProtocol?
@@ -42,7 +43,9 @@ extension PolkadotSigningInteractor: PolkadotSigningInteractorInputProtocol {
                 )
 
                 logger.debug("Going to send result for \(signingContext.requester.name)")
-                try await signingContext.sendResult(signingResult)
+
+                try await self.signingContext.sendResult(signingResult)
+
                 logger.debug("Result sent for \(signingContext.requester.name)")
 
                 await self.presenter?.didFinishSigning()

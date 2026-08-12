@@ -6,7 +6,7 @@ public enum WalletSeedKeypairFactoryError: Error {
     case invalidSeedLength(Int)
 }
 
-public final class WalletSeedKeypairFactory {
+public final class WalletSeedKeypairFactory: @unchecked Sendable {
     public static let expectedSeedLength = 32
 
     private let seed: Data

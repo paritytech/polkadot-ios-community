@@ -2,6 +2,7 @@ import UIKit
 import Combine
 import Foundation
 import PushKit
+import EventCenter
 
 final class MainTabBarInteractor {
     weak var presenter: MainTabBarInteractorOutputProtocol?
@@ -16,6 +17,7 @@ final class MainTabBarInteractor {
     private let urlHandlingService: URLHandlingServiceProtocol
     private let deferredLinkHandler: DeferredLinkHandling
     private let extensionWidgetStreamProvider: ChatExtensionWidgetStreaming
+    private let browserCoordinator: SPABrowserCoordinating
 
     private var availabilityObserver: NSObjectProtocol?
     private var extensionWidgetSubscription: Task<Void, Never>?
@@ -26,6 +28,7 @@ final class MainTabBarInteractor {
         urlHandlingService: URLHandlingServiceProtocol,
         deferredLinkHandler: DeferredLinkHandling,
         mnemonicBackupHelper: MnemonicBackupHelperProtocol,
+        browserCoordinator: SPABrowserCoordinating,
         notificationCenter: NotificationCenter = .default,
         logger: LoggerProtocol = Logger.shared,
         eventCenter: EventCenterProtocol = EventCenter.shared,
@@ -39,6 +42,7 @@ final class MainTabBarInteractor {
         self.eventCenter = eventCenter
         self.urlHandlingService = urlHandlingService
         self.deferredLinkHandler = deferredLinkHandler
+        self.browserCoordinator = browserCoordinator
         self.extensionWidgetStreamProvider = extensionWidgetStreamProvider ?? ChatExtensionWidgetStreamProvider(
             registry: serviceCoordinator.chatExtensionsRegistry,
             logger: logger
@@ -61,6 +65,7 @@ extension MainTabBarInteractor: MainTabBarInteractorInputProtocol {
         subscribeToExtensionWidgets()
         evaluateBackupRequirement()
         deferredLinkHandler.register(urlHandlingService)
+        subscribeToSPATabs()
     }
 }
 
@@ -141,6 +146,12 @@ private extension MainTabBarInteractor {
         extensionWidgetSubscription = nil
         extensionWidgetStreamProvider.throttle()
     }
+
+    func subscribeToSPATabs() {
+        MainActor.assumeIsolated {
+            browserCoordinator.addObserver(self, sendOnSubscription: true)
+        }
+    }
 }
 
 @MainActor
@@ -161,7 +172,7 @@ private extension MainTabBarInteractor {
     }
 }
 
-extension MainTabBarInteractor: EventVisitorProtocol {
+extension MainTabBarInteractor: AppEventVisiting {
     func processBackupStatusChanged(event _: BackupStatusChanged) {
         evaluateBackupRequirement()
     }
@@ -172,5 +183,11 @@ extension MainTabBarInteractor: PolkadotSignInServiceOutputProtocol {
         Task { [weak self] in
             await self?.requestPolkadotSignIn(with: url)
         }
+    }
+}
+
+extension MainTabBarInteractor: SPATabsObserver {
+    func didReceiveUpdatedTabs(_ tabs: [SPATab]) {
+        presenter?.didReceiveSPATabs(tabs)
     }
 }

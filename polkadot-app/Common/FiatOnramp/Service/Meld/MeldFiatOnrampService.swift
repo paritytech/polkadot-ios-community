@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 struct MeldFiatOnrampConfiguration {
     let baseUrl: URL

@@ -2,6 +2,7 @@ import Foundation
 import Photos
 import UIKit
 import UniformTypeIdentifiers
+import BlurHash
 
 enum PHVideoAttachmentProviderError: Error {
     case videoNotFound
@@ -19,6 +20,25 @@ final class PHVideoAttachmentProvider: @unchecked Sendable {
     init(itemProvider: NSItemProvider, logger: LoggerProtocol = Logger.shared) {
         self.itemProvider = itemProvider
         self.logger = logger
+    }
+}
+
+private extension PHVideoAttachmentProvider {
+    func makeBlurHash(for outputURL: URL) async -> Data? {
+        do {
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: outputURL))
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = BlurHashConfiguration.encodingPreviewSize
+            let cgImage = try await generator.image(at: .zero).image
+
+            return UIImage(cgImage: cgImage)
+                .blurHash(numberOfComponents: BlurHashConfiguration.components)
+                .flatMap { BlurHash($0) }?
+                .toData()
+        } catch {
+            logger.warning("Blur hash generation failed: \(error)")
+            return nil
+        }
     }
 }
 
@@ -89,6 +109,8 @@ extension PHVideoAttachmentProvider: ChatAttachmentProviding {
             throw PHVideoAttachmentProviderError.fileSizeQueryFailed
         }
 
+        let thumbnail = await makeBlurHash(for: outputURL)
+
         logger.debug("Video final size: \(fileSize)")
 
         let videoMeta = ChatRemoteMessageContent.VideoFileMeta(
@@ -97,7 +119,7 @@ extension PHVideoAttachmentProvider: ChatAttachmentProviding {
                 fileSize: UInt32(fileSize)
             ),
             duration: UInt32(duration.seconds),
-            thumbnail: nil
+            thumbnail: thumbnail
         )
 
         return ProcessedAttachment(

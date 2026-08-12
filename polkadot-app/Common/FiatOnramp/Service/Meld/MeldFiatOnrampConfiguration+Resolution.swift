@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
 private enum MeldFiatOnrampChainCodeProvider {
     static func chainCode(for _: ChainModel) -> String {

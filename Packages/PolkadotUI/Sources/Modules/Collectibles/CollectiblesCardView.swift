@@ -15,6 +15,7 @@ public struct CollectiblesCardView: View {
             Image(.imageCollectibles)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: isExpanded ? .center : .top)
                 .clipped()
+                .motionShine(.collectibles(isExpanded: isExpanded))
 
             if isExpanded {
                 DSButton(String(localized: .collectiblesCardActionView), action: onViewCollectibles)

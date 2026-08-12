@@ -69,6 +69,7 @@ extension Chat.DeviceSyncWireMessage {
 // MARK: - RemoteMessageContentV1.MessageContent from LocalMessage.Content
 
 extension Chat.LocalMessage.Content {
+    // swiftlint:disable:next cyclomatic_complexity
     func toRemoteMessageContent() -> Chat.RemoteMessageContentV1.MessageContent? {
         switch self {
         case let .text(text): .text(text)

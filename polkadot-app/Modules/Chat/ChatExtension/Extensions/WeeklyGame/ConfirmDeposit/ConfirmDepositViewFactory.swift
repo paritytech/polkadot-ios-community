@@ -1,6 +1,8 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 enum ConfirmDepositViewFactory {
     static func createView(
         asset: ChainAssetId,

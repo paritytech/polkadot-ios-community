@@ -10,7 +10,7 @@ Polkadot iOS — a production-grade iOS wallet and social app for the Polkadot b
 - **UIKit** — Primary UI framework, programmatic layout (no Storyboards)
 - **SnapKit** — Auto Layout constraints
 - **VIPER** — Architecture pattern for all feature modules
-- **Swift Package Manager** — 28 local packages under `Packages/`
+- **Swift Package Manager** — 33 local packages under `Packages/`
 - **substrate-sdk-ios** — Substrate/Polkadot blockchain interaction
 - **CoreData** — Local persistence (SubstrateDataModel + UserDataModel)
 - **WebRTC** — Peer-to-peer voice/video calls and DIM2 game
@@ -23,19 +23,35 @@ Polkadot iOS — a production-grade iOS wallet and social app for the Polkadot b
 
 ## Build Commands
 
+Prefer the `xcode-tools` MCP server (XcodeBuildMCP) for builds, tests, and simulator control — it produces
+errors/warnings-only output and reuses booted simulators. Use the raw `xcodebuild` commands below as fallback.
+
 ### Build the App
 ```bash
 # Xcode build (scheme: polkadot-app, target: iOS 17.0+)
-xcodebuild -project polkadot-app.xcodeproj -scheme polkadot-app -configuration Debug build
+set -o pipefail && xcodebuild -project polkadot-app.xcodeproj -scheme polkadot-app \
+  -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16' \
+  build 2>&1 | xcbeautify --quiet
 ```
 
 ### Run Tests
+
+Always prefer running only the tests related to the change via `-only-testing:`; run the full suite
+only before handoff or when explicitly asked.
+
 ```bash
-# Unit tests
-xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appTests -destination 'platform=iOS Simulator,name=iPhone 16'
+# Targeted unit tests (fastest — preferred during development)
+set -o pipefail && xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appTests \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -only-testing:polkadot-appTests/SomeTestCase 2>&1 | xcbeautify --quiet
+
+# Full unit test suite
+set -o pipefail && xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appTests \
+  -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | xcbeautify --quiet
 
 # Integration tests
-xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appIntegrationTests -destination 'platform=iOS Simulator,name=iPhone 16'
+set -o pipefail && xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appIntegrationTests \
+  -destination 'platform=iOS Simulator,name=iPhone 16' 2>&1 | xcbeautify --quiet
 ```
 
 ### Generate a VIPER Module
@@ -105,6 +121,8 @@ NOTES:
 - **Unit tests**: `polkadot-appTests/` 
 - **Integration tests**: `polkadot-appIntegrationTests/`
 - **Test plan**: `polkadot-app.xctestplan`
+- Use Swift Testing (`import Testing`, `@Test`, `#expect`/`#require`) for all new and
+  rewritten tests; do not add new XCTest cases. See `.claude/docs/code/testing.md`
 
 ## Code Style
 
@@ -141,7 +159,7 @@ Key external packages (via SPM):
 - **SnapKit** (5.7.1) — Auto Layout DSL
 - **Kingfisher** (8.2.0) — Image loading and caching
 - **Lottie** (4.5.2) — Animations
-- **WebRTC** (125.0.0) — Real-time communication
+- **WebRTC** (149.0.0) — Real-time communication
 - **SVGKit** (3.0.0) — SVG rendering
 - **SwiftyBeaver** (2.1.1) — Logging
 - **QRCode** (26.1.0) — QR code generation
@@ -171,6 +189,10 @@ NOTES:
 - use Data.randomOrError from SubstrateSdk for random and test data generation
 - prefer toHex() from SubstrateSdk to convert to hex, Data(hexString:) to convert back. Use toHex(includePrefix: true) to add 0x prefix. hexString.withoutPrefix() to exclude 0x prefix.
 - prefer depending on protocols rather than concrete implementations. Inject dependencies from the outside instead of creating them internally, even when the implementation is a singleton.
+- **Keep comments minimal — code should be self-descriptive.** Prefer clear names
+  over narration; don't restate what the code does or describe behavior that tests
+  already cover. Reserve comments for non-obvious *why* (rationale, invariants,
+  gotchas).
 
 ## Tools
 

@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import CommonService
 import KeyDerivation
+import ChainRegistry
 
 final class TattooUploadingServiceCoordinator {
     let candidateWallet: WalletManaging

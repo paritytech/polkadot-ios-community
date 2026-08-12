@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum BlockUserViewFactory {
     static func createView(
         username: String,

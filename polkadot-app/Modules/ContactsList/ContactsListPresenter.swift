@@ -1,11 +1,13 @@
 import Foundation
 import PolkadotUI
+import ChainRegistry
 
 final class ContactsListPresenter {
     weak var view: ContactsListViewProtocol?
     let wireframe: ContactsListWireframeProtocol
     let interactor: ContactsListInteractorInputProtocol
     let viewModelFactory: ContactsListViewModelMaking
+    let titleViewModelFactory: NetworkStatusTitleViewModelMaking
     let assetDisplayInfo: AssetBalanceDisplayInfo
     let logger: LoggerProtocol
 
@@ -16,12 +18,14 @@ final class ContactsListPresenter {
         interactor: ContactsListInteractorInputProtocol,
         wireframe: ContactsListWireframeProtocol,
         viewModelFactory: ContactsListViewModelMaking,
+        titleViewModelFactory: NetworkStatusTitleViewModelMaking,
         assetDisplayInfo: AssetBalanceDisplayInfo,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
         self.viewModelFactory = viewModelFactory
+        self.titleViewModelFactory = titleViewModelFactory
         self.assetDisplayInfo = assetDisplayInfo
         self.logger = logger
     }
@@ -29,6 +33,7 @@ final class ContactsListPresenter {
 
 extension ContactsListPresenter: ContactsListPresenterProtocol {
     func setup() {
+        didReceive(networkStatus: .connected)
         interactor.setup()
     }
 
@@ -79,6 +84,11 @@ extension ContactsListPresenter: ContactsListInteractorOutputProtocol {
         }
 
         provideViewModel(model)
+    }
+
+    func didReceive(networkStatus: NetworkStatus) {
+        let titleViewModel = titleViewModelFactory.createTitleViewModel(for: networkStatus)
+        view?.didReceive(titleViewModel: titleViewModel)
     }
 
     func didReceive(error: Error) {

@@ -6,6 +6,7 @@ protocol ShareViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: ShareViewLayout.ViewModel)
 }
 
+@MainActor
 protocol SharePresenterProtocol: AnyObject {
     func setup()
     func didTapShare()
@@ -27,6 +28,7 @@ protocol ShareInteractorOutputProtocol: AnyObject {
     func didCompleteSend()
 }
 
+@MainActor
 protocol ShareWireframeProtocol: AlertPresentable, ErrorPresentable {
     func close(from view: ControllerBackedProtocol?)
     func presentSystemShare(items: [ShareItem], from view: ControllerBackedProtocol?)

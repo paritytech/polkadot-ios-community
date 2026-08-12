@@ -4,6 +4,7 @@ import SubstrateStorageSubscription
 import Operation_iOS
 import CommonService
 import Individuality
+import ChainRegistry
 
 protocol MobRulePointsTrackingServicing: ApplicationServiceProtocol & BaseObservableStateStoreProtocol
     where RemoteState == MobRulePointsTracking.State {}

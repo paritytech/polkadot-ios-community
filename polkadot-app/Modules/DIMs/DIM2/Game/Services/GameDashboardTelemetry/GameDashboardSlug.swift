@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
 enum GameDashboardSlug {
     /// `account:<ss58>` per AOP slug format. Used for `who` and peer ids.

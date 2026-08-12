@@ -14,7 +14,9 @@
     extension AppFactoryResetInteractor: AppFactoryResetInteractorInputProtocol {
         func performReset() {
             resetService.resetAllData()
-            presenter?.didCompleteReset()
+            MainActor.assumeIsolated {
+                presenter?.didCompleteReset()
+            }
         }
     }
 #endif

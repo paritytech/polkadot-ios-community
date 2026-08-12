@@ -2,6 +2,7 @@ import UIKit
 import PolkadotUI
 import UIKitExt
 
+@MainActor
 enum ShareViewFactory {
     static func createView(
         items: [ShareItem],

@@ -2,6 +2,7 @@ import Foundation
 import UIKit
 import UIKitExt
 
+@MainActor
 final class FiatOnRampProviderWireframe: FiatOnRampProviderWireframeProtocol, WebPresentable {
     func showWidget(url: URL, from view: FiatOnRampProviderViewProtocol?) {
         guard let view else {

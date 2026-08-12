@@ -1,5 +1,6 @@
 import Foundation
 import Operation_iOS
+import ChainRegistry
 
 struct RecentContactModelWithUsername: Identifiable {
     var identifier: String {

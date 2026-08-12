@@ -3,7 +3,6 @@ import Foundation
 import Operation_iOS
 @testable import StructuredConcurrency
 
-@Suite
 struct OperationsConcurrencyTests {
     // MARK: - Basics
 

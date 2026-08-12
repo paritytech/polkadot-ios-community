@@ -4,6 +4,7 @@ import Operation_iOS
 
 enum MixnetDownloadMapperError: Error {
     case entityNotFound
+    case unsupportedEntryType(Int16)
 }
 
 final class MixnetDownloadMapper {
@@ -15,8 +16,13 @@ final class MixnetDownloadMapper {
 
 extension MixnetDownloadMapper: CoreDataMapperProtocol {
     func transform(entity: CoreDataEntity) throws -> DataProviderModel {
-        MixnetDownload(
-            metadataHashHex: entity.identifier!,
+        guard let entryType = MixnetDownloadEntryType(rawValue: UInt8(entity.entryType)) else {
+            throw MixnetDownloadMapperError.unsupportedEntryType(entity.entryType)
+        }
+
+        return MixnetDownload(
+            entryHashHex: entity.identifier!,
+            entryType: entryType,
             lastChunkIndex: entity.lastChunkIndex,
             totalChunks: entity.totalChunks,
             metadata: entity.metadata,
@@ -30,6 +36,7 @@ extension MixnetDownloadMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
+        entity.entryType = Int16(model.entryType.rawValue)
         entity.lastChunkIndex = model.lastChunkIndex
         entity.totalChunks = model.totalChunks
         entity.metadata = model.metadata

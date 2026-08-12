@@ -36,6 +36,7 @@ extension Chat {
         var source: Source
         var isBlocked: Bool
         var devices: [PeerDevice]
+        var pendingDevicesFanOut: Bool
         var addedAt: Date?
         var acceptedAt: Date?
 
@@ -75,6 +76,7 @@ extension Chat.Contact {
             source: remoteContact.source,
             isBlocked: false,
             devices: [],
+            pendingDevicesFanOut: false,
             addedAt: Date(),
             acceptedAt: nil
         )
@@ -102,6 +104,7 @@ extension Chat.Contact {
             source: source,
             isBlocked: isBlocked,
             devices: devices,
+            pendingDevicesFanOut: pendingDevicesFanOut,
             addedAt: addedAt,
             acceptedAt: acceptedAt
         )
@@ -124,6 +127,7 @@ extension Chat.Contact {
             source: source,
             isBlocked: isBlocked,
             devices: devices,
+            pendingDevicesFanOut: pendingDevicesFanOut,
             addedAt: addedAt,
             acceptedAt: acceptedAt
         )
@@ -146,6 +150,31 @@ extension Chat.Contact {
             source: source,
             isBlocked: isBlocked,
             devices: devices,
+            pendingDevicesFanOut: pendingDevicesFanOut,
+            addedAt: addedAt,
+            acceptedAt: acceptedAt
+        )
+    }
+
+    func updatingPendingDevicesFanOut(_ pendingDevicesFanOut: Bool) -> Chat.Contact {
+        Chat.Contact(
+            accountId: accountId,
+            username: username,
+            publicKey: publicKey,
+            pin: pin,
+            pushId: pushId,
+            pushToken: pushToken,
+            voipPushToken: voipPushToken,
+            peerPlatform: peerPlatform,
+            lastOwnToken: lastOwnToken,
+            voipLastOwnToken: voipLastOwnToken,
+            chatRequest: chatRequest,
+            ownKeyId: ownKeyId,
+            imageData: imageData,
+            source: source,
+            isBlocked: isBlocked,
+            devices: devices,
+            pendingDevicesFanOut: pendingDevicesFanOut,
             addedAt: addedAt,
             acceptedAt: acceptedAt
         )
@@ -168,6 +197,7 @@ extension Chat.Contact {
             source: source,
             isBlocked: isBlocked,
             devices: devices,
+            pendingDevicesFanOut: pendingDevicesFanOut,
             addedAt: addedAt,
             acceptedAt: acceptedAt
         )

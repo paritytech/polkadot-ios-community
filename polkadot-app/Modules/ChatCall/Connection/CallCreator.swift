@@ -21,11 +21,14 @@ class CallCreator {
     let dataChannelWrapper: AsyncDataChannelWrapper
     let multiplexedChannel: MultiplexedDataChannel
     let localTracks: CallTracks
+    let transceiverConfigStrategy: TransceiverConfigStrategyProtocol
     let logger: LoggerProtocol
 
     let signaling: PeerConnectionSignaling
 
     let negotiated = AsyncCurrentValueSubject<Bool?>(nil)
+
+    private let candidateFilter: ConnectionCandidateFiltering?
 
     private var candidatesTask: Task<Void, Never>?
     private let pendingRemoteCandidates: PendingRemoteCandidatesBuffering
@@ -34,6 +37,8 @@ class CallCreator {
         connectionWrapper: AsyncPeerConnectionWrapper,
         dataChannelWrapper: AsyncDataChannelWrapper,
         localTracks: CallTracks,
+        transceiverConfigStrategy: TransceiverConfigStrategyProtocol,
+        candidateFilter: ConnectionCandidateFiltering? = nil,
         logger: LoggerProtocol,
         pendingRemoteCandidates: PendingRemoteCandidatesBuffering = PendingRemoteCandidatesBuffer(
             label: "CallCreator"
@@ -42,7 +47,9 @@ class CallCreator {
         self.connectionWrapper = connectionWrapper
         self.dataChannelWrapper = dataChannelWrapper
         self.localTracks = localTracks
+        self.candidateFilter = candidateFilter
         self.logger = logger
+        self.transceiverConfigStrategy = transceiverConfigStrategy
         self.pendingRemoteCandidates = pendingRemoteCandidates
 
         multiplexedChannel = MultiplexedDataChannel(
@@ -62,7 +69,7 @@ class CallCreator {
     }
 
     func processLocalCandidates(from wrapper: AsyncPeerConnectionWrapper) {
-        candidatesTask = Task { [signaling, logger] in
+        candidatesTask = Task { [signaling, logger, candidateFilter] in
             let sequence = wrapper.candidates.eraseToAnyAsyncSequence()
 
             do {
@@ -74,7 +81,11 @@ class CallCreator {
                     switch candidateOp {
                     case let .add(iceCandidate):
                         let signalCandidate = PeerConnectionCandidate(iceCandidate: iceCandidate)
-                        _ = try await signaling.send(.candidates([signalCandidate]))
+                        if let candidateFilter, !candidateFilter.shouldAccept(signalCandidate) {
+                            logger.debug("Filtered outgoing candidate: \(iceCandidate.sdp)")
+                            continue
+                        }
+                        try await signaling.send([.candidates([signalCandidate])])
                         logger.debug("Sent new candidate: \(signalCandidate)")
                     case .remove:
                         // unsupported yet
@@ -91,53 +102,71 @@ class CallCreator {
 
     func handleRemoteCandidates(
         _ candidates: [PeerConnectionCandidate],
-        on connection: RTCPeerConnection
+        on wrapper: AsyncPeerConnectionWrapper
     ) async {
-        guard connection.remoteDescription != nil else {
-            await bufferRemoteCandidates(candidates)
+        let accepted = filterIncomingCandidates(candidates)
+        guard !accepted.isEmpty else { return }
+
+        guard await wrapper.hasRemoteDescription() else {
+            await bufferRemoteCandidates(accepted)
             return
         }
 
-        await applyRemoteCandidates(candidates, on: connection)
+        await applyRemoteCandidates(accepted, on: wrapper)
     }
 
-    func drainPendingRemoteCandidates(on connection: RTCPeerConnection) async {
-        guard connection.remoteDescription != nil else {
+    private func filterIncomingCandidates(
+        _ candidates: [PeerConnectionCandidate]
+    ) -> [PeerConnectionCandidate] {
+        guard let candidateFilter else { return candidates }
+        return candidates.filter { candidate in
+            guard candidateFilter.shouldAccept(candidate) else {
+                logger.debug("Filtered incoming candidate: \(candidate)")
+                return false
+            }
+            return true
+        }
+    }
+
+    func drainPendingRemoteCandidates(on wrapper: AsyncPeerConnectionWrapper) async {
+        guard await wrapper.hasRemoteDescription() else {
             return
         }
 
         let candidates = await pendingRemoteCandidates.takeAll()
         guard !candidates.isEmpty else { return }
 
-        await applyRemoteCandidates(candidates, on: connection)
+        await applyRemoteCandidates(candidates, on: wrapper)
     }
 
     func clearPendingRemoteCandidates() async {
         await pendingRemoteCandidates.clear()
     }
 
-    func applyLocalTracks() {
-        if let audioTrack = localTracks.audioTrack {
-            connectionWrapper.connection.add(audioTrack, streamIds: ["stream0"])
-        }
+    func applyLocalTracks() async {
+        do {
+            try await connectionWrapper.modify { [localTracks, transceiverConfigStrategy] connection in
+                if let audioTrack = localTracks.audioTrack {
+                    connection.add(audioTrack, streamIds: ["stream0"])
+                }
 
-        if let videoTrack = localTracks.videoTrack {
-            connectionWrapper.connection.add(videoTrack, streamIds: ["stream0"])
-        } else {
-            // video is not enabled but still do negotiation for better UX when a user enables it
-
-            let videoTranceiver = connectionWrapper.connection.addTransceiver(
-                of: .video,
-                init: .init()
-            )
-
-            videoTranceiver?.setDirection(.recvOnly, error: .none)
+                transceiverConfigStrategy.configureVideoTransceiver(
+                    for: localTracks.videoTrack,
+                    on: connection
+                )
+            }
+        } catch {
+            logger.error("Failed to apply local tracks: \(error)")
         }
     }
 
-    func clearTasks() {
+    func stopNegotiation() {
         candidatesTask?.cancel()
         candidatesTask = nil
+    }
+
+    func throttle() {
+        stopNegotiation()
     }
 }
 
@@ -150,11 +179,11 @@ private extension CallCreator {
 
     func applyRemoteCandidates(
         _ candidates: [PeerConnectionCandidate],
-        on connection: RTCPeerConnection
+        on wrapper: AsyncPeerConnectionWrapper
     ) async {
         for candidate in candidates {
             do {
-                try await connection.add(candidate.toRTCIceCandidate())
+                try await wrapper.addRemoteCandidate(candidate.toRTCIceCandidate())
                 logger.debug("Applied candidate: \(candidate)")
             } catch {
                 logger.error("Can't process candidate: \(candidate)")

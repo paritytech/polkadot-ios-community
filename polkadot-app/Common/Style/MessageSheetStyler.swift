@@ -6,8 +6,10 @@ import DesignSystem
 
 struct MessageSheetStyler {
     let backgroundStyle: RoundedView.Style
-    let titleLabelStyle: UILabel.Style
-    let detailsLabelStyle: UILabel.Style
+    let titleColor: UIColor
+    let titleFont: UIFont
+    let detailsColor: UIColor
+    let detailsFont: UIFont
     let controlFactory: MessageSheetControlFactoryProtocol
     let backgroundInsets: UIEdgeInsets
     let contentInsets: UIEdgeInsets
@@ -30,14 +32,10 @@ struct MessageSheetStyler {
             highlightedFillColor: .fgStaticWhite,
             rounding: .init(radius: 40, corners: .allCorners)
         ),
-        titleLabelStyle: UILabel.Style = .init(
-            textColor: .fgPrimary,
-            font: UIFont.headlineSmall
-        ),
-        detailsLabelStyle: UILabel.Style = .init(
-            textColor: .fgTertiary,
-            font: UIFont.paragraphLarge
-        ),
+        titleColor: UIColor = .fgPrimary,
+        titleFont: UIFont = UIFont.headlineSmall,
+        detailsColor: UIColor = .fgTertiary,
+        detailsFont: UIFont = UIFont.paragraphLarge,
         backgroundInsets: UIEdgeInsets = .init(top: 0, left: 8, bottom: 8, right: 8),
         contentInsets: UIEdgeInsets = .init(top: 32, left: 24, bottom: 24, right: 24),
         verticalSpacing: CGFloat = 24,
@@ -48,8 +46,10 @@ struct MessageSheetStyler {
     ) {
         self.controlFactory = controlFactory
         self.backgroundStyle = backgroundStyle
-        self.titleLabelStyle = titleLabelStyle
-        self.detailsLabelStyle = detailsLabelStyle
+        self.titleColor = titleColor
+        self.titleFont = titleFont
+        self.detailsColor = detailsColor
+        self.detailsFont = detailsFont
         self.backgroundInsets = backgroundInsets
         self.contentInsets = contentInsets
         self.verticalSpacing = verticalSpacing
@@ -65,9 +65,11 @@ extension MessageSheetStyler: MessageSheetStyling {
         view.backgroundView.apply(style: backgroundStyle)
         view.backgroundInsets = backgroundInsets
         view.contentInsets = contentInsets
-        view.titleLabel.apply(style: titleLabelStyle)
+        view.titleLabel.textColor = titleColor
+        view.titleLabel.font = titleFont
         view.titleLabel.textAlignment = .center
-        view.detailsLabel.apply(style: detailsLabelStyle)
+        view.detailsLabel.textColor = detailsColor
+        view.detailsLabel.font = detailsFont
         view.detailsLabel.textAlignment = .center
         view.actionHeight = actionHeight
 
@@ -92,14 +94,10 @@ extension MessageSheetStyler {
                 highlightedFillColor: .fgPrimary,
                 rounding: .init(radius: 32, corners: .allCorners)
             ),
-            titleLabelStyle: .init(
-                textColor: .fgPrimary,
-                font: .title24SemiBold()
-            ),
-            detailsLabelStyle: .init(
-                textColor: .fgPrimary,
-                font: UIFont.paragraphLarge
-            ),
+            titleColor: .fgPrimary,
+            titleFont: .title24SemiBold(),
+            detailsColor: .fgPrimary,
+            detailsFont: UIFont.paragraphLarge,
             backgroundInsets: .init(top: 0, left: 8, bottom: 8, right: 8),
             contentInsets: .init(top: 24, left: 16, bottom: 16, right: 16),
             afterTitleSpacing: 12,

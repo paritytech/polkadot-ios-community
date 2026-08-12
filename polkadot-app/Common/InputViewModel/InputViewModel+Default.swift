@@ -15,7 +15,11 @@ extension InputViewModel {
             processor: TrimmingCharacterProcessor(charset: CharacterSet.whitespacesAndNewlines)
         )
 
-        let viewModel = InputViewModel(inputHandler: inputHandler, title: "")
+        let viewModel = InputViewModel(
+            inputHandler: inputHandler,
+            title: "",
+            placeholder: String(localized: .claimUsernamePlaceholder)
+        )
         return viewModel
     }
 

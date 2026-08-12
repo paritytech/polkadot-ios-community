@@ -10,7 +10,7 @@ final class ProductLinkIconImageViewModel {
     }
 }
 
-extension ProductLinkIconImageViewModel: @preconcurrency ImageViewModelProtocol {
+extension ProductLinkIconImageViewModel: ImageViewModelProtocol {
     @MainActor
     func loadImage(
         on imageView: UIImageView,

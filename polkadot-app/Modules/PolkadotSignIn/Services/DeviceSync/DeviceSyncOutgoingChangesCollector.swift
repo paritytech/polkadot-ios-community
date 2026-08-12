@@ -4,7 +4,7 @@ import Operation_iOS
 
 struct DeviceSyncCollectedChanges {
     var entities: [Chat.DeviceSyncEntity]
-    var timePoint: UInt64?
+    var timePoint: UInt64
 }
 
 struct DeviceSyncOutgoingChangesCollector {
@@ -47,11 +47,13 @@ struct DeviceSyncOutgoingChangesCollector {
 
         return DeviceSyncCollectedChanges(
             entities: entities,
-            timePoint: entities.isEmpty ? nil : timePoint
+            timePoint: timePoint
         )
     }
+}
 
-    private func collectDeviceChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
+private extension DeviceSyncOutgoingChangesCollector {
+    func collectDeviceChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
         let deviceFilter = cutoff.map { NSPredicate.devicesCreatedAfter($0) }
         let devices = try await deviceRepositoryFactory
             .createRepository(forFilter: deviceFilter)
@@ -62,7 +64,7 @@ struct DeviceSyncOutgoingChangesCollector {
         return wireDevices.isEmpty ? [] : [.devices(wireDevices)]
     }
 
-    private func collectContactChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
+    func collectContactChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
         let predicates: [NSPredicate] = [
             cutoff.map { NSPredicate.contactsAcceptedAfter($0) },
             NSPredicate.acceptedContacts
@@ -82,7 +84,7 @@ struct DeviceSyncOutgoingChangesCollector {
         return chatIds.isEmpty ? [] : [.chatsAdded(chatIds)]
     }
 
-    private func collectRemovedChatChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
+    func collectRemovedChatChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
         let removedFilter = cutoff.map { NSPredicate.removedChatsAfter($0) }
         let removedChats = try await removedChatRepositoryFactory
             .createRepository(forFilter: removedFilter)
@@ -93,7 +95,7 @@ struct DeviceSyncOutgoingChangesCollector {
         return chatIds.isEmpty ? [] : [.chatsRemoved(chatIds)]
     }
 
-    private func collectMessageChanges(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
+    func collectMessageChanges(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
         let multideviceSignKeyIds = messageExchangeModeProvider.multideviceSignKeyIds
         guard !multideviceSignKeyIds.isEmpty else { return [] }
 

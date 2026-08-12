@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import OperationExt
+import ChainRegistry
 
 protocol RecentContactsServiceDelegate: AnyObject {
     func recentContactsServiceDidUpdate(recentContacts: [DataProviderChange<RecentContactModelWithUsername>])

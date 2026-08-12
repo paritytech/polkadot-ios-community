@@ -3,7 +3,9 @@ import Common
 import Keystore_iOS
 import ExtrinsicService
 import KeyDerivation
+import ChainRegistry
 
+@MainActor
 enum ClaimUsernameViewFactory {
     static func createLiteClaimView(
         observer: RootStateObserving

@@ -3,6 +3,7 @@ import Operation_iOS
 import Keystore_iOS
 import SDKLogger
 import SubstrateSdk
+import ChainRegistry
 
 enum RecoverPendingTransactionsViewFactory {
     @MainActor

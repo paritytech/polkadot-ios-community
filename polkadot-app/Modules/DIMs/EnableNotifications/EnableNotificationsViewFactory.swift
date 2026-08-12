@@ -1,6 +1,7 @@
 import Foundation
 import Keystore_iOS
 
+@MainActor
 enum EnableNotificationsViewFactory {
     static func createView(
         model: EnableNotificationsModel,

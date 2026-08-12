@@ -19,7 +19,7 @@ public final class DeviceDetailsViewLayout: UIView {
     private let hostRow = DeviceDetailsViewLayout.makeInfoRow()
     private let addedRow = DeviceDetailsViewLayout.makeInfoRow()
 
-    // MARK: - Remove Button
+    // MARK: - Action Buttons
 
     private let removeButton = RemoveDeviceButtonView()
 

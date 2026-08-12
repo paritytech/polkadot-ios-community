@@ -46,14 +46,16 @@ private extension RestoreFromCloudInteractor {
         }
 
         authState = .inProgress
-        presenter?.didReceiveInProgress(true)
+        MainActor.assumeIsolated {
+            presenter?.didReceiveInProgress(true)
 
-        presenter?.authorizeUser { [weak self] isAuthorized in
-            if isAuthorized {
-                self?.authState = .done
-                self?.continueRestoreWallets()
-            } else {
-                self?.authState = .notAuthorized
+            presenter?.authorizeUser { [weak self] isAuthorized in
+                if isAuthorized {
+                    self?.authState = .done
+                    self?.continueRestoreWallets()
+                } else {
+                    self?.authState = .notAuthorized
+                }
             }
         }
     }
@@ -61,9 +63,13 @@ private extension RestoreFromCloudInteractor {
     func continueRestoreWallets() {
         do {
             try walletSetupManager.restoreWallets()
-            presenter?.didRestoreWallets()
+            MainActor.assumeIsolated {
+                presenter?.didRestoreWallets()
+            }
         } catch {
-            presenter?.didDecideBroken()
+            MainActor.assumeIsolated {
+                presenter?.didDecideBroken()
+            }
             logger.error("Unexpected wallet restore error: \(error)")
         }
     }

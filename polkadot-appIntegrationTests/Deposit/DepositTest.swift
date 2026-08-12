@@ -1,4 +1,5 @@
 import XCTest
+import ChainRegistry
 @testable import polkadot_app
 import SDKLogger
 import Operation_iOS
@@ -123,7 +124,7 @@ private extension DepositTest {
         let entropyManager = RootEntropyManager(keychain: keystore, userDefaults: UserDefaults.standard)
         try entropyManager.createRootEntropy(entropy)
 
-        let wallet = try DynamicDerivedWallet(derivationPath: "//deposit", entropyManager: entropyManager)
+        let wallet = DynamicDerivedWallet(derivationPath: "//deposit", entropyManager: entropyManager)
         let accountToFund = try wallet.getRawPublicKey()
 
         return WalletSetup(accountToFund: accountToFund, depositWallet: wallet)

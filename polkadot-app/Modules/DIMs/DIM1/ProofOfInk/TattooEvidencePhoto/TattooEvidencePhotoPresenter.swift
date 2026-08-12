@@ -4,6 +4,7 @@ import AVFoundation
 import Foundation_iOS
 import Individuality
 
+@MainActor
 final class TattooEvidencePhotoPresenter {
     weak var view: TattooEvidencePhotoViewProtocol?
     private let wireframe: TattooEvidencePhotoWireframeProtocol
@@ -92,7 +93,7 @@ extension TattooEvidencePhotoPresenter: TattooEvidencePhotoInteractorOutputProto
     }
 }
 
-extension TattooEvidencePhotoPresenter: Localizable {
+extension TattooEvidencePhotoPresenter: @MainActor Localizable {
     func applyLocalization() {
         if let view, view.isSetup {
             provideViewModel()

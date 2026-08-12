@@ -3,15 +3,7 @@ import Operation_iOS
 
 struct DeviceSyncIncomingMessageFilter {
     let repository: AnyDataProviderRepository<Chat.LocalMessage>
-    let logger: LoggerProtocol
-
-    init(
-        repository: AnyDataProviderRepository<Chat.LocalMessage>,
-        logger: LoggerProtocol = Logger.shared
-    ) {
-        self.repository = repository
-        self.logger = logger
-    }
+    let peerLogger: LoggerProtocol
 
     func filterMessagesToApply(
         in messages: [Chat.LocalMessage]
@@ -34,7 +26,7 @@ struct DeviceSyncIncomingMessageFilter {
             }
 
             if existingMessage.isRequestMessage {
-                logger.warning("Skipped synced overwrite for local request message: \(message.messageId)")
+                peerLogger.warning("Skipped synced overwrite for local request message: \(message.messageId)")
                 continue
             }
 

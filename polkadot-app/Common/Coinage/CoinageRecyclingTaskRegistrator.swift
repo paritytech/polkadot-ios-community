@@ -15,50 +15,56 @@ final class CoinageRecyclingTaskRegistrator {
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: CoinageRecyclingScheduler.taskIdentifier,
             using: .main
-        ) { [weak self] task in
-            self?.handleTask(task)
+        ) { task in
+            self.handleTask(task)
         }
     }
+}
 
-    private func handleTask(_ task: BGTask) {
+private extension CoinageRecyclingTaskRegistrator {
+    func handleTask(_ task: BGTask) {
         logger.info("[BGTask] handler invoked for \(CoinageRecyclingScheduler.taskIdentifier)")
-
-        guard let service else {
-            logger.warning(
-                "[BGTask] \(CoinageRecyclingScheduler.taskIdentifier) no service available, completing with failure"
-            )
-            task.setTaskCompleted(success: false)
-            return
-        }
 
         let completed = OSAllocatedUnfairLock(initialState: false)
 
-        let recyclingTask = Task { [logger] in
-            await service.scheduleRecycling()
+        let recyclingTask = Task { [logger, warmService = service] in
+            let service: (any CoinageRecyclingServicing)? =
+                if let warmService {
+                    warmService
+                } else {
+                    await CoinageBackgroundBootstrap.makeRecyclingService(logger: logger)
+                }
 
-            let alreadyCompleted = completed.withLock { current -> Bool in
-                guard !current else { return true }
-                current = true
-                return false
+            guard let service else {
+                logger.warning("[BGTask] \(CoinageRecyclingScheduler.taskIdentifier) no service available")
+                self.finish(task, success: false, completed: completed)
+                return
             }
 
-            guard !alreadyCompleted else { return }
-            logger.info("[BGTask] \(CoinageRecyclingScheduler.taskIdentifier) completed, success: true")
-            task.setTaskCompleted(success: true)
+            await service.scheduleRecycling()
+            self.finish(task, success: true, completed: completed)
         }
 
         task.expirationHandler = { [logger] in
             logger.info("[BGTask] expiration handler fired for \(CoinageRecyclingScheduler.taskIdentifier)")
-
-            let alreadyCompleted = completed.withLock { current -> Bool in
-                guard !current else { return true }
-                current = true
-                return false
-            }
-
-            guard !alreadyCompleted else { return }
             recyclingTask.cancel()
-            task.setTaskCompleted(success: false)
+            self.finish(task, success: false, completed: completed)
         }
+    }
+
+    func finish(
+        _ task: BGTask,
+        success: Bool,
+        completed: OSAllocatedUnfairLock<Bool>
+    ) {
+        let alreadyCompleted = completed.withLock { current -> Bool in
+            guard !current else { return true }
+            current = true
+            return false
+        }
+
+        guard !alreadyCompleted else { return }
+        logger.info("[BGTask] \(CoinageRecyclingScheduler.taskIdentifier) completed, success: \(success)")
+        task.setTaskCompleted(success: success)
     }
 }
