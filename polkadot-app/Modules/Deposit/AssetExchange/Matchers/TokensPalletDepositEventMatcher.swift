@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import XcmTransfer
+import ChainRegistry
 
 // Tokens and Currencies pallets share the same deposited event structure
 // Select which pallet to use by providing event path

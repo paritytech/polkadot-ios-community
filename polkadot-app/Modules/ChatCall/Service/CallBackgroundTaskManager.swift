@@ -2,11 +2,13 @@ import UIKit
 import Foundation
 import SDKLogger
 
+@MainActor
 protocol CallBackgroundTaskManaging {
     func beginBackgroundTask()
     func endBackgroundTask()
 }
 
+@MainActor
 final class CallBackgroundTaskManager {
     static let callTaskName = "CallBackgroundTask"
 
@@ -15,7 +17,7 @@ final class CallBackgroundTaskManager {
     private let logger: LoggerProtocol
 
     init(
-        application: UIApplication = .shared,
+        application: UIApplication,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.application = application
@@ -47,6 +49,7 @@ extension CallBackgroundTaskManager: CallBackgroundTaskManaging {
         backgroundTaskIdentifier = application.beginBackgroundTask(
             withName: Self.callTaskName
         ) { [weak self] in
+            self?.logger.debug("Expiration handler")
             self?.endBackgroundTask()
         }
 

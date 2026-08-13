@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 protocol AddressCopyPresentable {
     func copyAddress(
         from view: ControllerBackedProtocol?,
@@ -10,6 +11,7 @@ protocol AddressCopyPresentable {
 }
 
 extension AddressCopyPresentable {
+    @MainActor
     func copyAddress(
         from view: ControllerBackedProtocol?,
         address: String,

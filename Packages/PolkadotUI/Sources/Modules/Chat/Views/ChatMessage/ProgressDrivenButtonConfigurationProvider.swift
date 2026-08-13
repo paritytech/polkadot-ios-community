@@ -4,16 +4,21 @@ public final class ProgressDrivenButtonConfigurationProvider: ChatMessageMediaBu
     private let progressViewModel: any LoadingProgressViewModelProtocol
     private let successConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?
     private let failureConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?
+    private let loadingConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?
     private let emitProgressOnSubscription: Bool
     public init(
         progressViewModel: any LoadingProgressViewModelProtocol,
         successConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?,
-        failureConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration? = .init(style: .retry),
+        failureConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration?,
+        loadingConfiguration: ChatMessageMediaViewConfiguration.ButtonConfiguration? = .init(
+            style: .loading(cancelable: false)
+        ),
         emitProgressOnSubscription: Bool
     ) {
         self.progressViewModel = progressViewModel
         self.successConfiguration = successConfiguration
         self.failureConfiguration = failureConfiguration
+        self.loadingConfiguration = loadingConfiguration
         self.emitProgressOnSubscription = emitProgressOnSubscription
     }
 
@@ -21,11 +26,11 @@ public final class ProgressDrivenButtonConfigurationProvider: ChatMessageMediaBu
         onUpdate: @escaping (ChatMessageMediaViewConfiguration.ButtonConfiguration?) -> Void
     ) {
         if emitProgressOnSubscription {
-            onUpdate(.init(style: .loading(cancelable: false)))
+            onUpdate(loadingConfiguration)
         }
 
         progressViewModel.startProgressUpdate(
-            onProgress: { _ in onUpdate(.init(style: .loading(cancelable: false))) },
+            onProgress: { [weak self] _ in onUpdate(self?.loadingConfiguration) },
             onSuccess: { [weak self] in onUpdate(self?.successConfiguration) },
             onFailure: { [weak self] in onUpdate(self?.failureConfiguration) }
         )

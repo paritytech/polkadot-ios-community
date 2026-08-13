@@ -3,6 +3,7 @@ import Keystore_iOS
 import SubstrateSdk
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 enum ReferralTicketStateError: Error {
     case ticketMismatch

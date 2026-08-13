@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import Foundation_iOS
 import UIKit
+import ChainRegistry
 
 protocol DepositViewModelMaking {
     func makeAssetsViewModel(for depositAsset: ChainAsset) -> DepositAssetsViewModel

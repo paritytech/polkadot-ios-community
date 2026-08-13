@@ -4,7 +4,7 @@ import StructuredConcurrency
 import Individuality
 
 protocol GameInvitationRegistering {
-    func register(airdrop: GamePallet.AirdropVrf?) async throws
+    func register(airdrop: GamePallet.AirdropVrfs?) async throws
 }
 
 enum GameInvitationRegistrationError: Error {
@@ -37,7 +37,7 @@ final class GameInvitationRegistrationService {
 }
 
 extension GameInvitationRegistrationService: GameInvitationRegistering {
-    func register(airdrop: GamePallet.AirdropVrf?) async throws {
+    func register(airdrop: GamePallet.AirdropVrfs?) async throws {
         let invitation = try await ensureInvitation()
         try await waitPendingOnChain(invitation: invitation)
         try await submitRegistration(invitation: invitation, airdrop: airdrop)
@@ -89,7 +89,7 @@ private extension GameInvitationRegistrationService {
         }
     }
 
-    func submitRegistration(invitation: Invitation, airdrop: GamePallet.AirdropVrf?) async throws {
+    func submitRegistration(invitation: Invitation, airdrop: GamePallet.AirdropVrfs?) async throws {
         let result = try await gameRegisterService
             .registerForGame(with: invitation, airdrop: airdrop)
             .asyncExecute()

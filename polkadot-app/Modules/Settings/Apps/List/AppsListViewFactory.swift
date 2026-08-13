@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum AppsListViewFactory {
     static func createView() -> AppsListViewProtocol? {
         let interactor = AppsListInteractor(

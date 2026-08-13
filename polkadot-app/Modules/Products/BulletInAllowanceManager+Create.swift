@@ -2,6 +2,10 @@ import Foundation
 import Individuality
 import KeyDerivation
 import Operation_iOS
+import ChainRegistry
+import SubstrateStorageQuery
+import SubstrateSdk
+import BackgroundExecution
 
 extension BulletInAllowanceManager {
     static func create(
@@ -35,12 +39,24 @@ extension BulletInAllowanceManager {
             return nil
         }
 
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
+        let chainTimeProvider = ChainTimeProvider(
+            chainId: AppConfig.Chains.bulletInChain,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
+        )
+
         let infoProvider = BulletInSlotInfoProvider(
             bulletInChainId: AppConfig.Chains.bulletInChain,
             peopleChainId: AppConfig.Chains.usernameChain,
             chainRegistry: chainRegistry,
             keyResolver: keyResolver,
-            operationQueue: operationQueue
+            operationQueue: operationQueue,
+            chainTimeProvider: chainTimeProvider
         )
 
         let allocator = BulletinSlotAllocator(
@@ -52,7 +68,8 @@ extension BulletInAllowanceManager {
 
         return BulletInAllowanceManager(
             infoProvider: infoProvider,
-            allocator: allocator
+            allocator: allocator,
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry)
         )
     }
 }

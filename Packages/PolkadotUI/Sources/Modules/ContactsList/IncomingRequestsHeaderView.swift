@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import UIKit
 internal import UIKit_iOS
 internal import SnapKit
@@ -76,6 +77,7 @@ final class IncomingRequestsHeaderView: UIView, UIContentView {
         super.init(frame: .zero)
         setupViews()
         apply(configuration)
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -129,5 +131,13 @@ final class IncomingRequestsHeaderView: UIView, UIContentView {
             countLabel.setHidden(true)
             countLabel.contentView.text = ""
         }
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension IncomingRequestsHeaderView: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [.init(self, AccessibilityID.Chats.newRequestsItem)]
     }
 }

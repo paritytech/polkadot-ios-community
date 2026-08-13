@@ -55,6 +55,14 @@ public extension RuntimeCallConvertible {
     }
 }
 
+public protocol ViewFunctionCallConvertible: CodingPathConvertible, Codable {}
+
+public extension ViewFunctionCallConvertible {
+    func callAsFunction() -> ViewFunctionCodingPath {
+        ViewFunctionCodingPath(moduleName: moduleName, functionName: name)
+    }
+}
+
 public protocol EventPathConvertible: CodingPathConvertible {}
 
 public extension EventPathConvertible {

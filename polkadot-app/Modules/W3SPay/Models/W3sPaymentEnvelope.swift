@@ -2,7 +2,7 @@ import Foundation
 import SubstrateSdk
 
 /// Wire layout mirrors `AppHandshakeData.DataV1`: length-prefixed ciphertext
-/// followed by the raw 65-byte uncompressed P256 public key.
+/// followed by the raw 32-byte X25519 public key.
 struct W3sPaymentEnvelope: ScaleEncodable {
     let encryptedData: Data
     let ephemeralPublicKey: Data

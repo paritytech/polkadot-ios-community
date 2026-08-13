@@ -2,14 +2,14 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 
-public struct Coin: Equatable, CoinageDerivable {
+public struct Coin: Equatable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
     public let derivationIndex: UInt32
     public let age: Int16? // nil = unknown, 0 = fresh from unload/split
 
     public var state: State = .available
 
-    public enum State: Equatable {
+    public enum State: Equatable, Sendable {
         case spent
         case available
         case recycling
@@ -54,5 +54,14 @@ public struct Coin: Equatable, CoinageDerivable {
 extension Coin: Operation_iOS.Identifiable {
     public var identifier: String {
         "\(derivationIndex)"
+    }
+}
+
+public extension Coin {
+    /// Coins past `coinMaxAge` are due for imminent recycling and must not be
+    /// picked for new transfers — the chain may invalidate them before inclusion.
+    var isExpiringSoon: Bool {
+        guard let age else { return false }
+        return age >= CoinageConstants.recycleAtAge
     }
 }

@@ -3,6 +3,7 @@ import Foundation_iOS
 import SubstrateSdk
 import PolkadotUI
 import SwiftUI
+import ChainRegistry
 
 final class GameDepositMessageDecoder {
     let identifier = MessageDecoderIdentifier.gameDeposit

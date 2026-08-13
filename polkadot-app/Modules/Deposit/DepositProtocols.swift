@@ -8,6 +8,7 @@ protocol DepositViewProtocol: ControllerBackedProtocol {
     func didReceive(operationsViewModel: [DepositOperationViewModel])
 }
 
+@MainActor
 protocol DepositPresenterProtocol: AnyObject {
     func setup()
     func copyAddress()
@@ -24,6 +25,7 @@ protocol DepositInteractorOutputProtocol: AnyObject {
     func didReceive(operations: [DepositOperationModel])
 }
 
+@MainActor
 protocol DepositWireframeProtocol: CommonCopyPresentable {
     func close(view: DepositViewProtocol?)
     func doneFunding(view: DepositViewProtocol?)

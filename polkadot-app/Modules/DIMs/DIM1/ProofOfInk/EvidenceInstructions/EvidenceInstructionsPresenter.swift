@@ -1,6 +1,7 @@
 import Foundation
 import PolkadotUI
 
+@MainActor
 final class EvidenceInstructionsPresenter {
     weak var view: EvidenceInstructionsViewProtocol?
     private let wireframe: EvidenceInstructionsWireframeProtocol

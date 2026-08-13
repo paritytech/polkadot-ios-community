@@ -44,8 +44,8 @@ final class MnemonicWordCollectionCell: CollectionViewContainerCell<TitleValueHo
 
         view.valueView.textColor = .fgPrimary
         view.valueView.typography = .paragraphLarge
-        view.titleView.adjustsFontSizeToFitWidth = true
-        view.titleView.minimumScaleFactor = 0.5
+        view.valueView.adjustsFontSizeToFitWidth = true
+        view.valueView.minimumScaleFactor = 0.5
 
         view.titleView.textAlignment = .left
         view.valueView.textAlignment = .left

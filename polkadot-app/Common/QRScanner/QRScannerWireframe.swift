@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class QRScannerWireframe: QRScannerWireframeProtocol, ApplicationSettingsPresentable {
     func askOpenSettings(from view: QRScannerViewProtocol?) {
         askOpenApplicationSettings(

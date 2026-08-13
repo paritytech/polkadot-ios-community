@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import SwiftUI
 
 public enum DSMenuListItemPosition: Hashable {
@@ -23,6 +24,7 @@ public struct DSMenuListItem: View, Identifiable {
     private let style: Style
     private let icon: ImageResource?
     private let rightSlot: DSMenuListItemRightSlot.Style?
+    private let accessibilityId: (any AccessibilityIdentifying)?
     private let action: (() -> Void)?
 
     @Environment(\.dsMenuListItemPosition) private var position
@@ -34,6 +36,7 @@ public struct DSMenuListItem: View, Identifiable {
         style: Style = .default,
         icon: ImageResource? = nil,
         rightSlot: DSMenuListItemRightSlot.Style? = nil,
+        accessibilityId: (any AccessibilityIdentifying)? = nil,
         action: (() -> Void)? = nil
     ) {
         self.id = id
@@ -42,6 +45,7 @@ public struct DSMenuListItem: View, Identifiable {
         self.style = style
         self.icon = icon
         self.rightSlot = rightSlot
+        self.accessibilityId = accessibilityId
         self.action = action
     }
 
@@ -51,9 +55,11 @@ public struct DSMenuListItem: View, Identifiable {
                 rowContent
             }
             .buttonStyle(DSMenuListItemButtonStyle(position: position))
+            .accessibilityId(accessibilityId)
         } else {
             rowContent
                 .background(Color.bgSurfaceContainer, in: surfaceShape)
+                .accessibilityId(accessibilityId)
         }
     }
 

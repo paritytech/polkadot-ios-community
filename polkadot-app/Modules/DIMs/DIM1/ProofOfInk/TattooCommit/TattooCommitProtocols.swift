@@ -8,6 +8,7 @@ protocol TattooCommitViewProtocol: ControllerBackedProtocol {
     func didStopLoading()
 }
 
+@MainActor
 protocol TattooCommitPresenterProtocol: AnyObject {
     func setup()
     func proceed()
@@ -22,6 +23,7 @@ protocol TattooCommitInteractorInputProtocol: AnyObject {
     func confirm()
 }
 
+@MainActor
 protocol TattooCommitInteractorOutputProtocol: AnyObject {
     func didReceive(blockTime: BlockTime)
     func didReceive(commitmentTimeout: BlockNumber)
@@ -32,6 +34,7 @@ protocol TattooCommitInteractorOutputProtocol: AnyObject {
     func didConfirm(with txHash: String)
 }
 
+@MainActor
 protocol TattooCommitWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryable {
     func confirm(on view: TattooCommitViewProtocol?, model: TattooConfirmModel)
     func cancel(view: TattooCommitViewProtocol?)

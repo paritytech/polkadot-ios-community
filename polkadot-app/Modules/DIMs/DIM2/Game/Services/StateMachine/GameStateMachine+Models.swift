@@ -27,6 +27,13 @@ extension GameStateMachine {
         var gameplayRoundIndex: Int? {
             gameplayRound?.roundIndex
         }
+
+        var isFinished: Bool {
+            if case .finished = self {
+                return true
+            }
+            return false
+        }
     }
 
     struct PreparingInfo: Equatable {

@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import KeyDerivation
+import ChainRegistry
 
 class PersonRegistrationStateFetcher {
     private let mobRuleWallet: WalletManaging

@@ -5,6 +5,7 @@ import SubstrateSdk
 import UIKit
 import UIKitExt
 import Foundation_iOS
+import ChainRegistry
 
 @MainActor
 enum PaymentRequestViewFactory {
@@ -94,10 +95,8 @@ private final class PaymentRequestStyler: ProductPromptStyler {
     override func applyStyle(to view: MessageSheetStyleAcceptable) {
         super.applyStyle(to: view)
 
-        view.detailsLabel.apply(style: .init(
-            textColor: .fgPrimary,
-            font: .semibold56
-        ))
+        view.detailsLabel.textColor = .fgPrimary
+        view.detailsLabel.font = .semibold56
         view.detailsLabel.textAlignment = .center
         view.afterTitleSpacing = 40
         view.afterDetailsSpacing = 40

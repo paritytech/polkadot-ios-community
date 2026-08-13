@@ -143,7 +143,7 @@ extension Chat.IdentityProof: ScaleCodable {
 
 extension Chat.RequestContentV2: ScaleCodable {
     private enum Constants {
-        static let deviceEncPubKeyLength = 65
+        static let deviceEncPubKeyLength = 32
     }
 
     init(scaleDecoder: any ScaleDecoding) throws {

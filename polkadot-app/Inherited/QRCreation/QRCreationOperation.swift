@@ -3,7 +3,7 @@ import CoreImage
 import Operation_iOS
 import UIKit.UIImage
 
-final class QRCreationOperation: BaseOperation<UIImage> {
+final class QRCreationOperation: BaseOperation<UIImage>, @unchecked Sendable {
     let payloadClosure: () throws -> Data
     let qrSize: CGSize
 

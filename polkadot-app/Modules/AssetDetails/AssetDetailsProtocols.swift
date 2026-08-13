@@ -2,6 +2,7 @@ import Foundation
 import PolkadotUI
 import Coinage
 import UIKitExt
+import ChainRegistry
 
 protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     func didSetCards(viewModels: [WalletCardCreateViewModel])
@@ -18,6 +19,7 @@ protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     #endif
 }
 
+@MainActor
 protocol AssetDetailsPresenterProtocol: AnyObject {
     func setup()
     func onSendMoney()
@@ -65,6 +67,7 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     #endif
 }
 
+@MainActor
 protocol AssetDetailsWireframeProtocol: AlertPresentable, ErrorPresentable, BackupSyncPresentable {
     func showTransfer(from view: ControllerBackedProtocol?, chainAsset: ChainAsset)
 

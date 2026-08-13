@@ -14,7 +14,7 @@ class GameReportCollectionViewLayout {
         )
         let group = NSCollectionLayoutGroup.horizontal(
             layoutSize: groupSize,
-            subitem: item,
+            repeatingSubitem: item,
             count: 2
         )
         group.interItemSpacing = .fixed(8)

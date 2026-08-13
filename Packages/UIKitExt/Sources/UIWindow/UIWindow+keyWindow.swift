@@ -1,5 +1,10 @@
 import UIKit
 
+@MainActor
+public protocol TopmostChildProviding: AnyObject {
+    var topmostChild: UIViewController? { get }
+}
+
 public extension UIWindow {
     class var topWindow: UIWindow? {
         UIApplication.shared.connectedScenes
@@ -16,23 +21,6 @@ public extension UIWindow {
     }
 
     var topmostViewController: UIViewController? {
-        topmost(of: rootViewController)
-    }
-
-    private func topmost(of viewController: UIViewController?) -> UIViewController? {
-        if let navigationController = viewController as? UINavigationController {
-            return topmost(of: navigationController.visibleViewController)
-        }
-
-        if let tabBarController = viewController as? UITabBarController,
-           let selectedViewController = tabBarController.selectedViewController {
-            return topmost(of: selectedViewController)
-        }
-
-        if let presentedViewController = viewController?.presentedViewController {
-            return topmost(of: presentedViewController)
-        }
-
-        return viewController
+        rootViewController?.topmostPresented
     }
 }

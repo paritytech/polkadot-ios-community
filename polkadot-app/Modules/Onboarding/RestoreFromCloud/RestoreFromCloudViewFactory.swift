@@ -3,6 +3,7 @@ import Keystore_iOS
 import NovaCrypto
 import KeyDerivation
 
+@MainActor
 enum RestoreFromCloudViewFactory {
     static func createView(with observer: RootStateObserving) -> RestoreFromCloudViewProtocol? {
         let walletSetupManager = WalletSetupManager(

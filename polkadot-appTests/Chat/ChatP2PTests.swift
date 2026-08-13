@@ -69,8 +69,8 @@ final class ChatP2PTests: XCTestCase {
             deliverExpectation.fulfill()
         }
 
-        aliceService.messageExchange.addMessageToQueue(
-            .init(remoteMessage: message),
+        aliceService.messageExchange.addMessagesToQueue(
+            [.init(remoteMessage: message)],
             for: bobService.request.peer
         )
 
@@ -87,10 +87,10 @@ private extension ChatP2PTests {
     ) throws -> ParticipantService {
         let seed = Data.random(of: 32)!
         let keypair = try SNKeyFactory().createKeypair(fromSeed: seed)
-        let privateKey = P256.KeyAgreement.PrivateKey()
+        let privateKey = Curve25519.KeyAgreement.PrivateKey()
 
         let encryptionManager = ClosureEncryptionManager { _ in
-            P256AESEncryptorFactory(privateKey: privateKey)
+            X25519ChaChaPolyEncryptorFactory(privateKey: privateKey)
         }
 
         let signManager = ClosureSignerManager { _ in
@@ -102,6 +102,7 @@ private extension ChatP2PTests {
             signManager: signManager,
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: nil,
+            messageRouteSelector: { _ in .identity },
             maxStatementSize: 1_024
         ).makeService(
             statementStoreConnection: statementStore,
@@ -113,7 +114,7 @@ private extension ChatP2PTests {
                 own: .init(signKeyId: "", encryptionKeyId: "", pin: nil),
                 peer: .init(
                     accountId: keypair.publicKey().rawData(),
-                    publicKey: privateKey.publicKey.x963Representation,
+                    publicKey: privateKey.publicKey.rawRepresentation,
                     pin: nil,
                     devices: []
                 )

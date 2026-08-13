@@ -1,6 +1,7 @@
 import Foundation
 import Products
 
+@MainActor
 final class AppDetailPresenter {
     weak var view: AppDetailViewProtocol?
 

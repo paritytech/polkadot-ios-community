@@ -4,7 +4,7 @@ public protocol PeerSessionManaging {
     associatedtype Message: MessageExchange.CodableMessage
 
     func updateSessions(_ requests: Set<MessageExchange.SessionRequest>)
-    func addMessageToQueue(_ message: Message, for peer: MessageExchange.Peer)
+    func addMessagesToQueue(_ messages: [Message], for peer: MessageExchange.Peer)
 }
 
 // MARK: - Type Erasure Implementation
@@ -13,15 +13,15 @@ public final class AnyPeerSessionManager<M: MessageExchange.CodableMessage>: Pee
     public typealias Message = M
 
     private let updateSessionsClosure: (Set<MessageExchange.SessionRequest>) -> Void
-    private let addMessageToQueueClosure: (M, MessageExchange.Peer) -> Void
+    private let addMessagesToQueueClosure: ([M], MessageExchange.Peer) -> Void
 
     public init<P: PeerSessionManaging>(_ targetManager: P) where P.Message == M {
         updateSessionsClosure = { requests in
             targetManager.updateSessions(requests)
         }
 
-        addMessageToQueueClosure = { message, peer in
-            targetManager.addMessageToQueue(message, for: peer)
+        addMessagesToQueueClosure = { messages, peer in
+            targetManager.addMessagesToQueue(messages, for: peer)
         }
     }
 
@@ -29,7 +29,7 @@ public final class AnyPeerSessionManager<M: MessageExchange.CodableMessage>: Pee
         updateSessionsClosure(requests)
     }
 
-    public func addMessageToQueue(_ message: Message, for peer: MessageExchange.Peer) {
-        addMessageToQueueClosure(message, peer)
+    public func addMessagesToQueue(_ messages: [Message], for peer: MessageExchange.Peer) {
+        addMessagesToQueueClosure(messages, peer)
     }
 }

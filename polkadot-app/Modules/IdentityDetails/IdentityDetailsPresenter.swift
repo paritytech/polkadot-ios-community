@@ -1,6 +1,7 @@
 import Foundation
 import UIKit.UIImage
 
+@MainActor
 final class IdentityDetailsPresenter {
     weak var view: IdentityDetailsViewProtocol?
 

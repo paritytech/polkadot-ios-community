@@ -93,7 +93,8 @@ extension ChatReactionExtension {
                 messageId: reactionContent.messageId,
                 emoji: reactionContent.emoji,
                 origin: message.origin
-            ).asyncExecute()
+            )
+            .asyncExecute()
             return .processed
         } catch {
             return .processed

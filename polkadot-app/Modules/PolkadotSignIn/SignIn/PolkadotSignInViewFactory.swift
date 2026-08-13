@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum PolkadotSignInViewFactory {
     static func createView(
         serviceCoordinator: ServiceCoordinatorProtocol,
@@ -11,6 +12,7 @@ enum PolkadotSignInViewFactory {
             deviceMessageBroadcaster: MultideviceComponentFactory.makeDeviceMessageBroadcaster(
                 messageExchangeModeProvider: ChatMessageExchangeModeProvider()
             ),
+            localNetworkPermissionService: LocalNetworkPermissionService.shared,
             url: url
         )
         let wireframe = PolkadotSignInWireframe(onResult: onResult)

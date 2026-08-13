@@ -4,6 +4,7 @@ import BigInt
 import SubstrateSdk
 import SubstrateStorageQuery
 import AssetsManagement
+import ChainRegistry
 
 protocol AssetStorageInfoOperationFactoryProtocol {
     func createStorageInfoWrapper(

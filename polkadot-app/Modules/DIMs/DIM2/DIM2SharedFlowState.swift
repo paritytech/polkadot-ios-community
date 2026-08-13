@@ -3,6 +3,7 @@ import SubstrateSdk
 import MessageExchangeKit
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol DIM2SharedFlowStateProtocol: AnyObject {
     var source: People.RegisteredSource? { get }
@@ -179,11 +180,15 @@ extension DIM2SharedFlowState: DIM2SharedFlowStateProtocol {
 
         let extrinsicSubmissionMonitor = try extrinsicSubmissionFacade.createMonitorFactory(chain: chain)
 
+        let encryptionIdentifier = try Chat.OnChainEncryptionIdentifier.x25519(
+            Chat.PublicKey(rawData: chatEncryptionManager.localPublicKey)
+        )
+
         return GameRegisterService(
             chain: chain,
             candidateWallet: candidateWallet,
             scoreWallet: score,
-            chatPubKey: chatEncryptionManager.localPublicKey,
+            encryptionIdentifier: encryptionIdentifier,
             extrinsicSubmitMonitor: extrinsicSubmissionMonitor,
             candidateOriginFactory: CandidateOriginFactory(
                 chainRegistry: chainRegistry,

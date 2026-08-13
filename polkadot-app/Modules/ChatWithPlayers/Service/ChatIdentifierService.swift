@@ -1,21 +1,18 @@
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Individuality
 import Combine
 
-enum ChatIdentifierServiceError: Error {
-    case identifierNotFound
-}
-
 protocol ChatIdentifierServiceProtocol {
     /// Creates a one-time query to **Game.CommunicationIdentifiers** storage
-    func fetch(for accountId: AccountId) async throws -> Data?
+    func fetch(for accountId: AccountId) async throws -> Chat.OnChainEncryptionIdentifier?
 }
 
 final class ChatIdentifierService: BaseSubscriptionService {}
 
 extension ChatIdentifierService: ChatIdentifierServiceProtocol {
-    func fetch(for accountId: AccountId) async throws -> Data? {
+    func fetch(for accountId: AccountId) async throws -> Chat.OnChainEncryptionIdentifier? {
         let path = GamePallet.Storage.communicationIdentifier(accountId)
 
         let publisher: AnyPublisher<BytesCodable?, Error> = queryStorage(
@@ -25,7 +22,10 @@ extension ChatIdentifierService: ChatIdentifierServiceProtocol {
 
         do {
             for try await value in publisher.values {
-                return value?.wrappedValue
+                guard let container = value?.wrappedValue else {
+                    return nil
+                }
+                return try Chat.OnChainEncryptionIdentifier.fromScaleEncoded(container)
             }
             // Stream finished without value
             return nil

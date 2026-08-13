@@ -1,6 +1,7 @@
 import UIKit
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 final class SearchAccountInteractor {
     // MARK: Properties
@@ -89,16 +90,12 @@ private extension SearchAccountInteractor {
                 ) ?? []
 
                 try Task.checkCancellation()
-                await MainActor.run {
-                    self?.presenter?.didFindSearchResults(accounts)
-                }
+                await self?.presenter?.didFindSearchResults(accounts)
             } catch {
                 guard !Task.isCancelled else { return }
 
                 logger.debug(error.localizedDescription)
-                await MainActor.run {
-                    self?.presenter?.didReceiveSearchError(message: error.localizedDescription)
-                }
+                await self?.presenter?.didReceiveSearchError(message: error.localizedDescription)
             }
         }
     }

@@ -98,6 +98,7 @@ private extension UpgradeUsernameView {
             Text(cardDescription)
                 .typography(.paragraphLarge)
                 .foregroundColor(Color(.textAndIconsPrimaryDark))
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(16)
         }
         .background(Color(.bgChatSurfaceMain))

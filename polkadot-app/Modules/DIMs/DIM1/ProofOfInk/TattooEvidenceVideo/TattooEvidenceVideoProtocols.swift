@@ -5,6 +5,7 @@ protocol TattooEvidenceVideoViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: TattooEvidenceVideoViewModel)
 }
 
+@MainActor
 protocol TattooEvidenceVideoPresenterProtocol: AnyObject {
     func setup()
     func toggleRecording()
@@ -18,6 +19,7 @@ protocol TattooEvidVideoInteractorInputProtocol: AnyObject {
     func discard()
 }
 
+@MainActor
 protocol TattooEvidVideoInteractorOutputProtocol: AnyObject {
     func didReceive(captureSession: AVCaptureSession)
     func didDiscardRecording()
@@ -25,6 +27,7 @@ protocol TattooEvidVideoInteractorOutputProtocol: AnyObject {
     func didReceive(error: TattooEvidVideoInteractorError)
 }
 
+@MainActor
 protocol TattooEvidenceVideoWireframeProtocol: AlertPresentable, ErrorPresentable,
     ApplicationSettingsPresentable {
     func showTips(from view: TattooEvidenceVideoViewProtocol?)

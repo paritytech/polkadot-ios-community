@@ -3,7 +3,9 @@ import Keystore_iOS
 import SubstrateSdk
 import KeyDerivation
 import PolkadotUI
+import ChainRegistry
 
+@MainActor
 enum IdentityDetailsViewFactory {
     static func createEmbeddedScene(
         chainModel: ChainModel,

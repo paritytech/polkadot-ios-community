@@ -1,5 +1,5 @@
 {
-  "originHash" : "c2754a18db9dd3e0c9af4de9e4f7708e363fe947cd467ee87762daf11a398fee",
+  "originHash" : "a531ea3c0e5b44da7e8101b2225ff884ea16f3e62c1b8cd2261517308fcc9816",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "revision" : "f3f64fb0d32117f881c0d8fd042a29bf2aede1b0",
-        "version" : "1.9.0"
+        "revision" : "ab87331d70ede9dc5415a56eb3712058941babf9",
+        "version" : "1.12.0"
       }
     },
     {
@@ -238,7 +238,7 @@
     {
       "identity" : "metadata-shortener-ios",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/novasamatech/metadata-shortener-ios.git",
+      "location" : "https://github.com/novasamatech/metadata-shortener-ios",
       "state" : {
         "revision" : "1531b0e4091e74041331dcc8230e490e9f59183c",
         "version" : "0.2.1"
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "9bcba45b567dac1e8f3cbfe19e8aac4271e0a85a",
-        "version" : "5.8.0"
+        "revision" : "0bcd757122dccd6bbc88cf87a0af4aa7018bf4ab",
+        "version" : "5.10.0"
       }
     },
     {
@@ -551,6 +551,15 @@
       }
     },
     {
+      "identity" : "truapi",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/paritytech/truapi",
+      "state" : {
+        "revision" : "b1a7afe05fc0f8e765339895b2fca5aa5cda173e",
+        "version" : "0.5.0"
+      }
+    },
+    {
       "identity" : "tweetnacl-swiftwrap",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/bitmark-inc/tweetnacl-swiftwrap",
@@ -582,8 +591,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/verifiable-swift",
       "state" : {
-        "revision" : "786a68d6dec3dcd0f0a2a880dc5da7001005933c",
-        "version" : "0.7.0"
+        "revision" : "14fbbb8196e4ac4da72338f7e11738bc02ac368b",
+        "version" : "0.8.0"
       }
     },
     {
@@ -600,8 +609,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/stasel/WebRTC",
       "state" : {
-        "revision" : "b4f5a90c887bde68512b8f1a6d684b27b5597b76",
-        "version" : "125.0.0"
+        "revision" : "ff4647dc67f00d037c199c69e1a1ee8ceda88236",
+        "version" : "149.0.0"
       }
     },
     {

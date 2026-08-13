@@ -6,6 +6,7 @@ protocol RemoveDeviceViewProtocol: ControllerBackedProtocol {
     func didReceive(isLoading: Bool)
 }
 
+@MainActor
 protocol RemoveDevicePresenterProtocol: AnyObject {
     func setup()
     func confirm()
@@ -16,11 +17,13 @@ protocol RemoveDeviceInteractorInputProtocol: AnyObject {
     func removeDevice(identifier: String)
 }
 
+@MainActor
 protocol RemoveDeviceInteractorOutputProtocol: AnyObject {
     func didRemoveDevice()
     func didFailToRemoveDevice(error: Error)
 }
 
+@MainActor
 protocol RemoveDeviceWireframeProtocol: AnyObject {
     func close(view: RemoveDeviceViewProtocol?, completion: (() -> Void)?)
 }

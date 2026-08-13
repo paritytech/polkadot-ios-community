@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import KeyDerivation
+import ChainRegistry
 
 class DIM1BackgroundStateFetcher {
     private let candidateWallet: WalletManaging

@@ -25,6 +25,13 @@ protocol CoinOnChainQuerying: Sendable {
     /// Waits until all coins for the given public keys are absent/spent on-chain, or throws when the subscription
     /// terminates.
     func awaitAllCoinsOffChain(for publicKeys: [Data]) async throws
+
+    /// Waits until every key has been observed on-chain at least once during the subscription
+    /// (present now, or present earlier then spent — i.e. claimed). Returns `true` if at least one
+    /// key is still present at resolution (awaiting claim), `false` if all observed keys are now
+    /// spent (already claimed). Throws when the subscription terminates first. Callers race against
+    /// a block timeout.
+    func awaitAllCoinsSentOrClaimed(for publicKeys: [Data]) async throws -> Bool
 }
 
 extension CoinOnChainQuerying {
@@ -32,6 +39,13 @@ extension CoinOnChainQuerying {
     /// Returns an array of optionals in the same order as the input keys.
     func fetchCoins(for publicKeys: [Data]) async throws -> [CoinSyncResult.OnChainCoin?] {
         try await fetchCoins(for: publicKeys, atBlockHash: nil)
+    }
+
+    /// Default: presence is the only confirmation (legacy semantics). Conformers that can observe
+    /// the spent transition override this to also treat a claimed coin as proof of send.
+    func awaitAllCoinsSentOrClaimed(for publicKeys: [Data]) async throws -> Bool {
+        try await awaitAllCoinsOnChain(for: publicKeys)
+        return true
     }
 }
 
@@ -127,6 +141,39 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
                 continue
             }
             return
+        }
+
+        throw CoinOnChainQueryError.subscriptionTerminated
+    }
+
+    /// Subscribes to on-chain coin storage and resolves once every key has been seen present at
+    /// least once (present now, or present then spent). A never-landed coin is never observed, so
+    /// the caller's block timeout must bound the wait. Returns whether any key is still present.
+    func awaitAllCoinsSentOrClaimed(for publicKeys: [Data]) async throws -> Bool {
+        guard !publicKeys.isEmpty else { return true }
+
+        let mappingKeys = Set(publicKeys.map { $0.toHex() })
+
+        let accumulatedStream = subscribeCoins(for: publicKeys)
+            .scan((seen: Set<String>(), present: Set<String>())) { state, result in
+                var seen = state.seen
+                var present = state.present
+                for (key, coin) in result.updates {
+                    if coin != nil {
+                        seen.insert(key)
+                        present.insert(key)
+                    } else {
+                        present.remove(key)
+                    }
+                }
+                return (seen: seen, present: present)
+            }
+
+        for try await state in accumulatedStream {
+            guard mappingKeys.allSatisfy({ state.seen.contains($0) }) else {
+                continue
+            }
+            return !state.present.isEmpty
         }
 
         throw CoinOnChainQueryError.subscriptionTerminated

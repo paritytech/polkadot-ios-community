@@ -8,13 +8,13 @@ public extension AssetsExchangeServiceProtocol {
         let syncQueue = DispatchQueue(label: "io.assets.exchange.service.async.updates")
 
         return AsyncStream { [weak self] continuation in
-            continuation.onTermination = { _ in
-                self?.unsubscribeUpdates(for: target)
-            }
-
             guard let self else {
                 continuation.finish()
                 return
+            }
+
+            continuation.onTermination = { [weak self] _ in
+                self?.unsubscribeUpdates(for: target)
             }
 
             subscribeUpdates(

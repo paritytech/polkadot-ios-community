@@ -13,6 +13,8 @@ extension OSPermissionStatus {
              .restricted:
             // be optimistic and treat restricted as allowed
             self = .allowed
+        @unknown default:
+            self = .notDetermined
         }
     }
 }

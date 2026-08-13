@@ -86,6 +86,5 @@ public extension ChatMessageActionView {
         ))
         .background(Color.bgSurfaceContainer)
         .padding(.horizontal, 16)
-        .previewLayout(.sizeThatFits)
     }
 #endif

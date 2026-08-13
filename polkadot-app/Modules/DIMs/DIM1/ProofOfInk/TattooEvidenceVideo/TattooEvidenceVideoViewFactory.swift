@@ -3,6 +3,7 @@ import Foundation_iOS
 import Individuality
 import UIKit
 
+@MainActor
 enum TattooEvidenceVideoViewFactory {
     static func createView(
         for design: ProofOfInkPallet.InkSpec,

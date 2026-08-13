@@ -3,6 +3,7 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageSubscription
 import CommonService
+import ChainRegistry
 
 protocol BlockTimeEstimationServiceProtocol: ApplicationServiceProtocol {
     func createEstimatedBlockTimeOperation() -> BaseOperation<EstimatedBlockTime>
@@ -70,7 +71,6 @@ final class BlockTimeEstimationService {
     let connection: JSONRPCEngine
     let runtimeService: RuntimeCodingServiceProtocol
     let repository: AnyDataProviderRepository<ChainStorageItem>
-    let eventCenter: EventCenterProtocol
     let logger: LoggerProtocol
     let operationQueue: OperationQueue
 
@@ -94,7 +94,6 @@ final class BlockTimeEstimationService {
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
         repository: AnyDataProviderRepository<ChainStorageItem>,
-        eventCenter: EventCenterProtocol,
         operationQueue: OperationQueue,
         logger: LoggerProtocol
     ) {
@@ -102,7 +101,6 @@ final class BlockTimeEstimationService {
         self.connection = connection
         self.runtimeService = runtimeService
         self.repository = repository
-        self.eventCenter = eventCenter
         self.operationQueue = operationQueue
         self.logger = logger
     }
@@ -221,10 +219,6 @@ final class BlockTimeEstimationService {
         }
     }
 
-    private func notifyAfterSave() {
-        eventCenter.notify(with: BlockTimeChanged(chainId: chainId))
-    }
-
     private func save(blockTime: EstimatedBlockTime) {
         let localKey = EstimatedBlockTime.storageKey(for: chainId)
 
@@ -233,12 +227,6 @@ final class BlockTimeEstimationService {
             let item = ChainStorageItem(identifier: localKey, data: data)
             return [item]
         }, { [] })
-
-        saveOperation.completionBlock = { [weak self] in
-            DispatchQueue.main.async {
-                self?.notifyAfterSave()
-            }
-        }
 
         operationQueue.addOperation(saveOperation)
     }

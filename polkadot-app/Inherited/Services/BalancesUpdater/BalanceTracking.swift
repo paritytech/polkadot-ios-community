@@ -3,6 +3,8 @@ import SubstrateSdk
 import AsyncExtensions
 import StructuredConcurrency
 import AssetsManagement
+import ChainRegistry
+import EventCenter
 
 struct BalanceTrackingDeps {
     let wallet: MetaAccountModelProtocol

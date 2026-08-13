@@ -3,18 +3,20 @@ import Foundation
 import KeyDerivation
 import Keystore_iOS
 import FoundationExt
+import SubstrateOperation
+import ChainRegistry
+import BackgroundExecution
 
 extension ServiceCoordinator {
     struct CoinageServices {
         let coinageService: CoinageServicing
         let transferMonitor: CoinageTransferMonitoring
+        let w3sPaymentTracking: W3sPaymentTracking
         let backupSyncService: CoinageBackupSyncServicing
         let claimStatusStore: ClaimStatusStore
     }
 
     static func createCoinageServices() -> CoinageServices? {
-        let logger = Logger.shared
-
         let databaseFactory = CoinageDatabaseDependencyFactory(storageFacade: UserDataStorageFacade.shared)
         let claimPlanStore = ClaimPlanCoreDataStore(storageFacade: UserDataStorageFacade.shared)
         let claimStatusStore = ClaimStatusStore()
@@ -49,8 +51,36 @@ extension ServiceCoordinator {
         return CoinageServices(
             coinageService: coinageService,
             transferMonitor: transferMonitor,
+            w3sPaymentTracking: createW3sPaymentTracking(coinageService: coinageService),
             backupSyncService: backupSyncService,
             claimStatusStore: claimStatusStore
+        )
+    }
+
+    static func makeBackgroundRecyclingService() -> (any CoinageRecyclingServicing)? {
+        let storageFacade = UserDataStorageFacade.shared
+        let databaseFactory = CoinageDatabaseDependencyFactory(storageFacade: storageFacade)
+        let claimPlanStore = ClaimPlanCoreDataStore(storageFacade: storageFacade)
+        let externalPaymentStore = ExternalPaymentCoreDataStore(storageFacade: storageFacade)
+
+        return createCoinageService(
+            databaseFactory: databaseFactory,
+            claimPlanStore: claimPlanStore,
+            externalPaymentStore: externalPaymentStore
+        )?.recyclingService
+    }
+
+    private static func createW3sPaymentTracking(coinageService: CoinageServicing) -> W3sPaymentTracking {
+        W3sPaymentTrackingService(
+            historyStore: W3sPaymentHistoryCoreDataStore(
+                storageFacade: UserDataStorageFacade.shared
+            ),
+            sendVerifier: coinageService.ongoingTransferService,
+            blockInfoProvider: BlockInfoProvider(
+                chainRegistry: ChainRegistryFacade.sharedRegistry,
+                operationQueue: OperationManagerFacade.sharedDefaultQueue,
+                chainId: AppConfig.Assets.mainAsset.chainId
+            )
         )
     }
 }
@@ -135,9 +165,9 @@ private extension ServiceCoordinator {
             planStore: claimPlanStore,
             walStore: walStore,
             schedulerFactory: schedulerFactory,
-            settingsManager: SettingsManager.shared,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
             logger: logger
         )
     }

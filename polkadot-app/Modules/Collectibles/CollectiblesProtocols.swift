@@ -4,6 +4,7 @@ protocol CollectiblesViewProtocol: ControllerBackedProtocol {
     func didReceive(collection: CollectionInput)
 }
 
+@MainActor
 protocol CollectiblesPresenterProtocol: AnyObject {
     func setup()
     func close()
@@ -19,6 +20,7 @@ protocol CollectiblesInteractorOutputProtocol: AnyObject {
     func didRequestClose()
 }
 
+@MainActor
 protocol CollectiblesWireframeProtocol: AnyObject {
     func close(view: CollectiblesViewProtocol?)
 }

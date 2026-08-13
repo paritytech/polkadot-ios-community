@@ -1,5 +1,6 @@
 import SubstrateSdk
 import Foundation
+import ChainRegistry
 
 protocol PendingInvitationObserverMaking {
     func makeObserver(

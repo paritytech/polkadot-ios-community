@@ -1,5 +1,7 @@
 import Foundation
+import ChainRegistry
 
+@MainActor
 class TokensPresenter {
     let tokensInteractor: TokensInputProtocol
     let logger: LoggerProtocol

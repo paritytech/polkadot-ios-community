@@ -1,3 +1,4 @@
+import AsyncExtensions
 import Foundation
 import Operation_iOS
 import ExtrinsicService
@@ -8,6 +9,12 @@ import Coinage
 import KeyDerivation
 import StructuredConcurrency
 import BigInt
+import ChainRegistry
+import SubstrateSdkExt
+
+#if TESTNET_FEATURE
+    import Keystore_iOS
+#endif
 
 struct TransferAmountDependency {
     let wallet: () -> WalletManaging
@@ -17,7 +24,8 @@ struct TransferAmountDependency {
     let operationQueue: () -> OperationQueue
     let coinageService: () -> CoinageServicing
     let transferMethod: () -> TransferMethod
-    let chatSubmitter: () -> TransferChatSubmitting
+    let chatSubmitter: () -> TransferSubmitting
+    var lifecycleReporter: () -> TransferLifecycleReporting = { NoOpTransferLifecycleReporter() }
 }
 
 final class TransferAmountInteractor {
@@ -33,10 +41,14 @@ final class TransferAmountInteractor {
     let logger: SDKLoggerProtocol?
     let coinageService: CoinageServicing
     let transferMethod: TransferMethod
-    let chatSubmitter: TransferChatSubmitting
+    let transferSubmitter: TransferSubmitting
+    let lifecycleReporter: TransferLifecycleReporting
 
     private var coinageBalanceTask: Task<Void, Never>?
     private var lockedBalanceTask: Task<Void, Never>?
+    /// Coalesces concurrent confirmations (e.g. double-tap): late callers join
+    /// the in-flight submission and receive its real outcome.
+    private let confirmCall = CoalescingTask<Void>()
 
     init(
         dependencies: TransferAmountDependency,
@@ -50,7 +62,8 @@ final class TransferAmountInteractor {
         contactsRepository = dependencies.contactsRepository()
         coinageService = dependencies.coinageService()
         transferMethod = dependencies.transferMethod()
-        chatSubmitter = dependencies.chatSubmitter()
+        transferSubmitter = dependencies.chatSubmitter()
+        lifecycleReporter = dependencies.lifecycleReporter()
         self.logger = logger
     }
 }
@@ -60,6 +73,10 @@ final class TransferAmountInteractor {
 extension TransferAmountInteractor: TransferAmountInteractorInputProtocol {
     var senderAddress: AccountId {
         accountId
+    }
+
+    func lifecycleStream() -> AnyAsyncSequence<ClaimStatus> {
+        lifecycleReporter.makeStream()
     }
 
     func setup() {
@@ -94,18 +111,20 @@ extension TransferAmountInteractor: TransferAmountInteractorInputProtocol {
         lockedBalanceTask?.cancel()
         lockedBalanceTask = nil
 
-        do {
-            switch validation {
-            case let .coinage(preview):
-                try await confirmCoinageTransfer(preview: preview, sendFullAmount: sendFullAmount)
-            case let .externalPayment(preview):
-                try await confirmExternalPayment(preview: preview)
-            }
-        } catch {
-            logger?.error("Did fail transfer: \(error)")
+        try await confirmCall.run { [self] in
+            do {
+                switch validation {
+                case let .coinage(preview):
+                    try await confirmCoinageTransfer(preview: preview, sendFullAmount: sendFullAmount)
+                case let .externalPayment(preview):
+                    try await confirmExternalPayment(preview: preview)
+                }
+            } catch {
+                logger?.error("Did fail transfer: \(error)")
 
-            retrySetup()
-            throw TransferAmountInteractorError.transactionFailed(error)
+                retrySetup()
+                throw TransferAmountInteractorError.transactionFailed(error)
+            }
         }
     }
 
@@ -141,13 +160,14 @@ private extension TransferAmountInteractor {
         let result = sendFullAmount ? preview.selectionResult : preview.nonDegradedResult
         let memo = try await coinageService.executeTransfer(result: result)
         do {
-            try await chatSubmitter.sendChatMessage(memo, to: recipient.accountId)
+            try await transferSubmitter.sendTransfer(memo, to: recipient.accountId)
         } catch {
-            if chatSubmitter.isFailureFatal {
+            if transferSubmitter.isFailureFatal {
                 throw error
             }
             logger?.error("Non-fatal chat submitter failure: \(error)")
         }
+        lifecycleReporter.start(with: .coinageMemo(memo))
     }
 }
 
@@ -161,20 +181,11 @@ private extension TransferAmountInteractor {
             destination: recipient.accountId
         )
 
-        for try await status in try await coinageService.subscribeExternalPaymentStatus(paymentId: paymentId) {
-            switch status {
-            case .completed:
-                return
-            case let .failed(reason):
-                throw TransferAmountInteractorError.transactionFailed(
-                    ExternalPaymentError(reason: reason)
-                )
-            case .processing:
-                continue
-            }
-        }
-
-        throw TransferAmountInteractorError.internalError
+        // Completion and failure are observed by the presenter through the
+        // lifecycle stream — initiation success is enough to return here.
+        lifecycleReporter.start(
+            with: .externalPayment(paymentId: paymentId, amountInPlanks: preview.fullAmount)
+        )
     }
 }
 
@@ -218,6 +229,14 @@ private extension TransferAmountInteractor {
 extension TransferAmountInteractor {
     #if TESTNET_FEATURE
         func previewStrategy(for amount: Decimal) {
+            // No need to properly inject settings here as this is a debug view
+            guard SettingsManager.shared.bool(for: SettingsKey.showTransferStrategyDebug.rawValue) ?? true else {
+                Task { @MainActor [weak self] in
+                    self?.presenter?.didReceive(strategyDebugInfo: nil)
+                }
+                return
+            }
+
             let service = coinageService
             let method = transferMethod
             Task { [weak self, chainAsset] in

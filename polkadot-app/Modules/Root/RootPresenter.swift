@@ -61,12 +61,6 @@ private extension RootPresenter {
             wireframe.showUsernameCheck(with: self)
         case .dashboard:
             wireframe.showDashboard()
-        case .web3SummitSpa:
-            wireframe.showW3SSpa(with: self)
-        case .web3SummitEnded:
-            wireframe.showW3SEnded()
-        case .web3SummitNotStarted:
-            wireframe.showW3SNotStarted()
         case .jailbroken:
             wireframe.showJailbroken()
         case .broken:
@@ -97,10 +91,6 @@ extension RootPresenter: RootStateObserving {
     }
 
     func didSelectTheme() {
-        interactor.reevaluate()
-    }
-
-    func proceedAfterWeb3Summit() {
         interactor.reevaluate()
     }
 }

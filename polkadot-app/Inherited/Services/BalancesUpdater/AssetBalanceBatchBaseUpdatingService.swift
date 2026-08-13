@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import CommonService
+import ChainRegistry
 
 protocol AssetBalanceUpdatingServiceProtocol: ApplicationServiceProtocol {
     func update(selectedMetaAccount: MetaAccountModelProtocol)

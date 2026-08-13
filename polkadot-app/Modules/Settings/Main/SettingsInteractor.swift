@@ -1,5 +1,6 @@
 import UIKit
 import Foundation_iOS
+import EventCenter
 
 final class SettingsInteractor {
     weak var presenter: SettingsInteractorOutputProtocol?
@@ -123,7 +124,8 @@ extension SettingsInteractor: SettingsInteractorInputProtocol {
     }
 
     func openMailApp() {
-        if emailComposePresenter.canSendMail() {
+        let canSendMail = MainActor.assumeIsolated { emailComposePresenter.canSendMail() }
+        if canSendMail {
             Task { await presenter?.didOpenMailApp() }
         } else {
             Task { await presenter?.didFailToOpenMailApp(email: AppConfig.contactEmail) }
@@ -131,7 +133,7 @@ extension SettingsInteractor: SettingsInteractorInputProtocol {
     }
 }
 
-extension SettingsInteractor: EventVisitorProtocol {
+extension SettingsInteractor: AppEventVisiting {
     func processBackupStatusChanged(event _: BackupStatusChanged) {
         provideBackupAttention()
     }

@@ -1,6 +1,6 @@
 import Foundation
 
 @MainActor
-public protocol ProductPermissionRouting: AnyObject {
+public protocol ProductPermissionRouting: ProductsRouting {
     func showPrompt(context: ProductPermissionContext)
 }

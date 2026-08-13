@@ -24,6 +24,13 @@ extension ProductsNativeApi {
         )
     }
 
+    func allowWebRtcAccess() async throws -> Bool {
+        try await permissionGuard.consumePermission(
+            productId: productId,
+            permission: .webRtcAccess
+        )
+    }
+
     func pushNotification(_ request: ScheduledNotificationRequest) async throws -> UInt32 {
         guard try await permissionGuard.consumePermission(
             productId: productId,

@@ -5,9 +5,11 @@ protocol SearchContactViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: SearchContactViewLayout.ViewModel)
 }
 
+@MainActor
 protocol SearchContactPresenterProtocol: AnyObject {
     func setup()
     func search(username: String)
+    func scanQRCode()
     func didSelectContact(identifier: String)
 }
 
@@ -18,12 +20,13 @@ protocol SearchContactInteractorInputProtocol: AnyObject {
 
 @MainActor
 protocol SearchContactInteractorOutputProtocol: AnyObject {
-    func didReceive(searchResults results: [Chat.RemoteContact], for query: String)
-    func didReceive(searchError error: Error, for query: String)
+    func didReceive(searchState: SearchContactSearchState, for query: String)
     func didReceive(error: Error)
     func didReceive(resolution: ChatOpenModel)
 }
 
-protocol SearchContactWireframeProtocol: AnyObject, AlertPresentable, ErrorPresentable {
+@MainActor
+protocol SearchContactWireframeProtocol: AnyObject, WalletQRScanPresentable, AlertPresentable, ErrorPresentable {
+    func showQRScan(from view: SearchContactViewProtocol?)
     func complete(from view: SearchContactViewProtocol?, with model: ChatOpenModel)
 }

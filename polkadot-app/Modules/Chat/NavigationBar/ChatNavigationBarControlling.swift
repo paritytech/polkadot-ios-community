@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import PolkadotUI
 import UIKit
 
@@ -56,6 +57,9 @@ enum ChatCallBarButtons {
         let action = UIAction(title: title, image: image) { _ in onStartCall(callType) }
         let item = UIBarButtonItem(primaryAction: action)
         item.tintColor = .fgPrimary
+        if callType == .audio {
+            item.accessibilityId(AccessibilityID.Chat.voiceCallButton)
+        }
         return item
     }
 }

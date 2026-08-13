@@ -1,6 +1,6 @@
 import UIKit
 
-public protocol ControllerBackedProtocol: AnyObject {
+@MainActor public protocol ControllerBackedProtocol: AnyObject {
     var isSetup: Bool { get }
     var controller: UIViewController { get }
 }

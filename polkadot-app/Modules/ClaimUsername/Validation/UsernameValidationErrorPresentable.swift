@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol UsernameValidationErrorPresentable: ValidationErrorPresentable {
     func presentMinLengthViolation(
         from view: ControllerValidationResultPresentable,
@@ -16,7 +17,6 @@ protocol UsernameValidationErrorPresentable: ValidationErrorPresentable {
     )
 
     func presentUsernameInvalid(from view: ControllerValidationResultPresentable)
-    func presentDigitsTaken(from view: ControllerValidationResultPresentable)
 }
 
 extension UsernameValidationErrorPresentable {
@@ -58,15 +58,6 @@ extension UsernameValidationErrorPresentable {
             result: .issue(
                 message: String(localized: .claimUsernameInvalid),
                 context: UsernameValidationContext.usernameInvalid
-            )
-        )
-    }
-
-    func presentDigitsTaken(from view: ControllerValidationResultPresentable) {
-        view.didReceiveValidation(
-            result: .issue(
-                message: String(localized: .claimUsernameDigitsTaken),
-                context: UsernameValidationContext.digitsInvalid
             )
         )
     }

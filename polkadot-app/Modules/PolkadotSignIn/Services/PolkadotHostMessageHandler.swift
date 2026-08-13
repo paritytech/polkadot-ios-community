@@ -59,7 +59,8 @@ private extension PolkadotHostMessageHandler {
         case .signingResponse,
              .aliasResponse,
              .resourceAllocationResponse,
-             .createTransactionResponse:
+             .createTransactionResponse,
+             .productSubtreeResponse:
             true
         default:
             false

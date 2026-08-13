@@ -5,6 +5,7 @@ import Operation_iOS
 import ExtrinsicService
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 enum CleanCaseError: Error {
     case failedToCleanCases([Error])

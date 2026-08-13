@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 protocol TransactionSubscribing {
     func process(blockHash: Data)

@@ -2,6 +2,13 @@ import Foundation
 import MessageExchangeKit
 
 extension Chat.Contact {
+    func toMessageExchangeSessionRequest() -> MessageExchange.SessionRequest {
+        MessageExchange.SessionRequest(
+            own: ownKeyId.toMessageExchangeOwn(),
+            peer: toMessageExchangePeer()
+        )
+    }
+
     func toMessageExchangePeer() -> MessageExchange.Peer {
         let peerDevices = devices.map {
             MessageExchange.DeviceInfo(

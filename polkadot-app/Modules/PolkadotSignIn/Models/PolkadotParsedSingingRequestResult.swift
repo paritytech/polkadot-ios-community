@@ -43,7 +43,6 @@ enum PolkadotParsedSigningRequest {
 }
 
 struct PolkadotParsedCreateTransaction {
-    let signer: ProductAccountId
     let callData: Data
     let call: PolkadotParsedTransactionCall
     let resolvedExtensions: CreateTransactionPayloadExtensions

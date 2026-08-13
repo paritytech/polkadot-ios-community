@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum EvidenceTipsViewFactory {
     static func createView(mode: EvidenceTipsMode) -> EvidenceTipsViewProtocol {
         let wireframe = EvidenceTipsWireframe()

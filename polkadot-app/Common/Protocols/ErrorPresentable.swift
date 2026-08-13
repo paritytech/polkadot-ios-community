@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import UIKitExt
 
+@MainActor
 protocol ErrorPresentable: AnyObject {
     func present(error: ErrorContent, from view: ControllerBackedProtocol?) -> Bool
 }
@@ -15,6 +16,7 @@ extension ErrorPresentable {
         return present(error: content, from: view)
     }
 
+    @MainActor
     func errorContent(from error: Error) -> ErrorContent? {
         if let contentConvertibleError = error as? ErrorContentConvertible {
             return contentConvertibleError.toErrorContent()

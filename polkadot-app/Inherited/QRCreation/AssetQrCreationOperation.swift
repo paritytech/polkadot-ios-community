@@ -4,7 +4,7 @@ import QRCode
 import UIKit.UIImage
 import DesignSystem
 
-final class AssetQrCreationOperation: BaseOperation<UIImage> {
+final class AssetQrCreationOperation: BaseOperation<UIImage>, @unchecked Sendable {
     let payloadClosure: () throws -> Data
     let logoClosure: () throws -> UIImage?
     let qrSize: CGSize

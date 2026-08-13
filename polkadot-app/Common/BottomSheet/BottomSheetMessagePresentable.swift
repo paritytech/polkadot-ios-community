@@ -3,6 +3,7 @@ import Foundation_iOS
 import UIKitExt
 import PolkadotUI
 
+@MainActor
 protocol BottomSheetMessagePresentable {
     func showBottomSheet(
         from view: ControllerBackedProtocol,
@@ -12,6 +13,7 @@ protocol BottomSheetMessagePresentable {
     )
 }
 
+@MainActor
 extension BottomSheetMessagePresentable {
     func showMessageBottomSheet(
         from view: ControllerBackedProtocol,

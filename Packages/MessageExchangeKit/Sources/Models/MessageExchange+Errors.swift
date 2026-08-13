@@ -22,5 +22,6 @@ public extension MessageExchange {
         case messageTooBig(maxSize: Int, actualSize: Int)
         case encryptionFailed
         case encodingFailed
+        case unsupportedRoute(PeerSessionRoute)
     }
 }

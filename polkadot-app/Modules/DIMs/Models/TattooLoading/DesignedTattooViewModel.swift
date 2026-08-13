@@ -21,6 +21,7 @@ final class DesignedTattooViewModel {
         self.resolutionService = resolutionService
     }
 
+    @MainActor
     private func loadExisting(
         viewModel: ImageViewModelProtocol,
         imageView: UIImageView,

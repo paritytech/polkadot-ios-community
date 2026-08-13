@@ -6,6 +6,7 @@ import AssetExchange
 import AssetHubSdk
 import HydrationSdk
 import CommonService
+import ChainRegistry
 
 class AssetExchangeFeeSupportFetchersProvider {
     private var observableState: Observable<NotEqualWrapper<[AssetExchangeFeeSupportFetching]>> = .init(

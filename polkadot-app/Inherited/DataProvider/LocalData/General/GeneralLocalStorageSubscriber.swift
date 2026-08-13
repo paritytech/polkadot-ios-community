@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 protocol SystemLocalDataSubscriber: LocalStorageProviderObserving {
     var systemLocalDataFactory: SystemLocalDataFactoryProtocol { get }

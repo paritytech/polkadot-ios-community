@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 
+@MainActor
 enum TattooEvidencePhotoViewFactory {
     static func createView(
         for design: ProofOfInkPallet.InkSpec,

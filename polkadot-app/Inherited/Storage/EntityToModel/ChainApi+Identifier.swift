@@ -1,4 +1,5 @@
 import Foundation
+import ChainRegistry
 
 extension CDChainApi {
     var identifier: String {

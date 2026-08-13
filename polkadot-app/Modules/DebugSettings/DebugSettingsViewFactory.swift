@@ -2,6 +2,7 @@ import Foundation
 import KeyDerivation
 import Keystore_iOS
 
+@MainActor
 enum DebugSettingsViewFactory {
     static func createView() -> DebugSettingsViewProtocol? {
         let interactor = DebugSettingsInteractor(

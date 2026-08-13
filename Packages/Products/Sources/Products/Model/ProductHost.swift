@@ -3,20 +3,27 @@ import Foundation
 public struct ProductHost {
     static let dotDomain = "dot"
     static let liDomain = "li"
+    static let shareRootDomains: Set<String> = [dotDomain, "paseo"]
     static let separator = "."
+
+    public static let shareHosts: Set<String> = Set(shareRootDomains.map { $0 + separator + liDomain })
 
     let components: [String]
 
     public var name: String {
-        let lastIndex = components.isDotLiDomain ? components.count - 3 : components.count - 2
+        let lastIndex = components.isShareDomain ? components.count - 3 : components.count - 2
 
         return components[0 ... lastIndex].joined(separator: ProductHost.separator)
     }
 
     public func toDotDomain() -> String {
-        let lastIndex = components.isDotLiDomain ? components.count - 2 : components.count - 1
+        guard components.isShareDomain else {
+            return components.joined(separator: ProductHost.separator)
+        }
 
-        return components[0 ... lastIndex].joined(separator: ProductHost.separator)
+        let nameComponents = components[0 ..< components.count - 2] + [ProductHost.dotDomain]
+
+        return nameComponents.joined(separator: ProductHost.separator)
     }
 
     public init?(rawString: String) {
@@ -26,7 +33,7 @@ public struct ProductHost {
             return nil
         }
 
-        guard parsedComponent.isDotDomain || parsedComponent.isDotLiDomain else {
+        guard parsedComponent.isDotDomain || parsedComponent.isShareDomain else {
             return nil
         }
 
@@ -44,11 +51,11 @@ public extension ProductHost {
     }
 
     static func fromNavigationDestination(_ dest: String) -> ProductHost? {
-        if let url = URL(string: dest) {
-            ProductHost.fromUrl(url) ?? ProductHost(rawString: dest)
-        } else {
-            ProductHost(rawString: dest)
+        guard let url = URL(string: dest), url.host() != nil else {
+            return ProductHost(rawString: dest)
         }
+
+        return ProductHost.fromUrl(url)
     }
 }
 
@@ -57,7 +64,7 @@ private extension [String] {
         count >= 2 && self.last == ProductHost.dotDomain
     }
 
-    var isDotLiDomain: Bool {
-        count >= 3 && self[count - 2] == ProductHost.dotDomain && self[count - 1] == ProductHost.liDomain
+    var isShareDomain: Bool {
+        count >= 3 && ProductHost.shareRootDomains.contains(self[count - 2]) && self[count - 1] == ProductHost.liDomain
     }
 }

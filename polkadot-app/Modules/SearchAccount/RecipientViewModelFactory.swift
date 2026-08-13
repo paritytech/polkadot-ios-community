@@ -1,4 +1,5 @@
 import Foundation
+import SubstrateSdkExt
 
 struct RecipientViewModel: Hashable {
     let accountType: SearchAccountViewModel.AccountType

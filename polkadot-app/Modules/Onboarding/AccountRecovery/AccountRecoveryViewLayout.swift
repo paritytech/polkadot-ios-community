@@ -2,6 +2,7 @@ import Foundation
 import Foundation_iOS
 import UIKit
 import UIKit_iOS
+import ExternalAccessibility
 import PolkadotUI
 import AudioToolbox
 import FoundationExt
@@ -37,7 +38,7 @@ class AccountRecoveryViewLayout: ScrollableContainerLayoutView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        setupAccessibilityIdentifiers()
+        applyAccessibilityBindings()
         addHandlers()
     }
 
@@ -129,9 +130,15 @@ private extension AccountRecoveryViewLayout {
             proceedButton.applyDisabledStyle()
         }
     }
+}
 
-    func setupAccessibilityIdentifiers() {
-        textView.accessibilityIdentifier = "recovery_phrase_input"
-        proceedButton.accessibilityIdentifier = "recovery_phrase_submit_button"
+// MARK: - AccessibilityBound
+
+extension AccountRecoveryViewLayout: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(textView, AccessibilityID.RecoveryPhrase.input),
+            .init(proceedButton, AccessibilityID.RecoveryPhrase.submitButton)
+        ]
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Keystore_iOS
 import NovaCrypto
 import KeyDerivation
@@ -98,20 +99,4 @@ public extension SNPublicKey {
     }
 
     var signatureType: CryptoType { .sr25519 }
-}
-
-extension AccountId {
-    func toAddress(using conversion: ChainFormat) throws -> AccountAddress {
-        switch conversion {
-        case .ethereum:
-            toHex(includePrefix: true)
-        case let .substrate(prefix):
-            try SS58AddressFactory().address(fromAccountId: self, type: prefix)
-        }
-    }
-}
-
-enum ChainFormat {
-    case ethereum
-    case substrate(_ prefix: UInt16)
 }

@@ -1,12 +1,14 @@
 import Kingfisher
 import UIKit
 import Operation_iOS
+@preconcurrency import SDKLogger
 
 enum ProceduralTattooImageProviderError: Error {
     case failedToLoadImageData
 }
 
-final class ProceduralTattooImageProvider: ImageDataProvider {
+// @unchecked: dependencies are effectively immutable + thread-safe; protocols not yet Sendable-annotated
+final class ProceduralTattooImageProvider: ImageDataProvider, @unchecked Sendable {
     private let renderer: ProceduralTattooRenderer
     private let input: ProceduralTattooInput
     private let logger: LoggerProtocol
@@ -22,7 +24,7 @@ final class ProceduralTattooImageProvider: ImageDataProvider {
         cacheKey = "\(input.generationScriptUrl.absoluteString)_\(input.scriptInput)"
     }
 
-    var cacheKey: String
+    let cacheKey: String
 
     func data(handler: @escaping (Result<Data, Error>) -> Void) {
         logger.debug("No cached image data found for key: \(cacheKey), loading from web view")

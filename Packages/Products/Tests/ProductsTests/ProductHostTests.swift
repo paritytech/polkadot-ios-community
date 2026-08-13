@@ -35,6 +35,24 @@ struct ProductHostTests {
         #expect(host != nil)
     }
 
+    @Test func paseoLiDomain() {
+        let host = ProductHost(rawString: "browse.paseo.li")
+        #expect(host != nil)
+    }
+
+    @Test func subdomainPaseoLiDomain() {
+        let host = ProductHost(rawString: "sub.browse.paseo.li")
+        #expect(host != nil)
+    }
+
+    @Test func rejectsBarePaseoDomain() {
+        #expect(ProductHost(rawString: "browse.paseo") == nil)
+    }
+
+    @Test func rejectsPaseoLiWithoutName() {
+        #expect(ProductHost(rawString: ".paseo.li") == nil)
+    }
+
     @Test func rejectsPlainString() {
         #expect(ProductHost(rawString: "browse") == nil)
     }
@@ -81,6 +99,16 @@ struct ProductHostTests {
         #expect(host?.name == "sub.browse")
     }
 
+    @Test func nameForPaseoLiDomain() {
+        let host = ProductHost(rawString: "browse.paseo.li")
+        #expect(host?.name == "browse")
+    }
+
+    @Test func nameForSubdomainPaseoLiDomain() {
+        let host = ProductHost(rawString: "sub.browse.paseo.li")
+        #expect(host?.name == "sub.browse")
+    }
+
     @Test func nameForDeepSubdomain() {
         let host = ProductHost(rawString: "a.b.c.dot")
         #expect(host?.name == "a.b.c")
@@ -108,6 +136,16 @@ struct ProductHostTests {
         #expect(host?.toDotDomain() == "sub.browse.dot")
     }
 
+    @Test func toDotDomainForPaseoLi() {
+        let host = ProductHost(rawString: "browse.paseo.li")
+        #expect(host?.toDotDomain() == "browse.dot")
+    }
+
+    @Test func toDotDomainForSubdomainPaseoLi() {
+        let host = ProductHost(rawString: "sub.browse.paseo.li")
+        #expect(host?.toDotDomain() == "sub.browse.dot")
+    }
+
     // MARK: - fromUrl(_:)
 
     @Test func fromUrlWithDotDomain() {
@@ -122,6 +160,14 @@ struct ProductHostTests {
         let host = ProductHost.fromUrl(url)
         #expect(host != nil)
         #expect(host?.name == "sub.browse")
+    }
+
+    @Test func fromUrlWithPaseoLiDomain() {
+        let url = URL(string: "https://browse.paseo.li/path")!
+        let host = ProductHost.fromUrl(url)
+        #expect(host != nil)
+        #expect(host?.name == "browse")
+        #expect(host?.toDotDomain() == "browse.dot")
     }
 
     @Test func fromUrlRejectsInvalidHost() {
@@ -151,5 +197,19 @@ struct ProductHostTests {
 
     @Test func fromNavigationDestinationRejectsInvalid() {
         #expect(ProductHost.fromNavigationDestination("invalid") == nil)
+    }
+
+    @Test func fromNavigationDestinationRejectsExternalHost() {
+        #expect(ProductHost.fromNavigationDestination("https://stg.revx.dev/editor") == nil)
+    }
+
+    @Test func fromNavigationDestinationRejectsExternalHostWithDotQuery() {
+        let dest = "https://stg.revx.dev/editor?mod=dot-cli-mod-fixture.dot"
+        #expect(ProductHost.fromNavigationDestination(dest) == nil)
+    }
+
+    @Test func fromNavigationDestinationAcceptsDotUrlWithQuery() {
+        let host = ProductHost.fromNavigationDestination("https://browse.dot/editor?mod=other.dot")
+        #expect(host?.name == "browse")
     }
 }

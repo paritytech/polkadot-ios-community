@@ -5,7 +5,7 @@ import SDKLogger
 /// A `StatementDataCoding` implementation for multi-device messaging.
 ///
 /// - Encoding: wraps `Request`/`Response` in `MultiDeviceRequest`/`MultiDeviceResponse`
-///   (inner one-shot AES key per device), then applies outer ECDH encryption via `outgoingCoder`
+///   (inner one-shot ChaCha20-Poly1305 key per device), then applies outer X25519 encryption via `outgoingCoder`
 ///   = ECDH(own_device_priv, peer_identity_pub).
 ///
 /// - Decoding: selects the outer coder based on sender account ID:
@@ -15,6 +15,7 @@ import SDKLogger
 ///   After outer decryption, inner decryption is performed for `.multirequest`/`.multiresponse`.
 public final class MultiDeviceAwareStatementDataCoder: StatementDataCoding {
     private let outgoingCoder: StatementDataCoding
+    private let identityCoder: StatementDataCoding
     private let incomingCoders: [AccountId: StatementDataCoding]
     private let multiDeviceCoder: MultiDeviceStatementDataCoding
     private let recipientDevices: [RecipientDeviceInfo]
@@ -24,6 +25,7 @@ public final class MultiDeviceAwareStatementDataCoder: StatementDataCoding {
 
     public init(
         outgoingCoder: StatementDataCoding,
+        identityCoder: StatementDataCoding,
         incomingCoders: [AccountId: StatementDataCoding],
         multiDeviceCoder: MultiDeviceStatementDataCoding,
         recipientDevices: [RecipientDeviceInfo],
@@ -32,6 +34,7 @@ public final class MultiDeviceAwareStatementDataCoder: StatementDataCoding {
         logger: SDKLoggerProtocol?
     ) {
         self.outgoingCoder = outgoingCoder
+        self.identityCoder = identityCoder
         self.incomingCoders = incomingCoders
         self.multiDeviceCoder = multiDeviceCoder
         self.recipientDevices = recipientDevices
@@ -40,9 +43,40 @@ public final class MultiDeviceAwareStatementDataCoder: StatementDataCoding {
         self.logger = logger
     }
 
-    // MARK: - Encoding
+    public func encodeToScaleEncodedPayload(
+        _ statementData: StatementData<some MessageExchange.CodableMessage>,
+        route: PeerSessionRoute
+    ) throws -> Data {
+        switch route {
+        case .device:
+            try encodeToScaleEncodedPayload(statementData)
+        case .identity:
+            try identityCoder.encodeToScaleEncodedPayload(statementData, route: route)
+        }
+    }
 
-    public func encodeToScaleEncodedPayload<M: MessageExchange.CodableMessage>(
+    public func decodeFromScaleEncodedPayload<M: MessageExchange.CodableMessage>(
+        _ payload: Data,
+        senderAccountId: Data?,
+        route: PeerSessionRoute
+    ) throws -> StatementDataDecodingResult<M> {
+        switch route {
+        case .device:
+            try decodeFromScaleEncodedPayload(payload, senderAccountId: senderAccountId)
+        case .identity:
+            try identityCoder.decodeFromScaleEncodedPayload(
+                payload,
+                senderAccountId: senderAccountId,
+                route: route
+            )
+        }
+    }
+}
+
+// MARK: - Private
+
+private extension MultiDeviceAwareStatementDataCoder {
+    func encodeToScaleEncodedPayload<M: MessageExchange.CodableMessage>(
         _ statementData: StatementData<M>
     ) throws -> Data {
         switch statementData {
@@ -52,31 +86,16 @@ public final class MultiDeviceAwareStatementDataCoder: StatementDataCoding {
             try encodeResponse(response, as: M.self)
         case .multirequest,
              .multiresponse:
-            try outgoingCoder.encodeToScaleEncodedPayload(statementData)
+            try outgoingCoder.encodeToScaleEncodedPayload(statementData, route: .device)
         }
     }
 
-    // MARK: - Decoding
-
-    public func decodeFromScaleEncodedPayload<M: MessageExchange.CodableMessage>(
-        _ payload: Data,
-        senderAccountId: Data?
-    ) throws -> StatementDataDecodingResult<M> {
-        let outerCoder = try selectOuterCoder(for: senderAccountId)
-        let result: StatementDataDecodingResult<M> = try outerCoder.decodeFromScaleEncodedPayload(
-            payload,
-            senderAccountId: senderAccountId
-        )
-        return try unwrapMultiDeviceResult(result, senderAccountId: senderAccountId)
-    }
-}
-
-// MARK: - Private
-
-private extension MultiDeviceAwareStatementDataCoder {
     func encodeRequest<M: MessageExchange.CodableMessage>(_ request: MessageExchange.Request<M>) throws -> Data {
         let multiRequest = try multiDeviceCoder.encodeMultiDeviceRequest(request, recipients: recipientDevices)
-        return try outgoingCoder.encodeToScaleEncodedPayload(StatementData<M>.multirequest(multiRequest))
+        return try outgoingCoder.encodeToScaleEncodedPayload(
+            StatementData<M>.multirequest(multiRequest),
+            route: .device
+        )
     }
 
     func encodeResponse<M: MessageExchange.CodableMessage>(
@@ -84,7 +103,23 @@ private extension MultiDeviceAwareStatementDataCoder {
         as _: M.Type
     ) throws -> Data {
         let multiResponse = try multiDeviceCoder.encodeMultiDeviceResponse(response, recipients: recipientDevices)
-        return try outgoingCoder.encodeToScaleEncodedPayload(StatementData<M>.multiresponse(multiResponse))
+        return try outgoingCoder.encodeToScaleEncodedPayload(
+            StatementData<M>.multiresponse(multiResponse),
+            route: .device
+        )
+    }
+
+    func decodeFromScaleEncodedPayload<M: MessageExchange.CodableMessage>(
+        _ payload: Data,
+        senderAccountId: Data?
+    ) throws -> StatementDataDecodingResult<M> {
+        let outerCoder = try selectOuterCoder(for: senderAccountId)
+        let result: StatementDataDecodingResult<M> = try outerCoder.decodeFromScaleEncodedPayload(
+            payload,
+            senderAccountId: senderAccountId,
+            route: .device
+        )
+        return try unwrapMultiDeviceResult(result, senderAccountId: senderAccountId)
     }
 
     func selectOuterCoder(for senderAccountId: Data?) throws -> StatementDataCoding {

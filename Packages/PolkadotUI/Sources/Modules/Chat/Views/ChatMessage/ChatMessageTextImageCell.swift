@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import SwiftUI
 
 public struct ChatMessageTextImageCell: View, Hashable {
@@ -28,6 +29,7 @@ public struct ChatMessageTextImageCell: View, Hashable {
             }
         }
         .modifier(LockFullWidthModifier(enabled: viewModel.lockFullWidth))
+        .accessibilityId(rawValue: viewModel.accessibilityId)
     }
 }
 
@@ -63,17 +65,20 @@ public extension ChatMessageTextImageCell {
         let image: UIImage
         let aspectRatio: CGFloat
         let lockFullWidth: Bool
+        let accessibilityId: String?
 
         public init(
             text: String?,
             image: UIImage,
             aspectRatio: CGFloat,
-            lockFullWidth: Bool = false
+            lockFullWidth: Bool = false,
+            accessibilityId: (any AccessibilityIdentifying)? = nil
         ) {
             self.text = text
             self.image = image
             self.aspectRatio = aspectRatio
             self.lockFullWidth = lockFullWidth
+            self.accessibilityId = accessibilityId?.rawValue
         }
     }
 }

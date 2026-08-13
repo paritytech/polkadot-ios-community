@@ -4,6 +4,7 @@ import SubstrateSdk
 import SubstrateStorageQuery
 import AssetExchange
 import Operation_iOS
+import ChainRegistry
 
 protocol ExtrinsicSubmissionMonitorFacadeProtocol {
     func createMonitorFactory(chain: ChainProtocol) throws -> ExtrinsicSubmitMonitorFactoryProtocol
@@ -39,7 +40,7 @@ final class ExtrinsicSubmissionMonitorFacade {
                 chainRegistry: chainRegistry,
                 substrateStorageFacade: substrateStorageFacade,
                 customFeeEstimator: ExtrinsicCustomFeeEstimatorFactory(providers: []),
-                transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+                transactionExtensionFactory: CompoundTxExtensionFactory(),
                 extrinsicVersion: extrinsicVersion,
                 operationQueue: operationQueue,
                 logger: logger

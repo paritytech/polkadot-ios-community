@@ -65,6 +65,7 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
                 deviceEncryptionKeyFactory: MultideviceComponentFactory.makeDeviceEncryptionKeyFactory(
                     deviceEncryptionKeyManager: deviceKeyManager
                 ),
+                messageRouteSelector: ChatMessageRouteSelector.makeSelector(),
                 maxStatementSize: Constants.maxChatStatementSize,
                 operationQueue: operationQueue,
                 logger: logger
@@ -97,12 +98,14 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
                 messageExchangeModeProvider: FixedMessageExchangeModeProvider(mode: .identity),
                 entropyManager: entropyManager,
                 deviceEncryptionKeyFactory: nil,
+                messageRouteSelector: { _ in .identity },
                 maxStatementSize: Constants.maxSSOStatementSize,
                 operationQueue: operationQueue,
                 logger: logger
             ),
             accountManager: accountManager,
-            sponsorFactory: sponsorFactory
+            sponsorFactory: sponsorFactory,
+            routers: ProductRoutersFacade.sso()
         )
     }
 }

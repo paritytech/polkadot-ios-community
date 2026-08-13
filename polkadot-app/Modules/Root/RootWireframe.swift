@@ -64,24 +64,6 @@ final class RootWireframe: RootWireframeProtocol {
         animation.animateTransition(to: view, in: window)
     }
 
-    func showW3SSpa(with observer: RootStateObserving) {
-        guard let view = Web3SummitSpaViewFactory.createView(observer: observer) else {
-            return
-        }
-
-        animation.animateTransition(to: view.controller, in: window)
-    }
-
-    func showW3SEnded() {
-        let view = Web3SummitHardGateViewFactory.createEndedView()
-        animation.animateTransition(to: view, in: window)
-    }
-
-    func showW3SNotStarted() {
-        let view = Web3SummitHardGateViewFactory.createNotStartedView()
-        animation.animateTransition(to: view, in: window)
-    }
-
     func showBroken() {
         // normally user must not see this but on malicious devices it is possible
         let brokenController = UIViewController()

@@ -61,7 +61,6 @@
     // MARK: - CoinSelectionResult → DebugInfo
 
     private extension CoinageDebugInfoFetcher {
-        // swiftlint:disable:next function_body_length
         func mapToDebugInfo(_ result: CoinSelectionResult) -> TransferStrategyDebugInfo {
             switch result {
             case let .exactMatch(coins):

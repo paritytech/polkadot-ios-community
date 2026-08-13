@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import ExtrinsicService
+import ChainRegistry
 
 protocol PrivacyVoucherRedeemCreditServicing {
     func redeemCredit(with input: RedeemCreditInput<some RuntimeCallable>)

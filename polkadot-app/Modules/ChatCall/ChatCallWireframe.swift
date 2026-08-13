@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 final class ChatCallWireframe: ChatCallWireframeProtocol, AlertPresentable, ApplicationSettingsPresentable {
     func close(from view: ChatCallViewProtocol?) {
         view?.controller.dismiss(animated: true)

@@ -11,6 +11,7 @@ protocol FiatOnRampProviderViewProtocol: ControllerBackedProtocol {
     func didReceive(confirmUrl: URL)
 }
 
+@MainActor
 protocol FiatOnRampProviderPresenterProtocol: AnyObject {
     func setup()
     func select(provider: FiatOnRampProviderItemViewModel)
@@ -31,6 +32,7 @@ protocol FiatOnRampProviderInteractorOutputProtocol: AnyObject {
     func didFailWidgetSession()
 }
 
+@MainActor
 protocol FiatOnRampProviderWireframeProtocol: AnyObject {
     func showWidget(url: URL, from view: FiatOnRampProviderViewProtocol?)
 }

@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 
+@MainActor
 enum TattooVideoPreviewViewFactory {
     static func createView(
         for recordings: [URL],

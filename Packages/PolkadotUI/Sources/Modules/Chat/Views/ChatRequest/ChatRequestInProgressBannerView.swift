@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import DesignSystem
+import ExternalAccessibility
 
 public final class ChatRequestInProgressBannerView: UIView {
     let header: GenericPairValueView<Label, Label> = .create { view in
@@ -27,6 +28,7 @@ public final class ChatRequestInProgressBannerView: UIView {
         setupLayout()
         configureStyle()
         setupHeader(with: viewModel.username)
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -105,4 +107,12 @@ extension ChatRequestInProgressBannerView.ViewModel: ChatInputViewConfigurationP
         inputConfig: .chat(canPay: false, canAttachFile: false)
     )
     .makeContentView(for: nil)
+}
+
+// MARK: - AccessibilityBound
+
+extension ChatRequestInProgressBannerView: AccessibilityBound {
+    public var accessibilityBindings: [AccessibilityBinding] {
+        [.init(header, AccessibilityID.Chats.inviteHeader)]
+    }
 }

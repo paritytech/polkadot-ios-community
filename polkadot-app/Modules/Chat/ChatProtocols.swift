@@ -15,6 +15,7 @@ protocol ChatViewProtocol: ControllerBackedProtocol {
     func showReactionDetails(viewModel: ReactionDetailsViewModel)
 }
 
+@MainActor
 protocol ChatPresenterProtocol: AnyObject {
     var chatId: Chat.Id? { get }
 
@@ -71,6 +72,7 @@ protocol ChatInteractorOutputProtocol: AnyObject {
     func didDeclineChatRequest()
 }
 
+@MainActor
 protocol ChatWireframeProtocol: AnyObject, AlertPresentable {
     func showSendAsset(
         from view: ControllerBackedProtocol?,

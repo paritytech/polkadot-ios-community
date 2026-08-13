@@ -1,6 +1,7 @@
 import Foundation
 import UIKitExt
 
+@MainActor
 protocol TransferValidationErrorPresentable: ValidationErrorPresentable {
     func presentReceiverBalanceTooLow(from view: ControllerBackedProtocol, locale: Locale?)
     func presentSameReceiver(from view: ControllerBackedProtocol, locale: Locale?)

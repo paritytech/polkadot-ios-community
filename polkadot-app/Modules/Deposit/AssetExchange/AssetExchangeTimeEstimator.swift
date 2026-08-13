@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import AssetExchange
+import ChainRegistry
 
 final class AssetExchangeTimeEstimator {
     let chainRegistry: ChainRegistryProtocol

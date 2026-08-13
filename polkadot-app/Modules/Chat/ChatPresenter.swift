@@ -187,7 +187,9 @@ private extension ChatPresenter {
                 self?.interactor.processAction(action)
             },
             selectAttachment: { [weak self] attachment in
-                self?.wireframe.showAttachmentPreview(from: self?.view, attachment: attachment)
+                MainActor.assumeIsolated {
+                    self?.wireframe.showAttachmentPreview(from: self?.view, attachment: attachment)
+                }
             },
             unblockUser: { [weak self] in
                 self?.interactor.unblockUser()
@@ -234,12 +236,14 @@ private extension ChatPresenter {
             default: true
             }
         }
-        let menu = menuActions.isEmpty ? nil : wireframe.makeContactActionsMenu(
-            from: view,
-            chatMetadata: metadata.chatMetadata,
-            actions: menuActions,
-            delegate: self
-        )
+        let menu = menuActions.isEmpty ? nil : MainActor.assumeIsolated {
+            wireframe.makeContactActionsMenu(
+                from: view,
+                chatMetadata: metadata.chatMetadata,
+                actions: menuActions,
+                delegate: self
+            )
+        }
         view?.didReceive(contactMenu: menu)
     }
 
@@ -368,23 +372,29 @@ private extension ChatPresenter {
     }
 
     func handleShowEditHistory(for messageId: String) {
-        wireframe.showEditHistory(
-            from: view,
-            messageId: messageId
-        )
+        MainActor.assumeIsolated {
+            wireframe.showEditHistory(
+                from: view,
+                messageId: messageId
+            )
+        }
     }
 
     func handleShowFile(at url: URL) {
-        wireframe.showDocument(at: url)
+        MainActor.assumeIsolated {
+            wireframe.showDocument(at: url)
+        }
     }
 
     func handleStartCall(callType: ChatCallType) {
         guard let metadata else { return }
-        wireframe.showCall(
-            from: view,
-            chatMetadata: metadata.chatMetadata,
-            callType: callType
-        )
+        MainActor.assumeIsolated {
+            wireframe.showCall(
+                from: view,
+                chatMetadata: metadata.chatMetadata,
+                callType: callType
+            )
+        }
     }
 
     func markInvisibleMessagesAsRead(in model: MessageListModel) {
@@ -407,15 +417,17 @@ private extension ChatPresenter {
     }
 
     func confirmSelectedAttachment(_ attachmentProviders: [ChatAttachmentProviding]) {
-        wireframe.showAttachmentSelection(
-            from: view,
-            providers: attachmentProviders
-        ) { [weak self] result in
-            self?.interactor.send(
-                text: result.message,
-                attachments: result.attachments,
-                replyToMessageId: nil
-            )
+        MainActor.assumeIsolated {
+            wireframe.showAttachmentSelection(
+                from: view,
+                providers: attachmentProviders
+            ) { [weak self] result in
+                self?.interactor.send(
+                    text: result.message,
+                    attachments: result.attachments,
+                    replyToMessageId: nil
+                )
+            }
         }
     }
 }

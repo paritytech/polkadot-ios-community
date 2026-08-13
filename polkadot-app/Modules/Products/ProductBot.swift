@@ -14,44 +14,32 @@ import UIKitExt
 /// Each instance is created by ``ProductBotFactory`` for a specific ``Product``.
 final class ProductBot: ChatExtensionBot {
     let product: Product
-    private let scriptExecutor: ProductsScriptExecutorProtocol
-    private let nativeApiFactory: ProductsNativeApiMaking
-    private let signingRouter: ProductsSigningRouter
-    private let permissionRouter: ProductPermissionRouter
-    private let topUpRequestRouter: TopUpRequestRouter
-    private let paymentRequestRouter: PaymentRequestRouter
+    private let runtime: ChatRuntimeProtocol
     private let logger: LoggerProtocol
 
     private var initTask: Task<Void, Never>?
 
     lazy var messageDecoder = ProductMessageDecoder(
-        scriptExecutor: scriptExecutor,
+        runtime: runtime,
         tokenResolver: WidgetDesignTokenResolver(),
         logger: logger
     )
 
     init(
         product: Product,
-        scriptExecutor: ProductsScriptExecutorProtocol,
-        nativeApiFactory: ProductsNativeApiMaking,
-        signingRouter: ProductsSigningRouter = ProductsSigningRouter(),
-        permissionRouter: ProductPermissionRouter = ProductPermissionRouter(),
-        topUpRequestRouter: TopUpRequestRouter = TopUpRequestRouter(),
-        paymentRequestRouter: PaymentRequestRouter = PaymentRequestRouter(),
+        runtime: ChatRuntimeProtocol,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.product = product
-        self.scriptExecutor = scriptExecutor
-        self.nativeApiFactory = nativeApiFactory
-        self.signingRouter = signingRouter
-        self.permissionRouter = permissionRouter
-        self.topUpRequestRouter = topUpRequestRouter
-        self.paymentRequestRouter = paymentRequestRouter
+        self.runtime = runtime
         self.logger = logger
     }
 
     deinit {
         initTask?.cancel()
+        // Enforce the runtime ownership contract even when the bot is dropped
+        // without an explicit dispose() (e.g. the store discards it).
+        Task { [runtime] in await runtime.dispose() }
     }
 
     // MARK: - ChatExtensionBot
@@ -62,7 +50,10 @@ final class ProductBot: ChatExtensionBot {
         context _: ChatExtensionProcessingContextProtocol
     ) async -> ChatExtension.ProcessingResult {
         do {
-            try await scriptExecutor.onUserMessage(text: text, roomId: message.chatId.roomId)
+            try await runtime.onUserMessage(text: text, roomId: message.chatId.roomId)
+        } catch let error as ChatRustRuntime.ChatSeamError {
+            // Known not-wired seam in rust mode — expected, not an error.
+            logger.debug("User message not forwarded: \(error)")
         } catch {
             logger.error("Failed to forward user message to script: \(error)")
         }
@@ -74,7 +65,7 @@ final class ProductBot: ChatExtensionBot {
     func dispose() async {
         initTask?.cancel()
         initTask = nil
-        await scriptExecutor.dispose()
+        await runtime.dispose()
         logger.debug("Disposed product bot: \(product.name)")
     }
 }
@@ -104,20 +95,11 @@ extension ProductBot: ChatExtensionBotProtocol {
         initTask = Task { [weak self] in
             guard let self else { return }
 
-            let nativeApi = nativeApiFactory.makeApi(
-                messagingSupport: .init(bot: self, context: context),
-                productId: product.name,
-                signingRouter: signingRouter,
-                navigationRouter: ForbiddenNavigationRouter(),
-                permissionRouter: permissionRouter,
-                topUpRequestRouter: topUpRequestRouter,
-                paymentRequestRouter: paymentRequestRouter
-            )
-
             do {
-                try await scriptExecutor.initializeBot(nativeApi: nativeApi)
-                try await scriptExecutor.onBotStarted()
+                try await runtime.start(messagingSupport: .init(bot: self, context: context))
                 logger.debug("Initialized and started bot: \(product.name)")
+            } catch is CancellationError {
+                logger.debug("Start superseded by dispose for product bot: \(product.name)")
             } catch {
                 logger.error("Failed to start product bot \(product.name): \(error)")
             }
@@ -129,7 +111,7 @@ extension ProductBot: ChatExtensionBotProtocol {
         case let .customMessage(actionId, payload, messageId):
             let roomId = await (try? context.getMessage(messageId: messageId))?.chatId.roomId
 
-            await scriptExecutor.dispatchEvent(
+            await runtime.dispatchEvent(
                 roomId: roomId,
                 messageId: messageId,
                 actionId: actionId,
@@ -140,10 +122,7 @@ extension ProductBot: ChatExtensionBotProtocol {
 
     func attach(presentationView view: ControllerBackedProtocol) {
         Task { @MainActor in
-            signingRouter.setPresentationView(view)
-            permissionRouter.setPresentationView(view)
-            topUpRequestRouter.setPresentationView(view)
-            paymentRequestRouter.setPresentationView(view)
+            runtime.attach(presentationView: view)
         }
     }
 }

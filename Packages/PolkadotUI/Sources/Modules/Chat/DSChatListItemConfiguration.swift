@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import SwiftUI
 import UIKit
 
@@ -12,6 +13,7 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
     public let isMuted: Bool
     public let hasReaction: Bool
     public let unreadCount: Int
+    public let accessibilityId: String?
 
     let dateFormatter: TimestampFormatting
 
@@ -25,7 +27,8 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
         date: Date? = nil,
         isMuted: Bool = false,
         hasReaction: Bool = false,
-        unreadCount: Int = 0
+        unreadCount: Int = 0,
+        accessibilityId: (any AccessibilityIdentifying)? = nil
     ) {
         self.dateFormatter = dateFormatter
         self.avatarViewModel = avatarViewModel
@@ -37,6 +40,7 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
         self.isMuted = isMuted
         self.hasReaction = hasReaction
         self.unreadCount = unreadCount
+        self.accessibilityId = accessibilityId?.rawValue
     }
 
     public func makeContentView() -> any UIView & UIContentView {
@@ -44,6 +48,7 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
             DSChatListItem(data: rowData) {
                 DSAvatarFactory.chatList(avatarViewModel)
             }
+            .accessibilityId(rawValue: accessibilityId)
         }
         .margins(.all, 0)
         .makeContentView()
@@ -59,6 +64,7 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
         hasher.combine(isMuted)
         hasher.combine(hasReaction)
         hasher.combine(unreadCount)
+        hasher.combine(accessibilityId)
     }
 
     public static func == (lhs: DSChatListItemConfiguration, rhs: DSChatListItemConfiguration) -> Bool {
@@ -70,7 +76,8 @@ public struct DSChatListItemConfiguration: HashableContentConfiguration {
             lhs.date == rhs.date &&
             lhs.isMuted == rhs.isMuted &&
             lhs.hasReaction == rhs.hasReaction &&
-            lhs.unreadCount == rhs.unreadCount
+            lhs.unreadCount == rhs.unreadCount &&
+            lhs.accessibilityId == rhs.accessibilityId
     }
 
     private var rowData: DSChatListItem<DSAvatar>.Data {

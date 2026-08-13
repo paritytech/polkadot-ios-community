@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import ChainRegistry
 
 protocol PriceIdProviderProtocol {
     var priceIds: AnyPublisher<Set<AssetModel.PriceId>, Never> { get }

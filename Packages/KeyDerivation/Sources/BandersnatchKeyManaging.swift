@@ -88,19 +88,3 @@ extension BandersnatchKeyManager: BandersnatchKeyManaging {
         return try BandersnatchApi.deriveAlias(fromEntropy: entropy, context: context)
     }
 }
-
-public final class LitePersonBandersnatchDeriver: BandersnatchEntropyDeriving {
-    public init() {}
-
-    public func deriveEntropy(from seed: Data) throws -> Data {
-        try seed.blake2b32()
-    }
-}
-
-public final class FullPersonBandersnatchDeriver: BandersnatchEntropyDeriving {
-    public init() {}
-
-    public func deriveEntropy(from seed: Data) throws -> Data {
-        try seed.blake2b32WithKey(Data("candidate".utf8))
-    }
-}

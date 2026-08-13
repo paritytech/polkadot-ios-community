@@ -2,6 +2,8 @@ import Foundation
 import SubstrateSdk
 import AsyncExtensions
 import AssetsManagement
+import ChainRegistry
+import EventCenter
 
 protocol BalanceTrackingFactoryProtocol {
     func trackAll(for wallet: MetaAccountModelProtocol) -> AnyAsyncSequence<AssetBalance>

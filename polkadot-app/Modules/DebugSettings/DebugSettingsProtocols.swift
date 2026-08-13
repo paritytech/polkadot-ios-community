@@ -5,8 +5,11 @@ protocol DebugSettingsViewProtocol: ControllerBackedProtocol {
     func didReceive(canClearBackup: Bool)
     func didReceive(canClearReferral: Bool)
     func didReceive(hasJWTToken: Bool)
+    func didReceive(strategyDebugEnabled: Bool)
+    func didReceive(truApiRuntimeEnabled: Bool)
 }
 
+@MainActor
 protocol DebugSettingsPresenterProtocol: AnyObject {
     func setup()
     func clearBackup()
@@ -17,6 +20,9 @@ protocol DebugSettingsPresenterProtocol: AnyObject {
     func showDotNsBrowser()
     func replaceWithRandomEntropy()
     func showThemeSelection()
+    func toggleStrategyDebug()
+    func toggleTruApiRuntime()
+    func openTrUAPIPlayground()
 }
 
 protocol DebugSettingsInteractorInputProtocol: AnyObject {
@@ -26,6 +32,9 @@ protocol DebugSettingsInteractorInputProtocol: AnyObject {
     func clearJWTToken()
     func makeLogsDraft() -> EmailDraft?
     func replaceWithRandomEntropy()
+    func toggleStrategyDebug()
+    func toggleTruApiRuntime()
+    func restartApp()
 }
 
 @MainActor
@@ -33,10 +42,14 @@ protocol DebugSettingsInteractorOutputProtocol: AnyObject {
     func didReceive(canClearBackup: Bool)
     func didReceive(canClearReferral: Bool)
     func didReceive(hasJWTToken: Bool)
+    func didReceive(strategyDebugEnabled: Bool)
+    func didReceive(truApiRuntimeEnabled: Bool)
 }
 
-protocol DebugSettingsWireframeProtocol: AnyObject {
+@MainActor
+protocol DebugSettingsWireframeProtocol: AnyObject, AlertPresentable {
     func showProducts(from view: ControllerBackedProtocol?)
     func showDotNsBrowser(from view: ControllerBackedProtocol?)
     func showThemeSelection(from view: ControllerBackedProtocol?)
+    func showTrUAPIPlayground(from view: ControllerBackedProtocol?)
 }

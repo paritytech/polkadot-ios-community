@@ -4,9 +4,10 @@ import SubstrateStorageSubscription
 import StructuredConcurrency
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol AirdropServicing {
-    func makeProof(for gameInfo: GameInfo) async throws -> GamePallet.AirdropVrf?
+    func makeProof(for gameInfo: GameInfo) async throws -> GamePallet.AirdropVrfs?
 
     func subscribeEventStatus(
         forGameIndex gameIndex: GamePallet.GameIndex
@@ -36,7 +37,7 @@ final class AirdropService {
 }
 
 extension AirdropService: AirdropServicing {
-    func makeProof(for gameInfo: GameInfo) async throws -> GamePallet.AirdropVrf? {
+    func makeProof(for gameInfo: GameInfo) async throws -> GamePallet.AirdropVrfs? {
         guard gameInfo.airdropScheduled else {
             logger.debug(
                 "[GameDebug] airdrop.makeProof: gameIndex=\(gameInfo.index) airdropScheduled=false -> no proof"
@@ -87,7 +88,7 @@ extension AirdropService: AirdropServicing {
                     let connection = try chainRegistry.getConnectionOrError(for: AppConfig.Chains.usernameChain)
                     let runtimeProvider = try chainRegistry
                         .getRuntimeProviderOrError(for: AppConfig.Chains.usernameChain)
-                    let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex)
+                    let eventId = NewAirdropPallet.gameEventId(forGameIndex: gameIndex, airdropIndex: 0)
                     let request = BatchStorageSubscriptionRequest(
                         innerRequest: MapSubscriptionRequest(
                             storagePath: NewAirdropPallet.events,

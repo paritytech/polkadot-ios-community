@@ -1,5 +1,4 @@
-OTHER_SWIFT_FLAGS = $(inherited) "-DNIGHTLY" "-DTESTNET_FEATURE" "-DW3S"
+#include "../../Configs/base.nightly.xcconfig"
 
-APP_NAME = Polkadot
-BUNDLE = io.paritytech.polkadotapp
-DEEPLINK = polkadotapp
+OTHER_SWIFT_FLAGS = $(inherited) $(BASE_SWIFT_FLAGS)
+BUNDLE = $(APP_MAIN_BUNDLE)

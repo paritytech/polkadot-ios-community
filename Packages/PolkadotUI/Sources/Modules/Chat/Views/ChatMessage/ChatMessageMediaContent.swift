@@ -11,6 +11,7 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
     let topLeadingInfoProvider: (any ChatMessageOverlayInfoProviding)?
     let bottomTrailingInfoProvider: (any ChatMessageOverlayInfoProviding)?
     let buttonConfigurationProvider: (any ChatMessageMediaButtonConfigurationProviding)?
+    let failureOverlayProvider: (any ChatMessageMediaFailureOverlayProviding)?
     let tapOnMedia: () -> Void
 
     public init(
@@ -20,6 +21,7 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
         topLeadingInfoProvider: (any ChatMessageOverlayInfoProviding)? = nil,
         bottomTrailingInfoProvider: (any ChatMessageOverlayInfoProviding)? = nil,
         buttonConfigurationProvider: (any ChatMessageMediaButtonConfigurationProviding)? = nil,
+        failureOverlayProvider: (any ChatMessageMediaFailureOverlayProviding)? = nil,
         tapOnMedia: @escaping () -> Void = {}
     ) {
         self.previewProvider = previewProvider
@@ -28,6 +30,7 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
         self.topLeadingInfoProvider = topLeadingInfoProvider
         self.bottomTrailingInfoProvider = bottomTrailingInfoProvider
         self.buttonConfigurationProvider = buttonConfigurationProvider
+        self.failureOverlayProvider = failureOverlayProvider
         self.tapOnMedia = tapOnMedia
     }
 
@@ -49,6 +52,7 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
             topLeadingInfoProvider: status.map { StaticChatMessageOverlayInfoProvider($0) },
             bottomTrailingInfoProvider: deliveryDetails.map { StaticChatMessageOverlayInfoProvider($0) },
             buttonConfigurationProvider: buttonConfiguration?.asProvider(),
+            failureOverlayProvider: nil,
             tapOnMedia: tapOnMedia
         )
     }
@@ -67,7 +71,8 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
             lhs.previewProvider?.identifier == rhs.previewProvider?.identifier &&
             lhs.topLeadingInfoProvider === rhs.topLeadingInfoProvider &&
             lhs.bottomTrailingInfoProvider === rhs.bottomTrailingInfoProvider &&
-            lhs.buttonConfigurationProvider === rhs.buttonConfigurationProvider
+            lhs.buttonConfigurationProvider === rhs.buttonConfigurationProvider &&
+            lhs.failureOverlayProvider === rhs.failureOverlayProvider
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -76,6 +81,7 @@ public struct ChatMessageMediaViewConfiguration: HashableContentConfiguration {
         if let provider = topLeadingInfoProvider { hasher.combine(ObjectIdentifier(provider)) }
         if let provider = bottomTrailingInfoProvider { hasher.combine(ObjectIdentifier(provider)) }
         if let provider = buttonConfigurationProvider { hasher.combine(ObjectIdentifier(provider)) }
+        if let provider = failureOverlayProvider { hasher.combine(ObjectIdentifier(provider)) }
     }
 }
 
@@ -102,8 +108,13 @@ final class ChatMessageMediaView: UIView, UIContentView {
 
     private var buttonHostingView: (UIView & UIContentView)?
     private let buttonContainerView = UIView()
+    private let failureOverlayView: DownloadFailureOverlayView = .create { view in
+        view.isUserInteractionEnabled = false
+    }
 
     private var currentButtonConfigurationProvider: (any ChatMessageMediaButtonConfigurationProviding)?
+    private var currentFailureOverlayProvider: (any ChatMessageMediaFailureOverlayProviding)?
+    private var isFailureOverlayVisible = false
 
     private var previewState = PreviewState()
 
@@ -144,10 +155,12 @@ private extension ChatMessageMediaView {
         addSubview(containerView)
         containerView.addSubview(imageView)
         containerView.addSubview(buttonContainerView)
+        containerView.addSubview(failureOverlayView)
         containerView.addSubview(topLeadingInfoView)
         containerView.addSubview(bottomTrailingInfoView)
 
         buttonContainerView.setHidden(true)
+        failureOverlayView.isHidden = true
         topLeadingInfoView.setHidden(true)
         bottomTrailingInfoView.setHidden(true)
 
@@ -166,6 +179,10 @@ private extension ChatMessageMediaView {
         buttonContainerView.snp.makeConstraints { make in
             make.center.equalToSuperview()
             make.width.height.equalTo(80)
+        }
+
+        failureOverlayView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
         }
 
         topLeadingInfoView.snp.makeConstraints { make in
@@ -216,6 +233,38 @@ private extension ChatMessageMediaView {
         topLeadingInfoView.bind(provider: configuration.topLeadingInfoProvider)
         bottomTrailingInfoView.bind(provider: configuration.bottomTrailingInfoProvider)
         applyButtonProvider(configuration.buttonConfigurationProvider)
+        applyFailureOverlayProvider(configuration.failureOverlayProvider)
+    }
+
+    func applyFailureOverlayProvider(_ provider: (any ChatMessageMediaFailureOverlayProviding)?) {
+        currentFailureOverlayProvider?.stopUpdate()
+        currentFailureOverlayProvider = provider
+        updateFailureOverlayVisibility(false, animated: false)
+
+        guard let provider else {
+            return
+        }
+        provider.startUpdate { [weak self] isVisible in
+            self?.updateFailureOverlayVisibility(isVisible, animated: true)
+        }
+    }
+
+    func updateFailureOverlayVisibility(_ isVisible: Bool, animated: Bool) {
+        guard isFailureOverlayVisible != isVisible else { return }
+        isFailureOverlayVisible = isVisible
+
+        guard animated else {
+            failureOverlayView.isHidden = !isVisible
+            return
+        }
+
+        UIView.transition(
+            with: failureOverlayView,
+            duration: 0.2,
+            options: [.transitionCrossDissolve, .allowUserInteraction]
+        ) { [weak self] in
+            self?.failureOverlayView.isHidden = !isVisible
+        }
     }
 
     func applyButtonProvider(_ provider: (any ChatMessageMediaButtonConfigurationProviding)?) {

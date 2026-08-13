@@ -1,4 +1,5 @@
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -75,7 +76,8 @@ struct AssetDetailsView: View {
     ) -> some View {
         AssetDetailsBalanceCard(
             viewModel: balanceCardModel,
-            isUpdating: viewModel.isUpdating
+            isUpdating: viewModel.isUpdating,
+            isExpanded: isExpanded
         )
     }
 
@@ -93,6 +95,7 @@ struct AssetDetailsView: View {
             DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
                 viewModel.onSendMoney?()
             }
+            .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
 
             #if TESTNET_FEATURE
                 Button {
@@ -113,6 +116,7 @@ struct AssetDetailsView: View {
                     .background(.bgActionPrimary, in: Circle())
                 }
                 .disabled(viewModel.isFaucetInProgress)
+                .accessibilityId(AccessibilityID.Wallet.addFundsButton)
             #endif
         }
     }
@@ -132,10 +136,26 @@ struct AssetDetailsView: View {
                 Text(verbatim: "Coinage Balance")
                     .textStyle(.title16SemiBold())
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityId(AccessibilityID.Wallet.coinageHeader)
 
-                BreakdownRow(title: "Total Balance", value: breakdown.totalBalance)
-                BreakdownRow(title: "Spendable Balance", value: breakdown.spendableBalance)
-                BreakdownRow(title: "Pending Balance", value: breakdown.pendingBalance)
+                BreakdownRow(
+                    title: "Total Balance",
+                    value: breakdown.totalBalance,
+                    labelAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceLabel,
+                    valueAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceValue
+                )
+                BreakdownRow(
+                    title: "Spendable Balance",
+                    value: breakdown.spendableBalance,
+                    labelAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceLabel,
+                    valueAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceValue
+                )
+                BreakdownRow(
+                    title: "Pending Balance",
+                    value: breakdown.pendingBalance,
+                    labelAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceLabel,
+                    valueAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceValue
+                )
 
                 Divider()
 
@@ -153,6 +173,7 @@ struct AssetDetailsView: View {
                             .foregroundStyle(.fgPrimaryInverted)
                     }
                     .background(.bgActionPrimary, in: RoundedRectangle(cornerRadius: 12))
+                    .accessibilityId(AccessibilityID.Wallet.makeVouchersReadyButton)
                 }
 
                 Button {
@@ -261,15 +282,19 @@ struct AssetDetailsView: View {
     private struct BreakdownRow: View {
         let title: String
         let value: String
+        var labelAccessibilityId: (any AccessibilityIdentifying)?
+        var valueAccessibilityId: (any AccessibilityIdentifying)?
 
         var body: some View {
             HStack {
                 Text(title)
                     .textStyle(.body14Regular())
                     .foregroundStyle(.fgSecondary)
+                    .accessibilityId(labelAccessibilityId)
                 Spacer()
                 Text(value)
                     .textStyle(.body14SemiBold())
+                    .accessibilityId(valueAccessibilityId)
             }
         }
     }

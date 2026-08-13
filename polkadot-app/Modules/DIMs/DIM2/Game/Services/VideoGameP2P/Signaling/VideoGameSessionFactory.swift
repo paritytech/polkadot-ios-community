@@ -3,16 +3,18 @@ import MessageExchangeKit
 import StatementStore
 import SubstrateSdk
 import Individuality
+import ChainRegistry
 
 enum VideoGameSessionFactoryError: Error {
-    case peerPublicKeyNotFound
+    case peerIdentifierNotFound
 }
 
 protocol VideoGameSessionMaking {
     func makeSession(
         gameIndex: GamePallet.GameIndex,
         peerAccountId: AccountId,
-        delegate: AnyPeerSessionDelegate<OpaqueVideoGameSignalingEnvelope>
+        delegate: AnyPeerSessionDelegate<OpaqueVideoGameSignalingEnvelope>,
+        peerLogger: LoggerProtocol
     ) async throws -> VideoGameSignalingSession
 }
 
@@ -22,22 +24,19 @@ final class VideoGameSessionFactory {
     private let identifierService: ChatIdentifierServiceProtocol
     private let chainRegistry: ChainRegistryProtocol
     private let chatChainId: ChainModel.Id
-    private let logger: LoggerProtocol
 
     init(
         ownSignKeyId: String,
         serviceFactoryProvider: @escaping () -> MessageExchageServiceMaking,
         identifierService: ChatIdentifierServiceProtocol,
         chainRegistry: ChainRegistryProtocol,
-        chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
-        logger: LoggerProtocol = Logger.shared
+        chatChainId: ChainModel.Id = AppConfig.Chains.chatChain
     ) {
         self.ownSignKeyId = ownSignKeyId
         self.serviceFactoryProvider = serviceFactoryProvider
         self.identifierService = identifierService
         self.chainRegistry = chainRegistry
         self.chatChainId = chatChainId
-        self.logger = logger
     }
 }
 
@@ -45,27 +44,26 @@ extension VideoGameSessionFactory: VideoGameSessionMaking {
     func makeSession(
         gameIndex: GamePallet.GameIndex,
         peerAccountId: AccountId,
-        delegate: AnyPeerSessionDelegate<OpaqueVideoGameSignalingEnvelope>
+        delegate: AnyPeerSessionDelegate<OpaqueVideoGameSignalingEnvelope>,
+        peerLogger: LoggerProtocol
     ) async throws -> VideoGameSignalingSession {
-        // Fetch peer's public key from CommunicationIdentifiers storage
-        guard let peerPublicKey = try await identifierService.fetch(for: peerAccountId) else {
-            throw VideoGameSessionFactoryError.peerPublicKeyNotFound
+        // Fetch peer's encryption identifier from CommunicationIdentifiers storage
+        guard let peerIdentifier = try await identifierService.fetch(for: peerAccountId) else {
+            throw VideoGameSessionFactoryError.peerIdentifierNotFound
         }
-
-        let pin = VideoGameSignalingSession.pin
 
         // Build Own using game candidate derivation paths with the video game room PIN
         let own = MessageExchange.Own(
             signKeyId: ownSignKeyId,
             encryptionKeyId: Chat.Contact.Own.gameEncryptionKeyId(),
-            pin: pin
+            pin: Constants.pin
         )
 
         // Build Peer with the fetched public key and PIN
         let peer = MessageExchange.Peer(
             accountId: peerAccountId,
-            publicKey: peerPublicKey,
-            pin: pin,
+            publicKey: peerIdentifier.localPublicKey.rawData,
+            pin: Constants.pin,
             devices: []
         )
 
@@ -77,7 +75,7 @@ extension VideoGameSessionFactory: VideoGameSessionMaking {
             statementStoreConnection: StatementStoreConnection(
                 connection: connection,
                 retryMatcher: StatementSubmitErrorMatcher.retryWhenTimeoutOrNoAllowance(),
-                logger: logger
+                logger: peerLogger
             ),
             delegate: delegate
         )
@@ -91,7 +89,13 @@ extension VideoGameSessionFactory: VideoGameSessionMaking {
             peerAccountId: peerAccountId,
             exchangeService: exchangeService,
             peer: peer,
-            logger: logger
+            peerLogger: peerLogger
         )
+    }
+}
+
+private extension VideoGameSessionFactory {
+    enum Constants {
+        static let pin = "video_game_room"
     }
 }

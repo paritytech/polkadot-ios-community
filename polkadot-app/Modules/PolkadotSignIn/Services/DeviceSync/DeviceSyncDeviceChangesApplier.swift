@@ -3,14 +3,14 @@ import Operation_iOS
 
 struct DeviceSyncDeviceChangesApplier {
     private let contactsStorageService: ContactsLocalStorageServicing
-    private let logger: LoggerProtocol
+    private let peerLogger: LoggerProtocol
 
     init(
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
-        logger: LoggerProtocol
+        peerLogger: LoggerProtocol
     ) {
         self.contactsStorageService = contactsStorageService
-        self.logger = logger
+        self.peerLogger = peerLogger
     }
 
     func apply(_ wireMessages: [Chat.DeviceSyncWireMessage]) async throws {
@@ -44,7 +44,7 @@ private extension DeviceSyncDeviceChangesApplier {
         }
 
         try await contactsStorageService.updateDeviceSettings(settings).asyncExecute()
-        logger.debug("Applied device changes from sync for \(settings.count) contact(s)")
+        peerLogger.debug("Applied device changes from sync for \(settings.count) contact(s)")
     }
 
     func deviceChange(from message: Chat.RemoteMessage) -> Chat.DeviceChange? {

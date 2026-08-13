@@ -4,6 +4,7 @@ import BigInt
 import ExtrinsicService
 import SubstrateSdk
 
+@MainActor
 protocol BaseDataValidatingFactoryProtocol: AnyObject {
     var view: ControllerValidationResultPresentable? { get }
     var basePresentable: ValidationErrorPresentable { get }

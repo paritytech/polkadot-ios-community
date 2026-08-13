@@ -8,6 +8,7 @@ protocol TattooEvidencePhotoViewProtocol: ControllerBackedProtocol {
     func didReceive(session: AVCaptureSession)
 }
 
+@MainActor
 protocol TattooEvidencePhotoPresenterProtocol: AnyObject {
     func setup()
     func willAppear()
@@ -21,6 +22,7 @@ protocol TattooEvidencePhotoInteractorInputProtocol: AnyObject {
     func capturePhoto()
 }
 
+@MainActor
 protocol TattooEvidencePhotoInteractorOutputProtocol: AnyObject {
     func didReceive(session: AVCaptureSession)
     func didReceive(state: TattooEvidencePhotoViewState)
@@ -28,6 +30,7 @@ protocol TattooEvidencePhotoInteractorOutputProtocol: AnyObject {
     func didSaveCapturedPhoto()
 }
 
+@MainActor
 protocol TattooEvidencePhotoWireframeProtocol: AnyObject {
     func showPhotoTips(from view: TattooEvidencePhotoViewProtocol?)
     func presentPhotoPreview(from view: TattooEvidencePhotoViewProtocol?)

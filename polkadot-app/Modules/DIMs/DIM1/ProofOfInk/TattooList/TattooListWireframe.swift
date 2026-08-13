@@ -3,6 +3,7 @@ import UIKit
 import SubstrateSdk
 import Individuality
 
+@MainActor
 final class TattooListWireframe: TattooListWireframeProtocol {
     let state: ProofOfInkFlowStateProtocol
 

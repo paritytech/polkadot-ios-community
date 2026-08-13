@@ -5,6 +5,7 @@ protocol PolkadotSigningViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: PolkadotSigningViewLayout.ViewModel)
 }
 
+@MainActor
 protocol PolkadotSigningPresenterProtocol: AnyObject {
     func setup()
     func sign()
@@ -33,6 +34,7 @@ protocol PolkadotSigningInteractorOutputProtocol: AnyObject {
     func didFailToReject(with error: Error)
 }
 
+@MainActor
 protocol PolkadotSigningWireframeProtocol: AlertPresentable, ErrorPresentable {
     func hide(view: PolkadotSigningViewProtocol?)
     func showViewDetails(

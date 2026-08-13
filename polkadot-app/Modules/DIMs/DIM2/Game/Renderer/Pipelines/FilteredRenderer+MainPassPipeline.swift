@@ -25,6 +25,7 @@ extension FilteredMTKRenderer {
 }
 
 extension FilteredMTKRenderer.MainPassPipeline {
+    // swiftlint:disable:next function_parameter_count
     func encode(
         into commandBuffer: MTLCommandBuffer,
         destination: MTLTexture,

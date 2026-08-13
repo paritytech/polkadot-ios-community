@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum EvidenceInstructionsViewFactory {
     static func createView(
         for model: EvidenceInstructionsModel,

@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 protocol GameDepositRequiredViewModelMaking {
     func formatAmount(_ balance: Balance) -> String

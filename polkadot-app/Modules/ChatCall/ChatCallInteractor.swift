@@ -1,8 +1,6 @@
 import Foundation
-import StructuredConcurrency
 
 final class ChatCallInteractor {
-    static let closedSignalSentTimeout: TimeInterval = 10
     static let terminalStateDwellSeconds: TimeInterval = 1.5
 
     weak var presenter: ChatCallInteractorOutputProtocol?
@@ -54,7 +52,7 @@ final class ChatCallInteractor {
     deinit {
         callKitManager.markCallDisconnected(with: .remoteEnded)
         Task { [callEngine] in
-            _ = await callEngine.endCall(notifiesRemote: false)
+            await callEngine.endCall(notifiesRemote: false)
         }
         logger.debug("Deinited")
     }
@@ -171,7 +169,7 @@ private extension ChatCallInteractor {
             logger.debug("Contacting peer...")
             presenter?.didUpdateCallState(.contacting)
         case .waiting:
-            logger.debug("Offer delivered, ringing...")
+            logger.debug("Call waiting, ringing...")
             presenter?.didUpdateCallState(.ringing)
         case .connecting:
             logger.debug("Connecting to a call...")
@@ -284,33 +282,37 @@ private extension ChatCallInteractor {
         operatingSystemMediator.enableScreenSleep()
         presenter?.didUpdateCallState(terminalState)
 
-        let endCallTask = Task { [callEngine] in
-            await callEngine.endCall(notifiesRemote: notifiesRemote)
+        let backgroundTaskManager = backgroundTaskManager
+        let logger = logger
+
+        if notifiesRemote {
+            backgroundTaskManager.beginBackgroundTask()
         }
+
+        defer {
+            if notifiesRemote {
+                backgroundTaskManager.endBackgroundTask()
+            }
+        }
+
+        let endCallTask: Task<Void, Never> =
+            if notifiesRemote {
+                Task { [callEngine] in
+                    await callEngine.endCall(notifiesRemote: true)
+                }
+            } else {
+                Task { [callEngine] in
+                    await callEngine.endCall(notifiesRemote: false)
+                }
+            }
 
         // dismiss call ui after small delay (to show final state)
         try? await Task.sleep(for: .seconds(Self.terminalStateDwellSeconds))
         reportOutcome()
+        logger.debug("Outcome reported")
 
-        let signalObserver = await endCallTask.value
-        if let signalObserver {
-            keepBackgroundUntilSent(observer: signalObserver)
-        }
-    }
-
-    func keepBackgroundUntilSent(observer: PeerConnectionSignalStateObserving) {
-        let manager = backgroundTaskManager
-        let timeout = Self.closedSignalSentTimeout
-        Task {
-            do {
-                try await withTimeout(.seconds(timeout)) {
-                    try await observer.wait(for: .sent)
-                    manager.endBackgroundTask()
-                }
-            } catch {
-                manager.endBackgroundTask()
-            }
-        }
+        await endCallTask.value
+        logger.debug("Call ended")
     }
 
     func setMuted(_ isMuted: Bool, notifiesCallKit: Bool) async {

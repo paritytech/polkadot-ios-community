@@ -3,7 +3,7 @@ import PolkadotUI
 import FoundationExt
 
 protocol ClaimUsernameViewModelProviding {
-    func viewModel() -> ClaimUsernameViewLayout.ViewModel
+    func viewModel() -> ClaimUsernameContentViewModel
 }
 
 final class ClaimUsernameViewModelFactory {
@@ -17,7 +17,7 @@ final class ClaimUsernameViewModelFactory {
 }
 
 extension ClaimUsernameViewModelFactory: ClaimUsernameViewModelProviding {
-    func viewModel() -> ClaimUsernameViewLayout.ViewModel {
+    func viewModel() -> ClaimUsernameContentViewModel {
         if full {
             fullViewModel()
         } else if recoverable {
@@ -29,8 +29,8 @@ extension ClaimUsernameViewModelFactory: ClaimUsernameViewModelProviding {
 }
 
 private extension ClaimUsernameViewModelFactory {
-    func recoveredViewModel() -> ClaimUsernameViewLayout.ViewModel {
-        ClaimUsernameViewLayout.ViewModel(
+    func recoveredViewModel() -> ClaimUsernameContentViewModel {
+        ClaimUsernameContentViewModel(
             headerText: String(localized: .claimUsernameHeaderTitleRecovered),
             title: String(localized: .claimUsernameTitle),
             details: String(localized: .claimUsernameDetailsRecovered),
@@ -40,7 +40,7 @@ private extension ClaimUsernameViewModelFactory {
         )
     }
 
-    func recoverableViewModel() -> ClaimUsernameViewLayout.ViewModel {
+    func recoverableViewModel() -> ClaimUsernameContentViewModel {
         let defaultAttributes = LabelStyle.body14Regular().attributes(
             for: .center,
             textColor: .fgTertiary
@@ -61,34 +61,18 @@ private extension ClaimUsernameViewModelFactory {
             defaultAttributes: defaultAttributes
         )
 
-        let terms = NSAttributedString.highlightedItems(
-            [
-                String(localized: .claimUsernameTermsText),
-                String(localized: .claimUsernamePrivacyText)
-            ],
-            formattingClosure: { items in
-                String(localized: .claimUsernameTermsOfUseAndPrivacyPolicy(items[0], items[1]))
-            },
-            highlightingAttributes: [:],
-            defaultAttributes: defaultAttributes,
-            customAttributes: [
-                0: [.link: AppConfig.termsOfUseLink],
-                1: [.link: AppConfig.privacyPolicyLink]
-            ]
-        )
-
-        return ClaimUsernameViewLayout.ViewModel(
+        return ClaimUsernameContentViewModel(
             headerText: String(localized: .claimUsernameHeaderTitle),
             title: String(localized: .claimUsernameTitle),
             details: String(localized: .claimUsernameDetails),
             actionTitle: String(localized: .claimUsernameAction),
             recoveryActionString: string,
-            termsActionString: terms
+            termsActionString: termsAttributedString()
         )
     }
 
-    func fullViewModel() -> ClaimUsernameViewLayout.ViewModel {
-        ClaimUsernameViewLayout.ViewModel(
+    func fullViewModel() -> ClaimUsernameContentViewModel {
+        ClaimUsernameContentViewModel(
             headerText: "",
             title: String(localized: .claimUsernameTitleFull),
             details: String(localized: .claimUsernameDetailsFull),
@@ -96,5 +80,21 @@ private extension ClaimUsernameViewModelFactory {
             recoveryActionString: nil,
             termsActionString: nil
         )
+    }
+
+    func termsAttributedString() -> AttributedString {
+        let termsText = String(localized: .claimUsernameTermsText)
+        let privacyText = String(localized: .claimUsernamePrivacyText)
+        let full = String(localized: .claimUsernameTermsOfUseAndPrivacyPolicy(termsText, privacyText))
+
+        var attr = AttributedString(full)
+
+        if let range = attr.range(of: termsText) {
+            attr[range].link = AppConfig.termsOfUseLink
+        }
+        if let range = attr.range(of: privacyText) {
+            attr[range].link = AppConfig.privacyPolicyLink
+        }
+        return attr
     }
 }

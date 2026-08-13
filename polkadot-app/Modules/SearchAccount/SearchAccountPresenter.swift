@@ -2,7 +2,10 @@ import Foundation
 import Foundation_iOS
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
+@MainActor
 final class SearchAccountPresenter {
     // MARK: Properties
 
@@ -100,8 +103,8 @@ extension SearchAccountPresenter: SearchAccountPresenterProtocol {
         provideAddressInputViewModel()
     }
 
-    func scanAddress() {
-        wireframe.showAddressScan(from: view, delegate: self)
+    func scanQRCode() {
+        wireframe.showQRScan(from: view)
     }
 
     func searchAccount(_ account: String?) {
@@ -181,16 +184,6 @@ extension SearchAccountPresenter: SearchAccountInteractorOutputProtocol {
         recentContactsMap = contacts.mergeToDict(recentContactsMap)
         guard currentQuery == nil else { return }
         updateIdleViewModel()
-    }
-}
-
-// MARK: - AddressScanDelegate
-
-extension SearchAccountPresenter: AddressScanDelegate {
-    func addressScanDidReceiveRecepient(address: AccountAddress, context _: AnyObject?) {
-        handleAccountSelection(.accountAddress(address))
-        updateViewModel(dataType: .searchResults([mapToAccountType(from: address)]))
-        wireframe.hideAddressScan(from: view)
     }
 }
 

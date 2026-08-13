@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class TattooCommitWireframe: TattooCommitWireframeProtocol {
     let state: ProofOfInkFlowStateProtocol
 

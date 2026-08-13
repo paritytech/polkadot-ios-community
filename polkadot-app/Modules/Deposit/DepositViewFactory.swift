@@ -1,7 +1,9 @@
 import Foundation
 import UIKit
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 enum DepositViewFactory {
     static func createView(
         chainAsset: ChainAsset,

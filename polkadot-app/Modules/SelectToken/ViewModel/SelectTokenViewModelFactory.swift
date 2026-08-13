@@ -1,5 +1,6 @@
 import Foundation
 import PolkadotUI
+import ChainRegistry
 
 protocol SelectTokenViewModelFactoryProtocol {
     func createViewModel(from chainAsset: ChainAsset) -> SelectTokenCellViewModel

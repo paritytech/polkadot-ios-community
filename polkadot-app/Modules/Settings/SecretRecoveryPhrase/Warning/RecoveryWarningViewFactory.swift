@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import UIKit_iOS
 
+@MainActor
 enum RecoveryWarningViewFactory {
     static func createView(action: @escaping () -> Void) -> RecoveryWarningViewProtocol? {
         let interactor = RecoveryWarningInteractor()

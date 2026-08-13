@@ -14,7 +14,7 @@ extension MobRuleCaseData {
             openCase.details
         case let .ripe(ripeCase):
             ripeCase.details
-        case let .done(doneCase):
+        case .done:
             nil
         }
     }

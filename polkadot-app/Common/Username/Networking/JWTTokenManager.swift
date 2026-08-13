@@ -29,7 +29,11 @@ final class JWTTokenManager: JWTTokenProviding, JWTTokenManaging {
     /// Buffer before actual expiry to proactively refresh the token.
     static let expiryBuffer: TimeInterval = 30
 
-    static let shared = JWTTokenManager()
+    #if DISABLE_AUTH
+        static let shared: JWTTokenProviding & JWTTokenManaging = NoAuthJWTTokenManager()
+    #else
+        static let shared = JWTTokenManager()
+    #endif
 
     private let tokenStore: JWTTokenStoring
     private var authProvider: AppAttestProviding?

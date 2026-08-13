@@ -197,7 +197,6 @@ final class ProgressiveBurstView: UIView {
         displayLink?.invalidate()
     }
 
-    // swiftlint:disable function_body_length
     /// Fire a signal at `level` percent. Pass `finale` on the wave that
     /// completes the burst (i.e. when prev + level >= 100).
     func fire(level: Int, finale: FinaleStyle? = nil) {
@@ -274,8 +273,6 @@ final class ProgressiveBurstView: UIView {
         startDisplayLinkIfNeeded()
         setNeedsDisplay()
     }
-
-    // swiftlint:enable function_body_length
 
     func resetSession() {
         completion = 0

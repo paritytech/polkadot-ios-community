@@ -20,8 +20,6 @@ public protocol HandoffServicing {
         by dataHash: FileHash,
         recipient: RecipientProofProviding
     ) async throws
-
-    func getPoolStatus() async throws -> PoolStatus
 }
 
 public final class HandoffService {
@@ -92,18 +90,15 @@ extension HandoffService: HandoffServicing {
 
         let model = AckModel(hash: dataHash, signature: signature)
 
-        try await connection.asyncCallVoidMethod(
-            RPCMethod.ack,
-            params: model,
-            options: JSONRPCOptions()
-        )
-    }
-
-    public func getPoolStatus() async throws -> PoolStatus {
-        try await connection.asyncCallMethod(
-            RPCMethod.poolStatus,
-            params: String?.none,
-            options: JSONRPCOptions()
-        )
+        do {
+            try await connection.asyncCallVoidMethod(
+                RPCMethod.ack,
+                params: model,
+                options: JSONRPCOptions()
+            )
+        } catch let error as JSONRPCError where error.code == HOPErrorCode.notFound {
+            // Base spec: NotFound on ack is benign — the entry is already removed
+            // (acked by another device or expired and promoted on-chain).
+        }
     }
 }

@@ -55,7 +55,7 @@ extension IPFSVideoSource: AVPlayerItemProvider {
 
 // MARK: - ChatMessageMediaPreviewProviding
 
-extension IPFSVideoSource: @MainActor ChatMessageMediaPreviewProviding {
+extension IPFSVideoSource: ChatMessageMediaPreviewProviding {
     @MainActor
     func providePreview(for imageView: UIImageView, size: CGSize?) {
         let resolvedSize = size ?? CGSize(width: 512, height: 512)

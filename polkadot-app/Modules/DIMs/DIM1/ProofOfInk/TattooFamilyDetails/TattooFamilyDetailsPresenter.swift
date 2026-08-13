@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 
+@MainActor
 final class TattooFamilyDetailsPresenter {
     weak var view: TattooFamilyDetailsViewProtocol?
     private let wireframe: TattooFamilyDetailsWireframeProtocol

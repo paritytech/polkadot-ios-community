@@ -13,6 +13,10 @@ xcuserdata/
 *.dSYM.zip
 *.dSYM
 
+## fastlane build_app_simulator outputs (see fastlane/lanes/lane_simulator_build.rb)
+build_simulator/
+build_simulator_dd/
+
 ## Playgrounds
 timeline.xctimeline
 playground.xcworkspace
@@ -87,5 +91,11 @@ __pycache__
 .pytest_cache
 .sentryclirc
 
+# temp
+tmp/
+
 # AI agent local state (shared config like CLAUDE.md stays tracked)
 .claude/
+.codex/
+.cursor/
+.gemini/

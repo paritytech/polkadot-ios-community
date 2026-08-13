@@ -24,9 +24,13 @@ extension TattooPhotoPreviewInteractor: TattooPhotoViewInteractorInputProtocol {
         do {
             let photoPreviewData = try Data(contentsOf: fileManager.preparePhotoEvidenceUrl())
             guard let photoPreview = UIImage(data: photoPreviewData) else { return }
-            presenter?.didReceive(photoPreview: photoPreview)
+            MainActor.assumeIsolated {
+                presenter?.didReceive(photoPreview: photoPreview)
+            }
         } catch {
-            presenter?.didReceive(error: .photoLoading(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .photoLoading(error))
+            }
         }
     }
 
@@ -47,15 +51,19 @@ extension TattooPhotoPreviewInteractor: TattooPhotoViewInteractorInputProtocol {
                 inOperationQueue: operationQueue,
                 runningCallbackIn: .main
             ) { [weak self] result in
-                switch result {
-                case .success:
-                    self?.presenter?.didInitiateEvidenceUploading()
-                case let .failure(error):
-                    self?.presenter?.didReceive(error: .evidenceUploading(error))
+                MainActor.assumeIsolated {
+                    switch result {
+                    case .success:
+                        self?.presenter?.didInitiateEvidenceUploading()
+                    case let .failure(error):
+                        self?.presenter?.didReceive(error: .evidenceUploading(error))
+                    }
                 }
             }
         } catch {
-            presenter?.didReceive(error: .evidenceUploading(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .evidenceUploading(error))
+            }
         }
     }
 
@@ -63,7 +71,9 @@ extension TattooPhotoPreviewInteractor: TattooPhotoViewInteractorInputProtocol {
         do {
             try fileManager.forgetPhotoEvidence()
         } catch {
-            presenter?.didReceive(error: .photoFile(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .photoFile(error))
+            }
         }
     }
 }

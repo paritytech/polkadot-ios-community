@@ -1,7 +1,9 @@
 import Foundation
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
+@MainActor
 enum TattooCommitViewFactory {
     static func createView(
         for state: ProofOfInkFlowStateProtocol,

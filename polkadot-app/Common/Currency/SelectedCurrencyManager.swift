@@ -1,5 +1,7 @@
 import Foundation
 import Keystore_iOS
+import ChainRegistry
+import EventCenter
 
 protocol SelectedCurrencyManaging {
     var selectedCurrency: Currency { get }

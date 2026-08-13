@@ -6,11 +6,7 @@ public protocol FileEncrypting {
     func decrypt(_ encryptedData: Data) throws -> Data
 }
 
-public enum AESFileEncryptorError: Error {
-    case missingCipher
-}
-
-public final class AESFileEncryptor {
+public final class ChaChaPolyFileEncryptor {
     let symmetricKey: SymmetricKey
 
     public init(rawKey: Data) {
@@ -22,19 +18,13 @@ public final class AESFileEncryptor {
     }
 }
 
-extension AESFileEncryptor: FileEncrypting {
+extension ChaChaPolyFileEncryptor: FileEncrypting {
     public func encrypt(_ data: Data) throws -> Data {
-        let box = try AES.GCM.seal(data, using: symmetricKey) // default nonce = 12, tag = 16
-
-        guard let combined = box.combined else {
-            throw AESFileEncryptorError.missingCipher
-        }
-
-        return combined
+        try ChaChaPoly.seal(data, using: symmetricKey).combined // nonce = 12, tag = 16
     }
 
     public func decrypt(_ encryptedData: Data) throws -> Data {
-        let box = try AES.GCM.SealedBox(combined: encryptedData) // default nonce = 12, tag = 16
-        return try AES.GCM.open(box, using: symmetricKey)
+        let box = try ChaChaPoly.SealedBox(combined: encryptedData) // nonce = 12, tag = 16
+        return try ChaChaPoly.open(box, using: symmetricKey)
     }
 }

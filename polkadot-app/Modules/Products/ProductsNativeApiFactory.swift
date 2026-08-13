@@ -4,36 +4,25 @@ import Products
 import StatementStore
 import KeyDerivation
 import DesignSystem
+import ChainRegistry
 
 protocol ProductsNativeApiMaking {
     func makeApi(
         messagingSupport: ProductsNativeApi.MessagingSupport?,
         productId: ProductId,
-        signingRouter: SigningRouting,
-        navigationRouter: ProductsNavigationRouting,
-        permissionRouter: ProductPermissionRouting,
-        topUpRequestRouter: TopUpRequestRouting,
-        paymentRequestRouter: PaymentRequestRouting
+        routers: ProductRoutersFacadeProtocol
     ) -> any ProductsNativeApiProtocol
 }
 
 extension ProductsNativeApiMaking {
     func makeApi(
         productId: ProductId,
-        signingRouter: SigningRouting,
-        navigationRouter: ProductsNavigationRouting,
-        permissionRouter: ProductPermissionRouting,
-        topUpRequestRouter: TopUpRequestRouting,
-        paymentRequestRouter: PaymentRequestRouting
+        routers: ProductRoutersFacadeProtocol
     ) -> any ProductsNativeApiProtocol {
         makeApi(
             messagingSupport: nil,
             productId: productId,
-            signingRouter: signingRouter,
-            navigationRouter: navigationRouter,
-            permissionRouter: permissionRouter,
-            topUpRequestRouter: topUpRequestRouter,
-            paymentRequestRouter: paymentRequestRouter
+            routers: routers
         )
     }
 }
@@ -42,7 +31,6 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
     private let chainRegistry: ChainRegistryProtocol
     private let usernameStorage: UsernameStoring
     private let localStorage: ProductLocalStorageProtocol
-    private let nonProductAccountRegistry: NonProductAccountRegistring
     private let notificationService: UserNotificationServicing
     private let notificationScheduler: ProductNotificationScheduling
     private let entropyManager: RootEntropyManaging
@@ -61,7 +49,6 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         chainRegistry: ChainRegistryProtocol,
         usernameStorage: UsernameStoring,
         localStorage: ProductLocalStorageProtocol,
-        nonProductAccountRegistry: NonProductAccountRegistring,
         notificationService: UserNotificationServicing,
         notificationScheduler: ProductNotificationScheduling = ProductNotificationScheduler.shared,
         entropyManager: RootEntropyManaging,
@@ -79,7 +66,6 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         self.chainRegistry = chainRegistry
         self.usernameStorage = usernameStorage
         self.localStorage = localStorage
-        self.nonProductAccountRegistry = nonProductAccountRegistry
         self.notificationService = notificationService
         self.notificationScheduler = notificationScheduler
         self.entropyManager = entropyManager
@@ -99,26 +85,24 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
     func makeApi(
         messagingSupport: ProductsNativeApi.MessagingSupport?,
         productId: ProductId,
-        signingRouter: SigningRouting,
-        navigationRouter: ProductsNavigationRouting,
-        permissionRouter: ProductPermissionRouting,
-        topUpRequestRouter: TopUpRequestRouting,
-        paymentRequestRouter: PaymentRequestRouting
+        routers: ProductRoutersFacadeProtocol
     ) -> any ProductsNativeApiProtocol {
-        let permissionGuard = makePermissionGuard(router: permissionRouter)
+        let permissionGuard = ProductPermissionGuard.create(
+            router: routers.productsRouter,
+            repository: permissionRepository,
+            osAsker: osPermissionAsker
+        )
         let entropyDeriver = ProductRootEntropyDeriver(entropyManager: entropyManager)
+        let personhoodHandlerFactory = makePersonhoodHandlerFactory(routers: routers)
 
         return ProductsNativeApi(
             productId: productId,
             messagingSupport: messagingSupport,
             chainRegistry: chainRegistry,
             usernameStorage: usernameStorage,
-            signingRouter: signingRouter,
-            navigationRouter: navigationRouter,
-            topUpRequestRouter: topUpRequestRouter,
-            paymentRequestRouter: paymentRequestRouter,
+            productsRouter: routers.productsRouter,
+            navigationRouter: routers.navigationRouter,
             localStorage: localStorage,
-            nonProductAccountRegistry: nonProductAccountRegistry,
             notificationService: notificationService,
             notificationScheduler: notificationScheduler,
             entropyManager: entropyManager,
@@ -127,6 +111,9 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             permissionGuard: permissionGuard,
             paymentsSupport: paymentsSupport,
             accountManager: accountManager,
+            createProofHandler: personhoodHandlerFactory.makeCreateProofHandler(callingProductId: productId),
+            aliasHandler: personhoodHandlerFactory.makeAliasHandler(callingProductId: productId),
+            signVrfHandler: personhoodHandlerFactory.makeSignVrfHandler(callingProductId: productId),
             resourceKeyManager: resourceKeyManager,
             sponsorFactory: sponsorFactory,
             themeManager: themeManager,
@@ -139,34 +126,14 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
 // MARK: - Private
 
 private extension ProductsNativeApiFactory {
-    func makePermissionGuard(router: ProductPermissionRouting) -> ProductPermissionGuarding {
-        let requester = ProductPermissionRequester(router: router)
-
-        let networkHandler = NetworkAccessPermissionHandler(
-            repository: permissionRepository,
-            requester: requester
-        )
-        let remoteHandler = RemotePermissionHandler(
-            repository: permissionRepository,
-            requester: requester
-        )
-        let deviceHandler = DeviceCapabilityPermissionHandler(
-            repository: permissionRepository,
-            requester: requester,
-            osAsker: osPermissionAsker
-        )
-        let accountHandler = AccountAccessPermissionHandler(
-            repository: permissionRepository,
-            requester: requester
-        )
-
-        return ProductPermissionGuard(
-            networkHandler: networkHandler,
-            remoteHandler: remoteHandler,
-            deviceHandler: deviceHandler,
-            accountHandler: accountHandler,
-            repository: permissionRepository,
-            requester: requester
+    func makePersonhoodHandlerFactory(routers: ProductRoutersFacadeProtocol) -> APPersonhoodHandlerFactory {
+        APPersonhoodHandlerFactory(
+            chainRegistry: chainRegistry,
+            routers: routers,
+            entropyManager: entropyManager,
+            permissionRepository: permissionRepository,
+            operationQueue: operationQueue,
+            logger: logger
         )
     }
 }

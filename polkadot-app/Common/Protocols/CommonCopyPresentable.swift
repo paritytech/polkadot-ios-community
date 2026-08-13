@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 protocol CommonCopyPresentable: AnyObject {
     func copyString(
         from view: ControllerBackedProtocol,
@@ -59,6 +60,7 @@ extension CommonCopyPresentable {
         copySensitiveString(from: view, stringToCopy: stringToCopy, message: String(localized: .Common.copied))
     }
 
+    @MainActor
     private func presentCopyNotification(
         from view: ControllerBackedProtocol,
         message: String

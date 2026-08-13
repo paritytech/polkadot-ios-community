@@ -1,18 +1,25 @@
 import UIKit
+import SwiftUI
 import DesignSystem
 import Foundation_iOS
 import FoundationExt
+import PolkadotUI
 
-class ClaimUsernameViewController: UIViewController, ViewHolder {
-    typealias RootViewType = ClaimUsernameViewLayout
+struct ClaimUsernameContentViewModel {
+    let headerText: String
+    let title: String
+    let details: String
+    let actionTitle: String
+    let recoveryActionString: NSAttributedString?
+    let termsActionString: AttributedString?
+}
 
+class ClaimUsernameViewController: UIHostingController<ClaimUsernameViewLayout> {
     let presenter: ClaimUsernamePresenterProtocol
-
-    var keyboardHandler: KeyboardHandler?
 
     init(presenter: ClaimUsernamePresenterProtocol) {
         self.presenter = presenter
-        super.init(nibName: nil, bundle: nil)
+        super.init(rootView: ClaimUsernameViewLayout(viewModel: .init()))
     }
 
     @available(*, unavailable)
@@ -20,239 +27,121 @@ class ClaimUsernameViewController: UIViewController, ViewHolder {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func loadView() {
-        view = ClaimUsernameViewLayout()
-    }
-
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        setupLocalization()
+        view.backgroundColor = .backgroundPrimary
         setupHandlers()
-
         presenter.setup()
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
+    private func setupHandlers() {
+        rootView.viewModel.onUsernameChanged = { [weak self, weak presenter] in
+            guard let self, let inputViewModel = rootView.viewModel.usernameInputViewModel else { return }
+            presenter?.update(from: inputViewModel)
+        }
+        rootView.viewModel.onDigitsChanged = { [weak self, weak presenter] in
+            guard let self else { return }
+            guard let selected = rootView.viewModel.selectedDigits else { return }
+            presenter?.updateDigits(selected)
+        }
+        rootView.viewModel.onConfirm = { [weak presenter] in
+            presenter?.confirm()
+        }
+        rootView.viewModel.onResolveError = { [weak presenter] in
+            presenter?.resolveError()
+        }
+        rootView.viewModel.onRecover = { [weak presenter] in
+            presenter?.recover()
+        }
+    }
+}
 
-        if keyboardHandler == nil {
-            setupKeyboardHandler()
+extension ClaimUsernameViewController: ClaimUsernameViewProtocol {
+    func didReceive(viewModel: ClaimUsernameContentViewModel) {
+        rootView.viewModel.headerText = viewModel.headerText
+        rootView.viewModel.title = viewModel.title
+        rootView.viewModel.details = viewModel.details
+        rootView.viewModel.actionTitle = viewModel.actionTitle
+        if let nsAttr = viewModel.recoveryActionString {
+            rootView.viewModel.recoveryActionString = try? AttributedString(nsAttr, including: \.uiKit)
+        } else {
+            rootView.viewModel.recoveryActionString = nil
+        }
+        rootView.viewModel.termsActionString = viewModel.termsActionString
+    }
+
+    func didReceive(usernameInputViewModel: InputViewModelProtocol) {
+        rootView.viewModel.usernameInputViewModel = usernameInputViewModel
+    }
+
+    func didReceive(digitsOptions: [String]) {
+        rootView.viewModel.digitsOptions = digitsOptions
+        rootView.viewModel.selectedDigits = digitsOptions.first
+    }
+
+    func didReceive(digitsState: DigitsFieldState) {
+        rootView.viewModel.digitsState = digitsState
+    }
+
+    func didStartLoading() {
+        rootView.viewModel.confirmViewState = .loading
+    }
+
+    func didStopLoading() {
+        rootView.viewModel.confirmViewState = .confirm
+    }
+
+    func didReceiveValidation(result: ValidationResult) {
+        guard !isLoading else { return }
+        switch result {
+        case let .issue(title, context):
+            rootView.viewModel.confirmViewState = .issue(title)
+            apply(usernameContext: context as? UsernameValidationContext)
+        case .valid:
+            rootView.viewModel.usernameAvailability = .available
+            rootView.viewModel.confirmViewState = .confirm
         }
     }
 
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-
-        rootView.usernameInputView.textField.becomeFirstResponder()
+    func userInteraction(enabled: Bool) {
+        rootView.viewModel.isUsernameInteractionEnabled = enabled
     }
 
-    private func setupHandlers() {
-        rootView.usernameInputView.textField.addTarget(
-            self,
-            action: #selector(actionUsernameChanged),
-            for: .editingChanged
-        )
-
-        rootView.usernameInputView.textField.addTarget(
-            self,
-            action: #selector(actionUsernameEditingDidBegin),
-            for: .editingDidBegin
-        )
-
-        rootView.usernameInputView.textField.addTarget(
-            self,
-            action: #selector(actionUsernameEditingDidEnd),
-            for: .editingDidEnd
-        )
-
-        rootView.digitsInputView.textField.addTarget(
-            self,
-            action: #selector(actionDigitsChanged),
-            for: .editingChanged
-        )
-
-        rootView.digitsInputView.textField.addTarget(
-            self,
-            action: #selector(actionDigitsEditingDidBegin),
-            for: .editingDidBegin
-        )
-
-        rootView.digitsInputView.textField.addTarget(
-            self,
-            action: #selector(actionDigitsEditingDidEnd),
-            for: .editingDidEnd
-        )
-
-        rootView.confirmView.errorButton.addTarget(
-            self,
-            action: #selector(actionResolveError),
-            for: .touchUpInside
-        )
-
-        rootView.confirmView.actionButton.addTarget(
-            self,
-            action: #selector(actionConfirm),
-            for: .touchUpInside
-        )
-
-        rootView.recoveryControlView.addTarget(
-            self,
-            action: #selector(actionRecover),
-            for: .touchUpInside
-        )
+    func setAccountCreationInProgress(_ inProgress: Bool) {
+        rootView.viewModel.isAccountCreationInProgress = inProgress
     }
 
-    private func setupLocalization() {
-        let placeholder = NSAttributedString(
-            string: String(localized: .claimUsernamePlaceholder),
-            attributes: [.foregroundColor: UIColor.fgTertiary]
-        )
-        rootView.usernameInputView.textField.attributedPlaceholder = placeholder
+    private var isLoading: Bool {
+        if case .loading = rootView.viewModel.confirmViewState {
+            return true
+        }
+        return false
     }
 
     private func apply(usernameContext: UsernameValidationContext?) {
         switch usernameContext {
         case .usernameTaken:
-            rootView.apply(usernameAvailability: .taken)
-            rootView.confirmView.bind(
-                state: .errorAction(
-                    String(localized: .Common.clear), nil
-                )
-            )
+            rootView.viewModel.usernameAvailability = .taken
+            rootView.viewModel.confirmViewState = .errorAction(String(localized: .Common.clear), nil)
         case .usernameInvalid:
-            rootView.apply(usernameAvailability: .invalid)
-            rootView.confirmView.bind(
-                state: .errorAction(
-                    String(localized: .Common.clear), nil
-                )
-            )
-        case .digitsInvalid:
-            rootView.apply(usernameAvailability: .digitsTaken)
-            rootView.confirmView.bind(state: .disabled)
+            rootView.viewModel.usernameAvailability = .invalid
+            rootView.viewModel.confirmViewState = .errorAction(String(localized: .Common.clear), nil)
         case .usernameCheckFailed:
-            rootView.apply(usernameAvailability: nil)
-            rootView.confirmView.bind(
-                state: .errorAction(
-                    String(localized: .Common.retry),
-                    nil
-                )
-            )
+            rootView.viewModel.usernameAvailability = nil
+            rootView.viewModel.confirmViewState = .errorAction(String(localized: .Common.retry), nil)
         case nil:
-            rootView.apply(usernameAvailability: nil)
+            rootView.viewModel.usernameAvailability = nil
         }
-    }
-
-    @objc
-    func actionUsernameEditingDidBegin() {
-        rootView.applyUsernameFocused(true)
-    }
-
-    @objc
-    func actionUsernameEditingDidEnd() {
-        rootView.applyUsernameFocused(false)
-    }
-
-    @objc
-    func actionUsernameChanged() {
-        if let viewModel = rootView.usernameInputView.inputViewModel {
-            presenter.update(from: viewModel)
-        }
-    }
-
-    @objc
-    func actionDigitsChanged() {
-        if let viewModel = rootView.digitsInputView.inputViewModel {
-            presenter.updateDigits(viewModel.inputHandler.value)
-        }
-    }
-
-    @objc
-    func actionDigitsEditingDidBegin() {
-        rootView.applyDigitsFocused(true)
-    }
-
-    @objc
-    func actionDigitsEditingDidEnd() {
-        rootView.applyDigitsFocused(false)
-    }
-
-    @objc
-    func actionConfirm() {
-        rootView.usernameInputView.textField.resignFirstResponder()
-
-        presenter.confirm()
-    }
-
-    @objc
-    func actionResolveError() {
-        presenter.resolveError()
-    }
-
-    @objc
-    func actionRecover() {
-        presenter.recover()
-    }
-
-    func didReceiveValidation(result: ValidationResult) {
-        guard !rootView.confirmView.isLoading else {
-            return
-        }
-
-        switch result {
-        case let .issue(title, context):
-            rootView.confirmView.bind(state: .issue(title))
-            apply(usernameContext: context as? UsernameValidationContext)
-        case .valid:
-            rootView.apply(usernameAvailability: .available)
-            rootView.confirmView.bind(state: .confirm)
-        }
-    }
-}
-
-extension ClaimUsernameViewController: KeyboardAdoptable {}
-
-extension ClaimUsernameViewController: ClaimUsernameViewProtocol {
-    func didReceive(viewModel: ClaimUsernameViewLayout.ViewModel) {
-        rootView.bind(viewModel: viewModel)
-    }
-
-    func didReceive(usernameInputViewModel: InputViewModelProtocol) {
-        rootView.usernameInputView.bind(inputViewModel: usernameInputViewModel)
-    }
-
-    func didReceive(digitsInputViewModel: InputViewModelProtocol) {
-        rootView.digitsInputView.bind(inputViewModel: digitsInputViewModel)
-    }
-
-    func didReceive(digitsState: DigitsFieldState) {
-        rootView.apply(digitsState: digitsState)
-    }
-
-    func didStartLoading() {
-        rootView.confirmView.bind(state: .loading)
-    }
-
-    func didStopLoading() {
-        rootView.confirmView.bind(state: .confirm)
-    }
-
-    func userInteraction(enabled: Bool) {
-        rootView.usernameInputView.isUserInteractionEnabled = enabled
-    }
-
-    func setAccountCreationInProgress(_ inProgress: Bool) {
-        rootView.setAccountCreationInProgress(inProgress)
     }
 }
 
 final class ClaimLiteUsernameViewController: ClaimUsernameViewController {}
+extension ClaimLiteUsernameViewController: HiddableBarWhenPushed {}
 
 final class ClaimFullUsernameViewController: ClaimUsernameViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         traitOverrides.appTheme = ThemesRegistry.default
-        rootView.apply(appearance: .fixed)
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -264,19 +153,4 @@ final class ClaimFullUsernameViewController: ClaimUsernameViewController {
         super.viewWillDisappear(animated)
         navigationController?.traitOverrides.remove(DSThemeTrait.self)
     }
-
-    override func didReceiveValidation(result: ValidationResult) {
-        super.didReceiveValidation(result: result)
-        // Full username does not show the availability view if name is valid
-        if result.isValid {
-            rootView.usernameAvailabilityView.isHidden = true
-        }
-
-        if case .issue = result {
-            // Full username flow shows the action name for the issue view
-            rootView.confirmView.issueView.wrappedView.text = String(localized: .claimUsernameActionFull)
-        }
-    }
 }
-
-extension ClaimLiteUsernameViewController: HiddableBarWhenPushed {}

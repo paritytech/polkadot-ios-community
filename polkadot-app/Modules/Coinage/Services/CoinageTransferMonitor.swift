@@ -113,6 +113,7 @@ private extension CoinageTransferMonitor {
 // MARK: - Incoming (Claim)
 
 private extension CoinageTransferMonitor {
+    // swiftlint:disable:next cyclomatic_complexity
     func subscribeIncomingMessages() {
         incomingTransfersSubscription = Task { [weak self, claimStatusStore] in
             guard let self else { return }
@@ -152,6 +153,7 @@ private extension CoinageTransferMonitor {
                         ] in
                             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
                             do {
+                                logger.debug("Receiving \(messageId) amount: \(memo.totalValue)")
                                 await claimStatusStore.updateStatus(.detecting, forMessageId: messageId)
 
                                 // Existing plan means some coins may already
@@ -186,16 +188,25 @@ private extension CoinageTransferMonitor {
                                         memo.totalValue
                                     }
 
+                                // Calculate claimed amount when all entries are claimed
+                                guard plan?.status == .finished else {
+                                    await claimStatusStore.updateStatus(.error, forMessageId: messageId)
+                                    return
+                                }
                                 try? await planStore.updateStatus(
                                     .finished,
                                     claimedAmount: claimedAmount,
                                     forMemo: memo
                                 )
+
                                 await claimStatusStore.updateStatus(
                                     .finished(claimedAmount: claimedAmount),
                                     forMessageId: messageId
                                 )
-                                logger.debug("Successfully claimed coinage send content for \(messageId)")
+                                logger.debug(
+                                    "Successfully claimed coinage send content for \(messageId), " +
+                                        "amountPlanks=\(claimedAmount)"
+                                )
                             } catch TransferRecipientError.alreadyClaiming {
                                 logger.debug("Memo already being claimed, skipping.")
                             } catch {
@@ -219,6 +230,7 @@ private extension CoinageTransferMonitor {
 // MARK: - Outgoing (Send Verification)
 
 private extension CoinageTransferMonitor {
+    // swiftlint:disable:next cyclomatic_complexity
     func subscribeOutgoingMessages() {
         outgoingTransfersSubscription = Task { [weak self, claimStatusStore] in
             guard let self else { return }
@@ -256,11 +268,13 @@ private extension CoinageTransferMonitor {
                                 let existingPlan = await (try? planStore.plan(memo: memo))
 
                                 if existingPlan?.status == .detected {
-                                    // Coins were confirmed on-chain in a prior run; skip awaitSendOnChain.
+                                    // Coins confirmed on-chain in a prior run; go straight to claim watch.
                                     await claimStatusStore.updateStatus(.sent, forMessageId: messageId)
+                                    try await sendVerifier.awaitClaimOnChain(
+                                        memo: memo,
+                                        blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
+                                    )
                                 } else {
-                                    // Persist plan if not yet saved; always await send — plan is saved
-                                    // before coins appear, so existence alone doesn't imply on-chain presence.
                                     if existingPlan == nil {
                                         let plan = ClaimPlan(
                                             memoKey: memo.identifier(),
@@ -274,19 +288,28 @@ private extension CoinageTransferMonitor {
 
                                     await claimStatusStore.updateStatus(.detecting, forMessageId: messageId)
 
-                                    try await sendVerifier.awaitSendOnChain(
+                                    // Tolerates a fast recipient claim: a send whose coins are already spent
+                                    // resolves as `.alreadyClaimed` instead of a false send-timeout.
+                                    // anchorBlock is nil — ClaimPlan has no submit-block anchor, so the
+                                    // historical probe is skipped (same coverage as the prior strict check).
+                                    let status = try await sendVerifier.awaitSendOrClaimed(
                                         memo: memo,
+                                        anchorBlock: nil,
                                         blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
                                     )
-
-                                    try? await planStore.updateStatus(.detected, claimedAmount: nil, forMemo: memo)
-                                    await claimStatusStore.updateStatus(.sent, forMessageId: messageId)
+                                    switch status {
+                                    case .onChain:
+                                        try? await planStore.updateStatus(.detected, claimedAmount: nil, forMemo: memo)
+                                        await claimStatusStore.updateStatus(.sent, forMessageId: messageId)
+                                        try await sendVerifier.awaitClaimOnChain(
+                                            memo: memo,
+                                            blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
+                                        )
+                                    case .alreadyClaimed:
+                                        // Send confirmed and recipient already spent the coins — terminal.
+                                        break
+                                    }
                                 }
-
-                                try await sendVerifier.awaitClaimOnChain(
-                                    memo: memo,
-                                    blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
-                                )
 
                                 try? await planStore.updateStatus(
                                     .finished,
@@ -297,7 +320,10 @@ private extension CoinageTransferMonitor {
                                     .finished(claimedAmount: memo.totalValue),
                                     forMessageId: messageId
                                 )
-                                logger.debug("Send verified and claimed for message \(messageId)")
+                                logger.debug(
+                                    "Send verified and claimed for message \(messageId), " +
+                                        "amountPlanks=\(memo.totalValue)"
+                                )
                             } catch {
                                 try? await planStore.updateStatus(.error, claimedAmount: nil, forMemo: memo)
                                 await claimStatusStore.updateStatus(.error, forMessageId: messageId)

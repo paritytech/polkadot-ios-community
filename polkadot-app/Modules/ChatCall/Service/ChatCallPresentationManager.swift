@@ -38,7 +38,7 @@ extension ChatChatCallPresentationManager: ChatCallPresentationManaging {
                 return
             }
 
-            let rootController = UIApplication.shared.keyWindow?.rootViewController
+            let rootController = UIWindow.keyWindow?.rootViewController
 
             callView.controller.modalPresentationStyle = .fullScreen
             callView.controller.modalTransitionStyle = .crossDissolve

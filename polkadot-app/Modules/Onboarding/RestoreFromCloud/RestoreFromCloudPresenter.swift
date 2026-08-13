@@ -30,11 +30,15 @@ extension RestoreFromCloudPresenter: RestoreFromCloudInteractorOutputProtocol {
     }
 
     func didRestoreWallets() {
-        wireframe.observer.didRestoreWallets()
+        MainActor.assumeIsolated {
+            wireframe.observer.didRestoreWallets()
+        }
     }
 
     func didDecideBroken() {
-        wireframe.observer.didDecideBroken()
+        MainActor.assumeIsolated {
+            wireframe.observer.didDecideBroken()
+        }
     }
 
     func authorizeUser(completion: @escaping AuthorizationCompletionBlock) {

@@ -84,6 +84,26 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
             action: #selector(actionShowThemeSelection),
             for: .touchUpInside
         )
+
+        rootView.strategyDebugSwitch.addTarget(
+            self,
+            action: #selector(actionToggleStrategyDebug),
+            for: .valueChanged
+        )
+
+        rootView.truApiRuntimeSwitch.addTarget(
+            self,
+            action: #selector(actionToggleTruApiRuntime),
+            for: .valueChanged
+        )
+
+        #if DEBUG
+            rootView.openTrUAPIPlaygroundButton.addTarget(
+                self,
+                action: #selector(actionOpenTrUAPIPlayground),
+                for: .touchUpInside
+            )
+        #endif
     }
 
     @objc func actionClearBackup() {
@@ -122,6 +142,18 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
     @objc func actionShowThemeSelection() {
         presenter.showThemeSelection()
     }
+
+    @objc func actionToggleStrategyDebug() {
+        presenter.toggleStrategyDebug()
+    }
+
+    @objc func actionToggleTruApiRuntime() {
+        presenter.toggleTruApiRuntime()
+    }
+
+    @objc func actionOpenTrUAPIPlayground() {
+        presenter.openTrUAPIPlayground()
+    }
 }
 
 extension DebugSettingsViewController: DebugSettingsViewProtocol {
@@ -138,5 +170,13 @@ extension DebugSettingsViewController: DebugSettingsViewProtocol {
             hasJWTToken ? "Clear JWT Token (stored)" : "Clear JWT Token (none)"
         )
         rootView.setupButtonEnabled(rootView.clearJWTTokenButton, isEnabled: hasJWTToken)
+    }
+
+    func didReceive(strategyDebugEnabled: Bool) {
+        rootView.strategyDebugSwitch.isOn = strategyDebugEnabled
+    }
+
+    func didReceive(truApiRuntimeEnabled: Bool) {
+        rootView.truApiRuntimeSwitch.isOn = truApiRuntimeEnabled
     }
 }

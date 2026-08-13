@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum TattooConfirmViewFactory {
     static func createView(for model: TattooConfirmModel) -> TattooConfirmViewProtocol? {
         let wireframe = TattooConfirmWireframe()

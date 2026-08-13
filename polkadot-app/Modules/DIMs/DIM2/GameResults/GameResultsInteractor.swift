@@ -105,6 +105,7 @@ extension GameResultsInteractor: GameResultsInteractorInputProtocol {
             logger.warning("[GameDebug] submitClaim ignored — no context")
             return
         }
+        // swiftlint:disable closure_parameter_position
         Task { [
             logger,
             claimService = dependencies.claimService,
@@ -145,6 +146,7 @@ extension GameResultsInteractor: GameResultsInteractorInputProtocol {
                 logger.error("[GameDebug] submitClaim FAILED gameIndex=\(gameIndex) error=\(error)")
             }
         }
+        // swiftlint:enable closure_parameter_position
     }
 }
 

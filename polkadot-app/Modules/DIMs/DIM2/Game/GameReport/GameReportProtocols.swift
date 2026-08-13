@@ -6,6 +6,7 @@ protocol GameReportViewProtocol: ControllerBackedProtocol {
     func didReceive(confirmButtonState: GameReportViewLayout.ConfirmButtonState)
 }
 
+@MainActor
 protocol GameReportPresenterProtocol: AnyObject {
     func setup()
     func toggleVote(_ gameVote: GameVote)
@@ -33,6 +34,5 @@ protocol GameReportInteractorOutputProtocol: AnyObject {
 protocol GameReportWireframeProtocol: ErrorPresentable, AlertPresentable {
     func close(view: GameReportViewProtocol?)
     func registerForNextGame(view: GameReportViewProtocol?)
-    @MainActor
     func showReveal(view: GameReportViewProtocol?, context: ReportSuccessContext)
 }

@@ -6,6 +6,7 @@ protocol SecretPhraseMnemonicViewProtocol: ControllerBackedProtocol {
     func showMnemonic(_ show: Bool)
 }
 
+@MainActor
 protocol SecretPhraseMnemonicPresenterProtocol: AnyObject {
     func setup()
     func copyDataInBuffer(_ data: String)
@@ -17,8 +18,10 @@ protocol SecretPhraseMnemonicInteractorInputProtocol: AnyObject {
     func requestMnemonicData()
 }
 
+@MainActor
 protocol SecretPhraseMnemonicInteractorOutputProtocol: AnyObject {
     func didReceiveMnemonic(_ mnemonic: IRMnemonicProtocol)
 }
 
+@MainActor
 protocol SecretPhraseMnemonicWireframeProtocol: CommonCopyPresentable {}

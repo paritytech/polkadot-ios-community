@@ -54,7 +54,8 @@ private extension W3sDsfinvkReceiptParser {
         let parts = processData.split(
             separator: Constants.processDataSeparator,
             omittingEmptySubsequences: false
-        ).map(String.init)
+        )
+        .map(String.init)
         guard parts.count >= Constants.processDataMinimumParts else { return nil }
 
         let payments = parts[2]

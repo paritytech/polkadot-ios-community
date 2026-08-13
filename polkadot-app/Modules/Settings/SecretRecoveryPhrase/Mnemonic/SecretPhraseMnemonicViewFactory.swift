@@ -3,6 +3,7 @@ import Keystore_iOS
 import NovaCrypto
 import KeyDerivation
 
+@MainActor
 enum SecretPhraseMnemonicViewFactory {
     static func createView() -> SecretPhraseMnemonicViewProtocol? {
         let interactor = SecretPhraseMnemonicInteractor(

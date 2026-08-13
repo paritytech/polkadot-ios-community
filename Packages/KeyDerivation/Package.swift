@@ -30,7 +30,8 @@ let package = Package(
             url: "https://github.com/novasamatech/verifiable-swift",
             from: "0.4.0"
         ),
-        .package(path: "../SubstrateSdkExt")
+        .package(path: "../SubstrateSdkExt"),
+        .package(path: "../FoundationExt")
     ],
     targets: [
         .target(
@@ -40,9 +41,19 @@ let package = Package(
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "NovaCrypto", package: "crypto-ios"),
                 .product(name: "BandersnatchApi", package: "verifiable-swift"),
-                "SubstrateSdkExt"
+                "SubstrateSdkExt",
+                "FoundationExt"
             ],
             path: "Sources"
+        ),
+        .testTarget(
+            name: "KeyDerivationTests",
+            dependencies: [
+                "KeyDerivation",
+                .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
+                .product(name: "NovaCrypto", package: "crypto-ios")
+            ],
+            path: "Tests"
         )
     ]
 )

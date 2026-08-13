@@ -10,6 +10,7 @@ struct SPAMoreAction {
 
 protocol SPAMoreActionsViewProtocol: ControllerBackedProtocol {}
 
+@MainActor
 protocol SPAMoreActionsPresenterProtocol: AnyObject {
     var actions: [SPAMoreAction] { get }
     var closeTitle: String { get }

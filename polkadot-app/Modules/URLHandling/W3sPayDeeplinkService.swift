@@ -33,8 +33,7 @@ extension W3sPayDeeplinkService: URLHandlingServiceProtocol {
             isValidId(id),
             let amount = W3sAmount.parse(amountString, maxUnits: Constants.maxAmountUnits),
             let merchantKey = Data(base64URLEncoded: keyString),
-            merchantKey.count == Constants.compressedP256ByteCount,
-            (try? P256.KeyAgreement.PublicKey(compressedRepresentation: merchantKey)) != nil,
+            (try? Curve25519.KeyAgreement.PublicKey(rawRepresentation: merchantKey)) != nil,
             let topic = try? makeTopic(for: id)
         else {
             logger?.debug("W3sPayDeeplinkService: rejected malformed deeplink")
@@ -66,7 +65,6 @@ private extension W3sPayDeeplinkService {
         static let queryKey = "key"
         static let name = "name"
         static let maxAmountUnits: Decimal = 10_000
-        static let compressedP256ByteCount = 33
         static let topicPrefix = "pay-w3s:"
     }
 

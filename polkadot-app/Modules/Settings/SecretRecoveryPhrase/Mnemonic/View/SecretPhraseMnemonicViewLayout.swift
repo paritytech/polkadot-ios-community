@@ -1,6 +1,7 @@
 import UIKit
 import SnapKit
 import UIKit_iOS
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -59,6 +60,7 @@ final class SecretPhraseMnemonicViewLayout: UIView, AdaptiveDesignable {
 
         configureView()
         configureActions()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -169,4 +171,15 @@ private enum Constants {
     static let defaultOffset: CGFloat = 16
     static let verticalOffset: CGFloat = 24
     static let copyActionWidth: CGFloat = 204
+}
+
+// MARK: - AccessibilityBound
+
+extension SecretPhraseMnemonicViewLayout: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(mnemonicView.hintView, AccessibilityID.Settings.tapToRevealButton),
+            .init(copyButton, AccessibilityID.Settings.copyRecoveryPhraseButton)
+        ]
+    }
 }

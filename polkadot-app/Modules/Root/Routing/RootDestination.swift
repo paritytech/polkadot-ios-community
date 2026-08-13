@@ -6,9 +6,6 @@ enum RootDestination: Equatable {
     case restoreFromCloud
     case usernameCheck
     case dashboard
-    case web3SummitSpa
-    case web3SummitEnded
-    case web3SummitNotStarted
     case jailbroken
     case broken
 }
@@ -16,10 +13,7 @@ enum RootDestination: Equatable {
 extension RootDestination {
     var impliesEstablishedUser: Bool {
         switch self {
-        case .dashboard,
-             .web3SummitSpa,
-             .web3SummitEnded,
-             .web3SummitNotStarted:
+        case .dashboard:
             true
         default:
             false

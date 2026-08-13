@@ -29,8 +29,10 @@ final class EnableNotificationsInteractor {
 extension EnableNotificationsInteractor: EnableNotificationsInteractorInputProtocol {
     func setup() {
         localNotificationService.notificationAccessStatus { [weak self] status in
-            self?.accessDenied = status.denied
-            self?.presenter?.didReceive(status: status)
+            MainActor.assumeIsolated {
+                self?.accessDenied = status.denied
+                self?.presenter?.didReceive(status: status)
+            }
         }
     }
 
@@ -40,10 +42,14 @@ extension EnableNotificationsInteractor: EnableNotificationsInteractorInputProto
         }
         if accessDenied {
             observeNotificationsAccess()
-            presenter?.didReceiveGoToSettings()
+            MainActor.assumeIsolated {
+                presenter?.didReceiveGoToSettings()
+            }
         } else {
             localNotificationService.requestNotificationsAuthorization { [weak presenter] granted in
-                presenter?.didReceive(accessGranted: granted)
+                MainActor.assumeIsolated {
+                    presenter?.didReceive(accessGranted: granted)
+                }
             }
         }
     }
@@ -53,7 +59,9 @@ extension EnableNotificationsInteractor: EnableNotificationsInteractorInputProto
             return
         }
         if accessDenied {
-            presenter?.didReceive(accessGranted: false)
+            MainActor.assumeIsolated {
+                presenter?.didReceive(accessGranted: false)
+            }
         } else {
             // anyway request access, even if discard confirmed by the user
             requestNotificationsAccess()
@@ -78,7 +86,9 @@ extension EnableNotificationsInteractor {
     func checkNotificationStatus() {
         localNotificationService.notificationAccessStatus { [weak self] status in
             if status.accessGranted {
-                self?.presenter?.didReceive(accessGranted: true)
+                MainActor.assumeIsolated {
+                    self?.presenter?.didReceive(accessGranted: true)
+                }
             }
             // otherwise user should press "don't enable button"
         }

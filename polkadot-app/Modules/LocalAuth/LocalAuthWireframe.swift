@@ -1,6 +1,7 @@
 import Foundation
 import Foundation_iOS
 
+@MainActor
 final class LocalAuthWireframe: LocalAuthWireframeProtocol, BottomSheetMessagePresentable {
     let authDismissable: AuthorizationDismissable
 

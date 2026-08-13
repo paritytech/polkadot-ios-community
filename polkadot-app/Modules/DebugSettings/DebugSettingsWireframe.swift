@@ -31,6 +31,21 @@ final class DebugSettingsWireframe: DebugSettingsWireframeProtocol {
         view?.controller.navigationController?.pushViewController(hostingController, animated: true)
     }
 
+    func showTrUAPIPlayground(from view: ControllerBackedProtocol?) {
+        #if DEBUG
+            guard let playgroundView = TrUAPIPlaygroundViewFactory.createView() else {
+                return
+            }
+
+            let navigationController = AppNavigationController(
+                rootViewController: playgroundView.controller
+            )
+            navigationController.modalPresentationStyle = .fullScreen
+
+            view?.controller.present(navigationController, animated: true)
+        #endif
+    }
+
     func showDotNsBrowser(from view: ControllerBackedProtocol?) {
         let alert = UIAlertController(
             title: "Open SPA",

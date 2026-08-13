@@ -1,5 +1,6 @@
 import Foundation
 import Operation_iOS
+import ChainRegistry
 
 protocol RuntimeMetadataRepositoryFactoryProtocol {
     func createRepository() -> AnyDataProviderRepository<RuntimeMetadataItem>

@@ -8,6 +8,7 @@ protocol GameNotificationServicing {
 
     func scheduleGameStartNotifications(for gameInfo: GameInfo?)
     func scheduleRegistrationStartNotifications(for schedule: GameSchedule?, currentGameInfo: GameInfo?)
+    func scheduleRegistrationOpenNotifications(for schedule: GameSchedule?)
 }
 
 class GameNotificationService {
@@ -36,6 +37,7 @@ extension GameNotificationService: GameNotificationServicing {
         case .processing,
              .cancelling:
             cleanupWaitingRoomNotification()
+            cleanupAboutToStartNotification()
         default:
             localNotificationService.notificationAccessStatus { [weak self] status in
                 guard status.accessGranted else {
@@ -43,6 +45,7 @@ extension GameNotificationService: GameNotificationServicing {
                 }
                 self?.workQueue.async {
                     self?.performScheduleWaitingRoomNotifications(for: gameInfo)
+                    self?.performScheduleAboutToStartNotifications(for: gameInfo)
                 }
             }
         }
@@ -78,9 +81,32 @@ extension GameNotificationService: GameNotificationServicing {
         }
     }
 
+    func scheduleRegistrationOpenNotifications(for schedule: GameSchedule?) {
+        localNotificationService.notificationAccessStatus { [weak self] status in
+            guard status.accessGranted else {
+                return
+            }
+            self?.workQueue.async {
+                self?.performScheduleRegistrationOpenNotifications(for: schedule)
+            }
+        }
+    }
+
     func cleanupWaitingRoomNotification() {
         workQueue.async { [weak self] in
-            self?.cleanupNotification(for: Identifiers.waitingRoom, settingsKey: .waitingRoomNotificationDate)
+            self?.cleanupDatedNotifications(
+                identifierPrefix: Identifiers.waitingRoom,
+                storedSetting: .waitingRoomNotificationDate
+            )
+        }
+    }
+
+    func cleanupAboutToStartNotification() {
+        workQueue.async { [weak self] in
+            self?.cleanupDatedNotifications(
+                identifierPrefix: Identifiers.aboutToStart,
+                storedSetting: .gameAboutToStartNotificationDate
+            )
         }
     }
 }
@@ -89,117 +115,65 @@ private extension GameNotificationService {
     enum Identifiers {
         static let waitingRoom = "game_waiting_room"
         static let registrationStart = "registration_start"
+        static let aboutToStart = "game_about_to_start"
+        static let registrationOpen = "registration_open"
     }
 
     enum TimeOffsets {
-        static let waitingRoomMinutes = 1
-        static let waitingRoomSeconds = 60 * waitingRoomMinutes
-        static let registrationStartMinutes = 5
-        static let registrationStartSeconds = 60 * registrationStartMinutes
+        static let waitingRoomMinutes: UInt64 = 1
+        static let aboutToStartMinutes: UInt64 = 5
+        static let registrationClosingMinutes: UInt64 = 60
     }
 
-    struct GameStartNotificationInput {
-        let identifier: String
-        let gameIndex: GamePallet.GameIndex?
-        let timeOffset: Int
-        let storedSetting: SettingsKey
-        let gameDate: Date?
-        let isRegistered: Bool
-        let title: String
-        let body: String
-        let sound: UNNotificationSound
-    }
-
-    struct RegistrationStartNotificationInput: Hashable {
-        let notificationDate: Int
-        let gameStartDate: Date
-    }
+    // MARK: - Per-notification schedulers
 
     func performScheduleWaitingRoomNotifications(for gameInfo: GameInfo?) {
-        performScheduleGameStartNotification(with: .init(
-            identifier: Identifiers.waitingRoom,
-            gameIndex: gameInfo?.index,
-            timeOffset: TimeOffsets.waitingRoomSeconds,
+        scheduleNotifications(
+            identifierPrefix: Identifiers.waitingRoom,
             storedSetting: .waitingRoomNotificationDate,
-            gameDate: gameInfo?.gameDate,
-            isRegistered: gameInfo?.isRegistered == true,
-            title: String(localized: .Notification.gameNotificationWaitingRoomTitle),
-            body: String(localized: .Notification.gameNotificationWaitingRoomBody),
-            sound: .default
-        ))
+            fireDates: gameStartReminderDates(for: gameInfo, minutesBeforeStart: TimeOffsets.waitingRoomMinutes)
+        ) { [self] in
+            makeContent(
+                title: String(localized: .Notification.gameNotificationWaitingRoomTitle),
+                body: String(localized: .Notification.gameNotificationWaitingRoomBody),
+                sound: .default,
+                userInfo: gameStartUserInfo(gameIndex: gameInfo?.index)
+            )
+        }
     }
 
-    func cleanupNotification(for identifier: String, settingsKey: SettingsKey) {
-        localNotificationService.cancelScheduledNotifications(
-            withIdentifiers: [identifier]
-        )
-        localNotificationService.removeDeliveredNotifications(
-            withIdentifiers: [identifier]
-        )
-        settingsManager.removeValue(for: settingsKey)
+    func performScheduleAboutToStartNotifications(for gameInfo: GameInfo?) {
+        let monthText = gameInfo?.gameDate.map {
+            DateFormatter.fullMonth.value(for: .current).string(from: $0)
+        } ?? ""
+        scheduleNotifications(
+            identifierPrefix: Identifiers.aboutToStart,
+            storedSetting: .gameAboutToStartNotificationDate,
+            fireDates: gameStartReminderDates(for: gameInfo, minutesBeforeStart: TimeOffsets.aboutToStartMinutes)
+        ) { [self] in
+            makeContent(
+                title: String(localized: .Notification.gameNotificationRegistrationStartTitle(monthText)),
+                body: String(
+                    localized: .Notification.gameNotificationRegistrationStartBody(Int(TimeOffsets.aboutToStartMinutes))
+                ),
+                sound: .default,
+                userInfo: gameStartUserInfo(gameIndex: gameInfo?.index)
+            )
+        }
     }
 
-    func performScheduleGameStartNotification(with input: GameStartNotificationInput) {
-        let notificationDate: Int?
-
-        if let gameDate = input.gameDate, input.isRegistered {
-            let intervalSinceReferenceDate = Int(gameDate.timeIntervalSinceReferenceDate)
-            notificationDate = intervalSinceReferenceDate - input.timeOffset
-        } else {
-            notificationDate = nil
-        }
-
-        let storedDate = settingsManager.integer(for: input.storedSetting)
-        let isChanged = notificationDate != storedDate
-
-        logger.debug("\(input.identifier) isChanged = \(isChanged)")
-
-        guard isChanged else {
-            return
-        }
-
-        cleanupNotification(for: input.identifier, settingsKey: input.storedSetting)
-
-        guard let notificationDate else {
-            return
-        }
-
-        let date = Date(timeIntervalSinceReferenceDate: TimeInterval(notificationDate))
-        let now = Date()
-
-        guard date > now else {
-            return
-        }
-
-        settingsManager.set(
-            value: notificationDate,
-            for: input.storedSetting
-        )
-
-        var notificationUserInfo: [String: Any] = [
-            PushNotificationKeys.chatExtensionId: DIM2ChatExtension.identifier,
-            PushNotificationKeys.pushSource: PushNotificationSource.chat.rawValue
-        ]
-
-        if input.identifier == Identifiers.waitingRoom {
-            notificationUserInfo[PushNotificationKeys.gameState] = PushGameNotificationType.waitingRoom.rawValue
-        }
-
-        if let gameIndex = input.gameIndex {
-            notificationUserInfo[PushNotificationKeys.gameIndex] = Int(gameIndex)
-        }
-
-        localNotificationService.scheduleNotification(
-            withIdentifier: input.identifier,
-            content: makeContent(
-                title: input.title,
-                body: input.body,
-                sound: input.sound,
-                userInfo: notificationUserInfo
-            ),
-            after: date.timeIntervalSince(now)
-        ) { [weak self] error in
-            self?.logger.debug("\(input.identifier) scheduled with error: \(String(describing: error))")
+    func performScheduleRegistrationOpenNotifications(for schedule: GameSchedule?) {
+        scheduleNotifications(
+            identifierPrefix: Identifiers.registrationOpen,
+            storedSetting: .registrationOpenNotificationDates,
+            fireDates: (schedule?.items ?? []).map(\.registrationStartDate)
+        ) { [self] in
+            makeContent(
+                title: String(localized: .Notification.gameNotificationRegistrationOpenTitle),
+                body: String(localized: .Notification.gameNotificationRegistrationOpenBody),
+                sound: .default,
+                userInfo: registrationUserInfo
+            )
         }
     }
 
@@ -207,114 +181,125 @@ private extension GameNotificationService {
         for schedule: GameSchedule?,
         currentGameInfo: GameInfo?
     ) {
-        let notificationInputs = makeRegistrationStartInputs(
-            schedule: schedule,
-            currentGameInfo: currentGameInfo
-        )
-        let notificationDates = notificationInputs.map(\.notificationDate)
-        let storedDates = settingsManager.integerArray(for: .registrationStartNotificationDates)
-        let isChanged = notificationDates != (storedDates ?? [])
+        scheduleNotifications(
+            identifierPrefix: Identifiers.registrationStart,
+            storedSetting: .registrationStartNotificationDates,
+            fireDates: registrationClosingDates(schedule: schedule, currentGameInfo: currentGameInfo)
+        ) { [self] in
+            makeContent(
+                title: String(localized: .Notification.gameNotificationRegistrationClosingTitle),
+                body: String(localized: .Notification.gameNotificationRegistrationClosingBody),
+                sound: .default,
+                userInfo: registrationUserInfo
+            )
+        }
+    }
 
-        logger.debug("isChanged = \(isChanged)")
+    // MARK: - Fire-date producers
 
-        guard isChanged else {
+    func gameStartReminderDates(for gameInfo: GameInfo?, minutesBeforeStart minutes: UInt64) -> [Date] {
+        guard gameInfo?.isRegistered == true, let gameDate = gameInfo?.gameDate else {
+            return []
+        }
+        return [gameDate.addingTimeInterval(-minutes.minutesToSeconds())]
+    }
+
+    func registrationClosingDates(schedule: GameSchedule?, currentGameInfo: GameInfo?) -> [Date] {
+        let offset = TimeOffsets.registrationClosingMinutes.minutesToSeconds()
+        let upcoming = (schedule?.items ?? []).map(\.registrationEndDate)
+        let current = currentGameRegistrationCloseDate(currentGameInfo).map { [$0] } ?? []
+        return (upcoming + current).map { $0.addingTimeInterval(-offset) }
+    }
+
+    func currentGameRegistrationCloseDate(_ gameInfo: GameInfo?) -> Date? {
+        guard
+            let gameInfo,
+            case .registration = gameInfo.state,
+            !gameInfo.isRegistered,
+            let registrationEnds = gameInfo.registrationEnds
+        else {
+            return nil
+        }
+        return registrationEnds
+    }
+
+    // MARK: - User info
+
+    var registrationUserInfo: [String: Any] {
+        [
+            PushNotificationKeys.chatExtensionId: DIM2ChatExtension.identifier,
+            PushNotificationKeys.pushSource: PushNotificationSource.chat.rawValue,
+            PushNotificationKeys.gameState: PushGameNotificationType.register.rawValue
+        ]
+    }
+
+    func gameStartUserInfo(gameIndex: GamePallet.GameIndex?) -> [String: Any] {
+        var userInfo: [String: Any] = [
+            PushNotificationKeys.chatExtensionId: DIM2ChatExtension.identifier,
+            PushNotificationKeys.pushSource: PushNotificationSource.chat.rawValue,
+            PushNotificationKeys.gameState: PushGameNotificationType.waitingRoom.rawValue
+        ]
+        if let gameIndex {
+            userInfo[PushNotificationKeys.gameIndex] = Int(gameIndex)
+        }
+        return userInfo
+    }
+
+    // MARK: - Universal scheduling
+
+    /// Schedules one local notification per fire date under `<prefix>_<date>`, replacing the
+    /// previously scheduled set whenever the dates change. Past dates are skipped; an empty
+    /// `fireDates` just cancels the existing set.
+    func scheduleNotifications(
+        identifierPrefix: String,
+        storedSetting: SettingsKey,
+        fireDates: [Date],
+        contentFactory: () -> UNNotificationContent
+    ) {
+        let dates = Array(Set(fireDates.map { Int($0.timeIntervalSinceReferenceDate) })).sorted()
+
+        guard dates != (settingsManager.integerArray(for: storedSetting) ?? []) else {
             return
         }
 
-        let notificationIdentifiers = makeRegistrationStartIdentifiers(dates: notificationDates)
-        let storedIdentifiers = makeRegistrationStartIdentifiers(dates: storedDates ?? [])
+        cleanupDatedNotifications(identifierPrefix: identifierPrefix, storedSetting: storedSetting)
 
-        if !storedIdentifiers.isEmpty {
-            localNotificationService.cancelScheduledNotifications(withIdentifiers: storedIdentifiers)
-            settingsManager.removeValue(for: .registrationStartNotificationDates)
-        }
-
-        guard !notificationIdentifiers.isEmpty else {
+        guard !dates.isEmpty else {
             return
         }
 
-        settingsManager.set(intArray: notificationDates, for: .registrationStartNotificationDates)
+        settingsManager.set(intArray: dates, for: storedSetting)
 
         let now = Date()
-
-        for (index, identifier) in notificationIdentifiers.enumerated() {
-            let notificationInput = notificationInputs[index]
-            let date = Date(timeIntervalSinceReferenceDate: TimeInterval(notificationInput.notificationDate))
-            let delay = date.timeIntervalSince(now)
-
+        for storedDate in dates {
+            let date = Date(timeIntervalSinceReferenceDate: TimeInterval(storedDate))
             guard date > now else {
                 continue
             }
-
-            let monthText = DateFormatter.fullMonth.value(for: .current)
-                .string(from: notificationInput.gameStartDate)
-
-            let content = makeContent(
-                title: String(localized: .Notification.gameNotificationRegistrationStartTitle(monthText)),
-                body: String(
-                    localized: .Notification
-                        .gameNotificationRegistrationStartBody(TimeOffsets.registrationStartMinutes)
-                ),
-                sound: .default,
-                userInfo: [
-                    PushNotificationKeys.chatExtensionId: DIM2ChatExtension.identifier,
-                    PushNotificationKeys.pushSource: PushNotificationSource.chat.rawValue,
-                    PushNotificationKeys.gameState: PushGameNotificationType.register.rawValue
-                ]
-            )
-
+            let identifier = notificationIdentifier(prefix: identifierPrefix, date: storedDate)
             localNotificationService.scheduleNotification(
                 withIdentifier: identifier,
-                content: content,
-                after: delay
+                content: contentFactory(),
+                after: date.timeIntervalSince(now)
             ) { [weak self] error in
                 self?.logger.debug("\(identifier) scheduled with error: \(String(describing: error))")
             }
         }
     }
 
-    func makeRegistrationStartIdentifiers(dates: [Int]) -> [String] {
-        dates.map { "\(Identifiers.registrationStart)_\($0)" }
-    }
+    func cleanupDatedNotifications(identifierPrefix: String, storedSetting: SettingsKey) {
+        let identifiers = (settingsManager.integerArray(for: storedSetting) ?? [])
+            .map { notificationIdentifier(prefix: identifierPrefix, date: $0) }
 
-    func makeRegistrationStartInputs(
-        schedule: GameSchedule?,
-        currentGameInfo: GameInfo?
-    ) -> [RegistrationStartNotificationInput] {
-        let scheduledInputs = schedule?.items.map {
-            makeRegistrationStartInput(gameStartDate: $0.gameStartDate)
-        } ?? []
-
-        let currentGameInput = makeCurrentGameRegistrationStartInput(currentGameInfo)
-
-        return Dictionary(
-            grouping: scheduledInputs + [currentGameInput].compactMap { $0 },
-            by: \.notificationDate
-        )
-        .values
-        .compactMap(\.first)
-        .sorted { $0.notificationDate < $1.notificationDate }
-    }
-
-    func makeCurrentGameRegistrationStartInput(_ gameInfo: GameInfo?) -> RegistrationStartNotificationInput? {
-        guard
-            let gameInfo,
-            case .registration = gameInfo.state,
-            !gameInfo.isRegistered,
-            let gameDate = gameInfo.gameDate
-        else {
-            return nil
+        if !identifiers.isEmpty {
+            localNotificationService.cancelScheduledNotifications(withIdentifiers: identifiers)
+            localNotificationService.removeDeliveredNotifications(withIdentifiers: identifiers)
         }
-
-        return makeRegistrationStartInput(gameStartDate: gameDate)
+        settingsManager.removeValue(for: storedSetting)
     }
 
-    func makeRegistrationStartInput(gameStartDate: Date) -> RegistrationStartNotificationInput {
-        .init(
-            notificationDate: Int(gameStartDate.timeIntervalSinceReferenceDate) -
-                TimeOffsets.registrationStartSeconds,
-            gameStartDate: gameStartDate
-        )
+    func notificationIdentifier(prefix: String, date: Int) -> String {
+        "\(prefix)_\(date)"
     }
 
     func makeContent(

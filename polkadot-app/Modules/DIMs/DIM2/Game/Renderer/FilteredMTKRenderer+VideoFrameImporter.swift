@@ -115,14 +115,28 @@ extension FilteredMTKRenderer.VideoFrameImporter {
 
         func createY() -> OSStatus {
             CVMetalTextureCacheCreateTextureFromImage(
-                kCFAllocatorDefault, cache, pixelBuffer, nil,
-                .r8Unorm, yWidth, yHeight, 0, &yRef
+                kCFAllocatorDefault,
+                cache,
+                pixelBuffer,
+                nil,
+                .r8Unorm,
+                yWidth,
+                yHeight,
+                0,
+                &yRef
             )
         }
         func createUV() -> OSStatus {
             CVMetalTextureCacheCreateTextureFromImage(
-                kCFAllocatorDefault, cache, pixelBuffer, nil,
-                .rg8Unorm, uvWidth, uvHeight, 1, &uvRef
+                kCFAllocatorDefault,
+                cache,
+                pixelBuffer,
+                nil,
+                .rg8Unorm,
+                uvWidth,
+                uvHeight,
+                1,
+                &uvRef
             )
         }
 

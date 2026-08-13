@@ -28,7 +28,7 @@ extension FiatOnRampInteractor: FiatOnRampInteractorInputProtocol {
 
 private extension FiatOnRampInteractor {
     func fetchPurchaseLimits() {
-        limitsTask = Task { [weak self] in
+        limitsTask = Task { @MainActor [weak self] in
             guard let self else {
                 return
             }

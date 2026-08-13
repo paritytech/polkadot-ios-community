@@ -4,6 +4,7 @@ import ExtrinsicService
 import HydrationSdk
 import SubstrateSdk
 import AssetHubSdk
+import ChainRegistry
 
 final class ExtrinsicFeeInstallingFactory {
     let host: ExtrinsicFeeEstimatorHostProtocol

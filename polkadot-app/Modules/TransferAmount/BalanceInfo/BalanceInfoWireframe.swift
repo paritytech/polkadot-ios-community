@@ -32,7 +32,7 @@ final class BalanceInfoWireframe: BalanceInfoWireframeProtocol {
                 String(localized: .Transfer.balanceInfoAvailableSoonInfoDetail3)
             ]
         )
-        let vc = PrivacyLearnMoreViewController(models: [model])
-        view?.controller.navigationController?.pushViewController(vc, animated: true)
+        let controller = PrivacyLearnMoreViewController(models: [model])
+        view?.controller.navigationController?.pushViewController(controller, animated: true)
     }
 }

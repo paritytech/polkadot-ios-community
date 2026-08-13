@@ -9,7 +9,9 @@ import Individuality
 struct VoucherOnChainInfo {
     let exponent: Int16
     let ringPosition: MembersPallet.RingPosition
-    let isUnloaded: Bool
+    let aliasState: CoinagePallet.AliasState?
+
+    var isUnloaded: Bool { aliasState == .unloaded }
 }
 
 // MARK: - Protocol
@@ -99,17 +101,20 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
                 return (key.index, key.exponent, ringIndex, position)
             }
 
-        // Step 4: fetch unloaded — include unloaded with flag set so callers can track their indices
-        let unloadedFlags = try await fetchUnloaded(for: withPositions.map {
-            (derivationIndex: $0.index, exponent: $0.exponent, ringIndex: $0.ringIndex)
-        })
-        let infoByIndex: [UInt32: VoucherOnChainInfo] = zip(withPositions, unloadedFlags)
+        // Step 4: fetch alias states — include all with their state so callers can track their indices
+        let aliasStates = try await fetchAliasStates(
+            for: withPositions.map {
+                (derivationIndex: $0.index, exponent: $0.exponent, ringIndex: $0.ringIndex)
+            },
+            atBlockHash: atBlockHash
+        )
+        let infoByIndex: [UInt32: VoucherOnChainInfo] = zip(withPositions, aliasStates)
             .reduce(into: [:]) { dict, pair in
-                let (key, isUnloaded) = pair
+                let (key, aliasState) = pair
                 dict[key.index] = VoucherOnChainInfo(
                     exponent: key.exponent,
                     ringPosition: key.ringPosition,
-                    isUnloaded: isUnloaded
+                    aliasState: aliasState
                 )
             }
 
@@ -119,7 +124,7 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
 
 // MARK: - NMap key
 
-private struct RecyclersUnloadedKey: NMapKeyStorageKeyProtocol {
+private struct RecyclerAliasStateKey: NMapKeyStorageKeyProtocol {
     let exponent: Int16
     let ringIndex: MembersPallet.RingIndex
     let publicKey: Data
@@ -160,30 +165,29 @@ private extension VoucherOnChainQueryService {
         return responses.map { $0?.wrappedValue }
     }
 
-    func fetchUnloaded(
-        for keys: [(derivationIndex: UInt32, exponent: Int16, ringIndex: MembersPallet.RingIndex)]
-    ) async throws -> [Bool] {
+    func fetchAliasStates(
+        for keys: [(derivationIndex: UInt32, exponent: Int16, ringIndex: MembersPallet.RingIndex)],
+        atBlockHash: Data?
+    ) async throws -> [CoinagePallet.AliasState?] {
         guard !keys.isEmpty else { return [] }
 
         let coderFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
 
-        let nMapKeys: [RecyclersUnloadedKey] = try keys.map {
+        let nMapKeys: [RecyclerAliasStateKey] = try keys.map {
             let alias = try aliasProvider($0.derivationIndex)
-            return RecyclersUnloadedKey(exponent: $0.exponent, ringIndex: $0.ringIndex, publicKey: alias)
+            return RecyclerAliasStateKey(exponent: $0.exponent, ringIndex: $0.ringIndex, publicKey: alias)
         }
 
-        let responses: [StorageResponse<JSON?>] = try await storageRequestFactory.queryNMapItems(
-            engine: connection,
-            nParamKeys: { nMapKeys },
-            factory: { coderFactory },
-            storagePath: CoinagePallet.Storage.recyclersUnloaded()
-        )
-        .asyncExecute()
-
-        // For unloaded vouchers storage return empty data, not nil, but 0
-        return responses
+        return try await storageRequestFactory
+            .queryNMapItems(
+                engine: connection,
+                nParamKeys: { nMapKeys },
+                factory: { coderFactory },
+                storagePath: CoinagePallet.Storage.recyclerAliasStates(),
+                at: atBlockHash
+            )
+            .asyncExecute()
             .map(\.value)
-            .map { $0 != nil }
     }
 
     func fetchPositions(

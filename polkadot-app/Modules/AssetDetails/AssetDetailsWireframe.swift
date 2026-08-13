@@ -1,7 +1,9 @@
 import UIKit
 import Foundation_iOS
 import UIKitExt
+import ChainRegistry
 
+@MainActor
 final class AssetDetailsWireframe: AssetDetailsWireframeProtocol {
     let context: WalletFlowContextProtocol
 

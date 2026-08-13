@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class RemoveDevicePresenter {
     weak var view: RemoveDeviceViewProtocol?
 

@@ -4,6 +4,8 @@ import Keystore_iOS
 import CommonService
 import AssetExchange
 import KeyDerivation
+import ChainRegistry
+import EventCenter
 
 protocol ProofOfInkFlowStateProtocol {
     var systemLocalDataFactory: SystemLocalDataFactoryProtocol { get }
@@ -108,7 +110,6 @@ extension ProofOfInkFlowState: ProofOfInkFlowStateProtocol {
             connection: connection,
             runtimeService: runtimeService,
             repository: repository,
-            eventCenter: eventCenter,
             operationQueue: operationQueue,
             logger: logger
         )
@@ -190,7 +191,7 @@ extension ProofOfInkFlowState: ProofOfInkFlowStateProtocol {
             chainRegistry: chainRegistry,
             substrateStorageFacade: substrateStorageFacade,
             customFeeEstimator: ExtrinsicCustomFeeEstimatorFactory(providers: []),
-            transactionExtensionFactory: ExtrinsicTransactionExtensionFactory(),
+            transactionExtensionFactory: CompoundTxExtensionFactory(),
             operationQueue: operationQueue
         )
 

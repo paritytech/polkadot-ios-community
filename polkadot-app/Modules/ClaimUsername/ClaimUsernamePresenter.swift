@@ -1,7 +1,9 @@
 import Foundation
 import Foundation_iOS
 import Combine
+import PolkadotUI
 
+@MainActor
 final class ClaimUsernamePresenter {
     weak var view: ClaimUsernameViewProtocol?
     let wireframe: ClaimUsernameWireframeProtocol
@@ -17,10 +19,8 @@ final class ClaimUsernamePresenter {
     private var usernameCheckResult: UsernameAvailableType?
     private var usernameViewModel: InputViewModelProtocol?
 
-    private var availableDigits: [Int] = []
     private var selectedDigits: Int?
     private var digitsFieldState: DigitsFieldState = .hidden
-    private var digitsViewModel: InputViewModelProtocol?
 
     private var claimCancellable: AnyCancellable?
     private var usernameCheckCancellable: AnyCancellable?
@@ -50,7 +50,6 @@ extension ClaimUsernamePresenter {
 
         DataValidationRunner(
             validators: [
-                validationFactory.hasValidDigits(from: digitsFieldState),
                 validationFactory.notViolatingMinLength(
                     for: partialNormalizedUsername,
                     minLength: metadata.minLength
@@ -68,10 +67,8 @@ extension ClaimUsernamePresenter {
     }
 
     private func resetDigitsState() {
-        availableDigits = []
         selectedDigits = nil
         digitsFieldState = .hidden
-        digitsViewModel = nil
         view?.didReceive(digitsState: .hidden)
     }
 
@@ -89,6 +86,7 @@ extension ClaimUsernamePresenter {
     }
 
     private func doUsernameCheckUpdateIfPossible() {
+        let wasVisible = digitsFieldState != .hidden
         resetDigitsState()
 
         guard
@@ -101,6 +99,11 @@ extension ClaimUsernamePresenter {
             usernameCheckCancellable = nil
             validateUsername()
             return
+        }
+
+        if wasVisible {
+            digitsFieldState = .loading
+            view?.didReceive(digitsState: .loading)
         }
 
         view?.didStartLoading()
@@ -131,16 +134,8 @@ extension ClaimUsernamePresenter: ClaimUsernamePresenterProtocol {
     }
 
     func updateDigits(_ value: String) {
-        let parsed = Int(value)
-        selectedDigits = parsed
-
-        if let parsed, availableDigits.contains(parsed) {
-            digitsFieldState = .valid
-        } else {
-            digitsFieldState = .invalid
-        }
-
-        view?.didReceive(digitsState: digitsFieldState)
+        selectedDigits = Int(value)
+        view?.didReceive(digitsState: .shown)
         validateUsername()
     }
 
@@ -200,7 +195,7 @@ extension ClaimUsernamePresenter: ClaimUsernamePresenterProtocol {
     }
 }
 
-extension ClaimUsernamePresenter: ClaimUsernameInteractorOutputProtocol {
+extension ClaimUsernamePresenter: ClaimLiteUsernameInteractorOutputProtocol {
     func didSaveUsername() {
         wireframe.finishFlow(from: view)
     }
@@ -238,18 +233,17 @@ private extension ClaimUsernamePresenter {
 
         switch result {
         case let .available(digits):
-            availableDigits = digits
             if let first = digits.first {
                 selectedDigits = first
-                digitsFieldState = .valid
-
-                let viewModel = InputViewModel.createDigitsInputViewModel(
-                    initialValue: String(format: "%02d", first)
-                )
-                digitsViewModel = viewModel
-                view?.didReceive(digitsInputViewModel: viewModel)
-                view?.didReceive(digitsState: .valid)
+                digitsFieldState = .shown
+                view?.didReceive(digitsOptions: digits.map { String(format: "%02d", $0) })
+                view?.didReceive(digitsState: .shown)
             }
+            validateUsername()
+        case .taken where digitsFieldState == .loading,
+             .invalid where digitsFieldState == .loading:
+            digitsFieldState = .hidden
+            view?.didReceive(digitsState: .hidden)
             validateUsername()
         case .taken,
              .invalid:

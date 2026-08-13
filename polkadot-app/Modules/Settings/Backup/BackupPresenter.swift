@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class BackupPresenter {
     // MARK: Properties
 

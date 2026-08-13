@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import UIKit
 internal import SnapKit
 
@@ -39,6 +40,7 @@ final class SearchContactListView: UIView, UIContentView {
         super.init(frame: .zero)
         setupViews()
         apply(configuration)
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -78,4 +80,12 @@ final class SearchContactListView: UIView, UIContentView {
         userName: "Jake.23",
         avatarViewModel: .colored(text: "J", colorSeed: "preview")
     ).makeContentView()
+}
+
+// MARK: - AccessibilityBound
+
+extension SearchContactListView: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [.init(self, AccessibilityID.Chats.searchResultRow)]
+    }
 }

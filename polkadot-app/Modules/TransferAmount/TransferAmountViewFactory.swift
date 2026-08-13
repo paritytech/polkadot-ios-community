@@ -3,7 +3,9 @@ import BigInt
 import ExtrinsicService
 import SubstrateSdk
 import Coinage
+import ChainRegistry
 
+@MainActor
 enum TransferAmountViewFactory {
     static func createChatTransfer(
         for chainAsset: ChainAsset,
@@ -59,7 +61,8 @@ enum TransferAmountViewFactory {
             transferMethod: .externalPayment,
             coinageService: coinageService,
             chatSubmitter: NoChatSubmitter(),
-            config: config
+            config: config,
+            lifecycleReporter: ExternalPaymentLifecycleReporter(coinageService: coinageService)
         )
     }
 
@@ -69,8 +72,9 @@ enum TransferAmountViewFactory {
         for chainAsset: ChainAsset,
         recipient: RecipientModel,
         coinageService: CoinageServicing,
-        chatSubmitter: TransferChatSubmitting,
-        amountInPlanks: BigUInt
+        chatSubmitter: TransferSubmitting,
+        amountInPlanks: BigUInt,
+        lifecycleReporter: TransferLifecycleReporting = NoOpTransferLifecycleReporter()
     ) -> TransferAmountViewProtocol? {
         let wireframe = SuccessPaymentWireframe()
         let config = TransferAmountConfig(
@@ -87,7 +91,8 @@ enum TransferAmountViewFactory {
             transferMethod: .coinage,
             coinageService: coinageService,
             chatSubmitter: chatSubmitter,
-            config: config
+            config: config,
+            lifecycleReporter: lifecycleReporter
         )
     }
 
@@ -97,15 +102,17 @@ enum TransferAmountViewFactory {
         wireframe: TransferAmountWireframeProtocol,
         transferMethod: TransferMethod,
         coinageService: CoinageServicing,
-        chatSubmitter: TransferChatSubmitting,
-        config: TransferAmountConfig = .default
+        chatSubmitter: TransferSubmitting,
+        config: TransferAmountConfig = .default,
+        lifecycleReporter: TransferLifecycleReporting = NoOpTransferLifecycleReporter()
     ) -> TransferAmountViewProtocol? {
         guard let interactor = createInteractor(
             for: chainAsset,
             recipient: recipient,
             transferMethod: transferMethod,
             coinageService: coinageService,
-            chatSubmitter: chatSubmitter
+            chatSubmitter: chatSubmitter,
+            lifecycleReporter: lifecycleReporter
         ) else {
             return nil
         }
@@ -148,7 +155,8 @@ enum TransferAmountViewFactory {
         recipient: RecipientModel,
         transferMethod: TransferMethod,
         coinageService: CoinageServicing,
-        chatSubmitter: TransferChatSubmitting
+        chatSubmitter: TransferSubmitting,
+        lifecycleReporter: TransferLifecycleReporting = NoOpTransferLifecycleReporter()
     ) -> TransferAmountInteractor? {
         let queue = OperationManagerFacade.sharedDefaultQueue
         let wallet = SelectedWallet.main
@@ -167,7 +175,8 @@ enum TransferAmountViewFactory {
             operationQueue: { queue },
             coinageService: { coinageService },
             transferMethod: { transferMethod },
-            chatSubmitter: { chatSubmitter }
+            chatSubmitter: { chatSubmitter },
+            lifecycleReporter: { lifecycleReporter }
         )
 
         return try? TransferAmountInteractor(
@@ -176,7 +185,7 @@ enum TransferAmountViewFactory {
         )
     }
 
-    private static func makeContactChatSubmitter() -> TransferChatSubmitting {
+    private static func makeContactChatSubmitter() -> TransferSubmitting {
         ContactChatSubmitter(
             chatContactsProvider: ContactsLocalStorageService(),
             createMessageFactory: LocalMessageCreatingOperationFactory(

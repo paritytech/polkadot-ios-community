@@ -4,6 +4,7 @@ import Operation_iOS
 import JailbreakDetection
 import KeyDerivation
 import SubstrateSdk
+import ChainRegistry
 
 enum RootPresenterFactory: RootPresenterFactoryProtocol {
     static func createPresenter(with window: UIWindow) -> RootPresenterProtocol {
@@ -52,15 +53,12 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
         let resolver = SequentialDecisionResolver<RootDestination>(
             preChecks: [RootGate.Jailbreak(detector: jailbreakDetector, logger: Logger.shared)],
             gates: [
-                RootGate.Web3SummitStart(),
-                RootGate.Web3SummitEnded(),
                 RootGate.Theme(),
                 RootGate.Wallet(
                     entropyManager: RootEntropyManager.shared,
                     backupHelper: MnemonicBackupHelper()
                 ),
-                RootGate.Username(usernameStorage: UsernameStorage()),
-                RootGate.Web3Summit()
+                RootGate.Username(usernameStorage: UsernameStorage())
             ],
             fallback: .dashboard
         )
@@ -74,20 +72,13 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             makeResolver: makeResolver
         )
 
-        let web3SummitPrewarmer = ProductContentPrewarmer(
-            makeDomain: { (try? AppConfig.getWeb3Summit())?.dotNsUrl.host() ?? "" },
-            chainRegistryClosure: chainRegistryClosure,
-            makeResolver: makeResolver
-        )
-
         let interactor = RootInteractor(
             chainRegistryClosure: chainRegistryClosure,
             migrator: migrator,
             logger: Logger.shared,
             resolver: resolver,
             tokenManager: JWTTokenManager.shared,
-            browsePrewarmer: browsePrewarmer,
-            web3SummitPrewarmer: web3SummitPrewarmer
+            browsePrewarmer: browsePrewarmer
         )
 
         let presenter = RootPresenter(

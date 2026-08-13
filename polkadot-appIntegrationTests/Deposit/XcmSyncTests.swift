@@ -1,4 +1,5 @@
 import XCTest
+import ChainRegistry
 @testable import polkadot_app
 import SubstrateSdk
 import XcmTransfer

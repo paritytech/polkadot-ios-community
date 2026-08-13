@@ -180,15 +180,7 @@ extension CoinageBalanceService {
     ) -> (spendable: CoinageSpendableBalanceModel, locked: CoinageBalance, nextUnlock: Date?) {
         let now = Date.now
 
-        let coinsPlanks = coins.values
-            .filter { $0.state == .available }
-            .map { context.valueInPlanks(for: $0.exponent) }
-            .reduce(BigUInt(0), +)
-
-        let recyclingCoinsPlanks = coins.values
-            .filter { $0.state == .recycling }
-            .map { context.valueInPlanks(for: $0.exponent) }
-            .reduce(BigUInt(0), +)
+        let coinPlanks = splitCoinPlanks(coins: coins.values, context: context)
 
         var lockedVouchersPlanks = BigUInt(0)
         var fullPrivacyVouchersPlanks = BigUInt(0)
@@ -214,15 +206,45 @@ extension CoinageBalanceService {
             }
         }
 
-        let lockedPlanks = lockedVouchersPlanks + recyclingCoinsPlanks
+        let lockedPlanks = lockedVouchersPlanks + coinPlanks.recycling + coinPlanks.expiringSoon
 
         return (
             spendable: CoinageSpendableBalanceModel(
-                fullPrivacy: CoinageBalance(planks: coinsPlanks + fullPrivacyVouchersPlanks, context: context),
+                fullPrivacy: CoinageBalance(planks: coinPlanks.spendable + fullPrivacyVouchersPlanks, context: context),
                 degraded: CoinageBalance(planks: degradedVouchersPlanks, context: context)
             ),
             locked: CoinageBalance(planks: lockedPlanks, context: context),
             nextUnlock: nextUnlock
         )
+    }
+
+    /// Buckets available coins by spend-readiness:
+    /// - `spendable`: available coins under `coinMaxAge`
+    /// - `expiringSoon`: available but past `coinMaxAge` — pending recycling, not safe to spend
+    /// - `recycling`: already locked by an in-flight recycling extrinsic
+    private nonisolated func splitCoinPlanks(
+        coins: some Collection<Coin>,
+        context: DenominationBreakdownContext
+    ) -> (spendable: BigUInt, expiringSoon: BigUInt, recycling: BigUInt) {
+        var spendable = BigUInt(0)
+        var expiringSoon = BigUInt(0)
+        var recycling = BigUInt(0)
+
+        for coin in coins {
+            let amount = context.valueInPlanks(for: coin.exponent)
+            switch coin.state {
+            case .available where coin.isExpiringSoon:
+                expiringSoon += amount
+            case .available:
+                spendable += amount
+            case .recycling:
+                recycling += amount
+            case .spent,
+                 .pendingTransfer:
+                break
+            }
+        }
+
+        return (spendable, expiringSoon, recycling)
     }
 }

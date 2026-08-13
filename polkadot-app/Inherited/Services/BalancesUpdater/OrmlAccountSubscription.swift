@@ -3,6 +3,8 @@ import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
 import AssetsManagement
+import ChainRegistry
+import SubstrateSdkExt
 
 final class OrmlAccountSubscription {
     let remoteStorageKey: Data

@@ -17,19 +17,22 @@ public final class PGASSlotInfoProvider: PGASSlotInfoProviding {
     private let chainRegistry: ChainResourceProtocol
     private let storageRequestFactory: StorageRequestFactoryProtocol
     private let keyResolver: BandersnatchKeyResolving
+    private let chainTimeProvider: ChainTimeProviding
 
     public init(
         chainId: ChainId,
         peopleChainId: ChainId,
         chainRegistry: ChainResourceProtocol,
         storageRequestFactory: StorageRequestFactoryProtocol,
-        keyResolver: BandersnatchKeyResolving
+        keyResolver: BandersnatchKeyResolving,
+        chainTimeProvider: ChainTimeProviding
     ) {
         self.chainId = chainId
         self.peopleChainId = peopleChainId
         self.chainRegistry = chainRegistry
         self.storageRequestFactory = storageRequestFactory
         self.keyResolver = keyResolver
+        self.chainTimeProvider = chainTimeProvider
     }
 
     public func hasExistingSlot(for _: AccountId) async throws -> Bool {
@@ -58,8 +61,7 @@ private extension PGASSlotInfoProvider {
         personOrigin: PersonOrigin,
         day: UInt32
     ) {
-        // TODO: replace system time with on-chain timestamp
-        let day = UInt32(Date().timeIntervalSince1970 / TimeInterval.secondsInDay)
+        let day = try await chainTimeProvider.currentPeriod()
 
         let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chainId)
         let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)

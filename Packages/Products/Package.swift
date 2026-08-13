@@ -45,6 +45,10 @@ let package = Package(
             url: "https://github.com/swift-libp2p/swift-cid.git",
             .upToNextMajor(from: "0.0.4")
         ),
+        .package(
+            url: "https://github.com/sideeffect-io/AsyncExtensions",
+            exact: "0.5.4"
+        ),
         .package(path: "../StatementStore"),
         .package(path: "../Individuality"),
         .package(path: "../UIKitExt"),
@@ -68,6 +72,7 @@ let package = Package(
                 .product(name: "CID", package: "swift-cid"),
                 .product(name: "web3swift", package: "web3swift"),
                 .product(name: "StructuredConcurrency", package: "StructuredConcurrency"),
+                .product(name: "AsyncExtensions", package: "AsyncExtensions"),
                 .product(name: "StatementStore", package: "StatementStore"),
                 "Individuality",
                 "UIKitExt",
@@ -84,6 +89,7 @@ let package = Package(
                 "Products",
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "web3swift", package: "web3swift"),
+                .product(name: "KeyDerivation", package: "KeyDerivation"),
             ]
         )
     ]

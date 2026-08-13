@@ -5,6 +5,7 @@ protocol EvidenceInstructionsInteractorInputProtocol: AnyObject {
     func stopMonitoringDeviceStatus()
 }
 
+@MainActor
 protocol EvidenceInstructionsInteractorOutputProtocol: AnyObject {
     func didUpdate(deviceStatus: ProvideEvidenceDeviceStatus)
 }
@@ -33,7 +34,9 @@ final class EvidenceInstructionsInteractor {
 
 extension EvidenceInstructionsInteractor: EvidenceInstructionsInteractorInputProtocol {
     func updateDeviceStatus() {
-        presenter?.didUpdate(deviceStatus: provideDeviceCheck())
+        MainActor.assumeIsolated {
+            presenter?.didUpdate(deviceStatus: provideDeviceCheck())
+        }
     }
 
     func stopMonitoringDeviceStatus() {

@@ -1,6 +1,8 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 enum GameDepositRequiredViewFactory {
     static func createView(
         requiredBalance: Balance,

@@ -5,6 +5,8 @@ import Individuality
 import KeyDerivation
 import ChainStore
 import Coinage
+import ChainRegistry
+import StructuredConcurrency
 
 /// App-side factory implementing OriginCreating.
 /// Checks DetermineStatePersonDataStore to decide between People and LitePeople paths.
@@ -122,11 +124,13 @@ final class CoinageOriginFactory: ExtrinsicOriginFactory, OriginCreating {
         let aliasProvider = makeAliasProvider(for: personOrigin)
         let personProofDependency = makeProofDependency(for: personOrigin)
 
-        let resolvedTokens = try await unloadTokenResolver.resolve(
-            groups: voucherGroups,
-            aliasProvider: aliasProvider,
-            currentDate: currentDate
-        )
+        let resolvedTokens = try await markStallRegion("Resolve unload tokens") {
+            try await unloadTokenResolver.resolve(
+                groups: voucherGroups,
+                aliasProvider: aliasProvider,
+                currentDate: currentDate
+            )
+        }
 
         return try zip(voucherGroups, resolvedTokens).map { group, resolvedToken in
             let voucherKeyManagers = try group.map {

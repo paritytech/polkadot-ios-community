@@ -5,6 +5,7 @@ import BandersnatchApi
 import ExtrinsicService
 import Foundation_iOS
 import KeyDerivation
+import ChainRegistry
 
 protocol ClaimRewardsServicing {
     func claimVouchers(

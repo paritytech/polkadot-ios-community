@@ -89,6 +89,39 @@
         }
       }
     },
+    "game.camera.permission.registration.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera access is required to play the game. You can enable it in iOS Settings."
+          }
+        }
+      }
+    },
+    "game.camera.permission.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Access Required"
+          }
+        }
+      }
+    },
+    "game.camera.permission.video.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video is unavailable because camera access is disabled. You can enable it in iOS Settings."
+          }
+        }
+      }
+    },
     "game.confirmRegistration.subtitle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -980,17 +1013,6 @@
         }
       }
     },
-    "video.host.disconnected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Host disconnected"
-          }
-        }
-      }
-    },
     "video.overlay.host.disconnected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -998,17 +1020,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The host is unavailable this round, so no gestures can be copied. Please wait for the next round."
-          }
-        }
-      }
-    },
-    "video.player.disconnected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Player disconnected"
           }
         }
       }

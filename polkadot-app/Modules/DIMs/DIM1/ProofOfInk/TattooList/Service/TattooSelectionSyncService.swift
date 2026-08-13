@@ -4,6 +4,7 @@ import CommonService
 import SubstrateStorageSubscription
 import SubstrateSdk
 import Individuality
+import ChainRegistry
 
 protocol TattooSelectionSyncServiceObserver {
     func tattooSelectionStateChanged(by change: TattooSelectionStateChange)

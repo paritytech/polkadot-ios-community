@@ -13,7 +13,9 @@ final class LocalAuthInteractor {
 extension LocalAuthInteractor: LocalAuthInteractorInputProtocol {
     func startAuth(with reason: String) {
         guard deviceAuth.isAvailable else {
-            presenter?.didFailedAuth(with: .notAvailable)
+            MainActor.assumeIsolated {
+                presenter?.didFailedAuth(with: .notAvailable)
+            }
             return
         }
 
@@ -21,15 +23,17 @@ extension LocalAuthInteractor: LocalAuthInteractorInputProtocol {
             localizedReason: reason,
             completionQueue: .main
         ) { [weak self] result in
-            switch result {
-            case let .success(authorized):
-                if authorized {
-                    self?.presenter?.didCompleteAuth()
-                } else {
-                    self?.presenter?.didInterruptAuth()
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(authorized):
+                    if authorized {
+                        self?.presenter?.didCompleteAuth()
+                    } else {
+                        self?.presenter?.didInterruptAuth()
+                    }
+                case let .failure(error):
+                    self?.presenter?.didFailedAuth(with: error)
                 }
-            case let .failure(error):
-                self?.presenter?.didFailedAuth(with: error)
             }
         }
     }

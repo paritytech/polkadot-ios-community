@@ -1,11 +1,17 @@
 import UIKit
 import PolkadotUI
 
+@MainActor
 final class MainTabBarWireframe: MainTabBarWireframeProtocol {
     private let serviceCoordinator: ServiceCoordinatorProtocol
+    private let scanResultHandler: WalletQRScanDelegate
 
-    init(serviceCoordinator: ServiceCoordinatorProtocol) {
+    init(
+        serviceCoordinator: ServiceCoordinatorProtocol,
+        scanResultHandler: WalletQRScanDelegate
+    ) {
         self.serviceCoordinator = serviceCoordinator
+        self.scanResultHandler = scanResultHandler
     }
 
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?) {
@@ -43,14 +49,23 @@ private extension MainTabBarWireframe {
     }
 
     func showDeviceDetails(_ device: Chat.LocalDevice, view: MainTabBarViewProtocol?) {
-        guard let detailsView = DeviceDetailsViewFactory.createView(
-            device: device,
-            serviceCoordinator: serviceCoordinator
-        ) else {
+        view?.select(tab: .settings)
+
+        guard
+            let settingsNav = (view as? MainTabBarViewController)?.view(for: .settings) as? UINavigationController,
+            let settingsRoot = settingsNav.viewControllers.first,
+            let linkedDevicesView = LinkedDevicesViewFactory.createView(serviceCoordinator: serviceCoordinator),
+            let detailsView = DeviceDetailsViewFactory.createView(
+                device: device,
+                serviceCoordinator: serviceCoordinator
+            )
+        else {
             return
         }
-        let tabBarController = view?.controller as? UITabBarController
-        let navigationController = tabBarController?.selectedViewController as? UINavigationController
-        navigationController?.pushViewController(detailsView.controller, animated: true)
+
+        settingsNav.setViewControllers(
+            [settingsRoot, linkedDevicesView.controller, detailsView.controller],
+            animated: true
+        )
     }
 }

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum ProofOfInkVotingViewFactory {
     static func createView(
         model: ProofOfInkVotingModel

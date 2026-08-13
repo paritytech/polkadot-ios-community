@@ -11,6 +11,7 @@ protocol MobRuleWireframeProtocol:
     func openFullScreenEvidenceJudgement(model: ProofOfInkVotingModel)
 }
 
+@MainActor
 final class MobRuleWireframe {
     weak var view: ControllerBackedProtocol?
     var botSettings: ChatExtensionBotSettings
@@ -19,7 +20,7 @@ final class MobRuleWireframe {
 
     init(
         botSettings: ChatExtensionBotSettings = SettingsManager.shared,
-        application: UIApplication = .shared
+        application: UIApplication
     ) {
         self.botSettings = botSettings
         self.application = application

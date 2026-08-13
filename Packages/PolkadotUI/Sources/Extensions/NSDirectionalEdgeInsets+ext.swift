@@ -1,6 +1,6 @@
 import UIKit
 
-extension NSDirectionalEdgeInsets: Hashable {
+extension NSDirectionalEdgeInsets: @retroactive Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(leading)
         hasher.combine(trailing)

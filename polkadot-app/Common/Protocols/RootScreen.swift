@@ -14,11 +14,23 @@ extension RootScreen where Self: UIViewController {
             view.text = title
         }
 
+        setTitleView(titleLabel)
+    }
+
+    func setTitleView(_ view: UIView) {
         if #available(iOS 26.0, *) {
-            navigationItem.titleView = titleLabel
+            navigationItem.titleView = view
             navigationItem.style = .browser
         } else {
-            navigationItem.leftBarButtonItem = UIBarButtonItem(customView: titleLabel)
+            navigationItem.leftBarButtonItem = UIBarButtonItem(customView: view)
+        }
+    }
+
+    var titleView: UIView? {
+        if #available(iOS 26.0, *) {
+            navigationItem.titleView
+        } else {
+            navigationItem.leftBarButtonItem?.customView
         }
     }
 }

@@ -12,6 +12,8 @@ extension FinalExtrinsicStatusError: @retroactive ErrorContentConvertible {
                 "invalid"
             case .dropped:
                 "droped"
+            case .usurped:
+                "usurped"
             }
 
         return ErrorContent(

@@ -32,6 +32,103 @@ final class SdpCoder {
     static let expectedComponentId: Int = 1
 
     init() {}
+
+    // swiftlint:disable cyclomatic_complexity
+    /// Parses an SDP candidate string into a strongly-typed `MinimalCandidate`.
+    ///
+    /// Exposed as `static` so callers outside the encoding pipeline (e.g. local-candidate
+    /// filtering before sending) can reuse the same parser instead of re-implementing
+    /// the RFC 5245 token split. Throws for malformed candidates or unsupported variants
+    /// (multi-component, non-data-channel m-line, unknown transport/type).
+    static func parseCandidate(_ candidate: PeerConnectionCandidate) throws -> MinimalCandidate {
+        guard candidate.sdpMLineIndex == 0 else {
+            throw SdpCodingError.unsupportedSdpLineIndex(candidate.sdpMLineIndex)
+        }
+
+        guard candidate.sdpMid == nil || candidate.sdpMid == "0" else {
+            throw SdpCodingError.unsupportedSdpMid(candidate.sdpMid)
+        }
+
+        let trimmed = candidate.sdp.trimmingCharacters(in: .whitespaces)
+
+        guard trimmed.hasPrefix("candidate:") else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        let content = String(trimmed.dropFirst("candidate:".count))
+        let parts = content.split(separator: " ", omittingEmptySubsequences: true)
+
+        guard parts.count >= 8 else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        let foundation = String(parts[0])
+
+        guard let componentId = UInt8(parts[1]),
+              let priority = UInt32(parts[3]) else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        guard componentId == Self.expectedComponentId else {
+            throw SdpCodingError.unsupportedComponentId(componentId)
+        }
+
+        let transportString = String(parts[2])
+
+        guard
+            let transportType = MinimalCandidate.TransportType(
+                transportString: transportString
+            ) else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        let addressString = String(parts[4])
+        guard let address = MinimalCandidate.IPAddress(addressString: addressString) else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        guard let port = UInt16(parts[5]) else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        guard parts[6] == "typ" else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        let typString = String(parts[7]).lowercased()
+        guard let candidateType = MinimalCandidate.CandidateType(typeString: typString) else {
+            throw SdpCodingError.invalidCandidateFormat
+        }
+
+        return MinimalCandidate(
+            foundation: foundation,
+            priority: priority,
+            transportType: transportType,
+            address: address,
+            port: port,
+            candidateType: candidateType
+        )
+    }
+    // swiftlint:enable cyclomatic_complexity
+}
+
+extension PeerConnectionCandidate {
+    /// `true` when this candidate uses TCP transport with `typ host`.
+    ///
+    /// TCP host candidates almost never succeed in P2P connections (they require both
+    /// endpoints to accept inbound TCP connections), yet they inflate the signaling
+    /// volume substantially — observed at ~44% of generated candidates in some logs.
+    /// Filtering them out at the sender saves StatementStore submissions during
+    /// pre-connection bursts. TCP relay candidates (TURN over TCP) are kept since
+    /// they remain a useful fallback for highly restrictive networks.
+    ///
+    /// Backed by `SdpCoder.parseCandidate` so this filter and the encoding pipeline
+    /// share one RFC 5245 tokenizer (with shared test coverage). Returns `false` for
+    /// malformed candidates — they will fail downstream encoding anyway.
+    var isTCPHost: Bool {
+        guard let parsed = try? SdpCoder.parseCandidate(self) else { return false }
+        return parsed.transportType == .tcp && parsed.candidateType == .host
+    }
 }
 
 extension SdpCoder: SdpCoding {
@@ -49,7 +146,7 @@ extension SdpCoder: SdpCoding {
         let sdpType: SdpCoder.SdpType = minimalBase.sdpType == "offer" ? .offer : .answer
 
         // Parse candidates
-        let minimalCandidates = try input.candidates.map { try parseCandidate($0) }
+        let minimalCandidates = try input.candidates.map { try Self.parseCandidate($0) }
 
         // Create MinimalSetup
         let minimalSetup = SdpCoder.MinimalSetup(
@@ -83,7 +180,7 @@ extension SdpCoder: SdpCoding {
     }
 
     func encodeCandidates(_ candidates: [PeerConnectionCandidate]) throws -> Data {
-        let minimalCandidates = try candidates.map { try parseCandidate($0) }
+        let minimalCandidates = try candidates.map { try Self.parseCandidate($0) }
 
         let encoder = ScaleEncoder()
         try minimalCandidates.encode(scaleEncoder: encoder)
@@ -201,81 +298,7 @@ private extension SdpCoder {
         return (timestamp, timestamp)
     }
 
-    // MARK: - Candidate Encoding/Decoding (Private)
-
-    /// Parses a candidate SDP string into MinimalCandidate
-    /// Format: "candidate:foundation component priority transport address port typ candidateType ..."
-    func parseCandidate(_ candidate: PeerConnectionCandidate) throws -> SdpCoder.MinimalCandidate {
-        guard candidate.sdpMLineIndex == 0 else {
-            throw SdpCodingError.unsupportedSdpLineIndex(candidate.sdpMLineIndex)
-        }
-
-        guard candidate.sdpMid == nil || candidate.sdpMid == "0" else {
-            throw SdpCodingError.unsupportedSdpMid(candidate.sdpMid)
-        }
-
-        let candidateString = candidate.sdp
-        let trimmed = candidateString.trimmingCharacters(in: .whitespaces)
-
-        guard trimmed.hasPrefix("candidate:") else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        let content = String(trimmed.dropFirst("candidate:".count))
-        let parts = content.split(separator: " ", omittingEmptySubsequences: true)
-
-        guard parts.count >= 8 else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        let foundation = String(parts[0])
-
-        guard let componentId = UInt8(parts[1]),
-              let priority = UInt32(parts[3]) else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        guard componentId == Self.expectedComponentId else {
-            throw SdpCodingError.unsupportedComponentId(componentId)
-        }
-
-        let transportString = String(parts[2])
-
-        guard
-            let transportType = SdpCoder.MinimalCandidate.TransportType(
-                transportString: transportString
-            ) else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        let addressString = String(parts[4])
-        guard let address = SdpCoder.MinimalCandidate.IPAddress(addressString: addressString) else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        guard let port = UInt16(parts[5]) else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        // typ is at index 6
-        guard parts[6] == "typ" else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        let typString = String(parts[7]).lowercased()
-        guard let candidateType = SdpCoder.MinimalCandidate.CandidateType(typeString: typString) else {
-            throw SdpCodingError.invalidCandidateFormat
-        }
-
-        return SdpCoder.MinimalCandidate(
-            foundation: foundation,
-            priority: priority,
-            transportType: transportType,
-            address: address,
-            port: port,
-            candidateType: candidateType
-        )
-    }
+    // MARK: - Candidate Reconstruction (Private)
 
     /// Reconstructs a candidate SDP string from MinimalCandidate
     func reconstructCandidate(_ candidate: SdpCoder.MinimalCandidate) throws -> PeerConnectionCandidate {

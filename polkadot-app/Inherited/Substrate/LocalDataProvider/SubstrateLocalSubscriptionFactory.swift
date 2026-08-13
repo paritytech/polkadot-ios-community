@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 class SubstrateLocalSubscriptionFactory: BaseLocalSubscriptionFactory {
     let chainRegistry: ChainRegistryProtocol

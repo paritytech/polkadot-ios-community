@@ -25,10 +25,12 @@ protocol GameVideoServiceDelegate: AnyObject {
 }
 
 protocol GameVideoServicing: ApplicationServiceProtocol {
+    func throttle(isGameFinished: Bool)
     func sendGestureAcceptance(for peerId: AccountId, vote: GameVideoVotingState)
 }
 
-final class GameVideoService {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class GameVideoService: @unchecked Sendable {
     weak var delegate: GameVideoServiceDelegate?
 
     private let accountId: AccountId
@@ -69,6 +71,8 @@ final class GameVideoService {
 
     deinit {
         logger.debug("Deinit")
+        gameInfoObservationTask?.cancel()
+        gestureAcceptanceObservationTask?.cancel()
     }
 }
 
@@ -81,6 +85,7 @@ extension GameVideoService: GameVideoServicing {
             observer: self,
             queue: workQueue
         ) { [weak self] _, state in
+            self?.logger.debug("State observer dispatched, state=\(String(describing: state))")
             self?.handleNewState(state)
         }
 
@@ -88,12 +93,16 @@ extension GameVideoService: GameVideoServicing {
     }
 
     func throttle() {
+        throttle(isGameFinished: false)
+    }
+
+    func throttle(isGameFinished: Bool) {
         logger.debug("Tearing down observers and connection")
         stateMachine.throttle()
         stateMachine.remove(observer: self)
         gameInfoObservationTask?.cancel()
         gameInfoObservationTask = nil
-        disconnect()
+        disconnect(isGameFinished: isGameFinished)
     }
 
     func sendGestureAcceptance(for peerId: AccountId, vote: GameVideoVotingState) {
@@ -103,7 +112,7 @@ extension GameVideoService: GameVideoServicing {
             let state = stateMachine.currentState,
             case let .round(round, _) = state
         else {
-            assertionFailure("Gesture acceptance should only be sent while a round is active")
+            logger.warning("Gesture acceptance should only be sent while a round is active")
             return
         }
 
@@ -131,13 +140,22 @@ extension GameVideoService: GameVideoServicing {
                 return
             }
 
-            try connection.multiplexedChannel.send(
-                data: encodedMessage,
-                useCaseId: Game.DataChannelMessage.GestureAcceptanceMessage.useCaseId
-            )
+            // don't block work queue with synhronious writing
+            Task { [logger] in
+                do {
+                    try await connection.multiplexedChannel.send(
+                        data: encodedMessage,
+                        useCaseId: Game.DataChannelMessage.GestureAcceptanceMessage.useCaseId
+                    )
+                } catch {
+                    logger.warning(
+                        "Skipping gesture acceptance send for peer \(peerId.toHex().prefix(8)): roundIndex \(round.roundIndex) is out of Int32 range"
+                    )
+                }
+            }
         } catch {
             logger.warning(
-                "Skipping gesture acceptance send for peer \(peerId.toHex().prefix(8)): roundIndex \(round.roundIndex) is out of Int32 range"
+                "Skipping gesture acceptance send for peer \(peerId.toHex().prefix(8)): roundIndex \(round.roundIndex) due to encoding failure"
             )
         }
     }
@@ -156,6 +174,8 @@ extension GameVideoService: VideoGameConnectionManagerDelegate {
             case let .connected(connected):
                 flags[accountId] = true
                 connectedChannels.append(connected.multiplexedChannel)
+                logger.debug("\(accountId.toHex().prefix(8)) connected, "
+                    + "video track = \(connected.remoteVideoTrack != nil)")
                 rtcClient.setRemoteVideoTrack(connected.remoteVideoTrack, for: accountId)
             case .connecting:
                 flags[accountId] = false
@@ -228,18 +248,19 @@ private extension GameVideoService {
                 connectionManager.setConnectedPlayers(allPlayers, gameIndex: gameIndex)
                 updateLocalCapture(fromState: state)
             } else {
-                if case .finished = state {
-                    connectionManager.clearPersistedOfferIds()
-                }
-                disconnect()
+                logger.debug("handleNewState: pre-disconnect")
+                disconnect(isGameFinished: state?.isFinished == true)
+                logger.debug("handleNewState: post-disconnect")
             }
         }
 
+        logger.debug("handleNewState: pre-delegate state=\(String(describing: state))")
         delegate?.gameVideoService(
             self,
             didUpdateState: state,
             isPlayersChanged: isActivePlayersChanged
         )
+        logger.debug("handleNewState: post-delegate")
     }
 
     func updateLocalCapture(fromState state: GameStateMachine.State?) {
@@ -254,29 +275,36 @@ private extension GameVideoService {
         switch state {
         case let .round(round, _):
             !round.players.isEmpty
-        case .preparing,
-             .finished,
+        case let .preparing(info):
+            info.preconnectPlayers?.isEmpty == false
+        case .finished,
              nil:
             false
         }
     }
 
-    func disconnect() {
-        stopGestureAcceptanceObservation()
-        connectionManager.disconnectAll()
+    func disconnect(isGameFinished: Bool) {
+        logger.debug("disconnect: start")
+        stopGestureAcceptanceObservationTask()
+        logger.debug("disconnect: connectionManager.disconnectAll")
+        // A finished game cannot reconnect. Clear its persisted offer IDs
+        // after disposal so in-flight offers cannot restore them.
+        connectionManager.disconnectAll(clearsPersistedOfferIds: isGameFinished)
+        logger.debug("disconnect: rtcClient.removeAllRemoteVideoTracks")
         rtcClient.removeAllRemoteVideoTracks()
+        logger.debug("disconnect: rtcClient.stopLocalCapture")
         rtcClient.stopLocalCapture()
+        logger.debug("disconnect: done")
         currentGameIndex = nil
     }
 
-    func stopGestureAcceptanceObservation() {
+    func stopGestureAcceptanceObservationTask() {
         gestureAcceptanceObservationTask?.cancel()
         gestureAcceptanceObservationTask = nil
     }
 
     func observeGestureAcceptanceChannels(_ channels: [MultiplexedDataChannel]) {
-        gestureAcceptanceObservationTask?.cancel()
-        gestureAcceptanceObservationTask = nil
+        stopGestureAcceptanceObservationTask()
 
         let gestureAcceptanceStreams = channels.map { channel in
             channel.subscribe(useCaseId: Game.DataChannelMessage.GestureAcceptanceMessage.useCaseId)

@@ -12,7 +12,13 @@ extension RootGate {
         }
 
         func evaluate() -> RootDestination? {
-            #if !DEBUG
+            // `JailbreakDetector.isJailbroken()` reports `true` for ANY
+            // simulator (`isJailbroken || device.isSimulator`), which would
+            // hard-block the triangle-e2e iOS shard (a Nightly simulator
+            // build). Skip the gate for the E2E_TEST artifact in addition to
+            // DEBUG. Every other build — including a plain Nightly simulator
+            // build used during dev — runs the full jailbreak check unchanged.
+            #if !DEBUG && !E2E_TEST
                 if detector.isJailbroken() {
                     logger.error("Jailbreak detected - blocking app execution")
                     return .jailbroken

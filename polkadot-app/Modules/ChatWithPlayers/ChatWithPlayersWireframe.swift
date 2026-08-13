@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 
+@MainActor
 final class ChatWithPlayersWireframe: ChatWithPlayersWireframeProtocol {
     let flowState: ChatFlowState
 

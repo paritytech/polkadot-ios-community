@@ -1,6 +1,7 @@
 #if TESTNET_FEATURE
     import Foundation
 
+    @MainActor
     final class AppFactoryResetPresenter {
         weak var view: AppFactoryResetViewProtocol?
 

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum TattooPhotoPreviewViewFactory {
     static func createView(evidenceId: String) -> TattooPhotoPreviewViewProtocol? {
         let factory = EvidenceStateRepositoryFactory(

@@ -1,9 +1,5 @@
 import UIKit
-
-protocol SigningRouting: Sendable {
-    @MainActor
-    func presentSigning(with context: PolkadotSigningContextProtocol) -> UIViewController?
-}
+import UIKitExt
 
 final class SSOSigningRequestHandler: SSORequestHandling {
     private let messageSender: PolkadotHostMessageSending

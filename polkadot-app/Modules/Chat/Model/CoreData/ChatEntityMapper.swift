@@ -129,10 +129,18 @@ private extension ChatModelMapper {
         let messages = (chat.messages as? Set<CDChatMessage>) ?? []
         let unreadIdSet = Set(unreadIds)
 
-        return messages.filter {
-            guard let messageId = $0.messageId else { return false }
-            return unreadIdSet.contains(messageId) && !reactionContentTypes.contains($0.contentType)
-        }.count
+        let unreadGroupingIds: Set<String> = Set(
+            messages.compactMap { message -> String? in
+                guard
+                    let messageId = message.messageId,
+                    unreadIdSet.contains(messageId),
+                    !reactionContentTypes.contains(message.contentType)
+                else { return nil }
+                return message.groupingId ?? messageId
+            }
+        )
+
+        return unreadGroupingIds.count
     }
 
     static func hasUnreadReaction(for chat: CDChat) -> Bool {

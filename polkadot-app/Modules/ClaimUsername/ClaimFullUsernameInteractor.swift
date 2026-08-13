@@ -8,7 +8,6 @@ final class ClaimFullUsernameInteractor {
     private let claimService: FullUsernameClaimServicing
     private let availabilityValidator: FullUsernameAvailabilityValidating
     private let usernameStorage: UsernameStoring
-    private let eventCenter: EventCenterProtocol
     private let logger: LoggerProtocol
 
     private var availability: FullUsernameAvailability?
@@ -18,14 +17,12 @@ final class ClaimFullUsernameInteractor {
         claimService: FullUsernameClaimServicing,
         availabilityValidator: FullUsernameAvailabilityValidating = FullUsernameAvailabilityValidator(),
         usernameStorage: UsernameStoring = UsernameStorage(),
-        eventCenter: EventCenterProtocol = EventCenter.shared,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.registeredData = registeredData
         self.claimService = claimService
         self.availabilityValidator = availabilityValidator
         self.usernameStorage = usernameStorage
-        self.eventCenter = eventCenter
         self.logger = logger
     }
 }
@@ -51,7 +48,9 @@ extension ClaimFullUsernameInteractor: ClaimUsernameInteractorInputProtocol {
 
     func save(username: Username) {
         usernameStorage.username = username
-        presenter?.didSaveUsername()
+        MainActor.assumeIsolated {
+            presenter?.didSaveUsername()
+        }
     }
 }
 
@@ -105,13 +104,6 @@ private extension ClaimFullUsernameInteractor {
             }
         }
         .map { username }
-        .handleEvents(receiveOutput: { [eventCenter, registeredData] in
-            eventCenter.notify(with: FullUsernameClaimed(
-                liteUsername: registeredData.liteUsername,
-                fullUsername: $0,
-                source: .init(registeredData.source)
-            ))
-        })
         .eraseToAnyPublisher()
     }
 }

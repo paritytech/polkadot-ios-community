@@ -1,6 +1,7 @@
 import AVFoundation
 import Kingfisher
 import UIKit
+@preconcurrency import SDKLogger
 
 final class IPFSVideoThumbnailProvider: ImageDataProvider {
     let cacheKey: String

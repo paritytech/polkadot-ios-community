@@ -1,4 +1,5 @@
 import Foundation
+import KeyDerivation
 import NovaCrypto
 import SubstrateSdk
 
@@ -30,6 +31,8 @@ public extension ContainerBridge {
     ) {
         registerAccountGet(nativeApi: nativeApi)
         registerAccountGetAlias(nativeApi: nativeApi)
+        registerAccountCreateProof(nativeApi: nativeApi)
+        registerAccountSignVrf(nativeApi: nativeApi)
         registerGetUserId(nativeApi: nativeApi)
         registerChainNodes(nativeApi: nativeApi)
         registerChainSupported(nativeApi: nativeApi)
@@ -40,13 +43,17 @@ public extension ContainerBridge {
         registerChatRenderWidget(onRenderWidget: onRenderWidget)
         registerGetNonProductAccounts(nativeApi: nativeApi)
         registerSignPayload(nativeApi: nativeApi)
+        registerSignPayloadLegacy(nativeApi: nativeApi)
         registerSignRaw(nativeApi: nativeApi)
+        registerSignRawLegacy(nativeApi: nativeApi)
         registerCreateTransaction(nativeApi: nativeApi)
+        registerCreateTransactionLegacy(nativeApi: nativeApi)
         registerLocalStorageRead(nativeApi: nativeApi)
         registerLocalStorageWrite(nativeApi: nativeApi)
         registerLocalStorageClear(nativeApi: nativeApi)
         registerNavigateTo(nativeApi: nativeApi)
         registerAllowNetworkAccess(nativeApi: nativeApi)
+        registerAllowWebRtcAccess(nativeApi: nativeApi)
         registerStatementStoreSubscribe(nativeApi: nativeApi)
         registerStatementStoreCreateProof(nativeApi: nativeApi)
         registerStatementStoreCreateProofAuthorized(nativeApi: nativeApi)
@@ -133,18 +140,51 @@ private extension ContainerBridge {
 
     func registerAccountGetAlias(nativeApi: ProductsNativeApiProtocol) {
         registerRequestHandler(method: "accountGetAlias") { params in
-            let accountId = try params.mapOrMissing(for: "account") { try? $0.map(to: ProductAccountId.self) }
+            let request = try params.map(to: AccountGetAliasRequest.self)
 
-            let result = try await nativeApi.accountGetAlias(accountId)
-
-            return JSON.dictionaryValue(
-                [
-                    "context": JSON.stringValue(result.context),
-                    "alias": JSON.stringValue(result.alias)
-                ]
+            let result = try await nativeApi.accountGetAlias(
+                context: request.context,
+                ring: request.ring
             )
+
+            return try result.toScaleCompatibleJSON()
         }
     }
+
+    func registerAccountCreateProof(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "accountCreateProof") { params in
+            let request = try params.map(to: AccountCreateProofRequest.self)
+
+            let result = try await nativeApi.accountCreateProof(
+                context: request.context,
+                ring: request.ring,
+                message: request.message
+            )
+
+            return try result.toScaleCompatibleJSON()
+        }
+    }
+
+    func registerAccountSignVrf(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "accountSignVrf") { params in
+            let payload = try params.map(to: SignVrfPayload.self)
+
+            let signature = try await nativeApi.signVrf(payload)
+
+            return try SignVrfResult(signature: signature).toScaleCompatibleJSON()
+        }
+    }
+}
+
+private struct AccountGetAliasRequest: Decodable {
+    let context: ProductProofContext
+    let ring: RingLocation
+}
+
+private struct AccountCreateProofRequest: Decodable {
+    let context: ProductProofContext
+    let ring: RingLocation
+    @HexCodable var message: Data
 }
 
 // MARK: - Chain
@@ -245,10 +285,25 @@ private extension ContainerBridge {
     func registerSignPayload(nativeApi: ProductsNativeApiProtocol) {
         registerRequestHandler(method: "signPayload") { params in
             let payload = try params.map(
-                to: SignTransactionPayload.self
+                to: SignTransactionPayload<ProductAccountId>.self
             )
 
             let result = try await nativeApi.signPayload(payload)
+            var response: [String: JSON] = ["signature": JSON.stringValue(result.signature)]
+            if let signedTx = result.signedTx {
+                response["signedTx"] = JSON.stringValue(signedTx)
+            }
+            return JSON.dictionaryValue(response)
+        }
+    }
+
+    func registerSignPayloadLegacy(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "signPayloadLegacy") { params in
+            let payload = try params.map(
+                to: SignTransactionPayload<SS58Account>.self
+            )
+
+            let result = try await nativeApi.signPayloadLegacy(payload)
             var response: [String: JSON] = ["signature": JSON.stringValue(result.signature)]
             if let signedTx = result.signedTx {
                 response["signedTx"] = JSON.stringValue(signedTx)
@@ -277,10 +332,40 @@ private extension ContainerBridge {
         }
     }
 
+    func registerSignRawLegacy(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "signRawLegacy") { params in
+            let account = try params.mapOrMissing(for: "account") {
+                try? $0.map(to: SS58Account.self)
+            }.accountId
+
+            let content: RawPayloadContent
+            if let dataHex = params["data"]?.stringValue {
+                content = try .bytes(Data(hexString: dataHex))
+            } else if let payloadString = params["payload"]?.stringValue {
+                content = .payload(payloadString)
+            } else {
+                throw ContainerBridgeHostApiError.invalidSignRawParams
+            }
+
+            let payload = SignRawLegacyPayload(account: account, content: content)
+            let result = try await nativeApi.signRawLegacy(payload)
+
+            return JSON.dictionaryValue(["signature": .stringValue(result.signature)])
+        }
+    }
+
     func registerCreateTransaction(nativeApi: ProductsNativeApiProtocol) {
         registerRequestHandler(method: "createTransaction") { params in
             let payload = try params.map(to: CreateTransactionPayload<ProductAccountId>.self)
             let result = try await nativeApi.createTransaction(payload)
+            return JSON.dictionaryValue(["signedTx": .stringValue(result.signedTransaction)])
+        }
+    }
+
+    func registerCreateTransactionLegacy(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "createTransactionLegacy") { params in
+            let payload = try params.map(to: CreateTransactionPayload<LegacyAccountId>.self)
+            let result = try await nativeApi.createTransactionLegacy(payload)
             return JSON.dictionaryValue(["signedTx": .stringValue(result.signedTransaction)])
         }
     }
@@ -322,6 +407,13 @@ private extension ContainerBridge {
         registerRequestHandler(method: "allowNetworkAccess") { params in
             let url = try params.mapOrMissing(for: "url") { $0.stringValue }
             let allowed = try await nativeApi.allowNetworkAccess(url: url)
+            return JSON.dictionaryValue(["allowed": .boolValue(allowed)])
+        }
+    }
+
+    func registerAllowWebRtcAccess(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "allowWebRtcAccess") { _ in
+            let allowed = try await nativeApi.allowWebRtcAccess()
             return JSON.dictionaryValue(["allowed": .boolValue(allowed)])
         }
     }

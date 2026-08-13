@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 
+@MainActor
 final class TattooEvidenceVideoWireframe: TattooEvidenceVideoWireframeProtocol {
     let design: ProofOfInkPallet.InkSpec
     let familyId: ProofOfInkPallet.FamilyId

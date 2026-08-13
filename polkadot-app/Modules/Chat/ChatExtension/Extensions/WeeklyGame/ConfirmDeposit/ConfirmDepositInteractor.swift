@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import KeyDerivation
+import ChainRegistry
 
 final class ConfirmDepositInteractor {
     weak var presenter: ConfirmDepositInteractorOutputProtocol?
@@ -39,7 +40,9 @@ extension ConfirmDepositInteractor: ConfirmDepositInteractorInputProtocol {
             guard let topUpService else {
                 return
             }
-            presenter?.didStartDeposit()
+            MainActor.assumeIsolated {
+                presenter?.didStartDeposit()
+            }
 
             topUpTask?.cancel()
             topUpTask = Task { @MainActor [weak presenter, logger, candidateWallet] in

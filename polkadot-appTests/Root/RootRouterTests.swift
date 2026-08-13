@@ -31,93 +31,15 @@ struct RootRouterTests {
         #expect(try resolver.resolve() == .usernameCheck)
     }
 
-    @Test("established user, web3 main → dashboard")
+    @Test("established user → dashboard")
     func dashboard() throws {
         let resolver = makeResolver(
             themeSelected: true,
             hasWallets: true,
             hasBackup: false,
-            hasUsername: true,
-            web3: .main
+            hasUsername: true
         )
         #expect(try resolver.resolve() == .dashboard)
-    }
-
-    @Test("established user, web3 spa → spa")
-    func web3Spa() throws {
-        let resolver = makeResolver(
-            themeSelected: true,
-            hasWallets: true,
-            hasBackup: false,
-            hasUsername: true,
-            web3: .spa
-        )
-        #expect(try resolver.resolve() == .web3SummitSpa)
-    }
-
-    @Test("web3 gate only reached after wallet and username gates pass")
-    func web3RunsLast() throws {
-        // The web3 gate would yield spa, but the user has no wallets — WalletGate wins first.
-        let resolver = makeResolver(
-            themeSelected: true,
-            hasWallets: false,
-            hasBackup: false,
-            hasUsername: false,
-            web3: .spa
-        )
-        #expect(try resolver.resolve() == .onboarding)
-    }
-
-    @Test("summit not started check runs before all other gates")
-    func notStartedRunsFirst() throws {
-        let resolver = makeResolver(
-            themeSelected: false,
-            hasWallets: false,
-            hasBackup: false,
-            hasUsername: false,
-            start: .notStarted
-        )
-        #expect(try resolver.resolve() == .web3SummitNotStarted)
-    }
-
-    @Test("summit not started precedes ended gate")
-    func notStartedPrecedesEnded() throws {
-        let resolver = makeResolver(
-            themeSelected: true,
-            hasWallets: true,
-            hasBackup: false,
-            hasUsername: true,
-            web3: .ended,
-            start: .notStarted
-        )
-        #expect(try resolver.resolve() == .web3SummitNotStarted)
-    }
-
-    @Test("summit started lets other gates decide")
-    func startedPassesThrough() throws {
-        let resolver = makeResolver(
-            themeSelected: true,
-            hasWallets: true,
-            hasBackup: false,
-            hasUsername: true,
-            start: .started
-        )
-        #expect(try resolver.resolve() == .dashboard)
-    }
-
-    @Test("summit ended check runs before all other gates")
-    func endedRunsFirst() throws {
-        let resolver = makeResolver(
-            themeSelected: false,
-            hasWallets: false,
-            hasBackup: false,
-            hasUsername: false,
-            web3: .ended
-        )
-
-        let endedSuppressed = RootGate.Web3SummitEnded(gate: makeWeb3Gate(.ended)).evaluate() == nil
-        let expected: RootDestination = endedSuppressed ? .selectTheme : .web3SummitEnded
-        #expect(try resolver.resolve() == expected)
     }
 
     @Test("throwing keystore aborts resolution (interactor maps it to broken)")
@@ -141,37 +63,18 @@ struct RootRouterTests {
         themeSelected: Bool,
         hasWallets: Bool,
         hasBackup: Bool,
-        hasUsername: Bool,
-        web3: Web3SummitDestination = .main,
-        start: Web3SummitStartGateMode = .started
+        hasUsername: Bool
     ) -> SequentialDecisionResolver<RootDestination> {
         SequentialDecisionResolver(
             gates: [
-                RootGate.Web3SummitStart(modeProvider: FakeStartModeProvider(mode: start)),
-                RootGate.Web3SummitEnded(gate: makeWeb3Gate(web3)),
                 RootGate.Theme(storage: FakeThemeStorage(selected: themeSelected)),
                 RootGate.Wallet(
                     entropyManager: FakeEntropyManager(hasWallets: hasWallets),
                     backupHelper: FakeBackupHelper(hasBackup: hasBackup)
                 ),
-                RootGate.Username(usernameStorage: FakeUsernameStorage(hasUsername: hasUsername)),
-                RootGate.Web3Summit(gate: makeWeb3Gate(web3))
+                RootGate.Username(usernameStorage: FakeUsernameStorage(hasUsername: hasUsername))
             ],
             fallback: .dashboard
-        )
-    }
-
-    private func makeWeb3Gate(_ destination: Web3SummitDestination) -> Web3SummitGate {
-        let mode: Web3SummitGateMode =
-            switch destination {
-            case .main: .verificationDisabled
-            case .spa: .verificationEnabled
-            case .ended: .ended
-            }
-
-        return Web3SummitGate(
-            modeProvider: FakeModeProvider(mode: mode),
-            verifiedStorage: FakeVerifiedStorage(verified: false)
         )
     }
 }
@@ -216,21 +119,4 @@ private final class FakeUsernameStorage: UsernameStoring {
     init(hasUsername: Bool) {
         username = hasUsername ? Username(value: "tester.01") : nil
     }
-}
-
-private struct FakeModeProvider: Web3SummitGateModeProviding {
-    let mode: Web3SummitGateMode
-    func current() -> Web3SummitGateMode { mode }
-}
-
-private struct FakeStartModeProvider: Web3SummitStartGateProviding {
-    let mode: Web3SummitStartGateMode
-    func current() -> Web3SummitStartGateMode { mode }
-}
-
-private final class FakeVerifiedStorage: Web3SummitVerifiedStoring {
-    private var verified: Bool
-    init(verified: Bool) { self.verified = verified }
-    func isVerified() -> Bool { verified }
-    func setVerified(_ value: Bool) { verified = value }
 }

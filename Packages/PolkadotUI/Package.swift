@@ -17,9 +17,14 @@ let package = Package(
         .package(path: "../UIDependencies"),
         .package(path: "../FoundationExt"),
         .package(path: "../UIKitExt"),
+        .package(path: "../ExternalAccessibility"),
         .package(
             url: "https://github.com/paritytech/polkadot-app-design-system-ios",
             from: "0.0.21"
+        ),
+        .package(
+            url: "https://github.com/novasamatech/Foundation-iOS",
+            from: "1.4.0"
         )
     ],
     targets: [
@@ -29,7 +34,9 @@ let package = Package(
                 "UIDependencies",
                 "FoundationExt",
                 "UIKitExt",
-                .product(name: "DesignSystem", package: "polkadot-app-design-system-ios")
+                "ExternalAccessibility",
+                .product(name: "DesignSystem", package: "polkadot-app-design-system-ios"),
+                .product(name: "Foundation-iOS", package: "Foundation-iOS")
             ],
             resources: [
                 .process("Typography/Fonts"),

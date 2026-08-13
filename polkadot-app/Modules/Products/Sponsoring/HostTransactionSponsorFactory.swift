@@ -6,6 +6,7 @@ import Products
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
+import ChainRegistry
 
 final class HostTransactionSponsorFactory: TransactionSponsorMaking {
     private let accountManager: ProductsAccountManaging
@@ -33,12 +34,24 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             fullKeyManager: BandersnatchKeyManager.fullPerson()
         )
 
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
+        let bulletInTimeProvider = ChainTimeProvider(
+            chainId: AppConfig.Chains.bulletInChain,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
+        )
+
         let bulletInInfoProvider = BulletInSlotInfoProvider(
             bulletInChainId: AppConfig.Chains.bulletInChain,
             peopleChainId: AppConfig.Chains.usernameChain,
             chainRegistry: chainRegistry,
             keyResolver: keyResolver,
-            operationQueue: operationQueue
+            operationQueue: operationQueue,
+            chainTimeProvider: bulletInTimeProvider
         )
 
         return PreimageSubmitSponsor(
@@ -78,11 +91,29 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             operationManager: OperationManager(operationQueue: operationQueue)
         )
 
+        let timeProvider = ChainTimeProvider(
+            chainId: AppConfig.Chains.chatChain,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
+        )
+
+        let allowanceRepository = AllowanceRepositoryFactory(storageFacade: UserDataStorageFacade.shared)
+            .createStatementStoreRepository()
+        let accounting = StatementStoreSlotAccountant(repository: allowanceRepository)
+
+        let originPersonProvider = ChainOriginPersonProvider(
+            chainId: AppConfig.Chains.chatChain,
+            chainRegistry: chainRegistry,
+            keyResolver: keyResolver
+        )
+
         let slotInfoProvider = StatementStoreSlotInfoProvider(
             chainId: AppConfig.Chains.chatChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
-            keyResolver: keyResolver,
+            chainTimeProvider: timeProvider,
+            originPersonProvider: originPersonProvider,
+            accounting: accounting,
             logger: logger
         )
 

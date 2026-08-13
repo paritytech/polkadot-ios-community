@@ -4,6 +4,7 @@ import SubstrateSdk
 import AssetExchange
 import AssetHubSdk
 import ExtrinsicService
+import ChainRegistry
 
 final class AssetExchangeFeeEstimatingRouter {
     let graphBasedFactory: ExtrinsicCustomFeeEstimatingFactoryProtocol

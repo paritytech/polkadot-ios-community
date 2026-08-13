@@ -7,7 +7,7 @@ import Testing
 struct StatementHelpersTests {
     // MARK: - fromStatementFields
 
-    @Test func fromStatementFieldsWithAllFieldsPopulated() {
+    @Test func fromStatementFieldsWithAllFieldsPopulated() throws {
         let topic1 = Data(repeating: 0x01, count: 32)
         let topic2 = Data(repeating: 0x02, count: 32)
         let channel = Data(repeating: 0x03, count: 32)
@@ -18,7 +18,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xBB, count: 32)
         )
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [topic1, topic2],
             channel: channel,
             expiry: expiry,
@@ -26,16 +26,18 @@ struct StatementHelpersTests {
             proof: proof
         )
 
+        let scaleEncodedPayload = try payload.scaleEncoded()
+
         #expect(statement.getProof() == proof)
         #expect(statement.getExpiry() == expiry)
         #expect(statement.getChannel() == channel)
         #expect(statement.getTopic1() == topic1)
         #expect(statement.getTopic2() == topic2)
-        #expect(statement.getScaleEncodedPayload() == payload)
+        #expect(statement.getScaleEncodedPayload() == scaleEncodedPayload)
     }
 
-    @Test func fromStatementFieldsWithNoOptionalFields() {
-        let statement = Statement.fromStatementFields(
+    @Test func fromStatementFieldsWithNoOptionalFields() throws {
+        let statement = try Statement.fromStatementFields(
             topics: [],
             channel: nil,
             expiry: nil,
@@ -46,13 +48,13 @@ struct StatementHelpersTests {
         #expect(statement.isEmpty)
     }
 
-    @Test func fromStatementFieldsWithOnlyTopics() {
+    @Test func fromStatementFieldsWithOnlyTopics() throws {
         let topic1 = Data(repeating: 0x01, count: 32)
         let topic2 = Data(repeating: 0x02, count: 32)
         let topic3 = Data(repeating: 0x03, count: 32)
         let topic4 = Data(repeating: 0x04, count: 32)
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [topic1, topic2, topic3, topic4],
             channel: nil,
             expiry: nil,
@@ -67,10 +69,10 @@ struct StatementHelpersTests {
         #expect(statement.getTopic4() == topic4)
     }
 
-    @Test func fromStatementFieldsIgnoresTopicsBeyondFour() {
+    @Test func fromStatementFieldsIgnoresTopicsBeyondFour() throws {
         let topics = (0 ..< 6).map { Data(repeating: UInt8($0), count: 32) }
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: topics,
             channel: nil,
             expiry: nil,
@@ -85,7 +87,7 @@ struct StatementHelpersTests {
         #expect(statement.getTopic4() == topics[3])
     }
 
-    @Test func fromStatementFieldsResultIsSortedByScaleIndex() {
+    @Test func fromStatementFieldsResultIsSortedByScaleIndex() throws {
         let topic = Data(repeating: 0x01, count: 32)
         let channel = Data(repeating: 0x02, count: 32)
         let proof = StatementProof.sr25519(
@@ -93,7 +95,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xBB, count: 32)
         )
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [topic],
             channel: channel,
             expiry: 100,
@@ -114,7 +116,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xBB, count: 32)
         )
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [topic],
             channel: nil,
             expiry: nil,
@@ -137,7 +139,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xBB, count: 32)
         )
 
-        let original = Statement.fromStatementFields(
+        let original = try Statement.fromStatementFields(
             topics: [topic1, topic2],
             channel: channel,
             expiry: expiry,
@@ -148,12 +150,14 @@ struct StatementHelpersTests {
         let encoded = try original.encodeForStore()
         let decoded = try Statement.fromScaleEncoded(encoded)
 
+        let scaleEncodedPayload = try payload.scaleEncoded()
+
         #expect(decoded.getProof() == proof)
         #expect(decoded.getExpiry() == expiry)
         #expect(decoded.getChannel() == channel)
         #expect(decoded.getTopic1() == topic1)
         #expect(decoded.getTopic2() == topic2)
-        #expect(decoded.getScaleEncodedPayload() == payload)
+        #expect(decoded.getScaleEncodedPayload() == scaleEncodedPayload)
     }
 
     @Test func encodeDecodeRoundTripWithMinimalFields() throws {
@@ -162,7 +166,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0x22, count: 32)
         )
 
-        let original = Statement.fromStatementFields(
+        let original = try Statement.fromStatementFields(
             topics: [],
             channel: nil,
             expiry: nil,
@@ -187,7 +191,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xBB, count: 32)
         )
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [Data(repeating: 0x01, count: 32)],
             channel: nil,
             expiry: nil,
@@ -206,7 +210,7 @@ struct StatementHelpersTests {
             signer: Data(repeating: 0xDD, count: 32)
         )
 
-        let statement = Statement.fromStatementFields(
+        let statement = try Statement.fromStatementFields(
             topics: [topic],
             channel: Data(repeating: 0xEE, count: 32),
             expiry: 42,

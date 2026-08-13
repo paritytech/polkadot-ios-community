@@ -17,6 +17,10 @@ let package = Package(
             url: "https://github.com/novasamatech/substrate-sdk-ios",
             from: "5.7.0"
         ),
+        .package(
+            url: "https://github.com/attaswift/BigInt",
+            from: "5.5.1"
+        ),
         .package(path: "../ChainStore"),
         .package(path: "../AssetExchange")
     ],
@@ -24,6 +28,7 @@ let package = Package(
         .target(
             name: "HydrationSdk",
             dependencies: [
+                .product(name: "BigInt", package: "BigInt"),
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "ChainStore", package: "ChainStore"),
                 .product(name: "AssetExchange", package: "AssetExchange")

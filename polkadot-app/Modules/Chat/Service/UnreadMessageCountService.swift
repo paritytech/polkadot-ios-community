@@ -6,14 +6,17 @@ import StructuredConcurrency
 /// Counts incoming-new badge messages without materializing chat or message model graphs.
 ///
 /// This service is used by the notification extension, where work happens during a short-lived
-/// push-processing window. Use a count operation here to avoid mapping `Chat.LocalModel` and
-/// faulting every message in each unread chat through `ChatModelMapper.nonReactionUnreadCount`.
+/// push-processing window. The fetch reads only `groupingId` and `messageId` columns via a
+/// dictionary result type to avoid faulting the full message graph through
+/// `ChatModelMapper.nonReactionUnreadCount`.
 ///
 /// The count mirrors the app display badge semantics:
 /// - incoming `.new` messages are counted.
 /// - only messages attached to a chat are considered.
 /// - reaction update messages are excluded from the badge count.
 /// - system messages are excluded from the badge count.
+/// - rows sharing a `groupingId` collapse to a single entry, so e.g. one call (offer + answer +
+///   closed) increments the badge by 1.
 final class UnreadMessageCountService {
     private let databaseService: CoreDataServiceProtocol
 
@@ -24,13 +27,18 @@ final class UnreadMessageCountService {
     }
 
     func totalUnreadBadgeMessageCount() async throws -> Int {
-        let repository = CoreDataRepository<Chat.LocalMessage, CDChatMessage>(
-            databaseService: databaseService,
-            mapper: AnyCoreDataMapper(ChatMessageEntityMapper()),
-            filter: Self.badgeCountPredicate()
-        )
-
-        return try await repository.fetchCountOperation().asyncExecute()
+        try await databaseService.perform { context in
+            let request = NSFetchRequest<NSDictionary>()
+            request.entity = CDChatMessage.entity()
+            request.predicate = Self.badgeCountPredicate()
+            request.resultType = .dictionaryResultType
+            request.returnsDistinctResults = true
+            request.propertiesToFetch = [
+                #keyPath(CDChatMessage.groupingId)
+            ]
+            let rows = try context.fetch(request)
+            return rows.count
+        }
     }
 }
 
@@ -39,7 +47,9 @@ private extension UnreadMessageCountService {
     static let badgeExcludedContentTypes = [
         NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.reacted.rawValue)),
         NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.reactionRemoved.rawValue)),
-        NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.token.rawValue))
+        NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.token.rawValue)),
+        NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.deviceAdded.rawValue)),
+        NSNumber(value: Int16(Chat.LocalMessage.Content.ContentType.deviceRemoved.rawValue))
     ]
 }
 

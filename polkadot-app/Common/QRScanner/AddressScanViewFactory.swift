@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum AddressScanViewFactory {
     static func createView(
         for delegate: AddressScanDelegate,

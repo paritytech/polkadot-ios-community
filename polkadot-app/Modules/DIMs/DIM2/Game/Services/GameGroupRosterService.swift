@@ -53,7 +53,7 @@ final class GameGroupRosterService: GameGroupRosterProviding {
         )
         let attesteeEncoder = ScaleEncoder()
         try attestee.encode(scaleEncoder: attesteeEncoder)
-        let attesteeBytes = try attesteeEncoder.encode()
+        let attesteeBytes = attesteeEncoder.encode()
         Logger.shared
             .debug(
                 "[GameDebug] roster: PlayerToIndex(me) = \(myIndices) " +
@@ -93,7 +93,7 @@ final class GameGroupRosterService: GameGroupRosterProviding {
             let round = peerKeysByRound[idx].round
             let peerEncoder = ScaleEncoder()
             try peer.encode(scaleEncoder: peerEncoder)
-            let peerBytes = try peerEncoder.encode()
+            let peerBytes = peerEncoder.encode()
             Logger.shared
                 .debug(
                     "[GameDebug] roster: peer for (round=\(round), peerIdx=\(peerKeysByRound[idx].key.playerIndex)) " +

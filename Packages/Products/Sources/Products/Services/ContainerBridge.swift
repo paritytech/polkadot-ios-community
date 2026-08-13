@@ -13,6 +13,13 @@ public typealias ContainerRequestHandler = (_ params: JSON) async throws -> JSON
 /// and sends `{"complete": true}` when the stream finishes.
 public typealias ContainerSubscriptionHandler = (_ params: JSON) async throws -> AnyAsyncSequence<JSON>
 
+/// Errors carrying a wire code serialize as `{"error": {"code": ..., "message": ...}}`
+/// so product scripts can reconstruct typed errors. Other errors keep the legacy string form.
+public protocol HostCallCodedError: Error {
+    var code: String { get }
+    var message: String { get }
+}
+
 // MARK: - Container Bridge
 
 /// Routes typed request/response and subscription messages between JS and native host API handlers.
@@ -121,7 +128,7 @@ public actor ContainerBridge {
 
             await sendValue(id: id, value: result)
         } catch {
-            await sendError(id: id, message: error.localizedDescription)
+            await sendError(id: id, error: error)
             logger.error("Error: \(error)")
         }
     }
@@ -195,6 +202,20 @@ public actor ContainerBridge {
     private func sendError(id: String, message: String) async {
         let response = JSON.dictionaryValue(["error": JSON.stringValue(message)])
         await sendCallback(id: id, responseJSON: response)
+    }
+
+    private func sendError(id: String, error: Error) async {
+        guard let codedError = error as? HostCallCodedError else {
+            await sendError(id: id, message: error.localizedDescription)
+            return
+        }
+
+        let payload = JSON.dictionaryValue([
+            "code": JSON.stringValue(codedError.code),
+            "message": JSON.stringValue(codedError.message)
+        ])
+
+        await sendCallback(id: id, responseJSON: JSON.dictionaryValue(["error": payload]))
     }
 
     private func sendUpdate(id: String, value: JSON) async {

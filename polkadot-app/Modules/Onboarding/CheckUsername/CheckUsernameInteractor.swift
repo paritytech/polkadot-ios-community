@@ -46,6 +46,8 @@ extension CheckUsernameInteractor: CheckUsernameInteractorInputProtocol {
         usernameStorage.username = username
         usernameStorage.usernameClaimed = true
         settingsManager.set(value: true, for: .coinageSyncNeeded)
-        presenter?.didSaveUsername()
+        MainActor.assumeIsolated {
+            presenter?.didSaveUsername()
+        }
     }
 }

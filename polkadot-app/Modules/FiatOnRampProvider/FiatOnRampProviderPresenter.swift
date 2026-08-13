@@ -2,6 +2,7 @@ import Foundation
 import Foundation_iOS
 import PolkadotUI
 
+@MainActor
 final class FiatOnRampProviderPresenter {
     weak var view: FiatOnRampProviderViewProtocol?
     let interactor: FiatOnRampProviderInteractorInputProtocol

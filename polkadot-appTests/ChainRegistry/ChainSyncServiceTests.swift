@@ -2,6 +2,8 @@ import Foundation
 import Operation_iOS
 import StructuredConcurrency
 import Testing
+import ChainRegistry
+import EventCenter
 
 @testable import polkadot_app
 

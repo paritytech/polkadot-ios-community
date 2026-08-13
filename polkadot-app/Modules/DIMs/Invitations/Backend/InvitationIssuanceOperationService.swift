@@ -1,6 +1,7 @@
 import Foundation
 import KeyDerivation
 import Operation_iOS
+import ChainRegistry
 
 protocol InvitationIssuanceServicing {
     func issueInvitation(type: Invitation.InvitationType) async throws -> IssueInvitationResponse

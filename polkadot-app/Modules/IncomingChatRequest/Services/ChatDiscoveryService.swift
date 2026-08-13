@@ -7,6 +7,7 @@ import StatementStore
 import AsyncExtensions
 import AsyncAlgorithms
 import SDKLogger
+import SubstrateSdkExt
 
 protocol ChatDiscoveryServicing {
     func makeDiscoveryTask(for ownKeyId: Chat.Contact.Own) -> AnyAsyncSequence<ChatRequest.ValidatedRemoteModel>?

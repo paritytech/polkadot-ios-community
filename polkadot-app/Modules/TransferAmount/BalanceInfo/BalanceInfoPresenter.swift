@@ -1,3 +1,4 @@
+@MainActor
 final class BalanceInfoPresenter: BalanceInfoPresenterProtocol {
     weak var view: BalanceInfoViewProtocol?
     let wireframe: BalanceInfoWireframeProtocol

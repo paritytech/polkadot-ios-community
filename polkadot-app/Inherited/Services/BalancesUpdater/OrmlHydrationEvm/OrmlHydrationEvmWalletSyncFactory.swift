@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import Operation_iOS
 import CommonService
+import ChainRegistry
 
 protocol OrmlHydrationEvmWalletSyncFactoryProtocol {
     func createSyncService(for chainId: ChainModel.Id, accountId: AccountId) -> ApplicationServiceProtocol

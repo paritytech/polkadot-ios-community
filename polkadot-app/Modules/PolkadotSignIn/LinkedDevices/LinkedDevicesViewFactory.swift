@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum LinkedDevicesViewFactory {
     static func createView(
         serviceCoordinator: ServiceCoordinatorProtocol

@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import Keystore_iOS
 
+@MainActor
 enum ChatAttachmentsViewFactory {
     static func createView(
         providers: [ChatAttachmentProviding],

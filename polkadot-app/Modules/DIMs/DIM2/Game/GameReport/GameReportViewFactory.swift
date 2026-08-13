@@ -4,6 +4,8 @@ import ExtrinsicService
 import Keystore_iOS
 import KeyDerivation
 import SubstrateOperation
+import ChainRegistry
+import BackgroundExecution
 
 enum GameReportViewFactory {
     @MainActor
@@ -138,7 +140,8 @@ enum GameReportViewFactory {
             personDataStore: flowState.personDataStore,
             claimBeneficiary: claimBeneficiary,
             claimUsesScoreAlias: source?.isNotGameRecognizedPerson == true,
-            player: player
+            player: player,
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry)
         )
 
         let resultsDependencies = GameResultsDependencies(

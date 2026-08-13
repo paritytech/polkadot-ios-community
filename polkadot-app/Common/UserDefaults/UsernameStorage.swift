@@ -1,5 +1,6 @@
 import Foundation
 import Keystore_iOS
+import EventCenter
 
 protocol UsernameStoring: AnyObject {
     var username: Username? { get set }

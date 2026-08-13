@@ -2,12 +2,14 @@ import Foundation
 import WebRTC
 import SubstrateSdk
 
+@MainActor
 final class GameVideoPresenter {
     weak var view: GameVideoViewProtocol?
 
     private let wireframe: GameVideoWireframeProtocol
     private let interactor: GameVideoInteractorInputProtocol
     private let rtcClient: RTCClient
+    private let cameraPermissionService: CameraPermissionServicing
     private let viewModelFactory: GameVideoViewModelMaking
     private let osMediator: OperatingSystemMediating
     private let logger: LoggerProtocol
@@ -20,11 +22,13 @@ final class GameVideoPresenter {
     private var bannedPlayers = Set<AccountId>()
     private var playerTooltipShown: Bool = true
     private var swipeTooltipShown: Bool = true
+    private var hasShownCameraPermissionAlert = false
 
     init(
         interactor: GameVideoInteractorInputProtocol,
         wireframe: GameVideoWireframeProtocol,
         rtcClient: RTCClient,
+        cameraPermissionService: CameraPermissionServicing,
         viewModelFactory: GameVideoViewModelMaking,
         osMediator: OperatingSystemMediating = OperatingSystemMediator(),
         logger: LoggerProtocol = Logger.shared
@@ -32,6 +36,7 @@ final class GameVideoPresenter {
         self.interactor = interactor
         self.wireframe = wireframe
         self.rtcClient = rtcClient
+        self.cameraPermissionService = cameraPermissionService
         self.viewModelFactory = viewModelFactory
         self.osMediator = osMediator
         self.logger = logger
@@ -45,7 +50,7 @@ extension GameVideoPresenter: GameVideoPresenterProtocol {
     }
 
     func goToReport() {
-        interactor.throttle()
+        interactor.throttle(isGameFinished: true)
         logger.debug("Proceeding to report")
 
         if let gameId {
@@ -58,12 +63,17 @@ extension GameVideoPresenter: GameVideoPresenterProtocol {
     }
 
     func close() {
-        interactor.throttle()
+        interactor.throttle(isGameFinished: state?.isFinished == true)
+        logger.debug("Closing")
         wireframe.close(view: view)
     }
 
     func onAppear() {
         osMediator.disableScreenSleep()
+
+        Task { [weak self] in
+            await self?.presentCameraPermissionIfNeeded()
+        }
     }
 
     func onDisappear() {
@@ -92,11 +102,11 @@ extension GameVideoPresenter: GameVideoInteractorOutputProtocol {
 
     func didReceive(state: GameStateMachine.State?, isPlayersChanged: Bool) {
         self.state = state
-        if case .finished = state {
-            goToReport()
+        guard case .finished = state else {
+            provideViewModel(isPlayersChanged: isPlayersChanged)
             return
         }
-        provideViewModel(isPlayersChanged: isPlayersChanged)
+        goToReport()
     }
 
     func didReceive(rtcIceConnectedFlags: [AccountId: Bool]) {
@@ -140,6 +150,28 @@ extension GameVideoPresenter: GameVideoInteractorOutputProtocol {
 }
 
 private extension GameVideoPresenter {
+    @MainActor
+    func presentCameraPermissionIfNeeded() async {
+        var permission = cameraPermissionService.permission()
+
+        if permission == .notDetermined {
+            permission = await cameraPermissionService.requestPermission()
+        }
+
+        guard !hasShownCameraPermissionAlert, permission == .denied else {
+            return
+        }
+
+        wireframe.askOpenApplicationSettings(
+            with: String(localized: .Game.gameCameraPermissionVideoMessage),
+            title: String(localized: .Game.gameCameraPermissionTitle),
+            from: view
+        ) { [weak self] result in
+            guard result != .notPresented else { return }
+            self?.hasShownCameraPermissionAlert = true
+        }
+    }
+
     func provideViewModel(isPlayersChanged: Bool) {
         let viewModel = viewModelFactory.makeViewModel(
             input: .init(

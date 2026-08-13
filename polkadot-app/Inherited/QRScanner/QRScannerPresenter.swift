@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 
+@MainActor
 class QRScannerPresenter: QRScannerPresenterProtocol {
     weak var view: QRScannerViewProtocol?
 
@@ -29,7 +30,7 @@ class QRScannerPresenter: QRScannerPresenterProtocol {
     }
 
     deinit {
-        stopServiceIfNeeded()
+        qrScanService.stop()
     }
 
     private func startServiceIfNeeded() {
@@ -98,16 +99,16 @@ class QRScannerPresenter: QRScannerPresenterProtocol {
         startServiceIfNeeded()
     }
 
-    func viewWillAppear() {
+    func viewDidAppear() {
         startServiceIfNeeded()
     }
 
-    func viewDidDisappear() {
+    func viewWillDisappear() {
         stopServiceIfNeeded()
     }
 }
 
-extension QRScannerPresenter: QRCaptureServiceDelegate {
+extension QRScannerPresenter: @MainActor QRCaptureServiceDelegate {
     func qrCapture(service _: QRCaptureServiceProtocol, didSetup captureSession: AVCaptureSession) {
         DispatchQueue.main.async {
             self.view?.didReceive(session: captureSession)
@@ -115,7 +116,9 @@ extension QRScannerPresenter: QRCaptureServiceDelegate {
     }
 
     func qrCapture(service _: QRCaptureServiceProtocol, didReceive code: String) {
-        handle(code: code)
+        DispatchQueue.main.async {
+            self.handle(code: code)
+        }
     }
 
     func qrCapture(service _: QRCaptureServiceProtocol, didFailure error: Error) {

@@ -52,15 +52,13 @@ private extension SSORequestProcessingContext {
             return
         }
 
-        for handler in handlers {
-            if handler.canHandle(content) {
-                logger.info("Processing \(request.message.messageId) with \(type(of: handler))")
-                await handler.handle(
-                    message: request.message,
-                    from: request.host
-                )
-                return
-            }
+        for handler in handlers where handler.canHandle(content) {
+            logger.info("Processing \(request.message.messageId) with \(type(of: handler))")
+            await handler.handle(
+                message: request.message,
+                from: request.host
+            )
+            return
         }
 
         logger.warning("No handler for message \(request.message.messageId)")

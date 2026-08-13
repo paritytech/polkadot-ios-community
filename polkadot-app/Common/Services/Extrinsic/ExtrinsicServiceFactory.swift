@@ -2,8 +2,10 @@ import Foundation
 import Operation_iOS
 import Keystore_iOS
 import SubstrateSdk
+import SubstrateSdkExt
 import SubstrateMetadataHash
 import ExtrinsicService
+import ChainRegistry
 
 final class ExtrinsicServiceFactory {
     private let chainRegistry: ChainRegistryProtocol
@@ -75,7 +77,7 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceFactoryProtocol {
             extensions: transactionExtensionFactory.createExtensions(),
             engine: connection,
             operationQueue: operationQueue,
-            timeout: JSONRPCTimeout.singleNode
+            timeout: JSONRPCTimeout.hour
         )
     }
 

@@ -10,22 +10,30 @@ public struct DownloadFileMetadata: Equatable {
     }
 }
 
-public struct ResumeDownloadInfo {
-    public let metadata: Data
-    public let lastChunkIndex: Int?
-    public let downloadedBytes: Int
+public enum DownloadedEntry {
+    case inline(fileData: Data)
+    case chunked(metadata: Data, totalChunks: Int)
+}
 
-    public init(metadata: Data, lastChunkIndex: Int?, downloadedBytes: Int) {
-        self.metadata = metadata
-        self.lastChunkIndex = lastChunkIndex
-        self.downloadedBytes = downloadedBytes
+public enum ResumeDownloadInfo {
+    public struct Chunked {
+        public let metadata: Data
+        public let lastChunkIndex: Int?
+        public let downloadedBytes: Int
+
+        public init(metadata: Data, lastChunkIndex: Int?, downloadedBytes: Int) {
+            self.metadata = metadata
+            self.lastChunkIndex = lastChunkIndex
+            self.downloadedBytes = downloadedBytes
+        }
     }
+
+    case inline(downloadedBytes: Int)
+    case chunked(Chunked)
 }
 
 public protocol DownloadFileContextProtocol {
-    var metadataHash: FileHash { get }
-
-    func saveMetadata(_ data: Data, totalChunks: Int) async throws
+    func saveEntry(_ entry: DownloadedEntry) async throws
 
     func fetchResumeInfo() async throws -> ResumeDownloadInfo?
 

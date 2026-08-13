@@ -1,5 +1,6 @@
 import UIKit
 
+@MainActor
 final class PolkadotSigningWireframe: PolkadotSigningWireframeProtocol {
     func hide(view: PolkadotSigningViewProtocol?) {
         view?.controller.dismiss(animated: true)

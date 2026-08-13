@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum PolkadotSigningViewFactory {
     static func createView(
         signingContext: PolkadotSigningContextProtocol

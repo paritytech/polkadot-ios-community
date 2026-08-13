@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum DiscardDIMViewFactory {
     static func createView(
         for model: DiscardDIMModel,

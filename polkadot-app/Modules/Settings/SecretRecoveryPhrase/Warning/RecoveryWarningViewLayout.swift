@@ -1,5 +1,6 @@
 import UIKit
 import UIKit_iOS
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -21,6 +22,7 @@ final class RecoveryWarningViewLayout: BottomSheetBaseLayout {
     override init(frame: CGRect) {
         super.init(frame: frame)
         setupLayout()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -101,14 +103,18 @@ private extension RecoveryWarningViewContentView {
 
             row.sView.text = $0.text
             row.sView.numberOfLines = 3
-            row.sView.apply(
-                style: .init(
-                    textColor: .fgPrimary,
-                    font: .regular16
-                )
-            )
+            row.sView.textColor = .fgPrimary
+            row.sView.font = .regular16
             return row
         }
         stepsStackView.addArrangedSubviews(views)
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension RecoveryWarningViewLayout: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [.init(actionButton, AccessibilityID.Settings.showRecoveryPhraseButton)]
     }
 }

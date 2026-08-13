@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 final class ContactsListWireframe {
     let flowState: ChatFlowState
 
@@ -26,7 +27,10 @@ extension ContactsListWireframe: ContactsListWireframeProtocol {
             self?.performChatShow(from: view, for: openModel)
         }
 
-        guard let search = SearchContactViewFactory.createView(with: searchModel) else {
+        guard let search = SearchContactViewFactory.createView(
+            with: searchModel,
+            coinageService: flowState.coinageService
+        ) else {
             return
         }
         search.controller.modalPresentationStyle = .fullScreen

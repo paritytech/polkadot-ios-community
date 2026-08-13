@@ -13,7 +13,8 @@ protocol ChatExtensionWidgetStreaming: AnyObject {
     func widgetConfigurationStream() -> AnyAsyncSequence<ChatExtensionWidgetUpdate>
 }
 
-final class ChatExtensionWidgetStreamProvider {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class ChatExtensionWidgetStreamProvider: @unchecked Sendable {
     private let registry: ChatExtensionsRegistering
     private let logger: LoggerProtocol
     private let workQueue = DispatchQueue(label: "ChatExtensionWidgetStreamProvider.state")

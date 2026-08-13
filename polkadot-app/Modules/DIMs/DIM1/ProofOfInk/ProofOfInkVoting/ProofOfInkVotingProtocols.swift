@@ -5,6 +5,7 @@ protocol ProofOfInkVotingViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: ProofOfInkVotingViewModel)
 }
 
+@MainActor
 protocol ProofOfInkVotingPresenterProtocol: AnyObject {
     func setup()
     func close()
@@ -16,8 +17,10 @@ protocol ProofOfInkVotingInteractorInputProtocol: AnyObject {
     func setup()
 }
 
+@MainActor
 protocol ProofOfInkVotingInteractorOutputProtocol: AnyObject {}
 
+@MainActor
 protocol ProofOfInkVotingWireframeProtocol: AnyObject {
     func close(view: ProofOfInkVotingViewProtocol?)
     func showReport(from view: ProofOfInkVotingViewProtocol?)

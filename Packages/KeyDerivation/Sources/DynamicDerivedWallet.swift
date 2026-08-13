@@ -28,7 +28,7 @@ public struct DynamicDerivedWallet {
         keypairFactory = try WalletSeedKeypairFactory(seed: seedBytes)
     }
 
-    public init(secretKeyProvider: @escaping () -> Data) {
+    public init(secretKeyProvider: @Sendable @escaping () -> Data) {
         keypairFactory = WalletSecretKeypairFactory(secretProvider: secretKeyProvider)
     }
 

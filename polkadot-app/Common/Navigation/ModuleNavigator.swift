@@ -24,7 +24,7 @@ extension ModuleNavigator: ModuleNavigating {
     }
 
     func openChat(_ model: ChatOpenModel) {
-        guard let view = UIWindow.keyWindow?.rootViewController as? MainTabBarViewController else {
+        guard let view = UIApplication.shared.mainTabBarController else {
             return
         }
 
@@ -66,35 +66,6 @@ extension ModuleNavigator: ModuleNavigating {
             return
         }
 
-        let navigate = { [weak tabBar] in
-            guard let tabBar else { return }
-            tabBar.select(tab: .browse)
-
-            guard let navigation = tabBar.view(for: .browse) as? UINavigationController else {
-                return
-            }
-
-            let targetDomain = page.host.toDotDomain()
-            let existing = navigation.viewControllers
-                .compactMap { $0 as? SPAViewController }
-                .first(where: { $0.configuration.page.host.toDotDomain() == targetDomain })
-            if let existing {
-                navigation.popToViewController(existing, animated: true)
-                return
-            }
-
-            guard let productView = SPAViewFactory.createView(page: page) else {
-                return
-            }
-            let productViewNavigation = SPAViewFactory.makeCardNavigationController(for: productView)
-            productViewNavigation.modalPresentationStyle = .fullScreen
-            navigation.present(productViewNavigation, animated: true)
-        }
-
-        if tabBar.presentedViewController != nil {
-            tabBar.dismiss(animated: false, completion: navigate)
-        } else {
-            navigate()
-        }
+        tabBar.openProduct(page: page)
     }
 }

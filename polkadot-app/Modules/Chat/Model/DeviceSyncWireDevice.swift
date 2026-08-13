@@ -10,7 +10,7 @@ extension Chat {
 
     struct DeviceSyncWireDevice: Equatable {
         static let accountIdLength = 32
-        static let encryptionKeyLength = 65
+        static let encryptionKeyLength = 32
 
         let statementAccountId: Data
         let encryptionPublicKey: Data

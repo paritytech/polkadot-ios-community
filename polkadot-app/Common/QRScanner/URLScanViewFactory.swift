@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum URLScanViewFactory {
     static func createView(
         for delegate: URLScanDelegate,

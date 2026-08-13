@@ -59,8 +59,12 @@ extension ChatInboxService: ChatInboxServicing {
                 }
             }
 
-            let localMessages = messages.compactMap { message in
-                Chat.LocalMessage(
+            let localMessages: [Chat.LocalMessage] = messages.compactMap { message in
+                guard Chat.LocalMessage.supportsRemote(message) else {
+                    return nil
+                }
+
+                return Chat.LocalMessage(
                     remote: message,
                     creationSource: .localDevice,
                     status: .incoming(.new),
@@ -88,7 +92,7 @@ private extension ChatInboxService {
 
         let peer = CallPeer(name: contact.username, accountId: contact.accountId)
         for message in messages {
-            await callCoordinator.handleIncomingCall(message: message, from: peer)
+            await callCoordinator.handleIncomingCall(in: message, from: peer)
         }
     }
 

@@ -4,6 +4,7 @@ import SubstrateSdk
 import SubstrateStorageQuery
 import BigInt
 import ExtrinsicService
+import ChainRegistry
 
 final class MortalEraOperationFactory {
     struct FinalizationModel {

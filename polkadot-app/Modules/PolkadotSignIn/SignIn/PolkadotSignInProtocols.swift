@@ -5,6 +5,7 @@ protocol PolkadotSignInViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: PolkadotSignInViewLayout.ViewModel)
 }
 
+@MainActor
 protocol PolkadotSignInPresenterProtocol: AnyObject {
     func setup()
     func approve()
@@ -16,6 +17,7 @@ protocol PolkadotSignInInteractorInputProtocol: AnyObject {
     func approve(with input: HandshakeInput)
 }
 
+@MainActor
 protocol PolkadotSignInInteractorOutputProtocol: AnyObject {
     func didStartFetchingInput()
     func didFinishFetchingInput(_ input: HandshakeInput)
@@ -32,6 +34,7 @@ enum PolkadotSignInResult {
     case failed
 }
 
+@MainActor
 protocol PolkadotSignInWireframeProtocol: AnyObject {
     func hide(view: PolkadotSignInViewProtocol?, with result: PolkadotSignInResult?)
 }

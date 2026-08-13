@@ -108,16 +108,18 @@ public extension ResourcesPallet.AsResourcesTxExtension {
         }
     }
 
-    // RegisterStatementStoreAllowance(ProofOf<T>, RingIndex, MembershipCollection)
+    // RegisterStatementStoreAllowance(ProofOf<T>, RingIndex, RevisionIndex, MembershipCollection)
     struct RegisterStatementStoreAllowanceMode: Codable {
         enum CodingKeys: String, CodingKey {
             case proof = "0"
             case ringIndex = "1"
-            case collection = "2"
+            case revision = "2"
+            case collection = "3"
         }
 
         @BytesCodable var proof: Data
         @StringCodable var ringIndex: MembersPallet.RingIndex
+        @StringCodable var revision: UInt32
         let collection: MembershipCollectionMode
     }
 
@@ -231,6 +233,7 @@ private extension ResourcesPallet.AsResourcesTxExtension {
             RegisterStatementStoreAllowanceMode(
                 proof: proof,
                 ringIndex: params.ringIndex,
+                revision: params.proofParams.revision,
                 collection: params.collection.asMode
             )
         )

@@ -1,6 +1,8 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import SubstrateSdkExt
+import ChainRegistry
 
 protocol SearchUsernameOperationFactory {
     func searchUsername(for request: UsernameRequestModel) async throws -> [UsernameResponseModel]

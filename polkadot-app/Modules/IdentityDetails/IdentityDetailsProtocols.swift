@@ -10,6 +10,7 @@ protocol IdentityDetailsViewProtocol: ControllerBackedProtocol {
     func didReceive(isPerson: Bool)
 }
 
+@MainActor
 protocol IdentityDetailsPresenterProtocol: AnyObject {
     func setup()
     func onCopyUsername()
@@ -29,6 +30,7 @@ protocol IdentityDetailsInteractorOutputProtocol: AnyObject {
     func didReceive(profile: IdentityProfile)
 }
 
+@MainActor
 protocol IdentityDetailsWireframeProtocol: AnyObject,
     SharingPresentable,
     AddressCopyPresentable {

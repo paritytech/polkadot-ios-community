@@ -2,6 +2,7 @@ import CoreData
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import ChainRegistry
 
 enum ChainModelMapperError: Error {
     case unexpectedSyncMode(Int16)

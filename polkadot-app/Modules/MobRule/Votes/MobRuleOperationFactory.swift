@@ -3,6 +3,7 @@ import SubstrateSdk
 import Operation_iOS
 import SubstrateStateCall
 import Individuality
+import ChainRegistry
 
 protocol MobRuleOperationFactoryProtocol {
     func votedOnWrapper(

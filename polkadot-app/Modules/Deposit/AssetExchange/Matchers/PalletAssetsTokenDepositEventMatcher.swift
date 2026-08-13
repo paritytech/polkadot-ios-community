@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import XcmTransfer
 import AssetsManagement
+import ChainRegistry
 
 final class PalletAssetsTokenDepositEventMatcher {
     let extras: StatemineAssetExtras

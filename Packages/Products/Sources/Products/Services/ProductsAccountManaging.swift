@@ -8,7 +8,8 @@ public protocol ProductsAccountManaging: Sendable {
 
     func deriveAccount(_ productAccountId: ProductAccountId) throws -> AccountId
 
-    func deriveAlias(_ productAccountId: ProductAccountId) throws -> ProductsAlias
+    /// Public key of `//product//{productId}` — the product subtree root.
+    func deriveProductSubtreePublicKey(for productId: ProductId) throws -> Data
 
     func requestResourceAllocation(
         for productId: ProductId,

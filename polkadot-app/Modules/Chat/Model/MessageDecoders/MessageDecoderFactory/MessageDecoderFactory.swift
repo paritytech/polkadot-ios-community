@@ -1,4 +1,5 @@
 import Foundation
+import ChainRegistry
 
 protocol ChatMessageDecoderMaking {
     func makeDecoders(for chain: ChainModel, chatId: Chat.Id) -> [ChatMessageCustomDecoding]

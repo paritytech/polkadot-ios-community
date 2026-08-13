@@ -80,7 +80,7 @@ final class PolkadotPeer: ChatExtensionBot, ChatExtensionDelegateProvidable {
 }
 
 extension PolkadotPeer: ChatExtensionBotProtocol {
-    static let identifier: ChatExtension.Id = "PolkadotPeer"
+    nonisolated static let identifier: ChatExtension.Id = "PolkadotPeer"
     var identifier: ChatExtension.Id { Self.identifier }
     var peerMetadata: Chat.PeerMetadata {
         Chat.PeerMetadata(
@@ -211,7 +211,7 @@ private extension PolkadotPeer {
                 continue
             }
 
-            let action = await UIAction(
+            let action = UIAction(
                 title: faqItem.question,
                 handler: { [unowned self, context] action in
                     Task {

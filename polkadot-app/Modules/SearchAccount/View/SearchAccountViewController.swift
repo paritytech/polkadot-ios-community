@@ -84,8 +84,7 @@ final class SearchAccountViewController: UIViewController, ViewHolder {
     // MARK: Private methods
 
     private func configureNavigationBar() {
-        // Disable scan button for coinage as there's no clear behavior
-//        navigationItem.rightBarButtonItem = rootView.scanButton
+        navigationItem.rightBarButtonItem = rootView.scanButton
     }
 
     private func configureLocalization() {
@@ -167,7 +166,7 @@ final class SearchAccountViewController: UIViewController, ViewHolder {
 
     @objc
     private func didTapScanButton(_: UIBarButtonItem) {
-        presenter.scanAddress()
+        presenter.scanQRCode()
     }
 }
 

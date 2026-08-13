@@ -1,6 +1,7 @@
 import Foundation
 import Keystore_iOS
 
+@MainActor
 enum DiscardNotificationsViewFactory {
     static func createView(
         model: DiscardNotificationsModel,

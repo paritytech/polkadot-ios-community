@@ -1,6 +1,8 @@
 import UIKit
 import SubstrateSdk
 import Operation_iOS
+import ChainRegistry
+import SubstrateSdkExt
 
 final class DepositInteractor {
     weak var presenter: DepositInteractorOutputProtocol?

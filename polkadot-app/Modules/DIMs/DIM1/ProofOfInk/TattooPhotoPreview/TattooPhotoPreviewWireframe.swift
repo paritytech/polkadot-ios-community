@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class TattooPhotoPreviewWireframe: TattooPhotoPreviewWireframeProtocol {
     func showDiscardConfirmation(on view: TattooPhotoPreviewViewProtocol?, model: DiscardEvidenceModel) {
         guard let viewToPresent = DiscardEvidenceViewFactory.createView(for: model) else {

@@ -4,6 +4,7 @@
 
     protocol AppFactoryResetViewProtocol: ControllerBackedProtocol {}
 
+    @MainActor
     protocol AppFactoryResetPresenterProtocol: AnyObject {
         func actionStartOver()
         func actionDismiss()
@@ -13,10 +14,12 @@
         func performReset()
     }
 
+    @MainActor
     protocol AppFactoryResetInteractorOutputProtocol: AnyObject {
         func didCompleteReset()
     }
 
+    @MainActor
     protocol AppFactoryResetWireframeProtocol: AnyObject {
         func navigateToFreshStart()
         func dismiss(from view: AppFactoryResetViewProtocol?)

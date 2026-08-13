@@ -4,6 +4,7 @@ import Operation_iOS
 import HydrationSdk
 import CommonService
 import ChainStore
+import ChainRegistry
 
 final class OrmlHydrationEvmBalanceSyncService {
     let chainId: ChainModel.Id

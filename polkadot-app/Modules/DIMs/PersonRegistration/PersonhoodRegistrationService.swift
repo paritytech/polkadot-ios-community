@@ -8,6 +8,7 @@ import Keystore_iOS
 import CommonService
 import KeyDerivation
 import SubstrateOperation
+import ChainRegistry
 
 protocol PersonhoodRegistrationServicing: ApplicationServiceProtocol,
     PersonSelfIncludeBackgroundServiceDelegate,
@@ -33,7 +34,8 @@ protocol PersonhoodRegistrationStateObserving: AnyObject {
     )
 }
 
-final class PersonhoodRegistrationService {
+// @unchecked Sendable: all mutable state confined to serial workQueue
+final class PersonhoodRegistrationService: @unchecked Sendable {
     let chain: ChainProtocol
     let candidateWallet: WalletManaging
     let mobRuleWallet: WalletManaging

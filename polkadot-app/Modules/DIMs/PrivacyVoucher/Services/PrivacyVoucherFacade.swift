@@ -1,4 +1,5 @@
 import Foundation
+import ChainRegistry
 
 // TODO: Get rid of privacy voucher at all once migrated to Coinage
 enum PrivacyVoucherFacade {

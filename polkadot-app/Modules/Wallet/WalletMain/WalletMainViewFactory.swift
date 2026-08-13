@@ -1,7 +1,9 @@
 import Foundation
 import Keystore_iOS
 import SubstrateSdk
+import ChainRegistry
 
+@MainActor
 enum WalletMainViewFactory {
     static func createView(
         with context: WalletFlowContextProtocol,
@@ -16,25 +18,27 @@ enum WalletMainViewFactory {
         else {
             return nil
         }
-
         let wireframe = WalletMainWireframe(personDataStore: context.personDataStore)
 
-        let launcher = W3sPayLauncher(
-            coinageService: context.coinageService,
-            chainRegistry: chainRegistry,
+        let networkStatusObserver = NetworkStatusObserver(
+            networkStatusService: context.networkStatusService,
+            chainIds: [chainAssetId.chainId],
             logger: Logger.shared
         )
-        let dsfinvkRouter = W3sDsfinvkRouter(
-            remoteConfig: FirebaseFacade.shared,
-            launcher: launcher,
-            logger: Logger.shared
+
+        let interactor = WalletMainInteractor(
+            collectiblesURLProvider: CollectiblesURLProvider.makeDefault(),
+            networkStatusObserver: networkStatusObserver
         )
 
         let presenter = WalletMainPresenter(
+            interactor: interactor,
             wireframe: wireframe,
-            dsfinvkRouter: dsfinvkRouter,
-            collectiblesURLProvider: CollectiblesURLProvider.makeDefault()
+            titleViewModelFactory: NetworkStatusTitleViewModelFactory(
+                screenTitle: String(localized: .walletMainTitle)
+            )
         )
+        interactor.presenter = presenter
 
         let view = WalletMainViewController(
             presenter: presenter,

@@ -4,7 +4,7 @@ import Keystore_iOS
 import KeyDerivation
 
 protocol DeviceEncryptionKeyManaging {
-    func getOrCreatePrivateKey() throws -> P256.KeyAgreement.PrivateKey
+    func getOrCreatePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey
     func getPublicKey() throws -> Data
 }
 
@@ -26,7 +26,7 @@ final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
         self.logger = logger
     }
 
-    func getOrCreatePrivateKey() throws -> P256.KeyAgreement.PrivateKey {
+    func getOrCreatePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey {
         lock.lock()
         defer { lock.unlock() }
 
@@ -34,10 +34,10 @@ final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
 
         do {
             let existingKeyData = try keychain.fetchKey(for: tag)
-            return try P256.KeyAgreement.PrivateKey(rawRepresentation: existingKeyData)
+            return try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: existingKeyData)
         } catch KeystoreError.noKeyFound {
             logger.debug("Device encryption key not found, generating new key")
-            let privateKey = P256.KeyAgreement.PrivateKey()
+            let privateKey = Curve25519.KeyAgreement.PrivateKey()
             try keychain.saveKey(privateKey.rawRepresentation, with: tag)
             logger.debug("Device encryption key generated and saved")
             return privateKey
@@ -49,6 +49,6 @@ final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
 
     func getPublicKey() throws -> Data {
         let privateKey = try getOrCreatePrivateKey()
-        return privateKey.publicKey.x963Representation
+        return privateKey.publicKey.rawRepresentation
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import UniformTypeIdentifiers
+import BlurHash
 
 enum PHImageAttachmentProviderError: Error {
     case failedToLoadImage
@@ -15,9 +16,11 @@ final class PHImageAttachmentProvider: @unchecked Sendable {
     private let previewSize: CGFloat = 600
     private let uploadSize: CGFloat = 4_800
     private let compressionQuality: CGFloat = 0.7
+    private let logger: LoggerProtocol
 
-    init(itemProvider: NSItemProvider) {
+    init(itemProvider: NSItemProvider, logger: LoggerProtocol = Logger.shared) {
         self.itemProvider = itemProvider
+        self.logger = logger
     }
 }
 
@@ -46,6 +49,7 @@ private extension PHImageAttachmentProvider {
         try store.store(attachment: uploadData, filename: fileName)
 
         let fileUrl = store.fileURL(for: fileName)
+        let blurHash = makeBlurHash(from: url)
 
         let imageMeta = ChatRemoteMessageContent.ImageFileMeta(
             general: .init(
@@ -54,7 +58,7 @@ private extension PHImageAttachmentProvider {
             ),
             width: UInt32(imageToUpload.size.width * imageToUpload.scale),
             height: UInt32(imageToUpload.size.height * imageToUpload.scale),
-            thumbnail: nil
+            thumbnail: blurHash?.toData()
         )
 
         return ProcessedAttachment(
@@ -62,6 +66,20 @@ private extension PHImageAttachmentProvider {
             fileUrl: fileUrl,
             meta: .image(imageMeta)
         )
+    }
+
+    func makeBlurHash(from url: URL) -> BlurHash? {
+        if let blurHashImage = UIImage.downsampleImage(
+            at: url,
+            maxSideSize: BlurHashConfiguration.encodingMaximumSide,
+            scale: 1
+        ), let value = blurHashImage.blurHash(numberOfComponents: BlurHashConfiguration.components),
+        let encodedBlurHash = BlurHash(value) {
+            return encodedBlurHash
+        }
+
+        logger.warning("Blur hash generation failed")
+        return nil
     }
 }
 

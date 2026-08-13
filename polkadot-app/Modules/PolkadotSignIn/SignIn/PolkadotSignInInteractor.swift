@@ -5,17 +5,20 @@ final class PolkadotSignInInteractor {
 
     private let serviceCoordinator: ServiceCoordinatorProtocol
     private let deviceMessageBroadcaster: DeviceMessageBroadcasting
+    private let localNetworkPermissionService: LocalNetworkPermissionServicing
     private let url: URL
     private let logger: LoggerProtocol
 
     init(
         serviceCoordinator: ServiceCoordinatorProtocol,
         deviceMessageBroadcaster: DeviceMessageBroadcasting,
+        localNetworkPermissionService: LocalNetworkPermissionServicing,
         url: URL,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.serviceCoordinator = serviceCoordinator
         self.deviceMessageBroadcaster = deviceMessageBroadcaster
+        self.localNetworkPermissionService = localNetworkPermissionService
         self.url = url
         self.logger = logger
     }
@@ -83,8 +86,9 @@ private extension PolkadotSignInInteractor {
         presenter?.didStartFetchingInput()
     }
 
-    func reportFetchInputFinish(_ input: HandshakeInput) {
+    func reportFetchInputFinish(_ input: HandshakeInput) async {
         presenter?.didFinishFetchingInput(input)
+        await localNetworkPermissionService.requestPermissionIfNeeded()
     }
 
     func reportFetchInputError(_ error: Error) {

@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum TransactionSuccessViewFactory {
     static func create(
         onDone: TransactionSuccessCompletion?

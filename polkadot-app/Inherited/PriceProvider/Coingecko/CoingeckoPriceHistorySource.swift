@@ -1,5 +1,6 @@
 import Foundation
 import Operation_iOS
+import ChainRegistry
 
 final class CoingeckoPriceHistoryProviderSource {
     static let maxAllowedRange = 365.secondsFromDays()

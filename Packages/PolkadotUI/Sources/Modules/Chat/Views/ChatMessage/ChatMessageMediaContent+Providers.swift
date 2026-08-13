@@ -3,7 +3,7 @@ import UIKit
 // MARK: - Preview provider protocol
 
 public protocol ChatMessageMediaPreviewProviding: AnyObject {
-    func providePreview(
+    @MainActor func providePreview(
         for imageView: UIImageView,
         size: CGSize?
     )

@@ -33,6 +33,7 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
 
         entity.touchParent()
         entity.contact?.acceptedAt = Date()
+        entity.contact?.pendingDevicesFanOut = true
         entity.contact = nil
 
         guard

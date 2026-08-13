@@ -6,7 +6,7 @@ import SubstrateSdk
 ///
 /// Each call performs one POST and throws a typed [GameDashboardTelemetryError]
 /// on failure. Retry, scheduling, and lifecycle live in the emitter, not here.
-protocol GameDashboardTelemetryClienting: Sendable {
+protocol GameDashboardTelemetryClienting {
     func postRegistration(_ payload: GameDashboardPayloads.Registration) async throws
     func postReporting(_ payload: GameDashboardPayloads.Reporting) async throws
     func postEnd(_ payload: GameDashboardPayloads.End) async throws
@@ -42,9 +42,7 @@ final class GameDashboardTelemetryClient: GameDashboardTelemetryClienting {
 
 private extension GameDashboardTelemetryClient {
     func post(payload: some Encodable, path: String) async throws {
-        guard let url = URL(string: baseURL.absoluteString + path) else {
-            throw GameDashboardTelemetryError.invalidURL
-        }
+        let url = baseURL.appendingPathComponent(path)
 
         var request = URLRequest(url: url)
         request.httpMethod = HttpMethod.post.rawValue

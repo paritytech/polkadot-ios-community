@@ -2,29 +2,39 @@ import Foundation
 import HandoffService
 
 final class MockDownloadFileContext: DownloadFileContextProtocol {
-    let metadataHash: FileHash
+    let entryHash: FileHash
 
     private var metadataBlob: Data?
     private var fileData = Data()
+    private var inlineData: Data?
     private var lastIndex: Int?
     private(set) var isFinished = false
 
-    init(metadataHash: FileHash) {
-        self.metadataHash = metadataHash
+    init(entryHash: FileHash) {
+        self.entryHash = entryHash
     }
 
-    func saveMetadata(_ data: Data, totalChunks _: Int) async throws {
-        metadataBlob = data
+    func saveEntry(_ entry: DownloadedEntry) async throws {
+        switch entry {
+        case let .inline(fileData):
+            inlineData = fileData
+        case let .chunked(metadata, _):
+            metadataBlob = metadata
+        }
     }
 
     func fetchResumeInfo() async throws -> ResumeDownloadInfo? {
+        if let inlineData {
+            return .inline(downloadedBytes: inlineData.count)
+        }
+
         guard let metadataBlob else { return nil }
 
-        return ResumeDownloadInfo(
+        return .chunked(.init(
             metadata: metadataBlob,
             lastChunkIndex: lastIndex,
             downloadedBytes: fileData.count
-        )
+        ))
     }
 
     func appendChunk(_ data: Data, at index: Int) async throws {
@@ -37,6 +47,6 @@ final class MockDownloadFileContext: DownloadFileContextProtocol {
     }
 
     func assembleFile() -> Data {
-        fileData
+        inlineData ?? fileData
     }
 }

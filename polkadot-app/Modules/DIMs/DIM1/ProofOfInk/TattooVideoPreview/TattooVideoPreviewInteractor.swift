@@ -25,7 +25,9 @@ extension TattooVideoPreviewInteractor: TattooVideoPreviewInteractorInputProtoco
     func setup() {
         do {
             if let existingVideoExport = try fileManager.existingVideoExport() {
-                presenter?.didReceive(videoUrl: existingVideoExport)
+                MainActor.assumeIsolated {
+                    presenter?.didReceive(videoUrl: existingVideoExport)
+                }
                 return
             }
             let exportUrl = try fileManager.prepareVideoExport()
@@ -34,15 +36,19 @@ extension TattooVideoPreviewInteractor: TattooVideoPreviewInteractorInputProtoco
                 for: settings,
                 runCompletionIn: .main
             ) { [weak self] result in
-                switch result {
-                case .success:
-                    self?.presenter?.didReceive(videoUrl: exportUrl)
-                case let .failure(error):
-                    self?.presenter?.didReceive(error: .videoExport(error))
+                MainActor.assumeIsolated {
+                    switch result {
+                    case .success:
+                        self?.presenter?.didReceive(videoUrl: exportUrl)
+                    case let .failure(error):
+                        self?.presenter?.didReceive(error: .videoExport(error))
+                    }
                 }
             }
         } catch {
-            presenter?.didReceive(error: .videoFile(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .videoFile(error))
+            }
         }
     }
 

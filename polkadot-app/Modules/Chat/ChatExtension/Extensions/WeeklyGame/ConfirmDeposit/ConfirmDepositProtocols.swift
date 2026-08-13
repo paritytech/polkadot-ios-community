@@ -17,6 +17,7 @@ protocol ConfirmDepositViewProtocol: ControllerBackedProtocol {
     func didReceive(isLoading: Bool)
 }
 
+@MainActor
 protocol ConfirmDepositPresenterProtocol: AnyObject {
     func setup()
     func didTapConfirm()
@@ -28,6 +29,7 @@ protocol ConfirmDepositInteractorInputProtocol: AnyObject {
     func didTapConfirm(amount: Balance)
 }
 
+@MainActor
 protocol ConfirmDepositInteractorOutputProtocol: AnyObject {
     func didStartDeposit()
     func didFinishDeposit()

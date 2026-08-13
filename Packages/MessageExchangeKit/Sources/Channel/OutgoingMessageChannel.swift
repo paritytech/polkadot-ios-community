@@ -9,8 +9,7 @@ final class OutgoingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
     weak var delegate: AnyOutgoingMessageChannelDelegate<M>?
 
     private let workQueue: DispatchQueue
-    private let sessionId: MessageExchange.SessionId
-    private let channelId: StatementFixedFieldConvertible
+    private let routeContexts: PeerSessionRoute.Contexts
     private let submitter: StatementStoreSubmitting
     private let signer: StatementStoreSigning
     private let preSendHandler: AnyPeerSessionPreSendHandler<M>
@@ -18,14 +17,13 @@ final class OutgoingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
     private let requestQueue: AnyOutgoingRequestQueue<M>
     private let operationQueue: OperationQueue
     private let logger: SDKLoggerProtocol?
-    private var submissionTask: Task<Void, Never>?
+    private var submissionTasks = [PeerSessionRoute: Task<Void, Never>]()
 
     private var isActive = false
 
     init(
         workQueue: DispatchQueue,
-        sessionId: MessageExchange.SessionId,
-        channelId: StatementFixedFieldConvertible,
+        routeContexts: PeerSessionRoute.Contexts,
         submitter: StatementStoreSubmitting,
         signer: StatementStoreSigning,
         preSendHandler: AnyPeerSessionPreSendHandler<M>,
@@ -35,8 +33,7 @@ final class OutgoingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
         logger: SDKLoggerProtocol?
     ) {
         self.workQueue = workQueue
-        self.sessionId = sessionId
-        self.channelId = channelId
+        self.routeContexts = routeContexts
         self.submitter = submitter
         self.signer = signer
         self.preSendHandler = preSendHandler
@@ -48,10 +45,21 @@ final class OutgoingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
 }
 
 extension OutgoingMessageChannel: OutgoingMessageChanneling {
-    func handleResponse(_ response: MessageExchange.Response) -> StatementHandlingStatus {
+    func handleResponse(
+        _ response: MessageExchange.Response,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
         assert(delegate != nil, "Delegate should not be nil")
 
-        guard response.requestId == requestQueue.currentRequest?.requestId else {
+        guard let currentRequest = requestQueue.currentRequests[route] else {
+            logger?.debug("Ignoring response \(response.requestId) on route \(route); current request is nil")
+            return false
+        }
+
+        guard response.requestId == currentRequest.requestId else {
+            logger?.debug(
+                "Ignoring response \(response.requestId) on route \(route); current request is \(currentRequest.requestId)"
+            )
             return false
         }
 
@@ -59,17 +67,17 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
 
         if response.responseCode.isSuccess {
             logger?.debug("Message was delivered successfully")
-            handleMessageDeliveringFinish(with: nil)
+            handleMessageDeliveringFinish(with: nil, route: route)
         } else {
             logger?.debug("Got failed response: \(response.responseCode)")
-            handleMessageDeliveringFinish(with: .gotFailedResponse(response.responseCode))
+            handleMessageDeliveringFinish(with: .gotFailedResponse(response.responseCode), route: route)
         }
 
         return true
     }
 
-    func restoreState(from request: OutgoingRequest<Message>?) {
-        requestQueue.currentRequest = request
+    func restoreState(from requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
+        requestQueue.currentRequests = requests
     }
 
     func setActive(_ isActive: Bool) {
@@ -77,44 +85,63 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
 
         if isActive {
             logger?.debug("Trying to send messages as channel became active")
-            let hasExtendedRequest = requestQueue.attemptRequestExtensionFromQueue()
-            sendNextRequest(resendsCurrentRequest: hasExtendedRequest)
+            let extendedRoutes = requestQueue.attemptRequestExtensionFromQueue()
+            for route in extendedRoutes {
+                resendCurrentRequest(on: route)
+            }
+            sendQueuedRequests()
         }
     }
 
-    func addMessageToQueue(_ message: Message) {
-        let result = requestQueue.addMessage(message, isChannelActive: isActive)
+    func addMessagesToQueue(_ messages: [Message]) {
+        guard !messages.isEmpty else {
+            return
+        }
 
-        switch result {
-        case let .success(result):
-            handleAddToQueueResult(result, for: message)
-        case let .failure(error):
-            handleAddToQueueError(error, for: message)
+        let results = requestQueue.addMessages(messages, isChannelActive: isActive)
+
+        var appendedRoutes = Set<PeerSessionRoute>()
+        var didQueue = false
+
+        for (message, result) in zip(messages, results) {
+            switch result {
+            case let .success(outcome):
+                notifyAddedToQueue(outcome, for: message)
+                switch outcome {
+                case let .appendedToCurrentRequest(route):
+                    appendedRoutes.insert(route)
+                case .queued:
+                    didQueue = true
+                case .ignored:
+                    break
+                }
+            case let .failure(error):
+                notifyAddToQueueError(error, for: message)
+            }
+        }
+
+        for route in appendedRoutes {
+            resendCurrentRequest(on: route)
+        }
+
+        if didQueue {
+            sendQueuedRequests()
         }
     }
 }
 
 private extension OutgoingMessageChannel {
-    func handleAddToQueueResult(_ result: MessageExchange.AddToQueueResult, for message: Message) {
-        logger?.debug("Added message to queue")
+    func notifyAddedToQueue(_ outcome: MessageExchange.AddToQueueResult, for message: Message) {
+        logger?.debug("Added message to queue (\(outcome))")
 
         delegate?.messageChannel(
             self,
             didFinishAddingMessageToQueue: message,
             withError: nil
         )
-
-        switch result {
-        case .appendedToCurrentRequest:
-            sendNextRequest(resendsCurrentRequest: true)
-        case .queued:
-            sendNextRequest(resendsCurrentRequest: false)
-        case .ignored:
-            break
-        }
     }
 
-    func handleAddToQueueError(_ error: MessageExchange.AddToQueueError, for message: Message) {
+    func notifyAddToQueueError(_ error: MessageExchange.AddToQueueError, for message: Message) {
         logger?.error("Failed to add message to queue: \(error)")
 
         delegate?.messageChannel(
@@ -124,45 +151,58 @@ private extension OutgoingMessageChannel {
         )
     }
 
-    func sendNextRequest(resendsCurrentRequest: Bool) {
+    func resendCurrentRequest(on route: PeerSessionRoute) {
         guard isActive else {
             logger?.debug("Channel is not in the active state")
             return
         }
 
-        guard resendsCurrentRequest || requestQueue.currentRequest == nil else {
-            logger?.debug("Already sending messages, waiting")
+        guard let request = requestQueue.currentRequests[route] else {
+            logger?.debug("No current request to resend on route \(route)")
             return
         }
 
-        guard let newRequest = newRequest(resendsCurrentRequest: resendsCurrentRequest) else {
+        startSending(request)
+    }
+
+    func sendQueuedRequests() {
+        guard isActive else {
+            logger?.debug("Channel is not in the active state")
+            return
+        }
+
+        var didStartRequest = false
+
+        while let request = requestQueue.dequeueMessagesForNewRequest() {
+            didStartRequest = true
+            startSending(request)
+        }
+
+        if !didStartRequest {
             logger?.debug("No messages in queue")
-            return
         }
+    }
 
-        for message in newRequest.messages {
+    func startSending(_ request: OutgoingRequest<Message>) {
+        for message in request.messages {
             preSendHandler.handlePreSend(message: message)
         }
 
-        requestQueue.currentRequest = newRequest
-
-        sendOutgoingRequest(newRequest)
+        requestQueue.currentRequests[request.route] = request
+        sendOutgoingRequest(request)
     }
 
-    func newRequest(resendsCurrentRequest: Bool) -> OutgoingRequest<Message>? {
-        resendsCurrentRequest
-            ? requestQueue.currentRequest
-            : requestQueue.dequeueMessagesForNewRequest()
-    }
-
-    func handleMessagePostingFinish(with error: Error?) {
-        let messages = requestQueue.currentRequest?.messages ?? []
+    func handleMessagePostingFinish(
+        with error: Error?,
+        route: PeerSessionRoute
+    ) {
+        let messages = requestQueue.currentRequests[route]?.messages ?? []
 
         if let error {
-            logger?.error("Failed to post messages: \(error.localizedDescription)")
-            finishRequestSending()
+            logger?.error("Failed to post messages on route \(route): \(error.localizedDescription)")
+            finishRequestSending(route: route)
         } else {
-            logger?.debug("Successfully posted messages, waiting for delivering")
+            logger?.debug("Successfully posted messages on route \(route), waiting for delivering")
         }
 
         delegate?.messageChannel(
@@ -172,16 +212,19 @@ private extension OutgoingMessageChannel {
         )
     }
 
-    func handleMessageDeliveringFinish(with error: MessageExchange.OutgoingMessageError?) {
-        let messages = requestQueue.currentRequest?.messages ?? []
+    func handleMessageDeliveringFinish(
+        with error: MessageExchange.OutgoingMessageError?,
+        route: PeerSessionRoute
+    ) {
+        let messages = requestQueue.currentRequests[route]?.messages ?? []
 
         if let error {
-            logger?.error("Failed to deliver messages: \(error.localizedDescription)")
+            logger?.error("Failed to deliver messages on route \(route): \(error.localizedDescription)")
         } else {
-            logger?.debug("Successfully delivered messages")
+            logger?.debug("Successfully delivered messages on route \(route)")
         }
 
-        finishRequestSending()
+        finishRequestSending(route: route)
 
         delegate?.messageChannel(
             self,
@@ -190,37 +233,40 @@ private extension OutgoingMessageChannel {
         )
     }
 
-    func finishRequestSending() {
-        requestQueue.currentRequest = nil
+    func finishRequestSending(route: PeerSessionRoute) {
+        requestQueue.currentRequests[route] = nil
+        submissionTasks[route] = nil
 
-        logger?.debug("Trying to send more messages")
-        sendNextRequest(resendsCurrentRequest: false)
+        logger?.debug("Finished request on route \(route), trying to send more messages")
+        sendQueuedRequests()
     }
 
     func sendOutgoingRequest(_ outgoingRequest: OutgoingRequest<Message>) {
         let expiry = priorityProvider.incrementedExpiry()
         let requestId = outgoingRequest.requestId
+        let route = outgoingRequest.route
+        let routeContext = routeContexts.context(for: route)
 
         let builder = StatementSubmitParametersBuilder(
             signer: signer,
             logger: logger
         )
-        .addTopic1(sessionId.own)
-        .addChannel(channelId)
+        .addTopic1(routeContext.sessionId.own)
+        .addChannel(routeContext.requestChannelId)
         .addExpiry(expiry)
         .addScaleEncodedPayload(outgoingRequest.scaleEncodedPayload)
 
         logger?.debug("Going to send request \(requestId) with priority \(expiry)")
 
-        submissionTask?.cancel()
+        submissionTasks[route]?.cancel()
 
-        submissionTask = Task { [weak self] in
+        submissionTasks[route] = Task { [weak self] in
             do {
                 try await self?.submitter.submitStatement(with: builder)
                 self?.logger?.debug("Request \(requestId) sent successfully")
 
                 self?.workQueue.async {
-                    self?.handleMessagePostingFinish(with: nil)
+                    self?.handleMessagePostingFinish(with: nil, route: route)
                 }
 
             } catch {
@@ -231,7 +277,7 @@ private extension OutgoingMessageChannel {
                 self?.logger?.error("Failed to send request \(requestId): \(error)")
 
                 self?.workQueue.async {
-                    self?.handleMessagePostingFinish(with: error)
+                    self?.handleMessagePostingFinish(with: error, route: route)
                     self?.delegate?.statementSubmitFailed(with: error)
                 }
             }

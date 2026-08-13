@@ -1,5 +1,6 @@
 import Foundation
 import Operation_iOS
+import ChainRegistry
 
 final class JsonSingleProviderSource<T: Decodable> {
     let url: URL

@@ -55,9 +55,7 @@ extension InvitationStorageService: InvitationStorageServiceProtocol {
         of type: Invitation.InvitationType
     ) async throws {
         let repository = repositoryFactory.createInvitationRepository()
-        let operation = repository.saveOperation({ [] }) {
-            [type.rawValue]
-        }
+        let operation = repository.saveOperation({ [] }, { [type.rawValue] })
         try await operation.asyncExecute()
     }
 }

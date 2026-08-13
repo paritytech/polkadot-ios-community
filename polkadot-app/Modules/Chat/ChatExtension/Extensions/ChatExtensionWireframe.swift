@@ -17,6 +17,7 @@ extension ChatExtensionWireframeProtocol where Self: AlertPresentable & ErrorPre
     }
 }
 
+@MainActor
 protocol ChatExtensionNavigating: AnyObject {
     var botSettings: ChatExtensionBotSettings { get }
     var application: UIApplication { get }

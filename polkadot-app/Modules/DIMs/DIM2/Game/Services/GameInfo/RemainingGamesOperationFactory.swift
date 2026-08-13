@@ -97,7 +97,7 @@ private extension RemainingGamesOperationFactory {
         atBlock block: Data?
     ) async throws -> Int {
         let fetchWrapper: CompoundOperationWrapper<
-            StorageResponse<StringCodable<UInt32>>
+            StorageResponse<StringCodable<UInt8>>
         > = storageRequestFactory.queryItem(
             engine: connection,
             factory: { codingFactory },

@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import UIKit
 internal import UIKit_iOS
 internal import SnapKit
@@ -123,7 +124,7 @@ public final class PolkadotSignInResultView: UIView {
     override public init(frame: CGRect) {
         super.init(frame: frame)
         setupLayout()
-        setupAccessibilityIdentifiers()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -133,11 +134,6 @@ public final class PolkadotSignInResultView: UIView {
 }
 
 private extension PolkadotSignInResultView {
-    func setupAccessibilityIdentifiers() {
-        cancelButton.accessibilityIdentifier = "pairing_reject_button"
-        linkButton.accessibilityIdentifier = "pairing_confirm_button"
-    }
-
     func setupLayout() {
         addSubview(titleLabel)
         titleLabel.snp.makeConstraints {
@@ -265,5 +261,17 @@ public extension PolkadotSignInResultView {
             actionView.sView.stopLoading()
             actionView.fView.isEnabled = true
         }
+    }
+}
+
+// MARK: - AccessibilityBound
+
+extension PolkadotSignInResultView: AccessibilityBound {
+    public var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(titleLabel, AccessibilityID.Pairing.title),
+            .init(cancelButton, AccessibilityID.Pairing.rejectButton),
+            .init(linkButton, AccessibilityID.Pairing.confirmButton)
+        ]
     }
 }

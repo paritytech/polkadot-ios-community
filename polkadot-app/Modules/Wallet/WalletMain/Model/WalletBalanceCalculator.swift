@@ -2,6 +2,7 @@ import Foundation
 import BigInt
 import SubstrateSdk
 import AssetsManagement
+import ChainRegistry
 
 protocol WalletBalanceCalculatorProtocol {
     func calculateTotalBalance(

@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import CoreData
+import ChainRegistry
 
 extension CDRuntimeMetadataItem: CoreDataCodable {
     public func populate(from decoder: Decoder, using _: NSManagedObjectContext) throws {

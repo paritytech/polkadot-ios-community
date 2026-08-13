@@ -10,6 +10,6 @@ public extension GamePallet {
         @StringCodable public var maxGroupSize: UInt32
         @StringCodable public var rounds: UInt8
         @OptionStringCodable public var personhoodScoreOverride: UInt32?
-        public let airdropScheduled: Bool?
+        @OptionStringCodable public var airdropsScheduled: UInt8?
     }
 }

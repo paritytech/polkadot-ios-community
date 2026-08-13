@@ -17,6 +17,8 @@ struct RecipientLabelView: View {
                 Text(title)
                     .typography(.bodyLarge)
                     .foregroundStyle(.fgPrimary)
+                    .truncationMode(.middle)
+                    .lineLimit(1)
             }
             .padding(.leading, DSSpacings.tiny)
             .padding(.trailing, DSSpacings.extraMedium)

@@ -16,16 +16,16 @@ final class GameResultsPreloader {
 
         Task { [weak self, urlProvider] in
             let url = await urlProvider.resolveURL()
-            await self?.applyResolvedURL(url)
+            self?.applyResolvedURL(url)
         }
     }
 
     func consume(onClose: @escaping () -> Void) -> GameResultsWebViewController? {
-        if let vc = viewController, isPageReady {
+        if let controller = viewController, isPageReady {
             viewController = nil
             isPageReady = false
-            vc.onClose = onClose
-            return vc
+            controller.onClose = onClose
+            return controller
         }
         let url = resolvedURL ?? GameResultsWebViewFactory.fallbackURL
         Logger.shared
@@ -33,9 +33,9 @@ final class GameResultsPreloader {
                 "[GameDebug] preloader.consume: not ready — creating on-demand with " +
                     "\(url.isFileURL ? "file://" + url.path : url.absoluteString)"
             )
-        return GameResultsWebViewFactory.createPreloadedView(url: url).map { vc in
-            vc.onClose = onClose
-            return vc
+        return GameResultsWebViewFactory.createPreloadedView(url: url).map { controller in
+            controller.onClose = onClose
+            return controller
         }
     }
 }
@@ -45,7 +45,7 @@ private extension GameResultsPreloader {
         resolvedURL = url
         guard
             viewController == nil,
-            let vc = GameResultsWebViewFactory.createPreloadedView(url: url)
+            let controller = GameResultsWebViewFactory.createPreloadedView(url: url)
         else { return }
 
         Logger.shared
@@ -53,10 +53,10 @@ private extension GameResultsPreloader {
                 "[GameDebug] preloader: warming with " +
                     "\(url.isFileURL ? "file://" + url.path : url.absoluteString)"
             )
-        vc.onPageReady = { [weak self] in
+        controller.onPageReady = { [weak self] in
             self?.isPageReady = true
         }
-        viewController = vc
-        _ = vc.view
+        viewController = controller
+        _ = controller.view
     }
 }

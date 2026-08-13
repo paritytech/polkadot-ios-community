@@ -18,3 +18,10 @@ extension JSONRPCError: @retroactive ErrorContentConvertible {
         return ErrorContent(title: title, message: details)
     }
 }
+
+extension JSONRPCError: @retroactive LocalizedError {
+    /// `data` carries the node's human-readable explanation; `message` is the terse RPC reason.
+    public var errorDescription: String? {
+        data ?? message
+    }
+}

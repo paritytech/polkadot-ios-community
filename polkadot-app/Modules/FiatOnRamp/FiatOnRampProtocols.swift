@@ -8,6 +8,7 @@ protocol FiatOnRampViewProtocol: ControllerBackedProtocol {
     func didReceive(amountError: String?)
 }
 
+@MainActor
 protocol FiatOnRampPresenterProtocol: AnyObject {
     func setup()
     func onAmountChanged(_ amount: Int?)
@@ -19,10 +20,12 @@ protocol FiatOnRampInteractorInputProtocol: AnyObject {
     func setup()
 }
 
+@MainActor
 protocol FiatOnRampInteractorOutputProtocol: AnyObject {
     func didReceive(purchaseLimit: FiatOnrampFiatPurchaseLimit?)
 }
 
+@MainActor
 protocol FiatOnRampWireframeProtocol: AnyObject {
     func showProviders(
         from view: FiatOnRampViewProtocol?,

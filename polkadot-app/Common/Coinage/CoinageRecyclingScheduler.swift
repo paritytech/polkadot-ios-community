@@ -18,20 +18,17 @@ extension CoinageRecyclingScheduler: CoinRecycleTaskScheduling {
         BGTaskScheduler.shared.getPendingTaskRequests { [weak self] requests in
             guard let self else { return }
 
-            let validTaskCheck: (BGTaskRequest) -> Bool = { scheduledTask in
-                guard let earliestBeginDate = scheduledTask.earliestBeginDate else { return false }
+            let alreadyScheduled = requests.contains { $0.identifier == Self.taskIdentifier }
 
-                return scheduledTask.identifier == Self.taskIdentifier
-                    && earliestBeginDate > .now
-            }
-
-            guard !requests.contains(where: validTaskCheck) else {
+            guard !alreadyScheduled else {
                 logger.debug("Task \(Self.taskIdentifier) already scheduled, skipping")
                 return
             }
 
-            let request = BGAppRefreshTaskRequest(identifier: Self.taskIdentifier)
+            let request = BGProcessingTaskRequest(identifier: Self.taskIdentifier)
             request.earliestBeginDate = .init(timeIntervalSinceNow: earliestBegin)
+            request.requiresNetworkConnectivity = true
+            request.requiresExternalPower = false
 
             do {
                 try BGTaskScheduler.shared.submit(request)

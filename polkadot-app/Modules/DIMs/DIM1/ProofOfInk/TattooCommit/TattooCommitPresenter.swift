@@ -4,6 +4,7 @@ import SubstrateSdk
 import ExtrinsicService
 import Individuality
 
+@MainActor
 final class TattooCommitPresenter {
     weak var view: TattooCommitViewProtocol?
     let viewModelFactory: TattooCommitViewModelFactoryProtocol

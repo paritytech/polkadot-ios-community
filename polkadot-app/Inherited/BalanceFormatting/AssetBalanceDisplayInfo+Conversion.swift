@@ -1,5 +1,6 @@
 import Foundation
 import Foundation_iOS
+import ChainRegistry
 
 extension AssetModel {
     var displayInfo: AssetBalanceDisplayInfo {

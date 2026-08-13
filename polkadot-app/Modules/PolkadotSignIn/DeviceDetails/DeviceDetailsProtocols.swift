@@ -5,11 +5,13 @@ protocol DeviceDetailsViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: DeviceDetailsViewLayout.ViewModel)
 }
 
+@MainActor
 protocol DeviceDetailsPresenterProtocol: AnyObject {
     func setup()
     func removeDevice()
 }
 
+@MainActor
 protocol DeviceDetailsWireframeProtocol: AlertPresentable, ErrorPresentable {
     func showRemoveDevice(
         from view: DeviceDetailsViewProtocol?,

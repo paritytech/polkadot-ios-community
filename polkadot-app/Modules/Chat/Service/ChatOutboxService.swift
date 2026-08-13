@@ -3,9 +3,12 @@ import MessageExchangeKit
 import Operation_iOS
 import SubstrateSdk
 import OperationExt
+import StatementStore
 
 protocol ChatOutboxServicing: AnyObject {
     var exchangeService: AnyMessageExchangeService<Chat.OpaqueMessage>? { get set }
+
+    func setupCallCoordinator(_ callCoordinator: CallCoordinating)
 
     func setContactsByAccountId(
         _ contactsByAccountId: [AccountId: Chat.Contact]
@@ -16,15 +19,17 @@ protocol ChatOutboxServicing: AnyObject {
         for peer: MessageExchange.Peer
     )
 
+    func schedulePendingMessages()
+
     func handleSentMessages(
         _ messages: [Chat.RemoteMessage],
-        to peer: MessageExchange.Peer,
+        to contact: Chat.Contact,
         withError error: MessageExchange.OutgoingMessageError?
     )
 
     func handleDeliveredMessages(
         _ messages: [Chat.RemoteMessage],
-        to peer: MessageExchange.Peer,
+        to contact: Chat.Contact,
         withError error: MessageExchange.OutgoingMessageError?
     )
 
@@ -54,6 +59,7 @@ final class ChatOutboxService {
     private var isRunning: Bool = false
 
     var exchangeService: AnyMessageExchangeService<Chat.OpaqueMessage>?
+    weak var callCoordinator: CallCoordinating?
 
     init(
         messagesStorageService: MessagesLocalStorageServicing,
@@ -79,6 +85,10 @@ final class ChatOutboxService {
 }
 
 extension ChatOutboxService: ChatOutboxServicing {
+    func setupCallCoordinator(_ callCoordinator: CallCoordinating) {
+        self.callCoordinator = callCoordinator
+    }
+
     func setContactsByAccountId(
         _ contactsByAccountId: [AccountId: Chat.Contact]
     ) {
@@ -91,7 +101,6 @@ extension ChatOutboxService: ChatOutboxServicing {
 
             if !contactsByAccountId.isEmpty {
                 setup()
-
                 schedulePendingMessagesIfNeeded()
             } else {
                 suspend()
@@ -108,9 +117,15 @@ extension ChatOutboxService: ChatOutboxServicing {
         }
     }
 
+    func schedulePendingMessages() {
+        workQueue.async { [weak self] in
+            self?.schedulePendingMessagesIfNeeded()
+        }
+    }
+
     func handleSentMessages(
         _ messages: [Chat.RemoteMessage],
-        to peer: MessageExchange.Peer,
+        to contact: Chat.Contact,
         withError error: MessageExchange.OutgoingMessageError?
     ) {
         workQueue.async { [weak self] in
@@ -118,17 +133,28 @@ extension ChatOutboxService: ChatOutboxServicing {
                 return
             }
 
-            markSentMessages(
-                messages,
-                to: peer,
-                withError: error
-            )
+            if let error {
+                let messageIds = Set(messages.map(\.messageId))
+
+                if error.allowsResend {
+                    logger.error("Failed to send message, requeuing: \(error)")
+                    outboxMessages.markFailed(messageIds: messageIds)
+                } else {
+                    logger.error("Failed to send message, dropping from outbox: \(error)")
+                    outboxMessages.remove(messageIds: messageIds)
+                }
+
+                return
+            }
+
+            markSentMessages(messages, to: contact)
+            handleSentCallMessages(messages, to: contact)
         }
     }
 
     func handleDeliveredMessages(
         _ messages: [Chat.RemoteMessage],
-        to peer: MessageExchange.Peer,
+        to contact: Chat.Contact,
         withError error: MessageExchange.OutgoingMessageError?
     ) {
         workQueue.async { [weak self] in
@@ -136,11 +162,13 @@ extension ChatOutboxService: ChatOutboxServicing {
                 return
             }
 
-            markDeliveredMessages(
-                messages,
-                to: peer,
-                withError: error
-            )
+            if let error {
+                logger.error("Messages delivery failed: \(error)")
+                return
+            }
+
+            markDeliveredMessages(messages)
+            handleDeliveredCallMessages(messages, to: contact)
         }
     }
 
@@ -160,7 +188,7 @@ extension ChatOutboxService: ChatOutboxServicing {
 
             let peer = contact.toMessageExchangePeer()
 
-            exchangeService.addMessageToQueue(.init(remoteMessage: message), for: peer)
+            exchangeService.addMessagesToQueue([.init(remoteMessage: message)], for: peer)
             notifyAboutNewMessages([message], contact: contact)
             completion()
         }
@@ -183,7 +211,7 @@ extension ChatOutboxService: ChatOutboxServicing {
             }
 
             let peer = contact.toMessageExchangePeer()
-            exchangeService.addMessageToQueue(.init(remoteMessage: remoteMessage), for: peer)
+            exchangeService.addMessagesToQueue([.init(remoteMessage: remoteMessage)], for: peer)
         }
     }
 }
@@ -236,35 +264,22 @@ private extension ChatOutboxService {
 
             logger.debug("Sending messages: \(outbox.messagesToSend.count)")
 
-            for message in outbox.messagesToSend {
-                // TODO: Allow multiple messages at once
-                if let remote = message.toRemote() {
-                    exchangeService.addMessageToQueue(
-                        Chat.OpaqueMessage(remoteMessage: remote),
-                        for: peer
-                    )
-                }
+            let opaqueMessages = outbox.messagesToSend
+                .compactMap { $0.toRemote() }
+                .map(Chat.OpaqueMessage.init(remoteMessage:))
+
+            if !opaqueMessages.isEmpty {
+                exchangeService.addMessagesToQueue(opaqueMessages, for: peer)
             }
         }
     }
 
     func markSentMessages(
         _ messages: [Chat.RemoteMessage],
-        to peer: MessageExchange.Peer,
-        withError error: MessageExchange.OutgoingMessageError?
+        to contact: Chat.Contact
     ) {
         let messageIds = messages.map(\.messageId)
         let onlyNew = outboxMessages.markSent(messageIds: Set(messageIds))
-
-        if let error {
-            logger.error("Failed to send message: \(error)")
-            return
-        }
-
-        guard let contact = outboxMessages.getContact(for: peer.accountId) else {
-            logger.warning("Missing contact to mark message sent")
-            return
-        }
 
         let messagesToNotify = messages.filter { onlyNew.contains($0.messageId) }
 
@@ -294,16 +309,31 @@ private extension ChatOutboxService {
         }
     }
 
-    func markDeliveredMessages(
+    func handleSentCallMessages(
         _ messages: [Chat.RemoteMessage],
-        to _: MessageExchange.Peer,
-        withError error: MessageExchange.OutgoingMessageError?
+        to contact: Chat.Contact
     ) {
-        if let error {
-            logger.error("Messages delivery failed: \(error)")
+        guard let callCoordinator else {
+            logger.error("Call coordinator not set")
             return
         }
 
+        Task {
+            let callMessages = messages.filter(\.isForCallProtocol)
+
+            guard !callMessages.isEmpty else {
+                return
+            }
+
+            let callPeer = CallPeer(name: contact.username, accountId: contact.accountId)
+
+            for message in callMessages {
+                await callCoordinator.handleSentCall(in: message, to: callPeer)
+            }
+        }
+    }
+
+    func markDeliveredMessages(_ messages: [Chat.RemoteMessage]) {
         let messageIds = messages.map(\.messageId)
 
         removeNotifiedMessageIds(messageIds)
@@ -328,6 +358,30 @@ private extension ChatOutboxService {
                 logger.info("Messages delivery saved successfully")
             case let .failure(error):
                 logger.debug("Failed to save delivered messages messageId. Error: \(error)")
+            }
+        }
+    }
+
+    func handleDeliveredCallMessages(
+        _ messages: [Chat.RemoteMessage],
+        to contact: Chat.Contact
+    ) {
+        guard let callCoordinator else {
+            logger.error("Call coordinator not set")
+            return
+        }
+
+        Task {
+            let callMessages = messages.filter(\.isForCallProtocol)
+
+            guard !callMessages.isEmpty else {
+                return
+            }
+
+            let callPeer = CallPeer(name: contact.username, accountId: contact.accountId)
+
+            for message in callMessages {
+                await callCoordinator.handleDeliveredCall(in: message, to: callPeer)
             }
         }
     }
@@ -512,6 +566,36 @@ private extension ChatOutboxService {
                 logger.debug("Message removed: \(deletedMessageId)")
                 outboxMessages.remove(messageIds: [deletedMessageId])
             }
+        }
+    }
+}
+
+private extension MessageExchange.OutgoingMessageError {
+    var allowsResend: Bool {
+        switch self {
+        case let .failedToPost(underlyingError):
+            underlyingError.allowsStatementResubmit
+        case .gotFailedResponse:
+            false
+        }
+    }
+}
+
+private extension Error {
+    var allowsStatementResubmit: Bool {
+        guard let submitError = self as? StatementSubmitError else {
+            return true
+        }
+
+        switch submitError {
+        case .rejected(.dataTooLarge),
+             .rejected(.channelPriorityTooLow),
+             .invalid,
+             .unexpectedStatus:
+            return false
+        case .rejected,
+             .internalError:
+            return true
         }
     }
 }

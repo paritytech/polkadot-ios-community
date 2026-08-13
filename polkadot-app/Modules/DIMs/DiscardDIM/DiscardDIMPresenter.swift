@@ -39,10 +39,9 @@ extension DiscardDIMPresenter: DiscardDIMPresenterProtocol {
     }
 }
 
-extension DiscardDIMPresenter: Localizable {
-    func applyLocalization() {
-        if let view, view.isSetup {
-            provideViewModel()
-        }
+extension DiscardDIMPresenter: @MainActor Localizable {
+    @MainActor func applyLocalization() {
+        guard let view, view.isSetup else { return }
+        provideViewModel()
     }
 }

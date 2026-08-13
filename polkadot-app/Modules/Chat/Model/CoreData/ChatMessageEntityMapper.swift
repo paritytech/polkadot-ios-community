@@ -107,9 +107,7 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
             entity.markModified()
         }
 
-        if let groupingId = model.groupingId {
-            try groupRelatedMessages(entity: entity, groupingId: groupingId, context: context)
-        }
+        try groupRelatedMessages(entity: entity, groupingId: model.groupingId, context: context)
 
         let chat: CDChat = try context
             .first(for: .chat(for: model.chatId.rawRepresentation))

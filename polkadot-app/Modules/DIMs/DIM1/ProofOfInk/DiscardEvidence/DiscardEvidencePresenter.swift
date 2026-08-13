@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class DiscardEvidencePresenter {
     weak var view: DiscardEvidenceViewProtocol?
     private let model: DiscardEvidenceModel

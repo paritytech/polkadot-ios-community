@@ -2,6 +2,7 @@ import Foundation
 import Keystore_iOS
 import KeyDerivation
 
+@MainActor
 enum BackupViewFactory {
     static func createView() -> BackupViewProtocol? {
         let logger = Logger.shared

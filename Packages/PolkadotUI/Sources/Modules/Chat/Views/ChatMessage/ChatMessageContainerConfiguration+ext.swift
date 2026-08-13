@@ -1,5 +1,6 @@
 import UIKit
 import DesignSystem
+import ExternalAccessibility
 
 private extension UIImage {
     var aspectRatio: CGFloat {
@@ -111,14 +112,20 @@ public extension ChatMessageContainerConfiguration {
         )
     }
 
-    static func botTextImage(text: String?, image: UIImage, layoutType: LayoutType = .plain) -> Self {
+    static func botTextImage(
+        text: String?,
+        image: UIImage,
+        layoutType: LayoutType = .plain,
+        accessibilityId: (any AccessibilityIdentifying)? = nil
+    ) -> Self {
         botTextImage(
             text: text,
             image: image,
             bubbleColor: .bgSurfaceContainer,
             bubbleStrokeColor: nil,
             bubbleStrokeWidth: 0,
-            layoutType: layoutType
+            layoutType: layoutType,
+            accessibilityId: accessibilityId
         )
     }
 
@@ -129,14 +136,16 @@ public extension ChatMessageContainerConfiguration {
         bubbleStrokeColor: UIColor? = nil,
         bubbleStrokeWidth: CGFloat = 0,
         lockFullWidth: Bool = false,
-        layoutType: LayoutType = .plain
+        layoutType: LayoutType = .plain,
+        accessibilityId: (any AccessibilityIdentifying)? = nil
     ) -> Self {
         let aspectRatio = image.predeterminedAspectRatio()
         let viewModel = ChatMessageTextImageCell.ViewModel(
             text: text,
             image: image,
             aspectRatio: aspectRatio,
-            lockFullWidth: lockFullWidth
+            lockFullWidth: lockFullWidth,
+            accessibilityId: accessibilityId
         )
         let view = ChatMessageTextImageCell(viewModel: viewModel)
         let configuration = SwiftUIContentConfiguration(view: view)

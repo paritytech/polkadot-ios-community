@@ -83,6 +83,7 @@ extension ChatContactMapper: CoreDataMapperProtocol {
             source: source,
             isBlocked: entity.isBlocked,
             devices: devices,
+            pendingDevicesFanOut: entity.pendingDevicesFanOut,
             addedAt: entity.addedAt,
             acceptedAt: entity.acceptedAt
         )
@@ -107,6 +108,7 @@ extension ChatContactMapper: CoreDataMapperProtocol {
         entity.ownEncryptionKeyId = model.ownKeyId.encryptionKeyId
         entity.imageData = model.imageData
         entity.isBlocked = model.isBlocked
+        entity.pendingDevicesFanOut = model.pendingDevicesFanOut
         entity.addedAt = model.addedAt
         entity.acceptedAt = model.acceptedAt
 
@@ -162,7 +164,7 @@ extension ChatContactMapper {
 private extension Chat.Contact.Own {
     init(entity: CDChatContact) {
         signKeyId = entity.ownSignKeyId ?? WalletDerivationPath.main
-        encryptionKeyId = entity.ownEncryptionKeyId ?? ChatDerivationPath.mainChat.rawValue
+        encryptionKeyId = entity.ownEncryptionKeyId ?? ChatEncryptionDomain.mainChat.rawValue
     }
 }
 

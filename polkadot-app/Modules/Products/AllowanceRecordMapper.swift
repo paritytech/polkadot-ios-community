@@ -16,7 +16,16 @@ final class AllowanceRecordMapper: CoreDataMapperProtocol {
         guard let allocatedAt = entity.allocatedAt else {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDAllowanceRecord.allocatedAt))
         }
-        return AllowanceRecord(accountId: accountId, allocatedAt: allocatedAt)
+        let kind = entity.kind == -1 ? nil : AllowanceRecord.Kind(persistenceCode: entity.kind)
+        let priority = AllowanceRecord.Priority(rawValue: Int(entity.priorityLevel)) ?? .normal
+        let latestRenewedPeriod = entity.latestRenewedPeriod == -1 ? nil : UInt32(entity.latestRenewedPeriod)
+        return AllowanceRecord(
+            accountId: accountId,
+            allocatedAt: allocatedAt,
+            kind: kind,
+            priority: priority,
+            latestRenewedPeriod: latestRenewedPeriod
+        )
     }
 
     func populate(
@@ -27,5 +36,8 @@ final class AllowanceRecordMapper: CoreDataMapperProtocol {
         entity.identifier = model.identifier
         entity.accountId = model.accountId
         entity.allocatedAt = model.allocatedAt
+        entity.kind = model.kind?.persistenceCode ?? -1
+        entity.priorityLevel = Int16(model.priority.rawValue)
+        entity.latestRenewedPeriod = model.latestRenewedPeriod.map { Int64($0) } ?? -1
     }
 }

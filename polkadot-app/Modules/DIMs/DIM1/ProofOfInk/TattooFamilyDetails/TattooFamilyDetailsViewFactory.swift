@@ -1,6 +1,8 @@
 import Foundation
 import Individuality
+import ChainRegistry
 
+@MainActor
 enum TattooFamilyDetailsViewFactory {
     static func createView(
         for state: ProofOfInkFlowStateProtocol,

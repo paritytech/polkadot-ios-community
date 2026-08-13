@@ -1,16 +1,12 @@
 import Foundation
 import Products
+import SubstrateSdk
 
 enum PolkadotHostSigningModel {
     case signingRequest(PolkadotHostRemoteMessage.SigningRequest)
     case createTransaction(CreateTransactionPayload<ProductAccountId>)
 
-    var account: ProductAccountId {
-        switch self {
-        case let .signingRequest(request):
-            request.account
-        case let .createTransaction(payload):
-            payload.signer
-        }
-    }
+    case legacyRawPayload(account: AccountId, type: PolkadotHostRemoteMessage.SigningRawPayload.PayloadType)
+    case legacyCreateTransaction(payload: CreateTransactionPayload<LegacyAccountId>)
+    case legacySignPayload(payload: SignTransactionPayload<SS58Account>)
 }

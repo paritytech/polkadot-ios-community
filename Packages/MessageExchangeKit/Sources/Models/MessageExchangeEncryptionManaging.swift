@@ -24,15 +24,15 @@ public protocol MessageExchangeEncryptionMaking {
     func makeEncryptor(remotePublicKey: Data) throws -> MessageExchangeEncrypting
 }
 
-public final class P256AESEncryptorFactory: MessageExchangeEncryptionMaking {
-    private let privateKey: P256.KeyAgreement.PrivateKey
+public final class X25519ChaChaPolyEncryptorFactory: MessageExchangeEncryptionMaking {
+    private let privateKey: Curve25519.KeyAgreement.PrivateKey
 
-    public init(privateKey: P256.KeyAgreement.PrivateKey) {
+    public init(privateKey: Curve25519.KeyAgreement.PrivateKey) {
         self.privateKey = privateKey
     }
 
     public var localPublicKey: Data {
-        privateKey.publicKey.x963Representation
+        privateKey.publicKey.rawRepresentation
     }
 
     public var localPrivateKey: Data {
@@ -40,8 +40,8 @@ public final class P256AESEncryptorFactory: MessageExchangeEncryptionMaking {
     }
 
     public func makeEncryptor(remotePublicKey: Data) throws -> MessageExchangeEncrypting {
-        let publicKey = try P256.KeyAgreement.PublicKey(x963Representation: remotePublicKey)
+        let publicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: remotePublicKey)
         let sharedKey = try privateKey.sharedSecretFromKeyAgreement(with: publicKey)
-        return AESEncryptor(sharedSecret: sharedKey)
+        return ChaChaPolyEncryptor(sharedSecret: sharedKey)
     }
 }

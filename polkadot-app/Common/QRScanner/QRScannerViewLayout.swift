@@ -17,6 +17,14 @@ class QRScannerViewLayout: UIView, AdaptiveDesignable {
         )
     }
 
+    let titleLabel: Label = .create { (view: Label) in
+        view.text = String(localized: .qrScannerTitle)
+        view.numberOfLines = 0
+        view.textAlignment = .center
+        view.typography = .titleMedium
+        view.textColor = .fgStaticWhite
+    }
+
     let messageLabel: Label = .create { (view: Label) in
         view.numberOfLines = 0
         view.textAlignment = .center
@@ -53,6 +61,12 @@ class QRScannerViewLayout: UIView, AdaptiveDesignable {
             make.centerX.equalTo(qrFrameView.snp.trailing).multipliedBy(qrFrameView.windowPosition.x)
             make.centerY.equalTo(qrFrameView.snp.bottom).multipliedBy(qrFrameView.windowPosition.y)
             make.size.equalTo(windowSize)
+        }
+
+        addSubview(titleLabel)
+        titleLabel.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(16)
+            make.top.equalTo(qrFrameImageView.snp.bottom).offset(90.0)
         }
 
         addSubview(messageLabel)

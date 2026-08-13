@@ -1,6 +1,7 @@
 import Foundation
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol MobRuleVoucherClaimServicing {}
 

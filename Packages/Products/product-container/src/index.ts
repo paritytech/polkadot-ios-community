@@ -1,11 +1,13 @@
 import { createContainer } from '@novasamatech/host-container';
-import type { Provider, Subscription } from '@novasamatech/host-api';
+import type { CodecType, DerivationIndex, Provider, Subscription } from '@novasamatech/host-api';
 import {
   ChatMessagePostingErr,
+  CreateProofErr,
   CreateTransactionErr,
   CustomRendererNode,
   DeriveEntropyErr,
   GenericError,
+  GetAliasErr,
   NavigateToErr,
   PaymentBalanceErr,
   PaymentRequestErr,
@@ -15,6 +17,7 @@ import {
   GetUserIdErr,
   RequestCredentialsErr,
   ResourceAllocationErr,
+  SignVrfErr,
   SigningErr,
   StatementProofErr,
   StorageErr,
@@ -23,6 +26,7 @@ import {
 } from '@novasamatech/host-api';
 import { createNativeTransport } from './native-transport';
 import { ConnectionManager } from './connection-manager';
+import { WebRtcManager } from './webrtc-manager';
 
 // =============================================================================
 // Isolation: Capture private refs BEFORE locking down globals.
@@ -36,6 +40,7 @@ import { ConnectionManager } from './connection-manager';
 const _nativeFetch = window.fetch.bind(window);
 const _NativeXMLHttpRequest = window.XMLHttpRequest;
 const _NativeWebSocket = window.WebSocket;
+const _NativeRTCPeerConnection = window.RTCPeerConnection;
 
 const _BlockedWebSocket = new Proxy(window.WebSocket, {
   construct() {
@@ -77,7 +82,7 @@ function freezeValue(obj: any, prop: string, value: any) {
 freezeValue(window, 'WebSocket', _BlockedWebSocket);
 
 // --- Network: delete (no future permission path) ---
-freezeAndDelete(window, 'RTCPeerConnection');
+// RTCPeerConnection is permission-gated below, once callNative is available.
 freezeAndDelete(window, 'EventSource');
 
 freezeValue(navigator, 'sendBeacon', () => false);
@@ -159,6 +164,19 @@ freezeValue(window, 'XMLHttpRequest', function XMLHttpRequest(this: XMLHttpReque
   return xhr;
 } as any);
 
+// --- WebRTC: permission-gated RTCPeerConnection (deferred until callNative is available) ---
+if (_NativeRTCPeerConnection) {
+  console.log('[webRtc] RTCPeerConnection available, installing permission-gated proxy');
+  const webRtcManager = new WebRtcManager(
+    _NativeRTCPeerConnection,
+    () => callNative('allowWebRtcAccess', {}).then((response: any) => response?.allowed === true),
+  );
+  freezeValue(window, 'RTCPeerConnection', webRtcManager.connectionClass);
+} else {
+  console.log('[webRtc] RTCPeerConnection unavailable, removing global');
+  freezeAndDelete(window, 'RTCPeerConnection');
+}
+
 const { port1, port2 } = new MessageChannel();
 
 (window as any).__HOST_API_PORT__ = port1;
@@ -188,10 +206,25 @@ const containerProvider: Provider = {
 
 const container = createContainer(containerProvider);
 
+type WireDerivationIndex = CodecType<typeof DerivationIndex>;
+type WireProductAccountId = [productId: string, derivationIndex: WireDerivationIndex];
+
+/**
+ * RFC-0022: native takes the account selector in its tolerant JSON form — a number for a plain
+ * index, a 0x-hex string for a raw 32-byte one. Native re-expands `Index(n)` to `index_bytes(n)`.
+ */
+function toNativeDerivationIndex(index: WireDerivationIndex): number | string {
+  return index.tag === 'Index' ? index.value : toHex(index.value);
+}
+
+function toNativeAccountId([productId, derivationIndex]: WireProductAccountId): [string, number | string] {
+  return [productId, toNativeDerivationIndex(derivationIndex)];
+}
+
 // --- Account ---
 
 container.handleAccountGet((account, { ok, err }) => {
-  return callNative('accountGet', { account }).then(
+  return callNative('accountGet', { account: toNativeAccountId(account) }).then(
     (result) => ok({
       publicKey: fromHex(result.publicKey),
     }),
@@ -211,13 +244,104 @@ container.handleGetUserId((_params, { ok, err }) => {
   );
 });
 
-container.handleAccountGetAlias((account, { ok, err }) => {
-  return callNative('accountGetAlias', { account }).then(
+// RFC-0004 (amended by RFC-0022): context is a [productId, suffix] tuple where the suffix is the
+// same selector an account carries; ring is { chainId, junctions }. Native expects bytes as hex.
+function toNativeContext(context: [string, WireDerivationIndex]) {
+  const [productId, suffix] = context;
+  return { productId, suffix: toNativeDerivationIndex(suffix) };
+}
+
+function toNativeRing(ring: { chainId: string; junctions: Array<{ tag: string; value: any }> }) {
+  return {
+    chainId: ring.chainId,
+    junctions: ring.junctions.map((junction) => ({
+      tag: junction.tag,
+      value: junction.tag === 'CollectionId' ? toHex(junction.value) : junction.value,
+    })),
+  };
+}
+
+container.handleAccountGetAlias((params, { ok, err }) => {
+  const [context, ring] = params;
+  return callNative('accountGetAlias', {
+    context: toNativeContext(context),
+    ring: toNativeRing(ring),
+  }).then(
     (result) => ok({
       context: fromHex(result.context),
       alias: fromHex(result.alias),
     }),
-    (e) => err(new RequestCredentialsErr.Unknown({ reason: String(e) })),
+    (e) => {
+      switch (e?.code) {
+        case 'RingNotFound':
+          return err(new GetAliasErr.RingNotFound());
+        case 'NotMember':
+          return err(new GetAliasErr.NotMember());
+        case 'Rejected':
+          return err(new GetAliasErr.Rejected());
+        default:
+          return err(new GetAliasErr.Unknown({ reason: String(e?.message ?? e) }));
+      }
+    },
+  );
+});
+
+container.handleAccountCreateProof((params, { ok, err }) => {
+  const [context, ring, message] = params;
+  return callNative('accountCreateProof', {
+    context: toNativeContext(context),
+    ring: toNativeRing(ring),
+    message: toHex(message),
+  }).then(
+    (result) => ok({
+      proof: fromHex(result.proof),
+      contextualAlias: {
+        context: fromHex(result.contextualAlias.context),
+        alias: fromHex(result.contextualAlias.alias),
+      },
+      ringIndex: result.ringIndex,
+      ringRevision: result.ringRevision,
+    }),
+    (e) => {
+      switch (e?.code) {
+        case 'RingNotFound':
+          return err(new CreateProofErr.RingNotFound());
+        case 'NotMember':
+          return err(new CreateProofErr.NotMember());
+        case 'Rejected':
+          return err(new CreateProofErr.Rejected());
+        default:
+          return err(new CreateProofErr.Unknown({ reason: String(e?.message ?? e) }));
+      }
+    },
+  );
+});
+
+// --- Sign VRF (RFC-0023) ---
+
+container.handleAccountSignVrf((params, { ok, err }) => {
+  return callNative('accountSignVrf', {
+    account: toNativeAccountId(params.account),
+    transcriptLabel: toHex(params.transcriptLabel),
+    items: params.items.map((item) => ({
+      label: toHex(item.label),
+      value: toHex(item.value),
+    })),
+  }).then(
+    (result) => ok({
+      preOutput: fromHex(result.preOutput),
+      proof: fromHex(result.proof),
+    }),
+    (e) => {
+      switch (e?.code) {
+        case 'NotConnected':
+          return err(new SignVrfErr.NotConnected());
+        case 'Rejected':
+          return err(new SignVrfErr.Rejected());
+        default:
+          return err(new SignVrfErr.Unknown({ reason: String(e?.message ?? e) }));
+      }
+    },
   );
 });
 
@@ -275,7 +399,7 @@ container.handleChainConnection((genesisHash) => {
 
 container.handleSignPayload(async ({ account, payload }, { ok, err }) => {
   try {
-    const result = await callNative('signPayload', { account, ...payload });
+    const result = await callNative('signPayload', { account: toNativeAccountId(account), ...payload });
     return ok({ signature: result.signature, signedTransaction: result.signedTx ?? undefined });
   } catch {
     return err(new SigningErr.Rejected());
@@ -287,7 +411,7 @@ container.handleSignRaw(async ({ account, payload }, { ok, err }) => {
     const nativeData = payload.tag === 'Bytes'
       ? { data: toHex(payload.value) }
       : { payload: payload.value };
-    const result = await callNative('signRaw', { account, ...nativeData });
+    const result = await callNative('signRaw', { account: toNativeAccountId(account), ...nativeData });
     return ok({ signature: result.signature, signedTransaction: result.signedTx ?? undefined });
   } catch {
     return err(new SigningErr.Rejected());
@@ -297,8 +421,50 @@ container.handleSignRaw(async ({ account, payload }, { ok, err }) => {
 container.handleCreateTransaction(async (payload, { ok, err }) => {
   try {
     const result = await callNative('createTransaction', {
-      signer: payload.signer,
-      genesisHash: toHex(payload.genesisHash),
+      signer: toNativeAccountId(payload.signer),
+      genesisHash: payload.genesisHash,
+      callData: toHex(payload.callData),
+      extensions: payload.extensions.map((e) => ({
+        id: e.id,
+        explicit: toHex(e.extra),
+        implicit: toHex(e.additionalSigned),
+      })),
+      txExtVersion: payload.txExtVersion,
+    });
+    return ok(fromHex(result.signedTx));
+  } catch (e) {
+    return err(new CreateTransactionErr.Unknown({ reason: String(e) }));
+  }
+});
+
+// --- Legacy Signing (identity account) ---
+
+container.handleSignPayloadWithLegacyAccount(async ({ signer, payload }, { ok, err }) => {
+  try {
+    const result = await callNative('signPayloadLegacy', { account: signer, ...payload });
+    return ok({ signature: result.signature, signedTransaction: result.signedTx ?? undefined });
+  } catch {
+    return err(new SigningErr.Rejected());
+  }
+});
+
+container.handleSignRawWithLegacyAccount(async ({ signer, payload }, { ok, err }) => {
+  try {
+    const nativeData = payload.tag === 'Bytes'
+      ? { data: toHex(payload.value) }
+      : { payload: payload.value };
+    const result = await callNative('signRawLegacy', { account: signer, ...nativeData });
+    return ok({ signature: result.signature, signedTransaction: result.signedTx ?? undefined });
+  } catch {
+    return err(new SigningErr.Rejected());
+  }
+});
+
+container.handleCreateTransactionWithLegacyAccount(async (payload, { ok, err }) => {
+  try {
+    const result = await callNative('createTransactionLegacy', {
+      signer: toHex(payload.signer),
+      genesisHash: payload.genesisHash,
       callData: toHex(payload.callData),
       extensions: payload.extensions.map((e) => ({
         id: e.id,
@@ -476,7 +642,7 @@ container.handleStatementStoreSubscribe((filter, send, _interrupt) => {
 container.handleStatementStoreCreateProof(async ([account, statement], { ok, err }) => {
   try {
     const result = await callNative('createStatementProof', {
-      account,
+      account: toNativeAccountId(account),
       channel: statement.channel ? toHex(statement.channel) : undefined,
       expiry: statement.expiry?.toString() ?? undefined,
       topics: statement.topics.map((t) => toHex(t)),
@@ -537,7 +703,7 @@ container.handleRequestResourceAllocation(async (resources, { ok, err }) => {
     const dtos = resources.map((r) => {
       switch (r.tag) {
         case 'SmartContractAllowance':
-          return { kind: r.tag, dest: r.value };
+          return { kind: r.tag, dest: toNativeDerivationIndex(r.value) };
         case 'StatementStoreAllowance':
         case 'BulletinAllowance':
         case 'AutoSigning':
@@ -713,7 +879,7 @@ container.handlePaymentTopUp(async (params, { ok, err }) => {
       sourceTag: params.source.tag,
     };
     if (params.source.tag === 'ProductAccount') {
-      nativeParams.sourceDerivationIndex = params.source.value;
+      nativeParams.sourceDerivationIndex = toNativeDerivationIndex(params.source.value);
     } else if (params.source.tag === 'PrivateKey') {
       nativeParams.sourceKeyHex = toHex(params.source.value);
     } else if (params.source.tag === 'Coins') {
@@ -722,7 +888,12 @@ container.handlePaymentTopUp(async (params, { ok, err }) => {
     await callNative('paymentTopUp', nativeParams);
     return ok(undefined);
   } catch (e) {
-    return err(new PaymentTopUpErr.Unknown({ reason: String(e) }));
+    const msg = String(e instanceof Error ? e.message : e);
+    const partial = msg.match(/PartialPayment:(\d+)/);
+    if (partial) {
+      return err(new PaymentTopUpErr.PartialPayment({ credited: BigInt(partial[1]) }));
+    }
+    return err(new PaymentTopUpErr.Unknown({ reason: msg }));
   }
 });
 

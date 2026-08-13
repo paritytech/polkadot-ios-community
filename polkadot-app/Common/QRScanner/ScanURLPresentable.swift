@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 protocol ScanURLPresentable {
     func showURLScan(
         from view: ControllerBackedProtocol?,

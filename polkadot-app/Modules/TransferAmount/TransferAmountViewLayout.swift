@@ -2,6 +2,7 @@ import UIKit
 import UIKit_iOS
 import SnapKit
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 import DesignSystem
 
@@ -83,6 +84,7 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
         feeView.changesContentOpacityWhenHighlighted = false
 
         setupLayout()
+        applyAccessibilityBindings()
     }
 
     @available(*, unavailable)
@@ -171,8 +173,9 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
 
     func bind(state: TransferConfirmState) {
         switch state {
-        case .loading:
+        case let .loading(status):
             actionModel.isLoading = true
+            actionModel.statusText = status
         case .confirm:
             actionModel.isLoading = false
             actionModel.isActive = true
@@ -180,6 +183,12 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
             actionModel.isLoading = false
             actionModel.isActive = false
             actionModel.title = title
+        }
+    }
+
+    func bind(transferStatus: String) {
+        withAnimation {
+            actionModel.statusText = transferStatus
         }
     }
 
@@ -212,7 +221,7 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
 }
 
 enum TransferConfirmState {
-    case loading
+    case loading(status: String?)
     case confirm
     case issue(String)
 }
@@ -275,4 +284,17 @@ extension TransferAmountViewLayout {
             debugStrategyView.isHidden = false
         }
     #endif
+}
+
+// MARK: - AccessibilityBound
+
+extension TransferAmountViewLayout: AccessibilityBound {
+    var accessibilityBindings: [AccessibilityBinding] {
+        [
+            .init(balanceView.titleLabel, AccessibilityID.TransferAmount.availableBalanceLabel),
+            .init(balanceView.amountLabel, AccessibilityID.TransferAmount.availableBalanceValue),
+            .init(amountInputView.symbolLabel, AccessibilityID.TransferAmount.currencyLabel),
+            .init(amountInputView.textField, AccessibilityID.TransferAmount.input)
+        ]
+    }
 }

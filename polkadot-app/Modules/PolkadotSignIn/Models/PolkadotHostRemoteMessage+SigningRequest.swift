@@ -4,7 +4,7 @@ import SubstrateSdk
 
 extension PolkadotHostRemoteMessage {
     enum SigningRequest: Equatable {
-        case transaction(SignTransactionPayload)
+        case transaction(SignTransactionPayload<ProductAccountId>)
         case rawPayload(SigningRawPayload)
 
         var account: ProductAccountId {

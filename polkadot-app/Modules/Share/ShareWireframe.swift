@@ -1,6 +1,7 @@
 import UIKit
 import UIKitExt
 
+@MainActor
 final class ShareWireframe: ShareWireframeProtocol {
     private weak var host: ControllerBackedProtocol?
     private let composer: ShareContentComposing

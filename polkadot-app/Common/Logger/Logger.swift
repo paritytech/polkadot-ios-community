@@ -86,11 +86,6 @@ extension Logger: LoggerProtocol {
             line: line
         )
     }
-
-    func assertionError(message: String, file: String, function: String, line: Int) {
-        error(message: message, file: file, function: function, line: line)
-        assertionFailure(message)
-    }
 }
 
 // MARK: - Log destinations

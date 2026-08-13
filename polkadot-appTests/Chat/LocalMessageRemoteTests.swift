@@ -4,7 +4,7 @@ import XCTest
 final class LocalMessageRemoteTests: XCTestCase {
     func testDeviceUpdateMessagesCanSendToRemote() {
         let statementAccountId = Data(repeating: 1, count: 32)
-        let encryptionPublicKey = Data(repeating: 2, count: 65)
+        let encryptionPublicKey = Data(repeating: 2, count: 32)
 
         let deviceAdded = Chat.LocalMessage.Content.deviceAdded(.init(
             statementAccountId: statementAccountId,
@@ -20,7 +20,7 @@ final class LocalMessageRemoteTests: XCTestCase {
 
     func testDeviceUpdateMessagesConvertToRemoteContent() {
         let statementAccountId = Data(repeating: 1, count: 32)
-        let encryptionPublicKey = Data(repeating: 2, count: 65)
+        let encryptionPublicKey = Data(repeating: 2, count: 32)
 
         let deviceAdded = Chat.LocalMessage.Content.deviceAdded(.init(
             statementAccountId: statementAccountId,

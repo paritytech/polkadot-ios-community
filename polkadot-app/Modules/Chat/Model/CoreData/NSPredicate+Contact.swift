@@ -9,4 +9,8 @@ extension NSPredicate {
     static func blockedContacts() -> NSPredicate {
         NSPredicate(format: "%K == YES", #keyPath(CDChatContact.isBlocked))
     }
+
+    static func pendingDevicesFanOutContacts() -> NSPredicate {
+        NSPredicate(format: "%K == YES", #keyPath(CDChatContact.pendingDevicesFanOut))
+    }
 }

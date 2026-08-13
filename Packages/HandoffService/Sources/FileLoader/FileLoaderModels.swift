@@ -29,7 +29,7 @@ public extension FileTicket {
 
     func deriveEncryptor() throws -> FileEncrypting {
         let rawEncryptionKey = try Self.ticketEncryptorContext.blake2b32WithKey(self)
-        return AESFileEncryptor(rawKey: rawEncryptionKey)
+        return ChaChaPolyFileEncryptor(rawKey: rawEncryptionKey)
     }
 }
 
@@ -46,11 +46,17 @@ public enum FileUploadingEvent {
         }
     }
 
-    public struct Finished: Equatable {
-        public let metadataHash: Data
+    public enum Finished: Equatable {
+        case inline(file: FileHash)
+        case chunked(metadata: FileHash)
 
-        public init(metadataHash: Data) {
-            self.metadataHash = metadataHash
+        public var entryHash: FileHash {
+            switch self {
+            case let .inline(file):
+                file
+            case let .chunked(metadata):
+                metadata
+            }
         }
     }
 
@@ -59,7 +65,60 @@ public enum FileUploadingEvent {
     case onError(Error)
 }
 
-struct UploadedFile: ScaleCodable {
+// Versioned pool root entry envelope defined by chat RFC 0001. Wire indices are normative.
+enum VersionedUploadedFile: ScaleCodable, Equatable {
+    case v1(UploadedFile)
+
+    init(scaleDecoder: ScaleDecoding) throws {
+        let version = try UInt8(scaleDecoder: scaleDecoder)
+
+        switch version {
+        case 0:
+            self = try .v1(UploadedFile(scaleDecoder: scaleDecoder))
+        default:
+            throw UploadedFileDecodingError.unsupportedVersion(version)
+        }
+    }
+
+    func encode(scaleEncoder: ScaleEncoding) throws {
+        switch self {
+        case let .v1(payload):
+            try UInt8(0).encode(scaleEncoder: scaleEncoder)
+            try payload.encode(scaleEncoder: scaleEncoder)
+        }
+    }
+}
+
+enum UploadedFile: ScaleCodable, Equatable {
+    case inline(Data)
+    case chunked(ChunkedFile)
+
+    init(scaleDecoder: ScaleDecoding) throws {
+        let payloadIndex = try UInt8(scaleDecoder: scaleDecoder)
+
+        switch payloadIndex {
+        case 0:
+            self = try .inline(Data(scaleDecoder: scaleDecoder))
+        case 1:
+            self = try .chunked(ChunkedFile(scaleDecoder: scaleDecoder))
+        default:
+            throw UploadedFileDecodingError.unsupportedPayload(payloadIndex)
+        }
+    }
+
+    func encode(scaleEncoder: ScaleEncoding) throws {
+        switch self {
+        case let .inline(fileData):
+            try UInt8(0).encode(scaleEncoder: scaleEncoder)
+            try fileData.encode(scaleEncoder: scaleEncoder)
+        case let .chunked(chunkedFile):
+            try UInt8(1).encode(scaleEncoder: scaleEncoder)
+            try chunkedFile.encode(scaleEncoder: scaleEncoder)
+        }
+    }
+}
+
+struct ChunkedFile: ScaleCodable, Equatable {
     let totalSize: UInt64
     let chunks: [Data]
 
@@ -79,6 +138,11 @@ struct UploadedFile: ScaleCodable {
     }
 }
 
+public enum UploadedFileDecodingError: Error, Equatable {
+    case unsupportedVersion(UInt8)
+    case unsupportedPayload(UInt8)
+}
+
 public enum FileDownloadingEvent {
     public struct Progress: Equatable {
         public let downloaded: Int
@@ -96,6 +160,7 @@ public enum FileDownloadingEvent {
 }
 
 public enum FileDownloadingError: Error {
-    case noMetadata(FileHash)
+    case noEntry(FileHash)
     case noChunk(FileHash)
+    case invalidResumeMetadata
 }

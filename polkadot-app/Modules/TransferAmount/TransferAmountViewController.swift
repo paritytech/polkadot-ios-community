@@ -2,6 +2,7 @@ import UIKit
 import UIKit_iOS
 import Foundation_iOS
 import FoundationExt
+import PolkadotUI
 
 final class TransferAmountViewController: UIViewController, ViewHolder {
     typealias RootViewType = TransferAmountViewLayout
@@ -43,16 +44,12 @@ final class TransferAmountViewController: UIViewController, ViewHolder {
         if keyboardHandler == nil {
             setupKeyboardHandler()
         }
-
-        if isAmountInputEnabled, #available(iOS 26, *) {
-            rootView.amountInputView.textField.becomeFirstResponder()
-        }
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
 
-        if isAmountInputEnabled, #unavailable(iOS 26) {
+        if isAmountInputEnabled {
             rootView.amountInputView.textField.becomeFirstResponder()
         }
     }
@@ -127,7 +124,7 @@ final class TransferAmountViewController: UIViewController, ViewHolder {
                 isUserInteractionEnabled = true
             case .calculatingFee:
                 isUserInteractionEnabled = false
-                confirmState = .confirm
+                confirmState = .loading(status: nil)
             }
         case let .issue(title, _):
             confirmState = .issue(title)
@@ -156,6 +153,23 @@ extension TransferAmountViewController: KeyboardAdoptable {
         }
 
         rootView.layoutIfNeeded()
+    }
+}
+
+private extension ClaimStatus {
+    var sendingStatusTitle: String {
+        switch self {
+        case .detecting:
+            String(localized: .transferStatusSending)
+        case .claiming:
+            String(localized: .transferStatusClaiming)
+        case .sent:
+            String(localized: .transferStatusSent)
+        case .finished:
+            String(localized: .transferStatusFinished)
+        case .error:
+            String(localized: .transferStatusError)
+        }
     }
 }
 
@@ -207,11 +221,19 @@ extension TransferAmountViewController: TransferAmountViewProtocol {
     }
 
     func didStartLoading() {
-        rootView.bind(state: .loading)
+        rootView.bind(state: .loading(status: nil))
     }
 
     func didStopLoading() {
         rootView.bind(state: .confirm)
+    }
+
+    func didReceive(transferStatus: ClaimStatus) {
+        rootView.bind(transferStatus: transferStatus.sendingStatusTitle)
+    }
+
+    func didUnlockNavigation() {
+        unlockScreenNavigation()
     }
 
     #if TESTNET_FEATURE

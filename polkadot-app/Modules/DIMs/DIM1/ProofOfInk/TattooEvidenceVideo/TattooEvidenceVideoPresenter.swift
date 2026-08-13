@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import Foundation_iOS
 
+@MainActor
 final class TattooEvidenceVideoPresenter {
     weak var view: TattooEvidenceVideoViewProtocol?
     let wireframe: TattooEvidenceVideoWireframeProtocol
@@ -167,7 +168,7 @@ extension TattooEvidenceVideoPresenter: TattooEvidVideoInteractorOutputProtocol 
     }
 }
 
-extension TattooEvidenceVideoPresenter: CountdownTimerDelegate {
+extension TattooEvidenceVideoPresenter: @MainActor CountdownTimerDelegate {
     func didStart(with remainedInterval: TimeInterval) {
         provideInProgressViewModel(for: remainedInterval)
     }
@@ -187,7 +188,7 @@ extension TattooEvidenceVideoPresenter: CountdownTimerDelegate {
     }
 }
 
-extension TattooEvidenceVideoPresenter: Localizable {
+extension TattooEvidenceVideoPresenter: @MainActor Localizable {
     func applyLocalization() {
         if let remainedTimeInterval = timer?.remainedInterval {
             provideInProgressViewModel(for: remainedTimeInterval)

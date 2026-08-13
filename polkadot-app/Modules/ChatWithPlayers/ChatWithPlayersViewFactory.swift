@@ -1,7 +1,9 @@
 import Foundation
 import UIKit
 import MessageExchangeKit
+import ChainRegistry
 
+@MainActor
 enum ChatWithPlayersViewFactory {
     static func createView(
         game: UInt32,

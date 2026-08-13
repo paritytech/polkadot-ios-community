@@ -1,3 +1,4 @@
+import SubstrateSdkExt
 @testable import polkadot_app
 import XCTest
 import BigInt
@@ -11,6 +12,7 @@ import SDKLogger
 import KeyDerivation
 import Individuality
 import AssetsManagement
+import ChainRegistry
 
 final class LightPersonTests: XCTestCase {
     let mnemonic = "admit bounce found rally person winner script thing supreme honey credit goddess"
@@ -40,7 +42,7 @@ final class LightPersonTests: XCTestCase {
             let factory = try LitePersonParamsFactory(
                 mainWallet: setupResult.main,
                 liteVrfManager: BandersnatchKeyManager(
-                    entropyDeriver: LitePersonBandersnatchDeriver(),
+                    entropyDeriver: RingVrfEntropyDeriver(domain: BuiltInProduct.personhood, index: 1),
                     entropyManager: setupResult.entropyManager
                 ),
                 chatEncryptorManager: ChatEncryptionManager(
@@ -60,7 +62,9 @@ final class LightPersonTests: XCTestCase {
             logger.info(
                 "consumerRegistration.signature (SR25519): \(params.resourcesSignature.toHex(includePrefix: true))"
             )
-            logger.info("consumerRegistration.identifierKey: \(params.chatPublicKey.toHex(includePrefix: true))")
+            try logger.info(
+                "consumerRegistration.identifierKey: \(params.encryptionIdentifier.scaleEncoded().toHex(includePrefix: true))"
+            )
             logger.info("username: \(params.username)")
         } catch {
             logger.error("Unexpected error: \(error)")
@@ -159,7 +163,10 @@ private extension LightPersonTests {
         try manager.createWallets(with: .init(mnemonic: mnemonic))
 
         return SetupParams(
-            main: DynamicDerivedWallet(derivationPath: "//wallet", entropyManager: entropyManager),
+            main: DynamicDerivedWallet(
+                derivationPath: WalletDerivationPath.main,
+                entropyManager: entropyManager
+            ),
             storageFacade: userStorageFacade,
             entropyManager: entropyManager
         )

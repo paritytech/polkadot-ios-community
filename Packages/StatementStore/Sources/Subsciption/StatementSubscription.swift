@@ -17,7 +17,9 @@ public protocol StatementSubscribing {
     func resetSeenHashes()
 }
 
-public final class StatementSubscription {
+// Mutable state is confined to workQueue. The conformance is unchecked because
+// Task/DispatchQueue boundaries cannot express that invariant to the compiler.
+public final class StatementSubscription: @unchecked Sendable {
     private let connection: StatementStoreFetching
     private let topicFilter: TopicFilter
     private let proofVerifier: StatementStoreProofVerifying
@@ -39,6 +41,10 @@ public final class StatementSubscription {
         self.proofVerifier = proofVerifier
         self.workQueue = workQueue
         self.logger = logger
+    }
+
+    deinit {
+        subscriptionTask?.cancel()
     }
 }
 
@@ -66,18 +72,22 @@ extension StatementSubscription: StatementSubscribing {
         handler: @escaping StatementHandlingClosure,
         completion: ((StatementSubscriptionError?) -> Void)?
     ) {
-        Task { [connection, topicFilter, logger] in
+        Task { [connection, topicFilter, workQueue, logger, weak self] in
             logger?.debug("Going to fetch events")
 
             do {
                 let dataList = try await connection.fetchStatements(
                     with: topicFilter
                 )
-                let error = handleData(dataList, with: handler)
-                completion?(error)
+                workQueue.async {
+                    let error = self?.handleData(dataList, with: handler)
+                    completion?(error)
+                }
             } catch {
                 logger?.error("Failed to fetch data: \(error)")
-                completion?(.other(error))
+                workQueue.async {
+                    completion?(.other(error))
+                }
             }
         }
     }
@@ -85,12 +95,13 @@ extension StatementSubscription: StatementSubscribing {
 
 private extension StatementSubscription {
     func performSubscription(handler: @escaping StatementHandlingClosure) {
-        subscriptionTask = Task {
+        subscriptionTask = Task { [connection, topicFilter, logger, weak self] in
             do {
-                let stream = try self.connection.subscribeStatements(with: self.topicFilter)
+                let stream = try connection.subscribeStatements(with: topicFilter)
 
                 for try await page in stream {
-                    _ = self.handleData(page.statements, with: handler)
+                    guard let self else { return }
+                    _ = await handleDataOnWorkQueue(page.statements, with: handler)
                 }
             } catch {
                 guard !Task.isCancelled else {
@@ -105,6 +116,22 @@ private extension StatementSubscription {
     func performStop() {
         subscriptionTask?.cancel()
         subscriptionTask = nil
+    }
+
+    func handleDataOnWorkQueue(
+        _ dataList: [Data],
+        with handler: @escaping StatementHandlingClosure
+    ) async -> StatementSubscriptionError? {
+        await withCheckedContinuation { continuation in
+            workQueue.async { [weak self] in
+                guard let self else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                let error = handleData(dataList, with: handler)
+                continuation.resume(returning: error)
+            }
+        }
     }
 
     func handleData(

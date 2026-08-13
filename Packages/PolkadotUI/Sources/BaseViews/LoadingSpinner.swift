@@ -1,12 +1,13 @@
 import SwiftUI
+import DesignSystem
 
-struct LoadingSpinner: View {
+public struct LoadingSpinner: View {
     let lineWidth: CGFloat
     let strokeStyle: AnyShapeStyle
 
     @State private var isAnimating = false
 
-    init(
+    public init(
         lineWidth: CGFloat = 5,
         strokeStyle: any ShapeStyle = .fgPrimary
     ) {
@@ -14,7 +15,7 @@ struct LoadingSpinner: View {
         self.strokeStyle = AnyShapeStyle(strokeStyle)
     }
 
-    var body: some View {
+    public var body: some View {
         Circle()
             .inset(by: lineWidth / 2)
             .trim(from: 0.0, to: 0.6)

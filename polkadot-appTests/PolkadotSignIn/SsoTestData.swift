@@ -4,6 +4,7 @@ import Keystore_iOS
 import Operation_iOS
 import Products
 import SubstrateSdk
+import ChainRegistry
 
 @testable import polkadot_app
 
@@ -46,13 +47,13 @@ enum SsoTestData {
     }
 
     static func makeAccount(productId: String = "test.product", derivationIndex: UInt32 = 0) -> ProductAccountId {
-        ProductAccountId(productId: productId, derivationIndex: derivationIndex)
+        ProductAccountId(productId: productId, derivationIndex: .index(derivationIndex))
     }
 
     static func makeTransaction(
         account: ProductAccountId,
         genesisHash: Data
-    ) -> SignTransactionPayload {
+    ) -> SignTransactionPayload<ProductAccountId> {
         SignTransactionPayload(
             account: account,
             blockHash: Data(repeating: 0, count: 32),

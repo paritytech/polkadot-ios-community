@@ -1,4 +1,5 @@
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 
 final class WalletMainViewController: UIHostingController<WalletView>, RootScreen {
@@ -7,13 +8,12 @@ final class WalletMainViewController: UIHostingController<WalletView>, RootScree
     private var assetDetailsScene: AssetDetailsScene
     private var identityDetailsScene: IdentityDetailsScene
 
-    @available(iOS, obsoleted: 26)
-    private var walletLeftBarButtonItem: UIBarButtonItem?
-
     private let titleLabel: PolkadotUI.Label = .create { view in
         view.typography = .headlineSmall
         view.textColor = .fgPrimary
     }
+
+    private let statusTitleView = NetworkStatusTitleView()
 
     init(
         presenter: WalletMainPresenterProtocol,
@@ -34,16 +34,8 @@ final class WalletMainViewController: UIHostingController<WalletView>, RootScree
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .bgSurfaceMain
-        if #available(iOS 26.0, *) {
-            navigationItem.titleView = titleLabel
-        } else {
-            walletLeftBarButtonItem = UIBarButtonItem(customView: titleLabel)
-            navigationItem.leftBarButtonItem = walletLeftBarButtonItem
-        }
+        setMainTitle()
 
-        setTitle(String(localized: .walletMainTitle))
-
-        setScanButton()
         assetDetailsScene.attachNavigationHost(self)
         identityDetailsScene.attachNavigationHost(self)
         setupHandlers()
@@ -88,16 +80,6 @@ final class WalletMainViewController: UIHostingController<WalletView>, RootScree
         navigationItem.setRightBarButton(nil, animated: true)
     }
 
-    private func setScanButton() {
-        let item = UIBarButtonItem(
-            image: .scanBarButton,
-            style: .plain,
-            target: self,
-            action: #selector(didTapScan)
-        )
-        navigationItem.setRightBarButton(item, animated: true)
-    }
-
     private func resetOverlayCloseButton() {
         navigationItem.setLeftBarButton(nil, animated: true)
     }
@@ -109,6 +91,7 @@ final class WalletMainViewController: UIHostingController<WalletView>, RootScree
             target: self,
             action: #selector(collapseExpandedSection)
         )
+        item.accessibilityId(AccessibilityID.Wallet.detailCloseButton)
         navigationItem.setLeftBarButton(item, animated: true)
     }
 }
@@ -116,11 +99,6 @@ final class WalletMainViewController: UIHostingController<WalletView>, RootScree
 extension WalletMainViewController: WalletMainViewProtocol {
     func didReceive(isCollectiblesAvailable: Bool) {
         rootView.viewModel.isCollectiblesAvailable = isCollectiblesAvailable
-    }
-
-    @objc
-    func didTapScan() {
-        presenter.scanQR()
     }
 
     @objc
@@ -132,14 +110,14 @@ extension WalletMainViewController: WalletMainViewProtocol {
     func collapseExpandedSection() {
         rootView.viewModel.expandedSection = .none
         resetOverlayCloseButton()
-        setScanButton()
-        setTitle(String(localized: .walletMainTitle))
+        resetRightButton()
+        setMainTitle()
     }
 
     private func showAssetDetailsOverlay() {
         rootView.viewModel.expandedSection = .assetDetails
         setOverlayCloseButton()
-        setScanButton()
+        resetRightButton()
         setTitleCenter(String(localized: .walletMainBalanceCard))
     }
 
@@ -157,15 +135,12 @@ extension WalletMainViewController: WalletMainViewProtocol {
         setTitleCenter(nil)
     }
 
-    func setTitle(_ title: String) {
+    func setMainTitle() {
         navigationItem.style = .browser
         if #unavailable(iOS 26.0) {
             navigationItem.title = nil
-            navigationItem.leftBarButtonItem = walletLeftBarButtonItem
         }
-        titleLabel.text = title
-        titleLabel.typography = .headlineSmall
-        titleLabel.sizeToFit()
+        setTitleView(statusTitleView)
     }
 
     func setTitleCenter(_ title: String?) {
@@ -177,5 +152,10 @@ extension WalletMainViewController: WalletMainViewProtocol {
         titleLabel.text = title
         titleLabel.typography = .titleLarge
         titleLabel.sizeToFit()
+        navigationItem.titleView = titleLabel
+    }
+
+    func didReceive(titleViewModel: NetworkStatusTitleView.ViewModel) {
+        statusTitleView.bind(viewModel: titleViewModel)
     }
 }

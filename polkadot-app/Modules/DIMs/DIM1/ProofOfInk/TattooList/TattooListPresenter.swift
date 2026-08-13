@@ -4,6 +4,7 @@ import SubstrateSdk
 import Foundation_iOS
 import Individuality
 
+@MainActor
 final class TattooListPresenter {
     weak var view: TattooListViewProtocol?
     let wireframe: TattooListWireframeProtocol

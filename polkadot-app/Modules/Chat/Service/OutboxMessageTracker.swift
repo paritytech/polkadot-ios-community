@@ -1,4 +1,5 @@
 import Foundation
+import MessageExchangeKit
 import SubstrateSdk
 
 struct OutboxMessages {
@@ -18,6 +19,7 @@ protocol OutboxMessageTracking {
     var hasMessagesToSend: Bool { get }
     func prepareMessagesToSend() -> [OutboxMessages]
     func markInFlight(messageIds: Set<Chat.MessageId>)
+    func markFailed(messageIds: Set<Chat.MessageId>)
 
     @discardableResult
     func markSent(messageIds: Set<Chat.MessageId>) -> Set<Chat.MessageId>
@@ -36,32 +38,78 @@ private extension OutboxMessageTracker {
     func hasMessage(with messageId: Chat.MessageId) -> Bool {
         messagesToSend[messageId] != nil || inFlightMessages[messageId] != nil
     }
-}
 
-extension OutboxMessageTracker: OutboxMessageTracking {
-    func setContacts(_ newContacts: [AccountId: Chat.Contact]) {
-        let removedAccountIds = Set(contacts.keys).subtracting(Set(newContacts.keys))
-        contacts = newContacts
-
-        guard !removedAccountIds.isEmpty else {
-            return
-        }
-
+    func removeMessagesToSend(forRemovedContacts removedAccountIds: Set<AccountId>) {
         messagesToSend = messagesToSend.filter { message in
             guard let accountId = message.value.contactAccountId else {
                 return false
             }
-
             return !removedAccountIds.contains(accountId)
         }
+    }
 
-        inFlightMessages = inFlightMessages.filter { message in
-            guard let accountId = message.value.contactAccountId else {
-                return false
+    func contactIdsWithChangedSession(
+        oldContacts: [AccountId: Chat.Contact],
+        newContacts: [AccountId: Chat.Contact]
+    ) -> Set<AccountId> {
+        newContacts.reduce(into: Set<AccountId>()) { result, item in
+            let accountId = item.key
+            let newContact = item.value
+
+            guard let oldContact = oldContacts[accountId] else {
+                return
             }
 
-            return !removedAccountIds.contains(accountId)
+            let isChanged = newContact
+                .toMessageExchangeSessionRequest()
+                .requiresSessionRecreation(
+                    comparedTo: oldContact.toMessageExchangeSessionRequest()
+                )
+
+            if isChanged {
+                result.insert(accountId)
+            }
         }
+    }
+
+    func updateInFlightMessages(
+        removedAccountIds: Set<AccountId>,
+        changedSessionContactIds: Set<AccountId>
+    ) {
+        for (messageId, message) in inFlightMessages {
+            guard let accountId = message.contactAccountId else {
+                inFlightMessages[messageId] = nil
+                continue
+            }
+
+            if removedAccountIds.contains(accountId) {
+                inFlightMessages[messageId] = nil
+            } else if changedSessionContactIds.contains(accountId),
+                      message.status == .outgoing(.new) {
+                inFlightMessages[messageId] = nil
+                messagesToSend[messageId] = message
+            }
+        }
+    }
+}
+
+extension OutboxMessageTracker: OutboxMessageTracking {
+    func setContacts(_ newContacts: [AccountId: Chat.Contact]) {
+        let changedSessionContactIds = contactIdsWithChangedSession(
+            oldContacts: contacts,
+            newContacts: newContacts
+        )
+        let removedAccountIds = Set(contacts.keys).subtracting(Set(newContacts.keys))
+        contacts = newContacts
+
+        if !removedAccountIds.isEmpty {
+            removeMessagesToSend(forRemovedContacts: removedAccountIds)
+        }
+
+        updateInFlightMessages(
+            removedAccountIds: removedAccountIds,
+            changedSessionContactIds: changedSessionContactIds
+        )
     }
 
     func getContact(for accountId: AccountId) -> Chat.Contact? {
@@ -112,6 +160,17 @@ extension OutboxMessageTracker: OutboxMessageTracking {
         messageIds.forEach { messageId in
             inFlightMessages[messageId] = messagesToSend[messageId]
             messagesToSend[messageId] = nil
+        }
+    }
+
+    func markFailed(messageIds: Set<Chat.MessageId>) {
+        messageIds.forEach { messageId in
+            guard let message = inFlightMessages[messageId] else {
+                return
+            }
+
+            inFlightMessages[messageId] = nil
+            messagesToSend[messageId] = message
         }
     }
 

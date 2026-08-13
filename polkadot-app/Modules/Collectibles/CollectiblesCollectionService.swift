@@ -3,6 +3,7 @@ import SubstrateSdk
 import SubstrateStorageQuery
 import StructuredConcurrency
 import Individuality
+import ChainRegistry
 
 protocol CollectiblesCollectionServicing {
     func loadOwnedNfts() async -> [CollectionInput.OwnedNft]

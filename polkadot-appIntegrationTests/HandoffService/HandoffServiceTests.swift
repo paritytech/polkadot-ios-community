@@ -8,6 +8,7 @@ import NovaCrypto
 import SDKLogger
 import AsyncExtensions
 import CryptoKit
+import SubstrateSdkExt
 @testable import polkadot_app
 
 struct HandoffServiceTests {
@@ -47,17 +48,6 @@ struct HandoffServiceTests {
         let dataToSend = try Data.randomOrError(of: 4_000_000)
 
         try await submitFileAndClaim(dataToSend, sender: alice, recipientKeypairs: [bob, charlie, dave])
-    }
-
-    @Test func getPoolStatus() async throws {
-        let logger = Logger.shared
-
-        let connection = WebSocketEngine(urls: [Self.bulletInURL], logger: logger)!
-        let service = HandoffService(connection: connection)
-
-        let status = try await service.getPoolStatus()
-
-        logger.debug("Pool status: \(status)")
     }
 }
 
@@ -118,7 +108,7 @@ private extension HandoffServiceTests {
 
         let fileLoader = HandoffFileLoader(service: service)
 
-        let encryptor = AESFileEncryptor(symmetricKey: SymmetricKey(size: .bits256))
+        let encryptor = ChaChaPolyFileEncryptor(symmetricKey: SymmetricKey(size: .bits256))
 
         let recipientKeys = recipientKeypairs.map { recipient in
             let pubKey = recipient.publicKey().rawData()
@@ -147,7 +137,7 @@ private extension HandoffServiceTests {
                 logger.debug("Upload completed")
                 try await claimFile(
                     using: fileLoader,
-                    metadataHash: finished.metadataHash,
+                    entryHash: finished.entryHash,
                     recipientKeypairs: recipientKeypairs,
                     decryptor: encryptor,
                     actualFileHash: fileHash
@@ -160,7 +150,7 @@ private extension HandoffServiceTests {
 
     func claimFile(
         using fileLoader: HandoffFileLoader,
-        metadataHash: Data,
+        entryHash: Data,
         recipientKeypairs: [SNKeypairProtocol],
         decryptor: FileEncrypting,
         actualFileHash: Data
@@ -170,9 +160,9 @@ private extension HandoffServiceTests {
         for recipient in recipientKeypairs {
             let signer = SNSigner(keypair: recipient)
 
-            let store = MockDownloadFileContext(metadataHash: metadataHash)
+            let store = MockDownloadFileContext(entryHash: entryHash)
             let downloadStream = fileLoader.downloadFile(
-                using: metadataHash,
+                using: entryHash,
                 claimer: FileClaimer(
                     proofProvider: SR25519RecipientProofProvider(signer: signer),
                     decryptor: decryptor
@@ -203,7 +193,7 @@ private extension HandoffServiceTests {
     }
 }
 
-private extension HandoffServiceTests.MockParticipant {
+extension HandoffServiceTests.MockParticipant {
     static func createRandom() throws -> Self {
         let seed = try Data.randomOrError(of: 32)
         let keypair = try SNKeyFactory().createKeypair(fromSeed: seed)

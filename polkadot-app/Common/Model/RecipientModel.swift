@@ -1,5 +1,7 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
+import SubstrateSdkExt
 
 struct RecipientModel {
     let accountId: AccountId

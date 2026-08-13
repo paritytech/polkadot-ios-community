@@ -43,12 +43,14 @@ extension Chat.RemoteMessageContentV1.MessageContent {
         let general: GeneralFileMeta
         let width: UInt32
         let height: UInt32
+        /// UTF-8 encoded BlurHash used as the image's pre-download preview.
         let thumbnail: Data?
     }
 
     struct VideoFileMeta: Equatable {
         let general: GeneralFileMeta
         let duration: UInt32
+        /// UTF-8 encoded BlurHash of a video frame used as the pre-download preview.
         let thumbnail: Data?
     }
 

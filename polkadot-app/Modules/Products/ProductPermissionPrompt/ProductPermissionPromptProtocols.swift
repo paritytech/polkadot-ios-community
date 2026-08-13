@@ -15,16 +15,15 @@ class ProductPromptStyler: MessageSheetStyling {
         view.backgroundInsets = BottomSheetStyleConstants.backgroundInsets
         view.contentInsets = UIEdgeInsets(top: 24, left: 16, bottom: 16, right: 16)
 
-        view.titleLabel.apply(style: .init(
-            textColor: .fgPrimary,
-            font: .semibold24
-        ))
+        view.titleLabel.textColor = .fgPrimary
+        view.titleLabel.font = .semibold24
         view.titleLabel.textAlignment = .center
+        view.titleLabel.numberOfLines = 3
+        view.titleLabel.adjustsFontSizeToFitWidth = true
+        view.titleLabel.minimumScaleFactor = 0.6
 
-        view.detailsLabel.apply(style: .init(
-            textColor: .fgSecondary,
-            font: .regular16
-        ))
+        view.detailsLabel.textColor = .fgSecondary
+        view.detailsLabel.font = .regular16
         view.detailsLabel.textAlignment = .center
 
         view.afterGraphicsSpacing = 16

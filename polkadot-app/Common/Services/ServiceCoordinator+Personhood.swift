@@ -6,6 +6,7 @@ import Individuality
 import CommonService
 import KeyDerivation
 import SubstrateOperation
+import ChainRegistry
 
 extension ServiceCoordinator {
     struct PersonhoodServices {
@@ -118,8 +119,10 @@ private extension ServiceCoordinator {
         let logger = Logger.shared
 
         let connectionFactory = ConnectionFactory(
+            apiKeysProvider: ConnectionApiKeysProvider.shared,
             logger: logger,
-            operationQueue: OperationManagerFacade.runtimeSyncQueue
+            operationQueue: OperationManagerFacade.runtimeSyncQueue,
+            reachabilityManager: ReachabilityManager.shared
         )
 
         let queryFactory = PersonRegistrationQueryFactory(
@@ -160,8 +163,10 @@ private extension ServiceCoordinator {
         }
 
         let connectionFactory = ConnectionFactory(
+            apiKeysProvider: ConnectionApiKeysProvider.shared,
             logger: Logger.shared,
-            operationQueue: OperationManagerFacade.runtimeSyncQueue
+            operationQueue: OperationManagerFacade.runtimeSyncQueue,
+            reachabilityManager: ReachabilityManager.shared
         )
 
         let vrfManager = BandersnatchKeyManager.fullPerson()

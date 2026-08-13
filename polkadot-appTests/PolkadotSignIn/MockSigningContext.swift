@@ -34,7 +34,7 @@ final class MockSigningContext: PolkadotSigningContextProtocol {
         self.resolveError = resolveError
     }
 
-    func resolveWallet(for _: ProductAccountId) throws -> WalletManaging {
+    func resolveWallet(for _: Any) throws -> WalletManaging {
         if let resolveError {
             throw resolveError
         }

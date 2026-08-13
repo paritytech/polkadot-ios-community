@@ -53,13 +53,18 @@ final class AttestationOverlayController: NSObject {
 
     weak var delegate: AttestationOverlayControllerDelegate?
 
+    private var logger: Logger?
+
     // MARK: - Init
 
-    init(view: AttestationOverlayView) {
+    init(
+        view: AttestationOverlayView,
+        logger: Logger? = Logger.shared
+    ) {
         leftBounceDriver = BounceProgressDriver(target: view.leftArrowView)
         rightBounceDriver = BounceProgressDriver(target: view.rightArrowView)
         overlayView = view
-
+        self.logger = logger
         super.init()
 
         installPanGesture(in: view.leftArrowGestureContainerView)
@@ -94,15 +99,15 @@ final class AttestationOverlayController: NSObject {
 
         switch side {
         case .left:
-            print("[Swipe Attestation] Binding Left state")
+            logger?.debug("[Swipe Attestation] Binding Left state")
             leftOverlayAnimator?.commitFill(duration: 0, timing: nil)
             rightOverlayAnimator?.cancelFill(duration: 0, timing: nil, force: true)
         case .right:
-            print("[Swipe Attestation] Binding Right state")
+            logger?.debug("[Swipe Attestation] Binding Right state")
             rightOverlayAnimator?.commitFill(duration: 0, timing: nil)
             leftOverlayAnimator?.cancelFill(duration: 0, timing: nil, force: true)
         case nil:
-            print("[Swipe Attestation] Binding None state")
+            logger?.debug("[Swipe Attestation] Binding None state")
             leftOverlayAnimator?.cancelFill(duration: 0, timing: nil, force: true)
             rightOverlayAnimator?.cancelFill(duration: 0, timing: nil, force: true)
         }
@@ -435,11 +440,11 @@ private extension AttestationOverlayController {
             shouldHideOppositeArrowDuringPan = selectedSide == nil &&
                 overlayAnimator(for: side.opposite)?.hasStarted == false
 
-            print("[Swipe Attestation] Gesture side: \(side)")
-            print("[Swipe Attestation] Initial progress: \(initialProgress)")
-            print("[Swipe Attestation] Gesture speed multiplier: \(gestureSpeedMultiplier)")
-            print(
-                "[Swipe Attestation] Gesture should derive both simultaneously: \(gestureShouldDeriveBothSimultaneously)"
+            logger?.debug("[Swipe Attestation] Gesture side: \(side)")
+            logger?.debug("[Swipe Attestation] Initial progress: \(initialProgress)")
+            logger?.debug("[Swipe Attestation] Gesture speed multiplier: \(gestureSpeedMultiplier)")
+            logger?.debug(
+                "[Swipe Attestation] Gesture should derive simultaneously: \(gestureShouldDeriveBothSimultaneously)"
             )
 
             handleAttestationPanStart(side: side)
@@ -457,7 +462,7 @@ private extension AttestationOverlayController {
         case .ended,
              .cancelled,
              .failed:
-            print("[Swipe Attestation] Gesture state: \(gesture.state)")
+            logger?.debug("[Swipe Attestation] Gesture state: \(gesture.state)")
 
             stopDisplayLink()
 
@@ -569,8 +574,12 @@ private extension AttestationOverlayController {
             rightOverlayAnimator?.panEnded()
             isRightScrubbingDueToLeftDrag = false
         }
-        print(
-            "[Swipe Attestation] Projected progress: \(projectedProgress), \nvelocity: \(signedVelocity), \nprogress: \(progress)"
+        logger?.debug(
+            """
+            [Swipe Attestation] Projected progress: \(projectedProgress), \nvelocity: \(signedVelocity), \nprogress: \(
+                progress
+            )
+            """
         )
 
         let arrowView = arrowView(for: side, overlayView: overlayView)
@@ -595,7 +604,7 @@ private extension AttestationOverlayController {
                 velocityX: velocityX,
                 containerWidth: gestureContainerWidth
             )
-            print("[Swipe Attestation] Should commit, duration: \(duration)")
+            logger?.debug("[Swipe Attestation] Should commit, duration: \(duration)")
 
             gestureSideAnimator.commitFill(duration: duration, timing: finishTiming)
             otherSideAnimator.cancelFill(duration: duration, timing: cancelTiming, force: true)
@@ -606,9 +615,8 @@ private extension AttestationOverlayController {
             gestureSideAnimator.setCompletion { [weak self] in
                 self?.animateFinalisedDecision(to: side)
             }
-
         } else {
-            print("[Swipe Attestation] Should not commit")
+            logger?.debug("[Swipe Attestation] Should not commit")
             let timing = finishInteraction(
                 currentProgress: progress,
                 target: 0,
@@ -684,17 +692,17 @@ private extension AttestationOverlayController {
 
         let isFlick = abs(progressVelocity) >= Constants.flickPtsPerSec
         if isFlick {
-            print("[Swipe Attestation] Flick detected, movingTowardCommit: \(movingTowardCommit)")
+            logger?.debug("[Swipe Attestation] Flick detected, movingTowardCommit: \(movingTowardCommit)")
             return movingTowardCommit
         }
 
         if projected >= upper {
-            print("[Swipe Attestation] projected >= upper")
+            logger?.debug("[Swipe Attestation] projected >= upper")
             return true
         }
 
         if projected <= lower {
-            print("[Swipe Attestation] projected <= lower")
+            logger?.debug("[Swipe Attestation] projected <= lower")
             return false
         }
 
@@ -712,7 +720,7 @@ private extension AttestationOverlayController {
         let springInitialVelocity = ((velocityX / max(containerWidth, 1)) / remainingProgress)
             .clamped(to: Constants.springTimingsVelocityRange)
 
-        print("[Swipe Attestation] springInitialVelocity ", springInitialVelocity)
+        logger?.debug("[Swipe Attestation] springInitialVelocity \(springInitialVelocity)")
 
         return UISpringTimingParameters(
             dampingRatio: 0.9,
@@ -770,7 +778,7 @@ private extension AttestationOverlayController {
         for side: Side?,
         ignoreSide: Set<Side>
     ) {
-        print("[AttestationOverlayController] Animating arrow for \(side)")
+        logger?.debug("[AttestationOverlayController] Animating arrow for \(String(describing: side))")
         if !userInteractionsAvailable {
             UIView.animate(withDuration: 0.3, delay: 0, options: [.beginFromCurrentState]) {
                 if !ignoreSide.contains(.left) {

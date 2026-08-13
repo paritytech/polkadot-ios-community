@@ -15,6 +15,7 @@ enum GameResultsInboundEvent {
     case complete
     case log(level: String?, message: String)
 
+    // swiftlint:disable:next cyclomatic_complexity
     static func decode(from body: Any) throws -> GameResultsInboundEvent? {
         guard let dict = body as? [String: Any],
               let type = dict["type"] as? String else {

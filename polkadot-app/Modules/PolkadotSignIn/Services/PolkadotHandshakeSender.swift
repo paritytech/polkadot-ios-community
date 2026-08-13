@@ -3,6 +3,8 @@ import Individuality
 import MessageExchangeKit
 import StatementStore
 import NovaCrypto
+import ChainRegistry
+import StructuredConcurrency
 
 protocol PolkadotHandshakeSending {
     func sendResponse(for input: HandshakeInput) async throws
@@ -35,13 +37,15 @@ final class PolkadotHandshakeSender {
 
 extension PolkadotHandshakeSender: PolkadotHandshakeSending {
     func sendResponse(for input: HandshakeInput) async throws {
-        let deviceData = input.hostData.deviceData
+        try await markStallActivity("SSO handshake") {
+            let deviceData = input.hostData.deviceData
 
-        switch input.hostData {
-        case .v1:
-            try await sendV1(with: input, deviceData: deviceData)
-        case .v2:
-            try await sendV2(with: input, deviceData: deviceData)
+            switch input.hostData {
+            case .v1:
+                try await sendV1(with: input, deviceData: deviceData)
+            case .v2:
+                try await sendV2(with: input, deviceData: deviceData)
+            }
         }
     }
 }
@@ -57,15 +61,17 @@ private extension PolkadotHandshakeSender {
 
         do {
             try await allocateAllowance(for: input)
-            try await submitStatement(
-                payload: payloadFactory.makeSuccessPayload(
-                    hostData: input.hostData,
-                    deviceData: deviceData,
-                    rootAccountId: input.rootAccountId,
-                    identityAccountId: input.identityAccountId
-                ),
-                input: input
-            )
+            try await markStallRegion("Sending statement") {
+                try await submitStatement(
+                    payload: payloadFactory.makeSuccessPayload(
+                        hostData: input.hostData,
+                        deviceData: deviceData,
+                        rootAccountId: input.rootAccountId,
+                        identityAccountId: input.identityAccountId
+                    ),
+                    input: input
+                )
+            }
             logger.debug("V1 flow completed successfully")
         } catch {
             logger.error("V1 flow failed: \(error)")
@@ -88,15 +94,17 @@ private extension PolkadotHandshakeSender {
                 input: input
             )
             try await allocateAllowance(for: input)
-            try await submitStatement(
-                payload: payloadFactory.makeSuccessPayload(
-                    hostData: input.hostData,
-                    deviceData: deviceData,
-                    rootAccountId: input.rootAccountId,
-                    identityAccountId: input.identityAccountId
-                ),
-                input: input
-            )
+            try await markStallRegion("Sending statement") {
+                try await submitStatement(
+                    payload: payloadFactory.makeSuccessPayload(
+                        hostData: input.hostData,
+                        deviceData: deviceData,
+                        rootAccountId: input.rootAccountId,
+                        identityAccountId: input.identityAccountId
+                    ),
+                    input: input
+                )
+            }
             logger.debug("V2 flow completed successfully")
         } catch {
             logger.error("V2 flow failed: \(error)")
@@ -134,7 +142,7 @@ private extension PolkadotHandshakeSender {
         let accountId = input.hostData.statementAccountId
         logger.debug("Allocating SSS allowance...")
         do {
-            try await sssManager.allocate(accountId: accountId, policy: .ignore)
+            try await sssManager.allocate(accountId: accountId, policy: .ignore, priority: .high)
             logger.debug("SSS allowance allocated successfully")
         } catch {
             logger.error("SSS allowance allocation failed: \(error)")

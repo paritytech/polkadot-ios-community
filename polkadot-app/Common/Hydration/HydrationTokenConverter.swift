@@ -1,6 +1,7 @@
 import Foundation
 import HydrationSdk
 import SubstrateSdk
+import ChainRegistry
 
 enum HydrationTokenConverterError: Error {
     case unexpectedChain(ChainProtocol)

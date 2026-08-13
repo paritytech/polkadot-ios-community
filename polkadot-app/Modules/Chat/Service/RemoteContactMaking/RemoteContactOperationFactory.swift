@@ -4,6 +4,7 @@ import SubstrateSdk
 import Operation_iOS
 import SubstrateStorageQuery
 import Individuality
+import ChainRegistry
 
 protocol RemoteContactOperationMaking: RemoteContactResolving {
     func search(by query: String) -> CompoundOperationWrapper<[Chat.RemoteContact]>
@@ -60,8 +61,9 @@ extension RemoteContactOperationFactory: RemoteContactOperationMaking {
         let mapOperation = ClosureOperation {
             let consumers = try consumerWrapper.targetOperation.extractNoCancellableResultData()
 
-            return try consumers.map { consumer in
-                try Chat.RemoteContact(consumer: consumer)
+            // we could have broken records during mapping here
+            return consumers.compactMap { consumer in
+                try? Chat.RemoteContact(consumer: consumer)
             }
         }
 

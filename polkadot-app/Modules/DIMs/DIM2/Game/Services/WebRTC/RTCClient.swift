@@ -1,8 +1,7 @@
 import Foundation
 import Foundation_iOS
-import WebRTC
+@preconcurrency import WebRTC
 import SubstrateSdk
-import CoreImage // Added for SimulatedVideoCapturer
 import os
 
 protocol RTCRendererManaging: AnyObject {
@@ -15,24 +14,25 @@ protocol RTCRendererManaging: AnyObject {
 }
 
 final class RTCClient {
-    // The `RTCPeerConnectionFactory` is in charge of creating new RTCPeerConnection instances.
-    // A new RTCPeerConnection should be created every new call, but the factory is shared.
-    private static let factory: RTCPeerConnectionFactory = {
-        RTCInitializeSSL()
-        let videoEncoderFactory = RTCDefaultVideoEncoderFactory()
-        let videoDecoderFactory = RTCDefaultVideoDecoderFactory()
-        return RTCPeerConnectionFactory(encoderFactory: videoEncoderFactory, decoderFactory: videoDecoderFactory)
-    }()
-
-    private var videoCapturer: RTCVideoCapturer?
+    private let peerConnectionFactory: RTCPeerConnectionFactory
 
     private struct MutableState {
         var remoteVideoTracks: [AccountId: RTCVideoTrack] = [:]
-        var isLocalCaptureStarted = false
         var localVideoTrack: RTCVideoTrack?
+
+        /// Renderers currently attached to each peer's track. Used to re-pair sinks
+        /// across `setRemoteVideoTrack` and to detach them on track removal.
+        /// Keyed by `ObjectIdentifier` because `RTCVideoRenderer` is a class-bound protocol.
+        var remoteSinks: [AccountId: [ObjectIdentifier: RTCVideoRenderer]] = [:]
     }
 
     private let state = OSAllocatedUnfairLock(initialState: MutableState())
+
+    private let rendererQueue = DispatchQueue(label: "RTCClient.renderer", qos: .userInteractive)
+
+    private let captureQueue = DispatchQueue(label: "RTCClient.capture", qos: .userInitiated)
+
+    private var videoCapturerWrapper: RTCVideoCapturerWrapper?
 
     var localVideoTrack: RTCVideoTrack? {
         state.withLock { $0.localVideoTrack }
@@ -43,9 +43,12 @@ final class RTCClient {
     private let rtcLogger: RTCCallbackLogger?
 
     init(
+        peerConnectionFactory: RTCPeerConnectionFactory,
         isAudioEnabled: Bool,
+        videoProfile: RTCVideoProfile,
         logger: LoggerProtocol = Logger.shared
     ) {
+        self.peerConnectionFactory = peerConnectionFactory
         self.isAudioEnabled = isAudioEnabled
         self.logger = logger
 
@@ -56,10 +59,11 @@ final class RTCClient {
             rtcLogger = nil
         }
 
-        createMediaSenders()
+        createMediaSenders(videoProfile: videoProfile)
     }
 
     deinit {
+        logger.debug("Deinit")
         stopLogging()
     }
 
@@ -67,103 +71,103 @@ final class RTCClient {
 
     /// Starts the camera capture so the local video track produces frames.
     /// Peer connections can attach the local video track before capture starts.
+    /// Returns immediately; the actual camera startup runs on `captureQueue`.
     func startLocalCapture() {
-        state.withLock { state in
-            guard !state.isLocalCaptureStarted else { return }
-            if performStartCapture() {
-                state.isLocalCaptureStarted = true
-            }
+        guard let videoCapturerWrapper else { return }
+
+        captureQueue.async {
+            videoCapturerWrapper.start()
         }
     }
 
+    /// Returns immediately; the actual camera teardown runs on `captureQueue`.
     func stopLocalCapture() {
-        state.withLock { state in
-            guard state.isLocalCaptureStarted else { return }
-            performStopCapture()
-            state.isLocalCaptureStarted = false
+        guard let videoCapturerWrapper else { return }
+
+        captureQueue.async {
+            videoCapturerWrapper.stop()
         }
     }
 
     // MARK: - Remote Track Management
 
     /// Sets the remote video track for a given peer. Called when connection state updates.
+    /// Any renderers already registered for this peer are automatically re-paired from the
+    /// old track to the new one.
     func setRemoteVideoTrack(_ track: RTCVideoTrack?, for peerId: AccountId) {
-        state.withLock { $0.remoteVideoTracks[peerId] = track }
+        state.withLock { state in
+            let oldTrack = state.remoteVideoTracks[peerId]
+            if let track {
+                state.remoteVideoTracks[peerId] = track
+            } else {
+                state.remoteVideoTracks.removeValue(forKey: peerId)
+            }
+            guard oldTrack !== track else { return }
+
+            let sinks = Array((state.remoteSinks[peerId] ?? [:]).values)
+            guard !sinks.isEmpty else { return }
+
+            rendererQueue.async {
+                for renderer in sinks {
+                    oldTrack?.remove(renderer)
+                    track?.add(renderer)
+                }
+            }
+        }
     }
 
-    /// Removes the remote video track for a given peer.
+    /// Removes the remote video track for a given peer. Any renderers registered for this peer
+    /// are detached from the old track but remain in the registry, so a subsequent
+    /// `setRemoteVideoTrack` for the same peer will rebind them automatically.
     func removeRemoteVideoTrack(for peerId: AccountId) {
-        state.withLock { _ = $0.remoteVideoTracks.removeValue(forKey: peerId) }
+        state.withLock { state in
+            guard let oldTrack = state.remoteVideoTracks.removeValue(forKey: peerId) else { return }
+            let sinks = Array((state.remoteSinks[peerId] ?? [:]).values)
+            guard !sinks.isEmpty else { return }
+
+            rendererQueue.async {
+                for renderer in sinks {
+                    oldTrack.remove(renderer)
+                }
+            }
+        }
     }
 
-    /// Removes all remote video tracks.
+    /// Removes all remote video tracks and clears the sink registry, detaching every registered
+    /// renderer from its track.
     func removeAllRemoteVideoTracks() {
-        state.withLock { $0.remoteVideoTracks.removeAll() }
+        state.withLock { state in
+            var detachments: [(RTCVideoTrack, RTCVideoRenderer)] = []
+            for (peerId, track) in state.remoteVideoTracks {
+                guard let sinks = state.remoteSinks[peerId] else { continue }
+                for renderer in sinks.values {
+                    detachments.append((track, renderer))
+                }
+            }
+            state.remoteVideoTracks.removeAll()
+            state.remoteSinks.removeAll()
+
+            guard !detachments.isEmpty else { return }
+            rendererQueue.async {
+                for (track, renderer) in detachments {
+                    track.remove(renderer)
+                }
+            }
+        }
     }
 
     // MARK: - Private
 
-    private func createMediaSenders() {
-        let track = createLocalVideoTrack()
+    private func createMediaSenders(videoProfile: RTCVideoProfile) {
+        let videoSource = peerConnectionFactory.videoSource()
+        let videoCapturerWrapper = RTCVideoCapturerWrapper(
+            videoSource: videoSource,
+            videoProfile: videoProfile
+        )
+        self.videoCapturerWrapper = videoCapturerWrapper
+
+        let track = peerConnectionFactory.videoTrack(with: videoSource, trackId: "video0")
         state.withLock { $0.localVideoTrack = track }
-    }
-
-    private func createLocalVideoTrack() -> RTCVideoTrack {
-        let videoSource = RTCClient.factory.videoSource()
-
-        #if targetEnvironment(simulator)
-            // Use our custom simulated capturer
-            videoCapturer = SimulatedVideoCapturer(delegate: videoSource)
-        #else
-            videoCapturer = RTCCameraVideoCapturer(delegate: videoSource)
-        #endif
-
-        let videoTrack = RTCClient.factory.videoTrack(with: videoSource, trackId: "video0")
-        return videoTrack
-    }
-
-    private func performStartCapture() -> Bool {
-        #if targetEnvironment(simulator)
-            guard let capturer = videoCapturer as? SimulatedVideoCapturer else {
-                return false
-            }
-            capturer.startCapture()
-            return true
-        #else
-            guard let capturer = videoCapturer as? RTCCameraVideoCapturer else {
-                return false
-            }
-            guard
-                let frontCamera = (RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == .front })),
-                let format = RTCCameraVideoCapturer.supportedFormats(for: frontCamera).first(where: {
-                    guard $0.videoSupportedFrameRateRanges.contains(where: { $0.maxFrameRate <= 30 }) else {
-                        return false
-                    }
-                    return CMVideoFormatDescriptionGetDimensions($0.formatDescription).height <= 720
-                })
-            else {
-                return false
-            }
-
-            capturer.startCapture(
-                with: frontCamera,
-                format: format,
-                fps: 24
-            )
-            return true
-        #endif
-    }
-
-    private func performStopCapture() {
-        #if targetEnvironment(simulator)
-            if let capturer = videoCapturer as? SimulatedVideoCapturer {
-                capturer.stopCapture()
-            }
-        #else
-            if let capturer = videoCapturer as? RTCCameraVideoCapturer {
-                capturer.stopCapture()
-            }
-        #endif
     }
 }
 
@@ -173,12 +177,12 @@ extension RTCClient: RTCRendererManaging {
     func connectLocalRenderer(_ renderer: RTCVideoRenderer) {
         startLocalCapture()
         let track = state.withLock { $0.localVideoTrack }
-        track?.add(renderer)
+        rendererQueue.async { track?.add(renderer) }
     }
 
     func disconnectLocalRenderer(_ renderer: RTCVideoRenderer) {
         let track = state.withLock { $0.localVideoTrack }
-        track?.remove(renderer)
+        rendererQueue.async { track?.remove(renderer) }
     }
 
     func hasRemoteVideoTrack(for peerId: AccountId) -> Bool {
@@ -186,13 +190,22 @@ extension RTCClient: RTCRendererManaging {
     }
 
     func connectRenderer(_ renderer: RTCVideoRenderer, for peerId: AccountId) {
-        let track = state.withLock { $0.remoteVideoTracks[peerId] }
-        track?.add(renderer)
+        state.withLock { state in
+            state.remoteSinks[peerId, default: [:]][ObjectIdentifier(renderer)] = renderer
+            let track = state.remoteVideoTracks[peerId]
+            rendererQueue.async { track?.add(renderer) }
+        }
     }
 
     func disconnectRenderer(_ renderer: RTCVideoRenderer, for peerId: AccountId) {
-        let track = state.withLock { $0.remoteVideoTracks[peerId] }
-        track?.remove(renderer)
+        state.withLock { state in
+            state.remoteSinks[peerId]?.removeValue(forKey: ObjectIdentifier(renderer))
+            if state.remoteSinks[peerId]?.isEmpty == true {
+                state.remoteSinks.removeValue(forKey: peerId)
+            }
+            let track = state.remoteVideoTracks[peerId]
+            rendererQueue.async { track?.remove(renderer) }
+        }
     }
 }
 
@@ -233,127 +246,3 @@ private extension RTCClient {
         rtcLogger?.stop()
     }
 }
-
-// MARK: - Simulated Capturer
-
-#if targetEnvironment(simulator)
-    private class SimulatedVideoCapturer: RTCVideoCapturer {
-        private let timerQueue = DispatchQueue(label: "SimulatedVideoCapturer")
-        private var timer: DispatchSourceTimer?
-        private var frameIndex = 0
-        private let ciContext = CIContext()
-        // Changed to Portrait aspect ratio (480x640)
-        private let width: CGFloat = 480
-        private let height: CGFloat = 640
-
-        override init(delegate: RTCVideoCapturerDelegate) {
-            super.init(delegate: delegate)
-        }
-
-        func startCapture(fps: Int = 30) {
-            stopCapture() // ensure clean restart
-
-            let timer = DispatchSource.makeTimerSource(queue: timerQueue)
-            timer.schedule(deadline: .now(), repeating: 1.0 / Double(fps))
-            timer.setEventHandler { [weak self] in
-                self?.sendFrame()
-            }
-            timer.resume()
-            self.timer = timer
-        }
-
-        func stopCapture() {
-            timer?.cancel()
-            timer = nil
-        }
-
-        private func sendFrame() {
-            frameIndex += 1
-
-            // Render on main thread if using UIKit (UIGraphicsImageRenderer) or do pure CIContext off-main
-            // For safety/ease with UIGraphicsImageRenderer, we'll sync to main.
-            // In prod code you'd want CoreGraphics/CoreImage purely on background.
-            var image: UIImage?
-            DispatchQueue.main.sync {
-                image = generateImage(frameIndex: frameIndex)
-            }
-
-            guard let image, let nv12Buffer = createNV12Buffer(from: image) else { return }
-
-            let rtcBuffer = RTCCVPixelBuffer(pixelBuffer: nv12Buffer)
-            let timeStampNs = Int64(Date().timeIntervalSince1970 * 1_000_000_000)
-            let frame = RTCVideoFrame(buffer: rtcBuffer, rotation: ._0, timeStampNs: timeStampNs)
-
-            delegate?.capturer(self, didCapture: frame)
-        }
-
-        private func generateImage(frameIndex: Int) -> UIImage {
-            let format = UIGraphicsImageRendererFormat()
-            format.scale = 1 // Force 1:1 scale (no Retina scaling)
-
-            return UIGraphicsImageRenderer(size: CGSize(width: width, height: height), format: format).image { ctx in
-                // Background
-                UIColor.darkGray.setFill()
-                ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
-
-                // Animated Circle: "Moving slightly from left to right"
-                UIColor.systemTeal.setFill()
-
-                let xOffset = sin(Double(frameIndex) * 0.1) * 50.0
-
-                // Center calculation for 480 width: (480 - 300) / 2 = 90
-                let circleBaseX = (width - 300) / 2
-                let circleX = circleBaseX + xOffset
-
-                // Center calculation for 640 height: (640 - 300) / 2 = 170
-                let circleY = (height - 300) / 2
-
-                ctx.cgContext.fillEllipse(in: CGRect(x: circleX, y: circleY, width: 300, height: 300))
-
-                // Text
-                let attrs: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.systemFont(ofSize: 40, weight: .bold),
-                    .foregroundColor: UIColor.white,
-                ]
-                let string = "SIMULATOR"
-                let size = string.size(withAttributes: attrs)
-
-                let textX = circleX + (300 - size.width) / 2.0
-                let textY = circleY + (300 - size.height) / 2.0
-
-                string.draw(
-                    at: CGPoint(x: textX, y: textY),
-                    withAttributes: attrs
-                )
-            }
-        }
-
-        private func createNV12Buffer(from image: UIImage) -> CVPixelBuffer? {
-            guard let cgImage = image.cgImage else { return nil }
-
-            let attributes: [String: Any] = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
-                kCVPixelBufferMetalCompatibilityKey as String: true,
-                kCVPixelBufferWidthKey as String: Int(width),
-                kCVPixelBufferHeightKey as String: Int(height)
-            ]
-
-            var buffer: CVPixelBuffer?
-            let status = CVPixelBufferCreate(
-                kCFAllocatorDefault,
-                Int(width),
-                Int(height),
-                kCVPixelFormatType_420YpCbCr8BiPlanarFullRange,
-                attributes as CFDictionary,
-                &buffer
-            )
-
-            guard status == kCVReturnSuccess, let pixelBuffer = buffer else { return nil }
-
-            let ciImage = CIImage(cgImage: cgImage)
-            ciContext.render(ciImage, to: pixelBuffer)
-
-            return pixelBuffer
-        }
-    }
-#endif

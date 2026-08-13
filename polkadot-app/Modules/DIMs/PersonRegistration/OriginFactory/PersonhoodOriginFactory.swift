@@ -5,6 +5,7 @@ import Operation_iOS
 import Keystore_iOS
 import KeyDerivation
 import Individuality
+import ChainRegistry
 
 protocol PersonhoodOriginFactoryProtocol: ExtrinsicOriginFactoryProtocol {
     func createAsPersonalAliasWithProof(

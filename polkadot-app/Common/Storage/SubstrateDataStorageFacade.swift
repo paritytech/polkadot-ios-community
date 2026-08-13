@@ -6,14 +6,9 @@ enum SubstrateStorageParams {
     static let modelDirectory: String = "SubstrateDataModel.momd"
     static let modelVersion: SubstrateStorageVersion = .version4
 
-    static let sharedStorageDirectoryURL: URL = {
-        let baseURL = FileManager.default
-            .containerURL(
-                forSecurityApplicationGroupIdentifier: SharedContainerGroup.name
-            )?
-            .appendingPathComponent("CoreData")
-        return baseURL!
-    }()
+    static let sharedStorageDirectoryURL: URL = SharedContainerGroup
+        .containerURL
+        .appendingPathComponent("CoreData")
 
     static var storageURL: URL {
         sharedStorageDirectoryURL.appendingPathComponent(databaseName)

@@ -18,9 +18,6 @@ protocol RootWireframeProtocol: AnyObject {
     func showUsernameCheck(with observer: RootStateObserving)
     func showUsernameClaim(with observer: RootStateObserving)
     func showThemeSelection(with observer: RootStateObserving)
-    func showW3SSpa(with observer: RootStateObserving)
-    func showW3SEnded()
-    func showW3SNotStarted()
     func showBroken()
     func showJailbroken()
     #if TESTNET_FEATURE
@@ -47,5 +44,5 @@ protocol RootInteractorOutputProtocol: AnyObject {
 
 @MainActor
 protocol RootPresenterFactoryProtocol {
-    static func createPresenter(with view: UIWindow) -> RootPresenterProtocol
+    static func createPresenter(with window: UIWindow) -> RootPresenterProtocol
 }

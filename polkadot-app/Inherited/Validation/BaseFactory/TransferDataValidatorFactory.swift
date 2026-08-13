@@ -3,6 +3,7 @@ import BigInt
 import Foundation_iOS
 import ExtrinsicService
 import SubstrateSdk
+import ChainRegistry
 
 enum TransferDataValidator {
     struct WillTokenBeLost {

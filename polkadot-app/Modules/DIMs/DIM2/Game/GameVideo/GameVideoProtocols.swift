@@ -27,6 +27,7 @@ protocol GameVideoViewProtocol: ControllerBackedProtocol {
     func requestPreview(for player: AccountId) -> UIImage?
 }
 
+@MainActor
 protocol GameVideoPresenterProtocol: AnyObject {
     func setup()
     func onAppear()
@@ -39,7 +40,7 @@ protocol GameVideoPresenterProtocol: AnyObject {
 
 protocol GameVideoInteractorInputProtocol: AnyObject {
     func setup()
-    func throttle()
+    func throttle(isGameFinished: Bool)
     func performVotingAction(for player: AccountId, vote: GameVideoVotingState?)
     func banPlayer(_ player: AccountId)
     func unbanPlayer(_ player: AccountId)
@@ -47,6 +48,7 @@ protocol GameVideoInteractorInputProtocol: AnyObject {
     func setSwipeTooltip(shown: Bool)
 }
 
+@MainActor
 protocol GameVideoInteractorOutputProtocol: AnyObject {
     func didReceive(gameId: Game.Identifier?)
     func didReceive(state: GameStateMachine.State?, isPlayersChanged: Bool)
@@ -60,7 +62,8 @@ protocol GameVideoInteractorOutputProtocol: AnyObject {
     func didReceiveIntendedGameEnded(intendedGameId: Game.Identifier)
 }
 
-protocol GameVideoWireframeProtocol: AnyObject {
+@MainActor
+protocol GameVideoWireframeProtocol: ApplicationSettingsPresentable {
     func showReport(from view: GameVideoViewProtocol?, for gameId: Game.Identifier)
     func showTutorial(from view: GameVideoViewProtocol?)
     func close(view: GameVideoViewProtocol?)

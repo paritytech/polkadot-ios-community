@@ -1,22 +1,29 @@
 import Foundation
+import KeyDerivation
 import SubstrateSdk
 
 /// Encoded as the 2-element JSON tuple `[productId, derivationIndex]` to match the wire format used by product scripts.
 public struct ProductAccountId: Hashable, Codable {
     public let productId: ProductId
-    public let derivationIndex: UInt32
+    public let derivationIndex: ProductAccountSelector
 
-    public var derivationPath: String { "/product/\(productId)/\(derivationIndex)" }
-
-    public init(productId: ProductId, derivationIndex: UInt32) {
+    public init(productId: ProductId, derivationIndex: ProductAccountSelector) {
         self.productId = productId
         self.derivationIndex = derivationIndex
+    }
+
+    /// Derivation path `//product//{productId}/{index}` with the index as a hex segment.
+    public func derivationPath() throws -> String {
+        try ProductDerivationPath.productAccount(
+            productId: productId,
+            index: derivationIndex.index32()
+        )
     }
 
     public init(from decoder: Decoder) throws {
         var container = try decoder.unkeyedContainer()
         productId = try container.decode(ProductId.self)
-        derivationIndex = try container.decode(UInt32.self)
+        derivationIndex = try container.decode(ProductAccountSelector.self)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -26,20 +33,10 @@ public struct ProductAccountId: Hashable, Codable {
     }
 }
 
-public struct ProductsAlias {
-    public let context: Data
-    public let alias: Data
-
-    public init(context: Data, alias: Data) {
-        self.context = context
-        self.alias = alias
-    }
-}
-
 extension ProductAccountId: ScaleCodable {
     public init(scaleDecoder: any ScaleDecoding) throws {
         productId = try String(scaleDecoder: scaleDecoder)
-        derivationIndex = try UInt32(scaleDecoder: scaleDecoder)
+        derivationIndex = try ProductAccountSelector(scaleDecoder: scaleDecoder)
     }
 
     public func encode(scaleEncoder: any ScaleEncoding) throws {

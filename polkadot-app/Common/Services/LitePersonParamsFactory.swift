@@ -11,7 +11,7 @@ struct LitePersonRegistrationParams {
     let accountIdProofSignature: Data
     let personMemberKey: BandersnatchPubKey
     let membershipProofSignature: Data
-    let chatPublicKey: Data
+    let encryptionIdentifier: Chat.OnChainEncryptionIdentifier
     let username: String
     let resourcesSignature: Data
 }
@@ -66,13 +66,13 @@ private extension LitePersonParamsFactory {
 
     func prepareResourcesSignatureData(
         for username: String,
-        chatPublicKey: Chat.PublicKey,
+        encryptionIdentifier: Chat.OnChainEncryptionIdentifier,
         verifier: AccountId
     ) throws -> Data {
         let resourcesSignatureDataCoder = ScaleEncoder()
         resourcesSignatureDataCoder.appendRaw(data: publicKey.rawData())
         resourcesSignatureDataCoder.appendRaw(data: verifier)
-        resourcesSignatureDataCoder.appendRaw(data: chatPublicKey.rawData)
+        try resourcesSignatureDataCoder.appendRaw(data: encryptionIdentifier.scaleEncoded())
         try username.encode(scaleEncoder: resourcesSignatureDataCoder)
 
         // TODO: We might want reserve full username in future
@@ -99,12 +99,12 @@ extension LitePersonParamsFactory: LitePersonParamsFactoryProtocol {
 
         let personSignature = try liteVrfManager.sign(litePersonSignatureData)
 
-        let rawChatPublicKey = chatEncryptorFactory.localPublicKey
-        let chatPublicKey = try Chat.PublicKey(rawData: rawChatPublicKey)
+        let chatPublicKey = try Chat.PublicKey(rawData: chatEncryptorFactory.localPublicKey)
+        let encryptionIdentifier = Chat.OnChainEncryptionIdentifier.x25519(chatPublicKey)
 
         let resourcesSignatureData = try prepareResourcesSignatureData(
             for: username,
-            chatPublicKey: chatPublicKey,
+            encryptionIdentifier: encryptionIdentifier,
             verifier: verifier
         )
 
@@ -117,7 +117,7 @@ extension LitePersonParamsFactory: LitePersonParamsFactoryProtocol {
             accountIdProofSignature: accountIdProofSignature,
             personMemberKey: memberKey,
             membershipProofSignature: personSignature,
-            chatPublicKey: chatPublicKey.rawData,
+            encryptionIdentifier: encryptionIdentifier,
             username: username,
             resourcesSignature: resourcesSignature.rawData()
         )

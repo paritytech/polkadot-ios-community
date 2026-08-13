@@ -1,4 +1,5 @@
 import DesignSystem
+import ExternalAccessibility
 import SwiftUI
 
 public struct ChatRequestListViewLayout: View {
@@ -23,6 +24,7 @@ public struct ChatRequestListViewLayout: View {
                         .onTapGesture {
                             viewModel.onItemSelection?(item.id)
                         }
+                        .accessibilityId(AccessibilityID.Chats.requestRow)
 
                         Rectangle()
                             .fill(Color.strokeSecondary)

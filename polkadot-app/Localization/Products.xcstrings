@@ -243,6 +243,61 @@
         }
       }
     },
+    "createProof.body.context" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context: %1$(context)@"
+          }
+        }
+      }
+    },
+    "createProof.body.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Message: %1$(message)@"
+          }
+        }
+      }
+    },
+    "createProof.body.onBehalfOf" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On behalf of: %1$(targetProductId)@"
+          }
+        }
+      }
+    },
+    "createProof.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(productId)@ wants to execute anonymous action on behalf of %2$(targetProductId)@"
+          }
+        }
+      }
+    },
+    "createProof.title.unknownCaller" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A connected app requests a personhood proof"
+          }
+        }
+      }
+    },
     "paymentRequest.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -628,6 +683,127 @@
         }
       }
     },
+    "product.browser.accessibility.minimize" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimize"
+          }
+        }
+      }
+    },
+    "product.browser.accessibility.more" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More"
+          }
+        }
+      }
+    },
+    "product.tabs.accessibility.openApps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open apps, %lld"
+          }
+        }
+      }
+    },
+    "product.tabs.accessibility.scanner" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "QR scanner"
+          }
+        }
+      }
+    },
+    "product.tabs.notAvailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available"
+          }
+        }
+      }
+    },
+    "signVrf.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that %2$(productId)@ can verify. It cannot move your assets or grant spending permission."
+          }
+        }
+      }
+    },
+    "signVrf.body.unknownCaller" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that the requesting app can verify. It cannot move your assets or grant spending permission."
+          }
+        }
+      }
+    },
+    "signVrf.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(productId)@ is requesting verifiable randomness"
+          }
+        }
+      }
+    },
+    "signVrf.title.unknownCaller" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A connected app is requesting verifiable randomness"
+          }
+        }
+      }
+    },
+    "statementSign.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(productId)@ wants to sign statement for later submission."
+          }
+        }
+      }
+    },
+    "statementSign.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Statement Signature"
+          }
+        }
+      }
+    },
     "topUp.amountDetectionFailedWarning" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -657,6 +833,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Accept Funds"
+          }
+        }
+      }
+    },
+    "topUp.errorMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to move coins into the user's coin set"
+          }
+        }
+      }
+    },
+    "topUp.errorTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to Accept Funds from %1$(product)@"
+          }
+        }
+      }
+    },
+    "topUp.mismatchTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accepted funds from %1$(product)@"
           }
         }
       }

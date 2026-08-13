@@ -7,6 +7,7 @@ import UIKitExt
 import PolkadotUI
 import DesignSystem
 
+@MainActor
 final class WeeklyGameWireframe {
     weak var view: ControllerBackedProtocol?
     weak var registryDelegate: ChatExtensionDelegate?
@@ -19,7 +20,7 @@ final class WeeklyGameWireframe {
     init(
         assetId: ChainAssetId,
         notificationService: UserNotificationServicing,
-        application: UIApplication = UIApplication.shared,
+        application: UIApplication,
         botSettings: ChatExtensionBotSettings = SettingsManager.shared
     ) {
         self.assetId = assetId

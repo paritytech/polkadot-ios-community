@@ -8,10 +8,14 @@ final class CheckUsernameWireframe: CheckUsernameWireframeProtocol {
     }
 
     func showMainScreen() {
-        observer.didClaimUsername()
+        MainActor.assumeIsolated {
+            observer.didClaimUsername()
+        }
     }
 
     func showClaimUsername() {
-        observer.didDecideClaim()
+        MainActor.assumeIsolated {
+            observer.didDecideClaim()
+        }
     }
 }

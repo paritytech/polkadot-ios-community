@@ -58,11 +58,13 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
                 deviceEntity.encryptionPublicKey = device.encryptionPublicKey
                 deviceEntity.contact = entity
                 devicesByAccountId[device.statementAccountId] = deviceEntity
+                deviceEntity.touchParent()
 
             case let .removed(statementAccountId):
                 guard let existing = devicesByAccountId.removeValue(forKey: statementAccountId) else {
                     continue
                 }
+                existing.touchParent()
                 context.delete(existing)
             }
         }
@@ -72,5 +74,14 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
 extension Chat.ContactDeviceSettings: Identifiable {
     var identifier: String {
         accountId.toHex()
+    }
+}
+
+extension CDContactDevice {
+    func touchParent() {
+        guard let parent = contact else { return }
+        let key = #keyPath(CDChatContact.devices)
+        parent.willChangeValue(forKey: key)
+        parent.didChangeValue(forKey: key)
     }
 }

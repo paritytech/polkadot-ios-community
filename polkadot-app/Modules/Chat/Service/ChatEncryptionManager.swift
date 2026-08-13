@@ -14,10 +14,10 @@ final class ChatEncryptionManager {
 extension ChatEncryptionManager: MessageExchangeEncryptionManaging {
     func makeEncryptorFactory(ownEncryptionKeyId: String) throws -> MessageExchangeEncryptionMaking {
         let privateKey = try ChatPrivateKeyFactory(
-            derivationPath: ownEncryptionKeyId,
+            encryptionKeyId: ownEncryptionKeyId,
             entropyManager: entropyManager
         ).derivePrivateKey()
 
-        return P256AESEncryptorFactory(privateKey: privateKey)
+        return X25519ChaChaPolyEncryptorFactory(privateKey: privateKey)
     }
 }

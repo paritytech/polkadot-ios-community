@@ -1,4 +1,5 @@
 import SwiftUI
+import ExternalAccessibility
 import PolkadotUI
 import WebRTC
 
@@ -84,15 +85,16 @@ struct ChatCallViewLayout: View {
                 HStack(spacing: 40) {
                     // Accept button (only for incoming calls in ringing state)
                     if viewModel.isIncoming, viewModel.callState == .ringing {
-                        Button(action: {
+                        Button {
                             viewModel.onAcceptCall?()
-                        }) {
+                        } label: {
                             Image(systemName: "phone.fill")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundStyle(Color.fgStaticWhite)
                                 .frame(width: 64, height: 64)
                                 .background(Color.bgStatusSuccess, in: Circle())
                         }
+                        .accessibilityId(AccessibilityID.IncomingCall.answerButton)
                     }
 
                     if viewModel.shouldDisplayAudioRoute {
@@ -102,12 +104,13 @@ struct ChatCallViewLayout: View {
                                 viewModel.onSelectAudioRoute?(route)
                             }
                         )
+                        .accessibilityId(AccessibilityID.InCall.volumeButton)
                     }
 
                     if viewModel.shouldDisplayMute {
-                        Button(action: {
+                        Button {
                             viewModel.onToggleMute?()
-                        }) {
+                        } label: {
                             Image(systemName: viewModel.isMuted ? "mic.slash.fill" : "mic.fill")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundStyle(Color.fgPrimary)
@@ -117,18 +120,20 @@ struct ChatCallViewLayout: View {
                                     in: Circle()
                                 )
                         }
+                        .accessibilityId(AccessibilityID.InCall.muteButton)
                     }
 
                     if viewModel.canEndCall {
-                        Button(action: {
+                        Button {
                             viewModel.onEndCall?()
-                        }) {
+                        } label: {
                             Image(systemName: "phone.down.fill")
                                 .font(.system(size: 24, weight: .semibold))
                                 .foregroundStyle(Color.fgStaticWhite)
                                 .frame(width: 64, height: 64)
                                 .background(Color.bgStatusError, in: Circle())
                         }
+                        .accessibilityId(viewModel.endCallAccessibilityId)
                     }
                 }
                 .padding(.bottom, 40)
@@ -152,10 +157,12 @@ struct ChatCallViewLayout: View {
                     .foregroundStyle(Color(.fgTertiary))
                     .monospacedDigit()
             }
+            .accessibilityId(AccessibilityID.InCall.statusLabel)
         } else if let text = viewModel.callState.statusText {
             Text(text)
                 .typography(.bodyLarge)
                 .foregroundStyle(Color(.fgTertiary))
+                .accessibilityId(viewModel.statusAccessibilityId)
         }
     }
 }

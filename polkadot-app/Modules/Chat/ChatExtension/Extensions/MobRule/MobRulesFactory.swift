@@ -1,7 +1,10 @@
 import Foundation
 import KeyDerivation
+import ChainRegistry
+import UIKit.UIApplication
 
 enum MobRulesFactory {
+    @MainActor
     static func create(
         settings: ChatExtensionBotSettings,
         scoreInfoSyncService: ScoreInfoSyncServicing
@@ -13,7 +16,8 @@ enum MobRulesFactory {
 
         return MobRulesChatExtension(
             settings: settings,
-            interactor: interactor
+            interactor: interactor,
+            wireframe: MobRuleWireframe(application: UIApplication.shared)
         )
     }
 }

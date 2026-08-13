@@ -1,6 +1,7 @@
 import Foundation
 import Foundation_iOS
 import Products
+import ChainRegistry
 
 @MainActor
 protocol ProductContentPrewarming {

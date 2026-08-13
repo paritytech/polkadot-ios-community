@@ -4,6 +4,7 @@ import SubstrateSdk
 import XcmTransfer
 import SubstrateStorageQuery
 import AssetsManagement
+import ChainRegistry
 
 enum TokenBalanceMintingFactoryError: Error {
     case unsupportedAsset(ChainAssetProtocol)
@@ -29,7 +30,8 @@ private extension TokenBalanceMintingFactory {
             call: BalancesPallet.ForceSetBalance(
                 who: .accoundId(accountId),
                 newFree: amount
-            ).runtimeCall()
+            )
+            .runtimeCall()
         )
 
         return .createWithResult(collector)

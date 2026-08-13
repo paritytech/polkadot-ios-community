@@ -2,7 +2,7 @@ import Foundation
 import SubstrateSdk
 import NovaCrypto
 
-public final class WalletMnemonicKeypairFactory {
+public final class WalletMnemonicKeypairFactory: @unchecked Sendable {
     let derivationPath: String?
     let mnemonicProvider: WalletMnemonicProviding
 
@@ -26,39 +26,29 @@ public final class WalletMnemonicKeypairFactory {
 }
 
 private extension WalletMnemonicKeypairFactory {
+    func resolveDerivation() throws -> (chaincodes: [Chaincode], password: String) {
+        guard let derivationPath else {
+            return ([], "")
+        }
+
+        let junctionResult = try junctionFactory.parse(path: derivationPath)
+        return (junctionResult.chaincodes, junctionResult.password ?? "")
+    }
+
     func performKeypairDerivation() throws -> IRCryptoKeypairProtocol {
         let mnemonic = try mnemonicProvider.fetchMnemonic()
+        let derivation = try resolveDerivation()
 
-        if let derivationPath {
-            let junctionResult = try junctionFactory.parse(path: derivationPath)
-            let password = junctionResult.password ?? ""
-            let chaincodes = junctionResult.chaincodes
+        let seedResult = try seedFactory.deriveSeed(from: mnemonic, password: derivation.password)
 
-            let seedResult = try seedFactory.deriveSeed(from: mnemonic, password: password)
+        let keypair = try keypairFactory.createKeypairFromSeed(
+            seedResult.seed.miniSeed,
+            chaincodeList: derivation.chaincodes
+        )
 
-            let keypair = try keypairFactory.createKeypairFromSeed(
-                seedResult.seed.miniSeed,
-                chaincodeList: chaincodes
-            )
+        publicKey = keypair.publicKey()
 
-            publicKey = keypair.publicKey()
-
-            return keypair
-        } else {
-            let seedResult = try seedFactory.deriveSeed(
-                from: mnemonic,
-                password: ""
-            )
-
-            let keypair = try keypairFactory.createKeypairFromSeed(
-                seedResult.seed.miniSeed,
-                chaincodeList: []
-            )
-
-            publicKey = keypair.publicKey()
-
-            return keypair
-        }
+        return keypair
     }
 }
 

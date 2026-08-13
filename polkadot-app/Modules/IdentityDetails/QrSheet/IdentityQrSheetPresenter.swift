@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class IdentityQrSheetPresenter {
     weak var view: IdentityQrSheetViewProtocol?
 

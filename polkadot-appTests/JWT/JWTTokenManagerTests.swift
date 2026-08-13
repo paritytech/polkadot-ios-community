@@ -15,9 +15,7 @@ struct JWTTokenManagerTests {
                 identityBackendUrl: URL(string: "https://polkadot-app-stg.parity.io/"),
                 ipfsGatewayUrl: nil,
                 gameDashboardUrl: nil,
-                dotNsResolver: nil,
-                web3SummitDotNsUrl: nil,
-                web3SummitContractAddress: nil
+                dotNsResolver: nil
             )
         )
     }

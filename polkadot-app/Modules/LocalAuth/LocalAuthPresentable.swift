@@ -2,10 +2,12 @@ import UIKit
 
 typealias AuthorizationCompletionBlock = (Bool) -> Void
 
+@MainActor
 protocol AuthorizationDismissable: AnyObject {
     func showAuthorizationCompletion(with result: Bool)
 }
 
+@MainActor
 protocol AuthorizationPresentable: AuthorizationDismissable {
     func authorize(
         animated: Bool,
@@ -101,61 +103,72 @@ extension AuthorizationPresentable {
         retriable: Bool,
         with completionBlock: @escaping AuthorizationCompletionBlock
     ) {
-        #if DISABLE_AUTH || F_DEV
+        // LocalAuth (Face ID / passcode) can't be satisfied headlessly by the
+        // triangle-e2e XCUITest driver. Auto-pass for the E2E_TEST artifact,
+        // consistent with the existing DISABLE_AUTH / F_DEV dev-build
+        // behaviour, so onboarding can create the wallet. No effect on device
+        // builds or on a non-E2E simulator build.
+        #if DISABLE_AUTH || F_DEV || E2E_TEST
             completionBlock(true)
             return
+        #else
+            guard !isAuthorizing else {
+                return
+            }
+
+            guard let presentingController = UIWindow.topWindow?.rootViewController?.topModalViewController else {
+                return
+            }
+
+            guard let authorizationView = LocalAuthViewFactory.createView(with: self, retriable: retriable) else {
+                completionBlock(false)
+                return
+            }
+
+            self.completionBlock = completionBlock
+            self.authorizationView = authorizationView
+
+            authorizationView.controller.modalTransitionStyle = .crossDissolve
+            authorizationView.controller.modalPresentationStyle = .overFullScreen
+            presentingController.present(authorizationView.controller, animated: animated, completion: nil)
         #endif
-
-        guard !isAuthorizing else {
-            return
-        }
-
-        guard let presentingController = UIWindow.topWindow?.rootViewController?.topModalViewController else {
-            return
-        }
-
-        guard let authorizationView = LocalAuthViewFactory.createView(with: self, retriable: retriable) else {
-            completionBlock(false)
-            return
-        }
-
-        self.completionBlock = completionBlock
-        self.authorizationView = authorizationView
-
-        authorizationView.controller.modalTransitionStyle = .crossDissolve
-        authorizationView.controller.modalPresentationStyle = .overFullScreen
-        presentingController.present(authorizationView.controller, animated: animated, completion: nil)
     }
 
     func authorizeInPlace(
         with completionBlock: @escaping AuthorizationCompletionBlock
     ) {
-        #if DISABLE_AUTH || F_DEV
+        // LocalAuth (Face ID / passcode) can't be satisfied headlessly by the
+        // triangle-e2e XCUITest driver. Auto-pass for the E2E_TEST artifact,
+        // consistent with the existing DISABLE_AUTH / F_DEV dev-build
+        // behaviour, so onboarding can create the wallet. No effect on device
+        // builds or on a non-E2E simulator build.
+        #if DISABLE_AUTH || F_DEV || E2E_TEST
             completionBlock(true)
             return
+        #else
+            guard !isAuthorizing else {
+                return
+            }
+
+            guard let presentingController = UIWindow.topWindow?.rootViewController?.topModalViewController else {
+                return
+            }
+
+            guard let authorizationView = LocalAuthViewFactory.createInPlaceView(with: self) else {
+                completionBlock(false)
+                return
+            }
+            self.completionBlock = completionBlock
+            self.authorizationView = authorizationView
+
+            authorizationView.controller.modalTransitionStyle = .crossDissolve
+            authorizationView.controller.modalPresentationStyle = .overCurrentContext
+            presentingController.present(authorizationView.controller, animated: true, completion: nil)
         #endif
-
-        guard !isAuthorizing else {
-            return
-        }
-
-        guard let presentingController = UIWindow.topWindow?.rootViewController?.topModalViewController else {
-            return
-        }
-
-        guard let authorizationView = LocalAuthViewFactory.createInPlaceView(with: self) else {
-            completionBlock(false)
-            return
-        }
-        self.completionBlock = completionBlock
-        self.authorizationView = authorizationView
-
-        authorizationView.controller.modalTransitionStyle = .crossDissolve
-        authorizationView.controller.modalPresentationStyle = .overCurrentContext
-        presentingController.present(authorizationView.controller, animated: true, completion: nil)
     }
 }
 
+@MainActor
 extension AuthorizationPresentable {
     func showAuthorizationCompletion(with result: Bool) {
         guard let completionBlock else {

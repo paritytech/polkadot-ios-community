@@ -12,6 +12,7 @@ import SubstrateSdk
 import FoundationExt
 import Individuality
 import UniqueDevice
+import ChainRegistry
 
 protocol ServiceCoordinatorProtocol: ApplicationServiceProtocol {
     var depositService: DepositServiceProtocol { get }
@@ -34,6 +35,8 @@ protocol ServiceCoordinatorProtocol: ApplicationServiceProtocol {
     var accountManager: ProductsAccountManaging { get }
     var allowanceManagerFacade: AllowanceManagerFacade { get }
     var turnService: TURNCredentialsProviding { get }
+    var networkStatusService: NetworkStatusProviding { get }
+    var truapiRuntimeProvider: TrUAPIHostRuntimeProviding { get }
 }
 
 final class ServiceCoordinator {
@@ -50,6 +53,7 @@ final class ServiceCoordinator {
     let attachmentUploadService: AttachmentUploadingServicing
     let attachmentDownloadService: AttachmentDownloadingServicing
     let coinageTransferMonitor: CoinageTransferMonitoring
+    let w3sPaymentTracking: W3sPaymentTracking
     let audioSessionManager: AudioSessionManaging
     let determineStateSyncService: DetermineStateSyncServicing
     let personhoodBackgroundService: PersonhoodBackgroundService
@@ -59,8 +63,11 @@ final class ServiceCoordinator {
     let notificationBadgeSyncService: NotificationBadgeSyncService
     let accountManager: ProductsAccountManaging
     let allowanceManagerFacade: AllowanceManagerFacade
+    let allowanceRenewalService: AllowanceRenewalService
     let turnService: TURNCredentialsProviding
     let deviceSyncService: DeviceSyncServicing
+    let networkStatusService: NetworkStatusProviding
+    let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
     let logger: LoggerProtocol
 
     // Retained so the weakly-held dependency-locator entry stays alive for the product host.
@@ -84,6 +91,7 @@ final class ServiceCoordinator {
         attachmentUploadService: AttachmentUploadingServicing,
         attachmentDownloadService: AttachmentDownloadingServicing,
         coinageTransferMonitor: CoinageTransferMonitoring,
+        w3sPaymentTracking: W3sPaymentTracking,
         audioSessionManager: AudioSessionManaging,
         determineStateSyncService: DetermineStateSyncServicing,
         personhoodBackgroundService: PersonhoodBackgroundService,
@@ -93,9 +101,12 @@ final class ServiceCoordinator {
         notificationBadgeSyncService: NotificationBadgeSyncService,
         accountManager: ProductsAccountManaging,
         allowanceManagerFacade: AllowanceManagerFacade,
+        allowanceRenewalService: AllowanceRenewalService,
         paymentsSupport: PaymentsSupport,
         turnService: TURNCredentialsProviding,
         deviceSyncService: DeviceSyncServicing,
+        networkStatusService: NetworkStatusProviding,
+        truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
         logger: LoggerProtocol
     ) {
         self.chatCoordinator = chatCoordinator
@@ -111,6 +122,7 @@ final class ServiceCoordinator {
         self.attachmentUploadService = attachmentUploadService
         self.attachmentDownloadService = attachmentDownloadService
         self.coinageTransferMonitor = coinageTransferMonitor
+        self.w3sPaymentTracking = w3sPaymentTracking
         self.audioSessionManager = audioSessionManager
         self.determineStateSyncService = determineStateSyncService
         self.personhoodBackgroundService = personhoodBackgroundService
@@ -120,7 +132,10 @@ final class ServiceCoordinator {
         self.notificationBadgeSyncService = notificationBadgeSyncService
         self.accountManager = accountManager
         self.allowanceManagerFacade = allowanceManagerFacade
+        self.allowanceRenewalService = allowanceRenewalService
         self.deviceSyncService = deviceSyncService
+        self.networkStatusService = networkStatusService
+        self.truapiRuntimeProvider = truapiRuntimeProvider
         self.logger = logger
         self.paymentsSupport = paymentsSupport
         self.turnService = turnService
@@ -138,6 +153,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         attachmentUploadService.setup()
         attachmentDownloadService.setup()
         notificationBadgeSyncService.setup()
+        allowanceRenewalService.setup()
 
         Task {
             await signInHostCoordinator.setup()
@@ -163,9 +179,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             await coinageBackupSyncService.setup()
             await spentCoinsRecoveryService.setup()
             await coinageTransferMonitor.setup()
-            Logger.shared.debug(
-                "[GameDebug] depositService.setup() — enabled to onboard deposit-wallet balances (e.g. airdrop CASH) into Coinage"
-            )
+            await w3sPaymentTracking.setup()
             await depositService.setup()
             await coinageService.transferRecoveryService.recover()
         }
@@ -180,12 +194,14 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         attachmentUploadService.throttle()
         attachmentDownloadService.throttle()
         notificationBadgeSyncService.throttle()
+        allowanceRenewalService.throttle()
 
         Task {
             await deviceSyncService.throttle()
             await coinageBackupSyncService.throttle()
             await spentCoinsRecoveryService.throttle()
             await coinageTransferMonitor.throttle()
+            await w3sPaymentTracking.throttle()
             await signInHostCoordinator.throttle()
             await depositService.throttle()
         }
@@ -207,7 +223,7 @@ extension ServiceCoordinator {
         }
 
         let allowanceSupport = AllowanceSupport(
-            allowancePromptRouter: AllowancePromptRouter(),
+            allowancePromptRouter: ProductsRouter(),
             sssManager: allowanceManagerFacade.sssManager,
             bulletInManager: allowanceManagerFacade.bulletInManager,
             smartContractManager: allowanceManagerFacade.smartContractManager
@@ -285,8 +301,25 @@ extension ServiceCoordinator {
         truApiDependencies.setDependency(paymentsSupport)
         RootDependencyLocator.setDependency(truApiDependencies)
 
+        // Single process-wide TrUAPI runtime provider. Registered in the root
+        // locator so the static SPA factory reaches the same instance the
+        // chat bot factory does — one shared runtime across all products.
+        // Host-level core confirmations route through an SSO-style facade whose
+        // presentation view is attached with the main tab bar; until then,
+        // host-level prompts deny.
+        let truapiRuntimeProvider = TrUAPIHostRuntimeProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            entropyManager: RootEntropyManager.shared,
+            settingsManager: SettingsManager.shared,
+            coreStorage: TrUAPILocalStorage.createCoreLocalStorage(),
+            confirmationRouterFacade: ProductRoutersFacade.sso(),
+            logger: logger
+        )
+        RootDependencyLocator.setDependency(truapiRuntimeProvider as TrUAPIHostRuntimeProviding)
+
         let chatExtensionsRegistry = createChatExtensionsRegistry(
             accountManager: accountManager,
+            truapiRuntimeProvider: truapiRuntimeProvider,
             syncStore: syncServiceResult.syncStore,
             personDataStore: syncServiceResult.personDataStore,
             syncService: syncServiceResult.service,
@@ -313,8 +346,20 @@ extension ServiceCoordinator {
         )
 
         chatCoordinator.inboxService.setupCallCoordinator(callCoordinator)
+        chatCoordinator.outboxService.setupCallCoordinator(callCoordinator)
 
         let notificationBadgeSyncService = NotificationBadgeSyncService(logger: logger)
+
+        let allowanceRenewalService = AllowanceRenewalService(
+            managerFacade: allowanceManagerFacade,
+            appStateStreamFactory: ApplicationStateStreamFactory(),
+            logger: logger
+        )
+
+        let networkStatusService = NetworkStatusService(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            pathMonitor: NetworkPathMonitor()
+        )
 
         return ServiceCoordinator(
             chatCoordinator: chatCoordinator,
@@ -336,6 +381,7 @@ extension ServiceCoordinator {
             attachmentUploadService: attachmentUploadService,
             attachmentDownloadService: attachmentDownloadService,
             coinageTransferMonitor: coinageServices.transferMonitor,
+            w3sPaymentTracking: coinageServices.w3sPaymentTracking,
             audioSessionManager: audioSessionManager,
             determineStateSyncService: syncServiceResult.service,
             personhoodBackgroundService: personhoodServices.backgroundService,
@@ -345,9 +391,12 @@ extension ServiceCoordinator {
             notificationBadgeSyncService: notificationBadgeSyncService,
             accountManager: accountManager,
             allowanceManagerFacade: allowanceManagerFacade,
+            allowanceRenewalService: allowanceRenewalService,
             paymentsSupport: paymentsSupport,
             turnService: turnService,
             deviceSyncService: deviceSyncService,
+            networkStatusService: networkStatusService,
+            truapiRuntimeProvider: truapiRuntimeProvider,
             logger: logger
         )
     }

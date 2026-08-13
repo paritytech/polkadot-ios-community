@@ -11,13 +11,20 @@ extension DIM1OpenService: URLHandlingServiceProtocol {
             return false
         }
 
-        guard let list = TattooListViewFactory.createView()?.controller else {
+        let list = MainActor.assumeIsolated {
+            let view = TattooListViewFactory.createView()
+            return view?.controller
+        }
+
+        guard let list else {
             return true
         }
 
-        let navigation = AppNavigationController(rootViewController: list)
-        navigation.modalPresentationStyle = .fullScreen
-        UIWindow.topWindow?.rootViewController?.present(navigation, animated: true)
+        MainActor.assumeIsolated {
+            let navigation = AppNavigationController(rootViewController: list)
+            navigation.modalPresentationStyle = .fullScreen
+            UIWindow.topWindow?.rootViewController?.present(navigation, animated: true)
+        }
 
         return true
     }

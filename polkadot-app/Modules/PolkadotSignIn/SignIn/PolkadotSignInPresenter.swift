@@ -2,6 +2,7 @@ import UIKit
 import PolkadotUI
 import Individuality
 
+@MainActor
 final class PolkadotSignInPresenter {
     weak var view: PolkadotSignInViewProtocol?
 
@@ -83,13 +84,17 @@ private extension PolkadotSignInPresenter {
             return String(localized: .polkadotSignInNoSlots)
         }
 
-        if let allowanceError = error as? StatementStoreAllowanceError,
-           case let .noSlotsAvailable(secsToWait) = allowanceError {
+        guard let allowanceError = error as? StatementStoreAllowanceError else {
+            return nil
+        }
+
+        switch allowanceError {
+        case .noEvictableSlots:
+            return String(localized: .polkadotSignInNoSlots)
+        case let .noSlotsAvailable(secsToWait):
             let timeString = secsToWait.localizedDaysHoursOrFallbackMinutes()
             return String(localized: .polkadotSignInNoSlotsAvailable(time: timeString))
         }
-
-        return nil
     }
 
     func provideViewModel() {

@@ -32,8 +32,8 @@ struct W3sPaymentEncodingTests {
 
     @Test("Envelope encodes ciphertext length-prefixed and pubkey raw, matching AppHandshakeData layout")
     func envelopeEncoding() throws {
-        let ciphertext = Data((0 ..< 48).map { UInt8($0) }) // 48 bytes = IV(12) + ct(20) + tag(16)
-        let pubKey = Data([0x04]) + Data(repeating: 0xAB, count: 64) // 65-byte uncompressed P256
+        let ciphertext = Data((0 ..< 48).map { UInt8($0) }) // 48 bytes = nonce(12) + ct(20) + tag(16)
+        let pubKey = Data(repeating: 0xAB, count: 32) // 32-byte X25519 key
 
         let envelope = W3sPaymentEnvelope(
             encryptedData: ciphertext,
@@ -41,9 +41,9 @@ struct W3sPaymentEncodingTests {
         )
         let encoded = try envelope.scaleEncoded()
 
-        // The encoded form is: compact-length(ciphertext) ‖ ciphertext ‖ pubKey (raw, 65 bytes).
+        // The encoded form is: compact-length(ciphertext) ‖ ciphertext ‖ pubKey (raw, 32 bytes).
         // For a 48-byte ciphertext the SCALE compact prefix is single-byte 0xC0 (0b1100_0000),
-        // followed by the 48 bytes, followed by the 65-byte pubkey: total 1 + 48 + 65 = 114.
+        // followed by the 48 bytes, followed by the 32-byte pubkey: total 1 + 48 + 32 = 81.
         #expect(encoded.count == 1 + ciphertext.count + pubKey.count)
         #expect(encoded.suffix(pubKey.count) == pubKey)
         #expect(encoded.dropFirst().prefix(ciphertext.count) == ciphertext)

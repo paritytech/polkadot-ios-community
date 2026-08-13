@@ -6,6 +6,7 @@ import OperationExt
 import Individuality
 import KeyDerivation
 import AssetsManagement
+import ChainRegistry
 
 final class TattooListInteractor: AnyProviderAutoCleaning {
     weak var presenter: TattooListInteractorOutputProtocol?
@@ -87,11 +88,13 @@ final class TattooListInteractor: AnyProviderAutoCleaning {
             backingCallIn: requiredBalanceCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            switch result {
-            case let .success(amount):
-                self?.presenter?.didReceiveRequiredPersonBalance(amount)
-            case let .failure(error):
-                self?.presenter?.didReceiveError(.requiredPersonBalance(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(amount):
+                    self?.presenter?.didReceiveRequiredPersonBalance(amount)
+                case let .failure(error):
+                    self?.presenter?.didReceiveError(.requiredPersonBalance(error))
+                }
             }
         }
     }
@@ -118,26 +121,22 @@ final class TattooListInteractor: AnyProviderAutoCleaning {
     }
 
     private func handle(remoteState: TattooSelectionState) {
-        stopTattooApplyActivity(remoteState: remoteState)
-
-        presenter?.didReceiveNextPersonalId(remoteState.personalId)
-        presenter?.didReceiveCandidate(remoteState.candidate)
-        presenter?.didReceiveCurrentBalance(remoteState.account?.data.available)
-
-        #if TESTNET_FEATURE
-            if topUpTask != nil {
-                presenter?.didReceiveTopUp(inProgress: false)
+        MainActor.assumeIsolated {
+            if shouldStopTattooApplyActivity, remoteState.candidate != nil {
+                shouldStopTattooApplyActivity = false
+                presenter?.didReceive(tattooApplyActivity: false)
             }
-        #endif
-    }
 
-    private func stopTattooApplyActivity(remoteState: TattooSelectionState) {
-        guard shouldStopTattooApplyActivity,
-              remoteState.candidate != nil else {
-            return
+            presenter?.didReceiveNextPersonalId(remoteState.personalId)
+            presenter?.didReceiveCandidate(remoteState.candidate)
+            presenter?.didReceiveCurrentBalance(remoteState.account?.data.available)
+
+            #if TESTNET_FEATURE
+                if topUpTask != nil {
+                    presenter?.didReceiveTopUp(inProgress: false)
+                }
+            #endif
         }
-        shouldStopTattooApplyActivity = false
-        presenter?.didReceive(tattooApplyActivity: false)
     }
 
     private func provideDesignFamilies() {
@@ -154,11 +153,13 @@ final class TattooListInteractor: AnyProviderAutoCleaning {
             backingCallIn: familiesCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            switch result {
-            case let .success(families):
-                self?.presenter?.didReceiveDesignFamilies(families)
-            case let .failure(error):
-                self?.presenter?.didReceiveError(.designFamiliesFailed(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(families):
+                    self?.presenter?.didReceiveDesignFamilies(families)
+                case let .failure(error):
+                    self?.presenter?.didReceiveError(.designFamiliesFailed(error))
+                }
             }
         }
     }
@@ -177,11 +178,13 @@ final class TattooListInteractor: AnyProviderAutoCleaning {
             backingCallIn: reservedCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            switch result {
-            case let .success(reservedItems):
-                self?.presenter?.didReceiveReservedDesigns(reservedItems)
-            case let .failure(error):
-                self?.presenter?.didReceiveError(.reservedFailed(error))
+            MainActor.assumeIsolated {
+                switch result {
+                case let .success(reservedItems):
+                    self?.presenter?.didReceiveReservedDesigns(reservedItems)
+                case let .failure(error):
+                    self?.presenter?.didReceiveError(.reservedFailed(error))
+                }
             }
         }
     }
@@ -196,14 +199,15 @@ extension TattooListInteractor: TattooListInteractorInputProtocol {
     }
 
     func applyForTattoo() {
-        guard !applyCancellable.hasCall else {
-            return
-        }
+        guard !applyCancellable.hasCall else { return }
         guard let operationFactory = try? flowState.applyOperationFactory(for: selectedWallet, chain: chain) else {
             return
         }
-        presenter?.didReceive(tattooApplyActivity: true)
-        shouldStopTattooApplyActivity = false
+
+        MainActor.assumeIsolated {
+            presenter?.didReceive(tattooApplyActivity: true)
+            shouldStopTattooApplyActivity = false
+        }
 
         let wrapper = CompoundOperationWrapper(targetOperation: operationFactory.createApplyOperation())
         executeCancellable(
@@ -212,16 +216,16 @@ extension TattooListInteractor: TattooListInteractorInputProtocol {
             backingCallIn: applyCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            switch result {
-            case .success:
-                // result will be handled automatically by observing candidate state in func handle(remoteState:)
-                // do not stop tattooApplyActivity now
-
-                // stop it only in certain point when candidate will appear
-                self?.shouldStopTattooApplyActivity = true
-            case let .failure(error):
-                self?.presenter?.didReceive(tattooApplyActivity: false)
-                self?.presenter?.didReceiveGeneralError(error)
+            MainActor.assumeIsolated {
+                switch result {
+                case .success:
+                    // result handled by observing candidate state in handle(remoteState:)
+                    // stop activity only when candidate appears
+                    self?.shouldStopTattooApplyActivity = true
+                case let .failure(error):
+                    self?.presenter?.didReceive(tattooApplyActivity: false)
+                    self?.presenter?.didReceiveGeneralError(error)
+                }
             }
         }
     }
@@ -255,27 +259,28 @@ extension TattooListInteractor: TattooListInteractorInputProtocol {
     }
 
     func terminateProofOfInk() {
-        guard !terminateCancellable.hasCall else {
-            return
+        guard !terminateCancellable.hasCall else { return }
+
+        MainActor.assumeIsolated {
+            presenter?.didReceiveTermination(inProgress: true)
         }
 
-        presenter?.didReceiveTermination(inProgress: true)
-
         let wrapper = tattooTerminationService.flakeOut()
-
         executeCancellable(
             wrapper: wrapper,
             inOperationQueue: operationQueue,
             backingCallIn: terminateCancellable,
             runningCallbackIn: .main
         ) { [weak self] result in
-            self?.presenter?.didReceiveTermination(inProgress: false)
-            switch result {
-            case .success:
-                break
-//                self?.determineStateObserver.didExitDIM()
-            case let .failure(error):
-                self?.presenter?.didReceiveGeneralError(error)
+            MainActor.assumeIsolated {
+                self?.presenter?.didReceiveTermination(inProgress: false)
+                switch result {
+                case .success:
+                    break
+//                    self?.determineStateObserver.didExitDIM()
+                case let .failure(error):
+                    self?.presenter?.didReceiveGeneralError(error)
+                }
             }
         }
     }
@@ -285,7 +290,9 @@ extension TattooListInteractor: TattooListInteractorInputProtocol {
             guard let topUpService else {
                 return
             }
-            presenter?.didReceiveTopUp(inProgress: true)
+            MainActor.assumeIsolated {
+                presenter?.didReceiveTopUp(inProgress: true)
+            }
 
             topUpTask?.cancel()
             topUpTask = Task { @MainActor [weak presenter, logger, selectedWallet] in
@@ -307,11 +314,13 @@ extension TattooListInteractor: TattooListInteractorInputProtocol {
 
 extension TattooListInteractor: TattooMetadataLocalSubscriptionHandler, TattooMetadataLocalStorageSubscriber {
     func handleTattooMetadata(result: Result<TattooMetadata, Error>, familyId: ProofOfInkPallet.FamilyId) {
-        switch result {
-        case let .success(metadata):
-            presenter?.didReceiveTattooMetadata(metadata, for: familyId)
-        case let .failure(error):
-            presenter?.didReceiveError(.tattooMetadataFailed(error))
+        MainActor.assumeIsolated {
+            switch result {
+            case let .success(metadata):
+                presenter?.didReceiveTattooMetadata(metadata, for: familyId)
+            case let .failure(error):
+                presenter?.didReceiveError(.tattooMetadataFailed(error))
+            }
         }
     }
 }

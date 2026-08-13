@@ -5,6 +5,7 @@ import AsyncAlgorithms
 import KeyDerivation
 import os
 import CommonService
+import EventCenter
 
 protocol IdentityProfileServiceProtocol: AnyObject {
     func observe() -> AnyAsyncSequence<IdentityProfile>
@@ -71,7 +72,7 @@ extension IdentityProfileService: IdentityProfileServiceProtocol {
     }
 }
 
-extension IdentityProfileService: EventVisitorProtocol {
+extension IdentityProfileService: AppEventVisiting {
     func processSelectedUsernameChanged(event _: SelectedUsernameChanged) {
         refreshUsername()
     }

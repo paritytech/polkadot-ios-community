@@ -30,9 +30,9 @@ extension PeerSessionManager: PeerSessionManaging {
         }
     }
 
-    public func addMessageToQueue(_ message: Message, for peer: MessageExchange.Peer) {
+    public func addMessagesToQueue(_ messages: [Message], for peer: MessageExchange.Peer) {
         workQueue.async { [weak self] in
-            self?.performAddMessageToQueue(message, for: peer)
+            self?.performAddMessagesToQueue(messages, for: peer)
         }
     }
 }
@@ -54,12 +54,12 @@ private extension PeerSessionManager {
         }
     }
 
-    func performAddMessageToQueue(_ message: Message, for peer: MessageExchange.Peer) {
+    func performAddMessagesToQueue(_ messages: [Message], for peer: MessageExchange.Peer) {
         guard let session = sessionStorage.session(for: peer) else {
-            logger?.warning("Message was not sent, peer session does not exist")
+            logger?.warning("Messages were not sent, peer session does not exist")
             return
         }
-        session.addMessageToQueue(message)
+        session.addMessagesToQueue(messages)
     }
 
     func createSession(for request: MessageExchange.SessionRequest) {

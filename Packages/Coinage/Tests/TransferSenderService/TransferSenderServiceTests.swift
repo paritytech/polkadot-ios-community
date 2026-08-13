@@ -7,6 +7,7 @@ import Operation_iOS
 import ExtrinsicService
 import KeyDerivation
 import SubstrateOperation
+import BackgroundExecution
 
 @testable import Coinage
 
@@ -98,11 +99,8 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 2)
 
         #expect(Set(mockVoucherService.deletedIdentifiers) == Set([voucher1.identifier, voucher2.identifier]))
-        #expect(mockCoinService.markedSpentIds.isEmpty)
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(4))
+        #expect(inputSpentCoinIds.isEmpty)
+        #expect(changeValue == Decimal(4))
     }
 
     @Test("Three voucher groups: TransferContext receives all vouchers deleted")
@@ -149,10 +147,7 @@ struct TransferSenderServiceTests {
             voucher3.identifier,
             voucher1.identifier
         ]))
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(6))
+        #expect(changeValue == Decimal(6))
     }
 
     @Test("Five voucher groups: all groups processed correctly through TransferContext")
@@ -198,10 +193,7 @@ struct TransferSenderServiceTests {
             voucher4.identifier,
             voucher5.identifier
         ]))
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(1))
+        #expect(changeValue == Decimal(1))
     }
 
     @Test("Multiple vouchers same recycler group: combined correctly in TransferContext")
@@ -235,10 +227,7 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 2)
 
         #expect(Set(mockVoucherService.deletedIdentifiers) == Set([voucher1.identifier, voucher2.identifier]))
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(6))
+        #expect(changeValue == Decimal(6))
     }
 
     @Test("Coins and voucher when sufficient: coins and voucher used even if voucher covers amount")
@@ -275,12 +264,9 @@ struct TransferSenderServiceTests {
         // Voucher is deleted
         #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
         // Coins are spent
-        #expect(Set(mockCoinService.markedSpentIds) == Set([coin1.identifier, coin2.identifier]))
+        #expect(Set(inputSpentCoinIds) == Set([coin1.identifier, coin2.identifier]))
         // Change = $20 - $12 = $8
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(8))
+        #expect(changeValue == Decimal(8))
     }
 
     @Test("Change denominations are correctly saved to TransferContext")
@@ -313,11 +299,8 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedSavedCoins: 2, expectedDeletedVouchers: 1)
 
         #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(3))
-        let savedExponents = mockCoinService.savedCoins.map(\.exponent).sorted(by: >)
+        #expect(changeValue == Decimal(3))
+        let savedExponents = changeCoins.map(\.exponent).sorted(by: >)
         #expect(savedExponents == [1, 0])
     }
 
@@ -350,7 +333,7 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedDeletedVouchers: 1)
 
         #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        #expect(mockCoinService.savedCoins.isEmpty)
+        #expect(changeCoins.isEmpty)
     }
 
     @Test("Fractional amounts produce correct change saved")
@@ -382,10 +365,7 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 1)
 
         #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(string: "0.5"))
+        #expect(changeValue == Decimal(string: "0.5"))
     }
 
     @Test("Larger voucher with change: proper change denominations saved")
@@ -418,11 +398,8 @@ struct TransferSenderServiceTests {
         try await waitForPersistence(expectedSavedCoins: 3, expectedDeletedVouchers: 1) // $7 = $4 + $2 + $1
 
         #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
         // $32 - $25 = $7 change
-        #expect(savedChangeValue == Decimal(7))
+        #expect(changeValue == Decimal(7))
     }
 
     // MARK: - SplitCoin Strategy Tests
@@ -453,11 +430,8 @@ struct TransferSenderServiceTests {
         // Then
         try await waitForPersistence(expectedSpentCoins: 1, expectedSavedCoins: 2) // $3 = $2 + $1
 
-        #expect(mockCoinService.markedSpentIds == [coin.identifier])
-        let savedChangeValue = mockCoinService.savedCoins.reduce(Decimal(0)) {
-            $0 + testContext.amount(forExponent: $1.exponent)
-        }
-        #expect(savedChangeValue == Decimal(3))
+        #expect(inputSpentCoinIds == [coin.identifier])
+        #expect(changeValue == Decimal(3))
     }
 
     @Test("Split strategy with whole coins: all spent coins marked correctly")
@@ -489,8 +463,8 @@ struct TransferSenderServiceTests {
         // Then - coins used in split are marked spent
         try await waitForPersistence(expectedSpentCoins: 2, expectedSavedCoins: 1)
 
-        #expect(Set(mockCoinService.markedSpentIds) == Set([coin1.identifier, coin2.identifier]))
-        #expect(!mockCoinService.markedSpentIds.contains(coin3.identifier))
+        #expect(Set(inputSpentCoinIds) == Set([coin1.identifier, coin2.identifier]))
+        #expect(!inputSpentCoinIds.contains(coin3.identifier))
         #expect(mockVoucherService.deletedIdentifiers.isEmpty)
     }
 }
@@ -518,6 +492,25 @@ extension TransferSenderServiceTests {
 
             try await Task.sleep(for: .milliseconds(20)) // 20ms
         }
+    }
+
+    /// Change coins kept by the sender: saved but NOT marked spent.
+    /// (Per PANS-2931 destination coins are saved AND marked spent, so filtering them out isolates change.)
+    private var changeCoins: [Coin] {
+        let spent = Set(mockCoinService.markedSpentIds)
+        return mockCoinService.savedCoins.filter { !spent.contains($0.identifier) }
+    }
+
+    /// Total value of change coins.
+    private var changeValue: Decimal {
+        changeCoins.reduce(Decimal(0)) { $0 + testContext.amount(forExponent: $1.exponent) }
+    }
+
+    /// Identifiers of original input coins consumed: marked spent but NOT saved
+    /// (destination coins are both saved and spent, so excluding saved leaves only consumed inputs).
+    private var inputSpentCoinIds: [String] {
+        let savedIds = Set(mockCoinService.savedCoins.map(\.identifier))
+        return mockCoinService.markedSpentIds.filter { !savedIds.contains($0) }
     }
 
     private func planks(_ decimal: Decimal) -> BigUInt {
@@ -577,6 +570,7 @@ extension TransferSenderServiceTests {
             planFactory: planFactory,
             memoBuilder: memoBuilder,
             recyclerLoader: recyclerLoader,
+            backgroundExecutor: InlineBackgroundExecutor(),
             logger: nil
         )
     }

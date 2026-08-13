@@ -2,6 +2,7 @@ import UIKit
 
 public typealias SharingCompletionHandler = (Bool) -> Void
 
+@MainActor
 public protocol SharingPresentable {
     func share(
         source: UIActivityItemSource,

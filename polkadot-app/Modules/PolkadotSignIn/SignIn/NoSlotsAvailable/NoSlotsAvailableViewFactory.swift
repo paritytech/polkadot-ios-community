@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum NoSlotsAvailableViewFactory {
     static func createView(message: String) -> NoSlotsAvailableViewController {
         let wireframe = NoSlotsAvailableWireframe()

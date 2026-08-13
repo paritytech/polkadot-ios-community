@@ -2,6 +2,7 @@ import Kingfisher
 import Foundation
 import QuickLookThumbnailing
 import UIKit
+@preconcurrency import SDKLogger
 
 final class EvidenceImageDataProvider: ImageDataProvider {
     let cacheKey: String

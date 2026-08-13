@@ -7,6 +7,7 @@ import SubstrateStateCall
 import SubstrateStorageQuery
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 protocol GamePalletBalanceFactoryProtocol {
     func flowRequiredBalanceWrapper() -> CompoundOperationWrapper<Balance>
@@ -84,8 +85,8 @@ extension GamePalletBalanceOperationFactory: GamePalletBalanceFactoryProtocol {
                     // adds a `2 * fee` buffer plus deposits, so the proof length does not affect it.
                     let call = GamePallet
                         .SignUpWithAccountCall(
-                            identifierKey: Data.zeroAccountId(of: 65),
-                            airdrop: nil
+                            identifierKey: Data.zeroAccountId(of: Chat.OnChainEncryptionIdentifier.containerSize),
+                            airdrops: nil
                         )
                     return try builder.adding(call: call.runtimeCall())
                 },

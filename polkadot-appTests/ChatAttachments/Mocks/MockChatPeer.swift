@@ -14,7 +14,8 @@ enum MockChatPeer {
             ownKeyId: .init(signKeyId: "sign-key", encryptionKeyId: "enc-key"),
             source: .chat,
             isBlocked: false,
-            devices: []
+            devices: [],
+            pendingDevicesFanOut: false
         )
 
         return .person(contact)

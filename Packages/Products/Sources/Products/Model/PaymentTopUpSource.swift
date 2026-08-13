@@ -2,7 +2,7 @@ import Foundation
 import SubstrateSdk
 
 public enum PaymentTopUpSource: Equatable, Hashable {
-    case productAccount(derivationIndex: UInt32)
+    case productAccount(derivationIndex: ProductAccountSelector)
     case privateKey(Data)
     /// Bearer coins identified by their sr25519 secret keys (W3S receive path).
     case coins(secretKeys: [Data])
@@ -34,8 +34,8 @@ extension PaymentTopUpSource: Decodable {
         let tag = try container.decode(String.self, forKey: .sourceTag)
         switch tag {
         case "ProductAccount":
-            let index = try container.decode(UInt32.self, forKey: .sourceDerivationIndex)
-            self = .productAccount(derivationIndex: index)
+            let selector = try container.decode(ProductAccountSelector.self, forKey: .sourceDerivationIndex)
+            self = .productAccount(derivationIndex: selector)
         case "PrivateKey":
             let hex = try container.decode(String.self, forKey: .sourceKeyHex)
             self = try .privateKey(Data(hexString: hex))

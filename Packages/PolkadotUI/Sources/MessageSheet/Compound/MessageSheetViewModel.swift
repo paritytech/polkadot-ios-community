@@ -1,5 +1,6 @@
 import Foundation
 import Foundation_iOS
+import ExternalAccessibility
 import UIKit
 
 public struct MessageSheetAction {
@@ -11,15 +12,18 @@ public struct MessageSheetAction {
     let title: LocalizableResource<String>
     let handler: MessageSheetCallback
     let actionType: ActionType
+    let accessibilityId: String?
 
     public init(
         title: LocalizableResource<String>,
         handler: @escaping MessageSheetCallback,
-        actionType: ActionType = .normal
+        actionType: ActionType = .normal,
+        accessibilityId: (any AccessibilityIdentifying)? = nil
     ) {
         self.title = title
         self.handler = handler
         self.actionType = actionType
+        self.accessibilityId = accessibilityId?.rawValue
     }
 }
 

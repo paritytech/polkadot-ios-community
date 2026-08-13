@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 enum AppConfig {
     // Brand links and endpoints are externalised into CIKeys,

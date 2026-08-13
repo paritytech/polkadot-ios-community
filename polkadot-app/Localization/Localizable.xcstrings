@@ -1035,17 +1035,6 @@
         }
       }
     },
-    "claim.username.digits.taken" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "These digits are already taken"
-          }
-        }
-      }
-    },
     "claim.username.headerTitle" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1069,28 +1058,6 @@
       }
     },
     "claim.username.invalid" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try another"
-          }
-        }
-      }
-    },
-    "claim.username.is.available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "It's yours!"
-          }
-        }
-      }
-    },
-    "claim.username.is.invalid" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1372,17 +1339,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%ds"
-          }
-        }
-      }
-    },
-    "creating.account.description" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Creating account"
           }
         }
       }
@@ -2115,6 +2071,28 @@
         }
       }
     },
+    "network.status.connecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting..."
+          }
+        }
+      }
+    },
+    "network.status.waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for network"
+          }
+        }
+      }
+    },
     "no.message" : {
       "comment" : "Displayed as a placeholder when there is no message for the request",
       "extractionState" : "manual",
@@ -2243,7 +2221,18 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "omething went wrong. Please try again."
+            "value" : "Something went wrong. Please try again."
+          }
+        }
+      }
+    },
+    "qrScanner.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan the QR code to continue"
           }
         }
       }
@@ -2446,6 +2435,17 @@
         }
       }
     },
+    "searchContact.loading.long" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search is taking longer than usual"
+          }
+        }
+      }
+    },
     "searchContact.NoSuchUsername" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2644,6 +2644,17 @@
         }
       }
     },
+    "settings.cell.payment_history" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payment History"
+          }
+        }
+      }
+    },
     "settings.cell.privacy" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2827,6 +2838,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chat"
+          }
+        }
+      }
+    },
+    "tab.scan" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan"
           }
         }
       }
@@ -3062,6 +3084,61 @@
         }
       }
     },
+    "transfer.status.claiming" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claiming"
+          }
+        }
+      }
+    },
+    "transfer.status.error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transaction failed"
+          }
+        }
+      }
+    },
+    "transfer.status.finished" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claimed"
+          }
+        }
+      }
+    },
+    "transfer.status.sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending"
+          }
+        }
+      }
+    },
+    "transfer.status.sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent, waiting to be claimed"
+          }
+        }
+      }
+    },
     "video.call" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3124,61 +3201,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pocket"
-          }
-        }
-      }
-    },
-    "web3summit.debugSkip" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "(Debug) Skip verification"
-          }
-        }
-      }
-    },
-    "web3summit.ended" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Web3 Summit ended — stay tuned for more updates!"
-          }
-        }
-      }
-    },
-    "web3summit.finishingRegistration" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Finishing registration"
-          }
-        }
-      }
-    },
-    "web3summit.not.started" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Web3 Summit is coming soon — stay tuned for more updates!"
-          }
-        }
-      }
-    },
-    "web3summit.startUsingApp" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start using the app"
           }
         }
       }

@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 protocol ConfirmDepositViewModelMaking {
     func formatAmount(_ balance: Balance) -> String

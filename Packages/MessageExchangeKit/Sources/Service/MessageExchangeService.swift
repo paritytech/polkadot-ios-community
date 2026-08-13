@@ -18,7 +18,7 @@ extension MessageExchangeService: MessageExchangeServicing {
         sessionManager.updateSessions(requests)
     }
 
-    public func addMessageToQueue(_ message: M, for peer: MessageExchange.Peer) {
-        sessionManager.addMessageToQueue(message, for: peer)
+    public func addMessagesToQueue(_ messages: [M], for peer: MessageExchange.Peer) {
+        sessionManager.addMessagesToQueue(messages, for: peer)
     }
 }

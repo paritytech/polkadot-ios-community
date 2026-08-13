@@ -41,7 +41,12 @@ export function createNativeTransport(
       entry.resolve?.(msg.value);
       pending.delete(id);
     } else if ('error' in msg) {
-      const e = new Error(msg.error);
+      // The native bridge sends { error: { code, message } }; older calls may still send a string.
+      const rawError = msg.error;
+      const e =
+        rawError !== null && typeof rawError === 'object'
+          ? Object.assign(new Error(rawError.message ?? 'Unknown error'), { code: rawError.code })
+          : new Error(rawError);
       entry.reject?.(e);
       entry.onError?.(e);
       pending.delete(id);

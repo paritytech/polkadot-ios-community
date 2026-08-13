@@ -1,7 +1,10 @@
 import Foundation
 import Foundation_iOS
 import Keystore_iOS
+import ChainRegistry
+import EventCenter
 
+@MainActor
 enum TattooListViewFactory {
     static func createView() -> TattooListViewProtocol? {
         let state = ProofOfInkFlowState(

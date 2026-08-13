@@ -23,7 +23,8 @@ struct UnreadMessageCountServiceTests {
         imageData: nil,
         source: .chat,
         isBlocked: false,
-        devices: []
+        devices: [],
+        pendingDevicesFanOut: false
     )
     private let bob = Chat.Contact(
         accountId: Data(repeating: 0x03, count: 32),
@@ -41,7 +42,8 @@ struct UnreadMessageCountServiceTests {
         imageData: nil,
         source: .chat,
         isBlocked: false,
-        devices: []
+        devices: [],
+        pendingDevicesFanOut: false
     )
     private let charlie = Chat.Contact(
         accountId: Data(repeating: 0x05, count: 32),
@@ -59,7 +61,8 @@ struct UnreadMessageCountServiceTests {
         imageData: nil,
         source: .chat,
         isBlocked: false,
-        devices: []
+        devices: [],
+        pendingDevicesFanOut: false
     )
 
     @Test("counts unread badge messages across chats and excludes reactions and system messages")

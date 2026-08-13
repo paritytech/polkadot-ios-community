@@ -53,6 +53,11 @@ public protocol PeerSessionDelegate: AnyObject {
         shouldIgnoreStatementAfter error: MessageExchange.IncomingMessageError
     ) -> Bool
 
+    /// Called when the transport surfaces a submit error that is not handled
+    /// automatically by the session. In particular, `StatementSubmitError.rejected(.channelPriorityTooLow)`
+    /// is delegated here so the app can decide whether to reinitialize: it
+    /// commonly happens during routine bursts of outgoing requests and does
+    /// not necessarily warrant tearing the session down.
     func peerSession(
         _ peerSession: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError error: Error

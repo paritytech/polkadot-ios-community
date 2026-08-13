@@ -1,13 +1,17 @@
 import UIKit
 import PolkadotUI
 import UIKitExt
+import ExternalAccessibility
+import Products
 
 protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
-    func show(tabs: [TabBarItem])
+    func show(tabs: [TabBarItem], selecting tab: TabBarItem)
     func select(tab: TabBarItem)
     func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
+    func showSPATabs(_ viewModels: [SPATabChipViewModel])
 }
 
+@MainActor
 protocol MainTabBarPresenterProtocol: AnyObject {
     func setup()
     func configureViews()
@@ -26,32 +30,27 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     )
     func didRemoveWidget(for extensionId: ChatExtension.Id)
     func didReceivePolkadotSignInRequest(with url: URL)
+    func didReceiveSPATabs(_ tabs: [SPATab])
 }
 
+@MainActor
 protocol MainTabBarWireframeProtocol: AnyObject {
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?)
 }
 
-enum TabBarItem: CaseIterable {
+enum TabBarItem: String, CaseIterable {
     case chat
     case wallet
+    case scan
     case browse
     case settings
-
-    var index: Int {
-        switch self {
-        case .chat: 0
-        case .wallet: 1
-        case .browse: 2
-        case .settings: 3
-        }
-    }
 
     var image: UIImage {
         let asset: UIImage =
             switch self {
             case .chat: .tabChat
             case .wallet: .tabWallet
+            case .scan: .tabScan
             case .browse: .tabBrowse
             case .settings: .tabSettings
             }
@@ -62,6 +61,7 @@ enum TabBarItem: CaseIterable {
         switch self {
         case .chat: String(localized: .tabChat)
         case .wallet: String(localized: .tabWallet)
+        case .scan: String(localized: .tabScan)
         case .browse: String(localized: .tabBrowse)
         case .settings: String(localized: .tabSettings)
         }
@@ -70,4 +70,27 @@ enum TabBarItem: CaseIterable {
 
 enum TabBarBadge: Equatable {
     case attention
+}
+
+extension TabBarItem {
+    var displayTitle: String? {
+        self == .scan ? nil : title
+    }
+
+    func makeBarItem(badge: TabBarBadge?) -> DSTabBarItem {
+        DSTabBarItem(
+            icon: image,
+            title: displayTitle,
+            badge: badge.map { _ in .attention },
+            accessibilityLabel: title,
+            accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue
+        )
+    }
+}
+
+@MainActor
+protocol SPAHosting: AnyObject {
+    func openProduct(page: ProductPage)
+    func minimizeSPA()
+    func closeSPA(tabId: UUID)
 }

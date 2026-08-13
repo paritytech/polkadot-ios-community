@@ -3,6 +3,7 @@ import SubstrateSdk
 import Operation_iOS
 import SubstrateStorageSubscription
 import AssetsManagement
+import ChainRegistry
 
 protocol BalanceRemoteSubscriptionServiceProtocol {
     func attachToBalances(

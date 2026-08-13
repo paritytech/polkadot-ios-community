@@ -6,6 +6,23 @@ import Products
 import SubstrateSdk
 import AsyncExtensions
 
+enum PaymentTopUpError: Error, LocalizedError {
+    case coinsNotOnChain
+    case noCoinsClaimed
+    case partialPayment(amount: Balance)
+
+    var errorDescription: String? {
+        switch self {
+        case .coinsNotOnChain:
+            "Top-up coins did not appear on-chain in time"
+        case .noCoinsClaimed:
+            "No coins were claimed from the provided secret keys"
+        case let .partialPayment(amount):
+            "PartialPayment:\(amount)"
+        }
+    }
+}
+
 // MARK: - Payments
 
 extension ProductsNativeApi {
@@ -70,11 +87,24 @@ extension ProductsNativeApi {
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             context.setContinuation(continuation)
-            Task { @MainActor [topUpRequestRouter, coinageService] in
-                topUpRequestRouter.showTopUpRequest(
-                    context: context,
-                    coinageService: coinageService
-                )
+
+            switch contextSource {
+            case .wallet:
+                Task { @MainActor [productsRouter, coinageService] in
+                    productsRouter.showTopUpRequest(
+                        context: context,
+                        coinageService: coinageService
+                    )
+                }
+            case let .coins(secretKeys):
+                Task { [coinageService] in
+                    await self.runCoinsTopUp(
+                        context: context,
+                        secretKeys: secretKeys,
+                        amount: amount,
+                        coinageService: coinageService
+                    )
+                }
             }
         }
     }
@@ -129,8 +159,8 @@ private extension ProductsNativeApi {
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             context.setContinuation(continuation)
-            Task { @MainActor [paymentRequestRouter] in
-                paymentRequestRouter.showPaymentRequest(context: context)
+            Task { @MainActor [productsRouter] in
+                productsRouter.showPaymentRequest(context: context)
             }
         }
     }
@@ -139,6 +169,68 @@ private extension ProductsNativeApi {
 // MARK: - Top-Up Helpers
 
 private extension ProductsNativeApi {
+    func claimCoinsTopUp(
+        secretKeys: [Data],
+        amount: Balance,
+        coinageService: any CoinageServicing
+    ) async throws {
+        let memo = TransferMemo(entries: secretKeys, totalValue: amount)
+        let topUpCoinsBlockTimeout: UInt32 = 15
+
+        do {
+            try await coinageService.ongoingTransferService.awaitSendOnChain(
+                memo: memo,
+                blockTimeout: topUpCoinsBlockTimeout
+            )
+        } catch {
+            logger.error(
+                "Top-up coins not on-chain within \(topUpCoinsBlockTimeout) blocks: \(error)"
+            )
+            throw PaymentTopUpError.coinsNotOnChain
+        }
+
+        let claimed = try await coinageService.transferCoinsFromSecretKeys(
+            secretKeys: secretKeys,
+            transferCoins: true
+        )
+
+        guard claimed > 0 else {
+            throw PaymentTopUpError.noCoinsClaimed
+        }
+
+        if claimed < amount {
+            throw PaymentTopUpError.partialPayment(amount: claimed)
+        }
+    }
+
+    func runCoinsTopUp(
+        context: TopUpRequestContext,
+        secretKeys: [Data],
+        amount: Balance,
+        coinageService: any CoinageServicing
+    ) async {
+        do {
+            try await claimCoinsTopUp(
+                secretKeys: secretKeys,
+                amount: amount,
+                coinageService: coinageService
+            )
+            context.deliverClaimed()
+        } catch let PaymentTopUpError.partialPayment(claimed) {
+            await productsRouter.showTopUpMismatch(
+                context: context,
+                claimedAmount: claimed,
+                requestedAmount: amount
+            )
+        } catch {
+            logger.error("Topup claim failed: \(error)")
+            await productsRouter.showTopUpError(
+                context: context,
+                error: error
+            )
+        }
+    }
+
     func resolveTopUpSource(
         source: PaymentTopUpSource,
         callingProductId: ProductId
@@ -149,8 +241,8 @@ private extension ProductsNativeApi {
                 productId: callingProductId,
                 derivationIndex: derivationIndex
             )
-            let wallet = DynamicDerivedWallet(
-                derivationPath: accountId.derivationPath,
+            let wallet = try DynamicDerivedWallet(
+                derivationPath: accountId.derivationPath(),
                 entropyManager: entropyManager
             )
             return .wallet(wallet)

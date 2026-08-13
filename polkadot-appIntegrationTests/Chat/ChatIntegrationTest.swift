@@ -72,7 +72,7 @@ final class ChatIntegrationTest: XCTestCase {
             deliverExpectation.fulfill()
         }
 
-        aliceService.messageExchange.addMessageToQueue(.init(remoteMessage: message), for: bobService.request.peer)
+        aliceService.messageExchange.addMessagesToQueue([.init(remoteMessage: message)], for: bobService.request.peer)
 
         wait(for: [postExpectation, deliverExpectation], timeout: 10)
 
@@ -89,10 +89,10 @@ private extension ChatIntegrationTest {
         let accountId = keypair.publicKey().rawData()
         Logger.shared.info("AccountId: \(accountId.toHex(includePrefix: true))")
         let connection = WebSocketEngine(urls: [Self.statementStoreURL], logger: Logger.shared)!
-        let privateKey = P256.KeyAgreement.PrivateKey()
+        let privateKey = Curve25519.KeyAgreement.PrivateKey()
 
         let encryptionManager = ClosureEncryptionManager { _ in
-            P256AESEncryptorFactory(privateKey: privateKey)
+            X25519ChaChaPolyEncryptorFactory(privateKey: privateKey)
         }
 
         let signManager = ClosureSignerManager { _ in
@@ -110,6 +110,7 @@ private extension ChatIntegrationTest {
             signManager: signManager,
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: nil,
+            messageRouteSelector: { _ in .identity },
             maxStatementSize: 1_024
         ).makeService(
             statementStoreConnection: statementStore,
@@ -121,7 +122,7 @@ private extension ChatIntegrationTest {
                 own: MessageExchange.Own(signKeyId: "", encryptionKeyId: "", pin: nil),
                 peer: MessageExchange.Peer(
                     accountId: accountId,
-                    publicKey: privateKey.publicKey.x963Representation,
+                    publicKey: privateKey.publicKey.rawRepresentation,
                     pin: nil,
                     devices: []
                 )

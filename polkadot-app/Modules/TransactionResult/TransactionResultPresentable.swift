@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import UIKitExt
 
+@MainActor
 protocol TransactionResultPresentable {
     func presentTransactionSuccess(
         from view: ControllerBackedProtocol?,
@@ -14,6 +15,7 @@ protocol TransactionResultPresentable {
     )
 }
 
+@MainActor
 extension TransactionResultPresentable {
     func presentTransactionSuccess(
         from view: ControllerBackedProtocol?,

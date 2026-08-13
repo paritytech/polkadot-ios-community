@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 enum LocalStorageKeyFactoryError: Error {
     case invalidParams

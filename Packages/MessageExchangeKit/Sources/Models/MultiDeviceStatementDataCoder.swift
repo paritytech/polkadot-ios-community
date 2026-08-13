@@ -172,8 +172,8 @@ public final class MultiDeviceStatementDataCoder: MultiDeviceStatementDataCoding
 // MARK: - Private Helpers
 
 private extension MultiDeviceStatementDataCoder {
-    /// Generates a one-shot AES-256 key, encrypts the payload with it,
-    /// then encrypts the key for each recipient device using ECDH + AES-GCM.
+    /// Generates a one-shot ChaCha20-Poly1305 key, encrypts the payload with it,
+    /// then encrypts the key for each recipient device using X25519 + ChaCha20-Poly1305.
     func encryptForDevices(
         payload: Data,
         recipients: [RecipientDeviceInfo]
@@ -182,13 +182,7 @@ private extension MultiDeviceStatementDataCoder {
         let encryptedPayload: Data
 
         do {
-            let box = try AES.GCM.seal(payload, using: oneshotKey)
-            guard let combined = box.combined else {
-                throw MultiDeviceEncodingError.payloadEncryptionFailed
-            }
-            encryptedPayload = combined
-        } catch let error as MultiDeviceEncodingError {
-            throw error
+            encryptedPayload = try ChaChaPoly.seal(payload, using: oneshotKey).combined
         } catch {
             logger?.error("Failed to encrypt payload with oneshot key: \(error)")
             throw MultiDeviceEncodingError.payloadEncryptionFailed
@@ -249,8 +243,8 @@ private extension MultiDeviceStatementDataCoder {
         let oneshotKey = SymmetricKey(data: oneshotKeyData)
 
         do {
-            let box = try AES.GCM.SealedBox(combined: encryptedPayload)
-            return try AES.GCM.open(box, using: oneshotKey)
+            let box = try ChaChaPoly.SealedBox(combined: encryptedPayload)
+            return try ChaChaPoly.open(box, using: oneshotKey)
         } catch {
             logger?.error("Failed to decrypt payload with oneshot key: \(error)")
             throw MultiDeviceDecodingError.payloadDecryptionFailed

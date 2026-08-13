@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import PolkadotUI
 import SnapKit
 import UIKit
@@ -61,6 +62,7 @@ private extension LegacyChatNavigationBarController {
         label.textColor = .white
         label.textAlignment = .center
         label.text = text
+        label.accessibilityId(AccessibilityID.Game.weeklyTitle)
         return label
     }
 }

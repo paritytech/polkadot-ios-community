@@ -48,7 +48,9 @@ final class URLScanPresenter: QRScannerPresenter {
 
         if let url = URL(string: code) {
             DispatchQueue.main.async { [weak self] in
-                self?.delegate?.urlScanDidReceiveResult(url)
+                MainActor.assumeIsolated {
+                    self?.delegate?.urlScanDidReceiveResult(url)
+                }
             }
         } else {
             DispatchQueue.main.async { [weak self] in

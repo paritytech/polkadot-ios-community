@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
+import ChainRegistry
 
 protocol PrivacyVoucherOperationMaking {
     func fetchKeysToRing(

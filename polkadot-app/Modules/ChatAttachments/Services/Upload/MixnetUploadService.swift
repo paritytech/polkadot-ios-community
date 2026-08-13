@@ -91,36 +91,40 @@ private extension MixnetUploadService {
         ) { [logger, loaderFactory, uploadContextFactory, proofWallet, weak self] in
             Task {
                 do {
-                    guard let store = uploadContextFactory.createContext(
-                        attachmentId: uploadData.attachmentId
-                    ) else {
-                        logger.error("Failed to create upload context for \(uploadData.attachmentId.fileId)")
-                        return
-                    }
+                    try await markStallActivity("Sending attachment") {
+                        guard let store = uploadContextFactory.createContext(
+                            attachmentId: uploadData.attachmentId
+                        ) else {
+                            logger.error("Failed to create upload context for \(uploadData.attachmentId.fileId)")
+                            return
+                        }
 
-                    let credentials = try await store.ensureUploadCredentials()
+                        let credentials = try await store.ensureUploadCredentials()
 
-                    let fileLoader = try loaderFactory.makeLoader(for: credentials.node)
-                    let recipients = try FileRecipients(ticket: credentials.ticket)
+                        let fileLoader = try loaderFactory.makeLoader(for: credentials.node)
+                        let recipients = try FileRecipients(ticket: credentials.ticket)
 
-                    let sender = try proofWallet.getMultiSigner()
-                    let proofProvider = SenderProofProvider(sender: sender) { data in
-                        try proofWallet.sign(data: data)
-                    }
+                        let sender = try proofWallet.getMultiSigner()
+                        let proofProvider = SenderProofProvider(sender: sender) { data in
+                            try proofWallet.sign(data: data)
+                        }
 
-                    let uploadingStream = fileLoader.uploadFile(
-                        store: store,
-                        sender: proofProvider,
-                        recipients: recipients
-                    )
-
-                    for try await event in uploadingStream {
-                        try await self?.handleUploadingEvent(
-                            event,
-                            uploadData: uploadData,
-                            ticket: credentials.ticket,
-                            node: credentials.node
+                        let uploadingStream = fileLoader.uploadFile(
+                            store: store,
+                            sender: proofProvider,
+                            recipients: recipients
                         )
+
+                        try await markStallRegion("Uploading file") {
+                            for try await event in uploadingStream {
+                                try await self?.handleUploadingEvent(
+                                    event,
+                                    uploadData: uploadData,
+                                    ticket: credentials.ticket,
+                                    node: credentials.node
+                                )
+                            }
+                        }
                     }
 
                     logger.debug("Task completed successfully")
@@ -170,7 +174,7 @@ private extension MixnetUploadService {
                 uploadEvent: .onComplete(
                     .toPeer(
                         .init(
-                            identifier: finished.metadataHash,
+                            identifier: finished.entryHash,
                             claimTicket: ticket,
                             node: node
                         )
@@ -197,7 +201,7 @@ private extension MixnetUploadService {
                     initialDelay: MixnetUploadService.retryInitialDelay
                 ) { [weak self] in
                     let accountId = try proofWallet.getRawPublicKey()
-                    try await allowanceManager.allocate(accountId: accountId, policy: .ignore)
+                    try await allowanceManager.allocate(accountId: accountId, policy: .ignore, priority: .normal)
 
                     let stream = messageProviderFactory.subscribeMessages(
                         with: .newLocalDeviceOutgoingRemoteRichTextMessages()

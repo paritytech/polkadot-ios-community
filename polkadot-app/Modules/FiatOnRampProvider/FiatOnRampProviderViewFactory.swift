@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum FiatOnRampProviderViewFactory {
     static func createView(
         context: WalletFlowContextProtocol,

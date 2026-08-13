@@ -40,7 +40,6 @@ public final class AllowancePromptContext {
 // MARK: - Routing
 
 @MainActor
-public protocol AllowancePromptRouting: AnyObject {
+public protocol AllowancePromptRouting: ProductsRouting {
     func showAllowancePrompt(context: AllowancePromptContext)
-    func setPresentationView(_ view: ControllerBackedProtocol)
 }

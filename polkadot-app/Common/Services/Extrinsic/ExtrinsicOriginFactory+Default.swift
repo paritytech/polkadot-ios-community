@@ -1,6 +1,7 @@
 import Foundation
 import Keystore_iOS
 import ExtrinsicService
+import ChainRegistry
 
 extension ExtrinsicOriginFactory {
     static func createSigned() -> ExtrinsicOriginDefiningFactoryProtocol {

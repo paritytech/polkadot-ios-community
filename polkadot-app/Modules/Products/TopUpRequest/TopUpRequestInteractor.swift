@@ -2,12 +2,12 @@ import BigInt
 import Coinage
 import Foundation
 import SubstrateSdk
+import StructuredConcurrency
 
 enum TopUpRequestInteractorError: Error {
     case noCoinsToClaim
 }
 
-@MainActor
 final class TopUpRequestInteractor {
     weak var presenter: TopUpRequestInteractorOutputProtocol?
 
@@ -18,7 +18,7 @@ final class TopUpRequestInteractor {
     private var claimTask: Task<Void, Never>?
     private var detectTask: Task<Void, Never>?
 
-    nonisolated init(
+    init(
         context: TopUpRequestContext,
         coinageService: any CoinageServicing,
         logger: LoggerProtocol
@@ -57,22 +57,21 @@ extension TopUpRequestInteractor: TopUpRequestInteractorInputProtocol {
     func claim() {
         guard claimTask == nil else { return }
 
-        presenter?.didStartClaim()
-
         claimTask = Task { [weak self, coinageService, context, logger] in
             defer { Task { @MainActor [weak self] in self?.claimTask = nil } }
 
+            await self?.presenter?.didStartClaim()
             do {
                 try await self?.performClaim(
                     coinageService: coinageService,
                     context: context
                 )
                 context.deliverClaimed()
-                self?.presenter?.didFinishClaim()
+                await self?.presenter?.didFinishClaim()
             } catch {
                 logger.error("Top-up claim failed: \(error)")
                 context.deliverFailed(error)
-                self?.presenter?.didFailClaim(error)
+                await self?.presenter?.didFailClaim(error)
             }
         }
     }
@@ -81,32 +80,34 @@ extension TopUpRequestInteractor: TopUpRequestInteractorInputProtocol {
 private extension TopUpRequestInteractor {
     func handleDetected(_ detected: BigUInt, requested: BigUInt) {
         if detected != requested {
-            presenter?.didDetectAmountMismatch()
+            Task { @MainActor in presenter?.didDetectAmountMismatch() }
         }
     }
 
     func handleDetectionFailure() {
-        presenter?.didFailDetection()
+        Task { @MainActor in presenter?.didFailDetection() }
     }
 
     nonisolated func performClaim(
         coinageService: any CoinageServicing,
         context: TopUpRequestContext
     ) async throws {
-        switch context.source {
-        case let .wallet(signerWallet):
-            try await coinageService.loadVouchers(
-                amount: context.amount,
-                externalAssetHolder: signerWallet
-            )
-        case let .coins(secretKeys):
-            let claimed = try await coinageService.transferCoinsFromSecretKeys(
-                secretKeys: secretKeys,
-                transferCoins: true
-            )
-            // Zero = no on-chain coins matched the keys; reject instead of delivering a no-op success.
-            guard claimed > 0 else {
-                throw TopUpRequestInteractorError.noCoinsToClaim
+        try await markStallActivity("Topup claim") {
+            switch context.source {
+            case let .wallet(signerWallet):
+                try await coinageService.loadVouchers(
+                    amount: context.amount,
+                    externalAssetHolder: signerWallet
+                )
+            case let .coins(secretKeys):
+                let claimed = try await coinageService.transferCoinsFromSecretKeys(
+                    secretKeys: secretKeys,
+                    transferCoins: true
+                )
+                // Zero = no on-chain coins matched the keys; reject instead of delivering a no-op success.
+                guard claimed > 0 else {
+                    throw TopUpRequestInteractorError.noCoinsToClaim
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ import Foundation_iOS
 import UIKit
 import PolkadotUI
 
+@MainActor
 final class TattooConfirmPresenter {
     weak var view: TattooConfirmViewProtocol?
     let wireframe: TattooConfirmWireframeProtocol

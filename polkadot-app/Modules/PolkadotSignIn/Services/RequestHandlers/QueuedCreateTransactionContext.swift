@@ -33,10 +33,6 @@ final class QueuedCreateTransactionContext: PolkadotSigningContextProtocol {
         complete()
     }
 
-    func resolveWallet(for account: ProductAccountId) throws -> WalletManaging {
-        DynamicDerivedWallet(derivationPath: account.derivationPath)
-    }
-
     func sendResult(_ result: PolkadotHostSigningResult) async throws {
         defer { complete() }
 

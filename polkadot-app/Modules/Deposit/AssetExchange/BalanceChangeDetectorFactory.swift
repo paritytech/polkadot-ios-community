@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import XcmTransfer
+import ChainRegistry
 
 final class BalanceChangeDetector {
     let walletRemoteSubscription: WalletRemoteSubscriptionProtocol

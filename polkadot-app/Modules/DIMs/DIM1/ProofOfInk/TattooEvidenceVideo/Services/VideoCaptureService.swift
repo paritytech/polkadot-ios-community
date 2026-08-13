@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import Operation_iOS
 
 protocol VideoCaptureServiceProtocol: AnyObject {
     var delegate: VideoCaptureServiceDelegate? { get set }
@@ -48,7 +49,12 @@ final class VideoCaptureService: NSObject {
             return
         }
 
-        let device = AVCaptureDevice.devices(for: .video).first { $0.position == .back }
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera],
+            mediaType: .video,
+            position: .back
+        )
+        let device = discoverySession.devices.first
 
         guard let camera = device else {
             throw VideoCaptureServiceError.deviceAccessRestricted

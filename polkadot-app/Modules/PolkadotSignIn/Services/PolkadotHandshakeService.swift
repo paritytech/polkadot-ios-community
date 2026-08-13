@@ -8,6 +8,7 @@ import Operation_iOS
 import SubstrateSdk
 import AsyncExtensions
 import KeyDerivation
+import ChainRegistry
 
 protocol PolkadotHandshakeServicing: AnyObject {
     func prepareInput(for url: URL) async throws -> HandshakeInput?

@@ -12,6 +12,7 @@ protocol ChatWithPlayersViewProtocol: ControllerBackedProtocol {
     func didReceive(viewModel: [Player])
 }
 
+@MainActor
 protocol ChatWithPlayersPresenterProtocol: AnyObject {
     func setup()
     func didSelectPlayer(_ player: Player)
@@ -31,6 +32,7 @@ protocol ChatWithPlayersInteractorOutputProtocol: AnyObject {
     func didReceive(error: Error)
 }
 
+@MainActor
 protocol ChatWithPlayersWireframeProtocol: AlertPresentable, ErrorPresentable {
     func showChat(from view: ChatWithPlayersViewProtocol?, for accountId: AccountId)
 }

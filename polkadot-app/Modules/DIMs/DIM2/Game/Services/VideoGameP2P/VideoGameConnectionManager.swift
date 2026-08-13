@@ -4,7 +4,7 @@ import AsyncExtensions
 import WebRTC
 import Individuality
 
-/// Reports connection state changes from the 1:N peer channel manager.
+/// Reports connection state changes from the 1:N peer engine manager.
 protocol VideoGameConnectionManagerDelegate: AnyObject {
     func connectionManager(
         _ manager: VideoGameConnectionManaging,
@@ -18,15 +18,13 @@ protocol VideoGameConnectionManaging: AnyObject {
     /// The local video track to send over the peer connection.
     var localVideoTrack: RTCVideoTrack? { get set }
 
-    /// Reconciles the set of active remote players with the current peer channels.
-    /// Creates new channels for added players and disposes channels for removed players.
+    /// Reconciles the set of active remote players with the current peer engines.
+    /// Creates new engines for added players and disposes engines for removed players.
     func setConnectedPlayers(_ remotePlayers: Set<AccountId>, gameIndex: GamePallet.GameIndex)
 
-    /// Disposes all peer channels and clears state.
-    func disconnectAll()
-
-    /// Clears persisted offer IDs for all active peer channels.
-    func clearPersistedOfferIds()
+    /// Disposes all peer engines and clears state, optionally clearing their
+    /// persisted offer IDs after disposal.
+    func disconnectAll(clearsPersistedOfferIds: Bool)
 
     func peerEngineState(for accountId: AccountId) -> VideoGamePeerEngineState?
 }
@@ -36,30 +34,24 @@ final class VideoGameConnectionManager {
     var localVideoTrack: RTCVideoTrack?
 
     private let localAccountId: AccountId
-    private let sessionFactory: VideoGameSessionMaking
-    private let attemptTracker: ConnectionAttemptTracking
     private let callbackQueue: DispatchQueue
-    private let turnService: TURNCredentialsProviding
     private let logger: LoggerProtocol
 
     private let mutex = NSLock()
-    private var peerChannels: [AccountId: VideoGamePeerEngine] = [:]
+    private var peerEngines: [AccountId: VideoGamePeerEngine] = [:]
     private var peerStates: [AccountId: VideoGamePeerEngineState] = [:]
     private var observationTasks: [AccountId: Task<Void, Never>] = [:]
+    private let contextFactory: VideoGamePeerEngineContextMaking
 
     init(
         localAccountId: AccountId,
-        sessionFactory: VideoGameSessionMaking,
-        attemptTracker: ConnectionAttemptTracking,
+        contextFactory: VideoGamePeerEngineContextMaking,
         callbackQueue: DispatchQueue,
-        turnService: TURNCredentialsProviding,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.localAccountId = localAccountId
-        self.sessionFactory = sessionFactory
-        self.attemptTracker = attemptTracker
         self.callbackQueue = callbackQueue
-        self.turnService = turnService
+        self.contextFactory = contextFactory
         self.logger = logger
 
         logger.debug("Initialized with local account: \(localAccountId.toHex())")
@@ -74,43 +66,35 @@ final class VideoGameConnectionManager {
 
 extension VideoGameConnectionManager: VideoGameConnectionManaging {
     func setConnectedPlayers(_ remotePlayers: Set<AccountId>, gameIndex: GamePallet.GameIndex) {
-        let currentPeers = mutex.withLock { Set(peerChannels.keys) }
+        let currentPeers = mutex.withLock { Set(peerEngines.keys) }
         let actualRemotePlayers = remotePlayers.filter { $0 != localAccountId }
 
         let toAdd = actualRemotePlayers.subtracting(currentPeers)
         let toRemove = currentPeers.subtracting(actualRemotePlayers)
 
-        // Clear offer IDs and dispose removed channels (offer is no longer valid)
+        // Clear offer IDs and dispose removed engines (offer is no longer valid)
         for accountId in toRemove {
-            removeChannel(for: accountId, clearsOfferId: true)
+            removeEngine(for: accountId, clearsOfferId: true)
         }
 
-        // Create new channels
+        // Create new engines
         for accountId in toAdd {
-            addChannel(for: accountId, gameIndex: gameIndex)
+            addEngine(for: accountId, gameIndex: gameIndex)
         }
 
         if !toAdd.isEmpty || !toRemove.isEmpty {
-            let total = mutex.withLock { peerChannels.count }
+            let total = mutex.withLock { peerEngines.count }
             logger.debug(
                 "Players updated: added=\(toAdd.count), removed=\(toRemove.count), total=\(total)"
             )
         }
     }
 
-    func disconnectAll() {
-        let allAccountIds = mutex.withLock { Array(peerChannels.keys) }
+    func disconnectAll(clearsPersistedOfferIds: Bool) {
+        let allAccountIds = mutex.withLock { Array(peerEngines.keys) }
 
         for accountId in allAccountIds {
-            removeChannel(for: accountId)
-        }
-    }
-
-    func clearPersistedOfferIds() {
-        let channels = mutex.withLock { Array(peerChannels.values) }
-
-        for channel in channels {
-            channel.clearPersistedOfferId()
+            removeEngine(for: accountId, clearsOfferId: clearsPersistedOfferIds)
         }
     }
 
@@ -124,26 +108,28 @@ extension VideoGameConnectionManager: VideoGameConnectionManaging {
 // MARK: - Private
 
 private extension VideoGameConnectionManager {
-    func addChannel(for remoteAccountId: AccountId, gameIndex: GamePallet.GameIndex) {
-        let channel = VideoGamePeerEngine(
-            localAccountId: localAccountId,
+    func addEngine(for remoteAccountId: AccountId, gameIndex: GamePallet.GameIndex) {
+        let peerLogger = TaggedLogger(
+            tag: makePeerTag(remoteAccountId: remoteAccountId),
+            logger: logger
+        )
+        let engine = VideoGamePeerEngine(
             remoteAccountId: remoteAccountId,
             gameIndex: gameIndex,
             localVideoTrack: localVideoTrack,
-            sessionFactory: sessionFactory,
-            attemptTracker: attemptTracker,
-            configFactory: WebRTCConfigFactory(turnService: turnService),
-            logger: logger
+            contextFactory: contextFactory,
+            peerLogger: peerLogger
         )
 
-        // Start observing channel state
-        let task = Task { [weak self, weak channel] in
-            guard let channel else { return }
+        // Start observing engine state
+        let task = Task { [weak self, weak engine] in
+            guard let engine else { return }
 
             do {
-                for try await state in channel.stateStream() {
-                    guard !Task.isCancelled else { return }
+                let stateStream = await engine.stateStream()
 
+                for try await state in stateStream {
+                    guard !Task.isCancelled else { return }
                     self?.handleStateUpdate(state, for: remoteAccountId)
                 }
             } catch {
@@ -152,40 +138,57 @@ private extension VideoGameConnectionManager {
         }
 
         mutex.withLock {
-            peerChannels[remoteAccountId] = channel
+            peerEngines[remoteAccountId] = engine
             peerStates[remoteAccountId] = .connecting
             observationTasks[remoteAccountId] = task
         }
 
-        channel.start()
+        Task {
+            await engine.start()
+        }
     }
 
-    func removeChannel(for remoteAccountId: AccountId, clearsOfferId: Bool = false) {
-        let channel: VideoGamePeerEngine? = mutex.withLock {
+    func removeEngine(for remoteAccountId: AccountId, clearsOfferId: Bool) {
+        let engine: VideoGamePeerEngine? = mutex.withLock {
             observationTasks[remoteAccountId]?.cancel()
             observationTasks.removeValue(forKey: remoteAccountId)
 
-            let channel = peerChannels.removeValue(forKey: remoteAccountId)
+            let engine = peerEngines.removeValue(forKey: remoteAccountId)
             peerStates.removeValue(forKey: remoteAccountId)
-            return channel
+            return engine
         }
 
-        if clearsOfferId {
-            channel?.clearPersistedOfferId()
-        }
+        if let engine {
+            Task {
+                await engine.dispose()
 
-        channel?.dispose()
+                if clearsOfferId {
+                    await engine.clearPersistedOfferId()
+                }
+            }
+        }
     }
 
     func handleStateUpdate(_ state: VideoGamePeerEngineState, for remoteAccountId: AccountId) {
-        let states = mutex.withLock {
+        let states: [AccountId: VideoGamePeerEngineState]? = mutex.withLock {
+            guard peerEngines[remoteAccountId] != nil else {
+                return nil
+            }
             peerStates[remoteAccountId] = state
             return peerStates
+        }
+
+        guard let states else {
+            return
         }
 
         callbackQueue.async { [weak self] in
             guard let self else { return }
             delegate?.connectionManager(self, didUpdateConnectionStates: states)
         }
+    }
+
+    func makePeerTag(remoteAccountId: AccountId) -> String {
+        String(remoteAccountId.toHex().prefix(8))
     }
 }

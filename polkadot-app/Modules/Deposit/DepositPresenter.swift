@@ -1,6 +1,7 @@
 import UIKit
 import Foundation_iOS
 import PolkadotUI
+import ChainRegistry
 
 final class DepositPresenter {
     weak var view: DepositViewProtocol?
@@ -57,6 +58,37 @@ private extension DepositPresenter {
 
         view?.didReceive(operationsViewModel: operationsViewModel)
     }
+
+    func dismissViewModel() -> TitleDetailsSheetViewModel {
+        let doneAction = MessageSheetAction(
+            title: LocalizableResource { _ in
+                String(localized: .Common.done)
+            },
+            handler: { [weak wireframe, weak view] in
+                MainActor.assumeIsolated {
+                    wireframe?.doneFunding(view: view)
+                }
+            }
+        )
+
+        return TitleDetailsSheetViewModel(
+            graphics: nil,
+            title: LocalizableResource { _ in
+                String(localized: .depositDismissTitle)
+            },
+            message: LocalizableResource { _ in
+                let string = String(localized: .depositDismissMessage)
+                return .normal(string)
+            },
+            mainAction: doneAction,
+            secondaryAction: .init(
+                title: LocalizableResource { _ in
+                    String(localized: .Common.goBack).capitalized
+                },
+                handler: {}
+            )
+        )
+    }
 }
 
 extension DepositPresenter: DepositPresenterProtocol {
@@ -95,34 +127,5 @@ extension DepositPresenter: DepositInteractorOutputProtocol {
     func didReceive(operations: [DepositOperationModel]) {
         depositOperations = operations
         provideOperationsViewModel()
-    }
-
-    func dismissViewModel() -> TitleDetailsSheetViewModel {
-        let doneAction = MessageSheetAction(
-            title: LocalizableResource { _ in
-                String(localized: .Common.done)
-            },
-            handler: { [weak wireframe, weak view] in
-                wireframe?.doneFunding(view: view)
-            }
-        )
-
-        return TitleDetailsSheetViewModel(
-            graphics: nil,
-            title: LocalizableResource { _ in
-                String(localized: .depositDismissTitle)
-            },
-            message: LocalizableResource { _ in
-                let string = String(localized: .depositDismissMessage)
-                return .normal(string)
-            },
-            mainAction: doneAction,
-            secondaryAction: .init(
-                title: LocalizableResource { _ in
-                    String(localized: .Common.goBack).capitalized
-                },
-                handler: {}
-            )
-        )
     }
 }

@@ -1,8 +1,13 @@
 import Foundation
 
+/// Seam over account-access permission requests so consumers stay testable.
+public protocol AccountAccessPermissionHandling: Sendable {
+    func request(productId: String, targetProductId: String) async throws -> Bool
+}
+
 /// Handles `.accountAccess` permissions: same-product auto-grant, otherwise
 /// prompt.
-public final class AccountAccessPermissionHandler: Sendable {
+public final class AccountAccessPermissionHandler: AccountAccessPermissionHandling, Sendable {
     private let repository: ProductPermissionRepositoryProtocol
     private let requester: ProductPermissionRequesting
 

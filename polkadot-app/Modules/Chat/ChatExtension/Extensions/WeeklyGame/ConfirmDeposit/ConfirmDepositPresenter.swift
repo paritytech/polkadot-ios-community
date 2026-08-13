@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import ChainRegistry
 
 final class ConfirmDepositPresenter {
     weak var view: ConfirmDepositViewProtocol?

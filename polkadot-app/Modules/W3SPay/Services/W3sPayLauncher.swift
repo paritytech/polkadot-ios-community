@@ -1,10 +1,13 @@
+import BackgroundExecution
 import BigInt
 import Coinage
 import Foundation
 import MessageExchangeKit
 import SDKLogger
 import StatementStore
+import SubstrateOperation
 import SubstrateSdk
+import ChainRegistry
 
 protocol W3sPayLaunching: AnyObject {
     @MainActor
@@ -23,6 +26,7 @@ final class W3sPayLauncher: W3sPayLaunching {
     private let chainRegistry: ChainRegistryProtocol
     private let statementStoreChainId: ChainModel.Id
     private let mainChainAssetId: ChainAssetId
+    private let historyStore: W3sPaymentHistoryStoring
     private let logger: SDKLoggerProtocol?
 
     init(
@@ -31,6 +35,7 @@ final class W3sPayLauncher: W3sPayLaunching {
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         statementStoreChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         mainChainAssetId: ChainAssetId = AppConfig.Assets.mainAsset,
+        historyStore: W3sPaymentHistoryStoring,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinageService = coinageService
@@ -38,6 +43,7 @@ final class W3sPayLauncher: W3sPayLaunching {
         self.chainRegistry = chainRegistry
         self.statementStoreChainId = statementStoreChainId
         self.mainChainAssetId = mainChainAssetId
+        self.historyStore = historyStore
         self.logger = logger
     }
 
@@ -60,12 +66,16 @@ final class W3sPayLauncher: W3sPayLaunching {
             return
         }
 
-        guard let submitter = makeSubmitter(
-            merchantKey: merchantKey,
-            topic: topic,
+        let details = W3sPaymentDetails(
             paymentId: paymentId,
-            amount: amount
-        ) else {
+            topic: topic,
+            merchantKey: merchantKey,
+            merchantName: recipientLabel.isEmpty ? nil : recipientLabel,
+            amountString: amount.normalizedString,
+            chainAssetId: "\(mainChainAssetId.chainId)-\(mainChainAssetId.assetId)"
+        )
+
+        guard let submitter = makeSubmitter(details: details, historyStore: historyStore) else {
             return
         }
 
@@ -73,12 +83,18 @@ final class W3sPayLauncher: W3sPayLaunching {
         // recipientLabel via `username`, never the synthetic SS58 address.
         let recipient = RecipientModel(accountId: topic, username: recipientLabel)
 
+        let lifecycleReporter = W3sPaymentLifecycleReporter(
+            historyStore: historyStore,
+            paymentId: paymentId
+        )
+
         guard let view = TransferAmountViewFactory.createCoinsViaStatementStore(
             for: chainAsset,
             recipient: recipient,
             coinageService: coinageService,
             chatSubmitter: submitter,
-            amountInPlanks: amountInPlanks
+            amountInPlanks: amountInPlanks,
+            lifecycleReporter: lifecycleReporter
         ) else {
             return
         }
@@ -89,10 +105,8 @@ final class W3sPayLauncher: W3sPayLaunching {
 
 private extension W3sPayLauncher {
     func makeSubmitter(
-        merchantKey: Data,
-        topic: Data,
-        paymentId: String,
-        amount: W3sAmount
+        details: W3sPaymentDetails,
+        historyStore: W3sPaymentHistoryStoring
     ) -> W3sStatementSubmitter? {
         do {
             let connection = try chainRegistry.getConnectionOrError(for: statementStoreChainId)
@@ -101,13 +115,20 @@ private extension W3sPayLauncher {
                 retryMatcher: StatementSubmitErrorMatcher.retryWhenTimeoutOrNoAllowance(),
                 logger: logger
             )
+
+            let blockInfoProvider = BlockInfoProvider(
+                chainRegistry: chainRegistry,
+                operationQueue: OperationManagerFacade.sharedDefaultQueue,
+                chainId: mainChainAssetId.chainId
+            )
+
             return W3sStatementSubmitter(
-                merchantKey: merchantKey,
-                topic: topic,
-                paymentId: paymentId,
-                amountString: amount.normalizedString,
+                details: details,
                 wallet: SelectedWallet.main,
                 statementStoreSubmitter: statementSubmitter,
+                historyStore: historyStore,
+                blockInfoProvider: blockInfoProvider,
+                backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
                 logger: logger
             )
         } catch {

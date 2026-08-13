@@ -4,6 +4,7 @@ import Operation_iOS
 import ExtrinsicService
 import Individuality
 import KeyDerivation
+import ChainRegistry
 
 struct MobRuleVote {
     let caseIndex: MobRulePallet.CaseIndex

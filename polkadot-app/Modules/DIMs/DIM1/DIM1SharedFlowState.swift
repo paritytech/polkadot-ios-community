@@ -1,6 +1,8 @@
 import Foundation
 import CommonService
 import KeyDerivation
+import ChainRegistry
+import SubstrateSdk
 
 protocol DIM1SharedFlowStateProtocol: AnyObject {
     var commonStateStore: DetermineStateSyncStore { get }
@@ -143,8 +145,10 @@ extension DIM1SharedFlowState: DIM1SharedFlowStateProtocol {
         }
 
         let connectionFactory = ConnectionFactory(
+            apiKeysProvider: ConnectionApiKeysProvider.shared,
             logger: logger,
-            operationQueue: OperationManagerFacade.runtimeSyncQueue
+            operationQueue: OperationManagerFacade.runtimeSyncQueue,
+            reachabilityManager: ReachabilityManager.shared
         )
 
         let queryFactory = DIM1BackgroundQueryFactory(

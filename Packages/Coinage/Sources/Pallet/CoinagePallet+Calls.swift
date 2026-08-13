@@ -195,12 +195,13 @@ extension CoinagePallet.Calls {
         }
     }
 
-    /// unload_recycler_into_external_asset_and_vouchers — atomically unloads vouchers,
-    /// transfers an external asset amount to a destination, and mints new vouchers from surplus.
+    /// unload_recycler_into_external_asset_and_loaded_coins — atomically unloads coins,
+    /// transfers an external asset amount to a destination, and puts recycler-loaded coins from
+    /// surplus into the alias state.
     /// Origin: AsUnloadToken
-    struct UnloadRecyclerIntoExternalAssetAndVouchers: RuntimeCallConvertible {
+    struct UnloadRecyclerIntoExternalAssetAndLoadedCoins: RuntimeCallConvertible {
         var moduleName: String { CoinagePallet.name }
-        var name: String { "unload_recycler_into_external_asset_and_vouchers" }
+        var name: String { "unload_recycler_into_external_asset_and_loaded_coins" }
 
         let aliases: [BytesCodable]
         @StringCodable var value: Int8
@@ -208,7 +209,7 @@ extension CoinagePallet.Calls {
         @StringCodable var revision: UInt32
         @BytesCodable var to: AccountId
         @StringCodable var externalAssetAmount: Balance
-        let newVouchers: [NewVoucher]
+        let loadedCoins: [LoadedCoin]
 
         init(
             aliases: [Data],
@@ -217,7 +218,7 @@ extension CoinagePallet.Calls {
             revision: UInt32,
             to: AccountId,
             externalAssetAmount: Balance,
-            newVouchers: [NewVoucher]
+            loadedCoins: [LoadedCoin]
         ) {
             self.aliases = aliases.map { BytesCodable(wrappedValue: $0) }
             self.value = value
@@ -225,10 +226,10 @@ extension CoinagePallet.Calls {
             self.revision = revision
             self.to = to
             self.externalAssetAmount = externalAssetAmount
-            self.newVouchers = newVouchers
+            self.loadedCoins = loadedCoins
         }
 
-        struct NewVoucher: Codable {
+        struct LoadedCoin: Codable {
             let coinValue: Int8
             let memberKey: Data
 
@@ -246,7 +247,7 @@ extension CoinagePallet.Calls {
             case revision
             case to
             case externalAssetAmount = "external_asset_amount"
-            case newVouchers = "new_vouchers"
+            case loadedCoins = "loaded_coins"
         }
     }
 

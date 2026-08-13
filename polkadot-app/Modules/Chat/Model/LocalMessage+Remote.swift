@@ -20,11 +20,12 @@ extension Chat.LocalMessage {
     }
 
     static func supportsRemote(_ remoteMessage: Chat.RemoteMessage) -> Bool {
-        guard let v1Content = remoteMessage.versioned.ensureV1() else {
-            return false
+        switch remoteMessage.versioned {
+        case let .v1(v1Content):
+            Chat.LocalMessage.Content.supportsRemoteV1Content(v1Content.content)
+        case .unsupported:
+            true
         }
-
-        return Chat.LocalMessage.Content.supportsRemoteV1Content(v1Content.content)
     }
 }
 
@@ -151,9 +152,12 @@ private extension Chat.LocalMessage.Content {
              .deviceRemoved,
              .dataChannelOffer,
              .dataChannelAnswer,
-             .dataChannelCandidates,
              .dataChannelClosed:
             true
+        case .dataChannelCandidates:
+            // ICE candidates are pure peer-to-peer signaling and have no
+            // meaningful local representation: not persisted, not tracked.
+            false
         }
     }
 }

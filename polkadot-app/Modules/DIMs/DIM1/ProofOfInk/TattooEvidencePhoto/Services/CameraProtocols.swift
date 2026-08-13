@@ -21,7 +21,7 @@ extension AVCaptureSession: CameraSessionProtocol {
 
 protocol CameraAuthorizationProtocol {
     static func authorizationStatus(for mediaType: AVMediaType) -> AVAuthorizationStatus
-    static func requestAccess(for mediaType: AVMediaType, completionHandler: @escaping (Bool) -> Void)
+    static func requestAccess(for mediaType: AVMediaType, completionHandler: @Sendable @escaping (Bool) -> Void)
 }
 
 extension AVCaptureDevice: CameraAuthorizationProtocol {}

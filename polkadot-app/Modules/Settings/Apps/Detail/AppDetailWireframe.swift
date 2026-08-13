@@ -1,6 +1,7 @@
 import Foundation
 import Products
 
+@MainActor
 final class AppDetailWireframe: AppDetailWireframeProtocol {
     func showPermissions(
         productId: ProductId,

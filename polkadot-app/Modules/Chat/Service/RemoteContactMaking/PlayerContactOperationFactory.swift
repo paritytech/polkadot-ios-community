@@ -1,6 +1,7 @@
 import Foundation
 import MessageExchangeKit
 import SubstrateSdk
+import SubstrateSdkExt
 import Operation_iOS
 
 final class PlayerContactOperationFactory {
@@ -31,14 +32,14 @@ extension PlayerContactOperationFactory: RemoteContactResolving {
             return nil
         }
 
-        guard let chatKey = try await identifierService.fetch(for: accountId) else {
+        guard let identifier = try await identifierService.fetch(for: accountId) else {
             return nil
         }
 
-        return try Chat.RemoteContact(
+        return Chat.RemoteContact(
             accountId: accountId,
             username: usernameGenerator.generate(from: accountId),
-            chatPublicKey: Chat.PublicKey(rawData: chatKey),
+            chatPublicKey: identifier.localPublicKey,
             imageData: vote.previewImageData,
             source: .game(vote.gameIndex, vote.voteUpdateDate)
         )

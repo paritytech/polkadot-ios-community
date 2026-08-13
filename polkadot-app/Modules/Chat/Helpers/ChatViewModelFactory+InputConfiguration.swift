@@ -1,3 +1,4 @@
+import ExternalAccessibility
 import Foundation
 import PolkadotUI
 
@@ -64,7 +65,12 @@ private extension ChatViewModelFactory {
         case .pending:
             ChatRequestInProgressBannerView.ViewModel(
                 username: metadata.peerMetadata.name,
-                inputConfig: .chat(canPay: false, canAttachFile: false)
+                inputConfig: .chat(
+                    canPay: false,
+                    canAttachFile: false,
+                    inputAccessibilityId: AccessibilityID.Chats.inviteMessageInput,
+                    sendAccessibilityId: AccessibilityID.Chats.inviteSendButton
+                )
             )
         }
     }

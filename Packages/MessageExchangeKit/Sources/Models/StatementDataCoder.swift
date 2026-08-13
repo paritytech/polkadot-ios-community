@@ -21,11 +21,13 @@ public enum StatementDataDecodingResult<M: MessageExchange.CodableMessage> {
 public protocol StatementDataCoding {
     func decodeFromScaleEncodedPayload<M: MessageExchange.CodableMessage>(
         _ payload: Data,
-        senderAccountId: Data?
+        senderAccountId: Data?,
+        route: PeerSessionRoute
     ) throws -> StatementDataDecodingResult<M>
 
     func encodeToScaleEncodedPayload(
-        _ statementData: StatementData<some MessageExchange.CodableMessage>
+        _ statementData: StatementData<some MessageExchange.CodableMessage>,
+        route: PeerSessionRoute
     ) throws -> Data
 }
 
@@ -43,7 +45,8 @@ public final class StatementDataCoder: StatementDataCoding {
 
     public func decodeFromScaleEncodedPayload<M: MessageExchange.CodableMessage>(
         _ payload: Data,
-        senderAccountId _: Data?
+        senderAccountId _: Data?,
+        route _: PeerSessionRoute
     ) throws -> StatementDataDecodingResult<M> {
         let encryptedData: Data
         let decryptedData: Data
@@ -79,7 +82,8 @@ public final class StatementDataCoder: StatementDataCoding {
     }
 
     public func encodeToScaleEncodedPayload(
-        _ statementData: StatementData<some MessageExchange.CodableMessage>
+        _ statementData: StatementData<some MessageExchange.CodableMessage>,
+        route _: PeerSessionRoute
     ) throws -> Data {
         let statementScaleData: Data
         let encryptedData: Data

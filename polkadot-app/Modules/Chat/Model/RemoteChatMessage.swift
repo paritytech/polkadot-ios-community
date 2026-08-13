@@ -317,6 +317,7 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     init(scaleDecoder: any ScaleDecoding) throws {
         let idx = try UInt8(scaleDecoder: scaleDecoder)
         switch idx {
@@ -363,6 +364,7 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func encode(scaleEncoder: any ScaleEncoding) throws {
         try scaleIndex.encode(scaleEncoder: scaleEncoder)
         switch self {
@@ -567,7 +569,7 @@ extension Chat.RemoteMessageContentV1.MessageContent.SendContent.Coinage: ScaleC
 
 extension Chat.PeerDevice: ScaleCodable {
     static let accountIdLength = 32
-    static let encryptionKeyLength = 65
+    static let encryptionKeyLength = 32
 
     init(scaleDecoder: any ScaleDecoding) throws {
         statementAccountId = try scaleDecoder.readAndConfirm(count: Self.accountIdLength)

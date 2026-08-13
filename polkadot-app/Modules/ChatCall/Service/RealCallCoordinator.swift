@@ -2,11 +2,22 @@ import Foundation
 import CommonService
 import SubstrateSdk
 import Operation_iOS
+import ChainRegistry
 
 protocol CallCoordinating: AnyObject {
     func handleIncomingCall(
-        message: Chat.RemoteMessage,
+        in message: Chat.RemoteMessage,
         from peer: CallPeer
+    ) async
+
+    func handleDeliveredCall(
+        in message: Chat.RemoteMessage,
+        to peer: CallPeer
+    ) async
+
+    func handleSentCall(
+        in message: Chat.RemoteMessage,
+        to peer: CallPeer
     ) async
 
     func initiateCall(with peer: CallPeer, callType: ChatCallType)
@@ -16,7 +27,7 @@ final class RealCallCoordinator {
     // Stale Threshold in milliseconds (30 sec)
     private static let staleOfferThreshold: TimeInterval = 30 * 1_000
 
-    private weak var receiver: ChatCallMessageReceiving?
+    private weak var messageHandler: ChatCallMessageHandling?
 
     let chainRegistry: ChainRegistryProtocol
     let signalingChainId: ChainModel.Id
@@ -28,6 +39,7 @@ final class RealCallCoordinator {
     let logger: LoggerProtocol
 
     private var activeCallKitDataTask: Task<Void, Never>?
+    private let signalingRetainer: SignalingConnectionRetainer
 
     init(
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
@@ -47,6 +59,10 @@ final class RealCallCoordinator {
         self.outboxService = outboxService
         self.turnService = turnService
         self.logger = logger
+        signalingRetainer = SignalingConnectionRetainer(
+            chainRegistry: chainRegistry,
+            chainId: signalingChainId
+        )
         setupCallKit()
     }
 
@@ -70,10 +86,11 @@ private extension RealCallCoordinator {
             initialCallType: callType,
             purpose: WebRTCConnectionPurpose.call.rawValue,
             configFactory: WebRTCConfigFactory(turnService: turnService),
+            peerConnectionFactory: WebRTCPeerConnectionFactoryProvider.make(),
             logger: logger
         )
 
-        receiver = signaler
+        messageHandler = signaler
 
         presentationManager.presentCall(with: peer, using: engine, role: role, callType: callType)
     }
@@ -85,7 +102,7 @@ private extension RealCallCoordinator {
             }
             do {
                 for try await callData in sequence {
-                    self?.handleActiveCallKitData(callData)
+                    await self?.signalingRetainer.update(hasActiveCall: callData != nil)
                 }
             } catch {
                 self?.logger.error("Active call data task failure: \(error.localizedDescription)")
@@ -96,10 +113,6 @@ private extension RealCallCoordinator {
     func throttleCallKit() {
         activeCallKitDataTask?.cancel()
         activeCallKitDataTask = nil
-    }
-
-    func handleActiveCallKitData(_ callData: VoIPCallKitData?) {
-        chainRegistry.setConnectionEnforced(callData != nil, for: signalingChainId)
     }
 
     func isOfferStale(timestamp: UInt64) -> Bool {
@@ -132,11 +145,11 @@ private extension RealCallCoordinator {
 
 extension RealCallCoordinator: CallCoordinating {
     func handleIncomingCall(
-        message: Chat.RemoteMessage,
+        in message: Chat.RemoteMessage,
         from peer: CallPeer
     ) async {
-        if let receiver, receiver.peerAccountId == peer.accountId {
-            await receiver.receive(message: message)
+        if let messageHandler, messageHandler.peerAccountId == peer.accountId {
+            await messageHandler.receive(message: message)
             return
         }
 
@@ -150,7 +163,7 @@ extension RealCallCoordinator: CallCoordinating {
             return
         }
 
-        guard receiver == nil else {
+        guard messageHandler == nil else {
             logger.warning("Call is busy, rejecting offer: \(message.messageId)")
             sendDataChannelClosed(to: peer.accountId, offerId: message.messageId)
             return
@@ -162,7 +175,29 @@ extension RealCallCoordinator: CallCoordinating {
             callType: ChatCallType(remoteType: offer.purpose)
         )
 
-        await receiver?.receive(message: message)
+        await messageHandler?.receive(message: message)
+    }
+
+    func handleSentCall(
+        in message: Chat.RemoteMessage,
+        to peer: CallPeer
+    ) async {
+        guard messageHandler?.peerAccountId == peer.accountId else {
+            logger.warning("Ignoring sent call message for inactive peer: \(peer.accountId.toHex())")
+            return
+        }
+        await messageHandler?.handleSent(message: message)
+    }
+
+    func handleDeliveredCall(
+        in message: Chat.RemoteMessage,
+        to peer: CallPeer
+    ) async {
+        guard messageHandler?.peerAccountId == peer.accountId else {
+            logger.warning("Ignoring delivered call message for inactive peer: \(peer.accountId.toHex())")
+            return
+        }
+        await messageHandler?.handleDelivered(message: message)
     }
 
     func initiateCall(with peer: CallPeer, callType: ChatCallType) {

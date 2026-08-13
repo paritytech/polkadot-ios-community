@@ -3,7 +3,6 @@ import ExtrinsicService
 import Foundation
 import KeyDerivation
 import SubstrateSdk
-import SubstrateStorageQuery
 import SubstrateStorageSubscription
 import StructuredConcurrency
 import SubstrateSdkExt
@@ -28,8 +27,6 @@ public final class PGasOriginFactory {
 
     private let keyResolver: BandersnatchKeyResolving
     private let chainRegistry: ChainResourceProtocol
-
-    private lazy var requestFactory = StorageRequestFactory.asyncInit()
 
     public init(
         keyResolver: BandersnatchKeyResolving,
@@ -117,22 +114,17 @@ private extension PGasOriginFactory {
     ) async throws -> UInt32 {
         let connection = try chainRegistry.getRpcConnectionOrError(for: chain)
         let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
-        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
+        let proofParamsFetcher = MembershipProofParamsFetcher(
+            connection: connection,
+            runtimeCodingService: runtimeProvider
+        )
+        let revisionValue = try await proofParamsFetcher.fetchCurrentRevision(
+            for: origin.ringIndex,
+            collectionId: origin.collectionIdentifier,
+            blockHash: nil
+        )
 
-        let collectionId = origin.collectionIdentifier
-
-        let ringRoot: MembersPallet.RingRoot? = try await requestFactory
-            .queryItems(
-                engine: connection,
-                keyParams1: { [BytesCodable(wrappedValue: collectionId)] },
-                keyParams2: { [StringCodable(wrappedValue: origin.ringIndex)] },
-                factory: { codingFactory },
-                storagePath: MembersPallet.Storage.root()
-            )
-            .asyncExecute()
-            .first?.value
-
-        return ringRoot?.revision ?? 0
+        return revisionValue ?? 0
     }
 
     func awaitRingRevision(

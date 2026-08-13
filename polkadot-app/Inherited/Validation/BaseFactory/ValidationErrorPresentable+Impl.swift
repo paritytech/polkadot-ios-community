@@ -2,6 +2,7 @@ import Foundation
 import Foundation_iOS
 import PolkadotUI
 
+@MainActor
 extension ValidationErrorPresentable {
     func presentIssue(
         with title: String,

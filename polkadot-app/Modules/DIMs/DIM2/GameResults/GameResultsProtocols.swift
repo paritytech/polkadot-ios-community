@@ -13,6 +13,7 @@ protocol GameResultsViewProtocol: ControllerBackedProtocol {
     func pushAttestation(index: Int, hash: String, highValue: Bool?)
 }
 
+@MainActor
 protocol GameResultsPresenterProtocol: AnyObject {
     func setup()
 }

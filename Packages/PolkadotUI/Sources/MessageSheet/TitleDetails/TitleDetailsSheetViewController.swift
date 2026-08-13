@@ -1,6 +1,7 @@
 import UIKit
 import Foundation_iOS
 public import UIKit_iOS
+import ExternalAccessibility
 import FoundationExt
 
 public final class TitleDetailsSheetViewController: UIViewController, ViewHolder {
@@ -64,14 +65,17 @@ public final class TitleDetailsSheetViewController: UIViewController, ViewHolder
 
         if let action = viewModel.mainAction {
             rootView.mainActionButton?.setTitle(action.title.value(for: selectedLocale))
+            rootView.mainActionButton?.accessibilityId(rawValue: action.accessibilityId)
         }
 
         if let action = viewModel.secondaryAction {
             rootView.secondaryActionButton?.setTitle(action.title.value(for: selectedLocale))
+            rootView.secondaryActionButton?.accessibilityId(rawValue: action.accessibilityId)
         }
 
         if let action = viewModel.tertiaryAction {
             rootView.tertiaryActionButton?.setTitle(action.title.value(for: selectedLocale))
+            rootView.tertiaryActionButton?.accessibilityId(rawValue: action.accessibilityId)
         }
     }
 

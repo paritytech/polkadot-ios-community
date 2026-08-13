@@ -6,63 +6,73 @@ final class OutgoingRequestQueue<M: MessageExchange.CodableMessage> {
     typealias Message = M
 
     private let statementDataCoder: StatementDataCoding
+    private let routeSelector: PeerSessionRouteSelector<M>
     private let sizeValidator: OutgoingRequestSizeValidating
+    private let supportedRoutes: [PeerSessionRoute]
     private let logger: SDKLoggerProtocol?
 
-    private var queue = [Message]()
+    private var queuedMessages = [PeerSessionRoute: [Message]]()
 
-    var currentRequest: OutgoingRequest<Message>?
+    var currentRequests = [PeerSessionRoute: OutgoingRequest<Message>]()
 
     init(
         statementDataCoder: StatementDataCoding,
+        routeSelector: PeerSessionRouteSelector<M>,
         sizeValidator: OutgoingRequestSizeValidating,
+        supportedRoutes: [PeerSessionRoute],
         logger: SDKLoggerProtocol?
     ) {
         self.statementDataCoder = statementDataCoder
+        self.routeSelector = routeSelector
         self.sizeValidator = sizeValidator
+        self.supportedRoutes = supportedRoutes
         self.logger = logger
     }
 }
 
 extension OutgoingRequestQueue: OutgoingRequestQueueing {
-    func attemptRequestExtensionFromQueue() -> Bool {
-        guard !queue.isEmpty else {
-            return false
+    func attemptRequestExtensionFromQueue() -> Set<PeerSessionRoute> {
+        var messagesToRetry = [Message]()
+
+        for route in supportedRoutes {
+            messagesToRetry.append(contentsOf: queuedMessages[route] ?? [])
+            queuedMessages[route] = []
         }
 
-        let messagesToRetry = queue
-        queue = []
+        guard !messagesToRetry.isEmpty else {
+            return []
+        }
 
-        var hasExtendedRequest = false
+        var extendedRoutes = Set<PeerSessionRoute>()
 
         for message in messagesToRetry {
             let result = performMessageAdd(message, isChannelActive: true)
 
-            if
-                case let .success(successOutcome) = result,
-                successOutcome == .appendedToCurrentRequest {
-                hasExtendedRequest = true
+            if case let .success(successOutcome) = result,
+               case let .appendedToCurrentRequest(route) = successOutcome {
+                extendedRoutes.insert(route)
             }
         }
 
-        return hasExtendedRequest
+        return extendedRoutes
     }
 
-    func addMessage(
-        _ message: Message,
+    func addMessages(
+        _ messages: [Message],
         isChannelActive: Bool
-    ) -> Result<
+    ) -> [Result<
         MessageExchange.AddToQueueResult,
         MessageExchange.AddToQueueError
-    > {
-        performMessageAdd(message, isChannelActive: isChannelActive)
+    >] {
+        messages.map { performMessageAdd($0, isChannelActive: isChannelActive) }
     }
 
     func dequeueMessagesForNewRequest() -> OutgoingRequest<M>? {
-        guard !queue.isEmpty else {
+        guard let route = routeForNextRequest() else {
             return nil
         }
 
+        let queue = queuedMessages[route] ?? []
         let requestId = UUID().uuidString
         var messages = [M]()
         var scaleEncodedData = Data()
@@ -70,12 +80,19 @@ extension OutgoingRequestQueue: OutgoingRequestQueueing {
 
         while true {
             do {
+                guard routeSelector.route(for: queue[index]) == route else {
+                    break
+                }
+
                 let newMessages = messages + [queue[index]]
 
-                let newData = try statementDataCoder.encodeToScaleEncodedPayload(.request(.init(
-                    requestId: requestId,
-                    messages: newMessages
-                )))
+                let newData = try statementDataCoder.encodeToScaleEncodedPayload(
+                    .request(.init(
+                        requestId: requestId,
+                        messages: newMessages
+                    )),
+                    route: route
+                )
 
                 if sizeValidator.scaleEncodedPayloadFits(newData) {
                     messages = newMessages
@@ -100,14 +117,15 @@ extension OutgoingRequestQueue: OutgoingRequestQueueing {
             return nil
         }
 
-        queue.removeFirst(index)
+        queuedMessages[route]?.removeFirst(index)
 
         logger?.debug("Added \(messages.count) for size \(scaleEncodedData.count)")
 
         return .init(
             requestId: requestId,
             messages: messages,
-            scaleEncodedPayload: scaleEncodedData
+            scaleEncodedPayload: scaleEncodedData,
+            route: route
         )
     }
 }
@@ -135,13 +153,21 @@ private extension OutgoingRequestQueue {
         MessageExchange.AddToQueueError
     > {
         do {
+            let route = routeSelector.route(for: message)
+
+            guard supportedRoutes.contains(route) else {
+                logger?.error("Unsupported route \(route)")
+                return .failure(.unsupportedRoute(route))
+            }
+
             // TODO: We use the randow request id and a single value array to check the size
             // Should be redone properly
             let scaleEncodedPayload = try statementDataCoder.encodeToScaleEncodedPayload(
                 .request(.init(
                     requestId: UUID().uuidString,
                     messages: [message]
-                ))
+                )),
+                route: route
             )
 
             if sizeValidator.scaleEncodedPayloadFits(scaleEncodedPayload) {
@@ -167,8 +193,15 @@ private extension OutgoingRequestQueue {
         for message: Message,
         isChannelActive: Bool
     ) -> MessageExchange.AddToQueueResult {
-        guard isChannelActive, queue.isEmpty, let currentRequest else {
-            return queueMessage(message)
+        let route = routeSelector.route(for: message)
+        let queue = queuedMessages[route] ?? []
+
+        guard
+            isChannelActive,
+            queue.isEmpty,
+            let currentRequest = currentRequests[route]
+        else {
+            return queueMessage(message, route: route)
         }
 
         if currentRequest.messages.contains(message) {
@@ -184,31 +217,46 @@ private extension OutgoingRequestQueue {
                 .request(.init(
                     requestId: newRequestId,
                     messages: newMessages
-                ))
+                )),
+                route: route
             )
 
             if sizeValidator.scaleEncodedPayloadFits(scaleEncodedData) {
-                self.currentRequest = .init(
+                currentRequests[route] = .init(
                     requestId: newRequestId,
                     messages: newMessages,
-                    scaleEncodedPayload: scaleEncodedData
+                    scaleEncodedPayload: scaleEncodedData,
+                    route: route
                 )
-                return .appendedToCurrentRequest
+                return .appendedToCurrentRequest(route: route)
             } else {
-                return queueMessage(message)
+                return queueMessage(message, route: route)
             }
         } catch {
             logger?.error("Encoding error: \(error)")
-            return queueMessage(message)
+            return queueMessage(message, route: route)
         }
     }
 
-    func queueMessage(_ message: Message) -> MessageExchange.AddToQueueResult {
-        if queue.contains(message) {
+    func queueMessage(
+        _ message: Message,
+        route: PeerSessionRoute
+    ) -> MessageExchange.AddToQueueResult {
+        let routeQueue = queuedMessages[route] ?? []
+
+        if routeQueue.contains(message) {
             return .ignored
         } else {
-            queue.append(message)
+            queuedMessages[route, default: []].append(message)
             return .queued
+        }
+    }
+
+    func routeForNextRequest() -> PeerSessionRoute? {
+        // The supported route order is the dequeue priority. A current request
+        // blocks only its own route, so another route can still send.
+        supportedRoutes.first { route in
+            currentRequests[route] == nil && !(queuedMessages[route]?.isEmpty ?? true)
         }
     }
 }

@@ -14,6 +14,7 @@ protocol ChatCallViewProtocol: ControllerBackedProtocol {
     func didReceiveCapability(_ capability: ChatCallCapability)
 }
 
+@MainActor
 protocol ChatCallPresenterProtocol: AnyObject {
     func setup()
     func acceptCall()
@@ -43,6 +44,7 @@ protocol ChatCallInteractorOutputProtocol: AnyObject {
     func didReceiveCapability(_ capability: ChatCallCapability)
 }
 
+@MainActor
 protocol ChatCallWireframeProtocol: AnyObject {
     func close(from view: ChatCallViewProtocol?)
     func presentMicrophoneAccessDenied(dismissing view: ChatCallViewProtocol?)

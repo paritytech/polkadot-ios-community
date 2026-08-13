@@ -17,13 +17,15 @@ final class TransferPrivacyViewLayout: BottomSheetBaseLayout {
     }
 
     private let titleLabel: UILabel = .create { label in
-        label.apply(style: .init(textColor: .fgPrimary, font: .semibold24))
+        label.textColor = .fgPrimary
+        label.font = .semibold24
         label.numberOfLines = 0
         label.textAlignment = .center
     }
 
     private let messageLabel: UILabel = .create { label in
-        label.apply(style: .init(textColor: .fgSecondary, font: .regular16))
+        label.textColor = .fgSecondary
+        label.font = .regular16
         label.numberOfLines = 0
         label.textAlignment = .center
     }

@@ -27,29 +27,41 @@ extension TattooEvidencePhotoInteractor: TattooEvidencePhotoInteractorInputProto
     func capturePhoto() {
         do {
             let targetUrl = try fileManager.preparePhotoEvidenceUrl()
-            presenter?.didReceive(state: .capturing)
+            MainActor.assumeIsolated {
+                presenter?.didReceive(state: .capturing)
+            }
             photoCaptureService.capturePhoto(withURL: targetUrl)
         } catch {
-            presenter?.didReceive(error: .storageError(error))
+            MainActor.assumeIsolated {
+                presenter?.didReceive(error: .storageError(error))
+            }
         }
     }
 }
 
 extension TattooEvidencePhotoInteractor: CameraServiceDelegate {
     func didReceivedPhoto(_ photo: UIImage) {
-        presenter?.didReceive(state: .captured(photo))
+        MainActor.assumeIsolated {
+            presenter?.didReceive(state: .captured(photo))
+        }
     }
 
     func didSetup(session: AVCaptureSession) {
-        presenter?.didReceive(session: session)
+        MainActor.assumeIsolated {
+            presenter?.didReceive(session: session)
+        }
     }
 
     func didSavePhoto(at url: URL) {
         logger.info("Did save photo to: \(url.absoluteString)")
-        presenter?.didSaveCapturedPhoto()
+        MainActor.assumeIsolated {
+            presenter?.didSaveCapturedPhoto()
+        }
     }
 
     func didFailToCapturePhoto(error: PhotoCaptureServiceError) {
-        presenter?.didReceive(error: .photoCapture(error))
+        MainActor.assumeIsolated {
+            presenter?.didReceive(error: .photoCapture(error))
+        }
     }
 }

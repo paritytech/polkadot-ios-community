@@ -2,8 +2,13 @@ import Foundation
 import SubstrateSdk
 import UIKitExt
 
-protocol WeeklyGameWireframeProtocol: ChatExtensionWireframeProtocol, ChatExtensionNavigating, AlertPresentable,
-    ErrorPresentable {
+@MainActor
+protocol WeeklyGameWireframeProtocol:
+    ChatExtensionWireframeProtocol,
+    ChatExtensionNavigating,
+    AlertPresentable,
+    ErrorPresentable,
+    ApplicationSettingsPresentable {
     func dismiss(_ completion: (() -> Void)?)
     func showDeposit(_ neededAmount: Balance, model: GameDepositRequiredModel)
     func showDepositConfirmation(_ amount: Balance, model: ConfirmDepositModel)

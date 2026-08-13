@@ -28,7 +28,7 @@ public struct HolographicWordmarkView: View {
             let center = CGPoint(x: geo.size.width / 2, y: geo.size.height * verticalCenterRatio)
 
             letterforms
-                .holographicShader(lagged: true, shader: shader)
+                .motionFillingShader(lagged: true, shader: shader)
                 .overlay { innerShadowLayer }
                 .frame(width: width, height: height)
                 .position(center)

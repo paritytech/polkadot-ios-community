@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 enum DepositLostViewFactory {
     static func createView() -> DepositLostViewProtocol? {
         let presenter = DepositLostPresenter(

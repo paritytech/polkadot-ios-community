@@ -9,19 +9,19 @@ public protocol HandoffFileLoading {
     ) -> AnyAsyncSequence<FileUploadingEvent>
 
     func downloadFile(
-        using metadataHash: FileHash,
+        using entryHash: FileHash,
         claimer: FileClaimer,
         store: DownloadFileContextProtocol
     ) -> AnyAsyncSequence<FileDownloadingEvent>
 }
 
 public final class HandoffFileLoader {
-    public let chunkSize: Int
+    public let config: HandoffFileLoadConfig
     public let service: HandoffServicing
 
-    public init(service: HandoffServicing, chunkSize: Int = 2_000_000) {
+    public init(service: HandoffServicing, config: HandoffFileLoadConfig = HandoffFileLoadConfig()) {
         self.service = service
-        self.chunkSize = chunkSize
+        self.config = config
     }
 }
 
@@ -36,31 +36,29 @@ extension HandoffFileLoader: HandoffFileLoading {
                 do {
                     let resumeInfo = try await store.fetchResumeInfo()
 
-                    let hashes = try await self.resumeUploading(
-                        resumeInfo: resumeInfo,
-                        store: store,
-                        sender: sender,
-                        recipients: recipients,
-                        continuation: continuation
-                    )
-
-                    let uploadedFile = UploadedFile(
-                        totalSize: UInt64(resumeInfo.fileSize),
-                        chunks: hashes
-                    )
-
-                    let metadata = try uploadedFile.scaleEncoded()
-                    let encryptedMetadata = try recipients.encryptor.encrypt(metadata)
-
-                    let submittedData = try await self.service.submitData(
-                        encryptedMetadata,
-                        from: sender,
-                        recipients: recipients.pubKeys
-                    )
+                    let finished: FileUploadingEvent.Finished =
+                        if resumeInfo.progress == nil,
+                        resumeInfo.fileSize <= self.config.inlineThreshold {
+                            try await self.uploadInline(
+                                resumeInfo: resumeInfo,
+                                store: store,
+                                sender: sender,
+                                recipients: recipients,
+                                continuation: continuation
+                            )
+                        } else {
+                            try await self.uploadChunked(
+                                resumeInfo: resumeInfo,
+                                store: store,
+                                sender: sender,
+                                recipients: recipients,
+                                continuation: continuation
+                            )
+                        }
 
                     try await store.finishUploading(true)
 
-                    continuation.yield(.onFinished(.init(metadataHash: submittedData.hash)))
+                    continuation.yield(.onFinished(finished))
                     continuation.finish()
                 } catch {
                     try? await store.finishUploading(false)
@@ -80,35 +78,43 @@ extension HandoffFileLoader: HandoffFileLoading {
     }
 
     public func downloadFile(
-        using metadataHash: FileHash,
+        using entryHash: FileHash,
         claimer: FileClaimer,
         store: DownloadFileContextProtocol
     ) -> AnyAsyncSequence<FileDownloadingEvent> {
         AsyncStream { continuation in
             let task = Task {
                 do {
-                    let resumeInfo = try await self.deriveDownloadMetadata(
-                        for: metadataHash,
+                    let entry = try await self.deriveDownloadEntry(
+                        for: entryHash,
                         claimer: claimer,
                         store: store
                     )
 
-                    guard let resumeInfo else {
-                        continuation.yield(.onError(FileDownloadingError.noMetadata(metadataHash)))
+                    guard let entry else {
+                        continuation.yield(.onError(FileDownloadingError.noEntry(entryHash)))
                         continuation.finish()
                         return
                     }
 
-                    try await self.resumeDownloading(
-                        resumeInfo: resumeInfo,
-                        claimer: claimer,
-                        store: store,
-                        continuation: continuation
-                    )
+                    switch entry {
+                    case let .inline(downloadedBytes):
+                        self.resumeInlineDownloading(
+                            downloadedBytes: downloadedBytes,
+                            continuation: continuation
+                        )
+                    case let .chunked(state):
+                        try await self.resumeChunkedDownloading(
+                            state: state,
+                            claimer: claimer,
+                            store: store,
+                            continuation: continuation
+                        )
+                    }
 
                     try await store.finishDownloading(true)
 
-                    continuation.yield(.onFinished(metadataHash))
+                    continuation.yield(.onFinished(entryHash))
                     continuation.finish()
                 } catch {
                     try? await store.finishDownloading(false)
@@ -131,8 +137,69 @@ extension HandoffFileLoader: HandoffFileLoading {
 // MARK: - Upload
 
 private extension HandoffFileLoader {
-    @discardableResult
-    func resumeUploading(
+    func uploadInline(
+        resumeInfo: ResumeUploadInfo,
+        store: UploadFileContextProtocol,
+        sender: SenderProofProviding,
+        recipients: FileRecipients,
+        continuation: AsyncStream<FileUploadingEvent>.Continuation
+    ) async throws -> FileUploadingEvent.Finished {
+        let fileSize = resumeInfo.fileSize
+        let fileData = try await store.fetchChunk(after: 0, size: fileSize)
+
+        let envelope = VersionedUploadedFile.v1(.inline(fileData))
+        let encodedEntry = try envelope.scaleEncoded()
+        let encryptedEntry = try recipients.encryptor.encrypt(encodedEntry)
+
+        let submittedData = try await service.submitData(
+            encryptedEntry,
+            from: sender,
+            recipients: recipients.pubKeys
+        )
+
+        continuation.yield(.onProgress(.init(
+            uploaded: fileSize,
+            total: fileSize,
+            uploadedHashes: []
+        )))
+
+        return .inline(file: submittedData.hash)
+    }
+
+    func uploadChunked(
+        resumeInfo: ResumeUploadInfo,
+        store: UploadFileContextProtocol,
+        sender: SenderProofProviding,
+        recipients: FileRecipients,
+        continuation: AsyncStream<FileUploadingEvent>.Continuation
+    ) async throws -> FileUploadingEvent.Finished {
+        let hashes = try await uploadChunks(
+            resumeInfo: resumeInfo,
+            store: store,
+            sender: sender,
+            recipients: recipients,
+            continuation: continuation
+        )
+
+        let chunkedFile = ChunkedFile(
+            totalSize: UInt64(resumeInfo.fileSize),
+            chunks: hashes
+        )
+
+        let envelope = VersionedUploadedFile.v1(.chunked(chunkedFile))
+        let metadata = try envelope.scaleEncoded()
+        let encryptedMetadata = try recipients.encryptor.encrypt(metadata)
+
+        let submittedData = try await service.submitData(
+            encryptedMetadata,
+            from: sender,
+            recipients: recipients.pubKeys
+        )
+
+        return .chunked(metadata: submittedData.hash)
+    }
+
+    func uploadChunks(
         resumeInfo: ResumeUploadInfo,
         store: UploadFileContextProtocol,
         sender: SenderProofProviding,
@@ -155,7 +222,7 @@ private extension HandoffFileLoader {
             try Task.checkCancellation()
 
             let remaining = fileSize - totalUploaded
-            let currentChunkSize = min(chunkSize, remaining)
+            let currentChunkSize = min(config.chunkSize, remaining)
             let chunk = try await store.fetchChunk(
                 after: totalUploaded,
                 size: currentChunkSize
@@ -190,74 +257,123 @@ private extension HandoffFileLoader {
 // MARK: - Download
 
 private extension HandoffFileLoader {
-    struct DecodedResumeDownloadInfo {
-        let metadata: DownloadFileMetadata
-        let lastChunkIndex: Int?
-        let downloadedBytes: Int
+    enum DownloadEntry {
+        struct ChunkedState {
+            let metadata: DownloadFileMetadata
+            let lastChunkIndex: Int?
+            let downloadedBytes: Int
+        }
+
+        case inline(downloadedBytes: Int)
+        case chunked(ChunkedState)
     }
 
-    func deriveDownloadMetadata(
-        for metadataHash: FileHash,
+    func deriveDownloadEntry(
+        for entryHash: FileHash,
         claimer: FileClaimer,
         store: DownloadFileContextProtocol
-    ) async throws -> DecodedResumeDownloadInfo? {
+    ) async throws -> DownloadEntry? {
         if let resumeInfo = try await store.fetchResumeInfo() {
-            let uploadedFile = try UploadedFile.scaleDecode(from: resumeInfo.metadata)
-            let metadata = DownloadFileMetadata(
-                totalSize: uploadedFile.totalSize,
-                chunkHashes: uploadedFile.chunks
-            )
-            return DecodedResumeDownloadInfo(
-                metadata: metadata,
-                lastChunkIndex: resumeInfo.lastChunkIndex,
-                downloadedBytes: resumeInfo.downloadedBytes
-            )
+            return try makeDownloadEntry(from: resumeInfo)
         }
 
         guard
-            let encryptedMetadata = try await service.claimData(
-                by: metadataHash,
+            let encryptedEntry = try await service.claimData(
+                by: entryHash,
                 recipient: claimer.proofProvider
             ) else {
             return nil
         }
 
-        let decryptedMetadata = try claimer.decryptor.decrypt(encryptedMetadata)
-        let uploadedFile = try UploadedFile.scaleDecode(from: decryptedMetadata)
+        let decryptedEntry = try claimer.decryptor.decrypt(encryptedEntry)
+        let envelope = try VersionedUploadedFile.scaleDecode(from: decryptedEntry)
 
-        try await store.saveMetadata(
-            decryptedMetadata,
-            totalChunks: uploadedFile.chunks.count
-        )
+        let entry = try await persistDownloadEntry(envelope, decryptedEntry: decryptedEntry, store: store)
 
         try await service.acknowledgeReceivedData(
-            by: metadataHash,
+            by: entryHash,
             recipient: claimer.proofProvider
         )
 
-        let metadata = DownloadFileMetadata(
-            totalSize: uploadedFile.totalSize,
-            chunkHashes: uploadedFile.chunks
-        )
-
-        return DecodedResumeDownloadInfo(
-            metadata: metadata,
-            lastChunkIndex: nil,
-            downloadedBytes: 0
-        )
+        return entry
     }
 
-    func resumeDownloading(
-        resumeInfo: DecodedResumeDownloadInfo,
+    // The ack MUST follow durable persistence: the ticket-derived key is the sole
+    // recipient, so acking removes the entry and the data can't be re-claimed.
+    func persistDownloadEntry(
+        _ envelope: VersionedUploadedFile,
+        decryptedEntry: Data,
+        store: DownloadFileContextProtocol
+    ) async throws -> DownloadEntry {
+        switch envelope {
+        case let .v1(.inline(fileData)):
+            try await store.saveEntry(.inline(fileData: fileData))
+
+            return .inline(downloadedBytes: fileData.count)
+        case let .v1(.chunked(chunkedFile)):
+            try await store.saveEntry(.chunked(
+                metadata: decryptedEntry,
+                totalChunks: chunkedFile.chunks.count
+            ))
+
+            let state = DownloadEntry.ChunkedState(
+                metadata: DownloadFileMetadata(
+                    totalSize: chunkedFile.totalSize,
+                    chunkHashes: chunkedFile.chunks
+                ),
+                lastChunkIndex: nil,
+                downloadedBytes: 0
+            )
+
+            return .chunked(state)
+        }
+    }
+
+    func makeDownloadEntry(from resumeInfo: ResumeDownloadInfo) throws -> DownloadEntry {
+        switch resumeInfo {
+        case let .inline(downloadedBytes):
+            return .inline(downloadedBytes: downloadedBytes)
+        case let .chunked(chunked):
+            let envelope = try VersionedUploadedFile.scaleDecode(from: chunked.metadata)
+
+            guard case let .v1(.chunked(chunkedFile)) = envelope else {
+                throw FileDownloadingError.invalidResumeMetadata
+            }
+
+            let state = DownloadEntry.ChunkedState(
+                metadata: DownloadFileMetadata(
+                    totalSize: chunkedFile.totalSize,
+                    chunkHashes: chunkedFile.chunks
+                ),
+                lastChunkIndex: chunked.lastChunkIndex,
+                downloadedBytes: chunked.downloadedBytes
+            )
+
+            return .chunked(state)
+        }
+    }
+
+    func resumeInlineDownloading(
+        downloadedBytes: Int,
+        continuation: AsyncStream<FileDownloadingEvent>.Continuation
+    ) {
+        continuation.yield(.onProgress(.init(
+            downloaded: downloadedBytes,
+            total: downloadedBytes
+        )))
+    }
+
+    func resumeChunkedDownloading(
+        state: DownloadEntry.ChunkedState,
         claimer: FileClaimer,
         store: DownloadFileContextProtocol,
         continuation: AsyncStream<FileDownloadingEvent>.Continuation
     ) async throws {
-        let totalSize = Int(resumeInfo.metadata.totalSize)
-        let totalChunks = resumeInfo.metadata.chunkHashes.count
-        let startIndex = resumeInfo.lastChunkIndex.map { $0 + 1 } ?? 0
+        let totalSize = Int(state.metadata.totalSize)
+        let totalChunks = state.metadata.chunkHashes.count
+        let startIndex = state.lastChunkIndex.map { $0 + 1 } ?? 0
 
-        var downloadedBytes = resumeInfo.downloadedBytes
+        var downloadedBytes = state.downloadedBytes
 
         if startIndex > 0 {
             continuation.yield(.onProgress(.init(
@@ -269,7 +385,7 @@ private extension HandoffFileLoader {
         for index in startIndex ..< totalChunks {
             try Task.checkCancellation()
 
-            let chunkHash = resumeInfo.metadata.chunkHashes[index]
+            let chunkHash = state.metadata.chunkHashes[index]
 
             guard
                 let encryptedChunk = try await service.claimData(

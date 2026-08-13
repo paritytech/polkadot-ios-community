@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import SubstrateSdk
+import Individuality
 
 final class RemoveDeviceInteractor {
     weak var presenter: RemoveDeviceInteractorOutputProtocol?
@@ -40,6 +41,8 @@ extension RemoveDeviceInteractor: RemoveDeviceInteractorInputProtocol {
                 )
                 logger.debug("Disconnected host for device \(identifier)")
 
+                await releaseAllowance(for: statementAccountId)
+
                 let operation = localDeviceRepository.saveOperation({ [] }, { [identifier] })
                 try await operation.asyncExecute()
 
@@ -53,6 +56,15 @@ extension RemoveDeviceInteractor: RemoveDeviceInteractorInputProtocol {
 }
 
 private extension RemoveDeviceInteractor {
+    func releaseAllowance(for accountId: AccountId) async {
+        do {
+            try await serviceCoordinator.allowanceManagerFacade.sssManager.release(accountId: accountId)
+            logger.debug("Released allowance for device \(accountId.toHex())")
+        } catch {
+            logger.error("Failed to release allowance: \(error)")
+        }
+    }
+
     @MainActor
     func reportSuccess() {
         presenter?.didRemoveDevice()

@@ -1,7 +1,8 @@
 import Foundation
+import MessageExchangeKit
 import Operation_iOS
 
-struct DeviceSyncIncomingUpdateApplier {
+final class DeviceSyncIncomingUpdateApplier {
     private let remoteContactResolver: RemoteContactResolving
     private let contactRepositoryFactory: ChatContactRepositoryMaking
     private let chatRepositoryFactory: ChatRepositoryMaking
@@ -9,7 +10,8 @@ struct DeviceSyncIncomingUpdateApplier {
     private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
     private let chatAcceptedApplier: DeviceSyncChatAcceptedApplier
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
-    private let logger: LoggerProtocol
+    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let peerLogger: LoggerProtocol
 
     init(
         remoteContactResolver: RemoteContactResolving,
@@ -17,49 +19,75 @@ struct DeviceSyncIncomingUpdateApplier {
         chatRepositoryFactory: ChatRepositoryMaking,
         messageRepositoryFactory: ChatMessageRepositoryMaking,
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
+        flow: any DeviceSyncPeerConnectionFlowing,
+        messageExchangeModeProvider: any MessageExchangeModeProviding,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
-        logger: LoggerProtocol
+        peerLogger: LoggerProtocol
     ) {
         self.remoteContactResolver = remoteContactResolver
         self.contactRepositoryFactory = contactRepositoryFactory
         self.chatRepositoryFactory = chatRepositoryFactory
         self.messageRepositoryFactory = messageRepositoryFactory
         self.removedChatRepositoryFactory = removedChatRepositoryFactory
+        self.flow = flow
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
             contactsStorageService: contactsStorageService,
-            messageExchangeModeProvider: ChatMessageExchangeModeProvider(),
-            logger: logger
+            messageExchangeModeProvider: messageExchangeModeProvider,
+            peerLogger: peerLogger
         )
         deviceChangesApplier = DeviceSyncDeviceChangesApplier(
             contactsStorageService: contactsStorageService,
-            logger: logger
+            peerLogger: peerLogger
         )
-        self.logger = logger
+        self.peerLogger = peerLogger
     }
 
-    func applyEntity(
-        _ entity: Chat.DeviceSyncEntity,
-        updateTimePoint: UInt64
-    ) async throws {
-        switch entity {
-        case let .devices(devices):
-            logger.debug("Applying \(devices.count) device(s) from sync (no-op, handled by SSO)")
-        case let .chatsAdded(chatIds):
-            logger.debug("Applying \(chatIds.count) chatsAdded from sync")
-            try await applyChatsAdded(chatIds, updateTimePoint: updateTimePoint)
-        case let .chatsRemoved(chatIds):
-            logger.debug("Applying \(chatIds.count) chatsRemoved from sync")
-            try await applyChatsRemoved(chatIds, remoteTimestamp: updateTimePoint)
-        case let .messages(messages):
-            logger.debug("Applying \(messages.count) message(s) from sync")
-            try await applyMessages(messages)
+    func apply(_ update: Chat.DeviceSyncUpdate) async throws {
+        for entity in update.entities {
+            await applyEntity(
+                entity,
+                updateId: update.id,
+                updateTimePoint: update.timePoint
+            )
         }
+
+        try Task.checkCancellation()
+        let ack = Chat.DeviceSyncUpdateAck(id: update.id)
+        try await flow.sendAck(ack)
+        peerLogger.debug("Sent SyncUpdateAck id=\(ack.id)")
     }
 }
 
 private extension DeviceSyncIncomingUpdateApplier {
+    func applyEntity(
+        _ entity: Chat.DeviceSyncEntity,
+        updateId: UInt32,
+        updateTimePoint: UInt64
+    ) async {
+        do {
+            switch entity {
+            case let .devices(devices):
+                peerLogger.debug("Applying \(devices.count) device(s) from sync (no-op, handled by SSO)")
+            case let .chatsAdded(chatIds):
+                peerLogger.debug("Applying \(chatIds.count) chatsAdded from sync")
+                try await applyChatsAdded(chatIds, updateTimePoint: updateTimePoint)
+            case let .chatsRemoved(chatIds):
+                peerLogger.debug("Applying \(chatIds.count) chatsRemoved from sync")
+                try await applyChatsRemoved(chatIds, remoteTimestamp: updateTimePoint)
+            case let .messages(messages):
+                peerLogger.debug("Applying \(messages.count) message(s) from sync")
+                try await applyMessages(messages)
+            }
+        } catch {
+            peerLogger.error(
+                "Skipping failed entity in sync update id=\(updateId) " +
+                    "entity=\([entity].syncLogSummary): \(error)"
+            )
+        }
+    }
+
     func applyChatsAdded(
         _ chatIds: [Chat.DeviceSyncChatId],
         updateTimePoint: UInt64
@@ -77,14 +105,14 @@ private extension DeviceSyncIncomingUpdateApplier {
                     .asyncExecute()
 
                 guard existing == nil else {
-                    logger.debug("Contact \(hex) already exists, skipping")
+                    peerLogger.debug("Contact \(hex) already exists, skipping")
                     continue
                 }
 
                 guard let remoteContact = try await remoteContactResolver.fetch(
                     by: accountId
                 ) else {
-                    logger.warning("No on-chain data for synced contact \(hex), skipping")
+                    peerLogger.warning("No on-chain data for synced contact \(hex), skipping")
                     continue
                 }
 
@@ -101,7 +129,7 @@ private extension DeviceSyncIncomingUpdateApplier {
                 let saveChatOp = chatRepository.saveOperation({ [chat] }, { [] })
                 try await saveChatOp.asyncExecute()
 
-                logger.debug("Resolved and saved synced contact \(hex) with chat")
+                peerLogger.debug("Resolved and saved synced contact \(hex) with chat")
             }
         }
     }
@@ -136,24 +164,24 @@ private extension DeviceSyncIncomingUpdateApplier {
         let tombstoneOperation = removedChatRepository.saveOperation({ tombstones }, { [] })
         try await tombstoneOperation.asyncExecute()
 
-        logger.debug("Removed \(identifiersToRemove.count) contact(s) from sync")
+        peerLogger.debug("Removed \(identifiersToRemove.count) contact(s) from sync")
     }
 
     func applyMessages(_ wireMessages: [Chat.DeviceSyncWireMessage]) async throws {
         try await chatAcceptedApplier.apply(wireMessages)
 
         let localMessages = wireMessages.compactMap { $0.toLocal() }
-        logger.debug("Applying \(localMessages.count) from \(wireMessages.count) message(s) from sync")
+        peerLogger.debug("Applying \(localMessages.count) from \(wireMessages.count) message(s) from sync")
 
         guard !localMessages.isEmpty else {
-            logger.debug("No local messages to apply after conversion")
+            peerLogger.debug("No local messages to apply after conversion")
             return
         }
 
         let messageRepository = messageRepositoryFactory.createRepository(forFilter: nil)
         let incomingMessageFilter = DeviceSyncIncomingMessageFilter(
             repository: messageRepository,
-            logger: logger
+            peerLogger: peerLogger
         )
         let messagesToSave = try await incomingMessageFilter.filterMessagesToApply(
             in: localMessages
@@ -163,6 +191,6 @@ private extension DeviceSyncIncomingUpdateApplier {
 
         try await deviceChangesApplier.apply(wireMessages)
 
-        logger.debug("Applied \(messagesToSave.count) of \(localMessages.count) message(s) from sync")
+        peerLogger.debug("Applied \(messagesToSave.count) of \(localMessages.count) message(s) from sync")
     }
 }

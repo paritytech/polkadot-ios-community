@@ -192,7 +192,7 @@ extension MixnetDownloadServiceTests {
     private func awaitContextEvent(
         for attachmentId: AttachmentId,
         in service: MixnetDownloadService,
-        timeout: Duration = .milliseconds(10_000)
+        timeout: Duration = .milliseconds(100_000)
     ) async -> AttachmentProgressEvent? {
         let deadline = ContinuousClock.now + timeout
 

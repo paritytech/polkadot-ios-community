@@ -33,21 +33,39 @@ extension ProductsNativeApi {
         return GetUserIdResult(primaryUsername: username.value)
     }
 
-    func accountGetAlias(_ accountId: ProductAccountId) async throws -> AccountGetAliasResult {
-        let aliasResult = try accountManager.deriveAlias(accountId)
-        return AccountGetAliasResult(
-            context: aliasResult.context.toHex(includePrefix: true),
-            alias: aliasResult.alias.toHex(includePrefix: true)
+    func accountGetAlias(
+        context: ProductProofContext,
+        ring: RingLocation
+    ) async throws -> AccountGetAliasResult {
+        let alias = try await aliasHandler.getContextualAlias(context: context, ring: ring)
+
+        return AccountGetAliasResult(context: alias.context, alias: alias.alias)
+    }
+
+    func accountCreateProof(
+        context: ProductProofContext,
+        ring: RingLocation,
+        message: Data
+    ) async throws -> RingVrfProofResult {
+        let proof = try await createProofHandler.createProof(
+            context: context,
+            ring: ring,
+            message: message
+        )
+
+        return RingVrfProofResult(
+            proof: proof.proof,
+            contextualAlias: AccountGetAliasResult(
+                context: proof.contextualAlias.context,
+                alias: proof.contextualAlias.alias
+            ),
+            ringIndex: proof.ringIndex,
+            ringRevision: proof.ringRevision
         )
     }
 
     func getNonProductAccounts() async throws -> [LegacyAccountResult] {
-        try nonProductAccountRegistry.getPublicKeys().map { publicKey in
-            LegacyAccountResult(
-                publicKey: publicKey.toHex(includePrefix: true),
-                name: usernameStorage.username?.value
-            )
-        }
+        []
     }
 
     func chainNodes(genesisHash: String) async throws -> [String] {

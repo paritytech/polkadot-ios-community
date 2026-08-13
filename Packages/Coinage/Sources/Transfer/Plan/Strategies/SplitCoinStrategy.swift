@@ -50,6 +50,14 @@ struct SplitCoinStrategy {
 
 extension SplitCoinStrategy: TransferStrategy {
     func run(context: TransferContext) async throws {
+        try await submitSplit(context: context)
+    }
+}
+
+// MARK: - Private
+
+private extension SplitCoinStrategy {
+    func submitSplit(context: TransferContext) async throws {
         let allNewCoins = recipientCoins + changeCoins
         let splitDestinations = try buildSplitDestinations(from: allNewCoins)
 
@@ -68,6 +76,7 @@ extension SplitCoinStrategy: TransferStrategy {
             expectedCoinIndices: changeCoins.map(\.derivationIndex),
             mortality: mortality
         )
+
         try await walStore.save(walEntry)
 
         logger?.debug("Submitting split extrinsic for \(allNewCoins.count) coins")
@@ -88,11 +97,7 @@ extension SplitCoinStrategy: TransferStrategy {
             throw TransferStrategyError.submissionFailed(error.error)
         }
     }
-}
 
-// MARK: - Private
-
-private extension SplitCoinStrategy {
     func buildSplitDestinations(from coins: [Coin]) throws -> [CoinagePallet.Calls.Split.SplitDestination] {
         // Group coins by exponent, deriving account ID (public key) for each coin
         var grouped: [Int16: [Data]] = [:]
