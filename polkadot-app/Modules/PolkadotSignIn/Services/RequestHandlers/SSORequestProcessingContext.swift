@@ -1,25 +1,25 @@
 import Foundation
 
-actor SSORequestProcessingContext {
+actor SSORequestProcessingContext<Message: HostMessageIdentifiable> {
     struct PendingRequest {
-        let message: PolkadotHostRemoteMessage
+        let message: Message
         let host: PolkadotSignInHost
     }
 
     private var pendingRequests: [PendingRequest] = []
     private var activeTask: Task<Void, Never>?
-    private let handlers: [SSORequestHandling]
+    private let handlers: [any SSORequestHandling<Message>]
     private let logger: LoggerProtocol
 
     init(
-        handlers: [SSORequestHandling],
+        handlers: [any SSORequestHandling<Message>],
         logger: LoggerProtocol = Logger.shared
     ) {
         self.handlers = handlers
         self.logger = logger
     }
 
-    func enqueue(message: PolkadotHostRemoteMessage, from host: PolkadotSignInHost) {
+    func enqueue(message: Message, from host: PolkadotSignInHost) {
         let pending = PendingRequest(message: message, host: host)
 
         if activeTask == nil {
@@ -47,12 +47,7 @@ private extension SSORequestProcessingContext {
     }
 
     func process(_ request: PendingRequest) async {
-        guard let content = request.message.latestContent() else {
-            logger.error("Failed to get content for message \(request.message.messageId)")
-            return
-        }
-
-        for handler in handlers where handler.canHandle(content) {
+        for handler in handlers where handler.canHandle(request.message) {
             logger.info("Processing \(request.message.messageId) with \(type(of: handler))")
             await handler.handle(
                 message: request.message,

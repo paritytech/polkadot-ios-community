@@ -125,7 +125,7 @@ private extension MainTabBarViewController {
                 tabController: controller,
                 contentController: controller,
                 isTabRoot: true,
-                stackFolds: false,
+                foldDerived: .none,
                 screen: controller
             )
         }
@@ -141,7 +141,7 @@ private extension MainTabBarViewController {
             tabController: tabController,
             contentController: target,
             isTabRoot: TabBarHiddenPolicy.isTabRoot(in: stack, showing: target),
-            stackFolds: TabBarHiddenPolicy.isBarHidden(in: stack, showing: target),
+            foldDerived: TabBarHiddenPolicy.deriveFoldState(in: stack, showing: target),
             screen: target
         )
     }
@@ -207,8 +207,9 @@ private extension MainTabBarViewController {
 
         chromeController.applyLayout(incoming, animatingAlongside: coordinator)
 
+        let targetState = chromeController.resolvedState(for: incoming)
         coordinator.animate(alongsideTransition: { [weak self] _ in
-            self?.chromeController.setFoldProgress(1, targetFolded: incoming.stackFolds)
+            self?.chromeController.setInteractiveTarget(targetState)
         })
 
         coordinator.notifyWhenInteractionChanges { [weak self] context in

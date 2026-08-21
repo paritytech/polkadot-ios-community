@@ -1,7 +1,9 @@
 import Foundation
 
 public protocol ChatProductFileProviding: ProductFileProviding {
-    func productEntryRelativePath(productId: ProductId) -> String
+    /// Entry module of a script installed by hand through debug settings, or nil when there is
+    /// none. Published workers declare their entrypoint in the manifest instead.
+    func manualScriptEntryPath(productId: ProductId) -> String?
 }
 
 public final class CompositeProductFileProvider: ChatProductFileProviding {
@@ -29,17 +31,10 @@ public final class CompositeProductFileProvider: ChatProductFileProviding {
         return data
     }
 
-    public func productEntryRelativePath(productId: ProductId) -> String {
-        guard let contentHash = resolveContentHash(productId: productId),
-              dotNsContentStorage.hasFileEntry(
-                  contentHash: contentHash,
-                  relativePath: dotNsContentStorage.chatEntrypointRelativePath()
-              )
-        else {
-            return chatScriptStorage.chatEntrypointRelativePath()
-        }
+    public func manualScriptEntryPath(productId: ProductId) -> String? {
+        guard chatScriptStorage.scriptExists(productId: productId) else { return nil }
 
-        return dotNsContentStorage.chatEntrypointRelativePath()
+        return chatScriptStorage.chatEntrypointRelativePath()
     }
 
     // MARK: - Private

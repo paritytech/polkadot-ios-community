@@ -19,6 +19,7 @@ protocol OutboxMessageTracking {
     var hasMessagesToSend: Bool { get }
     func prepareMessagesToSend() -> [OutboxMessages]
     func markInFlight(messageIds: Set<Chat.MessageId>)
+    func insertAsInFlight(messages: [Chat.LocalMessage])
     func markFailed(messageIds: Set<Chat.MessageId>)
 
     @discardableResult
@@ -160,6 +161,12 @@ extension OutboxMessageTracker: OutboxMessageTracking {
         messageIds.forEach { messageId in
             inFlightMessages[messageId] = messagesToSend[messageId]
             messagesToSend[messageId] = nil
+        }
+    }
+
+    func insertAsInFlight(messages: [Chat.LocalMessage]) {
+        messages.forEach { message in
+            inFlightMessages[message.messageId] = message
         }
     }
 

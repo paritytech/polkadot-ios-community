@@ -2,8 +2,8 @@ import Foundation
 
 // Claimer that can sign proof and decrypt downloaded file
 public struct FileClaimer {
-    let proofProvider: RecipientProofProviding
-    let decryptor: FileEncrypting
+    public let proofProvider: RecipientProofProviding
+    public let decryptor: FileEncrypting
 
     public init(proofProvider: RecipientProofProviding, decryptor: FileEncrypting) {
         self.proofProvider = proofProvider

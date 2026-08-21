@@ -250,7 +250,11 @@ struct StallBoardTests {
         let report = StalenessReport(currentDate: date, maxSteps: 10)
         let board = await MainActor.run { StallBoard(sources: [report], revealAfter: 5, currentDate: date) }
 
-        await report.trackActivity("root") {
+        try await report.trackActivity("root") {
+            // The board ingests through a subscription task, so the root has to have landed before
+            // any refresh can reveal it.
+            try await awaitBoard(board) { $0.ingestedActivities.count == 1 }
+
             await markStallRegion("phase1") {
                 fakeTime.value = 4.0
             }

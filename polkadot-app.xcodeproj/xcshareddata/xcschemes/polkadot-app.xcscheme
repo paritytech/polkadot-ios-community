@@ -10,9 +10,8 @@
          <ExecutionAction
             ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent
-               title = "Inject Keys"
-               scriptText = "&quot;${PROJECT_DIR}/Scripts/inject-keys.sh&quot;&#10;"
-               shellToInvoke = "/bin/sh">
+               title = "Generate Secrets"
+               scriptText = "if [ &quot;$RUN_IN_CI&quot; = &quot;true&quot; ]; then echo &quot;Skipping secrets generation in CI&quot;; exit 0; fi&#10;&quot;${SRCROOT}/Runscripts/generate_secrets.sh&quot;&#10;">
                <EnvironmentBuildable>
                   <BuildableReference
                      BuildableIdentifier = "primary"

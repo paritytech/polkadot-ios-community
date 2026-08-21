@@ -5,12 +5,12 @@ import Products
 /// shared ``APSignVrfHandling`` — nothing here is SSO-specific beyond the wire mapping.
 final class SSOSignVrfRequestHandler: SSORequestHandling {
     private let handlerFactory: APPersonhoodHandlerMaking
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let logger: LoggerProtocol
 
     init(
         handlerFactory: APPersonhoodHandlerMaking,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.handlerFactory = handlerFactory
@@ -18,9 +18,9 @@ final class SSOSignVrfRequestHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .signVrfRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .signVrfRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

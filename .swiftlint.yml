@@ -9,10 +9,10 @@ excluded:
   - ".gitmodules"
   - ".build/"
   - ".swiftpm/"
-  - "source_packages/"
   - "**/Packages/"
   - "**/.swiftpm/"
   - "*.xcodeproj"
+  - "source_packages/"
 custom_rules:
   raw_accessibility_identifier:
     name: "Raw accessibilityIdentifier"

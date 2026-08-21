@@ -39,9 +39,13 @@ final class GameInvitationRegistrationService {
 extension GameInvitationRegistrationService: GameInvitationRegistering {
     func register(airdrop: GamePallet.AirdropVrfs?) async throws {
         let invitation = try await ensureInvitation()
-        try await waitPendingOnChain(invitation: invitation)
-        try await submitRegistration(invitation: invitation, airdrop: airdrop)
-        await removeInvitation()
+        try await markStallRegion("Check invitation") {
+            try await waitPendingOnChain(invitation: invitation)
+        }
+        try await markStallRegion("Submit registration") {
+            try await submitRegistration(invitation: invitation, airdrop: airdrop)
+            await removeInvitation()
+        }
     }
 }
 

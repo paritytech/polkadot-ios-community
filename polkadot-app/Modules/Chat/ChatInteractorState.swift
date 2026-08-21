@@ -33,9 +33,10 @@ actor ChatInteractorState {
         // Find all target message IDs that are either unread themselves or have unread metadata (reactions/edits)
         let unreadTargetIds = Set(unreadMessages.map { resolveTargetMessageId(from: $0) })
 
-        // firstUnreadMessageId should be the ID of the chronologically earliest message
+        // firstUnreadMessageId should be the ID of the chronologically earliest visible message
         // that has any unread state (itself or its metadata).
-        let firstUnreadMessageId = messages.first(where: { unreadTargetIds.contains($0.messageId) })?.messageId
+        let firstUnreadMessage = messages.first { !$0.isSystem && unreadTargetIds.contains($0.messageId) }
+        let firstUnreadMessageId = firstUnreadMessage?.messageId
 
         // Set reaction target when a new unread reaction appears, keep until target is marked as read
         if let newTarget = findOldestNewReactionTargetMessageId(from: unreadMessages) {

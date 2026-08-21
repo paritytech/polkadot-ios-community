@@ -11,7 +11,9 @@ extension Chat.LocalMessage {
             status: .outgoing(.new),
             timestamp: Date().toChatTimestamp(),
             content: content,
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
     }
 

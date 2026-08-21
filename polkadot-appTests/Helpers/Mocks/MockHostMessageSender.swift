@@ -6,9 +6,11 @@ import MessageExchangeKit
 // MARK: - Mock Host Message Sender
 
 final class MockHostMessageSender: PolkadotHostMessageSending, @unchecked Sendable {
+    typealias Message = PolkadotHostRemoteMessage
+
     private(set) var postedMessages: [PolkadotHostRemoteMessage] = []
 
-    func setExchangeService(_: AnyMessageExchangeService<OpaquePolkadotHostRemoteMessage>) async {}
+    func setExchangeService(_: AnyMessageExchangeService<OpaqueMessageWrapper<PolkadotHostRemoteMessage>>) async {}
 
     func postMessage(_ message: PolkadotHostRemoteMessage, to _: PolkadotSignInHost) async throws {
         postedMessages.append(message)

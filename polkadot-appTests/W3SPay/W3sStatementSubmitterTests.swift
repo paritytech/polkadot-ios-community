@@ -110,6 +110,10 @@ private struct BlockInfoProviderStub: BlockInfoProviding {
     func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header> {
         fatalError("Not needed for this test")
     }
+
+    func subscribeNewHeads() -> AnyAsyncSequence<Block.Header> {
+        fatalError("Not needed for this test")
+    }
 }
 
 /// Never reached: buildEnvelope fails before statement submission.

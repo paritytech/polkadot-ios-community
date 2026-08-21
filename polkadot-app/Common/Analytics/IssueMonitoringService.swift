@@ -1,23 +1,15 @@
-import Foundation
-
 #if TESTNET_FEATURE
+    import Foundation
     import Sentry
-#endif
 
-protocol IssueMonitoringServicing {
-    func setup()
-}
+    protocol IssueMonitoringServicing {
+        func setup()
+    }
 
-final class IssueMonitoringService: IssueMonitoringServicing {
-    func setup() {
-        #if TESTNET_FEATURE
-            // DSN is injected at build time (env-vars.sh → SENTRY_DSN). When it is
-            // not configured, issue monitoring is simply disabled.
-            let dsn = CIKeys.sentryDSN
-            guard !dsn.isEmpty else { return }
-
+    final class IssueMonitoringService: IssueMonitoringServicing {
+        func setup() {
             SentrySDK.start { options in
-                options.dsn = dsn
+                options.dsn = GeneratedSecrets.sentryDSN
 
                 // Adds IP for users.
                 // For more information, visit: https://docs.sentry.io/platforms/apple/data-management/data-collected/
@@ -27,6 +19,6 @@ final class IssueMonitoringService: IssueMonitoringServicing {
                 // We recommend adjusting this value in production.
                 options.tracesSampleRate = 0
             }
-        #endif
+        }
     }
-}
+#endif

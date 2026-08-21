@@ -15,4 +15,8 @@ final class MockBlockInfoProvider: BlockInfoProviding {
     func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header> {
         AsyncStream<Block.Header> { $0.finish() }.eraseToAnyAsyncSequence()
     }
+
+    func subscribeNewHeads() -> AnyAsyncSequence<SubstrateSdk.Block.Header> {
+        AsyncStream<Block.Header> { $0.finish() }.eraseToAnyAsyncSequence()
+    }
 }

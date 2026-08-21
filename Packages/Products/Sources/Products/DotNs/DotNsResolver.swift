@@ -20,9 +20,6 @@ public protocol DotNsResolverProtocol {
     /// Observe load progress for a `.dot` domain. Emits `.idle` when nothing is in flight.
     func progressStream(dotNsName: String) -> AnyAsyncSequence<DotNsLoadProgress>
 
-    /// Check if the resolved content for a .dot domain contains a chat worker entry.
-    func hasChatEntry(_ dotnsName: String) -> Bool
-
     /// Clear all cached content and hash mappings.
     func clearCache() throws
 }
@@ -87,16 +84,6 @@ public final class DotNsResolver: DotNsResolverProtocol {
         progressRegistry.observe(domain: dotNsName)
     }
 
-    public func hasChatEntry(_ dotnsName: String) -> Bool {
-        guard let contentHash = contentHashCache.getContentHash(name: dotnsName) else {
-            return false
-        }
-        return contentStorage.hasFileEntry(
-            contentHash: contentHash,
-            relativePath: contentStorage.chatEntrypointRelativePath()
-        )
-    }
-
     public func getMetadataEntry(dotNsName: String, key: String) async throws -> String? {
         try await contractApi.getMetadata(dotNsName: dotNsName, key: key)
     }
@@ -105,6 +92,7 @@ public final class DotNsResolver: DotNsResolverProtocol {
         try contentStorage.deleteAll()
         contentHashCache.clearAll()
         progressRegistry.clear()
+        contractApi.clearCache()
     }
 }
 

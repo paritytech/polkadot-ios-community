@@ -24,6 +24,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
     private let preferredRouteSelector: PeerSessionRouteSelector<M>
     private let subscriptionFactory: StatementSubscriptionFactoryProtocol
     private let maxStatementSize: Int
+    private let compactorFactory: AnyMessageCompactorFactory<M>?
     private let operationQueue: OperationQueue
     private let logger: SDKLoggerProtocol?
 
@@ -41,6 +42,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
         preferredRouteSelector: PeerSessionRouteSelector<M>,
         subscriptionFactory: StatementSubscriptionFactoryProtocol,
         maxStatementSize: Int,
+        compactorFactory: AnyMessageCompactorFactory<M>? = nil,
         operationQueue: OperationQueue,
         logger: SDKLoggerProtocol?
     ) {
@@ -57,6 +59,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
         self.preferredRouteSelector = preferredRouteSelector
         self.subscriptionFactory = subscriptionFactory
         self.maxStatementSize = maxStatementSize
+        self.compactorFactory = compactorFactory
         self.operationQueue = operationQueue
         self.logger = logger
     }
@@ -124,6 +127,8 @@ extension PeerSessionFactory: PeerSessionMaking {
                 primarySessionId: primarySessionId
             )
 
+            let sizeValidator = OutgoingRequestSizeValidator(maxStatementSize: maxStatementSize)
+
             let outgoingChannel = try makeOutgoingChannel(
                 routeContexts: routeContexts,
                 signer: signer,
@@ -131,11 +136,36 @@ extension PeerSessionFactory: PeerSessionMaking {
                 requestQueue: AnyOutgoingRequestQueue(OutgoingRequestQueue(
                     statementDataCoder: statementDataCoder,
                     routeSelector: routeConfiguration.effectiveRouteSelector,
-                    sizeValidator: OutgoingRequestSizeValidator(maxStatementSize: maxStatementSize),
+                    sizeValidator: sizeValidator,
                     supportedRoutes: routeConfiguration.supportedRoutes,
                     logger: logger
                 ))
             )
+
+            let messageCompacter = compactorFactory?.createCompactor(for: request.own.signKeyId)
+
+            let outgoingInterface: AnyOutgoingMessageChannel<M>
+            var compactionProxy: OutgoingChannelCompactionProxy<M>?
+
+            if let messageCompacter {
+                let proxy = OutgoingChannelCompactionProxy(
+                    channel: AnyOutgoingMessageChannel(outgoingChannel),
+                    compacter: messageCompacter,
+                    routeSelector: routeConfiguration.effectiveRouteSelector,
+                    sizeValidator: sizeValidator,
+                    statementDataCoder: statementDataCoder,
+                    workQueue: workQueue,
+                    logger: logger
+                )
+
+                let outgoingChannelDelegate = AnyOutgoingMessageChannelDelegate(proxy)
+
+                outgoingChannel.delegate = outgoingChannelDelegate
+                compactionProxy = proxy
+                outgoingInterface = AnyOutgoingMessageChannel(proxy)
+            } else {
+                outgoingInterface = AnyOutgoingMessageChannel(outgoingChannel)
+            }
 
             let incomingChannel = try makeIncomingChannel(
                 routeContexts: routeContexts,
@@ -174,7 +204,7 @@ extension PeerSessionFactory: PeerSessionMaking {
                 workQueue: workQueue,
                 peer: request.peer,
                 sessionId: primarySessionId,
-                outgoingChannel: AnyOutgoingMessageChannel(outgoingChannel),
+                outgoingChannel: outgoingInterface,
                 incomingChannel: AnyIncomingMessageChannel(incomingChannel),
                 peerSubscription: peerSubscription,
                 initializer: sessionInitializer,
@@ -188,9 +218,14 @@ extension PeerSessionFactory: PeerSessionMaking {
             let incomingChannelDelegate = AnyIncomingMessageChannelDelegate(session)
             let outgoingChannelDelegate = AnyOutgoingMessageChannelDelegate(session)
 
+            if let compactionProxy {
+                compactionProxy.delegate = outgoingChannelDelegate
+            } else {
+                outgoingChannel.delegate = outgoingChannelDelegate
+            }
+
             session.delegate = delegate
             incomingChannel.delegate = incomingChannelDelegate
-            outgoingChannel.delegate = outgoingChannelDelegate
             sessionInitializer.delegate = initializerDelegate
 
             return AnyPeerSession(session)

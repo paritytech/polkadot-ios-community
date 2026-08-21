@@ -57,7 +57,7 @@ extension HandoffService: HandoffServicing {
         let result: SubmitResult = try await connection.asyncCallMethod(
             RPCMethod.submit,
             params: submission,
-            options: JSONRPCOptions()
+            options: JSONRPCOptions(resendOnReconnect: false)
         )
 
         return SubmittedData(hash: dataHash, poolStatus: result.poolStatus)

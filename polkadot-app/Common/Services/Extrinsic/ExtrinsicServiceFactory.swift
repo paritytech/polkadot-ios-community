@@ -5,7 +5,15 @@ import SubstrateSdk
 import SubstrateSdkExt
 import SubstrateMetadataHash
 import ExtrinsicService
+import ExtrinsicServiceExt
 import ChainRegistry
+
+protocol ExtrinsicServiceCreating: ExtrinsicServiceFactoryProtocol {
+    func createExtrinsicService(
+        chain: ChainProtocol,
+        submitter: ExtrinsicSubmitting?
+    ) throws -> ExtrinsicServiceProtocol
+}
 
 final class ExtrinsicServiceFactory {
     private let chainRegistry: ChainRegistryProtocol
@@ -44,8 +52,15 @@ final class ExtrinsicServiceFactory {
     }
 }
 
-extension ExtrinsicServiceFactory: ExtrinsicServiceFactoryProtocol {
+extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
     func createExtrinsicService(chain: ChainProtocol) throws -> ExtrinsicServiceProtocol {
+        try createExtrinsicService(chain: chain, submitter: nil)
+    }
+
+    func createExtrinsicService(
+        chain: ChainProtocol,
+        submitter: ExtrinsicSubmitting?
+    ) throws -> ExtrinsicServiceProtocol {
         let connection = try chainRegistry.getConnectionOrError(for: chain.chainId)
         let runtimeProvider = try chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
         let chainModel = try chainRegistry.getChainOrError(for: chain.chainId)
@@ -63,7 +78,7 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceFactoryProtocol {
             customFeeEstimatorFactory: customFeeEstimator
         )
 
-        return ExtrinsicService(
+        return try ExtrinsicService(
             chain: chain,
             extrinsicVersion: extrinsicVersion,
             runtimeRegistry: runtimeProvider,
@@ -77,7 +92,8 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceFactoryProtocol {
             extensions: transactionExtensionFactory.createExtensions(),
             engine: connection,
             operationQueue: operationQueue,
-            timeout: JSONRPCTimeout.hour
+            timeout: JSONRPCTimeout.hour,
+            submitter: submitter ?? makeForkProtectedSubmitter(chain: chain)
         )
     }
 
@@ -114,6 +130,25 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceFactoryProtocol {
             eraOperationFactory: MortalEraOperationFactory(chain: chainModel),
             operationQueue: operationQueue,
             timeout: JSONRPCTimeout.singleNode
+        )
+    }
+}
+
+private extension ExtrinsicServiceFactory {
+    func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {
+        let base = try DefaultExtrinsicSubmitter(
+            operationFactory: createOperationFactory(chain: chain),
+            operationQueue: operationQueue,
+            timeout: JSONRPCTimeout.hour
+        )
+
+        return ValidatingExtrinsicSubmitterFactory.makeResubmittingSubmitter(
+            base: base,
+            chainId: chain.chainId,
+            chainRegistry: chainRegistry,
+            operationQueue: operationQueue,
+            maxAttempts: 10,
+            logger: logger
         )
     }
 }

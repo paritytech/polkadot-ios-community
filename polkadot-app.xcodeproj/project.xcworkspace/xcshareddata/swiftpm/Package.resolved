@@ -1,5 +1,5 @@
 {
-  "originHash" : "a531ea3c0e5b44da7e8101b2225ff884ea16f3e62c1b8cd2261517308fcc9816",
+  "originHash" : "529069e10deff65ff86db306c033d9b72de885a1c0bb95561493d685e34d7167",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -164,6 +164,15 @@
       }
     },
     {
+      "identity" : "host-rust-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/paritytech/host-rust-core",
+      "state" : {
+        "revision" : "3f9ba7368f52fc3c9e8930803cb71ca46a9b1ae7",
+        "version" : "0.7.1"
+      }
+    },
+    {
       "identity" : "hydra-math-swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/hydra-math-swift",
@@ -269,15 +278,6 @@
       "state" : {
         "revision" : "6e5b2da49d753a1b5f137a4c836608f94967eeb0",
         "version" : "0.0.21"
-      }
-    },
-    {
-      "identity" : "posthog-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/PostHog/posthog-ios.git",
-      "state" : {
-        "revision" : "e8bbc824e1fb32cbe0563d73fab2373668fb94ec",
-        "version" : "3.59.1"
       }
     },
     {
@@ -548,15 +548,6 @@
       "state" : {
         "revision" : "8cba041db09596183331d123f337d0eb2e6e8e91",
         "version" : "2.1.1"
-      }
-    },
-    {
-      "identity" : "truapi",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/paritytech/truapi",
-      "state" : {
-        "revision" : "b1a7afe05fc0f8e765339895b2fca5aa5cda173e",
-        "version" : "0.5.0"
       }
     },
     {

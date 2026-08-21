@@ -1,12 +1,12 @@
 import UIKit
 
 final class SSOCreateTransactionHandler: SSORequestHandling {
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let signingHandler: TransactionSigningHandling
     private let logger: LoggerProtocol
 
     init(
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         signingHandler: TransactionSigningHandling,
         logger: LoggerProtocol = Logger.shared
     ) {
@@ -15,9 +15,9 @@ final class SSOCreateTransactionHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .createTransactionRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .createTransactionRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

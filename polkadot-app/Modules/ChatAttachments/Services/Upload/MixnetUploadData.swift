@@ -3,6 +3,7 @@ import Foundation
 struct MixnetUploadData {
     let fileMeta: ChatRemoteMessageContent.FileMeta
     let attachmentId: AttachmentId
+    let chatId: Chat.Id
 }
 
 enum MixnetUploadList {
@@ -19,7 +20,8 @@ enum MixnetUploadList {
                     attachmentId: AttachmentId(
                         messageId: message.messageId,
                         fileId: localFile.relativeLocalPath
-                    )
+                    ),
+                    chatId: message.chatId
                 )
             default:
                 nil

@@ -21,6 +21,12 @@ protocol OutgoingMessageChannelDelegate: MessageChannelDelegate {
         didDeliverMessages messages: [Message],
         withError error: MessageExchange.OutgoingMessageError?
     )
+
+    func messageChannel(
+        _ channel: any OutgoingMessageChanneling,
+        didCompactMessages compactedMessage: Message,
+        originalMessages: [Message]
+    )
 }
 
 // MARK: - Type Erasure Implementation
@@ -44,6 +50,12 @@ final class AnyOutgoingMessageChannelDelegate<M: MessageExchange.CodableMessage>
         any OutgoingMessageChanneling,
         [Message],
         MessageExchange.OutgoingMessageError?
+    ) -> Void
+
+    private let didCompactMessagesClosure: (
+        any OutgoingMessageChanneling,
+        Message,
+        [Message]
     ) -> Void
 
     private let statementSubmitFailedClosure: (Error) -> Void
@@ -72,6 +84,14 @@ final class AnyOutgoingMessageChannelDelegate<M: MessageExchange.CodableMessage>
                 channel,
                 didDeliverMessages: messages,
                 withError: error
+            )
+        }
+
+        didCompactMessagesClosure = { [weak targetDelegate] channel, compactedMessage, originalMessages in
+            targetDelegate?.messageChannel(
+                channel,
+                didCompactMessages: compactedMessage,
+                originalMessages: originalMessages
             )
         }
 
@@ -104,6 +124,14 @@ final class AnyOutgoingMessageChannelDelegate<M: MessageExchange.CodableMessage>
         withError error: MessageExchange.OutgoingMessageError?
     ) {
         didDeliverMessagesClosure(channel, messages, error)
+    }
+
+    func messageChannel(
+        _ channel: any OutgoingMessageChanneling,
+        didCompactMessages compactedMessage: Message,
+        originalMessages: [Message]
+    ) {
+        didCompactMessagesClosure(channel, compactedMessage, originalMessages)
     }
 
     func statementSubmitFailed(with error: Error) {

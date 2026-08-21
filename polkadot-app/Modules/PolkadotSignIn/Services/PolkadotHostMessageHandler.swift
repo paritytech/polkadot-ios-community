@@ -2,20 +2,21 @@ import Foundation
 import MessageExchangeKit
 import Operation_iOS
 
-protocol PolkadotHostMessageHandling {
+protocol PolkadotHostMessageHandling<Message> {
+    associatedtype Message
     func handleMessages(
-        _ messages: [PolkadotHostRemoteMessage],
+        _ messages: [Message],
         from host: PolkadotSignInHost
     ) async
 }
 
 final class PolkadotHostMessageHandler {
-    private let processingContext: SSORequestProcessingContext
+    private let processingContext: SSORequestProcessingContext<PolkadotHostRemoteMessage>
     private let handledRequestRepository: AnyDataProviderRepository<SSOHandledRequest>
     private let logger: LoggerProtocol
 
     init(
-        processingContext: SSORequestProcessingContext,
+        processingContext: SSORequestProcessingContext<PolkadotHostRemoteMessage>,
         handledRequestRepositoryFactory: SSOHandledRequestRepositoryMaking = SSOHandledRequestRepositoryFactory(),
         logger: LoggerProtocol = Logger.shared
     ) {

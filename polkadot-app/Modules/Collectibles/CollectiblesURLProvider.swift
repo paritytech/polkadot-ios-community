@@ -8,21 +8,21 @@ protocol CollectiblesURLProviding: Sendable {
 }
 
 final class CollectiblesURLProvider: CollectiblesURLProviding, @unchecked Sendable {
-    private let dotNsResolver: DotNsResolverProtocol?
-    private let dotNsName: String
+    private let spaFlowState: SPAFlowState
+    private let dotNsLabel: String
     private let remoteConfig: RemoteConfigManaging
     private let firebaseFallback: () -> CompoundOperationWrapper<URL>
     private let logger: LoggerProtocol
 
     init(
-        dotNsResolver: DotNsResolverProtocol?,
-        dotNsName: String,
+        spaFlowState: SPAFlowState,
+        dotNsLabel: String,
         remoteConfig: RemoteConfigManaging,
         firebaseFallback: @escaping () -> CompoundOperationWrapper<URL>,
         logger: LoggerProtocol = Logger.shared
     ) {
-        self.dotNsResolver = dotNsResolver
-        self.dotNsName = dotNsName
+        self.spaFlowState = spaFlowState
+        self.dotNsLabel = dotNsLabel
         self.remoteConfig = remoteConfig
         self.firebaseFallback = firebaseFallback
         self.logger = logger
@@ -51,13 +51,15 @@ final class CollectiblesURLProvider: CollectiblesURLProviding, @unchecked Sendab
 
 private extension CollectiblesURLProvider {
     func resolveDotNs() async -> URL? {
-        guard let dotNsResolver else {
-            logger.debug("[Collectibles] urlProvider: no DotNs resolver")
+        guard let host = try? await spaFlowState.hostProvider.resolveHost(label: dotNsLabel) else {
+            logger.debug("[Collectibles] urlProvider: could not resolve label")
             return nil
         }
 
+        let dotNsName = host.toDotDomain()
+
         do {
-            let contentDirectory = try await dotNsResolver.resolveToLocalURL(dotNsName: dotNsName)
+            let contentDirectory = try await spaFlowState.dotNsResolver.resolveToLocalURL(dotNsName: dotNsName)
             let indexURL = contentDirectory.appendingPathComponent("index.html")
             guard FileManager.default.fileExists(atPath: indexURL.path) else {
                 logger
@@ -73,17 +75,5 @@ private extension CollectiblesURLProvider {
             logger.error("[Collectibles] urlProvider: resolve \(dotNsName) FAILED: \(error)")
             return nil
         }
-    }
-}
-
-extension CollectiblesURLProvider {
-    static func makeDefault() -> CollectiblesURLProvider {
-        let resolver = SPAFlowState.create()?.dotNsResolver
-        return CollectiblesURLProvider(
-            dotNsResolver: resolver,
-            dotNsName: AppConfig.DotNs.dotNsCollectibles,
-            remoteConfig: FirebaseFacade.shared,
-            firebaseFallback: { FirebaseApplicationService.shared.asyncWaitCollectiblesFallbackURL() }
-        )
     }
 }

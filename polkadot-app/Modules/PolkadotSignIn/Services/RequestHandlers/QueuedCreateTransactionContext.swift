@@ -6,7 +6,7 @@ import KeyDerivation
 final class QueuedCreateTransactionContext: PolkadotSigningContextProtocol {
     private let host: PolkadotSignInHost
     private let requestMessageId: String
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let onCompleted: () -> Void
 
     let requester: PolkadotSigningRequester
@@ -18,7 +18,7 @@ final class QueuedCreateTransactionContext: PolkadotSigningContextProtocol {
         host: PolkadotSignInHost,
         requestMessageId: String,
         signingModel: PolkadotHostSigningModel,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         onCompleted: @escaping () -> Void
     ) {
         self.host = host

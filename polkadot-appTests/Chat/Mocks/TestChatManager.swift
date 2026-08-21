@@ -72,7 +72,9 @@ final class TestChatManager {
             status: status,
             timestamp: UInt64(Date().timeIntervalSince1970),
             content: content,
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
 
         try await messageRepository.saveOperation({ [message] }, { [] }).asyncExecute()

@@ -59,6 +59,10 @@ extension TransferRecoveryServiceTests {
                 }
             }.eraseToAnyAsyncSequence()
         }
+
+        func subscribeNewHeads() -> AnyAsyncSequence<Block.Header> {
+            AsyncStream<Block.Header> { $0.finish() }.eraseToAnyAsyncSequence()
+        }
     }
 
     final class MockCoinService: CoinServiceProtocol, @unchecked Sendable {

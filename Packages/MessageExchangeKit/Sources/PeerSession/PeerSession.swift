@@ -22,7 +22,7 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
     private let routeContexts: PeerSessionRoute.Contexts
     private let logger: SDKLoggerProtocol?
 
-    private var state = PeerSessionState.idle {
+    private var state = InternalSessionState<M>.idle {
         didSet { didSetState() }
     }
 
@@ -74,8 +74,7 @@ extension PeerSession: PeerSessionInitializerDelegate {
         }
 
         priorityProvider.expiry = result.priority
-        outgoingChannel.restoreState(from: result.outgoingState.outgoingRequests)
-        state = .active
+        state = .active(restoredRequests: result.outgoingState.outgoingRequests)
 
         delegate?.peerSession(
             self,
@@ -161,6 +160,18 @@ extension PeerSession: IncomingMessageChannelDelegate, OutgoingMessageChannelDel
         )
     }
 
+    func messageChannel(
+        _: any OutgoingMessageChanneling,
+        didCompactMessages compactedMessage: Message,
+        originalMessages: [Message]
+    ) {
+        delegate?.peerSession(
+            self,
+            didCompactMessages: compactedMessage,
+            originalMessages: originalMessages
+        )
+    }
+
     func statementSubmitFailed(with error: Error) {
         if isStatementErrorRequiresReinitialization(error) {
             initializeSession()
@@ -181,12 +192,19 @@ extension PeerSession: IncomingMessageChannelDelegate, OutgoingMessageChannelDel
 private extension PeerSession {
     func didSetState() {
         logger?.debug("State updated to \(state)")
-        delegate?.peerSession(self, didUpdateState: state)
-        outgoingChannel.setActive(state == .active)
+        delegate?.peerSession(self, didUpdateState: state.toPeerSessionState())
+
+        switch state {
+        case let .active(restoredRequests):
+            outgoingChannel.activate(restoringState: restoredRequests)
+        case .idle,
+             .initializing:
+            outgoingChannel.deactivate()
+        }
     }
 
     func updatePolling() {
-        if state == .active {
+        if state.isActive {
             peerSubscription.start { [weak self] sessionStatement in
                 self?.handlePollingStatement(sessionStatement) ?? false
             }
@@ -202,7 +220,7 @@ private extension PeerSession {
     }
 
     func performInitializeSession() {
-        guard state != .initializing else {
+        guard !state.isInitializing else {
             logger?.debug("Already initializing")
             return
         }
@@ -238,7 +256,7 @@ private extension PeerSession {
             return false
         }
 
-        guard state == .active else {
+        guard state.isActive else {
             logger?.debug("Session is not active")
             return false
         }
@@ -417,4 +435,41 @@ public enum PeerSessionState {
     case idle
     case initializing
     case active
+}
+
+enum InternalSessionState<M: MessageExchange.CodableMessage> {
+    case idle
+    case initializing
+    case active(restoredRequests: [PeerSessionRoute: OutgoingRequest<M>])
+
+    var isInitializing: Bool {
+        switch self {
+        case .idle,
+             .active:
+            false
+        case .initializing:
+            true
+        }
+    }
+
+    var isActive: Bool {
+        switch self {
+        case .idle,
+             .initializing:
+            false
+        case .active:
+            true
+        }
+    }
+
+    func toPeerSessionState() -> PeerSessionState {
+        switch self {
+        case .idle:
+            .idle
+        case .initializing:
+            .initializing
+        case .active:
+            .active
+        }
+    }
 }

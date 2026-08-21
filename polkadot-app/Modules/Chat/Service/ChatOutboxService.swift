@@ -33,6 +33,12 @@ protocol ChatOutboxServicing: AnyObject {
         withError error: MessageExchange.OutgoingMessageError?
     )
 
+    func handleCompactedMessages(
+        compactedMessage: Chat.RemoteMessage,
+        originalMessages: [Chat.RemoteMessage],
+        for peer: MessageExchange.Peer
+    )
+
     func sendPeerLeftMessage(to contact: Chat.Contact, completion: @escaping () -> Void)
 
     // do not trigger APNS push
@@ -172,6 +178,24 @@ extension ChatOutboxService: ChatOutboxServicing {
         }
     }
 
+    func handleCompactedMessages(
+        compactedMessage: Chat.RemoteMessage,
+        originalMessages: [Chat.RemoteMessage],
+        for peer: MessageExchange.Peer
+    ) {
+        workQueue.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            commitCompactedMessages(
+                compactedMessage: compactedMessage,
+                originalMessages: originalMessages,
+                for: peer
+            )
+        }
+    }
+
     func sendPeerLeftMessage(to contact: Chat.Contact, completion: @escaping () -> Void) {
         workQueue.async { [weak self] in
             guard let self else {
@@ -212,6 +236,51 @@ extension ChatOutboxService: ChatOutboxServicing {
 
             let peer = contact.toMessageExchangePeer()
             exchangeService.addMessagesToQueue([.init(remoteMessage: remoteMessage)], for: peer)
+        }
+    }
+}
+
+// MARK: - Compaction handling
+
+private extension ChatOutboxService {
+    func commitCompactedMessages(
+        compactedMessage: Chat.RemoteMessage,
+        originalMessages: [Chat.RemoteMessage],
+        for peer: MessageExchange.Peer
+    ) {
+        let chatId = Chat.Id.person(peer.accountId)
+
+        guard let compactedLocalMessage = Chat.LocalMessage(
+            remote: compactedMessage,
+            creationSource: .localDevice,
+            status: .outgoing(.new),
+            chatId: chatId,
+            origin: .user
+        ) else {
+            logger.error("Failed to create local message from compacted remote")
+            return
+        }
+
+        outboxMessages.insertAsInFlight(messages: [compactedLocalMessage])
+
+        let originalMessageIds = originalMessages.map(\.messageId)
+
+        let commitOperation = messagesStorageService.commitCompaction(
+            compactedRemoteMessage: compactedMessage,
+            originalMessageIds: originalMessageIds
+        )
+
+        execute(
+            wrapper: CompoundOperationWrapper(targetOperation: commitOperation),
+            inOperationQueue: operationQueue,
+            runningCallbackIn: workQueue
+        ) { [logger] result in
+            switch result {
+            case .success:
+                logger.debug("Compaction committed for \(originalMessageIds.count) messages")
+            case let .failure(error):
+                logger.error("Failed to commit compaction: \(error)")
+            }
         }
     }
 }
@@ -304,7 +373,7 @@ private extension ChatOutboxService {
             case .success:
                 logger.info("Messages status update to .sent")
             case let .failure(error):
-                logger.error("Failed to update message status to .sent \(error)")
+                logger.error("Failed to update status to .sent for \(localMessageIds): \(error)")
             }
         }
     }
@@ -357,7 +426,7 @@ private extension ChatOutboxService {
             case .success:
                 logger.info("Messages delivery saved successfully")
             case let .failure(error):
-                logger.debug("Failed to save delivered messages messageId. Error: \(error)")
+                logger.error("Failed to update status to .delivered for \(localMessageIds): \(error)")
             }
         }
     }
@@ -413,21 +482,53 @@ private extension ChatOutboxService {
         }
     }
 
+    func expandMessagesToNotify(
+        from sentMessages: [Chat.RemoteMessage]
+    ) -> CompoundOperationWrapper<[Chat.RemoteMessage]> {
+        let compactionIds = sentMessages.compactionMessageIds()
+
+        guard !compactionIds.isEmpty else {
+            return .createWithResult(sentMessages)
+        }
+
+        let expandWrapper = messagesStorageService.fetchExpandedMessages(for: compactionIds)
+
+        let mergeOperation = ClosureOperation<[Chat.RemoteMessage]> {
+            let expandedLocal = try expandWrapper.targetOperation
+                .extractNoCancellableResultData()
+
+            let expandedRemote = expandedLocal.compactMap { $0.toRemote() }
+
+            var seen = Set<String>()
+            return (sentMessages + expandedRemote).filter { seen.insert($0.messageId).inserted }
+        }
+
+        mergeOperation.addDependency(expandWrapper.targetOperation)
+
+        return expandWrapper.insertingTail(operation: mergeOperation)
+    }
+
     func notifyAboutNewMessages(
         _ messages: [Chat.RemoteMessage],
         contact: Chat.Contact
     ) {
         guard !messages.isEmpty else { return }
 
+        let expandWrapper = expandMessagesToNotify(from: messages)
+
         let fetchOperation = notifiedMessageIdRepository.fetchAllOperation(
             with: RepositoryFetchOptions()
         )
 
+        fetchOperation.addDependency(expandWrapper.targetOperation)
+
         let filterOperation = ClosureOperation<[Chat.RemoteMessage]> {
+            let expandedMessages = try expandWrapper.targetOperation
+                .extractNoCancellableResultData()
             let notifiedMessageIds = try fetchOperation.extractNoCancellableResultData()
             let notifiedSet = Set(notifiedMessageIds.map(\.messageId))
 
-            return messages.filter {
+            return expandedMessages.filter {
                 !notifiedSet.contains($0.messageId) && $0.supportsNotification()
             }
         }
@@ -470,7 +571,9 @@ private extension ChatOutboxService {
 
         let wrapper = CompoundOperationWrapper(
             targetOperation: saveOperation,
-            dependencies: [fetchOperation, filterOperation, notifyOperation]
+            dependencies: expandWrapper.allOperations + [
+                fetchOperation, filterOperation, notifyOperation
+            ]
         )
 
         execute(

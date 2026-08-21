@@ -15,11 +15,7 @@ Polkadot iOS — a production-grade iOS wallet and social app for the Polkadot b
 - **CoreData** — Local persistence (SubstrateDataModel + UserDataModel)
 - **WebRTC** — Peer-to-peer voice/video calls and DIM2 game
 - **Firebase** — Remote Config
-
-> Build-time configuration and publishing (signing, TestFlight, Firebase App
-> Distribution) are documented in [docs/PUBLISHING.md](./docs/PUBLISHING.md).
-> This repo ships no hosted CI/CD pipeline or Fastlane implementation; secrets
-> and endpoints are externalised into environment variables (see that doc).
+- **Fastlane + GitHub Actions** — CI/CD pipeline
 
 ## Build Commands
 
@@ -84,13 +80,13 @@ Each feature module in `polkadot-app/Modules/` follows VIPER:
 
 Use `./generate-viper-module.sh ModuleName` to scaffold new modules from Stencil templates in `swiftgen-templates/viper/`.
 
-### Feature Modules (43 modules)
+### Feature Modules (34 modules)
 
 Separate screens (VIPER) modules are located in the `Modules/` directory.
 
 ### Local Packages (`Packages/`)
 
-Local Packages are located in the `Packages` directory. AppDependencies is a root package that defines all dependencies for the app.
+Local Packages are located in the `Packages` director. AppDependecy is a root package that defines all dependencies for the app.
 
 ### Data Flow
 1. **Wireframe** creates and wires module components

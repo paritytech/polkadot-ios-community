@@ -2,15 +2,19 @@ import UIKit
 import Keystore_iOS
 import Operation_iOS
 import UIKitExt
+import Products
 
 enum MainTabBarViewFactory {
     @MainActor
     static func createView(
         userNotificationService: UserNotificationServicing,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting? = nil,
-        deepLinkHandling: DeferredLinkHandling
+        deepLinkHandling: DeferredLinkHandling,
+        flowStateProvider: any SPAFlowStateProviding
     ) -> MainTabBarViewProtocol? {
-        guard let serviceCoordinator = ServiceCoordinator.createDefault() else {
+        let spaFlowState = flowStateProvider.flowState()
+
+        guard let serviceCoordinator = ServiceCoordinator.createDefault(spaFlowState: spaFlowState) else {
             return nil
         }
 
@@ -23,7 +27,8 @@ enum MainTabBarViewFactory {
             serviceCoordinator: serviceCoordinator,
             storageFacade: storageFacade,
             userNotificationService: userNotificationService,
-            foregroundVisibilityReporter: foregroundVisibilityReporter
+            foregroundVisibilityReporter: foregroundVisibilityReporter,
+            spaFlowState: spaFlowState
         )
 
         let moduleNavigator = ModuleNavigator()
@@ -32,11 +37,12 @@ enum MainTabBarViewFactory {
             storageFacade: storageFacade,
             serviceCoordinator: serviceCoordinator,
             flowState: flowState,
-            moduleNavigator: moduleNavigator
+            moduleNavigator: moduleNavigator,
+            hostProvider: spaFlowState.hostProvider
         )
 
         let mnemonicBackupHelper = MnemonicBackupHelper()
-        let browserCoordinator = createBrowserCoordinator()
+        let browserCoordinator = createBrowserCoordinator(flowStateProvider: flowStateProvider)
         let interactor = MainTabBarInteractor(
             serviceCoordinator: serviceCoordinator,
             userNotificationService: userNotificationService,
@@ -55,7 +61,9 @@ enum MainTabBarViewFactory {
             scanResultHandler: qrHandler
         )
 
-        let chipViewModelFactory = SPATabChipViewModelFactory(dotNsResolver: { SPAFlowState.create()?.dotNsResolver })
+        let chipViewModelFactory = SPATabChipViewModelFactory(
+            flowStateProvider: flowStateProvider
+        )
         let presenter = MainTabBarPresenter(
             interactor: interactor,
             wireframe: wireframe,
@@ -69,6 +77,7 @@ enum MainTabBarViewFactory {
             serviceCoordinator: serviceCoordinator,
             flowState: flowState,
             scanResultHandler: qrHandler,
+            flowStateProvider: flowStateProvider,
             foregroundVisibilityReporter: foregroundVisibilityReporter
         )
 
@@ -90,7 +99,8 @@ enum MainTabBarViewFactory {
         serviceCoordinator: ServiceCoordinatorProtocol,
         storageFacade: StorageFacadeProtocol,
         userNotificationService: UserNotificationServicing,
-        foregroundVisibilityReporter: PushForegroundVisibilityReporting?
+        foregroundVisibilityReporter: PushForegroundVisibilityReporting?,
+        spaFlowState: SPAFlowState
     ) -> ChatFlowState {
         let contactsRepository = storageFacade.createRepository(
             filter: nil,
@@ -115,7 +125,8 @@ enum MainTabBarViewFactory {
             audioSessionManager: serviceCoordinator.audioSessionManager,
             notificationsCleaner: notificationsCleaner,
             coinageService: serviceCoordinator.coinageService,
-            networkStatusService: serviceCoordinator.networkStatusService
+            networkStatusService: serviceCoordinator.networkStatusService,
+            flowState: spaFlowState
         )
     }
 
@@ -124,14 +135,18 @@ enum MainTabBarViewFactory {
         storageFacade: StorageFacadeProtocol,
         serviceCoordinator: ServiceCoordinatorProtocol,
         flowState: ChatFlowState,
-        moduleNavigator: ModuleNavigating
+        moduleNavigator: ModuleNavigating,
+        hostProvider: any ProductHostProviding
     ) -> URLHandlingService {
         let chatService = ChatOpenService(
             storageFacade: storageFacade,
             moduleNavigator: moduleNavigator,
             remoteContactResolver: RemoteContactOperationFactory()
         )
-        let gameOpen = DIM2OpenService(serviceCoordinator: serviceCoordinator)
+        let gameOpen = DIM2OpenService(
+            serviceCoordinator: serviceCoordinator,
+            flowState: flowState.flowState
+        )
         let screenOpen = DIM1OpenService()
         let gameChatOpen = GameChatService(flowState: flowState)
         let fiatOnrampRedirect = FiatOnrampRedirectService(
@@ -141,7 +156,10 @@ enum MainTabBarViewFactory {
             coinageService: serviceCoordinator.coinageService,
             moduleNavigator: moduleNavigator
         )
-        let productOpen = ProductSPAOpenService(moduleNavigator: moduleNavigator)
+        let productOpen = ProductSPAOpenService(
+            moduleNavigator: moduleNavigator,
+            hostProvider: hostProvider
+        )
         let historyStorage = W3sPaymentHistoryCoreDataStore(storageFacade: UserDataStorageFacade.shared)
 
         let w3sPayLauncher = W3sPayLauncher(
@@ -169,11 +187,13 @@ enum MainTabBarViewFactory {
     }
 
     @MainActor
-    private static func createBrowserCoordinator() -> SPABrowserCoordinator {
+    private static func createBrowserCoordinator(
+        flowStateProvider: any SPAFlowStateProviding
+    ) -> SPABrowserCoordinator {
         let tabManager = SPATabManager()
         return SPABrowserCoordinator(
             tabManager: tabManager,
-            pool: SPAControllerPool()
+            pool: SPAControllerPool(flowStateProvider: flowStateProvider)
         )
     }
 

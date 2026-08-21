@@ -14,10 +14,8 @@ public protocol DotNsContentStorageProtocol {
     func getContentDirectory(contentHash: String) -> URL?
     func contentExists(contentHash: String) -> Bool
     func deleteContent(contentHash: String) throws
-    func hasFileEntry(contentHash: String, relativePath: String) -> Bool
     func loadContent(contentHash: String, relativePath: String) -> Data?
     func deleteAll() throws
-    func chatEntrypointRelativePath() -> String
 }
 
 public final class DotNsContentStorage: DotNsContentStorageProtocol {
@@ -69,15 +67,6 @@ public final class DotNsContentStorage: DotNsContentStorageProtocol {
         return fileManager.fileExists(atPath: contentDir.path)
     }
 
-    public func hasFileEntry(contentHash: String, relativePath: String) -> Bool {
-        guard let contentDir = try? contentDirectory(for: contentHash),
-              let fileURL = try? containedURL(base: contentDir, relativePath: relativePath) else {
-            return false
-        }
-
-        return fileManager.fileExists(atPath: fileURL.path)
-    }
-
     public func loadContent(contentHash: String, relativePath: String) -> Data? {
         guard let contentDir = try? contentDirectory(for: contentHash),
               let fileURL = try? containedURL(base: contentDir, relativePath: relativePath) else {
@@ -96,10 +85,6 @@ public final class DotNsContentStorage: DotNsContentStorageProtocol {
     public func deleteAll() throws {
         guard fileManager.fileExists(atPath: baseDirectory.path) else { return }
         try fileManager.removeItem(at: baseDirectory)
-    }
-
-    public func chatEntrypointRelativePath() -> String {
-        "worker/index.js"
     }
 }
 

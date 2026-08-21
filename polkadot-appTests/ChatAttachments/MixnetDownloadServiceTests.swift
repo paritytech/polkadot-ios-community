@@ -26,7 +26,7 @@ struct MixnetDownloadServiceTests {
         let message = try await env.chatManager.sendMessage(makeRichTextContent(), status: .incoming(.new))
         env.service.setup()
 
-        let event = await awaitContextEvent(
+        let event = await awaitTerminalEvent(
             for: makeAttachmentId(message: message),
             in: env.service
         )
@@ -54,7 +54,7 @@ struct MixnetDownloadServiceTests {
         let message = try await env.chatManager.sendMessage(makeRichTextContent(), status: .incoming(.new))
         env.service.setup()
 
-        let event = await awaitContextEvent(
+        let event = await awaitTerminalEvent(
             for: makeAttachmentId(message: message),
             in: env.service
         )
@@ -108,7 +108,7 @@ struct MixnetDownloadServiceTests {
         let message = try await env.chatManager.sendMessage(makeRichTextContent(), status: .incoming(.new))
         env.service.setup()
 
-        let event = await awaitContextEvent(
+        let event = await awaitTerminalEvent(
             for: makeAttachmentId(message: message),
             in: env.service
         )
@@ -189,7 +189,7 @@ extension MixnetDownloadServiceTests {
         )
     }
 
-    private func awaitContextEvent(
+    private func awaitTerminalEvent(
         for attachmentId: AttachmentId,
         in service: MixnetDownloadService,
         timeout: Duration = .milliseconds(100_000)
@@ -199,7 +199,15 @@ extension MixnetDownloadServiceTests {
         while ContinuousClock.now < deadline {
             if let subject = await service.context.state[attachmentId],
                let event = subject.value {
-                return event
+                switch event {
+                case .onComplete,
+                     .onFailure:
+                    return event
+                case .onProgress:
+                    // Intermediate value — keep waiting for a terminal event so the
+                    // poll can't observe progress before completion/failure lands.
+                    break
+                }
             }
 
             try? await Task.sleep(for: .milliseconds(50))

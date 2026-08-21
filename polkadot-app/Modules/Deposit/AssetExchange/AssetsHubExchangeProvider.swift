@@ -14,7 +14,7 @@ final class AssetsHubExchangeProvider: AssetsExchangeBaseProvider {
     private let selectedWallet: WalletManaging
     private let substrateStorageFacade: StorageFacadeProtocol
     private let exchangeStateRegistrar: AssetsExchangeStateRegistring
-    private let extrinsicServiceFactory: ExtrinsicServiceFactoryProtocol
+    private let extrinsicServiceFactory: ExtrinsicServiceCreating
     private let extrinsicSubmissionFacade: ExtrinsicSubmissionMonitorFacadeProtocol
     private let extrinsicOriginDefiningFactory: ExtrinsicOriginDefiningFactoryProtocol
     private let timeEstimator: AssetExchangeTimeEstimating

@@ -10,42 +10,34 @@ extension ChatViewModelFactory {
         status: Chat.LocalMessage.Status,
         actions: ChatViewModelActions?
     ) -> (text: String, preview: ChatProductLinkPreviewConfiguration?) {
-        guard let detected = ProductURLDetector.firstProductLink(in: text) else {
+        guard let detected = ProductURLDetector.firstProductLink(in: text, hostProvider: flowState.hostProvider) else {
             return (text, nil)
         }
 
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let strippedText: String = trimmed == detected.matchedURL ? "" : text
 
-        let htmlParser = ProductLinkHTMLParser()
-
         let nameProvider = ProductNameProvider(
             host: detected.host,
             productRepository: productRepository,
-            dotNsResolver: dotNsResolver,
-            nameCache: productNameCache,
-            htmlParser: htmlParser
+            dotNsResolver: flowState.dotNsResolver,
+            productResolver: flowState.productResolver,
+            nameCache: productNameCache
         )
 
-        let imageViewModel: ImageViewModelProtocol? = dotNsResolver.map { resolver in
-            ProductLinkIconImageViewModel(
-                provider: ProductLinkIconImageDataProvider(
-                    domain: detected.host.toDotDomain(),
-                    dotNsResolver: resolver,
-                    htmlParser: htmlParser
-                )
-            )
-        }
+        let imageViewModel = flowState.iconViewModelFactory
+            .createViewModel(for: detected.host.toDotDomain())
 
         let preview = ChatProductLinkPreviewConfiguration(
             domain: detected.host.toDotDomain(),
             style: previewStyle(for: status),
             nameProvider: nameProvider,
             imageViewModel: imageViewModel,
-            tap: {
+            tap: { [weak self] in
                 guard
+                    let self,
                     let url = URL(string: detected.matchedURL),
-                    let productPage = ProductPage.fromUrl(url)
+                    let productPage = flowState.hostProvider.page(url: url)
                 else { return }
 
                 actions?.openProduct(productPage)

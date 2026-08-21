@@ -7,15 +7,18 @@ final class SPAPresenter {
     let interactor: SPAInteractorInputProtocol
     let wireframe: SPAWireframeProtocol
     let configuration: SPAConfiguration
+    let hostProvider: ProductHostProviding
 
     init(
         interactor: SPAInteractorInputProtocol,
         wireframe: SPAWireframeProtocol,
-        configuration: SPAConfiguration
+        configuration: SPAConfiguration,
+        hostProvider: ProductHostProviding
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
         self.configuration = configuration
+        self.hostProvider = hostProvider
     }
 }
 
@@ -87,7 +90,7 @@ extension SPAPresenter: SPAPresenterProtocol {
     }
 
     func didInterceptNavigation(to url: URL) {
-        guard let productHost = ProductHost.fromUrl(url) else { return }
+        guard let productHost = hostProvider.host(url: url) else { return }
 
         wireframe.showProductSPA(from: view, productHost: productHost)
     }

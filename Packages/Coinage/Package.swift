@@ -28,7 +28,7 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/novasamatech/extrinsic-service-ios",
-            from: "1.8.0"
+            from: "1.11.0"
         ),
         .package(
             url: "https://github.com/attaswift/BigInt",

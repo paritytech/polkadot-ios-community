@@ -6,6 +6,7 @@ import UIKitExt
 @MainActor
 final class MockNavigationRouter: ProductsNavigationRouting {
     var openedURL: URL?
+    var navigatedPage: ProductPage?
     var errorToThrow: Error?
 
     func setPresentationView(_: ControllerBackedProtocol) {}
@@ -15,7 +16,10 @@ final class MockNavigationRouter: ProductsNavigationRouting {
     @discardableResult
     func present(view _: ControllerBackedProtocol) -> Bool { false }
 
-    func navigateTo(destination _: ProductHost) async throws {}
+    func navigateTo(destination: ProductPage) async throws {
+        if let error = errorToThrow { throw error }
+        navigatedPage = destination
+    }
 
     func openExternalURL(_ url: URL) async throws {
         if let error = errorToThrow { throw error }

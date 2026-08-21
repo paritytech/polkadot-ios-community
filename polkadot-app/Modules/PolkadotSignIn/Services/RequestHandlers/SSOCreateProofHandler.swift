@@ -3,12 +3,12 @@ import Products
 
 final class SSOCreateProofHandler: SSORequestHandling {
     private let handlerFactory: APPersonhoodHandlerMaking
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let logger: LoggerProtocol
 
     init(
         handlerFactory: APPersonhoodHandlerMaking,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.handlerFactory = handlerFactory
@@ -16,9 +16,9 @@ final class SSOCreateProofHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .createProofRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .createProofRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

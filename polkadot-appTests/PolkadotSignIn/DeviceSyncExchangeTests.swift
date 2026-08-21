@@ -91,8 +91,11 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.sent),
             timestamp: 7_891,
             content: .text("hello"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
+
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: localMessage))
 
         let session = makeSession(
@@ -131,8 +134,11 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.sent),
             timestamp: 7_892,
             content: .text("still applied"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
+
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: localMessage))
         let session = makeSession(
             peerAccountId: peerAccountId,
@@ -175,7 +181,9 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.new),
             timestamp: 9_001,
             content: .text("local content"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
         try await messageRepositoryFactory.save([existingMessage])
 
@@ -187,8 +195,11 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.delivered),
             timestamp: 9_002,
             content: .text("synced content"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
+
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: syncedMessage))
         let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
         let session = makeSession(
@@ -230,8 +241,11 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.delivered),
             timestamp: 10_001,
             content: .text("old content"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
+
         try await messageRepositoryFactory.save([existingMessage])
 
         let syncedMessage = Chat.LocalMessage(
@@ -242,8 +256,11 @@ struct DeviceSyncExchangeTests {
             status: .outgoing(.sent),
             timestamp: 10_002,
             content: .text("updated content"),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
+
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: syncedMessage))
         let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
         let session = makeSession(

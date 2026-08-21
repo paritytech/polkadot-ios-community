@@ -8,15 +8,22 @@ public enum DotNsContractError: Error {
     case contractCallFailed(Error)
     case runtimeApiNotFound
     case callFailed(JSON)
+    case tldNotFound
 }
 
 /// Protocol for interacting with the DotNS resolver smart contract on Asset Hub.
-public protocol DotNsContractApiProtocol {
+public protocol DotNsContractApiProtocol: Sendable {
     /// Resolve a .dot domain name to its IPFS content hash (raw CID bytes, EIP-1577 prefix stripped).
     func resolveContentHash(dotNsName: String) async throws -> Data
 
     /// Fetch a metadata entry (e.g. "url", "description") for a .dot domain.
     func getMetadata(dotNsName: String, key: String) async throws -> String?
+
+    /// Reads the network's TLD label from the protocol registry, without the leading dot.
+    func readTld() async throws -> String
+
+    /// Drops whatever the api memoised about names, so a re-read reflects the registry again.
+    func clearCache()
 }
 
 /// EIP-1577 prefix constants.

@@ -25,7 +25,7 @@ extension ServiceCoordinator {
             loaderFactory: loaderFactory,
             storageFacade: UserDataStorageFacade.shared,
             uploadContextFactory: uploadContextFactory,
-            proofWallet: SelectedWallet.bulletInForChat,
+            senderProvider: AttachmentsSenderProvider(),
             allowanceManager: bulletInManager
         )
     }

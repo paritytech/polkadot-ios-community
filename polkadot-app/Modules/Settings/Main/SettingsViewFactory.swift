@@ -6,7 +6,8 @@ import DesignSystem
 @MainActor
 enum SettingsViewFactory {
     static func createView(
-        serviceCoordinator: ServiceCoordinatorProtocol
+        serviceCoordinator: ServiceCoordinatorProtocol,
+        flowStateProvider: any SPAFlowStateProviding
     ) -> SettingsViewProtocol? {
         let emailComposeAdapter = EmailComposeAdapter()
         let interactor = SettingsInteractor(
@@ -17,7 +18,8 @@ enum SettingsViewFactory {
 
         let wireframe = SettingsWireframe(
             serviceCoordinator: serviceCoordinator,
-            emailComposePresenter: emailComposeAdapter
+            emailComposePresenter: emailComposeAdapter,
+            flowStateProvider: flowStateProvider
         )
         let presenter = SettingsPresenter(
             interactor: interactor,

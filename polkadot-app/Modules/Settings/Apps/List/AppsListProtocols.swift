@@ -19,7 +19,7 @@ protocol AppsListInteractorInputProtocol: AnyObject {
 
 @MainActor
 protocol AppsListInteractorOutputProtocol: AnyObject {
-    func didReceive(productIds: [ProductId])
+    func didReceive(products: [ResolvedProduct])
 }
 
 @MainActor

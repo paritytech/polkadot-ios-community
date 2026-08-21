@@ -44,7 +44,7 @@
 	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
-		<string>externalwallet</string>
+		<string>novawallet</string>
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>

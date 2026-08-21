@@ -8,7 +8,7 @@ final class ProductsSignConfirmPresenter {
     weak var view: PolkadotSigningViewProtocol?
 
     private let interactor: ProductsSignConfirmInteractorInputProtocol
-    private let wireframe: PolkadotSigningWireframeProtocol
+    private let wireframe: ProductsSignConfirmWireframeProtocol
 
     private var model: ProductsSignConfirmModel?
     private var isInProgress = false
@@ -16,7 +16,7 @@ final class ProductsSignConfirmPresenter {
 
     init(
         interactor: ProductsSignConfirmInteractorInputProtocol,
-        wireframe: PolkadotSigningWireframeProtocol
+        wireframe: ProductsSignConfirmWireframeProtocol
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
@@ -33,11 +33,11 @@ extension ProductsSignConfirmPresenter: PolkadotSigningPresenterProtocol {
         guard model != nil else {
             return
         }
-        interactor.confirm()
+        wireframe.hide(view: view, decision: true)
     }
 
     func cancel() {
-        interactor.reject()
+        wireframe.hide(view: view, decision: false)
     }
 
     func viewDetails() {
@@ -68,14 +68,6 @@ extension ProductsSignConfirmPresenter: ProductsSignConfirmInteractorOutputProto
         isInProgress = false
         failureMessage = failureText(for: error)
         provideViewModel()
-    }
-
-    func didConfirm() {
-        wireframe.hide(view: view)
-    }
-
-    func didReject() {
-        wireframe.hide(view: view)
     }
 }
 

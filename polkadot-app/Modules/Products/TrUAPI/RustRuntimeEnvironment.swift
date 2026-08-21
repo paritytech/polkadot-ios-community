@@ -14,6 +14,7 @@ struct RustRuntimeEnvironment {
     let chainRegistry: ChainRegistryProtocol
     let notificationScheduler: ProductNotificationScheduling
     let ipfsFetcher: IpfsFetching
+    let hostProvider: ProductHostProviding
     let logger: LoggerProtocol
 
     /// The rust pieces a runtime needs: the opened execution and its chain
@@ -106,6 +107,7 @@ private extension RustRuntimeEnvironment {
                     return nil
                 }
             },
+            hostProvider: hostProvider,
             logger: logger
         )
     }

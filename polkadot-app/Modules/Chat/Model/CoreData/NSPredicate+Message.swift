@@ -95,6 +95,29 @@ extension NSPredicate {
         return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
     }
 
+    static func incomingCompactedMessages() -> NSPredicate {
+        let incomingNewPredicate = byStatus(Chat.LocalMessage.Status.incoming(.new))
+        let incomingSeenPredicate = byStatus(Chat.LocalMessage.Status.incoming(.seen))
+        let statusPredicate = NSCompoundPredicate(orPredicateWithSubpredicates: [
+            incomingNewPredicate,
+            incomingSeenPredicate
+        ])
+
+        let chatTypePredicate = messageByChatType(.person)
+        let contentTypePredicate = messageByContentType(.compactedMessages)
+        let notExpandedPredicate = NSPredicate(
+            format: "%K == NO",
+            #keyPath(CDChatMessage.contentExpanded)
+        )
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [
+            statusPredicate,
+            chatTypePredicate,
+            contentTypePredicate,
+            notExpandedPredicate
+        ])
+    }
+
     static func newOutgoingChatRequestMessages() -> NSPredicate {
         let statusPredicate = byStatus(Chat.LocalMessage.Status.outgoing(.new))
         let chatTypePredicate = messageByChatType(.person)
@@ -114,16 +137,27 @@ extension NSPredicate {
         return NSCompoundPredicate(andPredicateWithSubpredicates: [byContactId, byStatus])
     }
 
+    /// Messages compacted into a blob are excluded: their delivery is tracked
+    /// through the compacted parent, so they must not re-enter sync logic.
     static func sentLocalDeviceMessages(to chatId: Chat.Id) -> NSPredicate {
         let byStatus = byStatus(Chat.LocalMessage.Status.outgoing(.sent))
         let byContactId = localMessages(from: chatId)
         let byCreationSource = byCreationSource(.localDevice)
+        let withoutCompaction = withoutCompaction()
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
             byContactId,
             byStatus,
-            byCreationSource
+            byCreationSource,
+            withoutCompaction
         ])
+    }
+
+    static func withoutCompaction() -> NSPredicate {
+        NSPredicate(
+            format: "%K == nil",
+            #keyPath(CDChatMessage.compactionId)
+        )
     }
 
     static func byStatus(_ status: Chat.LocalMessage.Status) -> NSPredicate {
@@ -203,5 +237,21 @@ extension NSPredicate {
         )
 
         return NSCompoundPredicate(orPredicateWithSubpredicates: [originalMessagePredicate, editedMessagesPredicate])
+    }
+
+    static func messagesByCompactionId(_ compactionId: String) -> NSPredicate {
+        NSPredicate(
+            format: "%K == %@",
+            #keyPath(CDChatMessage.compactionId),
+            compactionId
+        )
+    }
+
+    static func messagesByCompactionIds(_ compactionIds: Set<String>) -> NSPredicate {
+        NSPredicate(
+            format: "%K IN %@",
+            #keyPath(CDChatMessage.compactionId),
+            compactionIds
+        )
     }
 }

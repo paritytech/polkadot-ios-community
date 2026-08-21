@@ -70,7 +70,8 @@ enum SPAViewFactory {
             accountManager: accountManager,
             resourceKeyManager: resourceKeyManager,
             sponsorFactory: sponsorFactory,
-            substrateStorageFacade: SubstrateDataStorageFacade.shared
+            substrateStorageFacade: SubstrateDataStorageFacade.shared,
+            hostProvider: flowState.hostProvider
         )
 
         let nativeApi = nativeApiFactory.makeApi(
@@ -88,6 +89,7 @@ enum SPAViewFactory {
             nativeApi: nativeApi,
             scriptsFactory: scriptsFactory,
             dotNsResolver: flowState.dotNsResolver,
+            productResolver: flowState.productResolver,
             schemeHandlerProxy: schemeHandlerProxy,
             configuration: configuration,
             logger: Logger.shared,
@@ -98,13 +100,15 @@ enum SPAViewFactory {
         let presenter = SPAPresenter(
             interactor: interactor,
             wireframe: wireframe,
-            configuration: configuration
+            configuration: configuration,
+            hostProvider: flowState.hostProvider
         )
         let view = SPAViewController(
             presenter: presenter,
             configuration: configuration,
             schemeHandlerProxy: schemeHandlerProxy,
-            logger: Logger.shared
+            logger: Logger.shared,
+            hostProvider: flowState.hostProvider
         )
 
         presenter.view = view
@@ -139,20 +143,6 @@ enum SPAViewFactory {
             configuration: configuration,
             flowState: flowState
         )
-    }
-
-    @MainActor
-    static func createView(page: ProductPage) -> SPAViewProtocol? {
-        guard let state = SPAFlowState.create() else {
-            return nil
-        }
-
-        return createView(page: page, flowState: state)
-    }
-
-    @MainActor
-    static func createView(productHost: ProductHost) -> SPAViewProtocol? {
-        createView(page: ProductPage(host: productHost))
     }
 }
 
@@ -189,6 +179,7 @@ extension SPAViewFactory {
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             notificationScheduler: ProductNotificationScheduler.shared,
             ipfsFetcher: IpfsFetcher(ipfsBaseURL: AppConfig.KnownIPFS.main),
+            hostProvider: flowState.hostProvider,
             logger: Logger.shared
         )
 
@@ -196,13 +187,14 @@ extension SPAViewFactory {
             rust: rustEnvironment,
             configuration: configuration,
             dotNsResolver: flowState.dotNsResolver,
+            productResolver: flowState.productResolver,
             schemeHandlerProxy: schemeHandlerProxy,
             routers: routers
         ))
 
         let interactor = SPARustRuntimeInteractor(
             runtimeFactory: runtimeFactory,
-            dotNsResolver: flowState.dotNsResolver,
+            productResolver: flowState.productResolver,
             configuration: configuration,
             logger: Logger.shared,
             productRepository: ProductRepositoryFactory().createRepository(),
@@ -212,14 +204,16 @@ extension SPAViewFactory {
         let presenter = SPAPresenter(
             interactor: interactor,
             wireframe: wireframe,
-            configuration: configuration
+            configuration: configuration,
+            hostProvider: flowState.hostProvider
         )
 
         let view = SPAViewController(
             presenter: presenter,
             configuration: configuration,
             schemeHandlerProxy: schemeHandlerProxy,
-            logger: Logger.shared
+            logger: Logger.shared,
+            hostProvider: flowState.hostProvider
         )
 
         presenter.view = view

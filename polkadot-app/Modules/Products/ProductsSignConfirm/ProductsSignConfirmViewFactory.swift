@@ -5,7 +5,7 @@ enum ProductsSignConfirmViewFactory {
     static func createView(
         context: any ProductsSignConfirmContextProtocol
     ) -> PolkadotSigningViewProtocol {
-        let wireframe = PolkadotSigningWireframe()
+        let wireframe = ProductsSignConfirmWireframe(context: context)
         let interactor = ProductsSignConfirmInteractor(context: context)
         let presenter = ProductsSignConfirmPresenter(
             interactor: interactor,

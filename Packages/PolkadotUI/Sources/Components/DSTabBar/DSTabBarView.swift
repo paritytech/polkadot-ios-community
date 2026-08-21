@@ -92,6 +92,10 @@ public final class DSTabBarView: UIView {
         DSTabBarGeometry.foldedTranslationX(availableWidth: availableWidth)
     }
 
+    public static func hiddenTranslationX(availableWidth: CGFloat) -> CGFloat {
+        DSTabBarGeometry.hiddenTranslationX(availableWidth: availableWidth)
+    }
+
     override public init(frame: CGRect) {
         super.init(frame: frame)
 

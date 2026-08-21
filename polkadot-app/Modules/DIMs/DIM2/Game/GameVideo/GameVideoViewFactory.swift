@@ -4,13 +4,15 @@ import Keystore_iOS
 import KeyDerivation
 import MessageExchangeKit
 import StatementStore
+import Products
 @preconcurrency import WebRTC
 
 @MainActor
 enum GameVideoViewFactory {
     static func createView(
         serviceCoordinator: ServiceCoordinatorProtocol,
-        intendedGameId: Game.Identifier? = nil
+        intendedGameId: Game.Identifier? = nil,
+        flowState: SPAFlowState
     ) -> GameVideoViewProtocol? {
         let extensionId = DIM2ChatExtension.identifier
 
@@ -25,7 +27,8 @@ enum GameVideoViewFactory {
             flowState: dim2Extension.flowState,
             chatId: .chatExtension(extensionId),
             turnService: serviceCoordinator.turnService,
-            intendedGameId: intendedGameId
+            intendedGameId: intendedGameId,
+            spaFlowState: flowState
         )
     }
 
@@ -33,7 +36,8 @@ enum GameVideoViewFactory {
         flowState: DIM2SharedFlowStateProtocol,
         chatId: Chat.Id,
         turnService: TURNCredentialsProviding,
-        intendedGameId: Game.Identifier? = nil
+        intendedGameId: Game.Identifier? = nil,
+        spaFlowState: SPAFlowState
     ) -> GameVideoViewProtocol? {
         let peerConnectionFactory = WebRTCPeerConnectionFactoryProvider.make()
         let rtcClient = RTCClient(
@@ -53,7 +57,8 @@ enum GameVideoViewFactory {
 
         let wireframe = GameVideoWireframe(
             flowState: flowState,
-            chatId: chatId
+            chatId: chatId,
+            spaFlowState: spaFlowState
         )
 
         let presenter = GameVideoPresenter(

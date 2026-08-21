@@ -61,6 +61,7 @@ extension Chat.DeviceSyncWireMessage {
             timestamp: remote.timestamp,
             content: content,
             reactions: [],
+            compactionId: nil,
             relatedMessages: []
         )
     }
@@ -85,6 +86,7 @@ extension Chat.LocalMessage.Content {
         case let .deviceAdded(content): .deviceAdded(content)
         case let .deviceRemoved(content): .deviceRemoved(content)
         case let .multiChatAccepted(content): .multiChatAccepted(content)
+        case let .compactedMessages(content): .compactedMessages(content)
         case let .richText(richText): richText.toRemote().map { .richText($0) }
         case let .coinageSend(transfer):
             .coinageSend(.init(totalValue: transfer.totalValue, coinKeys: transfer.coinKeys))

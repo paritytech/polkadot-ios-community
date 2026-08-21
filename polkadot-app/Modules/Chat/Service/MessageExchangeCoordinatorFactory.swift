@@ -4,11 +4,17 @@ import MessageExchangeKit
 import SubstrateSdk
 import NovaCrypto
 import KeyDerivation
+import Keystore_iOS
+import Operation_iOS
 import Products
+import Individuality
 
 protocol MessageExchangeCoordinatorMaking {
     func makeChatCoordinator() throws -> MessageExchangeChatCoordinating
-    func makeSignInHostCoordinator(
+    func makeTrUAPIHostCoordinator(
+        runtimeProvider: TrUAPIHostRuntimeProviding
+    ) throws -> MessageExchangeSignInHostCoordinating
+    func makeNativeHostCoordinator(
         accountManager: ProductsAccountManaging,
         sponsorFactory: TransactionSponsorMaking
     ) throws -> MessageExchangeSignInHostCoordinating
@@ -17,17 +23,20 @@ protocol MessageExchangeCoordinatorMaking {
 final class MessageExchangeCoordinatorFactory {
     private let entropyManager: RootEntropyManaging
     private let storageFacade: StorageFacadeProtocol
+    private let bulletInManager: AllowanceManaging
     private let operationQueue: OperationQueue
     private let logger: LoggerProtocol
 
     init(
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
+        bulletInManager: AllowanceManaging,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.entropyManager = entropyManager
         self.storageFacade = storageFacade
+        self.bulletInManager = bulletInManager
         self.operationQueue = operationQueue
         self.logger = logger
     }
@@ -58,6 +67,11 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
         let deviceKeyManager = DeviceEncryptionKeyManager.shared
         let messageExchangeModeProvider = ChatMessageExchangeModeProvider()
 
+        let compactorFactory = ChatMessageCompactorFactory(
+            allowanceManager: bulletInManager,
+            logger: logger
+        )
+
         return try MessageExchangeChatCoordinator(
             serviceFactory: MessageExchangeServiceFactory(
                 messageExchangeModeProvider: messageExchangeModeProvider,
@@ -78,6 +92,7 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
                 pushIdFactory: pushIdFactory,
                 deviceEncryptionKeyManager: deviceKeyManager
             ),
+            messageCompacterFactory: compactorFactory,
             tokenProvider: tokenProvider,
             chatContactDataProviderFactory: ChatContactDataProviderFactory(
                 repositoryFactory: ChatContactRepositoryFactory(storageFacade: storageFacade),
@@ -88,24 +103,40 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
         )
     }
 
-    func makeSignInHostCoordinator(
+    func makeTrUAPIHostCoordinator(
+        runtimeProvider: TrUAPIHostRuntimeProviding
+    ) -> MessageExchangeSignInHostCoordinating {
+        SSOTruAPICoordinator(
+            ownKeyId: Chat.Contact.Own.sso(),
+            serviceFactory: makeSSOServiceFactory(),
+            runtimeProvider: runtimeProvider
+        )
+    }
+
+    func makeNativeHostCoordinator(
         accountManager: ProductsAccountManaging,
         sponsorFactory: TransactionSponsorMaking
     ) -> MessageExchangeSignInHostCoordinating {
         MessageExchangeSignInHostCoordinator(
             ownKeyId: Chat.Contact.Own.sso(),
-            serviceFactory: MessageExchangeServiceFactory(
-                messageExchangeModeProvider: FixedMessageExchangeModeProvider(mode: .identity),
-                entropyManager: entropyManager,
-                deviceEncryptionKeyFactory: nil,
-                messageRouteSelector: { _ in .identity },
-                maxStatementSize: Constants.maxSSOStatementSize,
-                operationQueue: operationQueue,
-                logger: logger
-            ),
+            serviceFactory: makeSSOServiceFactory(),
             accountManager: accountManager,
             sponsorFactory: sponsorFactory,
             routers: ProductRoutersFacade.sso()
+        )
+    }
+}
+
+private extension MessageExchangeCoordinatorFactory {
+    func makeSSOServiceFactory() -> MessageExchageServiceMaking {
+        MessageExchangeServiceFactory(
+            messageExchangeModeProvider: FixedMessageExchangeModeProvider(mode: .identity),
+            entropyManager: entropyManager,
+            deviceEncryptionKeyFactory: nil,
+            messageRouteSelector: { _ in .identity },
+            maxStatementSize: Constants.maxSSOStatementSize,
+            operationQueue: operationQueue,
+            logger: logger
         )
     }
 }

@@ -10,6 +10,11 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     private(set) var chainResponses: [(UInt32, String)] = []
     private(set) var chainClosed: [UInt32] = []
 
+    /// Status returned by `permissionAuthorizationStatus`; defaults to
+    /// `.notDetermined` so existing tests are unaffected.
+    var permissionStatus: PermissionAuthorizationStatus = .notDetermined
+    private(set) var permissionRequests: [PermissionAuthorizationRequest] = []
+
     func startWsBridge(bindPort _: UInt16) throws -> WsBridgeEndpoint {
         startWsBridgeCallCount += 1
         return WsBridgeEndpoint(port: 0, token: "test")
@@ -34,9 +39,10 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     }
 
     func permissionAuthorizationStatus(
-        request _: PermissionAuthorizationRequest
+        request: PermissionAuthorizationRequest
     ) throws -> PermissionAuthorizationStatus {
-        .notDetermined
+        permissionRequests.append(request)
+        return permissionStatus
     }
 
     func setPermissionAuthorizationStatus(
@@ -44,7 +50,7 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
         status _: PermissionAuthorizationStatus
     ) throws {}
 
-    func notifyThemeChanged(theme _: ThemeVariant) {}
+    func notifyThemeChanged(theme _: HostThemeSubscribeItem) {}
     func notifyPreimageChanged(key _: Data, value _: Data?) {}
 
     func notifyChainResponse(connectionId: UInt32, json: String) {

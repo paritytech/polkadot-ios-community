@@ -170,7 +170,9 @@ extension ChatExtensionDiscoverContext: ChatExtensionDiscoverContextProtocol {
             status: .outgoing(.delivered),
             timestamp: Date().toChatTimestamp(),
             content: newContent,
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
 
         try await messageRepository.saveOperation({ [newMessage] }, { [] }).asyncExecute()
@@ -196,7 +198,9 @@ extension ChatExtensionDiscoverContext: ChatExtensionDiscoverContextProtocol {
                 status: .incoming(.new),
                 timestamp: Date().toChatTimestamp() + UInt64(offset),
                 content: content,
-                reactions: []
+                reactions: [],
+                compactionId: nil,
+                relatedMessages: []
             )
         }
 
@@ -287,7 +291,9 @@ extension ChatExtensionDiscoverContext: ChatExtensionDiscoverContextProtocol {
             status: .outgoing(.delivered),
             timestamp: Date().toChatTimestamp(),
             content: .extensionActionResponse(response, action),
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
 
         try await messageRepository.saveOperation({ [newMessage] }, { [] }).asyncExecute()

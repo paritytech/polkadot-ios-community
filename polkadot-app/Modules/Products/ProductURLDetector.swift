@@ -7,7 +7,10 @@ struct DetectedProductLink {
 }
 
 enum ProductURLDetector {
-    static func firstProductLink(in text: String) -> DetectedProductLink? {
+    static func firstProductLink(
+        in text: String,
+        hostProvider: ProductHostProviding
+    ) -> DetectedProductLink? {
         guard !text.isEmpty else { return nil }
 
         guard let detector = try? NSDataDetector(
@@ -22,7 +25,7 @@ enum ProductURLDetector {
         for match in matches {
             guard
                 let url = match.url,
-                let productHost = ProductHost.fromUrl(url),
+                let productHost = hostProvider.host(url: url),
                 let matchedRange = Range(match.range, in: text)
             else {
                 continue

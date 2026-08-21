@@ -1,20 +1,6 @@
 import Foundation
 import AsyncExtensions
 
-public protocol HandoffFileLoading {
-    func uploadFile(
-        store: UploadFileContextProtocol,
-        sender: SenderProofProviding,
-        recipients: FileRecipients
-    ) -> AnyAsyncSequence<FileUploadingEvent>
-
-    func downloadFile(
-        using entryHash: FileHash,
-        claimer: FileClaimer,
-        store: DownloadFileContextProtocol
-    ) -> AnyAsyncSequence<FileDownloadingEvent>
-}
-
 public final class HandoffFileLoader {
     public let config: HandoffFileLoadConfig
     public let service: HandoffServicing
@@ -131,6 +117,58 @@ extension HandoffFileLoader: HandoffFileLoading {
             }
         }
         .eraseToAnyAsyncSequence()
+    }
+
+    public func uploadBlob(
+        _ data: Data,
+        sender: SenderProofProviding,
+        recipients: FileRecipients
+    ) async throws -> FileHash {
+        guard data.count <= config.inlineThreshold else {
+            throw FileUploadingError.inlineLimitExceeded(size: data.count, limit: config.inlineThreshold)
+        }
+
+        let envelope = VersionedUploadedFile.v1(.inline(data))
+        let encodedEntry = try envelope.scaleEncoded()
+        let encryptedEntry = try recipients.encryptor.encrypt(encodedEntry)
+
+        let submittedData = try await service.submitData(
+            encryptedEntry,
+            from: sender,
+            recipients: recipients.pubKeys
+        )
+
+        return submittedData.hash
+    }
+
+    public func downloadBlob(
+        _ hash: FileHash,
+        claimer: FileClaimer,
+        onConfirm: @escaping HandoffBlobConfirmClosure
+    ) async throws {
+        guard
+            let encryptedEntry = try await service.claimData(
+                by: hash,
+                recipient: claimer.proofProvider
+            ) else {
+            throw FileDownloadingError.noEntry(hash)
+        }
+
+        let decryptedEntry = try claimer.decryptor.decrypt(encryptedEntry)
+        let envelope = try VersionedUploadedFile.scaleDecode(from: decryptedEntry)
+
+        // Inline-only by design: a chunked payload would let a blob ride the
+        // unbounded chunk transport, so it is rejected without fetching chunks.
+        guard case let .v1(.inline(blobData)) = envelope else {
+            throw FileDownloadingError.unexpectedChunkedPayload(hash)
+        }
+
+        try await onConfirm(blobData)
+
+        try await service.acknowledgeReceivedData(
+            by: hash,
+            recipient: claimer.proofProvider
+        )
     }
 }
 

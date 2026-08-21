@@ -4,13 +4,14 @@ import StatementStore
 protocol OutgoingMessageChanneling {
     associatedtype Message: MessageExchange.CodableMessage
 
-    func restoreState(from requests: [PeerSessionRoute: OutgoingRequest<Message>])
-    func setActive(_ isActive: Bool)
+    func activate(restoringState requests: [PeerSessionRoute: OutgoingRequest<Message>])
+    func deactivate()
     func addMessagesToQueue(_ messages: [Message])
     func handleResponse(
         _ response: MessageExchange.Response,
         route: PeerSessionRoute
     ) -> StatementHandlingStatus
+    func reset(route: PeerSessionRoute)
 }
 
 // MARK: - Type Erasure Implementation
@@ -18,39 +19,44 @@ protocol OutgoingMessageChanneling {
 final class AnyOutgoingMessageChannel<M: MessageExchange.CodableMessage>: OutgoingMessageChanneling {
     typealias Message = M
 
-    private let restoreStateClosure: ([PeerSessionRoute: OutgoingRequest<Message>]) -> Void
+    private let activateClosure: ([PeerSessionRoute: OutgoingRequest<Message>]) -> Void
+    private let deactivateClosure: () -> Void
     private let addMessagesToQueueClosure: ([Message]) -> Void
-    private let setActiveClosure: (Bool) -> Void
     private let handleResponseClosure: (MessageExchange.Response, PeerSessionRoute) -> StatementHandlingStatus
+    private let resetClosure: (PeerSessionRoute) -> Void
 
     init<Channel: OutgoingMessageChanneling>(_ targetChannel: Channel) where Channel.Message == M {
-        restoreStateClosure = { requests in
-            targetChannel.restoreState(from: requests)
+        activateClosure = { requests in
+            targetChannel.activate(restoringState: requests)
+        }
+
+        deactivateClosure = {
+            targetChannel.deactivate()
         }
 
         addMessagesToQueueClosure = { messages in
             targetChannel.addMessagesToQueue(messages)
         }
 
-        setActiveClosure = { isActive in
-            targetChannel.setActive(isActive)
-        }
-
         handleResponseClosure = { response, route in
             targetChannel.handleResponse(response, route: route)
         }
+
+        resetClosure = { route in
+            targetChannel.reset(route: route)
+        }
     }
 
-    func restoreState(from requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
-        restoreStateClosure(requests)
+    func activate(restoringState requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
+        activateClosure(requests)
+    }
+
+    func deactivate() {
+        deactivateClosure()
     }
 
     func addMessagesToQueue(_ messages: [M]) {
         addMessagesToQueueClosure(messages)
-    }
-
-    func setActive(_ isActive: Bool) {
-        setActiveClosure(isActive)
     }
 
     func handleResponse(
@@ -58,5 +64,9 @@ final class AnyOutgoingMessageChannel<M: MessageExchange.CodableMessage>: Outgoi
         route: PeerSessionRoute
     ) -> StatementHandlingStatus {
         handleResponseClosure(response, route)
+    }
+
+    func reset(route: PeerSessionRoute) {
+        resetClosure(route)
     }
 }

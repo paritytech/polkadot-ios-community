@@ -92,4 +92,10 @@ extension MessageExchangeSignInHostCoordinator: PeerSessionDelegate, TypeErasedD
         _: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError _: any Error
     ) -> Bool { true }
+
+    func peerSession(
+        _: any PeerSessionProtocol,
+        didCompactMessages _: OpaquePolkadotHostRemoteMessage,
+        originalMessages _: [OpaquePolkadotHostRemoteMessage]
+    ) {}
 }

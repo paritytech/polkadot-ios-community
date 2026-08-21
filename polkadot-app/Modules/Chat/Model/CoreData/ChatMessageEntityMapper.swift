@@ -74,6 +74,7 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
             timestamp: timestamp,
             content: content,
             reactions: reactions,
+            compactionId: entity.compactionId,
             relatedMessages: relatedMessages
         )
     }

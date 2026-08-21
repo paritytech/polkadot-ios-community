@@ -8,6 +8,7 @@ final class SPARustRuntimeFactory {
         let rust: RustRuntimeEnvironment
         let configuration: SPAConfiguration
         let dotNsResolver: DotNsResolverProtocol
+        let productResolver: ProductResolving
         let schemeHandlerProxy: SchemeHandlerProxy
         let routers: ProductRoutersFacadeProtocol
     }
@@ -43,6 +44,7 @@ extension SPARustRuntimeFactory: SPARuntimeFactoryProtocol {
             executionModel: executionModel,
             configuration: environment.configuration,
             dotNsResolver: environment.dotNsResolver,
+            productResolver: environment.productResolver,
             schemeHandlerProxy: environment.schemeHandlerProxy,
             logger: environment.rust.logger
         )

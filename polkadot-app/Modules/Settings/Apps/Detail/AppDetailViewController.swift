@@ -29,7 +29,16 @@ final class AppDetailViewController: UIHostingController<AppDetailViewLayout> {
 }
 
 extension AppDetailViewController: AppDetailViewProtocol {
-    func didReceive(name: String) {
+    func didReceive(name: String, subtitle: String?) {
         rootView.viewModel.name = name
+        rootView.viewModel.subtitle = subtitle
+    }
+
+    func didReceive(avatar: AvatarViewModel) {
+        rootView.viewModel.avatar = avatar
+    }
+
+    func didReceive(icon: any ImageViewModelProtocol) {
+        rootView.viewModel.icon = icon
     }
 }

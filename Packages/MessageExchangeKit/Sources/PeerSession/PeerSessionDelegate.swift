@@ -62,6 +62,12 @@ public protocol PeerSessionDelegate: AnyObject {
         _ peerSession: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError error: Error
     ) -> Bool
+
+    func peerSession(
+        _ peerSession: any PeerSessionProtocol,
+        didCompactMessages compactedMessage: Message,
+        originalMessages: [Message]
+    )
 }
 
 // MARK: - Type Erasure Implementation
@@ -122,6 +128,12 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
         any PeerSessionProtocol,
         Error
     ) -> Bool
+
+    private let didCompactMessagesClosure: (
+        any PeerSessionProtocol,
+        M,
+        [M]
+    ) -> Void
 
     public init<
         D: PeerSessionDelegate & TypeErasedDelegateStoring
@@ -195,6 +207,14 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
                 peerSession,
                 shouldReinitializeAfterSubmitError: error
             ) ?? MessageExchange.shouldReinitializeSession
+        }
+
+        didCompactMessagesClosure = { [weak targetDelegate] peerSession, compactedMessage, originalMessages in
+            targetDelegate?.peerSession(
+                peerSession,
+                didCompactMessages: compactedMessage,
+                originalMessages: originalMessages
+            )
         }
 
         targetDelegate.storeErasedType(instance: self)
@@ -272,5 +292,13 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
         shouldReinitializeAfterSubmitError error: Error
     ) -> Bool {
         shouldReinitializeClosure(peerSession, error)
+    }
+
+    public func peerSession(
+        _ peerSession: any PeerSessionProtocol,
+        didCompactMessages compactedMessage: M,
+        originalMessages: [M]
+    ) {
+        didCompactMessagesClosure(peerSession, compactedMessage, originalMessages)
     }
 }

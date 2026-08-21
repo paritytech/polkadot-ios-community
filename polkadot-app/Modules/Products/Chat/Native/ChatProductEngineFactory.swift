@@ -15,19 +15,19 @@ enum ChatProductEngineFactory {
     }
 
     static func makeContext(
-        productId: ProductId,
+        source: ProductWorkerSource,
         productFileProvider: ChatProductFileProviding,
         logger: LoggerProtocol
     ) throws -> EngineContext {
         let schemeHandler = ProductScriptSchemeHandler(
-            productId: productId,
-            entryRelativePath: productFileProvider.productEntryRelativePath(productId: productId),
+            productId: source.contentId,
+            entryRelativePath: source.entryRelativePath,
             productFileProvider: productFileProvider
         )
 
         guard let baseURL = schemeHandler.getBaseUrl(),
               let productUrl = schemeHandler.getProductUrl() else {
-            throw ChatProductEngineFactoryError.invalidProductUrl(productId: productId)
+            throw ChatProductEngineFactoryError.invalidProductUrl(productId: source.contentId)
         }
 
         let engineFactory: @Sendable () -> JSEngineProtocol = { [logger] in

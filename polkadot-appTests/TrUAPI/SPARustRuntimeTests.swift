@@ -8,7 +8,9 @@ import TrUAPIHost
 // MARK: - Helpers
 
 private func makeConfiguration(contentSource: SPAContentSource) throws -> SPAConfiguration {
-    let host = try #require(ProductHost(rawString: "test.dot"))
+    let tldProvider = StubTldProvider()
+    let factory = ProductHostFactory(tldProvider: tldProvider)
+    let host = try #require(factory.host(rawString: "test.dot"))
 
     return SPAConfiguration(
         title: nil,
@@ -19,16 +21,28 @@ private func makeConfiguration(contentSource: SPAContentSource) throws -> SPACon
     )
 }
 
+private struct StubTldProvider: DotNsTldProviding {
+    func currentTld() -> String? {
+        "dot"
+    }
+
+    func resolveTld() async throws -> String {
+        "dot"
+    }
+}
+
 private func makeRuntime(
     execution: MockProductExecution = MockProductExecution(),
     chainConnections: MockChainConnections = MockChainConnections(),
     configuration: SPAConfiguration,
-    dotNsResolver: DotNsResolverProtocol = StubDotNsResolver()
+    dotNsResolver: DotNsResolverProtocol = StubDotNsResolver(),
+    productResolver: ProductResolving = StubProductResolver()
 ) -> SPARustRuntime {
     SPARustRuntime(
         executionModel: makeExecutionModel(execution: execution, chainConnections: chainConnections),
         configuration: configuration,
         dotNsResolver: dotNsResolver,
+        productResolver: productResolver,
         schemeHandlerProxy: SchemeHandlerProxy(),
         logger: Logger.shared
     )

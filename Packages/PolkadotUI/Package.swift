@@ -20,7 +20,7 @@ let package = Package(
         .package(path: "../ExternalAccessibility"),
         .package(
             url: "https://github.com/paritytech/polkadot-app-design-system-ios",
-            from: "0.0.21"
+            from: "0.0.18"
         ),
         .package(
             url: "https://github.com/novasamatech/Foundation-iOS",

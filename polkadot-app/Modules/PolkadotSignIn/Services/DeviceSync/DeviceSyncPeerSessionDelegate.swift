@@ -104,4 +104,10 @@ final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
         if case StatementSubmitError.rejected(.channelPriorityTooLow) = error { return false }
         return true
     }
+
+    func peerSession(
+        _: any MessageExchangeKit.PeerSessionProtocol,
+        didCompactMessages _: Data,
+        originalMessages _: [Data]
+    ) {}
 }

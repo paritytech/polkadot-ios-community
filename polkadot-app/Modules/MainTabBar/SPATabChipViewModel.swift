@@ -10,17 +10,10 @@ struct SPATabChipViewModel {
 
 @MainActor
 final class SPATabChipViewModelFactory {
-    private let dotNsResolverProvider: () -> DotNsResolverProtocol?
-    private let htmlParser: ProductLinkHTMLParsing
+    private let flowStateProvider: any SPAFlowStateProviding
 
-    private var cachedResolver: DotNsResolverProtocol?
-
-    init(
-        dotNsResolver: @escaping () -> DotNsResolverProtocol?,
-        htmlParser: ProductLinkHTMLParsing = ProductLinkHTMLParser()
-    ) {
-        dotNsResolverProvider = dotNsResolver
-        self.htmlParser = htmlParser
+    init(flowStateProvider: any SPAFlowStateProviding) {
+        self.flowStateProvider = flowStateProvider
     }
 
     func createViewModels(for tabs: [SPATab]) -> [SPATabChipViewModel] {
@@ -31,32 +24,12 @@ final class SPATabChipViewModelFactory {
 }
 
 private extension SPATabChipViewModelFactory {
-    func resolver() -> DotNsResolverProtocol? {
-        if let cachedResolver {
-            return cachedResolver
-        }
-
-        cachedResolver = dotNsResolverProvider()
-
-        return cachedResolver
-    }
-
     func name(for tab: SPATab) -> String {
-        ProductHost(rawString: tab.dotDomain)?.name
+        flowStateProvider.flowState().hostProvider.host(rawString: tab.dotDomain)?.name
             ?? String(localized: .Products.productTabsNotAvailable)
     }
 
     func icon(for tab: SPATab) -> ImageViewModelProtocol? {
-        guard let resolver = resolver() else {
-            return nil
-        }
-
-        return ProductLinkIconImageViewModel(
-            provider: ProductLinkIconImageDataProvider(
-                domain: tab.dotDomain,
-                dotNsResolver: resolver,
-                htmlParser: htmlParser
-            )
-        )
+        flowStateProvider.flowState().iconViewModelFactory.createViewModel(for: tab.dotDomain)
     }
 }

@@ -34,6 +34,8 @@ protocol OutgoingRequestQueueing: AnyObject {
     func attemptRequestExtensionFromQueue() -> Set<PeerSessionRoute>
 
     func dequeueMessagesForNewRequest() -> OutgoingRequest<Message>?
+
+    func reset(route: PeerSessionRoute)
 }
 
 // MARK: - Type Erasure Implementation
@@ -49,6 +51,7 @@ final class AnyOutgoingRequestQueue<M: MessageExchange.CodableMessage>: Outgoing
     >]
     private let dequeueMessagesForNewRequestClosure: () -> OutgoingRequest<Message>?
     private let attemptRequestExtensionClosure: () -> Set<PeerSessionRoute>
+    private let resetClosure: (PeerSessionRoute) -> Void
 
     init<Queue: OutgoingRequestQueueing>(_ targetQueue: Queue) where Queue.Message == M {
         currentRequestsClosure = {
@@ -69,6 +72,10 @@ final class AnyOutgoingRequestQueue<M: MessageExchange.CodableMessage>: Outgoing
 
         attemptRequestExtensionClosure = {
             targetQueue.attemptRequestExtensionFromQueue()
+        }
+
+        resetClosure = { route in
+            targetQueue.reset(route: route)
         }
     }
 
@@ -93,5 +100,9 @@ final class AnyOutgoingRequestQueue<M: MessageExchange.CodableMessage>: Outgoing
 
     func attemptRequestExtensionFromQueue() -> Set<PeerSessionRoute> {
         attemptRequestExtensionClosure()
+    }
+
+    func reset(route: PeerSessionRoute) {
+        resetClosure(route)
     }
 }

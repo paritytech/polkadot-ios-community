@@ -12,16 +12,19 @@ final class TabFactory: TabFactoryProtocol {
     private let flowState: ChatFlowState
     private weak var foregroundVisibilityReporter: PushForegroundVisibilityReporting?
     private let scanResultHandler: WalletQRScanDelegate
+    private let flowStateProvider: any SPAFlowStateProviding
 
     init(
         serviceCoordinator: ServiceCoordinatorProtocol,
         flowState: ChatFlowState,
         scanResultHandler: WalletQRScanDelegate,
+        flowStateProvider: any SPAFlowStateProviding,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting? = nil
     ) {
         self.serviceCoordinator = serviceCoordinator
         self.flowState = flowState
         self.scanResultHandler = scanResultHandler
+        self.flowStateProvider = flowStateProvider
         self.foregroundVisibilityReporter = foregroundVisibilityReporter
     }
 
@@ -61,6 +64,7 @@ private extension TabFactory {
     }
 
     private func createWalletTab() -> UIViewController? {
+        let spaFlowState = flowStateProvider.flowState()
         let context = WalletFlowContext(
             depositService: serviceCoordinator.depositService,
             fiatOnrampService: serviceCoordinator.fiatOnrampService,
@@ -68,7 +72,8 @@ private extension TabFactory {
             coinageService: serviceCoordinator.coinageService,
             coinageBackupSyncService: serviceCoordinator.coinageBackupSyncService,
             personDataStore: serviceCoordinator.personDataStore,
-            networkStatusService: serviceCoordinator.networkStatusService
+            networkStatusService: serviceCoordinator.networkStatusService,
+            flowState: spaFlowState
         )
         guard let view = WalletMainViewFactory.createView(
             with: context,
@@ -86,9 +91,9 @@ private extension TabFactory {
     }
 
     private func createBrowseTab() -> UIViewController? {
-        guard let view = BrowseViewFactory.createBrowseRootView() else {
-            return nil
-        }
+        let view = BrowseViewFactory.createView(
+            flowStateProvider: flowStateProvider
+        )
 
         let navigation = AppNavigationController(rootViewController: view.controller)
 
@@ -100,7 +105,8 @@ private extension TabFactory {
 
     private func createSettingsTab() -> UIViewController? {
         guard let view = SettingsViewFactory.createView(
-            serviceCoordinator: serviceCoordinator
+            serviceCoordinator: serviceCoordinator,
+            flowStateProvider: flowStateProvider
         ) else {
             return nil
         }

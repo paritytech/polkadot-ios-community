@@ -2,19 +2,23 @@ import Foundation
 import PolkadotUI
 import SwiftUI
 import DesignSystem
+import Products
 
 final class GameVideoWireframe: GameVideoWireframeProtocol {
     private let flowState: DIM2SharedFlowStateProtocol
     private let chatId: Chat.Id
     private let logger: LoggerProtocol
+    private let spaFlowState: SPAFlowState
 
     init(
         flowState: DIM2SharedFlowStateProtocol,
         chatId: Chat.Id,
+        spaFlowState: SPAFlowState,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.flowState = flowState
         self.chatId = chatId
+        self.spaFlowState = spaFlowState
         self.logger = logger
     }
 
@@ -27,7 +31,8 @@ final class GameVideoWireframe: GameVideoWireframeProtocol {
         guard let reportView = GameReportViewFactory.createView(
             flowState: flowState,
             gameId: gameId,
-            chatId: chatId
+            chatId: chatId,
+            spaFlowState: spaFlowState
         ) else {
             logger.debug("Missing report view")
             return

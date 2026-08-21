@@ -25,20 +25,6 @@ extension ProductsSignConfirmInteractor: ProductsSignConfirmInteractorInputProto
     func setup() {
         parseSigningRequest()
     }
-
-    func confirm() {
-        Task { @MainActor in
-            self.context.deliver(true)
-            self.presenter?.didConfirm()
-        }
-    }
-
-    func reject() {
-        Task { @MainActor in
-            self.context.deliver(false)
-            self.presenter?.didReject()
-        }
-    }
 }
 
 private extension ProductsSignConfirmInteractor {

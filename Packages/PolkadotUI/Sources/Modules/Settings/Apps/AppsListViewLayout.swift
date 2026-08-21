@@ -2,13 +2,27 @@ import SwiftUI
 import DesignSystem
 
 public struct AppsListViewLayout: View {
-    public struct Item: Identifiable, Hashable {
+    public struct Item: Identifiable {
         public let id: String
         public let name: String
+        /// The product's domain, shown only when the manifest gave it a different display name.
+        public let subtitle: String?
+        /// Shown until ``icon`` loads, and for products that never resolve one.
+        public let avatar: AvatarViewModel
+        public let icon: (any ImageViewModelProtocol)?
 
-        public init(id: String, name: String) {
+        public init(
+            id: String,
+            name: String,
+            subtitle: String?,
+            avatar: AvatarViewModel,
+            icon: (any ImageViewModelProtocol)?
+        ) {
             self.id = id
             self.name = name
+            self.subtitle = subtitle
+            self.avatar = avatar
+            self.icon = icon
         }
     }
 
@@ -17,12 +31,10 @@ public struct AppsListViewLayout: View {
     public init() {}
 
     public var body: some View {
-        Group {
-            if viewModel.items.isEmpty {
-                emptyState
-            } else {
-                appsList
-            }
+        if viewModel.items.isEmpty {
+            emptyState
+        } else {
+            appsList
         }
     }
 }
@@ -54,7 +66,8 @@ private extension AppsListViewLayout {
     func appRow(for item: Item) -> some View {
         DisclosureListRow(
             title: item.name,
-            leading: { AppIconPlaceholder(size: 32, cornerRadius: 8) },
+            subtitle: item.subtitle,
+            leading: { DSAsyncAvatar(placeholder: item.avatar, icon: item.icon, size: .s40) },
             onTap: { viewModel.onSelect?(item) }
         )
         .listRowBackground(Color.clear)

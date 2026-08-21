@@ -26,7 +26,9 @@ final class RootWindow: UIWindow {
         }
 
         func showDebug() {
-            guard let debugView = DebugSettingsViewFactory.createView() else {
+            guard let debugView = DebugSettingsViewFactory.createView(
+                flowStateProvider: SPAFlowStateProvider()
+            ) else {
                 return
             }
             let navigationController = AppNavigationController(rootViewController: debugView.controller)

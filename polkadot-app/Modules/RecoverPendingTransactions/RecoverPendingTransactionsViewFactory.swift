@@ -38,6 +38,7 @@ enum RecoverPendingTransactionsViewFactory {
         )
 
         let view = RecoverPendingTransactionsViewController(presenter: presenter)
+        view.hidesBottomBarWhenPushed = true
 
         presenter.view = view
         interactor.presenter = presenter

@@ -1,4 +1,5 @@
 import Foundation
+import Foundation_iOS
 import SubstrateSdk
 import HandoffService
 import SDKLogger
@@ -50,6 +51,12 @@ extension HOPFileLoaderFactory: HOPFileLoaderMaking {
 protocol HOPNodeProviding {
     func selectNode() -> ChatRemoteMessageContent.NodeEndpoint?
     func isNodeAllowed(_ node: ChatRemoteMessageContent.NodeEndpoint) -> Bool
+}
+
+extension HOPNodeProviding {
+    func selectNodeOrError() throws -> ChatRemoteMessageContent.NodeEndpoint {
+        try selectNode().mapOrThrow(HOPFileLoaderError.noAvailableNodes)
+    }
 }
 
 final class HOPNodeProvider {

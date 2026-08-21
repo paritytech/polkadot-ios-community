@@ -18,9 +18,10 @@ final class MessageExchangeChatCoordinator {
 
     private let pushService: ChatPushServicing
     private let serviceFactory: MessageExchageServiceMaking
+    private let messageCompacterFactory: (any ChatMessageCompactorMaking)?
     private let chainRegistry: ChainRegistryProtocol
     private let chatChainId: ChainModel.Id
-    private let workQueue: DispatchQueue
+    let workQueue: DispatchQueue
     private let operationQueue: OperationQueue
     private let senderDeviceActivator: SenderDeviceActivator
     private let deviceMessageBroadcaster: DeviceMessageBroadcaster
@@ -45,6 +46,7 @@ final class MessageExchangeChatCoordinator {
         pushIdFactory: ChatPushIdMaking,
         pushMessageCoder: ChatPushMessageCoding,
         chatRequestStoreService: ChatRequestStoreServicing,
+        messageCompacterFactory: (any ChatMessageCompactorMaking)?,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         tokenProvider: JWTTokenProviding,
@@ -112,6 +114,7 @@ final class MessageExchangeChatCoordinator {
             logger: logger
         )
 
+        self.messageCompacterFactory = messageCompacterFactory
         self.chatChainId = chatChainId
         self.workQueue = workQueue
         self.chatContactDataProviderFactory = chatContactDataProviderFactory
@@ -179,13 +182,16 @@ private extension MessageExchangeChatCoordinator {
         do {
             let connection = try chainRegistry.getConnectionOrError(for: chatChainId)
 
+            let compactorFactory = messageCompacterFactory.map { AnyMessageCompactorFactory($0) }
+
             exchangeService = try serviceFactory.makeService(
                 statementStoreConnection: StatementStoreConnection(
                     connection: connection,
                     retryMatcher: StatementSubmitErrorMatcher.retryWhenTimeoutOrNoAllowance(),
                     logger: logger
                 ),
-                delegate: AnyPeerSessionDelegate(self)
+                delegate: AnyPeerSessionDelegate(self),
+                compactorFactory: compactorFactory
             )
 
             subscribeToAllContacts()
@@ -321,6 +327,18 @@ extension MessageExchangeChatCoordinator {
                 withError: error
             )
         }
+    }
+
+    func handleCompactedMessages(
+        compactedMessage: Chat.RemoteMessage,
+        originalMessages: [Chat.RemoteMessage],
+        for peer: MessageExchange.Peer
+    ) {
+        outboxService.handleCompactedMessages(
+            compactedMessage: compactedMessage,
+            originalMessages: originalMessages,
+            for: peer
+        )
     }
 
     func handleIncomingMessages(

@@ -1,17 +1,24 @@
 import Foundation
 import MessageExchangeKit
 import StructuredConcurrency
+import SubstrateSdk
 
-protocol PolkadotHostMessageSending {
-    func setExchangeService(_ service: AnyMessageExchangeService<OpaquePolkadotHostRemoteMessage>) async
+protocol HostMessageIdentifiable {
+    var messageId: String { get }
+}
+
+protocol PolkadotHostMessageSending<Message> {
+    associatedtype Message: HostMessageIdentifiable & ScaleCodable & Equatable
+
+    func setExchangeService(_ service: AnyMessageExchangeService<OpaqueMessageWrapper<Message>>) async
 
     func postMessage(
-        _ message: PolkadotHostRemoteMessage,
+        _ message: Message,
         to host: PolkadotSignInHost
     ) async throws
 
     func handleDidPostMessages(
-        _ messages: [PolkadotHostRemoteMessage],
+        _ messages: [Message],
         withError error: Error?
     ) async
 
@@ -55,11 +62,11 @@ enum PolkadotHostMessageError: Error {
     }
 }
 
-actor PolkadotHostMessageSender {
+actor PolkadotHostMessageSender<Message: HostMessageIdentifiable & ScaleCodable & Equatable> {
     private let postTimeout: Duration
     private let logger: LoggerProtocol
 
-    private var exchangeService: AnyMessageExchangeService<OpaquePolkadotHostRemoteMessage>?
+    private var exchangeService: AnyMessageExchangeService<OpaqueMessageWrapper<Message>>?
     private var continuationsByMessageId = [String: CheckedContinuation<Void, Error>]()
 
     init(
@@ -74,15 +81,15 @@ actor PolkadotHostMessageSender {
 private extension PolkadotHostMessageSender {
     func enqueueAndWait(
         messageId: String,
-        message: PolkadotHostRemoteMessage,
+        message: Message,
         host: PolkadotSignInHost,
-        exchangeService: AnyMessageExchangeService<OpaquePolkadotHostRemoteMessage>
+        exchangeService: AnyMessageExchangeService<OpaqueMessageWrapper<Message>>
     ) async throws {
         try await withCheckedThrowingContinuation { continuation in
             continuationsByMessageId[messageId] = continuation
 
             exchangeService.addMessagesToQueue(
-                [OpaquePolkadotHostRemoteMessage(message: message)],
+                [OpaqueMessageWrapper(message: message)],
                 for: .init(
                     accountId: host.accountId,
                     publicKey: host.publicKey,
@@ -97,12 +104,12 @@ private extension PolkadotHostMessageSender {
 }
 
 extension PolkadotHostMessageSender: PolkadotHostMessageSending {
-    func setExchangeService(_ service: AnyMessageExchangeService<OpaquePolkadotHostRemoteMessage>) async {
+    func setExchangeService(_ service: AnyMessageExchangeService<OpaqueMessageWrapper<Message>>) async {
         exchangeService = service
     }
 
     func postMessage(
-        _ message: PolkadotHostRemoteMessage,
+        _ message: Message,
         to host: PolkadotSignInHost
     ) async throws {
         guard let exchangeService else {
@@ -130,7 +137,7 @@ extension PolkadotHostMessageSender: PolkadotHostMessageSending {
     }
 
     func handleDidPostMessages(
-        _ messages: [PolkadotHostRemoteMessage],
+        _ messages: [Message],
         withError error: Error?
     ) async {
         for message in messages {

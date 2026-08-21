@@ -14,7 +14,7 @@ final class AssetsHydraExchangeProvider: AssetsExchangeBaseProvider {
     let selectedWallet: WalletManaging
     let substrateStorageFacade: StorageFacadeProtocol
     let exchangeStateRegistrar: AssetsExchangeStateRegistring
-    let extrinsicServiceFactory: ExtrinsicServiceFactoryProtocol
+    let extrinsicServiceFactory: ExtrinsicServiceCreating
     let extrinsicSubmissionFacade: ExtrinsicSubmissionMonitorFacadeProtocol
     let extrinsicOriginDefiningFactory: ExtrinsicOriginDefiningFactoryProtocol
     let timeEstimator: AssetExchangeTimeEstimating

@@ -54,6 +54,10 @@ enum DSTabBarGeometry {
         DSTabBarMetrics.foldedVisibleWidth - capsuleFrame(availableWidth: availableWidth).maxX
     }
 
+    static func hiddenTranslationX(availableWidth: CGFloat) -> CGFloat {
+        -capsuleFrame(availableWidth: availableWidth).maxX
+    }
+
     static func rowWidth(capsuleWidth: CGFloat) -> CGFloat {
         max(0, capsuleWidth - DSTabBarMetrics.innerInset * 2)
     }

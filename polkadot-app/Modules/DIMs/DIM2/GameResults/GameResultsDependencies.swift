@@ -1,4 +1,5 @@
 import Foundation
+import Products
 
 struct GameResultsDependencies {
     let groupRosterService: GameGroupRosterProviding
@@ -9,4 +10,5 @@ struct GameResultsDependencies {
     let personDataStore: DetermineStatePersonDataStore
     let usernameStorage: UsernameStoring
     let airdropRegistrationStore: AirdropRegistrationStoring
+    let spaFlowState: SPAFlowState
 }

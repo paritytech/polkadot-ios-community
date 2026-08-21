@@ -35,7 +35,9 @@ extension CoreDataMapperTests {
                 status: .incoming(.seen),
                 timestamp: 42,
                 content: .text("hello"),
-                reactions: []
+                reactions: [],
+                compactionId: nil,
+                relatedMessages: []
             )
 
             try await withContext { context in
@@ -71,7 +73,9 @@ extension CoreDataMapperTests {
                 status: .incoming(.new),
                 timestamp: 42,
                 content: .text("hello"),
-                reactions: []
+                reactions: [],
+                compactionId: nil,
+                relatedMessages: []
             )
 
             try await withContext { context in

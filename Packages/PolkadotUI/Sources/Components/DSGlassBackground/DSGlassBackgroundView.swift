@@ -38,11 +38,15 @@ public final class DSGlassBackgroundView: UIView {
     }
 
     private let shape: Shape
+    private let style: Style
+    private let tint: UIColor?
     private let effectView: UIVisualEffectView
     private let substrateView = UIView()
 
     public init(shape: Shape, style: Style = .regular, tint: UIColor? = nil) {
         self.shape = shape
+        self.style = style
+        self.tint = tint
 
         if #available(iOS 26.0, *) {
             let effect = UIGlassEffect(style: style == .clear ? .clear : .regular)
@@ -60,6 +64,7 @@ public final class DSGlassBackgroundView: UIView {
 
         registerForTraitChanges([DSThemeTrait.self]) { (view: DSGlassBackgroundView, _) in
             view.applyLayerColors()
+            view.applyEffectTint()
         }
     }
 
@@ -131,6 +136,18 @@ private extension DSGlassBackgroundView {
         layer.shadowColor = UIColor.shadowSoft.resolvedColor(with: traitCollection).cgColor
         layer.borderColor = UIColor.strokePrimary.resolvedColor(with: traitCollection).cgColor
     }
+
+    /// `UIGlassEffect` captures its tint when assigned, so a dynamic colour has to be
+    /// re-resolved and the effect rebuilt whenever the theme trait changes.
+    func applyEffectTint() {
+        guard #available(iOS 26.0, *), let tint else {
+            return
+        }
+
+        let effect = UIGlassEffect(style: style == .clear ? .clear : .regular)
+        effect.tintColor = tint.resolvedColor(with: traitCollection)
+        effectView.effect = effect
+    }
 }
 
 /// A single glass surface with chrome content hosted inside it.
@@ -139,8 +156,8 @@ public final class DSGlassContainerView: UIView {
 
     private let surface: DSGlassBackgroundView
 
-    public init(shape: DSGlassBackgroundView.Shape) {
-        surface = DSGlassBackgroundView(shape: shape)
+    public init(shape: DSGlassBackgroundView.Shape, tint: UIColor? = nil) {
+        surface = DSGlassBackgroundView(shape: shape, tint: tint)
 
         super.init(frame: .zero)
 

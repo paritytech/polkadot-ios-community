@@ -6,17 +6,20 @@ import KeyDerivation
 import SubstrateOperation
 import ChainRegistry
 import BackgroundExecution
+import Products
 
 enum GameReportViewFactory {
     @MainActor
     static func createView(
         flowState: DIM2SharedFlowStateProtocol,
         gameId: Game.Identifier,
-        chatId: Chat.Id
+        chatId: Chat.Id,
+        spaFlowState: SPAFlowState
     ) -> GameReportViewProtocol? {
         guard let components = createComponents(
             flowState: flowState,
-            gameId: gameId
+            gameId: gameId,
+            spaFlowState: spaFlowState
         ) else {
             return nil
         }
@@ -47,7 +50,8 @@ enum GameReportViewFactory {
 
     private static func createComponents(
         flowState: DIM2SharedFlowStateProtocol,
-        gameId: Game.Identifier
+        gameId: Game.Identifier,
+        spaFlowState: SPAFlowState
     ) -> Components? {
         let logger = Logger.shared
         let chainRegistry = ChainRegistryFacade.sharedRegistry
@@ -152,7 +156,8 @@ enum GameReportViewFactory {
             nftsSubscriptionService: airdropComponents.nftsSubscription,
             personDataStore: flowState.personDataStore,
             usernameStorage: UsernameStorage(),
-            airdropRegistrationStore: AirdropRegistrationStore()
+            airdropRegistrationStore: AirdropRegistrationStore(),
+            spaFlowState: spaFlowState
         )
 
         return Components(

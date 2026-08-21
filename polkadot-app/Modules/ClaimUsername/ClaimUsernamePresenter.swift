@@ -1,6 +1,5 @@
 import Foundation
 import Foundation_iOS
-import Combine
 import PolkadotUI
 
 @MainActor
@@ -22,8 +21,8 @@ final class ClaimUsernamePresenter {
     private var selectedDigits: Int?
     private var digitsFieldState: DigitsFieldState = .hidden
 
-    private var claimCancellable: AnyCancellable?
-    private var usernameCheckCancellable: AnyCancellable?
+    private var claimTask: Task<Void, Never>?
+    private var checkTask: Task<Void, Never>?
 
     private let prefilledUsername: Username?
 
@@ -95,8 +94,8 @@ extension ClaimUsernamePresenter {
         else {
             view?.didStopLoading()
             usernameCheckResult = .invalid
-            usernameCheckCancellable?.cancel()
-            usernameCheckCancellable = nil
+            checkTask?.cancel()
+            checkTask = nil
             validateUsername()
             return
         }
@@ -109,16 +108,18 @@ extension ClaimUsernamePresenter {
         view?.didStartLoading()
 
         let username = Username(value: partialNormalizedUsername)
-        usernameCheckCancellable = interactor.check(
-            username: username
-        )
-        .catch {
-            Just(.error($0.localizedDescription))
+        checkTask?.cancel()
+        checkTask = Task { [weak self] in
+            guard let self else { return }
+            let result: UsernameAvailableType
+            do {
+                result = try await interactor.check(username: username)
+            } catch {
+                result = .error(error.localizedDescription)
+            }
+            guard !Task.isCancelled else { return }
+            didCompleteCheck(for: username, result: result)
         }
-        .receive(on: DispatchQueue.main)
-        .sink(receiveValue: { [weak self] in
-            self?.didCompleteCheck(for: username, result: $0)
-        })
     }
 }
 
@@ -156,7 +157,7 @@ extension ClaimUsernamePresenter: ClaimUsernamePresenterProtocol {
     }
 
     func confirm() {
-        guard claimCancellable == nil else {
+        guard claimTask == nil else {
             return
         }
 
@@ -176,18 +177,15 @@ extension ClaimUsernamePresenter: ClaimUsernamePresenterProtocol {
 
         view?.userInteraction(enabled: false)
         view?.didStartLoading()
-        claimCancellable = interactor.claim(username: username)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] completion in
-                switch completion {
-                case .finished:
-                    break
-                case let .failure(error):
-                    self?.didReceive(error: .claimFailed(error))
-                }
-            } receiveValue: { [weak self] in
-                self?.didReceive(username: $0)
+        claimTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let claimed = try await interactor.claim(username: username)
+                await didReceive(username: claimed)
+            } catch {
+                didReceive(error: .claimFailed(error))
             }
+        }
     }
 
     func recover() {
@@ -215,9 +213,9 @@ private extension ClaimUsernamePresenter {
         view?.didReceive(viewModel: viewModelProvider.viewModel())
     }
 
-    func didReceive(username: Username) {
+    func didReceive(username: Username) async {
         logger.debug("Username: \(username)")
-        interactor.save(username: username)
+        await interactor.save(username: username)
     }
 
     func didCompleteCheck(for username: Username, result: UsernameAvailableType) {
@@ -260,7 +258,7 @@ private extension ClaimUsernamePresenter {
 
     func didReceive(error: ClaimUsernameInteractorError) {
         logger.error("Error: \(error)")
-        claimCancellable = nil
+        claimTask = nil
         view?.didStopLoading()
         view?.userInteraction(enabled: true)
 
@@ -268,14 +266,15 @@ private extension ClaimUsernamePresenter {
         case .claimTimeout:
             break
         case let .claimFailed(remoteError):
-            if !wireframe.present(error: remoteError, from: view) {
-                wireframe.present(
-                    message: String(localized: .claimUsernameActionError),
-                    title: String(localized: .Common.error),
-                    closeAction: String(localized: .Common.close),
-                    from: view
-                )
+            guard !wireframe.present(error: remoteError, from: view) else {
+                return
             }
+            wireframe.present(
+                message: String(localized: .claimUsernameActionError),
+                title: String(localized: .Common.error),
+                closeAction: String(localized: .Common.close),
+                from: view
+            )
         }
     }
 }

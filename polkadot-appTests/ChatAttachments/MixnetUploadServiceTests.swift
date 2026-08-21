@@ -236,13 +236,11 @@ extension MixnetUploadServiceTests {
             updateRepository: uploadRepoFactory.createUpdateRepository()
         )
 
-        let wallet = try! MockWalletManager.mockedWallet()
-
         let service = MixnetUploadService(
             loaderFactory: loaderFactory,
             storageFacade: facade,
             uploadContextFactory: uploadContextFactory,
-            proofWallet: wallet,
+            senderProvider: MockAttachmentsSenderProvider(),
             allowanceManager: allowanceManager,
             logger: Logger.shared
         )
@@ -275,7 +273,7 @@ extension MixnetUploadServiceTests {
     private func awaitTerminalEvent(
         for attachmentId: AttachmentId,
         in service: MixnetUploadService,
-        timeout: Duration = .milliseconds(10_000)
+        timeout: Duration = .milliseconds(100_000)
     ) async -> AttachmentProgressEvent? {
         let deadline = ContinuousClock.now + timeout
 

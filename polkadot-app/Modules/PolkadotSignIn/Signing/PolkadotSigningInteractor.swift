@@ -42,35 +42,12 @@ extension PolkadotSigningInteractor: PolkadotSigningInteractorInputProtocol {
                     chainRegistry: chainRegistry
                 )
 
-                logger.debug("Going to send result for \(signingContext.requester.name)")
+                logger.debug("Signature built for \(signingContext.requester.name)")
 
-                try await self.signingContext.sendResult(signingResult)
-
-                logger.debug("Result sent for \(signingContext.requester.name)")
-
-                await self.presenter?.didFinishSigning()
+                await self.presenter?.didFinishSigning(with: signingResult)
             } catch {
                 logger.error("Error: \(error)")
                 await self.presenter?.didFailToSign(with: error)
-            }
-        }
-    }
-
-    func reject() {
-        Task {
-            do {
-                await self.presenter?.didStartRejecting()
-
-                logger.debug("Going to reject request from \(signingContext.requester.name)")
-
-                try await signingContext.rejectRequest()
-
-                logger.debug("Rejection sent to \(signingContext.requester.name)")
-
-                await self.presenter?.didFinishRejecting()
-            } catch {
-                logger.error("Rejection error: \(error)")
-                await self.presenter?.didFailToReject(with: error)
             }
         }
     }

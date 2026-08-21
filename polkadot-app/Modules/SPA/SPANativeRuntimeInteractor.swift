@@ -10,6 +10,7 @@ final class SPANativeRuntimeInteractor {
     private let nativeApi: ProductsNativeApiProtocol
     private let scriptsFactory: SPAScriptsMaking
     private let dotNsResolver: DotNsResolverProtocol
+    private let productResolver: ProductResolving
     private let schemeHandlerProxy: SchemeHandlerProxy
     private let configuration: SPAConfiguration
     private let logger: LoggerProtocol
@@ -19,6 +20,8 @@ final class SPANativeRuntimeInteractor {
     private var containerBridge: ContainerBridge?
     private var jsEngine: JSEngineProtocol?
     private var engineMonitor: JSEngineMonitor?
+    // Held so the synchronous `hasChatEntry` can answer from the manifest without re-resolving.
+    private var resolvedProduct: ResolvedProduct?
 
     private var setupTask: Task<Void, Never>?
     private var openChatTask: Task<Void, Never>?
@@ -28,6 +31,7 @@ final class SPANativeRuntimeInteractor {
         nativeApi: ProductsNativeApiProtocol,
         scriptsFactory: SPAScriptsMaking,
         dotNsResolver: DotNsResolverProtocol,
+        productResolver: ProductResolving,
         schemeHandlerProxy: SchemeHandlerProxy,
         configuration: SPAConfiguration,
         logger: LoggerProtocol,
@@ -37,6 +41,7 @@ final class SPANativeRuntimeInteractor {
         self.nativeApi = nativeApi
         self.scriptsFactory = scriptsFactory
         self.dotNsResolver = dotNsResolver
+        self.productResolver = productResolver
         self.schemeHandlerProxy = schemeHandlerProxy
         self.configuration = configuration
         self.logger = logger
@@ -76,7 +81,8 @@ extension SPANativeRuntimeInteractor: SPAInteractorInputProtocol {
     }
 
     func hasChatEntry() -> Bool {
-        dotNsResolver.hasChatEntry(configuration.page.host.toDotDomain())
+        // Declared, or not offered: a product with no worker manifest has no chat surface here.
+        resolvedProduct?.executables.worker?.includesChat ?? false
     }
 
     func openChat() {
@@ -110,7 +116,10 @@ extension SPANativeRuntimeInteractor: SPAInteractorInputProtocol {
 
 private extension SPANativeRuntimeInteractor {
     func enableProduct() async throws -> ChatExtension.Id {
-        let product = Product(id: configuration.page.host.toDotDomain(), name: configuration.page.host.name)
+        let product = Product(
+            id: configuration.page.host.toDotDomain(),
+            name: resolvedProduct?.displayName ?? configuration.page.host.name
+        )
         let extensionId = product.extensionId
 
         let existingProduct = try await productRepository
@@ -158,9 +167,16 @@ private extension SPANativeRuntimeInteractor {
         do {
             let domain = configuration.page.host.toDotDomain()
 
-            subscribeProgress(domain: domain)
+            let resolved = try await productResolver.resolve(domain)
+            resolvedProduct = resolved
 
-            let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: domain)
+            // Bytes come from the app executable's subname; the origin stays the base domain, which
+            // is what permission grants and web storage are keyed by.
+            let contentId = resolved.appContentId
+
+            subscribeProgress(domain: contentId)
+
+            let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: contentId)
             let schemeHandler = makeSchemeHandler(
                 domain: domain,
                 contentURL: contentURL

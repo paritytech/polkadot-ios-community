@@ -1,40 +1,21 @@
 import Foundation
 import Products
-import ChainRegistry
 
 final class SPAFlowState {
     let dotNsResolver: DotNsResolverProtocol
+    let hostProvider: ProductHostProviding
+    let productResolver: ProductResolving
+    let iconViewModelFactory: ProductIconViewModelMaking
 
-    init(dotNsResolver: DotNsResolverProtocol) {
+    init(
+        dotNsResolver: DotNsResolverProtocol,
+        hostProvider: ProductHostProviding,
+        productResolver: ProductResolving,
+        iconViewModelFactory: ProductIconViewModelMaking
+    ) {
         self.dotNsResolver = dotNsResolver
-    }
-
-    static func create() -> SPAFlowState? {
-        let chainRegistry = ChainRegistryFacade.sharedRegistry
-
-        guard
-            let config = try? AppConfig.DotNs.config(),
-            let connection = chainRegistry.getConnection(for: config.contractsChainId),
-            let runtimeProvider = chainRegistry.getRuntimeProvider(for: config.contractsChainId)
-        else {
-            return nil
-        }
-
-        let contractApi = ReviveDotNsContractApi(
-            connection: connection,
-            runtimeProvider: runtimeProvider,
-            config: config
-        )
-        let carFetcher = CarFetcher(gatewayBaseUrl: config.ipfsGatewayBaseUrl)
-        let contentStorage = DotNsContentStorage()
-
-        let resolver = DotNsResolver(
-            contractApi: contractApi,
-            carFetcher: carFetcher,
-            contentStorage: contentStorage,
-            contentHashCache: ContentHashCache.shared
-        )
-
-        return SPAFlowState(dotNsResolver: resolver)
+        self.hostProvider = hostProvider
+        self.productResolver = productResolver
+        self.iconViewModelFactory = iconViewModelFactory
     }
 }

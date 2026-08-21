@@ -1,7 +1,7 @@
 // Shared Debug settings for polkadot-app, ShareExtension and NotificationServiceExtension.
 // Leaf configs under <target>/Configs/ include this file and add only BUNDLE.
 // Flags are vended as BASE_SWIFT_FLAGS so each leaf keeps its own OTHER_SWIFT_FLAGS line,
-// which a build pipeline can append to without editing this file.
+// which .github/scripts/add_swift_flags.py appends to during CI builds.
 
 BASE_SWIFT_FLAGS = "-DF_DEV" "-DUNSTABLE" "-DTESTNET_FEATURE"
 

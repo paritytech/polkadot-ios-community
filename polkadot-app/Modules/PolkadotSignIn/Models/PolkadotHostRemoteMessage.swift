@@ -56,6 +56,8 @@ extension PolkadotHostRemoteMessage {
     typealias SignRawLegacyResult = HostResult<Data, String>
 }
 
+extension PolkadotHostRemoteMessage: HostMessageIdentifiable {}
+
 extension PolkadotHostRemoteMessage: MessageExchange.CodableMessage {
     init(scaleDecoder: any ScaleDecoding) throws {
         messageId = try String(scaleDecoder: scaleDecoder)
