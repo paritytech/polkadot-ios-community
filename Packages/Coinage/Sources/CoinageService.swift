@@ -14,7 +14,7 @@ public protocol CoinageServicing: Actor {
     /// The underlying recipient service for direct use.
     nonisolated var ongoingTransferService: any OngoingTransferServicing { get }
 
-    nonisolated var transferRecoveryService: any TransferRecoveryServicing { get }
+    nonisolated var durabilityService: any DurabilityServicing { get }
 
     /// The external payment service — exposed for dependency registration.
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
@@ -105,7 +105,7 @@ public actor CoinageService {
     // Transfers
     private let senderService: TransferSenderServicing
     public nonisolated let ongoingTransferService: any OngoingTransferServicing
-    public nonisolated let transferRecoveryService: any TransferRecoveryServicing
+    public nonisolated let durabilityService: any DurabilityServicing
 
     // Sync services
     private let coinStateSyncService: CoinStateSyncService?
@@ -147,7 +147,7 @@ public actor CoinageService {
         coinKeypairFactory: any CoinKeyDeriving,
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
-        transferRecoveryService: any TransferRecoveryServicing,
+        durabilityService: any DurabilityServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
         coinStateSyncService: CoinStateSyncService? = nil,
@@ -173,7 +173,7 @@ public actor CoinageService {
         self.coinProvider = coinProvider
         self.voucherProvider = voucherProvider
         self.recoveryService = recoveryService
-        self.transferRecoveryService = transferRecoveryService
+        self.durabilityService = durabilityService
         self.logger = logger
     }
 }
@@ -302,7 +302,11 @@ extension CoinageService: CoinageServicing {
             throw CoinageError.notConfigured
         }
 
-        let transferContext = TransferContext(coinService: coinService, voucherService: voucherService)
+        let transferContext = TransferContext(
+            coinService: coinService,
+            voucherService: voucherService,
+            durability: durabilityService
+        )
 
         do {
             return try await senderService.execute(
@@ -343,6 +347,7 @@ extension CoinageService: CoinageServicing {
             denominationContext: context,
             voucherProvider: voucherProvider,
             coinProvider: coinProvider,
+            durability: durabilityService,
             logger: logger
         )
         service.start()

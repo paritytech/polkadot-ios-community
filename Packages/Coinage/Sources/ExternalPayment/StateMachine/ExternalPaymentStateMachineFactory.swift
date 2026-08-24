@@ -16,11 +16,10 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let voucherAllocator: any VoucherAllocating
     private let recyclerLoader: RecyclerReadinessLoading
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    private let walStore: TransferWALStoring
+    private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
     private let voucherService: VoucherServiceProtocol
-    private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
 
     init(
@@ -30,11 +29,10 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         voucherAllocator: any VoucherAllocating,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        walStore: TransferWALStoring,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         voucherService: VoucherServiceProtocol,
-        mortality: UInt32 = CoinageConstants.walMortality,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.planner = planner
@@ -43,11 +41,10 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         self.voucherAllocator = voucherAllocator
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
         self.voucherService = voucherService
-        self.mortality = mortality
         self.logger = logger
     }
 
@@ -73,26 +70,17 @@ private extension ExternalPaymentStateMachineFactory {
     func makeStateFactory(
         context: DenominationBreakdownContext
     ) -> ExternalPaymentStateFactory {
-        let coordinator = ExtrinsicSubmissionCoordinator(
-            monitor: extrinsicMonitor,
-            walStore: walStore,
-            blockNumberProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        return ExternalPaymentStateFactory(
+        ExternalPaymentStateFactory(
             planner: planner,
             context: context,
             recycler: recycler,
             voucherKeyFactory: voucherKeyFactory,
             voucherAllocator: voucherAllocator,
             recyclerLoader: recyclerLoader,
-            coordinator: coordinator,
-            walStore: walStore,
+            durability: durability,
             originFactory: originFactory,
             blockNumberProvider: blockNumberProvider,
             voucherService: voucherService,
-            mortality: mortality,
             logger: logger
         )
     }

@@ -9,7 +9,7 @@ import Keystore_iOS
 import SDKLogger
 import Operation_iOS
 
-public protocol VoucherServiceProtocol {
+public protocol VoucherServiceProtocol: Sendable {
     func load(
         amount: BigUInt,
         externalAssetHolder: any WalletManaging,
@@ -37,7 +37,7 @@ public protocol VoucherServiceProtocol {
     func markPendingOnboarding(identifiers: [String]) async throws
 }
 
-public final class VoucherService {
+public final class VoucherService: @unchecked Sendable {
     private let voucherRepository: AnyDataProviderRepository<Voucher>
     private let voucherLoaderFactory: VoucherLoaderFactoryProtocol
 

@@ -185,7 +185,9 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             await coinageTransferMonitor.setup()
             await w3sPaymentTracking.setup()
             await depositService.setup()
-            await coinageService.transferRecoveryService.recover()
+            // Not awaited: a single unresolvable entry must not hold startup
+            // for a mortality window.
+            coinageService.durabilityService.start()
         }
     }
 
@@ -201,6 +203,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         allowanceRenewalService.throttle()
 
         messageExpansionService.stop()
+        coinageService.durabilityService.stop()
 
         Task {
             await deviceSyncService.throttle()

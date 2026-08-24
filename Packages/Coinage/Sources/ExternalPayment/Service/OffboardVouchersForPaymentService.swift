@@ -19,35 +19,29 @@ final class OffboardVouchersForPaymentService {
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherAllocator: any VoucherAllocating
     private let recyclerLoader: RecyclerReadinessLoading
-    private let coordinator: ExtrinsicSubmissionCoordinating
-    private let walStore: TransferWALStoring
+    private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
     private let denominationContext: DenominationBreakdownContext
-    private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
 
     init(
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherAllocator: any VoucherAllocating,
         recyclerLoader: RecyclerReadinessLoading,
-        coordinator: ExtrinsicSubmissionCoordinating,
-        walStore: TransferWALStoring,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         denominationContext: DenominationBreakdownContext,
-        mortality: UInt32,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherAllocator = voucherAllocator
         self.recyclerLoader = recyclerLoader
-        self.coordinator = coordinator
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
         self.denominationContext = denominationContext
-        self.mortality = mortality
         self.logger = logger
     }
 
@@ -102,8 +96,7 @@ private extension OffboardVouchersForPaymentService {
         let keys = details.map(\.group.key)
         let revisions = try await recyclerLoader.fetchRevisions(for: keys, blockHash: blockHash)
 
-        // Build full submissions with revision, destination, and WAL entry
-        var walEntries: [TransferWALEntry] = []
+        // Build full submissions with revision and destination
         var submissions: [GroupSubmission] = []
         var allSurplusVouchers: [Voucher] = []
 
@@ -112,29 +105,18 @@ private extension OffboardVouchersForPaymentService {
                 throw OffboardVouchersForPaymentError.unexpectedEmptyRevision(detail.group.key)
             }
 
-            let walEntry = TransferWALEntry(
-                operationType: .intoExternalAsset,
-                inputVoucherIds: detail.group.vouchers.map(\.identifier),
-                expectedVoucherIndices: detail.surplusVouchers.map(\.derivationIndex),
-                mortality: mortality
-            )
-            walEntries.append(walEntry)
             allSurplusVouchers.append(contentsOf: detail.surplusVouchers)
 
             submissions.append(GroupSubmission(
                 details: detail,
                 revision: revision,
                 destination: payment.destination,
-                origin: origin,
-                walEntryId: walEntry.id
+                origin: origin
             ))
         }
 
         // Save surplus vouchers as pendingOnboarding via transfer context
         try await transferContext.savePendingOnboarding(vouchers: allSurplusVouchers)
-
-        // Batch-persist all WAL entries before any extrinsic is submitted
-        try await walStore.save(contentsOf: walEntries)
 
         // Submit one extrinsic per group concurrently
         typealias GroupResult = Result<GroupSuccess, Error>
@@ -146,8 +128,7 @@ private extension OffboardVouchersForPaymentService {
                         try await self.submitGroup(submission)
                         return .success(GroupSuccess(
                             spentVouchers: submission.details.group.vouchers,
-                            newVouchers: submission.details.surplusVouchers,
-                            walEntryId: submission.walEntryId
+                            newVouchers: submission.details.surplusVouchers
                         ))
                     } catch {
                         return .failure(error)
@@ -162,7 +143,7 @@ private extension OffboardVouchersForPaymentService {
             return collected
         }
 
-        // Record on-chain changes locally per group and delete WAL entries
+        // Record on-chain changes locally per group
         var collectedErrors: [Error] = []
 
         for groupResult in results {
@@ -173,7 +154,6 @@ private extension OffboardVouchersForPaymentService {
                         spentVouchers: success.spentVouchers,
                         newVouchers: success.newVouchers
                     )
-                    try await walStore.delete(id: success.walEntryId)
                 } catch {
                     logger?.error("Failed to record offboard locally: \(error)")
                     collectedErrors.append(error)
@@ -187,6 +167,8 @@ private extension OffboardVouchersForPaymentService {
         if !collectedErrors.isEmpty {
             throw OffboardVouchersForPaymentError.submissionFailed(collectedErrors)
         }
+
+        durability.startRecoveryPass()
     }
 }
 
@@ -209,13 +191,11 @@ private extension OffboardVouchersForPaymentService {
         let revision: UInt32
         let destination: AccountId
         let origin: any ExtrinsicOriginDefining
-        let walEntryId: UUID
     }
 
     struct GroupSuccess {
         let spentVouchers: [Voucher]
         let newVouchers: [Voucher]
-        let walEntryId: UUID
     }
 }
 
@@ -301,8 +281,10 @@ private extension OffboardVouchersForPaymentService {
 
         let key = submission.details.group.key
 
-        let result = try await coordinator.submit(
-            walEntryId: submission.walEntryId,
+        let result = try await durability.submit(
+            inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
+            outputs: submission.details.surplusVouchers
+                .map { .recyclerVoucher($0.derivationIndex) },
             builder: { builder in
                 if submission.details.surplusVouchers.isEmpty {
                     let call = self.buildExternalAssetCall(aliases: aliases, key: key, submission: submission)
@@ -320,7 +302,7 @@ private extension OffboardVouchersForPaymentService {
             origin: submission.origin
         )
 
-        switch result.status {
+        switch result.submission.status {
         case .success:
             logger?.debug("Offboard extrinsic succeeded for key \(key)")
         case let .failure(error):

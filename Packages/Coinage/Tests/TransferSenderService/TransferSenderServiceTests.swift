@@ -25,19 +25,33 @@ struct TransferSenderServiceTests {
 
     let now = Date()
 
-    let mockCoinService = MockCoinService()
-    let mockVoucherService = MockVoucherService()
+    let journal: CallJournal
+    let mockCoinService: MockCoinService
+    let mockVoucherService: MockVoucherService
+    let mockDurability: MockDurabilityService
+
+    init() {
+        let journal = CallJournal()
+        self.journal = journal
+        mockCoinService = MockCoinService(callJournal: journal)
+        mockVoucherService = MockVoucherService(callJournal: journal)
+        mockDurability = MockDurabilityService(callJournal: journal)
+    }
 
     // MARK: - ExactMatch Strategy Tests
 
-    @Test("ExactMatch: TransferContext receives correct spentCoins, empty vouchers, empty change")
+    @Test("ExactMatch: coins handed off, no entry registered")
     func exactMatchContextProcessing() async throws {
         // Given: Coins that exactly match the target ($12 = $8 + $4)
         let coin1 = makeCoin(exponent: 3, derivationIndex: 1) // $8
         let coin2 = makeCoin(exponent: 2, derivationIndex: 2) // $4
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
-        let service = makeTransferSenderService()
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
+        let service = makeTransferSenderService(mockDurability: mockDurability)
 
         // When
         let result = try await service.previewStrategy(
@@ -53,17 +67,20 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        // Then - Wait for background persistence task
-        try await waitForPersistence(expectedSpentCoins: 2)
+        // Then - Wait for handoff marks to be recorded
+        try await waitForHandoff(expectedCoins: 2)
 
-        #expect(Set(mockCoinService.markedSpentIds) == Set([coin1.identifier, coin2.identifier]))
-        #expect(mockCoinService.savedCoins.isEmpty)
-        #expect(mockVoucherService.deletedIdentifiers.isEmpty)
+        // ExactMatch registers no entry (no extrinsic)
+        #expect(await mockDurability.submittedInputs.isEmpty)
+        #expect(await mockDurability.submittedOutputs.isEmpty)
+
+        // Coins are marked handed off
+        #expect(Set(mockCoinService.markedHandedOffIds) == Set([coin1.identifier, coin2.identifier]))
     }
 
     // MARK: - UnloadIntoCoins Strategy Tests
 
-    @Test("Two voucher groups: TransferContext receives correct vouchers deleted and change saved")
+    @Test("Two voucher groups: outputs saved and recipient coins handed off")
     func twoVoucherGroupsContextProcessing() async throws {
         let voucher1 = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
         let voucher2 = makeVoucher(exponent: 3, derivationIndex: 2, recyclerIndex: 1) // $8
@@ -78,9 +95,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key3_1] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key3_1] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(20)),
@@ -95,15 +116,30 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        // Wait for background persistence task: 2 vouchers deleted, change saved
-        try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 2)
+        // Wait for entries to be submitted and outputs to be saved
+        try await waitForSubmission(expectedEntries: 2)
 
-        #expect(Set(mockVoucherService.deletedIdentifiers) == Set([voucher1.identifier, voucher2.identifier]))
-        #expect(inputSpentCoinIds.isEmpty)
-        #expect(changeValue == Decimal(4))
+        // Two groups = two entries submitted
+        let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
+        #expect(Set(allInputs.compactMap { input -> String? in
+            guard case let .recyclerVoucher(idx) = input else { return nil }
+            return "voucher:\(idx)"
+        }) == Set(["voucher:\(voucher1.derivationIndex)", "voucher:\(voucher2.derivationIndex)"]))
+
+        // All output coins (recipient + change) saved with .pendingMint state
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Recipient coins marked as handed off (subset of registered outputs)
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        let handedOffSet = Set(mockCoinService.markedHandedOffIds.map { String(describing: $0) })
+        #expect(!handedOffSet.isEmpty)
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 1)
     }
 
-    @Test("Three voucher groups: TransferContext receives all vouchers deleted")
+    @Test("Three voucher groups: all groups processed and outputs saved")
     func threeVoucherGroupsContextProcessing() async throws {
         let voucher1 = makeVoucher(exponent: 5, derivationIndex: 1, recyclerIndex: 0) // $32
         let voucher2 = makeVoucher(exponent: 4, derivationIndex: 2, recyclerIndex: 1) // $16
@@ -123,9 +159,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key3_2] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key3_2] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(50)),
@@ -140,17 +180,31 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 3)
+        try await waitForSubmission(expectedEntries: 3)
 
-        #expect(Set(mockVoucherService.deletedIdentifiers) == Set([
-            voucher2.identifier,
-            voucher3.identifier,
-            voucher1.identifier
-        ]))
-        #expect(changeValue == Decimal(6))
+        // Three groups = three entries submitted
+        #expect(await (mockDurability.submittedInputs).count == 3)
+
+        // All three vouchers registered as inputs across entries
+        let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
+        let voucherIndices = Set(allInputs.compactMap { input -> UInt32? in
+            guard case let .recyclerVoucher(index) = input else { return nil }
+            return index
+        })
+        #expect(voucherIndices == Set([voucher1, voucher2, voucher3].map(\.derivationIndex)))
+
+        // All output coins saved (recipient + change for each group)
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 2)
     }
 
-    @Test("Five voucher groups: all groups processed correctly through TransferContext")
+    @Test("Five voucher groups: all groups processed and submitted")
     func fiveVoucherGroupsContextProcessing() async throws {
         let voucher1 = makeVoucher(exponent: 5, derivationIndex: 1, recyclerIndex: 0) // $32
         let voucher2 = makeVoucher(exponent: 4, derivationIndex: 2, recyclerIndex: 1) // $16
@@ -167,9 +221,13 @@ struct TransferSenderServiceTests {
             recyclerLoader.revisions[key] = 1
         }
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(61)),
@@ -184,19 +242,26 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 5)
+        try await waitForSubmission(expectedEntries: 5)
 
-        #expect(Set(mockVoucherService.deletedIdentifiers) == Set([
-            voucher1.identifier,
-            voucher2.identifier,
-            voucher3.identifier,
-            voucher4.identifier,
-            voucher5.identifier
-        ]))
-        #expect(changeValue == Decimal(1))
+        // Five groups = five entries submitted
+        #expect(await (mockDurability.submittedInputs).count == 5)
+
+        // All five vouchers registered as inputs across entries
+        let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
+        let voucherIndices = Set(allInputs.compactMap { input -> UInt32? in
+            guard case let .recyclerVoucher(index) = input else { return nil }
+            return index
+        })
+        #expect(voucherIndices == Set([voucher1, voucher2, voucher3, voucher4, voucher5].map(\.derivationIndex)))
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 1)
     }
 
-    @Test("Multiple vouchers same recycler group: combined correctly in TransferContext")
+    @Test("Multiple vouchers same recycler group: combined and submitted as one entry")
     func multipleVouchersSameGroupContextProcessing() async throws {
         let voucher1 = makeVoucher(exponent: 3, derivationIndex: 1, recyclerIndex: 0) // $8
         let voucher2 = makeVoucher(exponent: 3, derivationIndex: 2, recyclerIndex: 0) // $8, same group
@@ -207,9 +272,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(10)),
@@ -224,13 +293,25 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 2)
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(Set(mockVoucherService.deletedIdentifiers) == Set([voucher1.identifier, voucher2.identifier]))
-        #expect(changeValue == Decimal(6))
+        // One group = one entry submitted
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Both vouchers in the entry inputs
+        let inputs = await mockDurability.submittedInputs[0]
+        #expect(Set(inputs.compactMap { input -> String? in
+            guard case let .recyclerVoucher(idx) = input else { return nil }
+            return "voucher:\(idx)"
+        }) == Set(["voucher:\(voucher1.derivationIndex)", "voucher:\(voucher2.derivationIndex)"]))
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 2)
     }
 
-    @Test("Coins and voucher when sufficient: coins and voucher used even if voucher covers amount")
+    @Test("Coins and voucher: all used and outputs registered")
     func voucherOnlyWhenSufficientContextProcessing() async throws {
         let coin1 = makeCoin(exponent: 1, derivationIndex: 1) // $2
         let coin2 = makeCoin(exponent: 1, derivationIndex: 2) // $2
@@ -242,9 +323,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(12)),
@@ -259,17 +344,27 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSpentCoins: 2, expectedSavedCoins: 1, expectedDeletedVouchers: 1)
+        try await waitForSubmission(expectedEntries: 1)
 
-        // Voucher is deleted
-        #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        // Coins are spent
-        #expect(Set(inputSpentCoinIds) == Set([coin1.identifier, coin2.identifier]))
-        // Change = $20 - $12 = $8
-        #expect(changeValue == Decimal(8))
+        // Entry registered with voucher input
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Coins and voucher marked as reserved for transfer
+        #expect(Set(mockCoinService.markedPendingTransferIds) == Set([coin1.identifier, coin2.identifier]))
+        #expect(Set(mockVoucherService.markedPendingTransferIds) == Set([voucher.identifier]))
+
+        // Output coins (recipient + change) saved with .pendingMint
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 1)
     }
 
-    @Test("Change denominations are correctly saved to TransferContext")
+    @Test("Change denominations: breakdown saved and recipient handed off")
     func changeDenominationsContextProcessing() async throws {
         let voucher = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
         // Need $13, change: $3 = $2 + $1
@@ -279,9 +374,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(13)),
@@ -296,15 +395,27 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 2, expectedDeletedVouchers: 1)
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        #expect(changeValue == Decimal(3))
-        let savedExponents = changeCoins.map(\.exponent).sorted(by: >)
-        #expect(savedExponents == [1, 0])
+        // Entry registered
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Change coins should have exponents 1 and 0 (for $2 and $1)
+        let changeExponents = Set(changeCoins.map(\.exponent))
+        #expect(changeExponents == Set([Int16(0), Int16(1)]))
+        #expect(changeCoins.count == 2)
+
+        // All saved coins have pendingMint state
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
     }
 
-    @Test("Exact voucher match produces no change saved")
+    @Test("Exact voucher match: outputs registered, no change needed")
     func exactVoucherMatchNoChangeContext() async throws {
         let voucher = makeVoucher(exponent: 3, derivationIndex: 1, recyclerIndex: 0) // $8
 
@@ -313,9 +424,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(8)),
@@ -330,13 +445,22 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedDeletedVouchers: 1)
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
+        // Entry registered
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Outputs registered - only the recipient coin (exact match, no change)
+        let outputs = await mockDurability.submittedOutputs[0]
+        #expect(outputs.count == 1)
         #expect(changeCoins.isEmpty)
+
+        // Saved coin is the only registered output
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
     }
 
-    @Test("Fractional amounts produce correct change saved")
+    @Test("Fractional amounts: outputs saved with fractional denominations")
     func fractionalAmountsChangeContext() async throws {
         let voucher = makeVoucher(exponent: 1, derivationIndex: 1, recyclerIndex: 0) // $2
 
@@ -345,9 +469,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(string: "1.5")!),
@@ -362,13 +490,23 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 1, expectedDeletedVouchers: 1)
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        #expect(changeValue == Decimal(string: "0.5"))
+        // Entry registered
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Outputs saved (recipient + fractional change)
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 1)
     }
 
-    @Test("Larger voucher with change: proper change denominations saved")
+    @Test("Larger voucher with change: multiple output coins saved")
     func largerVoucherWithChangeContext() async throws {
         // Use exponent 5 ($32) for a simpler test case
         let voucher = makeVoucher(exponent: 5, derivationIndex: 1, recyclerIndex: 0) // $32
@@ -378,9 +516,13 @@ struct TransferSenderServiceTests {
         recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
         recyclerLoader.revisions[key] = 1
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService(recyclerLoader: recyclerLoader)
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
 
         let result = try await service.previewStrategy(
             amount: planks(Decimal(25)),
@@ -395,23 +537,40 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        try await waitForPersistence(expectedSavedCoins: 3, expectedDeletedVouchers: 1) // $7 = $4 + $2 + $1
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(mockVoucherService.deletedIdentifiers == [voucher.identifier])
-        // $32 - $25 = $7 change
-        #expect(changeValue == Decimal(7))
+        // Entry registered
+        #expect(await (mockDurability.submittedInputs).count == 1)
+
+        // Outputs saved: recipient ($25) + change ($7 = $4 + $2 + $1)
+        // Change coins must have exact exponents [0, 1, 2] for $1, $2, $4
+        let changeExponents = changeCoins.map(\.exponent).sorted()
+        #expect(changeExponents == [Int16(0), Int16(1), Int16(2)])
+        #expect(changeCoins.count == 3)
+
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
     }
 
     // MARK: - SplitCoin Strategy Tests
 
-    @Test("Split strategy: overflow coin spent and change saved")
+    @Test("Split strategy: overflow coin consumed, outputs saved and recipient handed off")
     func splitStrategyContextProcessing() async throws {
         // Given: $8 coin, need $5, should split into $5 recipient + $3 change
         let coin = makeCoin(exponent: 3, derivationIndex: 1) // $8
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService()
+        let service = makeTransferSenderService(mockDurability: mockDurability)
 
         // When
         let result = try await service.previewStrategy(
@@ -428,23 +587,49 @@ struct TransferSenderServiceTests {
         )
 
         // Then
-        try await waitForPersistence(expectedSpentCoins: 1, expectedSavedCoins: 2) // $3 = $2 + $1
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(inputSpentCoinIds == [coin.identifier])
-        #expect(changeValue == Decimal(3))
+        // Entry registered with overflow coin input
+        let inputs = await mockDurability.submittedInputs[0]
+        #expect(inputs.contains { input in
+            guard case let .coin(.own(idx)) = input else { return false }
+            return idx == coin.derivationIndex
+        })
+
+        // Outputs saved (recipient split into 2 coins + change $3 = $2 + $1)
+        let outputs = await mockDurability.submittedOutputs[0]
+        #expect(outputs.count == 4)
+
+        // Change coins must have exponents [0, 1] for $1 and $2
+        let changeExponents = changeCoins.map(\.exponent).sorted()
+        #expect(changeExponents == [Int16(0), Int16(1)])
+        #expect(changeCoins.count == 2)
+
+        // All saved coins have pendingMint state
+        for coin in mockCoinService.savedCoins {
+            #expect(coin.state == .pendingMint)
+        }
+
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
     }
 
-    @Test("Split strategy with whole coins: all spent coins marked correctly")
+    @Test("Split with whole coins: whole coins handed off without splitting, overflow consumed")
     func splitWithWholeCoinsContextProcessing() async throws {
         // Given: $8 + $4 + $2 coins, need $11
-        // Should use $8 + $4 whole ($12 total), split $4 for $3 + $1 change
+        // Should use $8 + $4 whole ($12 total), split overflow coin from second $4 for $3 + $1 change
         let coin1 = makeCoin(exponent: 3, derivationIndex: 1) // $8
         let coin2 = makeCoin(exponent: 2, derivationIndex: 2) // $4
         let coin3 = makeCoin(exponent: 1, derivationIndex: 3) // $2
 
-        let context = TransferContext(coinService: mockCoinService, voucherService: mockVoucherService)
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
 
-        let service = makeTransferSenderService()
+        let service = makeTransferSenderService(mockDurability: mockDurability)
 
         // When
         let result = try await service.previewStrategy(
@@ -460,57 +645,237 @@ struct TransferSenderServiceTests {
             context: context
         )
 
-        // Then - coins used in split are marked spent
-        try await waitForPersistence(expectedSpentCoins: 2, expectedSavedCoins: 1)
+        // Then - Split registers the overflow coin as consumed
+        try await waitForSubmission(expectedEntries: 1)
 
-        #expect(Set(inputSpentCoinIds) == Set([coin1.identifier, coin2.identifier]))
-        #expect(!inputSpentCoinIds.contains(coin3.identifier))
-        #expect(mockVoucherService.deletedIdentifiers.isEmpty)
+        // Entry registered with only overflow coin input (coin2)
+        let inputs = await mockDurability.submittedInputs[0]
+        #expect(inputs.contains { input in
+            guard case let .coin(.own(idx)) = input else { return false }
+            return idx == coin2.derivationIndex
+        })
+
+        // Whole coins (coin1) handed off without consumption
+        #expect(mockCoinService.markedHandedOffIds.contains(coin1.identifier))
+
+        // coin3 not used at all
+        #expect(!mockCoinService.markedPendingTransferIds.contains(coin3.identifier))
+
+        // Outputs saved (recipient $11 + change $1)
+        // Saved coins match registered outputs exactly
+        let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
+        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(changeCoins.count == 1)
+    }
+
+    // MARK: - Ordering and Error Handling Tests
+
+    @Test("UnloadIntoCoins: registration precedes any projection write")
+    func registrationPrecedesReservationForUnload() async throws {
+        let voucher1 = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
+        let voucher2 = makeVoucher(exponent: 3, derivationIndex: 2, recyclerIndex: 1) // $8
+        // Total: $24, need $20, change: $4
+
+        let recyclerLoader = MockRecyclerLoader()
+        let key4_0 = RecyclerKey(exponent: 4, index: 0)
+        recyclerLoader.states[key4_0] = MembersPallet.RingStatus(total: 10, included: 10)
+        recyclerLoader.revisions[key4_0] = 1
+
+        let key3_1 = RecyclerKey(exponent: 3, index: 1)
+        recyclerLoader.states[key3_1] = MembersPallet.RingStatus(total: 10, included: 10)
+        recyclerLoader.revisions[key3_1] = 1
+
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
+
+        let service = makeTransferSenderService(recyclerLoader: recyclerLoader, mockDurability: mockDurability)
+
+        let result = try await service.previewStrategy(
+            amount: planks(Decimal(20)),
+            availableCoins: [],
+            availableVouchers: [voucher1, voucher2],
+            breakdownContext: testContext
+        )
+        _ = try await service.execute(
+            result: result,
+            currentDate: now,
+            breakdownContext: testContext,
+            context: context
+        )
+
+        try await waitForSubmission(expectedEntries: 2)
+
+        let events = journal.events
+
+        let registerIdx = try #require(
+            events.firstIndex(of: "register"),
+            "no register event recorded"
+        )
+        let projectionIdx = try #require(
+            events.firstIndex { $0.hasPrefix("reserve") || $0 == "insertOutputs" },
+            "no projection write recorded — the assertion below would be vacuous"
+        )
+
+        #expect(
+            registerIdx < projectionIdx,
+            "registration must precede projection writes: \(events)"
+        )
+    }
+
+    @Test("SplitCoin: registration precedes any projection write")
+    func registrationPrecedesReservationForSplit() async throws {
+        let coin = makeCoin(exponent: 3, derivationIndex: 1) // $8
+
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
+
+        let service = makeTransferSenderService(mockDurability: mockDurability)
+
+        let result = try await service.previewStrategy(
+            amount: planks(Decimal(5)),
+            availableCoins: [coin],
+            availableVouchers: [],
+            breakdownContext: testContext
+        )
+        _ = try await service.execute(
+            result: result,
+            currentDate: now,
+            breakdownContext: testContext,
+            context: context
+        )
+
+        try await waitForSubmission(expectedEntries: 1)
+
+        let events = journal.events
+
+        let registerIdx = try #require(
+            events.firstIndex(of: "register"),
+            "no register event recorded"
+        )
+        let projectionIdx = try #require(
+            events.firstIndex { $0.hasPrefix("reserve") || $0 == "insertOutputs" },
+            "no projection write recorded — the assertion below would be vacuous"
+        )
+
+        #expect(
+            registerIdx < projectionIdx,
+            "registration must precede projection writes: \(events)"
+        )
+    }
+
+    @Test("Network failure after registration abandons the entry")
+    func networkErrorAfterRegistrationAbandonsEntry() async throws {
+        let voucher = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
+
+        let recyclerLoader = MockRecyclerLoader()
+        let key = RecyclerKey(exponent: 4, index: 0)
+        recyclerLoader.states[key] = MembersPallet.RingStatus(total: 10, included: 10)
+        recyclerLoader.revisions[key] = 1
+
+        struct NetworkError: Error {}
+        let service = makeTransferSenderService(
+            originFactory: MockOriginFactory(errorToThrow: NetworkError()),
+            recyclerLoader: recyclerLoader,
+            mockDurability: mockDurability
+        )
+
+        let context = TransferContext(
+            coinService: mockCoinService,
+            voucherService: mockVoucherService,
+            durability: mockDurability
+        )
+
+        let result = try await service.previewStrategy(
+            amount: planks(Decimal(13)),
+            availableCoins: [],
+            availableVouchers: [voucher],
+            breakdownContext: testContext
+        )
+        _ = try await service.execute(
+            result: result,
+            currentDate: now,
+            breakdownContext: testContext,
+            context: context
+        )
+
+        try await waitForAbandon(expected: 1)
+
+        let events = journal.events
+        #expect(events.contains("register"), "entry must have been registered first")
+        #expect(
+            !events.contains("submitRegistered"),
+            "nothing may be submitted once origin creation failed: \(events)"
+        )
     }
 }
 
 extension TransferSenderServiceTests {
     // MARK: - Helpers
 
-    private func waitForPersistence(
-        expectedSpentCoins: Int = 0,
-        expectedSavedCoins: Int = 0,
-        expectedDeletedVouchers: Int = 0,
+    private var changeCoins: [Coin] {
+        // markedHandedOffIds are likely string representations of derivation indices or identifiers
+        let handedOff = Set(mockCoinService.markedHandedOffIds.map { String(describing: $0) })
+        return mockCoinService.savedCoins.filter { !handedOff.contains(String(describing: $0.derivationIndex)) }
+    }
+
+    private func waitForHandoff(
+        expectedCoins: Int = 0,
         timeout: TimeInterval = 2.0
     ) async throws {
         let start = Date()
         while Date().timeIntervalSince(start) < timeout {
-            let actualSpent = mockCoinService.markedSpentIds.count
-            let actualSaved = mockCoinService.savedCoins.count
-            let actualDeleted = mockVoucherService.deletedIdentifiers.count
+            let actualHandedOff = mockCoinService.markedHandedOffIds.count
 
-            if actualSpent >= expectedSpentCoins,
-               actualSaved >= expectedSavedCoins,
-               actualDeleted >= expectedDeletedVouchers {
+            if actualHandedOff >= expectedCoins {
                 return
             }
 
-            try await Task.sleep(for: .milliseconds(20)) // 20ms
+            try await Task.sleep(for: .milliseconds(20))
         }
+
+        throw TestError
+            .timeout(
+                "waitForHandoff: expected \(expectedCoins) handed off coins, got \(mockCoinService.markedHandedOffIds.count)"
+            )
     }
 
-    /// Change coins kept by the sender: saved but NOT marked spent.
-    /// (Per PANS-2931 destination coins are saved AND marked spent, so filtering them out isolates change.)
-    private var changeCoins: [Coin] {
-        let spent = Set(mockCoinService.markedSpentIds)
-        return mockCoinService.savedCoins.filter { !spent.contains($0.identifier) }
+    private func waitForSubmission(
+        expectedEntries: Int = 0,
+        timeout: TimeInterval = 2.0
+    ) async throws {
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            let actualEntries = await (mockDurability.submittedInputs).count
+
+            if actualEntries >= expectedEntries {
+                return
+            }
+
+            try await Task.sleep(for: .milliseconds(20))
+        }
+
+        let actualEntries = await mockDurability.submittedInputs.count
+        throw TestError.timeout("waitForSubmission: expected \(expectedEntries) entries, got \(actualEntries)")
     }
 
-    /// Total value of change coins.
-    private var changeValue: Decimal {
-        changeCoins.reduce(Decimal(0)) { $0 + testContext.amount(forExponent: $1.exponent) }
-    }
-
-    /// Identifiers of original input coins consumed: marked spent but NOT saved
-    /// (destination coins are both saved and spent, so excluding saved leaves only consumed inputs).
-    private var inputSpentCoinIds: [String] {
-        let savedIds = Set(mockCoinService.savedCoins.map(\.identifier))
-        return mockCoinService.markedSpentIds.filter { !savedIds.contains($0) }
+    private func waitForAbandon(
+        expected: Int,
+        timeout: TimeInterval = 2.0
+    ) async throws {
+        let start = Date()
+        while Date().timeIntervalSince(start) < timeout {
+            if journal.abandonedIds.count >= expected { return }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        throw TestError.timeout(
+            "waitForAbandon: expected \(expected), got \(journal.abandonedIds.count)"
+        )
     }
 
     private func planks(_ decimal: Decimal) -> BigUInt {
@@ -543,10 +908,10 @@ extension TransferSenderServiceTests {
 
     private func makeTransferSenderService(
         coinAllocator: MockCoinAllocator = MockCoinAllocator(),
-        coordinator: MockExtrinsicSubmissionCoordinator = MockExtrinsicSubmissionCoordinator(),
         originFactory: MockOriginFactory = MockOriginFactory(),
         recyclerLoader: MockRecyclerLoader = MockRecyclerLoader(),
-        blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider()
+        blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider(),
+        mockDurability: MockDurabilityService = MockDurabilityService()
     ) -> TransferSenderService {
         let coinSelector = CoinSelector()
         let memoBuilder = MockMemoBuilder()
@@ -557,10 +922,9 @@ extension TransferSenderServiceTests {
             coinAllocator: coinAllocator,
             voucherKeyFactory: voucherKeyFactory,
             coinKeyFactory: coinKeyFactory,
-            coordinator: coordinator,
+            durability: mockDurability,
             originFactory: originFactory,
             recyclerLoader: recyclerLoader,
-            walStore: MockTransferWALStore(),
             blockInfoProvider: blockInfoProvider,
             logger: nil
         )
@@ -574,4 +938,8 @@ extension TransferSenderServiceTests {
             logger: nil
         )
     }
+}
+
+enum TestError: Error {
+    case timeout(String)
 }

@@ -152,7 +152,13 @@ private extension ServiceCoordinator {
 
         let schedulerFactory = CoinRecycleSchedulerFactory(logger: logger)
 
-        let walStore = TransferWALCoreDataStore(storageFacade: UserDataStorageFacade.shared)
+        let transacting = CoinageTransactionContext(
+            databaseService: UserDataStorageFacade.shared.databaseService
+        )
+        let durabilityStore = DurabilityCoreDataStore(
+            storageFacade: UserDataStorageFacade.shared,
+            transacting: transacting
+        )
 
         return CoinageService.make(
             chainResource: chainRegistry,
@@ -163,7 +169,7 @@ private extension ServiceCoordinator {
             rootEntropyManager: RootEntropyManager.shared,
             keystore: Keychain(),
             planStore: claimPlanStore,
-            walStore: walStore,
+            durabilityStore: durabilityStore,
             schedulerFactory: schedulerFactory,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,

@@ -19,6 +19,10 @@ extension TransferSenderServiceTests {
         private var _markedSpentIds: [String] = []
         private var _markedRecyclingIds: [String] = []
         private var _markedAvailableIds: [String] = []
+        private var _markedPendingMintIds: [String] = []
+        private var _markedHandedOffIds: [String] = []
+        private var _markedPendingTransferIds: [String] = []
+        private let callJournal: CallJournal?
 
         var savedCoins: [Coin] {
             mutex.withLock { _savedCoins }
@@ -36,9 +40,26 @@ extension TransferSenderServiceTests {
             mutex.withLock { _markedAvailableIds }
         }
 
+        var markedPendingMintIds: [String] {
+            mutex.withLock { _markedPendingMintIds }
+        }
+
+        var markedHandedOffIds: [String] {
+            mutex.withLock { _markedHandedOffIds }
+        }
+
+        var markedPendingTransferIds: [String] {
+            mutex.withLock { _markedPendingTransferIds }
+        }
+
+        init(callJournal: CallJournal? = nil) {
+            self.callJournal = callJournal
+        }
+
         func fetchAllCoins() async throws -> [Coin] { [] }
 
         func save(coins: [Coin]) async throws {
+            callJournal?.record("insertOutputs")
             mutex.withLock { _savedCoins.append(contentsOf: coins) }
         }
 
@@ -54,16 +75,38 @@ extension TransferSenderServiceTests {
             mutex.withLock { _markedAvailableIds.append(contentsOf: coinIds) }
         }
 
-        func markPendingTransfer(coinIds _: [String]) async throws {}
+        func markPendingTransfer(coinIds: [String]) async throws {
+            callJournal?.record("reserve.coins")
+            mutex.withLock { _markedPendingTransferIds.append(contentsOf: coinIds) }
+        }
+
+        func markPendingMint(coinIds: [String]) async throws {
+            mutex.withLock { _markedPendingMintIds.append(contentsOf: coinIds) }
+        }
+
+        func markHandedOff(coinIds: [String]) async throws {
+            callJournal?.record("handOff")
+            mutex.withLock { _markedHandedOffIds.append(contentsOf: coinIds) }
+        }
     }
 
     final class MockVoucherService: VoucherServiceProtocol, @unchecked Sendable {
         private let mutex = NSLock()
         private var _deletedIdentifiers: [String] = []
         private var _markedAvailableIds: [String] = []
+        private var _markedPendingTransferIds: [String] = []
+        private let callJournal: CallJournal?
 
         var deletedIdentifiers: [String] {
             mutex.withLock { _deletedIdentifiers }
+        }
+
+        var markedPendingTransferIds: [String] {
+            mutex.withLock { _markedPendingTransferIds }
+        }
+
+        init(callJournal: CallJournal? = nil) {
+            self.callJournal = callJournal
         }
 
         func load(
@@ -82,7 +125,10 @@ extension TransferSenderServiceTests {
 
         func save(vouchers _: [Voucher]) async throws {}
 
-        func markPendingTransfer(identifiers _: [String]) async throws {}
+        func markPendingTransfer(identifiers: [String]) async throws {
+            callJournal?.record("reserve.vouchers")
+            mutex.withLock { _markedPendingTransferIds.append(contentsOf: identifiers) }
+        }
 
         func delete(identifiers: [String]) async throws {
             mutex.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
@@ -248,6 +294,12 @@ extension TransferSenderServiceTests {
 
     /// Mock origin factory that returns mock origins
     final class MockOriginFactory: OriginCreating {
+        let errorToThrow: Error?
+
+        init(errorToThrow: Error? = nil) {
+            self.errorToThrow = errorToThrow
+        }
+
         func createAsCoinOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
             MockExtrinsicOrigin()
         }
@@ -261,7 +313,10 @@ extension TransferSenderServiceTests {
             currentDate _: Date,
             blockHash _: SubstrateSdk.BlockHashData?
         ) async throws -> [ExtrinsicOriginDefining] {
-            voucherGroups.map { _ in MockExtrinsicOrigin() }
+            if let error = errorToThrow {
+                throw error
+            }
+            return voucherGroups.map { _ in MockExtrinsicOrigin() }
         }
     }
 
@@ -281,50 +336,6 @@ extension TransferSenderServiceTests {
                 )
             }
             return CompoundOperationWrapper(targetOperation: operation)
-        }
-    }
-
-    /// Mock transfer WAL store
-    actor MockTransferWALStore: TransferWALStoring {
-        func save(_: TransferWALEntry) async throws {}
-
-        func update(id _: UUID, checkpointBlock _: Coinage.CheckpointBlock) async throws {}
-
-        func fetchAll() async throws -> [TransferWALEntry] { [] }
-
-        func save(contentsOf _: [TransferWALEntry]) async throws {}
-
-        func delete(id _: UUID) async throws {}
-    }
-
-    /// Mock extrinsic submission coordinator
-    final class MockExtrinsicSubmissionCoordinator: ExtrinsicSubmissionCoordinating {
-        var result: ExtrinsicMonitorSubmission
-        var error: Error?
-
-        init() {
-            result = ExtrinsicMonitorSubmission(
-                extrinsicSubmittedModel: ExtrinsicSubmittedModel(
-                    txHash: "0x" + String(repeating: "0", count: 64),
-                    sender: .none
-                ),
-                status: .success(.init(
-                    extrinsicHash: "0x" + String(repeating: "0", count: 64),
-                    blockHash: "0x" + String(repeating: "1", count: 64),
-                    blockNumber: 1,
-                    extrinsicIndex: 0,
-                    interestedEvents: []
-                ))
-            )
-        }
-
-        func submit(
-            walEntryId _: UUID,
-            builder _: @escaping ExtrinsicBuilderClosure,
-            origin _: any ExtrinsicOriginDefining
-        ) async throws -> ExtrinsicMonitorSubmission {
-            if let error { throw error }
-            return result
         }
     }
 

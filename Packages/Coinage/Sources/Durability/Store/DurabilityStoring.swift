@@ -1,0 +1,49 @@
+import Foundation
+
+/// Persistence for durability entries and handoff marks.
+///
+/// Entries are never deleted. `fetchLive` filters by status; terminal rows stay as history
+/// because `minter(of:)` and `consumers(of:)` must still see them.
+///
+/// Handoff marks are a separate insert-only record: `ownCoinInputs` asks whether an asset has
+/// *ever* carried a mark, so the fact has to survive any later state change.
+public protocol DurabilityStoring: Sendable {
+    /// Inserts the entry. Throws ``DurabilityError`` when it violates a registration invariant.
+    /// Assigns the monotonic `sequence`.
+    func register(_ entry: DurabilityEntry) async throws
+
+    func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws
+
+    /// Writes the block where execution was observed, or clears it. Not a status change.
+    func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws
+
+    /// Writes the submitted extrinsic hash. Not a status change.
+    func recordTxHash(_ id: TransactionId, txHash: Data) async throws
+
+    /// Live entries ordered by `sequence`.
+    func fetchLive() async throws -> [DurabilityEntry]
+
+    /// Every entry, live and terminal, ordered by `sequence`.
+    func fetchAll() async throws -> [DurabilityEntry]
+
+    func fetch(id: TransactionId) async throws -> DurabilityEntry?
+
+    /// The entry that minted this asset, if any.
+    func minter(of asset: OwnAsset) async throws -> DurabilityEntry?
+
+    /// Every entry consuming this input, including terminal ones.
+    func consumers(of input: Input) async throws -> [DurabilityEntry]
+
+    func markHandedOff(_ asset: OwnAsset) async throws
+
+    func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool
+
+    func handedOffCoins() async throws -> [OwnAsset]
+}
+
+public extension DurabilityStoring {
+    /// Handoff marks as a set of ``OwnAsset/identifier``, the form every caller compares against.
+    func handedOffIdentifiers() async throws -> Set<String> {
+        try await Set(handedOffCoins().map(\.identifier))
+    }
+}

@@ -3,7 +3,7 @@ import Operation_iOS
 import StructuredConcurrency
 
 /// Protocol defining coin persistence operations.
-public protocol CoinServiceProtocol {
+public protocol CoinServiceProtocol: Sendable {
     /// Fetch all available (unspent) coins.
     func fetchAllCoins() async throws -> [Coin]
 
@@ -21,9 +21,15 @@ public protocol CoinServiceProtocol {
 
     /// Mark coins as pending transfer by their identifiers.
     func markPendingTransfer(coinIds: [String]) async throws
+
+    /// Mark coins as awaiting minting by a live entry.
+    func markPendingMint(coinIds: [String]) async throws
+
+    /// Mark coins as handed off to a peer by their identifiers.
+    func markHandedOff(coinIds: [String]) async throws
 }
 
-public final class CoinService {
+public final class CoinService: @unchecked Sendable {
     private let coinRepository: AnyDataProviderRepository<Coin>
     private let coinStateRepository: AnyDataProviderRepository<Coin>
 
@@ -60,6 +66,14 @@ extension CoinService: CoinServiceProtocol {
 
     public func markPendingTransfer(coinIds: [String]) async throws {
         try await apply(state: .pendingTransfer, for: coinIds)
+    }
+
+    public func markPendingMint(coinIds: [String]) async throws {
+        try await apply(state: .pendingMint, for: coinIds)
+    }
+
+    public func markHandedOff(coinIds: [String]) async throws {
+        try await apply(state: .handedOff, for: coinIds)
     }
 }
 

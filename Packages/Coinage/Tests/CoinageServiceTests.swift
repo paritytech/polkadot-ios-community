@@ -106,7 +106,7 @@ struct CoinageServiceTests {
             coinKeypairFactory: coinKeypairFactory,
             senderService: transferService,
             ongoingTransferService: recipientService,
-            transferRecoveryService: MockTransferRecoveryService(),
+            durabilityService: MockDurabilityService(),
             externalPaymentService: MockExternalPaymentService(),
             contextLoader: contextLoader,
             recyclingService: recyclingService,
@@ -164,7 +164,7 @@ struct CoinageServiceTests {
             coinKeypairFactory: MockCoinKeyFactory(),
             senderService: MockTransferSenderService(),
             ongoingTransferService: MockTransferRecipientService(),
-            transferRecoveryService: MockTransferRecoveryService(),
+            durabilityService: MockDurabilityService(),
             externalPaymentService: MockExternalPaymentService(),
             contextLoader: mockLoader,
             recyclingService: mockRecyclingService,
@@ -693,12 +693,16 @@ private extension CoinageServiceTests {
         var markedSpentIds: [String] = []
         var markedAvailableIds: [String] = []
         var markedRecyclingIds: [String] = []
+        var markedPendingMintIds: [String] = []
+        var markedHandedOffIds: [String] = []
         var shouldThrow: Error?
 
         var saveCallOrder: Int?
         var markSpentCallOrder: Int?
         var markRecyclingCallOrder: Int?
         var markAvailableCallOrder: Int?
+        var markPendingMintCallOrder: Int?
+        var markHandedOffCallOrder: Int?
         var callOrderTracker: CallOrderTracker?
 
         func fetchAllCoins() async throws -> [Coin] {
@@ -725,6 +729,22 @@ private extension CoinageServiceTests {
         }
 
         func markPendingTransfer(coinIds _: [String]) async throws {}
+
+        func markPendingMint(coinIds: [String]) async throws {
+            if let error = shouldThrow {
+                throw error
+            }
+            markedPendingMintIds = coinIds
+            markPendingMintCallOrder = callOrderTracker?.nextOrder()
+        }
+
+        func markHandedOff(coinIds: [String]) async throws {
+            if let error = shouldThrow {
+                throw error
+            }
+            markedHandedOffIds = coinIds
+            markHandedOffCallOrder = callOrderTracker?.nextOrder()
+        }
     }
 
     final class MockVoucherService: VoucherServiceProtocol, @unchecked Sendable {
@@ -841,10 +861,6 @@ private extension CoinageServiceTests {
         }
     }
 
-    final actor MockTransferRecoveryService: TransferRecoveryServicing {
-        func recover() async {}
-    }
-
     final class MockExternalPaymentService: ExternalPaymentServicing {
         func previewPayment(
             for _: Balance,
@@ -943,13 +959,10 @@ private extension CoinageServiceTests {
                 fatalError("MockTransferSenderService: expectationToReturn not set")
             }
 
-            // Simulate what a real strategy would do - persist state via context
-            try await context.process(
-                spentCoins: expectation.spentCoins,
-                spentVouchers: expectation.spentVouchers,
-                change: expectation.changeCoins,
-                destinationCoins: []
-            )
+            // Simulate what a real strategy would do
+            try await context.insertOutputs(coins: expectation.changeCoins)
+            try await context.handOff(coins: expectation.spentCoins)
+            await context.settle()
 
             return expectation.memo
         }

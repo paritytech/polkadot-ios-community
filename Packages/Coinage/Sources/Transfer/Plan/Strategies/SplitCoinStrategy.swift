@@ -5,20 +5,23 @@ import SubstrateSdk
 import SubstrateSdkExt
 import SDKLogger
 
-/// Strategy 2: Split coin(s) into target and change denominations.
-/// - `wholeCoins` are transferred intact to recipient (no blockchain tx needed for these)
-/// - `overflowCoin` is split to cover remaining amount + generate change
-/// Receives pre-allocated coins from the TransferPlanFactory.
+/// Strategy 2: split one coin into recipient and change denominations.
+///
+/// Only `overflowCoin` is consumed on chain, so it is the entry's single input — which is what
+/// Appendix B says a split takes. `wholeCoins` are passed to the recipient untouched and are
+/// recorded as handoffs rather than as inputs.
+///
+/// Both the recipient coins and the change coins are declared as outputs. Recording the
+/// recipient side matters: an entry that declares only its change has no evidence left once
+/// the peer claims, and cannot be told apart from one that never executed.
 struct SplitCoinStrategy {
     private let wholeCoins: [Coin]
     private let overflowCoin: Coin
     private let recipientCoins: [Coin]
     private let changeCoins: [Coin]
     private let coinKeyFactory: any CoinKeyDeriving
-    private let coordinator: any ExtrinsicSubmissionCoordinating
+    private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
-    private let walStore: any TransferWALStoring
-    private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
 
     init(
@@ -27,10 +30,8 @@ struct SplitCoinStrategy {
         recipientCoins: [Coin],
         changeCoins: [Coin],
         coinKeyFactory: any CoinKeyDeriving,
-        coordinator: any ExtrinsicSubmissionCoordinating,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
-        walStore: any TransferWALStoring,
-        mortality: UInt32,
         logger: SDKLoggerProtocol?
     ) {
         self.wholeCoins = wholeCoins
@@ -38,10 +39,8 @@ struct SplitCoinStrategy {
         self.recipientCoins = recipientCoins
         self.changeCoins = changeCoins
         self.coinKeyFactory = coinKeyFactory
-        self.coordinator = coordinator
+        self.durability = durability
         self.originFactory = originFactory
-        self.walStore = walStore
-        self.mortality = mortality
         self.logger = logger
     }
 }
@@ -69,37 +68,45 @@ private extension SplitCoinStrategy {
         }
         let origin = try makeOrigin()
 
-        let inputCoins = wholeCoins + [overflowCoin]
-        let walEntry = TransferWALEntry(
-            inputCoinIds: inputCoins.map(\.identifier),
-            inputVoucherIds: [],
-            expectedCoinIndices: changeCoins.map(\.derivationIndex),
-            mortality: mortality
+        // Registration first: the projection writes below are only an anticipation of what the
+        // reconciler will compute, and it can only agree once the entry exists.
+        let entryId = try await durability.register(
+            inputs: [.coin(.own(overflowCoin.derivationIndex))],
+            outputs: allNewCoins.map { .coin($0.derivationIndex) }
         )
 
-        try await walStore.save(walEntry)
+        do {
+            try await context.reserve(coins: wholeCoins + [overflowCoin], vouchers: [])
+            try await context.handOff(coins: wholeCoins)
+            try await context.insertOutputs(coins: allNewCoins)
+        } catch {
+            durability.abandon(entryId)
+            throw error
+        }
 
         logger?.debug("Submitting split extrinsic for \(allNewCoins.count) coins")
 
-        let submission = try await coordinator.submit(
-            walEntryId: walEntry.id,
+        let result = try await durability.submitRegistered(
+            entryId: entryId,
             builder: builder,
             origin: origin
         )
 
-        switch submission.status {
+        switch result.submission.status {
         case .success:
             logger?.debug("Split extrinsic succeeded")
-            try await context.process(spentCoins: inputCoins, change: changeCoins, destinationCoins: recipientCoins)
-            try await walStore.delete(id: walEntry.id)
+            try await context.handOff(coins: recipientCoins)
+            await context.settle()
         case let .failure(error):
             logger?.error("Split extrinsic failed: \(error.error)")
+            await context.settle()
             throw TransferStrategyError.submissionFailed(error.error)
         }
     }
 
-    func buildSplitDestinations(from coins: [Coin]) throws -> [CoinagePallet.Calls.Split.SplitDestination] {
-        // Group coins by exponent, deriving account ID (public key) for each coin
+    func buildSplitDestinations(
+        from coins: [Coin]
+    ) throws -> [CoinagePallet.Calls.Split.SplitDestination] {
         var grouped: [Int16: [Data]] = [:]
         for coin in coins {
             let accountId = try coinKeyFactory.derivePublicKey(for: coin)

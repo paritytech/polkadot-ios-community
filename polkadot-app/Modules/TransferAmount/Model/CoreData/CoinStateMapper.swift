@@ -30,6 +30,8 @@ extension CoinStateMapper: CoreDataMapperProtocol {
             case .available: 1
             case .recycling: 2
             case .pendingTransfer: 3
+            case .pendingMint: 4
+            case .handedOff: 5
             }
     }
 }

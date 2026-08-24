@@ -55,7 +55,7 @@ struct CoinageRecyclingServiceTests {
 
     // MARK: - Per-coin outcomes
 
-    @Test("Success locks then spends the coin, persists the voucher available, and clears the WAL")
+    @Test("Success locks then spends the coin, persists the voucher available, and registers")
     func successRecyclesCoin() async throws {
         let sut = makeSUT(coins: [makeCoin(index: 7, age: 14)])
 
@@ -65,11 +65,13 @@ struct CoinageRecyclingServiceTests {
         #expect(sut.coinService.ids(for: "available").isEmpty)
         #expect(sut.voucherRepo.savedVouchers.count == 1)
         #expect(sut.voucherRepo.savedVouchers.first?.localState == .available)
-        #expect(sut.coordinator.submittedWALIds.count == 1)
-        #expect(await sut.walStore.entries.isEmpty)
+        let entries = await sut.durabilityService.store.allEntries
+        #expect(entries.count == 1)
+        #expect(entries.first?.inputs == [.coin(.own(7))])
+        #expect(entries.first?.outputs.count == 1)
     }
 
-    @Test("On-chain failure spends the coin, drops the voucher, and clears the WAL")
+    @Test("On-chain failure spends the coin, drops the voucher, and registers")
     func chainFailureDestroysCoin() async throws {
         let sut = makeSUT(coins: [makeCoin(index: 7, age: 14)], submissionOutcome: .chainFailure)
 
@@ -78,10 +80,11 @@ struct CoinageRecyclingServiceTests {
         #expect(sut.coinService.ids(for: "spent") == ["7"])
         #expect(sut.coinService.ids(for: "available").isEmpty)
         #expect(sut.voucherRepo.savedVouchers.isEmpty)
-        #expect(await sut.walStore.entries.isEmpty)
+        let entries = await sut.durabilityService.store.allEntries
+        #expect(entries.count == 1)
     }
 
-    @Test("A pre-submission error reverts the coin and writes no WAL")
+    @Test("A pre-submission error reverts the coin and registers no entry")
     func preSubmissionErrorRevertsCoin() async throws {
         let sut = makeSUT(coins: [makeCoin(index: 7, age: 14)], allocatorError: StubError.boom)
 
@@ -91,10 +94,11 @@ struct CoinageRecyclingServiceTests {
         #expect(sut.coinService.ids(for: "available") == ["7"])
         #expect(sut.coinService.ids(for: "spent").isEmpty)
         #expect(sut.voucherRepo.savedVouchers.isEmpty)
-        #expect(await sut.walStore.entries.isEmpty)
+        let entries = await sut.durabilityService.store.allEntries
+        #expect(entries.isEmpty)
     }
 
-    @Test("A thrown submission leaves the WAL entry and the coin in .recycling for recovery")
+    @Test("A thrown submission leaves the entry and the coin in .recycling for recovery")
     func thrownSubmissionLeavesWALForRecovery() async throws {
         let sut = makeSUT(coins: [makeCoin(index: 7, age: 14)], submissionOutcome: .thrown)
 
@@ -104,11 +108,11 @@ struct CoinageRecyclingServiceTests {
         #expect(sut.coinService.ids(for: "spent").isEmpty)
         #expect(sut.coinService.ids(for: "available").isEmpty)
 
-        let entries = await sut.walStore.entries
+        let entries = await sut.durabilityService.store.allEntries
         #expect(entries.count == 1)
-        #expect(entries.first?.operationType == .recycleIntoVoucher)
-        #expect(entries.first?.inputCoinIds == ["7"])
-        #expect(entries.first?.expectedVoucherIndices.count == 1)
+        #expect(entries.first?.status == .pending)
+        #expect(entries.first?.inputs == [.coin(.own(7))])
+        #expect(entries.first?.outputs.count == 1)
         #expect(sut.voucherRepo.savedVouchers.first?.localState == .pendingOnboarding)
     }
 
@@ -153,13 +157,12 @@ private extension CoinageRecyclingServiceTests {
         let coinService: RecyclingMockCoinService
         let scheduler: RecordingScheduler
         let voucherRepo: RecordingVoucherRepository
-        let coordinator: StubSubmissionCoordinator
-        let walStore: MockTransferWALStore
+        let durabilityService: MockDurabilityService
     }
 
     func makeSUT(
         coins: [Coin] = [],
-        submissionOutcome: StubSubmissionCoordinator.Outcome = .success,
+        submissionOutcome: MockDurabilityService.SubmissionOutcome = .success,
         allocatorError: Error? = nil,
         backgroundRecyclingInterval: TimeInterval = 3_600,
         recycleAtAge: Int16 = 14
@@ -167,8 +170,7 @@ private extension CoinageRecyclingServiceTests {
         let coinService = RecyclingMockCoinService(coins: coins)
         let scheduler = RecordingScheduler()
         let voucherRepo = RecordingVoucherRepository()
-        let coordinator = StubSubmissionCoordinator(outcome: submissionOutcome)
-        let walStore = MockTransferWALStore()
+        let durabilityService = MockDurabilityService(submissionOutcome: submissionOutcome)
 
         let service = CoinageRecyclingService(
             schedulerFactory: RecordingSchedulerFactory(scheduler: scheduler),
@@ -177,12 +179,10 @@ private extension CoinageRecyclingServiceTests {
             voucherRepository: AnyDataProviderRepository(voucherRepo),
             coinKeypairFactory: StubCoinKeyFactory(),
             voucherKeypairFactory: StubVoucherKeyFactory(),
-            coordinator: coordinator,
-            walStore: walStore,
+            durability: durabilityService,
             originFactory: StubOriginFactory(),
             logger: StubLogger(),
             backgroundRecyclingInterval: backgroundRecyclingInterval,
-            mortality: 300,
             recycleAtAge: recycleAtAge
         )
 
@@ -191,8 +191,7 @@ private extension CoinageRecyclingServiceTests {
             coinService: coinService,
             scheduler: scheduler,
             voucherRepo: voucherRepo,
-            coordinator: coordinator,
-            walStore: walStore
+            durabilityService: durabilityService
         )
     }
 
@@ -202,11 +201,6 @@ private extension CoinageRecyclingServiceTests {
 }
 
 // MARK: - Mocks
-
-enum StubError: Error {
-    case boom
-    case unexpected
-}
 
 private final class RecyclingMockCoinService: CoinServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
@@ -232,6 +226,8 @@ private final class RecyclingMockCoinService: CoinServiceProtocol, @unchecked Se
     func markRecycling(coinIds: [String]) async throws { record("recycling", coinIds) }
     func markAvailable(coinIds: [String]) async throws { record("available", coinIds) }
     func markPendingTransfer(coinIds _: [String]) async throws {}
+    func markPendingMint(coinIds: [String]) async throws { record("pendingMint", coinIds) }
+    func markHandedOff(coinIds: [String]) async throws { record("handedOff", coinIds) }
 
     private func record(_ action: String, _ ids: [String]) {
         lock.withLock { _events.append((action, ids)) }
@@ -411,67 +407,6 @@ private final class StubExtrinsicOrigin: ExtrinsicOriginDefining {
             )
         }
         return CompoundOperationWrapper(targetOperation: operation)
-    }
-}
-
-private final class StubSubmissionCoordinator: ExtrinsicSubmissionCoordinating, @unchecked Sendable {
-    enum Outcome {
-        case success
-        case chainFailure
-        case thrown
-    }
-
-    private let lock = NSLock()
-    private let outcome: Outcome
-    private var _submittedWALIds: [UUID] = []
-
-    var submittedWALIds: [UUID] { lock.withLock { _submittedWALIds } }
-
-    init(outcome: Outcome) {
-        self.outcome = outcome
-    }
-
-    func submit(
-        walEntryId: UUID,
-        builder _: @escaping ExtrinsicBuilderClosure,
-        origin _: any ExtrinsicOriginDefining
-    ) async throws -> ExtrinsicMonitorSubmission {
-        lock.withLock { _submittedWALIds.append(walEntryId) }
-        switch outcome {
-        case .success: return Self.submission(status: Self.successStatus())
-        case .chainFailure: return Self.submission(status: Self.failureStatus())
-        case .thrown: throw StubError.boom
-        }
-    }
-
-    private static func submission(status: SubstrateExtrinsicStatus) -> ExtrinsicMonitorSubmission {
-        ExtrinsicMonitorSubmission(
-            extrinsicSubmittedModel: ExtrinsicSubmittedModel(
-                txHash: "0x" + String(repeating: "0", count: 64),
-                sender: .none
-            ),
-            status: status
-        )
-    }
-
-    private static func successStatus() -> SubstrateExtrinsicStatus {
-        .success(.init(
-            extrinsicHash: "0x" + String(repeating: "0", count: 64),
-            blockHash: "0x" + String(repeating: "1", count: 64),
-            blockNumber: 1,
-            extrinsicIndex: 0,
-            interestedEvents: []
-        ))
-    }
-
-    private static func failureStatus() -> SubstrateExtrinsicStatus {
-        .failure(.init(
-            extrinsicHash: "0x" + String(repeating: "0", count: 64),
-            blockHash: "0x" + String(repeating: "1", count: 64),
-            blockNumber: 1,
-            extrinsicIndex: 0,
-            error: .other(.init(module: "test", reason: "destroyed"))
-        ))
     }
 }
 

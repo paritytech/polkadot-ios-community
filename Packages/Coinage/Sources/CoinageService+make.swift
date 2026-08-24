@@ -13,8 +13,6 @@ import FoundationExt
 import BackgroundExecution
 
 public extension CoinageService {
-    // swiftlint:disable:next function_body_length
-
     /// Creates a CoinageService instance.
     ///
     /// - Parameters:
@@ -28,6 +26,7 @@ public extension CoinageService {
     ///   - logger: Logger for diagnostic output
     ///   - schedulerFactory: Coin recycling background task scheduler
     /// - Returns: A configured CoinageServicing instance
+    // swiftlint:disable:next function_body_length
     static func make(
         chainResource: ChainResourceProtocol,
         chain: ChainProtocol,
@@ -37,7 +36,7 @@ public extension CoinageService {
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
         planStore: any ClaimPlanStoring,
-        walStore: any TransferWALStoring,
+        durabilityStore: any DurabilityStoring,
         schedulerFactory: CoinRecycleSchedulerMaking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
@@ -103,38 +102,6 @@ public extension CoinageService {
             chainId: chain.chainId
         )
 
-        let submissionCoordinator = ExtrinsicSubmissionCoordinator(
-            monitor: extrinsicMonitorFactory,
-            walStore: walStore,
-            blockNumberProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        let planFactory = TransferPlanFactory(
-            coinAllocator: CoinAllocator(storage: coinsIndexstore),
-            voucherKeyFactory: voucherKeypairFactory,
-            coinKeyFactory: coinKeypairFactory,
-            coordinator: submissionCoordinator,
-            originFactory: originFactory,
-            recyclerLoader: readinessLoader,
-            walStore: walStore,
-            blockInfoProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        let memoBuilder = MemoBuilder(
-            privateKeyDeriver: coinKeypairFactory
-        )
-
-        let senderService = TransferSenderService(
-            coinSelector: coinSelector,
-            planFactory: planFactory,
-            memoBuilder: memoBuilder,
-            recyclerLoader: readinessLoader,
-            backgroundExecutor: backgroundExecutor,
-            logger: logger
-        )
-
         let storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
@@ -152,6 +119,116 @@ public extension CoinageService {
             storageRequestFactory: storageRequestFactory,
             publicKeyProvider: { try voucherKeypairFactory.derivePublicKey(placeholderIndex: $0) },
             aliasProvider: { try voucherKeypairFactory.alias(for: $0) }
+        )
+
+        let watchedEntries = WatchedEntrySet()
+
+        let blockDataReader = BlockDataReader(
+            connection: connection,
+            runtimeService: runtimeService,
+            eventsQueryFactory: BlockEventsQueryFactory(
+                operationQueue: operationQueue,
+                eventsRepository: SubstrateEventsRepository(),
+                storageRequestFactory: storageRequestFactory,
+                logger: logger
+            )
+        )
+
+        let bodySearcher = BlockBodySearcher(
+            blockData: blockDataReader,
+            blockInfoProvider: blockNumberProvider,
+            logger: logger
+        )
+
+        let chainReader = DurabilityChainReader(
+            coinQuery: coinOnChainQuery,
+            voucherQuery: voucherOnChainQuery,
+            coinKeyFactory: coinKeypairFactory,
+            blockInfoProvider: blockNumberProvider,
+            searcher: bodySearcher,
+            logger: logger
+        )
+
+        let statusTransaction = StatusUpdateTransaction(
+            store: durabilityStore,
+            watched: watchedEntries,
+            logger: logger
+        )
+
+        let reconciler = ProjectionReconciler(
+            store: durabilityStore,
+            coinService: coinService,
+            voucherService: voucherService,
+            logger: logger
+        )
+
+        let recoveryPass = RecoveryPass(
+            store: durabilityStore,
+            chain: chainReader,
+            watched: watchedEntries,
+            transaction: statusTransaction,
+            reconciler: reconciler,
+            logger: logger
+        )
+
+        let finalizedHeadTrigger = FinalizedHeadTrigger(
+            blockInfoProvider: blockNumberProvider,
+            onHead: { [weak recoveryPass] in await recoveryPass?.run() },
+            logger: logger
+        )
+
+        let registrar = EntryRegistrar(
+            store: durabilityStore,
+            chain: chainReader,
+            watched: watchedEntries,
+            mortality: CoinageConstants.entryMortality,
+            logger: logger
+        )
+
+        let submissionWatcher = SubmissionWatcher(
+            monitor: extrinsicMonitorFactory,
+            store: durabilityStore,
+            chain: chainReader,
+            watched: watchedEntries,
+            transaction: statusTransaction,
+            onRelease: { [weak recoveryPass] in
+                Task { await recoveryPass?.run() }
+            },
+            logger: logger
+        )
+
+        let durabilityService = DurabilityService(
+            store: durabilityStore,
+            chain: chainReader,
+            registrar: registrar,
+            watcher: submissionWatcher,
+            pass: recoveryPass,
+            trigger: finalizedHeadTrigger,
+            logger: logger
+        )
+
+        let planFactory = TransferPlanFactory(
+            coinAllocator: CoinAllocator(storage: coinsIndexstore),
+            voucherKeyFactory: voucherKeypairFactory,
+            coinKeyFactory: coinKeypairFactory,
+            durability: durabilityService,
+            originFactory: originFactory,
+            recyclerLoader: readinessLoader,
+            blockInfoProvider: blockNumberProvider,
+            logger: logger
+        )
+
+        let memoBuilder = MemoBuilder(
+            privateKeyDeriver: coinKeypairFactory
+        )
+
+        let senderService = TransferSenderService(
+            coinSelector: coinSelector,
+            planFactory: planFactory,
+            memoBuilder: memoBuilder,
+            recyclerLoader: readinessLoader,
+            backgroundExecutor: backgroundExecutor,
+            logger: logger
         )
 
         let recoveryService = CoinageBackupRecoveryService(
@@ -177,18 +254,6 @@ public extension CoinageService {
             transferSubmitter: transferSubmitter,
             snKeyFactory: SNKeyFactory(),
             planStore: planStore,
-            blockNumberProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        let transferRecoveryService = TransferRecoveryService(
-            walStore: walStore,
-            coinService: coinService,
-            voucherService: voucherService,
-            coinQuery: coinOnChainQuery,
-            voucherQuery: voucherOnChainQuery,
-            coinKeyFactory: coinKeypairFactory,
-            voucherKeyFactory: voucherKeypairFactory,
             blockNumberProvider: blockNumberProvider,
             logger: logger
         )
@@ -220,12 +285,10 @@ public extension CoinageService {
             voucherRepository: voucherRepository,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
-            coordinator: submissionCoordinator,
-            walStore: walStore,
+            durability: durabilityService,
             originFactory: originFactory,
             logger: logger,
             backgroundRecyclingInterval: backgroundRecyclingInterval,
-            mortality: CoinageConstants.walMortality,
             recycleAtAge: CoinageConstants.recycleAtAge
         )
 
@@ -237,7 +300,7 @@ public extension CoinageService {
             voucherAllocator: voucherAllocator,
             recyclerLoader: readinessLoader,
             extrinsicMonitor: extrinsicMonitorFactory,
-            walStore: walStore,
+            durability: durabilityService,
             originFactory: originFactory,
             blockNumberProvider: blockNumberProvider
         )
@@ -254,7 +317,7 @@ public extension CoinageService {
             coinKeypairFactory: coinKeypairFactory,
             senderService: senderService,
             ongoingTransferService: recipientService,
-            transferRecoveryService: transferRecoveryService,
+            durabilityService: durabilityService,
             externalPaymentService: externalPaymentService,
             contextLoader: contextLoader,
             coinStateSyncService: coinStateSyncService,

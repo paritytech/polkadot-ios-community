@@ -19,6 +19,18 @@ public enum CoinageConstants {
     /// Maximum random wait time before a voucher becomes ready (6 hours).
     static let maxVoucherWaitTime: TimeInterval = 6 * 60 * 60
 
-    /// Blocks to wait before a WAL entry can be reverted (≈ 5 minutes at 6s blocks).
+    /// Blocks an entry's extrinsic can still be included for (≈ 5 minutes at 6s blocks).
     static let walMortality: UInt32 = 300
+
+    /// Extra blocks added to the stored mortality before `windowClosed` may fire.
+    ///
+    /// The real era anchor lives inside `ExtrinsicOperationFactory` and is not surfaced through
+    /// `ExtrinsicMonitorSubmission`, so an entry's stored mortality cannot be tied to its
+    /// checkpoint. The slack makes the error one-directional: `windowClosed` can only fire
+    /// later than the true expiry, never earlier. Firing late freezes inputs for a while;
+    /// firing early writes a false FAILURE onto a live extrinsic.
+    static let walMortalitySlack: UInt32 = 60
+
+    /// Mortality stored on a new entry.
+    static let entryMortality: UInt32 = walMortality + walMortalitySlack
 }

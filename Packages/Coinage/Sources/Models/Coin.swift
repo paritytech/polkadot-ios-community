@@ -14,6 +14,13 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
         case available
         case recycling
         case pendingTransfer
+        /// Output of a PENDING entry: this wallet expects to mint it, but the extrinsic has not
+        /// resolved. Counted as locked value in the *pending* bucket so an in-flight operation's
+        /// output shows exactly once — its inputs are simultaneously counted nowhere.
+        case pendingMint
+        /// Given to a peer. Terminal locally: a handed-off coin can never re-enter an entry,
+        /// and its payment status is derived on demand rather than stored.
+        case handedOff
 
         var isAvailableOrRecycling: Bool {
             self == .available || self == .recycling
@@ -64,4 +71,12 @@ public extension Coin {
         guard let age else { return false }
         return age >= CoinageConstants.recycleAtAge
     }
+
+    /// The spec's `selectable(a) ≡ available(a, B) ∧ ¬reserved(a) ∧ no handoff mark`.
+    ///
+    /// All three conjuncts are already encoded in the projection: `.available` *is* presence at
+    /// the best head, `.pendingTransfer` *is* reserved, `.handedOff` *is* the mark. Outer layers
+    /// apply their own extra restrictions (expiry, recycling) on top — the spec calls these
+    /// necessary but not sufficient.
+    var isSelectable: Bool { state == .available }
 }

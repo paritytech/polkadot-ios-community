@@ -1,0 +1,26 @@
+import Foundation
+
+/// One atomic unit of durability persistence.
+///
+/// Every method runs inside a single store transaction; nothing is visible until the
+/// transaction commits. Registration validates using predicated lookups and then
+/// writes, so a rejected registration leaves nothing behind.
+public protocol CoinageStoreTransaction {
+    /// Identifiers among `candidates` already claimed as an input by a non-failure entry.
+    func claimedInputIdentifiers(among candidates: Set<String>) throws -> Set<String>
+    /// Identifiers among `candidates` already minted as an output by any entry.
+    func mintedOutputIdentifiers(among candidates: Set<String>) throws -> Set<String>
+    /// Identifiers among `candidates` already claimed as a received-coin input by any entry.
+    func receivedInputIdentifiers(among candidates: Set<String>) throws -> Set<String>
+    /// Identifiers among `candidates` carrying a handoff mark.
+    func markedIdentifiers(among candidates: Set<String>) throws -> Set<String>
+    /// Next sequence number to assign to a new entry.
+    func nextSequence() throws -> Int64
+    func upsert(_ entry: DurabilityEntry) throws
+    func insertMark(_ asset: OwnAsset) throws
+}
+
+/// Runs a body inside one store transaction.
+public protocol CoinageTransacting: Sendable {
+    func withTransaction<T>(_ body: @escaping (CoinageStoreTransaction) throws -> T) async throws -> T
+}

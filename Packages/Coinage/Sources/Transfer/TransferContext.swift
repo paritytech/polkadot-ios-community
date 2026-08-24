@@ -1,29 +1,28 @@
 import Foundation
 
-/// Context for persisting transfer state changes.
-/// Passed to strategies so they can persist immediately after successful extrinsic submission.
+/// Local projection writes for one transfer.
+///
+/// The entry set is the source of truth; these writes exist only so balance and selection
+/// reflect an operation immediately instead of waiting for the first recovery pass. Anything
+/// they get wrong is repaired by `ProjectionReconciler` at the head of the next pass, which is
+/// why there is no longer a revert path with its own idea of the correct state.
 actor TransferContext {
     private let coinService: CoinServiceProtocol
     private let voucherService: VoucherServiceProtocol
-
-    /// Original coins reserved for this transfer - kept for revert on failure.
-    private var pendingCoins: [Coin] = []
-    /// Original vouchers reserved for this transfer - kept for revert on failure.
-    private var pendingVouchers: [Voucher] = []
+    private let durability: any DurabilityServicing
 
     init(
         coinService: CoinServiceProtocol,
-        voucherService: VoucherServiceProtocol
+        voucherService: VoucherServiceProtocol,
+        durability: any DurabilityServicing
     ) {
         self.coinService = coinService
         self.voucherService = voucherService
+        self.durability = durability
     }
 
-    /// Marks selected coins and vouchers as pending transfer in persistent storage.
-    /// Stores the originals so `revert()` can restore them if the transfer fails.
+    /// Marks the assets an operation consumes as reserved.
     func reserve(coins: [Coin], vouchers: [Voucher]) async throws {
-        pendingCoins = coins
-        pendingVouchers = vouchers
         if !coins.isEmpty {
             try await coinService.markPendingTransfer(coinIds: coins.map(\.identifier))
         }
@@ -32,55 +31,29 @@ actor TransferContext {
         }
     }
 
-    /// Reverts reserved coins/vouchers to their original state after a transfer failure.
-    func revert() async {
-        // Capture and clear before first await to prevent actor re-entrancy issues
-        let coinsToRevert = pendingCoins
-        let vouchersToRevert = pendingVouchers
-        pendingCoins = []
-        pendingVouchers = []
-
-        if !coinsToRevert.isEmpty {
-            try? await coinService.markAvailable(coinIds: coinsToRevert.map(\.identifier))
-        }
-
-        if !vouchersToRevert.isEmpty {
-            try? await voucherService.save(vouchers: vouchersToRevert)
-        }
+    /// Inserts rows for the coins an entry is expected to mint, so their value is counted
+    /// exactly once while the operation is in flight — the inputs are counted nowhere.
+    func insertOutputs(coins: [Coin]) async throws {
+        guard !coins.isEmpty else { return }
+        let pending = coins.map { $0.changing(state: .pendingMint) }
+        try await coinService.save(coins: pending)
     }
 
-    /// Persist state changes after successful extrinsic submission.
-    /// - Parameters:
-    ///   - spentCoins: Coins consumed by this transfer (to be marked spent)
-    ///   - spentVouchers: Vouchers consumed by unload (to be deleted)
-    ///   - change: Change coins returned to sender (to be saved)
-    func process(
-        spentCoins: [Coin] = [],
-        spentVouchers: [Voucher] = [],
-        change: [Coin] = [],
-        destinationCoins: [Coin]
-    ) async throws {
-        let spentCoinIds = spentCoins.map(\.identifier)
-        let spentVoucherIds = spentVouchers.map(\.identifier)
-        let destinationCoinIds = destinationCoins.map(\.identifier)
-
-        // Remove only this group's items synchronously before first await (re-entrancy safe).
-        // Partial removal (not full clear) so concurrent group calls don't wipe each other's tracking.
-        pendingCoins.removeAll { spentCoinIds.contains($0.identifier) }
-        pendingVouchers.removeAll { spentVoucherIds.contains($0.identifier) }
-
-        do {
-            // save destination and mark as spent
-            try await coinService.save(coins: destinationCoins)
-
-            try await coinService.save(coins: change)
-            try await coinService.markSpent(coinIds: spentCoinIds + destinationCoinIds)
-            try await voucherService.delete(identifiers: spentVoucherIds)
-        } catch {
-            // Rollback actor state so revert() can still recover these items if a service call fails
-            pendingCoins.append(contentsOf: spentCoins)
-            pendingVouchers.append(contentsOf: spentVouchers)
-            throw error
+    /// Records coins as given to a peer.
+    ///
+    /// Irreversible by design: the mark is what stops a handed-off coin re-entering an entry,
+    /// and what makes its absence on chain readable as a claim rather than as proof the entry
+    /// failed.
+    func handOff(coins: [Coin]) async throws {
+        guard !coins.isEmpty else { return }
+        for coin in coins {
+            try await durability.registerHandoff(.coin(coin.derivationIndex))
         }
+        try await coinService.markHandedOff(coinIds: coins.map(\.identifier))
+    }
+
+    /// Asks the engine to recompute local state from the entry set.
+    func settle() async {
+        durability.startRecoveryPass()
     }
 }

@@ -36,7 +36,8 @@ extension CoinSelector: CoinSelecting {
             throw CoinSelectionError.zeroAmount
         }
 
-        let availableCoins = input.coins.filter { $0.state == .available && !$0.isExpiringSoon }
+        // Outer-layer restriction: `isExpiringSoon` is necessary but not sufficient per spec.
+        let availableCoins = input.coins.filter { $0.isSelectable && !$0.isExpiringSoon }
 
         guard !availableCoins.isEmpty || !input.vouchers.isEmpty else {
             throw CoinSelectionError.emptyWallet

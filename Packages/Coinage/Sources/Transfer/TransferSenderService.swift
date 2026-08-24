@@ -112,8 +112,8 @@ extension TransferSenderService: TransferSenderServicing {
             throw TransferSenderServiceError.memoBuildingFailed(error)
         }
 
-        try await context.reserve(coins: result.inputCoins, vouchers: result.inputVouchers)
-
+        // Reservation is a strategy concern: it must follow registration so that the entry set
+        // already explains every input, preventing a concurrent reconcile from demoting the state.
         Task { [strategy = plan.strategy, backgroundExecutor, logger] in
             do {
                 try await backgroundExecutor.execute {
@@ -126,7 +126,9 @@ extension TransferSenderService: TransferSenderServicing {
                 logger?.debug("Strategy execution completed")
             } catch {
                 logger?.error("Strategy execution failed: \(error)")
-                await context.revert()
+                // No bespoke revert: whatever was reserved is described by the entry set, so a
+                // pass recomputes local state rather than this path guessing at it.
+                await context.settle()
             }
         }
 

@@ -23,37 +23,29 @@ final class TransferPlanFactory {
     private let coinAllocator: CoinAllocating
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let coinKeyFactory: any CoinKeyDeriving
-    private let coordinator: any ExtrinsicSubmissionCoordinating
+    private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
     private let recyclerLoader: RecyclerReadinessLoading
-    private let walStore: any TransferWALStoring
     private let blockInfoProvider: any BlockInfoProviding
-    // Not a real mortality, but the amount of blocks to wait
-    // before reverting a transfer based on WAL
-    private let mortality: BlockNumber
     private let logger: SDKLoggerProtocol?
 
     init(
         coinAllocator: CoinAllocating,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
-        coordinator: any ExtrinsicSubmissionCoordinating,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
         recyclerLoader: RecyclerReadinessLoading,
-        walStore: any TransferWALStoring,
         blockInfoProvider: any BlockInfoProviding,
-        mortality: BlockNumber = CoinageConstants.walMortality,
         logger: SDKLoggerProtocol?
     ) {
         self.coinAllocator = coinAllocator
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
-        self.coordinator = coordinator
+        self.durability = durability
         self.originFactory = originFactory
         self.recyclerLoader = recyclerLoader
-        self.walStore = walStore
         self.blockInfoProvider = blockInfoProvider
-        self.mortality = mortality
         self.logger = logger
     }
 }
@@ -141,10 +133,8 @@ private extension TransferPlanFactory {
             recipientCoins: splitRecipientCoins,
             changeCoins: changeCoins,
             coinKeyFactory: coinKeyFactory,
-            coordinator: coordinator,
+            durability: durability,
             originFactory: originFactory,
-            walStore: walStore,
-            mortality: mortality,
             logger: logger
         )
 
@@ -189,10 +179,8 @@ private extension TransferPlanFactory {
             voucherKeyFactory: voucherKeyFactory,
             recyclerLoader: recyclerLoader,
             coinKeyFactory: coinKeyFactory,
-            coordinator: coordinator,
+            durability: durability,
             originFactory: originFactory,
-            walStore: walStore,
-            mortality: mortality,
             blockInfoProvider: blockInfoProvider,
             currentDate: currentDate,
             logger: logger

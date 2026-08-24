@@ -16,12 +16,10 @@ final class ExternalPaymentStateFactory {
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherAllocator: any VoucherAllocating
     let recyclerLoader: RecyclerReadinessLoading
-    let coordinator: ExtrinsicSubmissionCoordinating
-    let walStore: TransferWALStoring
+    let durability: any DurabilityServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
     let voucherService: VoucherServiceProtocol
-    let mortality: UInt32
     let logger: SDKLoggerProtocol?
 
     init(
@@ -31,12 +29,10 @@ final class ExternalPaymentStateFactory {
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherAllocator: any VoucherAllocating,
         recyclerLoader: RecyclerReadinessLoading,
-        coordinator: ExtrinsicSubmissionCoordinating,
-        walStore: TransferWALStoring,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         voucherService: VoucherServiceProtocol,
-        mortality: UInt32,
         logger: SDKLoggerProtocol?
     ) {
         self.planner = planner
@@ -45,12 +41,10 @@ final class ExternalPaymentStateFactory {
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherAllocator = voucherAllocator
         self.recyclerLoader = recyclerLoader
-        self.coordinator = coordinator
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
         self.voucherService = voucherService
-        self.mortality = mortality
         self.logger = logger
     }
 }

@@ -17,7 +17,7 @@ struct ExternalPaymentDependency {
     let voucherAllocator: any VoucherAllocating
     let recyclerLoader: RecyclerReadinessLoading
     let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    let walStore: TransferWALStoring
+    let durability: any DurabilityServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
 
@@ -29,7 +29,7 @@ struct ExternalPaymentDependency {
         voucherAllocator: any VoucherAllocating,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        walStore: TransferWALStoring,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding
     ) {
@@ -40,7 +40,7 @@ struct ExternalPaymentDependency {
         self.voucherAllocator = voucherAllocator
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
     }
@@ -83,7 +83,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             voucherAllocator: dependency.voucherAllocator,
             recyclerLoader: dependency.recyclerLoader,
             extrinsicMonitor: dependency.extrinsicMonitor,
-            walStore: dependency.walStore,
+            durability: dependency.durability,
             originFactory: dependency.originFactory,
             blockNumberProvider: dependency.blockNumberProvider,
             voucherService: dependency.voucherService,

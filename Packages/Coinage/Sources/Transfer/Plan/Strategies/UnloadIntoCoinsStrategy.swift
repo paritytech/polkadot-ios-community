@@ -19,10 +19,8 @@ struct UnloadIntoCoinsStrategy {
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let recyclerLoader: RecyclerReadinessLoading
     private let coinKeyFactory: any CoinKeyDeriving
-    private let coordinator: any ExtrinsicSubmissionCoordinating
+    private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
-    private let walStore: any TransferWALStoring
-    private let mortality: UInt32
     private let blockInfoProvider: any BlockInfoProviding
     private let currentDate: Date
     private let logger: SDKLoggerProtocol?
@@ -33,10 +31,8 @@ struct UnloadIntoCoinsStrategy {
         voucherKeyFactory: any VoucherKeyDeriving,
         recyclerLoader: RecyclerReadinessLoading,
         coinKeyFactory: any CoinKeyDeriving,
-        coordinator: any ExtrinsicSubmissionCoordinating,
+        durability: any DurabilityServicing,
         originFactory: OriginCreating,
-        walStore: any TransferWALStoring,
-        mortality: UInt32,
         blockInfoProvider: any BlockInfoProviding,
         currentDate: Date,
         logger: SDKLoggerProtocol?
@@ -46,10 +42,8 @@ struct UnloadIntoCoinsStrategy {
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
         self.recyclerLoader = recyclerLoader
-        self.coordinator = coordinator
+        self.durability = durability
         self.originFactory = originFactory
-        self.walStore = walStore
-        self.mortality = mortality
         self.blockInfoProvider = blockInfoProvider
         self.currentDate = currentDate
         self.logger = logger
@@ -75,12 +69,14 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // Process ready coins regardless of extrinsic errors — they require no on-chain submission.
         if !readyCoins.isEmpty {
             do {
-                try await context.process(spentCoins: readyCoins, destinationCoins: [])
+                try await context.handOff(coins: readyCoins)
             } catch {
                 logger?.error("Failed to record ready coins locally: \(error)")
                 collectedErrors.append(error)
             }
         }
+
+        await context.settle()
 
         guard collectedErrors.isEmpty else {
             throw TransferStrategyError.multiple(collectedErrors)
@@ -91,114 +87,141 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
 // MARK: - Private Helpers
 
 private extension UnloadIntoCoinsStrategy {
+    /// Registers one entry per recycler group before any network round-trip, so no reconcile
+    /// can observe an input this transfer reserved but no entry explains.
+    ///
+    /// All N commit before any bytes go on the wire. Each entry still commits before its own
+    /// extrinsic is broadcast; a crash in between leaves registered-but-unsubmitted entries
+    /// that reach FAILURE at mortality and return their inputs.
+    func registerGroups() async throws -> [TransactionId] {
+        var registered: [TransactionId] = []
+
+        do {
+            for groupCoins in perGroupCoins {
+                let id = try await durability.register(
+                    inputs: groupCoins.vouchers.map { .recyclerVoucher($0.derivationIndex) },
+                    outputs: (groupCoins.recipientCoins + groupCoins.changeCoins)
+                        .map { .coin($0.derivationIndex) }
+                )
+                registered.append(id)
+            }
+        } catch {
+            registered.forEach { durability.abandon($0) }
+            throw error
+        }
+
+        return registered
+    }
+
     func submitGroups(context: TransferContext, allVouchers: [Voucher]) async throws -> [Error] {
-        // Fetch finalized block hash upfront to ensure both operations query the same state
-        let blockHash = try await blockInfoProvider.fetchCurrentHash()
+        let entryIds = try await registerGroups()
 
-        // Create all origins upfront — each group needs a distinct unload token.
-        let origins = try await originFactory.createAsUnloadTokenOrigins(
-            voucherGroups: perGroupCoins.map(\.vouchers),
-            currentDate: currentDate,
-            blockHash: blockHash
-        )
+        do {
+            // Reservation follows registration: the entry set already explains every input, so a
+            // reconcile landing during the network preparation below cannot demote it.
+            try await context.reserve(coins: readyCoins, vouchers: allVouchers)
 
-        logger?.info(
-            "Submitting \(perGroupCoins.count) unload extrinsics for \(allVouchers.count) vouchers"
-        )
+            // Fetch finalized block hash upfront to ensure both operations query the same state
+            let blockHash = try await blockInfoProvider.fetchCurrentHash()
 
-        let keys = perGroupCoins.map(\.recyclerKey)
-        let revisions = try await recyclerLoader.fetchRevisions(for: keys, blockHash: blockHash)
-
-        guard keys.count == revisions.count else {
-            assertionFailure("Revision for recyclerKey is missing")
-            throw TransferStrategyError.invalidRecyclerRevision
-        }
-
-        // Build WAL entries for all groups before launching the task group.
-        // All entries must be persisted before any extrinsic is broadcast.
-        var walEntriesByKey: [RecyclerKey: TransferWALEntry] = [:]
-        for groupCoins in perGroupCoins {
-            let expectedIndices = (groupCoins.recipientCoins + groupCoins.changeCoins)
-                .map(\.derivationIndex)
-            let entry = TransferWALEntry(
-                inputCoinIds: [],
-                inputVoucherIds: groupCoins.vouchers.map(\.identifier),
-                expectedCoinIndices: expectedIndices,
-                mortality: mortality
+            // Create all origins upfront — each group needs a distinct unload token.
+            let origins = try await originFactory.createAsUnloadTokenOrigins(
+                voucherGroups: perGroupCoins.map(\.vouchers),
+                currentDate: currentDate,
+                blockHash: blockHash
             )
-            walEntriesByKey[groupCoins.recyclerKey] = entry
-        }
-        try await walStore.save(contentsOf: Array(walEntriesByKey.values))
 
-        // Capture dependencies explicitly so self is not captured in @Sendable task closures.
-        let coord = coordinator
-        let voucherFactory = voucherKeyFactory
-        let coinFactory = coinKeyFactory
-        let groupLogger = logger
+            // zip truncates to the shortest sequence, so a short origins array would silently drop
+            // groups whose entries are already registered — leaving them owned, unsubmitted, and
+            // invisible to every future recovery pass.
+            guard origins.count == perGroupCoins.count else {
+                assertionFailure("Origin for recycler group is missing")
+                throw TransferStrategyError.invalidRecyclerRevision
+            }
 
-        // Non-throwing task group — a failure in one group must not discard already-committed
-        // results from other groups. Each group maps to exactly one RecyclerKey.
-        typealias GroupResult = Result<([Voucher], [Coin], [Coin], UUID), Error>
+            logger?.info(
+                "Submitting \(perGroupCoins.count) unload extrinsics for \(allVouchers.count) vouchers"
+            )
 
-        let allResults: [GroupResult] = await withTaskGroup(of: GroupResult.self) { taskGroup in
-            for (groupCoins, origin) in zip(perGroupCoins, origins) {
-                let revision = revisions[groupCoins.recyclerKey]! // validated above
-                let walEntryId = walEntriesByKey[groupCoins.recyclerKey]!.id
+            let keys = perGroupCoins.map(\.recyclerKey)
+            let revisions = try await recyclerLoader.fetchRevisions(for: keys, blockHash: blockHash)
 
-                taskGroup.addTask {
-                    do {
-                        let value = try await processItem(
-                            groupCoins: groupCoins,
-                            origin: origin,
-                            revision: revision,
-                            walEntryId: walEntryId,
-                            voucherKeyFactory: voucherFactory,
-                            coinKeyFactory: coinFactory,
-                            coordinator: coord,
-                            logger: groupLogger
-                        )
-                        return .success((value.0, value.1, value.2, walEntryId))
-                    } catch {
-                        return .failure(error)
+            guard keys.count == revisions.count else {
+                assertionFailure("Revision for recyclerKey is missing")
+                throw TransferStrategyError.invalidRecyclerRevision
+            }
+
+            // Insert every group's output coins in one write before launching tasks
+            try await context.insertOutputs(
+                coins: perGroupCoins.flatMap { $0.recipientCoins + $0.changeCoins }
+            )
+
+            // Non-throwing task group — a failure in one group must not discard already-committed
+            // results from other groups. Each group maps to exactly one RecyclerKey.
+            typealias GroupResult = Result<
+                (spentVouchers: [Voucher], changeCoins: [Coin], destinationCoins: [Coin]),
+                Error
+            >
+
+            let allResults: [GroupResult] = await withTaskGroup(
+                of: GroupResult.self
+            ) { [durability, voucherKeyFactory, coinKeyFactory, logger] taskGroup in
+                for ((groupCoins, origin), entryId) in zip(zip(perGroupCoins, origins), entryIds) {
+                    let revision = revisions[groupCoins.recyclerKey]! // validated above
+
+                    taskGroup.addTask {
+                        do {
+                            let value = try await processItem(
+                                groupCoins: groupCoins,
+                                origin: origin,
+                                revision: revision,
+                                entryId: entryId,
+                                voucherKeyFactory: voucherKeyFactory,
+                                coinKeyFactory: coinKeyFactory,
+                                durability: durability,
+                                logger: logger
+                            )
+                            return .success(value)
+                        } catch {
+                            return .failure(error)
+                        }
                     }
                 }
+
+                var results: [GroupResult] = []
+                for await result in taskGroup {
+                    results.append(result)
+                }
+                return results
             }
 
-            var results: [GroupResult] = []
-            for await result in taskGroup {
-                results.append(result)
-            }
-            return results
-        }
-
-        // Record all on-chain changes locally before surfacing errors.
-        // Each group's WAL entry is deleted after context.process().
-        var collectedErrors: [Error] = []
-        for groupResult in allResults {
-            switch groupResult {
-            case let .success((spentVouchers, changeCoins, destinationCoins, walEntryId)):
-                do {
-                    let voucherExponent = spentVouchers.first.map { "\($0.exponent)" } ?? "n/a"
-                    logger?.info(
-                        "Unload complete successfully: \(spentVouchers.count) vouchers, exponent \(voucherExponent)"
-                    )
-                    try await context.process(
-                        spentVouchers: spentVouchers,
-                        change: changeCoins,
-                        destinationCoins: destinationCoins
-                    )
-                    try await walStore.delete(id: walEntryId)
-                } catch {
-                    logger?.error("Failed to record unload locally: \(error)")
+            // Record all on-chain changes locally before surfacing errors.
+            var collectedErrors: [Error] = []
+            for groupResult in allResults {
+                switch groupResult {
+                case let .success(group):
+                    do {
+                        let exponent = group.spentVouchers.first.map { "\($0.exponent)" } ?? "n/a"
+                        logger?.info(
+                            "Unload complete successfully: "
+                                + "\(group.spentVouchers.count) vouchers, exponent \(exponent)"
+                        )
+                        try await context.handOff(coins: group.destinationCoins)
+                    } catch {
+                        logger?.error("Failed to record unload locally: \(error)")
+                        collectedErrors.append(error)
+                    }
+                case let .failure(error):
+                    logger?.error("Unload task failed: \(error)")
                     collectedErrors.append(error)
                 }
-            case let .failure(error):
-                logger?.error("Unload task failed: \(error)")
-                collectedErrors.append(error)
             }
-        }
 
-        return collectedErrors
+            return collectedErrors
+        } catch {
+            entryIds.forEach { durability.abandon($0) }
+            throw error
+        }
     }
 
     func buildCall(
@@ -236,28 +259,36 @@ private extension UnloadIntoCoinsStrategy {
         groupCoins: RecyclerGroupCoins,
         origin: any ExtrinsicOriginDefining,
         revision: UInt32,
-        walEntryId: UUID,
+        entryId: TransactionId,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
-        coordinator: any ExtrinsicSubmissionCoordinating,
+        durability: any DurabilityServicing,
         logger: SDKLoggerProtocol?
     ) async throws -> (spentVouchers: [Voucher], changeCoins: [Coin], destinationCoins: [Coin]) {
         let key = groupCoins.recyclerKey
 
-        let call = try buildCall(
-            for: groupCoins,
-            revision: revision,
-            voucherKeyFactory: voucherKeyFactory,
-            coinKeyFactory: coinKeyFactory
-        )
+        let call: CoinagePallet.Calls.UnloadRecyclerIntoCoins
+        do {
+            call = try buildCall(
+                for: groupCoins,
+                revision: revision,
+                voucherKeyFactory: voucherKeyFactory,
+                coinKeyFactory: coinKeyFactory
+            )
+        } catch {
+            // Nothing was submitted for this entry, so ownership must go back or the pass
+            // skips it forever.
+            durability.abandon(entryId)
+            throw error
+        }
 
-        let submission = try await coordinator.submit(
-            walEntryId: walEntryId,
+        let result = try await durability.submitRegistered(
+            entryId: entryId,
             builder: { try $0.adding(call: call.callAsFunction()) },
             origin: origin
         )
 
-        switch submission.status {
+        switch result.submission.status {
         case .success:
             logger?.debug("Unload extrinsic succeeded for key \(key)")
             return (groupCoins.vouchers, groupCoins.changeCoins, groupCoins.recipientCoins)

@@ -30,6 +30,20 @@ struct SubsetSumSolverTests {
 
     // MARK: - Edge Cases
 
+    @Test("takes 1")
+    func select1() {
+        let coins = [2, 4, 5, 6, 7, 8].map { makeCoin(exponent: $0) }
+
+        let result = SubsetSumSolver.findExactMatch(
+            target: planks(1.00),
+            from: coins,
+            breakdownContext: testContext
+        )
+
+        #expect(result != nil)
+        #expect(result?.count == 3)
+    }
+
     @Test("Returns empty array for zero target")
     func zeroTargetReturnsEmpty() {
         let coins = [makeCoin(exponent: 3)]

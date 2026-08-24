@@ -19,6 +19,8 @@ extension CoinMapper: CoreDataMapperProtocol {
             case 1: .available
             case 2: .recycling
             case 3: .pendingTransfer
+            case 4: .pendingMint
+            case 5: .handedOff
             default: .spent
             }
 
@@ -41,12 +43,19 @@ extension CoinMapper: CoreDataMapperProtocol {
         entity.derivationIndex = Int32(bitPattern: model.derivationIndex)
         entity.exponent = model.exponent
         entity.age = model.age ?? -1
-        entity.state =
-            switch model.state {
-            case .spent: 0
-            case .available: 1
-            case .recycling: 2
-            case .pendingTransfer: 3
-            }
+        // State is owned by the durability projection, so update from chain sync must not
+        // clobber it. Only newly inserted coins receive an initial state; thereafter it is
+        // written solely by CoinStateMapper and the durability transaction.
+        if entity.isInserted {
+            entity.state =
+                switch model.state {
+                case .spent: 0
+                case .available: 1
+                case .recycling: 2
+                case .pendingTransfer: 3
+                case .pendingMint: 4
+                case .handedOff: 5
+                }
+        }
     }
 }

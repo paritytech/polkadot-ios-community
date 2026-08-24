@@ -53,6 +53,7 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     private nonisolated let denominationContext: DenominationBreakdownContext
     private nonisolated let voucherProvider: StreamableProvider<Voucher>
     private nonisolated let coinProvider: StreamableProvider<Coin>
+    private nonisolated let durability: any DurabilityServicing
     private nonisolated let logger: SDKLoggerProtocol?
 
     private var balanceSubscriptionTask: Task<Void, Never>?
@@ -68,11 +69,13 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
         denominationContext: DenominationBreakdownContext,
         voucherProvider: StreamableProvider<Voucher>,
         coinProvider: StreamableProvider<Coin>,
+        durability: any DurabilityServicing,
         logger: SDKLoggerProtocol?
     ) {
         self.denominationContext = denominationContext
         self.voucherProvider = voucherProvider
         self.coinProvider = coinProvider
+        self.durability = durability
         self.logger = logger
 
         let zeroBalance = CoinageBalance(planks: 0, context: denominationContext)
@@ -123,7 +126,7 @@ extension CoinageBalanceService {
                     }
 
                 for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
-                    await updateBalances(coins: coins, vouchers: vouchers)
+                    await updateBalancesAsync(coins: coins, vouchers: vouchers)
                 }
             } catch {
                 logger?.error("Balance subscription failed: \(error)")
@@ -131,12 +134,7 @@ extension CoinageBalanceService {
         }
     }
 
-    private func cancelTasks() {
-        balanceSubscriptionTask?.cancel()
-        unlockTimerTask?.cancel()
-    }
-
-    private func updateBalances(coins: [String: Coin]?, vouchers: [String: Voucher]?) {
+    private func updateBalancesAsync(coins: [String: Coin]?, vouchers: [String: Voucher]?) async {
         if let coins { latestCoins = coins }
         if let vouchers { latestVouchers = vouchers }
 
@@ -144,9 +142,25 @@ extension CoinageBalanceService {
         let currentVouchers = latestVouchers
         logger?.debug("Did receive coins: \(currentCoins.count) vouchers: \(currentVouchers.count)")
 
+        // Fetch asset statuses in one batched call for all coins.
+        let ownAssets = currentCoins.values.map { coin in
+            OwnAsset.coin(coin.derivationIndex)
+        }
+
+        let assetStatuses: [OwnAsset: CoinageAssetState]
+        do {
+            assetStatuses = try await durability.assetStatuses(ownAssets)
+        } catch {
+            // Failed durability read is no verdict: skip balance update and leave
+            // previously published values in place rather than publishing wrong data.
+            logger?.error("Durability read failed: \(error)")
+            return
+        }
+
         let (spendableBalance, lockedBalance, nextUnlock) = calculateBalance(
             coins: currentCoins,
             vouchers: currentVouchers,
+            assetStatuses: assetStatuses,
             context: denominationContext
         )
 
@@ -154,6 +168,11 @@ extension CoinageBalanceService {
         lockedBalanceSubject.send(lockedBalance)
 
         scheduleUnlockTimer(for: nextUnlock)
+    }
+
+    private func cancelTasks() {
+        balanceSubscriptionTask?.cancel()
+        unlockTimerTask?.cancel()
     }
 
     private func scheduleUnlockTimer(for nextUnlock: Date?) {
@@ -169,26 +188,37 @@ extension CoinageBalanceService {
             try? await Task.sleep(for: .seconds(interval + 0.1))
 
             guard !Task.isCancelled, let self else { return }
-            await updateBalances(coins: nil, vouchers: nil)
+            await updateBalancesAsync(coins: nil, vouchers: nil)
         }
     }
 
     private nonisolated func calculateBalance(
         coins: [String: Coin],
         vouchers: [String: Voucher],
+        assetStatuses: [OwnAsset: CoinageAssetState],
         context: DenominationBreakdownContext
     ) -> (spendable: CoinageSpendableBalanceModel, locked: CoinageBalance, nextUnlock: Date?) {
         let now = Date.now
 
-        let coinPlanks = splitCoinPlanks(coins: coins.values, context: context)
+        let coinPlanks = splitCoinPlanks(
+            coins: coins.values,
+            assetStatuses: assetStatuses,
+            context: context
+        )
 
         var lockedVouchersPlanks = BigUInt(0)
         var fullPrivacyVouchersPlanks = BigUInt(0)
         var degradedVouchersPlanks = BigUInt(0)
         var nextUnlock: Date?
 
-        for voucher in vouchers.values where voucher.localState == .available {
+        for voucher in vouchers.values where voucher.localState != .pendingTransfer {
             let amount = context.valueInPlanks(for: voucher.exponent)
+
+            guard voucher.localState != .pendingOnboarding else {
+                // Output of a live entry: locked until the extrinsic resolves.
+                lockedVouchersPlanks += amount
+                continue
+            }
 
             guard case .inRecycler = voucher.remoteState else {
                 lockedVouchersPlanks += amount
@@ -207,6 +237,7 @@ extension CoinageBalanceService {
         }
 
         let lockedPlanks = lockedVouchersPlanks + coinPlanks.recycling + coinPlanks.expiringSoon
+            + coinPlanks.pending
 
         return (
             spendable: CoinageSpendableBalanceModel(
@@ -218,33 +249,72 @@ extension CoinageBalanceService {
         )
     }
 
-    /// Buckets available coins by spend-readiness:
-    /// - `spendable`: available coins under `coinMaxAge`
-    /// - `expiringSoon`: available but past `coinMaxAge` — pending recycling, not safe to spend
-    /// - `recycling`: already locked by an in-flight recycling extrinsic
+    /// Buckets coins by spend-readiness, keyed on presence at best head, lock state, and minter status.
+    ///
+    /// Bucketing table (spec rows, evaluated in order; first match wins):
+    /// | Condition | Bucket |
+    /// |---|---|
+    /// | reserved or carrying a handoff mark | counted nowhere |
+    /// | output of a PENDING entry | pending |
+    /// | selectable | spendable |
+    /// | otherwise | counted nowhere |
+    ///
+    /// The answer is a property of the coin rather than the extrinsic that moved it, so
+    /// `ExactMatchStrategy`, `SplitCoinStrategy`, and `UnloadIntoCoinsStrategy` all resolve
+    /// through the identical path and balance never depends on which strategy ran.
+    ///
+    /// Presence at best head is proxied by coin.state: `.available` indicates presence.
+    /// Coins in other states are treated as absent from the chain.
+    ///
+    /// `expiringSoon` and `recycling` are outer restrictions layered on top: a coin that is
+    /// selectable but expiring still goes to `expiringSoon`; a coin in recycling state
+    /// still goes to `recycling`.
     private nonisolated func splitCoinPlanks(
         coins: some Collection<Coin>,
+        assetStatuses: [OwnAsset: CoinageAssetState],
         context: DenominationBreakdownContext
-    ) -> (spendable: BigUInt, expiringSoon: BigUInt, recycling: BigUInt) {
+    ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt, recycling: BigUInt) {
         var spendable = BigUInt(0)
+        var pending = BigUInt(0)
         var expiringSoon = BigUInt(0)
         var recycling = BigUInt(0)
 
         for coin in coins {
             let amount = context.valueInPlanks(for: coin.exponent)
-            switch coin.state {
-            case .available where coin.isExpiringSoon:
-                expiringSoon += amount
-            case .available:
-                spendable += amount
-            case .recycling:
-                recycling += amount
-            case .spent,
-                 .pendingTransfer:
-                break
+            let lock = assetStatuses[.coin(coin.derivationIndex)]?.lock
+
+            // Coins locked by a live entry or handed off: counted nowhere.
+            if lock == .reserved || lock == .handedOff {
+                continue
             }
+
+            // Apply outer restrictions (expiring, recycling) first.
+            if coin.isExpiringSoon {
+                expiringSoon += amount
+                continue
+            }
+
+            // Output of a PENDING entry: locked until the extrinsic resolves.
+            if coin.state == .pendingMint {
+                pending += amount
+                continue
+            }
+
+            if coin.state == .recycling {
+                recycling += amount
+                continue
+            }
+
+            // Coin is selectable: present at best head and not locked/handed off.
+            if coin.isSelectable {
+                spendable += amount
+            }
+
+            // Absent (spent, pendingTransfer, handedOff): counted nowhere, whatever the
+            // minter says — a live minter means detection is still pending, and a terminal
+            // one means the coin is gone.
         }
 
-        return (spendable, expiringSoon, recycling)
+        return (spendable, pending, expiringSoon, recycling)
     }
 }
