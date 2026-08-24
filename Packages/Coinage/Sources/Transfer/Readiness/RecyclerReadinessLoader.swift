@@ -21,15 +21,18 @@ public protocol RecyclerReadinessLoading {
 
 /// Loader for querying Members.RingKeysStatus storage with async/await API.
 public final class RecyclerReadinessLoader: RecyclerReadinessLoading {
+    private let instanceId: CoinageInstanceId
     private let storageRequestFactory: StorageRequestFactory
     private let connection: JSONRPCEngine
     private let runtimeCodingService: RuntimeCodingServiceProtocol
 
     public init(
+        instanceId: CoinageInstanceId,
         connection: JSONRPCEngine,
         runtimeCodingService: RuntimeCodingServiceProtocol,
         operationQueue: OperationQueue
     ) {
+        self.instanceId = instanceId
         storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
@@ -46,7 +49,7 @@ public final class RecyclerReadinessLoader: RecyclerReadinessLoading {
             .fetchCoderFactoryOperation()
             .asyncExecute()
 
-        let identifiers = keys.map { BytesCodable(wrappedValue: $0.identifier) }
+        let identifiers = keys.map { BytesCodable(wrappedValue: $0.identifier(instanceId: instanceId)) }
         let ringIndices = keys.map { StringCodable(wrappedValue: $0.index) }
 
         let options = blockHash.map { StorageQueryListOptions(atBlock: $0) } ?? StorageQueryListOptions()
@@ -76,7 +79,7 @@ public final class RecyclerReadinessLoader: RecyclerReadinessLoading {
 }
 
 private extension RecyclerKey {
-    var identifier: Data {
-        RecyclerCollectionIdentifier.identifier(for: exponent)
+    func identifier(instanceId: CoinageInstanceId) -> Data {
+        RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: exponent)
     }
 }

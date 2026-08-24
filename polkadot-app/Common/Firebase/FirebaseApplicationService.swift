@@ -95,7 +95,8 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             gameDashboardUrl: url(for: .gameDashboardUrl),
             dotNsResolver: dotNsResolverAddress(),
             dotNsProtocolRegistry: dotNsProtocolRegistryAddress(),
-            dotNsNameRegistry: dotNsNameRegistryAddress()
+            dotNsNameRegistry: dotNsNameRegistryAddress(),
+            coinageInstanceId: coinageInstanceId()
         )
     }
 
@@ -169,6 +170,11 @@ private extension FirebaseApplicationService {
         dotNsConfigEntry("registryContractAddress", treatingEmptyAsMissing: true)
     }
 
+    func coinageInstanceId() -> UInt32? {
+        guard let value = nonEmptyString(for: .coinageInstanceId) else { return nil }
+        return UInt32(value)
+    }
+
     func asyncWaitForRemoteConfigValues<T: Decodable>(for key: String) -> CompoundOperationWrapper<T> {
         CompoundOperationWrapper(targetOperation: AsyncClosureOperation<T>(
             operationClosure: { [logger, weak self] closure in
@@ -232,4 +238,5 @@ private extension String {
     static let ipfsGatewayUrl = "ipfs_gateway_url"
     static let gameDashboardUrl = "game_dashboard_url"
     static let dotNsResolver = "dot_ns_config"
+    static let coinageInstanceId = "coinage_instance_id"
 }

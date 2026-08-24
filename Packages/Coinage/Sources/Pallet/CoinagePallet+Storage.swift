@@ -9,6 +9,7 @@ extension CoinagePallet {
         case recyclersCoinToRecycler
         case coinsByOwner
         case recyclerAliasStates
+        case instances
     }
 }
 
@@ -23,6 +24,8 @@ extension CoinagePallet.Storage: StoragePathConvertible {
             "CoinsByOwner"
         case .recyclerAliasStates:
             "RecyclerAliasStates"
+        case .instances:
+            "Instances"
         }
     }
 

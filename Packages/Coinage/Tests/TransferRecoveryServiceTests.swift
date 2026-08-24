@@ -97,8 +97,8 @@ struct TransferRecoveryServiceTests {
 
         walStore.fetchAllResult = [walEntry]
         coinQuery.fetchCoinsResults = [
-            CoinSyncResult.OnChainCoin(value: 3, age: 0),
-            CoinSyncResult.OnChainCoin(value: 3, age: 0)
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 3, age: 0),
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 3, age: 0)
         ]
 
         await makeService().recover()
@@ -126,8 +126,8 @@ struct TransferRecoveryServiceTests {
 
         walStore.fetchAllResult = [walEntry]
         coinQuery.fetchCoinsResults = [
-            CoinSyncResult.OnChainCoin(value: 4, age: 5),
-            CoinSyncResult.OnChainCoin(value: 4, age: 5)
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 4, age: 5),
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 4, age: 5)
         ]
 
         await makeService().recover()
@@ -153,7 +153,7 @@ struct TransferRecoveryServiceTests {
         // Call 1: output probe for index 100 → not found
         coinQuery.enqueue([nil])
         // Call 2: input check for coin "99" → still on-chain, so revert
-        coinQuery.enqueue([CoinSyncResult.OnChainCoin(value: 0, age: 0)])
+        coinQuery.enqueue([CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)])
 
         await makeService().recover()
 
@@ -178,7 +178,7 @@ struct TransferRecoveryServiceTests {
         )
 
         walStore.fetchAllResult = [groupBEntry]
-        coinQuery.fetchCoinsResults = [CoinSyncResult.OnChainCoin(value: 5, age: 10)]
+        coinQuery.fetchCoinsResults = [CoinSyncResult.OnChainCoin(instanceId: 0, value: 5, age: 10)]
 
         await makeService().recover()
 
@@ -267,8 +267,8 @@ struct TransferRecoveryServiceTests {
         coinQuery.enqueue([nil])
         // Call 2: input check for coins ["99", "98"] → still on-chain, so revert
         coinQuery.enqueue([
-            CoinSyncResult.OnChainCoin(value: 0, age: 0),
-            CoinSyncResult.OnChainCoin(value: 0, age: 0)
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0),
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)
         ])
 
         await makeService().recover()
@@ -291,9 +291,9 @@ struct TransferRecoveryServiceTests {
 
         walStore.fetchAllResult = [walEntry]
         coinQuery.fetchCoinsResults = [
-            CoinSyncResult.OnChainCoin(value: 3, age: 0),
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 3, age: 0),
             nil,
-            CoinSyncResult.OnChainCoin(value: 3, age: 0)
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 3, age: 0)
         ]
 
         await makeService().recover()
@@ -321,8 +321,8 @@ struct TransferRecoveryServiceTests {
 
         walStore.fetchAllResult = [walEntry1, walEntry2]
         coinQuery.fetchCoinsResults = [
-            CoinSyncResult.OnChainCoin(value: 3, age: 0),
-            CoinSyncResult.OnChainCoin(value: 4, age: 5)
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 3, age: 0),
+            CoinSyncResult.OnChainCoin(instanceId: 0, value: 4, age: 5)
         ]
 
         await makeService().recover()
@@ -444,7 +444,7 @@ struct TransferRecoveryServiceTests {
         // Output probe: nil (not confirmed)
         coinQuery.enqueue([nil])
         // Input check for coin "99": still on-chain → not consumed, so fall through to expiry check
-        coinQuery.enqueue([CoinSyncResult.OnChainCoin(value: 0, age: 0)])
+        coinQuery.enqueue([CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)])
 
         await makeService().recover()
 
@@ -472,7 +472,7 @@ struct TransferRecoveryServiceTests {
         // Outputs: nil
         coinQuery.enqueue([nil])
         // Input check for coin "99": still on-chain
-        coinQuery.enqueue([CoinSyncResult.OnChainCoin(value: 0, age: 0)])
+        coinQuery.enqueue([CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)])
 
         // Mock emits block 1000 (< 900 + 200 = 1100 → not expired). Entry stays pending.
         // Stream terminates after the single emission; recover() returns with the entry unresolved.
@@ -520,7 +520,7 @@ struct TransferRecoveryServiceTests {
 
         walStore.fetchAllResult = [walEntry]
         // Input coin "99" still on-chain → not consumed → fall through to expiry
-        coinQuery.enqueue([CoinSyncResult.OnChainCoin(value: 0, age: 0)])
+        coinQuery.enqueue([CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)])
 
         await makeService().recover()
 
@@ -542,7 +542,7 @@ struct TransferRecoveryServiceTests {
         )
 
         walStore.fetchAllResult = [walEntry]
-        coinQuery.enqueue([CoinSyncResult.OnChainCoin(value: 0, age: 0)])
+        coinQuery.enqueue([CoinSyncResult.OnChainCoin(instanceId: 0, value: 0, age: 0)])
 
         await makeService().recover()
 

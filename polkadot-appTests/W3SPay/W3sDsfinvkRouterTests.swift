@@ -121,7 +121,8 @@ private final class StubRemoteConfig: RemoteConfigManaging, @unchecked Sendable 
             gameDashboardUrl: nil,
             dotNsResolver: nil,
             dotNsProtocolRegistry: nil,
-            dotNsNameRegistry: nil
+            dotNsNameRegistry: nil,
+            coinageInstanceId: nil
         )
     }
 

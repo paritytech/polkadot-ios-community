@@ -6,6 +6,7 @@ public extension PGASPallet {
         case maxClaimsPerPeriodPerPerson
         case maxClaimsPerPeriodPerLitePerson
         case pgasClaimAmount
+        case suffix
     }
 }
 
@@ -18,6 +19,8 @@ extension PGASPallet.Constants: ConstantPathConvertible {
             "MaxClaimsPerPeriodPerLitePerson"
         case .pgasClaimAmount:
             "PgasClaimAmount"
+        case .suffix:
+            "Suffix"
         }
     }
 
