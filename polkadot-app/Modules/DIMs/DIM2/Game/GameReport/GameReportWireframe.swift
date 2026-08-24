@@ -40,7 +40,7 @@ extension GameReportWireframe: GameReportWireframeProtocol {
     }
 
     func showReveal(view: (any GameReportViewProtocol)?, context: ReportSuccessContext) {
-        #if W3S
+        #if FEATURE_PRIZES
             Logger.shared
                 .debug(
                     "[GameDebug] showReveal called gameIndex=\(context.gameIndex) " +
@@ -76,7 +76,7 @@ extension GameReportWireframe: GameReportWireframeProtocol {
             Logger.shared.debug("[GameDebug] presenting GameResults module modally")
             view?.controller.present(nav, animated: true)
         #else
-            Logger.shared.debug("[GameDebug] showReveal: W3S disabled — dismissing report flow to chat")
+            Logger.shared.debug("[GameDebug] showReveal: prizes feature disabled — dismissing report flow to chat")
             dismissToChat(view: view)
         #endif
     }

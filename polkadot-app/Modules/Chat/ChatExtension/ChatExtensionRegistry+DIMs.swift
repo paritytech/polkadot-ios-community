@@ -25,9 +25,7 @@ extension ChatExtensionsRegistry {
             )
             let settings = SettingsManager.shared
 
-            #if W3S
-                let dim2Actions: [ChatExtensionActions.ActionModel] = []
-            #else
+            #if FEATURE_DIMS_FULL
                 let dim2Actions: [ChatExtensionActions.ActionModel] = [
                     .init(
                         title: String(localized: .MobRule.chatName),
@@ -35,6 +33,8 @@ extension ChatExtensionsRegistry {
                         identifier: MobRulesChatExtension.identifier
                     )
                 ]
+            #else
+                let dim2Actions: [ChatExtensionActions.ActionModel] = []
             #endif
 
             guard let dim2 = WeeklyGameFactory.create(
@@ -50,9 +50,7 @@ extension ChatExtensionsRegistry {
                 return []
             }
 
-            #if W3S
-                return [dim2]
-            #else
+            #if FEATURE_DIMS_FULL
                 guard let mobRules = MobRulesFactory.create(
                     settings: settings,
                     scoreInfoSyncService: dimsState.peerState.scoreInfoSyncService
@@ -121,7 +119,8 @@ extension ChatExtensionsRegistry {
 
                 return [peerChat, dim1, dim2, mobRules]
                     .compactMap { $0 }
-
+            #else
+                return [dim2]
             #endif
         } catch {
             Logger.shared.error("Can't create dims state: \(error)")
