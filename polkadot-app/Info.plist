@@ -9,6 +9,29 @@
 		<string>io.novatech.person.self_include.submit</string>
 		<string>io.coinage.background.recycler.refresh</string>
 	</array>
+	<key>BrandAppGroup</key>
+	<string>group.$(APP_MAIN_BUNDLE)</string>
+	<key>BrandCashSymbol</key>
+	<string>$(BRAND_CASH_SYMBOL)</string>
+	<key>BrandContactEmail</key>
+	<string>$(BRAND_CONTACT_EMAIL)</string>
+	<key>BrandDeeplinkScheme</key>
+	<string>$(DEEPLINK)</string>
+	<key>BrandDeeplinkSchemes</key>
+	<array>
+		<string>$(BRAND_DEEPLINK)</string>
+		<string>$(BRAND_DEEPLINK_DEV)</string>
+	</array>
+	<key>BrandDisplayName</key>
+	<string>$(BRAND_DISPLAY_NAME)</string>
+	<key>BrandFiatSymbol</key>
+	<string>$(BRAND_FIAT_SYMBOL)</string>
+	<key>BrandPrivacyHost</key>
+	<string>$(BRAND_PRIVACY_HOST)</string>
+	<key>BrandShareRoot</key>
+	<string>$(BRAND_SHARE_ROOT)</string>
+	<key>BrandTermsHost</key>
+	<string>$(BRAND_TERMS_HOST)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

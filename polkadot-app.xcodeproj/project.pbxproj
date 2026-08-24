@@ -109,6 +109,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppConfig/AppConfig.swift,
+				"AppConfig/AppConfig+Brand.swift",
 				AppConfig/AppConfigProvider.swift,
 				AppConfig/KnownChains.swift,
 				AppConfig/RemoteAppConfig.swift,

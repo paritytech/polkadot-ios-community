@@ -234,3 +234,26 @@ These areas have old and new patterns coexisting. New code follows the north-sta
 | W3S flags          | Temporary event-specific behavior               |
 
 Gate temporary behavior changes behind feature flags rather than unconditional code changes.
+
+### Brand Axis
+
+Brand identity is deliberately **not in version control**. The repository carries only a template (`Configs/brand.template.xcconfig`) documenting the key contract with placeholder values. The actual brand file (`Configs/brand.xcconfig`, gitignored) must be materialized out-of-band from real team values; a fresh clone cannot build until someone provides it.
+
+Brand is an xcconfig axis, not a compiler flag — a third axis orthogonal to configurations and schemes, and one that deliberately does not multiply build configurations or schemes. `Configs/brand.xcconfig` holds the identity values directly as flat `KEY = value` lines; there is no committed brand file and no include indirection. All four `Configs/base.*.xcconfig` files include `brand.xcconfig` and derive APP_NAME, APP_MAIN_BUNDLE, and DEEPLINK from the brand's 11 identity keys: BRAND_DISPLAY_NAME, BRAND_BUNDLE_ROOT, BRAND_DEEPLINK, BRAND_DEEPLINK_DEV, BRAND_SHARE_ROOT, BRAND_SHARE_ROOT_TEST, BRAND_CASH_SYMBOL, BRAND_FIAT_SYMBOL, BRAND_TERMS_HOST, BRAND_PRIVACY_HOST, BRAND_CONTACT_EMAIL. Never add BRAND_* defaults to base configs — a default converts a missing-brand-file error into a silent wrong-App-Group runtime state.
+
+BRAND_* values reach Swift through Info.plist passthrough (`$(VAR)`) and are read back via `AppConfig.Brand` in `polkadot-app/AppConfig/AppConfig+Brand.swift`, with accessors trapping on missing keys at launch. URL-shaped keys store HOST only (no scheme), since `//` starts a comment in xcconfig. `AppConfig.DeepLink.knownSchemes` and `SharedContainerGroup.name` are brand-scoped instead of global hardcodes.
+
+**Missing brand file is a hard error at config parse**, but an **incomplete** (missing key) brand file is not caught by the build and instead traps at app launch. Nothing guards the incomplete case today — not the compiler, and not CI.
+
+**Two failure modes contrasted:** A missing `Configs/brand.xcconfig` is a hard build error at config parse:
+```
+Configs/base.debug.xcconfig:7: error: could not find included file 'brand.xcconfig' in search paths
+```
+An incomplete brand file (missing a key the template declares) builds successfully but traps at app launch with a `fatalError` naming the key and pointing at the brand file. The compiler cannot catch this class of failure, and no CI step checks it yet, so adding a key to the template means telling the team to add it to their brand file.
+
+**Localized Info.plist strings interaction with the brand:** `polkadot-app/Localization/InfoPlist.xcstrings` carries `CFBundleDisplayName` and `CFBundleName` entries with `extractionState: extracted_with_value` and `state: "new"`. These entries must be left alone; two measured facts establish why:
+1. Xcode does not compile `state: "new"` strings into the built `en.lproj/InfoPlist.strings`, so the entries never reach the bundle and `${APP_NAME}` from Info.plist governs the springboard name. Verified: a Debug build shows `CFBundleDisplayName = "Polkadot Dev"`.
+2. `.strings` files are **not** build-setting-expanded. Setting those entries to `state: "translated"` with the value `${APP_NAME}` (a tempting "pass-through" fix) makes the app display the literal text `${APP_NAME}` instead of the expanded value. Verified by building it.
+3. Deleting the keys does not stick: Xcode re-extracts them on the next build.
+
+Conclusion: leave the entries as-is; the risk to watch is someone marking either key `translated`, which would pin the display name to that literal for every brand.

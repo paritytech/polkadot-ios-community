@@ -10,6 +10,10 @@
 /Gemfile @kogeler
 /Gemfile.lock @kogeler
 
+# Brand identity. A one-token edit here changes the App Group, the keychain access
+# group and the claimed applinks: domains of every signed build.
+/Configs/ @ERussel @sergkononenko @kogeler
+
 /Packages/AppDependencies @sergkononenko @ERussel
 /Packages/AssetExchange @ERussel
 /Packages/AssetHubSdk @ERussel
@@ -38,6 +42,7 @@
 
 /polkadot-app/AppConfig @ERussel @sergkononenko
 /polkadot-app/Common @ERussel @sergkononenko
+/polkadot-app/Configs @ERussel @sergkononenko
 /polkadot-app/Modules/AssetDetails @sergkononenko
 /polkadot-app/Modules/Chat @ERussel
 /polkadot-app/Modules/ChatAttachments @ERussel

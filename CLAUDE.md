@@ -22,6 +22,16 @@ Polkadot iOS — a production-grade iOS wallet and social app for the Polkadot b
 Prefer the `xcode-tools` MCP server (XcodeBuildMCP) for builds, tests, and simulator control — it produces
 errors/warnings-only output and reuses booted simulators. Use the raw `xcodebuild` commands below as fallback.
 
+### Brand Configuration Bootstrap
+
+The file `Configs/brand.xcconfig` is gitignored and must be created by hand after a fresh clone. Copy `Configs/brand.template.xcconfig` to `Configs/brand.xcconfig` and fill in the real values. Brand identity values are **not** in the repository and must be obtained from the team out-of-band — the repository carries only the template with placeholders.
+
+With `Configs/brand.xcconfig` absent, an Xcode build fails immediately at config parse with a hard error:
+```
+Configs/base.debug.xcconfig:7: error: could not find included file 'brand.xcconfig' in search paths
+```
+The build action fails before any test runs, so there is no host-app crash to diagnose — the error names the file and stops at config parse.
+
 ### Build the App
 ```bash
 # Xcode build (scheme: polkadot-app, target: iOS 17.0+)
