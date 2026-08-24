@@ -5,17 +5,17 @@
 
     final class AppFactoryResetChecker {
         private let storage: UsernameStoring
-        private let wallet: WalletManaging
+        private let walletRepo: WalletManagerRepositoryProtocol
         private let identityService: IdentityServiceProtocol
         private var cancellable: AnyCancellable?
 
         init(
             storage: UsernameStoring,
-            wallet: WalletManaging,
+            walletRepo: WalletManagerRepositoryProtocol,
             identityService: IdentityServiceProtocol
         ) {
             self.storage = storage
-            self.wallet = wallet
+            self.walletRepo = walletRepo
             self.identityService = identityService
         }
 
@@ -25,7 +25,7 @@
                 return
             }
 
-            guard let accountId = try? wallet.getRawPublicKey() else {
+            guard let accountId = try? walletRepo.main().getRawPublicKey() else {
                 completion(false)
                 return
             }

@@ -7,7 +7,8 @@ enum SearchContactViewFactory {
         with model: SearchContactModel,
         coinageService: CoinageServicing
     ) -> SearchContactViewProtocol? {
-        guard let ownAccountId = try? SelectedWallet.main.getRawPublicKey() else {
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        guard let ownAccountId = try? walletRepo.main().getRawPublicKey() else {
             assertionFailure()
             return nil
         }

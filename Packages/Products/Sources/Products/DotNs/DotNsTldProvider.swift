@@ -15,6 +15,9 @@ public protocol DotNsTldProviding: Sendable {
     /// Resolves the TLD, sharing any in-flight read. Bypasses the backoff window,
     /// subject to a minimum inter-attempt floor.
     func resolveTld() async throws -> String
+
+    /// Kicks a background re-read of the TLD, subject to the backoff window. Non-blocking.
+    func refresh()
 }
 
 public final class DotNsTldProvider: DotNsTldProviding {
@@ -61,6 +64,10 @@ public final class DotNsTldProvider: DotNsTldProviding {
             guard claimStart(ignoringBackoff: true) else { throw DotNsContractError.tldNotFound }
             return try await performRead()
         }
+    }
+
+    public func refresh() {
+        refreshIfNeeded()
     }
 }
 

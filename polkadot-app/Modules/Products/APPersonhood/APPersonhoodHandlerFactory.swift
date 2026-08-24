@@ -19,6 +19,7 @@ final class APPersonhoodHandlerFactory: @unchecked Sendable {
     private let chainRegistry: ChainRegistryProtocol
     private let routers: ProductRoutersFacadeProtocol
     private let entropyManager: RootEntropyManaging
+    private let tldProvider: DotNsTldProviding
     private let permissionRepository: ProductPermissionRepositoryProtocol
     private let operationQueue: OperationQueue
     private let logger: LoggerProtocol
@@ -27,6 +28,7 @@ final class APPersonhoodHandlerFactory: @unchecked Sendable {
         chainRegistry: ChainRegistryProtocol,
         routers: ProductRoutersFacadeProtocol,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
         permissionRepository: ProductPermissionRepositoryProtocol = ProductPermissionRepository(),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
@@ -34,6 +36,7 @@ final class APPersonhoodHandlerFactory: @unchecked Sendable {
         self.chainRegistry = chainRegistry
         self.routers = routers
         self.entropyManager = entropyManager
+        self.tldProvider = tldProvider
         self.permissionRepository = permissionRepository
         self.operationQueue = operationQueue
         self.logger = logger
@@ -86,14 +89,19 @@ private extension APPersonhoodHandlerFactory {
 
     // Priority order: the full-person ("PoP") key first, then lite.
     func makeOptions() -> [CreateProofOrAliasOption] {
-        [
+        guard let tld = try? tldProvider.currentTldOrError() else {
+            logger.error("Personhood options unavailable: DotNs TLD not resolved")
+            return []
+        }
+
+        return [
             CreateProofOrAliasOption(
                 collectionId: PeoplePallet.membersIdentifier,
-                keyManager: BandersnatchKeyManager.fullPerson(entropyManager: entropyManager)
+                keyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
             ),
             CreateProofOrAliasOption(
                 collectionId: PeopleLitePallet.membersIdentifier,
-                keyManager: BandersnatchKeyManager.litePerson(entropyManager: entropyManager)
+                keyManager: BandersnatchKeyManager.litePerson(for: tld, entropyManager: entropyManager)
             )
         ]
     }

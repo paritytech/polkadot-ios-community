@@ -23,7 +23,6 @@
         }
 
         func resetAllData() {
-            SelectedWallet.resetAll()
             if #available(iOS 26.0, *) {
                 clearAlarmKitAlarms()
             }

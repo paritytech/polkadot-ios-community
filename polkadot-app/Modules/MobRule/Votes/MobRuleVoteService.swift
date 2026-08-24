@@ -31,7 +31,7 @@ final class MobRuleVoteService: MobRuleVoteServicing {
         chain: ChainModel,
         extrinsicSubmissionFacade: ExtrinsicSubmissionMonitorFacadeProtocol,
         extrinsicOriginFactory: PersonhoodOriginFactoryProtocol,
-        selectedWallet: WalletManaging = SelectedWallet.mobRuleAlias,
+        selectedWallet: WalletManaging = WalletManagerRepository.shared.mobRuleAlias(),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
