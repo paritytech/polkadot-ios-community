@@ -98,6 +98,3 @@ __pycache__
 
 # temp
 tmp/
-
-# Local brand selection — create by hand, see CLAUDE.md. Never commit.
-Configs/brand.xcconfig
