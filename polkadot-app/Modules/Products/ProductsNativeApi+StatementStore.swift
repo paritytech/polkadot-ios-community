@@ -24,7 +24,9 @@ extension ProductsNativeApi {
 
     func createStatementProof(_ request: CreateStatementProofDto) async throws -> StatementProofDto {
         // TODO: Remove when all migrate to authorized
-        let signer = try makeStatementSigner(for: WalletDerivationPath.main)
+        let signer = try makeStatementSigner(
+            for: WalletDerivationPath.main(for: DotNsTldProviderFacade.shared.currentTldOrError())
+        )
 
         let unsignedStatement = try request.toUnsignedRemoteStatement()
 

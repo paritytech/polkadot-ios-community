@@ -49,7 +49,7 @@ final class ChatRequestStoreService {
     let messageExchangeModeProvider: MessageExchangeModeProviding
     let encryptionManager: MessageExchangeEncryptionManaging
     let signManager: StatementStoreSignerManaging
-    let wallet: WalletManaging
+    let walletRepo: WalletManagerRepositoryProtocol
 
     init(
         messageExchangeModeProvider: MessageExchangeModeProviding,
@@ -58,7 +58,7 @@ final class ChatRequestStoreService {
         deviceEncryptionKeyManager: DeviceEncryptionKeyManaging,
         encryptionManager: MessageExchangeEncryptionManaging = ChatEncryptionManager(),
         signManager: StatementStoreSignerManaging = ChatSignerManager(),
-        wallet: WalletManaging = SelectedWallet.main
+        walletRepo: WalletManagerRepositoryProtocol = .shared
     ) {
         self.storageFacade = storageFacade
         self.pushIdFactory = pushIdFactory
@@ -66,7 +66,7 @@ final class ChatRequestStoreService {
         self.messageExchangeModeProvider = messageExchangeModeProvider
         self.encryptionManager = encryptionManager
         self.signManager = signManager
-        self.wallet = wallet
+        self.walletRepo = walletRepo
     }
 }
 
@@ -143,7 +143,7 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
                 welcomeMessage: textContent
             ))
         case .multidevice:
-            let identityAccountId = try wallet.getRawPublicKey()
+            let identityAccountId = try walletRepo.main().getRawPublicKey()
             let devicePublicKey = try deviceEncryptionKeyManager.getPublicKey()
 
             let signer = try signManager.makeSigner(for: ownKeyId.signKeyId)
@@ -243,7 +243,7 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
         case .identity:
             return nil
         case .multidevice:
-            let identityAccountId = try wallet.getRawPublicKey()
+            let identityAccountId = try walletRepo.main().getRawPublicKey()
             let devicePublicKey = try deviceEncryptionKeyManager.getPublicKey()
 
             return Chat.PeerDevice(

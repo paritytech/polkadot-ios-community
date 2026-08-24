@@ -137,9 +137,16 @@ enum ChatViewFactory {
         )
 
         let engineFactory: ChatEngineFactoryProtocol = ChatEngineFactory(flowState: flowState)
-        let chatEngine = pendingRequest.map {
-            engineFactory.createChatEngine(for: $0)
-        } ?? engineFactory.createChatEngine(for: chatId)
+        let chatEngine: any ChatEngineProtocol
+        do {
+            if let pendingRequest {
+                chatEngine = try engineFactory.createChatEngine(for: pendingRequest)
+            } else {
+                chatEngine = try engineFactory.createChatEngine(for: chatId)
+            }
+        } catch {
+            return nil
+        }
 
         return ChatInteractor(
             chatId: chatId,

@@ -66,7 +66,10 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
                 if let chat = chats.first {
                     openModel = .existingChat(chat.chatId)
                 } else {
-                    let newRequest = ChatOpenModel.NewRequest(remoteContact: contact, ownKeyId: Chat.Contact.Own.main())
+                    let newRequest = try ChatOpenModel.NewRequest(
+                        remoteContact: contact,
+                        ownKeyId: Chat.Contact.Own.main()
+                    )
                     openModel = .newRequest(newRequest)
                 }
                 await self?.presenter?.didReceive(resolution: openModel)

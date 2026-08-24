@@ -13,7 +13,8 @@ enum ChatWithPlayersViewFactory {
         guard
             let dim2Extension = chatFlowState.extensionsRegistry.getChatExtensionBot(
                 for: DIM2ChatExtension.identifier
-            ) as? DIM2ChatExtending else {
+            ) as? DIM2ChatExtending,
+            let tld = try? DotNsTldProviderFacade.shared.currentTldOrError() else {
             return nil
         }
 
@@ -38,7 +39,7 @@ enum ChatWithPlayersViewFactory {
         )
         let storageFacade = UserDataStorageFacade.shared
         let service = ChatRequestStoreService(
-            messageExchangeModeProvider: ChatMessageExchangeModeProvider(),
+            messageExchangeModeProvider: ChatMessageExchangeModeProvider(tld: tld),
             storageFacade: storageFacade,
             pushIdFactory: chatIdFactory,
             deviceEncryptionKeyManager: DeviceEncryptionKeyManager.shared

@@ -1,30 +1,40 @@
 import Foundation
-import Keystore_iOS
 import Individuality
 import KeyDerivation
 
+/// Built-in account wallets. TLD-dependent accounts (`main`/`candidate`/`scoreAlias`/`depositWallet`)
+/// derive from a product domain suffixed with the DotNs TLD and must be resolved through
+/// `WalletManagerRepositoryProtocol`; the TLD-independent accounts use fixed pallet-context paths.
 enum SelectedWallet {
-    private(set) static var main = DynamicDerivedWallet(derivationPath: WalletDerivationPath.main)
-    private(set) static var candidate = DynamicDerivedWallet(derivationPath: WalletDerivationPath.candidate)
-    private(set) static var mobRuleAlias = DynamicDerivedWallet(derivationPath: "//\(PalletContext.mobRule)")
-    private(set) static var scoreAlias = DynamicDerivedWallet(derivationPath: WalletDerivationPath.score)
-    private(set) static var internalPayout = DynamicDerivedWallet(derivationPath: "//\(PalletContext.privacyVoucher)")
-    private(set) static var resourcesAlias = DynamicDerivedWallet(derivationPath: "//\(PalletContext.resources)")
-    private(set) static var depositWallet = DynamicDerivedWallet(derivationPath: WalletDerivationPath.deposit)
-    private(set) static var bulletInForChat = DynamicDerivedWallet(derivationPath: WalletDerivationPath.bulletInForChat)
-}
-
-#if TESTNET_FEATURE
-    extension SelectedWallet {
-        static func resetAll() {
-            main = DynamicDerivedWallet(derivationPath: WalletDerivationPath.main)
-            candidate = DynamicDerivedWallet(derivationPath: WalletDerivationPath.candidate)
-            mobRuleAlias = DynamicDerivedWallet(derivationPath: "//\(PalletContext.mobRule)")
-            scoreAlias = DynamicDerivedWallet(derivationPath: WalletDerivationPath.score)
-            internalPayout = DynamicDerivedWallet(derivationPath: "//\(PalletContext.privacyVoucher)")
-            resourcesAlias = DynamicDerivedWallet(derivationPath: "//\(PalletContext.resources)")
-            depositWallet = DynamicDerivedWallet(derivationPath: WalletDerivationPath.deposit)
-            bulletInForChat = DynamicDerivedWallet(derivationPath: WalletDerivationPath.bulletInForChat)
-        }
+    static func main(for tld: String) -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: WalletDerivationPath.main(for: tld))
     }
-#endif
+
+    static func candidate(for tld: String) -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: WalletDerivationPath.candidate(for: tld))
+    }
+
+    static func scoreAlias(for tld: String) -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: WalletDerivationPath.score(for: tld))
+    }
+
+    static func depositWallet(for tld: String) -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: WalletDerivationPath.deposit(for: tld))
+    }
+
+    static func mobRuleAlias() -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: "//\(PalletContext.mobRule)")
+    }
+
+    static func resourcesAlias() -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: "//\(PalletContext.resources)")
+    }
+
+    static func internalPayout() -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: "//\(PalletContext.privacyVoucher)")
+    }
+
+    static func bulletInForChat() -> DynamicDerivedWallet {
+        DynamicDerivedWallet(derivationPath: WalletDerivationPath.bulletInForChat)
+    }
+}

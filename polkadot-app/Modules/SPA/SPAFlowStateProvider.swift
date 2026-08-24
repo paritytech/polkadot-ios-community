@@ -15,14 +15,11 @@ final class SPAFlowStateProvider: SPAFlowStateProviding {
     private let state = OSAllocatedUnfairLock<State>(initialState: State())
 
     private let chainRegistry: ChainRegistryProtocol
-    private let store: DotNsTldStoring
 
     init(
-        chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
-        store: DotNsTldStoring = SettingsDotNsTldStore()
+        chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry
     ) {
         self.chainRegistry = chainRegistry
-        self.store = store
     }
 
     func flowState() -> SPAFlowState {
@@ -39,12 +36,7 @@ final class SPAFlowStateProvider: SPAFlowStateProviding {
             configProvider: { config }
         )
 
-        let tldProvider = DotNsTldProvider(
-            contractApi: contractApi,
-            store: store
-        )
-
-        let hostProvider = ProductHostFactory(tldProvider: tldProvider)
+        let hostProvider = ProductHostFactory(tldProvider: DotNsTldProviderFacade.shared)
 
         let carFetcher = CarFetcher(gatewayBaseUrl: config.ipfsGatewayBaseUrl)
         let contentStorage = DotNsContentStorage()

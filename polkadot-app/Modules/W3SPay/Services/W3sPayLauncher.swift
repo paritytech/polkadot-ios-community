@@ -27,6 +27,7 @@ final class W3sPayLauncher: W3sPayLaunching {
     private let statementStoreChainId: ChainModel.Id
     private let mainChainAssetId: ChainAssetId
     private let historyStore: W3sPaymentHistoryStoring
+    private let walletRepo: WalletManagerRepositoryProtocol
     private let logger: SDKLoggerProtocol?
 
     init(
@@ -36,6 +37,7 @@ final class W3sPayLauncher: W3sPayLaunching {
         statementStoreChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         mainChainAssetId: ChainAssetId = AppConfig.Assets.mainAsset,
         historyStore: W3sPaymentHistoryStoring,
+        walletRepo: WalletManagerRepositoryProtocol = .shared,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinageService = coinageService
@@ -44,6 +46,7 @@ final class W3sPayLauncher: W3sPayLaunching {
         self.statementStoreChainId = statementStoreChainId
         self.mainChainAssetId = mainChainAssetId
         self.historyStore = historyStore
+        self.walletRepo = walletRepo
         self.logger = logger
     }
 
@@ -122,9 +125,9 @@ private extension W3sPayLauncher {
                 chainId: mainChainAssetId.chainId
             )
 
-            return W3sStatementSubmitter(
+            return try W3sStatementSubmitter(
                 details: details,
-                wallet: SelectedWallet.main,
+                wallet: walletRepo.main(),
                 statementStoreSubmitter: statementSubmitter,
                 historyStore: historyStore,
                 blockInfoProvider: blockInfoProvider,

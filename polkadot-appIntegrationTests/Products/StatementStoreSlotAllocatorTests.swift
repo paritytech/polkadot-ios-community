@@ -31,8 +31,8 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
             operationManager: OperationManager(operationQueue: operationQueue)
         )
 
-        let liteVrfManager = BandersnatchKeyManager.litePerson(entropyManager: setupResult.entropyManager)
-        let fullVrfManager = BandersnatchKeyManager.fullPerson(entropyManager: setupResult.entropyManager)
+        let liteVrfManager = BandersnatchKeyManager.litePerson(for: "dot", entropyManager: setupResult.entropyManager)
+        let fullVrfManager = BandersnatchKeyManager.fullPerson(for: "dot", entropyManager: setupResult.entropyManager)
 
         let keyResolver = BandersnatchKeyResolver(
             liteKeyManager: liteVrfManager,

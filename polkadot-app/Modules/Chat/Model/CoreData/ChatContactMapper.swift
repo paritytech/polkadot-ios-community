@@ -46,7 +46,7 @@ extension ChatContactMapper: CoreDataMapperProtocol {
             try ChatRequestMapper().transform(entity: requestEntity)
         }
 
-        let ownKeyId = Chat.Contact.Own(entity: entity)
+        let ownKeyId = try Chat.Contact.Own(entity: entity)
 
         let source: Chat.Contact.Source =
             if let game = entity.game {
@@ -162,8 +162,11 @@ extension ChatContactMapper {
 }
 
 private extension Chat.Contact.Own {
-    init(entity: CDChatContact) {
-        signKeyId = entity.ownSignKeyId ?? WalletDerivationPath.main
+    init(entity: CDChatContact) throws {
+        guard let ownSignKeyId = entity.ownSignKeyId else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: "ownSignKeyId")
+        }
+        signKeyId = ownSignKeyId
         encryptionKeyId = entity.ownEncryptionKeyId ?? ChatEncryptionDomain.mainChat.rawValue
     }
 }

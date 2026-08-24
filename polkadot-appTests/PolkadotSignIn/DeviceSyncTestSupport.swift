@@ -23,7 +23,7 @@ extension DeviceSyncExchangeTests {
         sleep: @escaping DeviceSyncSleep = liveDeviceSyncSleep,
         entityChunker: DeviceSyncEntityChunker = .init()
     ) -> DeviceSyncExchange {
-        let messageExchangeModeProvider = ChatMessageExchangeModeProvider()
+        let messageExchangeModeProvider = ChatMessageExchangeModeProvider(tld: "dot")
         let storageFacade = UnusedDeviceSyncStorageFacade()
 
         return DeviceSyncExchange(

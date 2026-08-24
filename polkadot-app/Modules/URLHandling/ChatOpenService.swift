@@ -64,7 +64,7 @@ extension ChatOpenService: URLHandlingServiceProtocol {
                 return
             }
 
-            let newRequest = ChatOpenModel.NewRequest(
+            let newRequest = try ChatOpenModel.NewRequest(
                 remoteContact: remoteContact,
                 ownKeyId: Chat.Contact.Own.main()
             )
