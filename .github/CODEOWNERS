@@ -12,7 +12,7 @@
 
 # Brand identity. A one-token edit here changes the App Group, the keychain access
 # group and the claimed applinks: domains of every signed build.
-/Configs/ @ERussel @sergkononenko @kogeler
+/Configs/ @ERussel @sergkononenko
 
 /Packages/AppDependencies @sergkononenko @ERussel
 /Packages/AssetExchange @ERussel
