@@ -71,10 +71,24 @@ final class JWTTokenManager: JWTTokenProviding, JWTTokenManaging {
     // MARK: - async/await API
 
     func validToken() async throws -> String {
-        if let cached = storeLock.withLock({ tokenStore.fetchToken() }),
-           !isTokenExpired(cached) {
-            logger.debug("Returning cached token")
-            return cached
+        if let cached = storeLock.withLock({ tokenStore.fetchToken() }) {
+            let subjectMatches = subjectMatchesAuthWallet(cached)
+
+            if !isTokenExpired(cached), subjectMatches {
+                logger.debug("Returning cached token")
+                return cached
+            }
+
+            if !subjectMatches {
+                // Identity changed (the wallet was created after this token
+                // was minted). Drop the REFRESH token as well: /auth/token/
+                // refresh re-issues for the same subject, so refreshing would
+                // resurrect the pre-wallet identity and the claim would still
+                // be refused. Clearing both forces a full attestation, which
+                // authenticates as the wallet.
+                logger.debug("Auth identity changed — dropping token pair")
+                storeLock.withLock { tokenStore.deleteAll() }
+            }
         }
 
         logger.debug("Requesting new token...")
@@ -123,6 +137,38 @@ private extension JWTTokenManager {
             return true
         }
         return dateProvider().addingTimeInterval(Self.expiryBuffer) >= exp
+    }
+
+    /// Whether `token` was minted for the identity we would authenticate as now.
+    ///
+    /// Onboarding mints a token BEFORE the wallet exists (availability checks),
+    /// so that token's subject is the pre-wallet session key. Reusing it for the
+    /// claim makes the backend refuse the registration, because the candidate
+    /// is then not the authenticated subject (403,
+    /// device-uniqueness-backend #77). Re-minting on a subject change also
+    /// covers a wallet appearing mid-session, with no caller having to remember
+    /// to invalidate.
+    ///
+    /// Unreadable subject or unavailable wallet → treat as matching, so a
+    /// parsing quirk degrades to the previous behaviour instead of looping on
+    /// fresh attestations.
+    func subjectMatchesAuthWallet(_ token: String) -> Bool {
+        guard
+            let payload = try? JWTParser.parse(token),
+            let subject = (payload.claims["accountId"] ?? payload.claims["sub"]) as? String,
+            let publicKey = try? authStore.fetchAuthWallet().getRawPublicKey()
+        else {
+            return true
+        }
+
+        return Self.normalizedHex(subject) == Self.normalizedHex(publicKey.toHex())
+    }
+
+    /// Lowercase, `0x`-free form, so a subject sent with a prefix still
+    /// compares equal to a locally derived key rendered without one.
+    static func normalizedHex(_ value: String) -> String {
+        let lowered = value.lowercased()
+        return lowered.hasPrefix("0x") ? String(lowered.dropFirst(2)) : lowered
     }
 
     /// Tries refresh token first, falls back to full attestation.

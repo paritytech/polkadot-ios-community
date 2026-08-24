@@ -10,16 +10,37 @@ protocol BackendAuthStoring {
 final class BackendAuthStore: BackendAuthStoring {
     private let keychain: KeystoreProtocol
     private let sessionIdStore: BackendSessionIdStoring
+    private let entropyManager: RootEntropyManaging
+    private let mainWalletProvider: () -> WalletManaging
 
     init(
         keychain: KeystoreProtocol = Keychain(),
-        sessionIdStore: BackendSessionIdStoring = BackendSessionIdStore()
+        sessionIdStore: BackendSessionIdStoring = BackendSessionIdStore(),
+        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
+        mainWalletProvider: @escaping () -> WalletManaging = { SelectedWallet.main }
     ) {
         self.keychain = keychain
         self.sessionIdStore = sessionIdStore
+        self.entropyManager = entropyManager
+        self.mainWalletProvider = mainWalletProvider
     }
 
+    /// The identity the backend sees on `/auth/token`.
+    ///
+    /// Once a wallet exists this is the main wallet, because the backend only
+    /// registers a username for the account that authenticated the request —
+    /// it refuses a `candidateAccountId` that is not the authenticated subject
+    /// (403, device-uniqueness-backend #77), and the candidate in a claim IS
+    /// the main wallet's account.
+    ///
+    /// Before onboarding creates a wallet there is nothing to authenticate as,
+    /// so a random per-session key still backs the pre-wallet calls
+    /// (availability checks, attester lookup).
     func fetchAuthWallet() throws -> WalletManaging {
+        if (try? entropyManager.hasRootEntropy()) == true {
+            return mainWalletProvider()
+        }
+
         let seedBytes = try fetchOrCreateSeedBytes()
         return try DynamicDerivedWallet(seedBytes: seedBytes)
     }
