@@ -59,6 +59,7 @@ final class ServiceCoordinator {
     let personhoodBackgroundService: PersonhoodBackgroundService
     let personDataStore: DetermineStatePersonDataStore
     let coinageBackupSyncService: CoinageBackupSyncServicing
+    let messageExpansionService: CompactedMessageExpansionServicing
     let spentCoinsRecoveryService: SpentCoinsRecoveryServicing
     let notificationBadgeSyncService: NotificationBadgeSyncService
     let accountManager: ProductsAccountManaging
@@ -97,6 +98,7 @@ final class ServiceCoordinator {
         personhoodBackgroundService: PersonhoodBackgroundService,
         personDataStore: DetermineStatePersonDataStore,
         coinageBackupSyncService: CoinageBackupSyncServicing,
+        messageExpansionService: CompactedMessageExpansionServicing,
         spentCoinsRecoveryService: SpentCoinsRecoveryServicing,
         notificationBadgeSyncService: NotificationBadgeSyncService,
         accountManager: ProductsAccountManaging,
@@ -128,6 +130,7 @@ final class ServiceCoordinator {
         self.personhoodBackgroundService = personhoodBackgroundService
         self.personDataStore = personDataStore
         self.coinageBackupSyncService = coinageBackupSyncService
+        self.messageExpansionService = messageExpansionService
         self.spentCoinsRecoveryService = spentCoinsRecoveryService
         self.notificationBadgeSyncService = notificationBadgeSyncService
         self.accountManager = accountManager
@@ -153,6 +156,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         attachmentUploadService.setup()
         attachmentDownloadService.setup()
         notificationBadgeSyncService.setup()
+        messageExpansionService.start()
         allowanceRenewalService.setup()
 
         Task {
@@ -196,6 +200,8 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         notificationBadgeSyncService.throttle()
         allowanceRenewalService.throttle()
 
+        messageExpansionService.stop()
+
         Task {
             await deviceSyncService.throttle()
             await coinageBackupSyncService.throttle()
@@ -210,17 +216,19 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
 
 extension ServiceCoordinator {
     // swiftlint:disable:next function_body_length
-    static func createDefault() -> ServiceCoordinatorProtocol? {
+    static func createDefault(spaFlowState: SPAFlowState) -> ServiceCoordinatorProtocol? {
         let mainWallet = SelectedWallet.main
         let depositWallet = SelectedWallet.depositWallet
 
         let logger: LoggerProtocol = Logger.shared
 
-        let chatCoordinatorFactory = MessageExchangeCoordinatorFactory()
-
         guard let allowanceManagerFacade = AllowanceManagerFacade.create() else {
             return nil
         }
+
+        let chatCoordinatorFactory = MessageExchangeCoordinatorFactory(
+            bulletInManager: allowanceManagerFacade.bulletInManager
+        )
 
         let allowanceSupport = AllowanceSupport(
             allowancePromptRouter: ProductsRouter(),
@@ -251,9 +259,26 @@ extension ServiceCoordinator {
             logger: logger
         )
 
+        // Single process-wide TrUAPI runtime provider. Registered in the root
+        // locator so the static SPA factory reaches the same instance the
+        // chat bot factory does — one shared runtime across all products.
+        // Host-level core confirmations route through an SSO-style facade whose
+        // presentation view is attached with the main tab bar; until then,
+        // host-level prompts deny.
+        let truapiRuntimeProvider = TrUAPIHostRuntimeProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            entropyManager: RootEntropyManager.shared,
+            settingsManager: SettingsManager.shared,
+            coreStorage: TrUAPILocalStorage.createCoreLocalStorage(),
+            confirmationRouterFacade: ProductRoutersFacade.sso(),
+            logger: logger
+        )
+        RootDependencyLocator.setDependency(truapiRuntimeProvider as TrUAPIHostRuntimeProviding)
+
         guard
             let signInHostCoordinator = createSignInHostCoordinator(
                 factory: chatCoordinatorFactory,
+                runtimeProvider: truapiRuntimeProvider,
                 accountManager: accountManager,
                 sponsorFactory: sponsorFactory,
                 logger: logger
@@ -301,22 +326,6 @@ extension ServiceCoordinator {
         truApiDependencies.setDependency(paymentsSupport)
         RootDependencyLocator.setDependency(truApiDependencies)
 
-        // Single process-wide TrUAPI runtime provider. Registered in the root
-        // locator so the static SPA factory reaches the same instance the
-        // chat bot factory does — one shared runtime across all products.
-        // Host-level core confirmations route through an SSO-style facade whose
-        // presentation view is attached with the main tab bar; until then,
-        // host-level prompts deny.
-        let truapiRuntimeProvider = TrUAPIHostRuntimeProvider(
-            chainRegistry: ChainRegistryFacade.sharedRegistry,
-            entropyManager: RootEntropyManager.shared,
-            settingsManager: SettingsManager.shared,
-            coreStorage: TrUAPILocalStorage.createCoreLocalStorage(),
-            confirmationRouterFacade: ProductRoutersFacade.sso(),
-            logger: logger
-        )
-        RootDependencyLocator.setDependency(truapiRuntimeProvider as TrUAPIHostRuntimeProviding)
-
         let chatExtensionsRegistry = createChatExtensionsRegistry(
             accountManager: accountManager,
             truapiRuntimeProvider: truapiRuntimeProvider,
@@ -325,7 +334,8 @@ extension ServiceCoordinator {
             syncService: syncServiceResult.service,
             personhoodRegistrationService: personhoodServices.registrationService,
             claimStatusStore: coinageServices.claimStatusStore,
-            audioSessionManager: audioSessionManager
+            audioSessionManager: audioSessionManager,
+            spaFlowState: spaFlowState
         )
 
         let fiatOnrampConfiguration = MeldFiatOnrampConfiguration.prod
@@ -350,6 +360,7 @@ extension ServiceCoordinator {
 
         let notificationBadgeSyncService = NotificationBadgeSyncService(logger: logger)
 
+        let messageExpansionService = createCompactedMessageExpansionService(logger: logger)
         let allowanceRenewalService = AllowanceRenewalService(
             managerFacade: allowanceManagerFacade,
             appStateStreamFactory: ApplicationStateStreamFactory(),
@@ -387,6 +398,7 @@ extension ServiceCoordinator {
             personhoodBackgroundService: personhoodServices.backgroundService,
             personDataStore: syncServiceResult.personDataStore,
             coinageBackupSyncService: coinageServices.backupSyncService,
+            messageExpansionService: messageExpansionService,
             spentCoinsRecoveryService: spentCoinsRecoveryService,
             notificationBadgeSyncService: notificationBadgeSyncService,
             accountManager: accountManager,
@@ -415,14 +427,21 @@ private extension ServiceCoordinator {
         }
     }
 
+    /// - Note: The `truApiRuntimeEnabled` flag is read once at coordinator creation (app start).
+    ///   Toggling the flag takes effect on the next launch.
     static func createSignInHostCoordinator(
         factory: MessageExchangeCoordinatorMaking,
+        runtimeProvider: TrUAPIHostRuntimeProviding,
         accountManager: ProductsAccountManaging,
         sponsorFactory: TransactionSponsorMaking,
         logger: LoggerProtocol
     ) -> MessageExchangeSignInHostCoordinating? {
         do {
-            return try factory.makeSignInHostCoordinator(
+            if SettingsManager.shared.value(for: .truApiRuntimeEnabled) {
+                return try factory.makeTrUAPIHostCoordinator(runtimeProvider: runtimeProvider)
+            }
+
+            return try factory.makeNativeHostCoordinator(
                 accountManager: accountManager,
                 sponsorFactory: sponsorFactory
             )

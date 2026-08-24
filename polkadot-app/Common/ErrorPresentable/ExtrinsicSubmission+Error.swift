@@ -11,9 +11,9 @@ extension FinalExtrinsicStatusError: @retroactive ErrorContentConvertible {
             case .invalid:
                 "invalid"
             case .dropped:
-                "droped"
+                "dropped"
             case .usurped:
-                "usurped"
+                "replaced by another transaction"
             }
 
         return ErrorContent(

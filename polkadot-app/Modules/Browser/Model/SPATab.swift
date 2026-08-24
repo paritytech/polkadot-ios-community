@@ -18,8 +18,8 @@ extension SPATab {
         )
     }
 
-    func makeProductPage() -> ProductPage? {
-        guard let host = ProductHost(rawString: dotDomain) else { return nil }
+    func makeProductPage(hostProvider: ProductHostProviding) -> ProductPage? {
+        guard let host = hostProvider.host(rawString: dotDomain) else { return nil }
         return ProductPage(host: host, page: page)
     }
 }

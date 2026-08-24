@@ -25,6 +25,7 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
         let coreStorage: TrUAPILocalStoring
         let confirmationPresenter: TrUAPIConfirmationPresenting
         let preimageCache: TrUAPIPreimageLookuping
+        let hostProvider: ProductHostProviding
         let logger: LoggerProtocol
     }
 
@@ -51,7 +52,7 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
     }
 
     func navigateTo(url: String) async throws {
-        if let destination = ProductHost.fromNavigationDestination(url) {
+        if let destination = dependencies.hostProvider.page(navigationDestination: url) {
             try await dependencies.navigationRouter.navigateTo(destination: destination)
         } else if let parsed = URL(string: url) {
             try await dependencies.navigationRouter.openExternalURL(parsed)

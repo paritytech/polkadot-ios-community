@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import KeyDerivation
 import ChainRegistry
+import StructuredConcurrency
 
 final class ConfirmDepositInteractor {
     weak var presenter: ConfirmDepositInteractorOutputProtocol?
@@ -47,10 +48,12 @@ extension ConfirmDepositInteractor: ConfirmDepositInteractorInputProtocol {
             topUpTask?.cancel()
             topUpTask = Task { @MainActor [weak presenter, logger, candidateWallet] in
                 do {
-                    try await topUpService.topUp(
-                        candidateWallet,
-                        amount: .plank(amount)
-                    )
+                    try await markStallActivity("Deposit") {
+                        try await topUpService.topUp(
+                            candidateWallet,
+                            amount: .plank(amount)
+                        )
+                    }
                     presenter?.didFinishDeposit()
                 } catch {
                     logger.error("Top up failed: \(error)")

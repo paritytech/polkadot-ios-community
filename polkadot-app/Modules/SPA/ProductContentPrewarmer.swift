@@ -10,22 +10,22 @@ protocol ProductContentPrewarming {
 
 @MainActor
 final class ProductContentPrewarmer {
-    private let makeDomain: () -> String
+    private let makeLabel: () -> String
     private let chainRegistryClosure: ChainRegistryLazyClosure
-    private let makeResolver: () -> DotNsResolverProtocol?
+    private let flowStateProvider: any SPAFlowStateProviding
     private let logger: LoggerProtocol
 
     private var prewarmTask: Task<Void, Never>?
 
     init(
-        makeDomain: @escaping () -> String,
+        makeLabel: @escaping () -> String,
         chainRegistryClosure: @escaping ChainRegistryLazyClosure,
-        makeResolver: @escaping () -> DotNsResolverProtocol?,
+        flowStateProvider: any SPAFlowStateProviding,
         logger: LoggerProtocol = Logger.shared
     ) {
-        self.makeDomain = makeDomain
+        self.makeLabel = makeLabel
         self.chainRegistryClosure = chainRegistryClosure
-        self.makeResolver = makeResolver
+        self.flowStateProvider = flowStateProvider
         self.logger = logger
     }
 
@@ -49,22 +49,28 @@ private extension ProductContentPrewarmer {
     func warmContent() async {
         // Resolved lazily: the domain may depend on remote config that isn't available yet at
         // prewarmer construction. By warm time the prewarm trigger has run past remote config.
-        let domain = makeDomain()
+        let label = makeLabel()
 
-        guard !domain.isEmpty else {
-            logger.error("Product prewarm skipped: empty domain")
+        guard !label.isEmpty else {
+            logger.error("Product prewarm skipped: empty label")
             return
         }
 
         await chainRegistryClosure().asyncWaitChainsSetup(for: [AppConfig.Chains.assethubChain])
 
-        guard let resolver = makeResolver() else {
-            logger.error("Product prewarm skipped: resolver unavailable for \(domain)")
+        let flowState = flowStateProvider.flowState()
+
+        guard let host = try? await flowState.hostProvider.resolveHost(label: label) else {
+            logger.error("Product prewarm skipped: could not resolve TLD for \(label)")
             return
         }
 
+        let domain = host.toDotDomain()
+
         do {
-            _ = try await resolver.resolveToLocalURL(dotNsName: domain)
+            // Warms the app executable's archive, which is what the SPA loads.
+            let contentId = try await flowState.productResolver.resolve(domain).appContentId
+            _ = try await flowState.dotNsResolver.resolveToLocalURL(dotNsName: contentId)
             logger.debug("Product prewarm: warmed \(domain)")
         } catch {
             logger.error("Product prewarm: failed to warm \(domain): \(error)")

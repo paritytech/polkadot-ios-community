@@ -1,10 +1,11 @@
 import Foundation
 
-protocol SSORequestHandling {
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool
+protocol SSORequestHandling<Message> {
+    associatedtype Message
+    func canHandle(_ message: Message) -> Bool
 
     func handle(
-        message: PolkadotHostRemoteMessage,
+        message: Message,
         from host: PolkadotSignInHost
     ) async
 }

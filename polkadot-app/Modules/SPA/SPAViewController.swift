@@ -8,6 +8,7 @@ final class SPAViewController: UIViewController, ViewHolder {
 
     let presenter: SPAPresenterProtocol
     let configuration: SPAConfiguration
+    let hostProvider: ProductHostProviding
 
     private let schemeHandlerProxy: SchemeHandlerProxy
     private let logger: LoggerProtocol
@@ -20,12 +21,14 @@ final class SPAViewController: UIViewController, ViewHolder {
         presenter: SPAPresenterProtocol,
         configuration: SPAConfiguration,
         schemeHandlerProxy: SchemeHandlerProxy,
-        logger: LoggerProtocol
+        logger: LoggerProtocol,
+        hostProvider: ProductHostProviding
     ) {
         self.presenter = presenter
         self.configuration = configuration
         self.schemeHandlerProxy = schemeHandlerProxy
         self.logger = logger
+        self.hostProvider = hostProvider
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -78,7 +81,10 @@ private extension SPAViewController {
         let navigationHandler: SPANavigationDecisionHandling =
             switch configuration.contentSource {
             case .dotNs:
-                DotNsNavigationDecisionHandler(baseHost: configuration.page.host)
+                DotNsNavigationDecisionHandler(
+                    baseHost: configuration.page.host,
+                    hostProvider: hostProvider
+                )
             case let .directURL(url):
                 DirectURLNavigationDecisionHandler(baseURL: url)
             }

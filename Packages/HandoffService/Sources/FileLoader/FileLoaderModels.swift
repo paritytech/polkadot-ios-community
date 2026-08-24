@@ -163,4 +163,9 @@ public enum FileDownloadingError: Error {
     case noEntry(FileHash)
     case noChunk(FileHash)
     case invalidResumeMetadata
+    case unexpectedChunkedPayload(FileHash)
+}
+
+public enum FileUploadingError: Error {
+    case inlineLimitExceeded(size: Int, limit: Int)
 }

@@ -29,6 +29,42 @@ private func makeTestDefaults() -> UserDefaults {
     UserDefaults(suiteName: "io.polkadotapp.tests.truapi-bridge") ?? .standard
 }
 
+// MARK: - Stubs
+
+private struct StubHostProvider: ProductHostProviding {
+    func host(rawString _: String) -> ProductHost? {
+        nil
+    }
+
+    func host(url _: URL) -> ProductHost? {
+        nil
+    }
+
+    func host(navigationDestination _: String) -> ProductHost? {
+        nil
+    }
+
+    func page(url _: URL) -> ProductPage? {
+        nil
+    }
+
+    func page(navigationDestination _: String) -> ProductPage? {
+        nil
+    }
+
+    func host(label _: String) -> ProductHost? {
+        nil
+    }
+
+    func resolveHost(label _: String) async throws -> ProductHost? {
+        nil
+    }
+
+    func resolveHost(rawString _: String) async throws -> ProductHost? {
+        nil
+    }
+}
+
 // MARK: - Bridge factory
 
 @MainActor
@@ -39,7 +75,8 @@ private func makeBridge(
     chainRegistry: MockChainRegistry = MockChainRegistry(),
     confirmationPresenter: MockConfirmationPresenter = MockConfirmationPresenter(),
     preimageCache: TrUAPIPreimageCache = TrUAPIPreimageCache { _ in nil },
-    productStorageFails: Bool = false
+    productStorageFails: Bool = false,
+    hostProvider: ProductHostProviding = StubHostProvider()
 ) -> RustProductExecutionBridge {
     let router = MockNavigationRouter()
     let pool = makeRegistryPool(chainRegistry: chainRegistry)
@@ -60,6 +97,7 @@ private func makeBridge(
         coreStorage: TrUAPILocalStorage.createCoreLocalStorage(defaults: makeTestDefaults()),
         confirmationPresenter: confirmationPresenter,
         preimageCache: preimageCache,
+        hostProvider: hostProvider,
         logger: Logger.shared
     ))
 }
@@ -421,6 +459,7 @@ struct RustRuntimeBridgeTests {
             coreStorage: TrUAPILocalStorage.createCoreLocalStorage(defaults: makeTestDefaults()),
             confirmationPresenter: MockConfirmationPresenter(),
             preimageCache: TrUAPIPreimageCache { _ in nil },
+            hostProvider: StubHostProvider(),
             logger: Logger.shared
         ))
 

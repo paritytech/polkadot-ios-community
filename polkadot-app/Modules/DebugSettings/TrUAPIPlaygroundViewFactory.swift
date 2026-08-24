@@ -9,24 +9,23 @@
     /// Debug-only assembly for the truapi playground (interactive API
     /// explorer). Presentation belongs to ``DebugSettingsWireframe``.
     enum TrUAPIPlaygroundViewFactory {
-        static let playgroundProductId: ProductId = "truapi-playground.dot"
+        static let playgroundName: ProductId = "truapi-playground"
         static let playgroundURL = URL(string: "http://localhost:3000")
 
         /// The playground as a direct-URL rust-runtime SPA. Forces rust mode
         /// (no flag read); the shared runtime and its production session are
         /// sourced from the process-wide provider inside `createRustView`.
         @MainActor
-        static func createView(logger: LoggerProtocol = Logger.shared) -> SPAViewProtocol? {
+        static func createView(
+            flowStateProvider: any SPAFlowStateProviding
+        ) -> SPAViewProtocol? {
             guard let url = playgroundURL else {
                 return nil
             }
 
-            guard let flowState = SPAFlowState.create() else {
-                logger.error("Playground: SPA flow state unavailable (chains not set up)")
-                return nil
-            }
+            let flowState = flowStateProvider.flowState()
 
-            guard let host = ProductHost(rawString: playgroundProductId) else {
+            guard let host = flowState.hostProvider.host(label: playgroundName) else {
                 return nil
             }
 

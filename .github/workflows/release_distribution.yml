@@ -1,0 +1,43 @@
+name: Release Distribution
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: "Release branch to build from"
+        required: true
+        type: string
+      release_pr_number:
+        description: "Release PR number (empty for direct builds from main)"
+        required: false
+        type: string
+        default: ""
+      increment_step:
+        description: "Build number increment step for direct builds (1 if empty)"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  build:
+    # PR trigger covers hotfix pushes to release branches; nightly PRs (marked in the
+    # PR-body metadata) are excluded — a failed nightly is redone via nightly_prepare.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.head_ref, 'release/') &&
+       !contains(github.event.pull_request.body, 'nightly_build=true'))
+    uses: ./.github/workflows/_build_distribute.yml
+    with:
+      release_branch: ${{ inputs.release_branch || github.head_ref }}
+      release_pr_number: ${{ inputs.release_pr_number || github.event.pull_request.number || '' }}
+      increment_step: ${{ inputs.increment_step || '' }}
+      build_configuration: "Release"
+      is_nightly: false
+      distribute_to_external_group: false
+      external_group_name: ""
+      s3_static_subdir: "releases"
+    secrets: inherit

@@ -1,5 +1,6 @@
 import Foundation
-import Combine
+import os
+import StructuredConcurrency
 
 final class ClaimFullUsernameInteractor {
     weak var presenter: ClaimUsernameInteractorOutputProtocol?
@@ -10,7 +11,7 @@ final class ClaimFullUsernameInteractor {
     private let usernameStorage: UsernameStoring
     private let logger: LoggerProtocol
 
-    private var availability: FullUsernameAvailability?
+    private let availability = OSAllocatedUnfairLock<FullUsernameAvailability?>(initialState: nil)
 
     init(
         registeredData: People.RegisteredData,
@@ -32,25 +33,27 @@ extension ClaimFullUsernameInteractor: ClaimUsernameInteractorInputProtocol {
         .default
     }
 
-    func claim(username: Username) -> AnyPublisher<Username, Error> {
-        performClaim(for: username)
-    }
-
-    func check(username: Username) -> AnyPublisher<UsernameAvailableType, Error> {
-        performCheckAvailability(for: username)
-            .delayAtLeast(for: 0.3)
-            .handleEvents(receiveOutput: { [weak self] in
-                self?.updateAvailability($0)
-            })
-            .map(\.toAvailableType)
-            .eraseToAnyPublisher()
-    }
-
-    func save(username: Username) {
-        usernameStorage.username = username
-        MainActor.assumeIsolated {
-            presenter?.didSaveUsername()
+    func claim(username: Username) async throws -> Username {
+        guard let availability = availability.withLock({ $0 }) else {
+            logger.error("Missing availability")
+            throw InteractorError.missingAvailability
         }
+
+        try await claimService.claimUsername(username, with: availability)
+        return username
+    }
+
+    func check(username: Username) async throws -> UsernameAvailableType {
+        try await withMinDuration(.milliseconds(300)) {
+            let value = try await availabilityValidator.checkAvailability(for: username)
+            updateAvailability(value)
+            return value.toAvailableType
+        }
+    }
+
+    func save(username: Username) async {
+        usernameStorage.username = username
+        await presenter?.didSaveUsername()
     }
 }
 
@@ -59,52 +62,8 @@ private extension ClaimFullUsernameInteractor {
         case missingAvailability
     }
 
-    func performCheckAvailability(for username: Username) -> AnyPublisher<FullUsernameAvailability, Error> {
-        let validator = availabilityValidator
-
-        return Deferred {
-            Future { promise in
-                Task {
-                    do {
-                        let value = try await validator.checkAvailability(for: username)
-                        promise(.success(value))
-                    } catch {
-                        promise(.failure(error))
-                    }
-                }
-            }
-        }
-        .eraseToAnyPublisher()
-    }
-
     func updateAvailability(_ availability: FullUsernameAvailability) {
-        DispatchQueue.main.async { [weak self] in
-            self?.availability = availability
-        }
-    }
-
-    func performClaim(for username: Username) -> AnyPublisher<Username, Error> {
-        guard let availability else {
-            logger.error("Missing availability")
-            return Fail(error: InteractorError.missingAvailability).eraseToAnyPublisher()
-        }
-
-        let service = claimService
-
-        return Deferred {
-            Future<Void, Error> { promise in
-                Task {
-                    do {
-                        try await service.claimUsername(username, with: availability)
-                        promise(.success(()))
-                    } catch {
-                        promise(.failure(error))
-                    }
-                }
-            }
-        }
-        .map { username }
-        .eraseToAnyPublisher()
+        self.availability.withLock { $0 = availability }
     }
 }
 

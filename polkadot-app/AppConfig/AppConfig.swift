@@ -3,13 +3,17 @@ import SubstrateSdk
 import ChainRegistry
 
 enum AppConfig {
-    // Brand links and endpoints are externalised into CIKeys,
-    // produced at build time by Scripts/inject-keys.sh.
-    static let termsOfUseLink: URL = CIKeys.termsOfUseLink.asConfigURL
+    static let termsOfUseLink: URL = .init(
+        string: "https://parity.io",
+        encodingInvalidCharacters: false
+    )!
 
-    static let privacyPolicyLink: URL = CIKeys.privacyPolicyLink.asConfigURL
+    static let privacyPolicyLink: URL = .init(
+        string: "https://parity.io",
+        encodingInvalidCharacters: false
+    )!
 
-    static let contactEmail = CIKeys.contactEmail
+    static let contactEmail = "info@parity.io"
 
     static let timestampRefreshInterval: TimeInterval = 60
 

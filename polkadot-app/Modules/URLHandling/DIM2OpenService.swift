@@ -1,18 +1,22 @@
 import Foundation
 import UIKit
 import DesignSystem
+import Products
 
 final class DIM2OpenService {
     let host = "game"
 
     let serviceCoordinator: ServiceCoordinatorProtocol
     let logger: LoggerProtocol?
+    private let flowState: SPAFlowState
 
     init(
         serviceCoordinator: ServiceCoordinatorProtocol,
+        flowState: SPAFlowState,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.serviceCoordinator = serviceCoordinator
+        self.flowState = flowState
         self.logger = logger
     }
 }
@@ -37,7 +41,7 @@ extension DIM2OpenService: URLHandlingServiceProtocol {
             .flatMap { UInt32($0) }
         let intendedGameId = intendedGameIndex.map { Game.Identifier(index: $0) }
 
-        Task { @MainActor [serviceCoordinator, logger] in
+        Task { @MainActor [serviceCoordinator, logger, flowState] in
             guard UIWindow.topWindow?.topmostViewController?.isPresentingGameVideo != true else {
                 return
             }
@@ -46,7 +50,8 @@ extension DIM2OpenService: URLHandlingServiceProtocol {
 
             guard let gameController = GameVideoViewFactory.createView(
                 serviceCoordinator: serviceCoordinator,
-                intendedGameId: intendedGameId
+                intendedGameId: intendedGameId,
+                flowState: flowState
             )?.controller else {
                 return
             }

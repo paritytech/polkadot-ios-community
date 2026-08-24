@@ -4,6 +4,10 @@ import Keystore_iOS
 import ExtrinsicService
 import KeyDerivation
 import ChainRegistry
+import Individuality
+import SubstrateSdk
+import SubstrateStorageQuery
+import Operation_iOS
 
 @MainActor
 enum ClaimUsernameViewFactory {
@@ -75,7 +79,14 @@ enum ClaimUsernameViewFactory {
 
     private static func createLiteInteractor(hasWallets: Bool) -> ClaimLiteUsernameInteractor? {
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
-
+        let timeProvider = ChainTimeProvider(
+            chainId: AppConfig.Chains.chatChain,
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            storageRequestFactory: StorageRequestFactory(
+                remoteFactory: StorageKeyFactory(),
+                operationManager: OperationManager(operationQueue: operationQueue)
+            )
+        )
         let dependencies = ClaimLiteUsernameDependency(
             walletSetupManagerFactory: { createWalletManager() },
             registrationParamsFactory: { mainWallet in
@@ -85,9 +96,9 @@ enum ClaimUsernameViewFactory {
                     chatEncryptorManager: ChatEncryptionManager()
                 )
             },
+            chainTimeProvider: { timeProvider },
             usernameOperationFactory: { UsernameOperationFactory(tokenProvider: JWTTokenManager.shared) },
             usernameStorage: { UsernameStorage() },
-            operationQueue: { operationQueue },
             mainWallet: SelectedWallet.main
         )
 

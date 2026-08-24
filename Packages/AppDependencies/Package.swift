@@ -117,9 +117,9 @@ let dependencyConfigs: [DependencyConfig] = [
         products: ["WebRTC"]
     ),
     .init(
-        name: "truapi",
-        url: "https://github.com/paritytech/truapi",
-        version: .exact("0.5.0"),
+        name: "host-rust-core",
+        url: "https://github.com/paritytech/host-rust-core",
+        version: .exact("0.7.1"),
         products: ["TrUAPIHost"]
     ),
     .init(
@@ -139,12 +139,6 @@ let dependencyConfigs: [DependencyConfig] = [
         url: "https://github.com/pointfreeco/swift-custom-dump",
         version: .exact("1.4.1"),
         products: ["CustomDump"]
-    ),
-    .init(
-        name: "posthog-ios",
-        url: "https://github.com/PostHog/posthog-ios.git",
-        version: .upToNextMajor("3.0.0"),
-        products: ["PostHog"]
     ),
     .init(
         name: "sentry-cocoa",

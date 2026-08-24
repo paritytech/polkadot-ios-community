@@ -57,6 +57,7 @@ extension Chat.RemoteMessage {
              .dataChannelCandidates,
              .dataChannelClosed,
              .reactionRemoved,
+             .compactedMessages,
              .deviceAdded,
              .deviceRemoved,
              .none:
@@ -84,11 +85,30 @@ extension Chat.RemoteMessage {
              .multiChatAccepted,
              .richText,
              .coinageSend,
+             .compactedMessages,
              .deviceAdded,
              .deviceRemoved,
              .none:
             false
         }
+    }
+
+    var isCompactedMessages: Bool {
+        switch versioned.ensureV1()?.content {
+        case .compactedMessages:
+            true
+        default:
+            false
+        }
+    }
+}
+
+extension [Chat.RemoteMessage] {
+    func compactionMessageIds() -> Set<String> {
+        Set(
+            filter(\.isCompactedMessages)
+                .map(\.messageId)
+        )
     }
 }
 
@@ -110,6 +130,7 @@ extension Chat.RemoteMessageContentV1 {
         case chatAccepted(ChatAccepted)
         case richText(RichText)
         case coinageSend(SendContent.Coinage)
+        case compactedMessages(CompactedMessagesContent)
         case deviceAdded(DeviceAddedContent)
         case deviceRemoved(DeviceRemovedContent)
         case multiChatAccepted(DeviceChatAccepted)
@@ -185,6 +206,12 @@ extension Chat.RemoteMessageContentV1.MessageContent {
 
     struct ChatAccepted: Equatable {
         let messageId: String
+    }
+
+    struct CompactedMessagesContent: Equatable {
+        let claimIdentifier: Data
+        let claimTicket: Data
+        let node: NodeEndpoint
     }
 
     struct DeviceAddedContent: Equatable {
@@ -313,6 +340,7 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
         case .coinageSend: 16
         case .deviceAdded: 17
         case .deviceRemoved: 18
+        case .compactedMessages: 19
         case .multiChatAccepted: 20
         }
     }
@@ -357,6 +385,8 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
             self = try .deviceAdded(DeviceAddedContent(scaleDecoder: scaleDecoder))
         case 18:
             self = try .deviceRemoved(DeviceRemovedContent(scaleDecoder: scaleDecoder))
+        case 19:
+            self = try .compactedMessages(CompactedMessagesContent(scaleDecoder: scaleDecoder))
         case 20:
             self = try .multiChatAccepted(DeviceChatAccepted(scaleDecoder: scaleDecoder))
         default:
@@ -400,6 +430,8 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
             try richTextContent.encode(scaleEncoder: scaleEncoder)
         case let .coinageSend(coinageSendContent):
             try coinageSendContent.encode(scaleEncoder: scaleEncoder)
+        case let .compactedMessages(content):
+            try content.encode(scaleEncoder: scaleEncoder)
         case let .deviceAdded(content):
             try content.encode(scaleEncoder: scaleEncoder)
         case let .deviceRemoved(content):
@@ -407,6 +439,22 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
         case let .multiChatAccepted(content):
             try content.encode(scaleEncoder: scaleEncoder)
         }
+    }
+}
+
+extension Chat.RemoteMessageContentV1.MessageContent.CompactedMessagesContent: ScaleCodable {
+    init(scaleDecoder: any ScaleDecoding) throws {
+        claimIdentifier = try Data(scaleDecoder: scaleDecoder)
+        claimTicket = try Data(scaleDecoder: scaleDecoder)
+        node = try Chat.RemoteMessageContentV1.MessageContent.NodeEndpoint(
+            scaleDecoder: scaleDecoder
+        )
+    }
+
+    func encode(scaleEncoder: any ScaleEncoding) throws {
+        try claimIdentifier.encode(scaleEncoder: scaleEncoder)
+        try claimTicket.encode(scaleEncoder: scaleEncoder)
+        try node.encode(scaleEncoder: scaleEncoder)
     }
 }
 

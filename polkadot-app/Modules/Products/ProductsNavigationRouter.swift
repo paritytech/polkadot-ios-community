@@ -21,11 +21,19 @@ final class ProductsNavigationRouter: ProductsNavigationRouting, WebPresentable 
         anchor.present(view: view)
     }
 
-    func navigateTo(destination: ProductHost) async throws {
-        UIApplication.shared.mainTabBarController?.openProduct(page: ProductPage(host: destination))
+    func navigateTo(destination: ProductPage) async throws {
+        guard isReady else {
+            throw ProductNativeApiError.navigationForbidden
+        }
+
+        UIApplication.shared.mainTabBarController?.openProduct(page: destination)
     }
 
     func openExternalURL(_ url: URL) async throws {
+        guard isReady else {
+            throw ProductNativeApiError.navigationForbidden
+        }
+
         guard let scheme = url.scheme?.lowercased() else { return }
 
         if supportedSafariScheme.contains(scheme), let view = anchor.presentationView {
@@ -49,7 +57,7 @@ final class ForbiddenNavigationRouter: ProductsNavigationRouting {
     @discardableResult
     func present(view _: ControllerBackedProtocol) -> Bool { false }
 
-    func navigateTo(destination _: ProductHost) async throws {
+    func navigateTo(destination _: ProductPage) async throws {
         throw ProductNativeApiError.navigationForbidden
     }
 

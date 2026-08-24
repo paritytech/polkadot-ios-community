@@ -4,7 +4,7 @@ struct TabBarChromeContext {
     let tabController: UIViewController?
     let contentController: UIViewController?
     let isTabRoot: Bool
-    let stackFolds: Bool
+    let foldDerived: TabBarFoldDerived
     let screen: UIViewController?
 }
 
@@ -14,7 +14,7 @@ extension TabBarChromeContext {
             tabController: controller,
             contentController: controller,
             isTabRoot: false,
-            stackFolds: true,
+            foldDerived: .folded,
             screen: controller
         )
     }

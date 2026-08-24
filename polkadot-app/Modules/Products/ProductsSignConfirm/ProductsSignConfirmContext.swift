@@ -29,8 +29,8 @@ final class ProductsSignConfirmContext: ProductsSignConfirmContextProtocol {
         self.continuation = continuation
     }
 
-    func deliver(_ approved: Bool) {
-        continuation?.resume(returning: approved)
+    func deliver(_ decision: Bool) {
+        continuation?.resume(returning: decision)
         continuation = nil
     }
 }

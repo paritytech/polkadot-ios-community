@@ -12,6 +12,8 @@ public enum CIDCodec {
 public protocol HexToCIDConverting: AnyObject {
     func convertToIPFSURL(fileHash: String, codec: CIDCodec) -> URL?
     func convertToIPFSURL(hash: Data, codec: CIDCodec) -> URL?
+    /// For content already addressed by CID, such as a product manifest's icon.
+    func ipfsURL(cid: String) -> URL
 }
 
 public final class HexToCIDConverter: HexToCIDConverting {
@@ -37,7 +39,11 @@ public final class HexToCIDConverter: HexToCIDConverting {
         guard let cid = convertToCID(hash: hash, codec: codec) else {
             return nil
         }
-        return ipfsBaseURL.appendingPathComponent(cid)
+        return ipfsURL(cid: cid)
+    }
+
+    public func ipfsURL(cid: String) -> URL {
+        ipfsBaseURL.appendingPathComponent(cid)
     }
 }
 

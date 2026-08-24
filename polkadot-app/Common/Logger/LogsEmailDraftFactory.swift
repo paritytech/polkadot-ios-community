@@ -39,7 +39,7 @@ final class LogsEmailDraftFactory: LogsEmailDraftMaking {
         return EmailDraft(
             subject: "\(subjectDateFormatter.string(from: Date())) - iOS",
             message: "\n\n\n",
-            recipients: [CIKeys.logsEmail],
+            recipients: ["game@novasama.io"],
             attachment: .init(
                 data: data,
                 mimeType: "application/octet-stream",

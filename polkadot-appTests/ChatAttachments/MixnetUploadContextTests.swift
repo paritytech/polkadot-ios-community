@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 import StructuredConcurrency
+import SubstrateSdk
 import Testing
 import SDKLogger
 
@@ -31,7 +32,8 @@ struct MixnetUploadContextTests {
     private func makeUploadData(id: String) -> MixnetUploadData {
         MixnetUploadData(
             fileMeta: .general(.init(mimeType: "jpg", fileSize: 100)),
-            attachmentId: AttachmentId(messageId: "msg", fileId: id)
+            attachmentId: AttachmentId(messageId: "msg", fileId: id),
+            chatId: .person(AccountId.zeroAccountId(of: 32))
         )
     }
 

@@ -3,15 +3,20 @@ import Products
 
 final class ProductSPAOpenService {
     private let moduleNavigator: ModuleNavigating
+    private let hostProvider: ProductHostProviding
 
-    init(moduleNavigator: ModuleNavigating) {
+    init(
+        moduleNavigator: ModuleNavigating,
+        hostProvider: ProductHostProviding
+    ) {
         self.moduleNavigator = moduleNavigator
+        self.hostProvider = hostProvider
     }
 }
 
 extension ProductSPAOpenService: URLHandlingServiceProtocol {
     func handle(url: URL) -> Bool {
-        guard let page = ProductPage.fromUrl(url) else {
+        guard let page = hostProvider.page(url: url) else {
             return false
         }
 

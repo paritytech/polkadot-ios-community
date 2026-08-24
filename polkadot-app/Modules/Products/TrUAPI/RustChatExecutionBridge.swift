@@ -7,6 +7,10 @@ import TrUAPIHost
 /// these stubs trap in debug and reject the core call in release until the
 /// chat integration lands.
 final class RustChatExecutionBridge: RustProductExecutionBridge, ChatHostBridge, @unchecked Sendable {
+    func registerBot(botId _: String, name _: String, icon _: String) throws -> ChatBotRegistrationStatus {
+        throw notImplemented(#function)
+    }
+
     func createRoom(roomId _: String, name _: String, icon _: String) throws -> ChatRoomRegistrationStatus {
         throw notImplemented(#function)
     }

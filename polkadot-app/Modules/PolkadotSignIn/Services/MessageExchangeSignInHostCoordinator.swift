@@ -23,8 +23,8 @@ final class MessageExchangeSignInHostCoordinator {
     private let chainRegistry: ChainRegistryProtocol
     private let hostsDataProviderFactory: PolkadotSignInHostDataProviderMaking
     private let hostRepository: AnyDataProviderRepository<PolkadotSignInHost>
-    private let messageHandler: PolkadotHostMessageHandling
-    private let messageSender: PolkadotHostMessageSending
+    private let messageHandler: any PolkadotHostMessageHandling<PolkadotHostRemoteMessage>
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let routers: ProductRoutersFacadeProtocol
     private let logger: LoggerProtocol
 
@@ -40,7 +40,8 @@ final class MessageExchangeSignInHostCoordinator {
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         hostsDataProviderFactory: PolkadotSignInHostDataProviderMaking = PolkadotSignInHostDataProviderFactory(),
         hostRepositoryFactory: PolkadotSignInHostRepositoryMaking = PolkadotSignInHostRepositoryFactory(),
-        messageSender: PolkadotHostMessageSending = PolkadotHostMessageSender(),
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage> =
+            PolkadotHostMessageSender<PolkadotHostRemoteMessage>(),
         logger: LoggerProtocol = Logger.shared
     ) {
         self.ownKeyId = ownKeyId
@@ -163,10 +164,10 @@ private extension MessageExchangeSignInHostCoordinator {
     static func makeHandlers(
         accountManager: ProductsAccountManaging,
         personhoodHandlerFactory: APPersonhoodHandlerMaking,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         signingHandler: TransactionSigningHandling,
         logger: LoggerProtocol
-    ) -> [SSORequestHandling] {
+    ) -> [any SSORequestHandling<PolkadotHostRemoteMessage>] {
         [
             SSODisconnectHandler(logger: logger),
             SSOAliasRequestHandler(

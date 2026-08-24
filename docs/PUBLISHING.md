@@ -3,53 +3,53 @@
 This guide explains how to configure the app, sign it, and distribute it to
 **TestFlight** and **Firebase App Distribution**.
 
-> This repository intentionally ships **no hosted CI/CD pipeline and no Fastlane
-> implementation**. What follows is a vendor-neutral description of how to
-> configure, sign and distribute the app with standard Apple and Google tooling,
-> plus the lightweight scripts included in this repo. Wire it into whichever CI
-> system you prefer (GitHub Actions, GitLab CI, Bitrise, Xcode Cloud, …).
+> This repository ships a **default CI/CD setup**: GitHub Actions workflows
+> (`.github/workflows/`) driven by Fastlane lanes (`fastlane/`) — see §10. It is
+> preconfigured for the upstream project, so a fork must supply its own secrets,
+> `match` signing repo, and runners before it runs green. Sections 5–9 document
+> the underlying Apple/Google tooling the pipeline automates, so you can also
+> build, sign and distribute by hand or port the flow to another CI system
+> (GitLab CI, Bitrise, Xcode Cloud, …).
 
 ---
 
 ## 1. How configuration works
 
-Build-time secrets, links and a few endpoints are externalised into
-**environment variables** that are baked into the app at build time (most
-backend endpoints come from Firebase Remote Config instead — see
-`RemoteAppConfig`). There are three pieces:
+A small number of build-time secrets are externalised into **environment
+variables** that are baked into the app at build time. Most backend endpoints
+come from Firebase Remote Config instead (see `RemoteAppConfig`). There are
+three pieces:
 
 | File | Committed? | Purpose |
 |------|-----------|---------|
-| `Scripts/inject-keys.sh` | ✅ yes | Generates the Swift below. Carries the non-secret placeholder defaults inline. |
-| `polkadot-app/env-vars.sh` | ❌ gitignored | Your secrets and local overrides. Created from `env-vars.sh.template`. |
-| `polkadot-app/CIKeys.generated.swift` | ❌ gitignored | Generated Swift read by the app. Produced by `Scripts/inject-keys.sh`. |
+| `Runscripts/generate_secrets.sh` | ✅ yes | Generates the Swift below from `env-vars.sh` / the environment. |
+| `polkadot-app/env-vars.sh` | ❌ gitignored | Your secrets. Created from `env-vars.template.sh`. |
+| `polkadot-app/Generated/Secrets.generated.swift` | ❌ gitignored | Generated Swift (`enum GeneratedSecrets`) read by the app. Produced by `generate_secrets.sh`. |
 
-Resolution order (highest priority first): **environment / `env-vars.sh` →
-inline defaults in `inject-keys.sh`**.
+Resolution order (highest priority first): **`env-vars.sh` → the process
+environment**. Any value left unset becomes an empty string, which simply
+disables the corresponding feature. The app therefore builds and runs with safe
+public defaults even with no secrets configured.
 
-Run it manually whenever the configuration changes (Xcode also runs it as a
-scheme pre-action):
-
-```bash
-./Scripts/inject-keys.sh
-```
+The **"Generate Secrets"** Xcode build phase runs `generate_secrets.sh`
+automatically on every build (it is skipped when `RUN_IN_CI=true` — see the CI
+note below), so you rarely need to run it by hand.
 
 ### First-time local setup
 
 ```bash
-./Scripts/setup-secrets.sh
+./Runscripts/setup-secrets.sh
 ```
 
 This scaffolds `env-vars.sh` and the `GoogleService-Info` plists from their
 `*.template` files (without overwriting anything that already exists) and
-generates `CIKeys.generated.swift`. The app then builds and runs with safe
-public defaults; features that need a real secret stay disabled until you
-provide one.
+generates `Secrets.generated.swift`. The app then builds and runs; features that
+need a real secret stay disabled until you provide one.
 
-> **In CI:** instead of `env-vars.sh`, export the variables directly into the job
-> environment (from your secret store) and run `./Scripts/inject-keys.sh` before
-> building. Exported environment variables take precedence over the committed
-> defaults automatically.
+> **In CI:** set `RUN_IN_CI=true` (which skips the in-Xcode generation and the
+> Google-plist copy), export the variables directly into the job environment
+> from your secret store, and run `./Runscripts/generate_secrets.sh` before
+> building. Provide the active `GoogleService-Info.plist` yourself.
 
 ---
 
@@ -59,54 +59,65 @@ provide one.
 
 | Variable | Used for | If empty |
 |----------|----------|----------|
-| `W3S_AUTH_KEY` | Web3 Summit authorisation seed (hex) | W3S signing disabled |
-| `POSTHOG_API_KEY` | PostHog product analytics project key (`phc_…`) | Analytics disabled |
-| `SENTRY_DSN` | Sentry crash/issue reporting DSN | Issue monitoring disabled |
-| `MELD_BASIC_AUTH_TOKEN` | Meld fiat on-ramp basic auth (`<key>:<secret>`) | Fiat on-ramp auth unset |
+| `SENTRY_DSN` | Sentry crash/issue reporting DSN (`TESTNET_FEATURE` builds only) | Issue monitoring disabled |
+| `MELD_BASIC_AUTH_TOKEN` | Meld fiat on-ramp basic auth (`<key>:<secret>`, base64) | Fiat on-ramp auth unset |
 
-### Signing & distribution — set in the CI environment (not needed for local simulator runs)
+### Signing & distribution — GitHub Actions secrets (not needed for local simulator runs)
 
-| Variable | Used for |
-|----------|----------|
-| `APP_STORE_CONNECT_KEY_ID` | App Store Connect API key ID (TestFlight upload, signing) |
-| `APP_STORE_CONNECT_ISSUER_ID` | App Store Connect API issuer ID |
-| `APP_STORE_CONNECT_KEY_CONTENT` | The `.p8` private key (base64 or raw) |
-| `FIREBASE_APP_ID` | Firebase App Distribution app ID (`1:…:ios:…`) |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Google service-account JSON for App Distribution |
-| `FIREBASE_GROUPS` | Comma-separated tester groups |
-| `SENTRY_ORG`, `SENTRY_PROJECT`, `SENTRY_AUTH_TOKEN` | Uploading dSYMs to Sentry (build phase skips when unset) |
+These are the names the shipped pipeline reads (`.github/workflows/`,
+`.github/actions/`). Unlike the table above, they **are** contracts: rename one
+and the workflow that reads it fails.
 
-> Variable names above are conventions, not contracts — name them however your
-> chosen tooling expects. The app itself only reads the variables in the first
-> table (via `inject-keys.sh`); the second table is consumed by signing/upload
-> tools you invoke yourself.
+Required for any signed build:
 
-### Non-secret config — defaults inlined in `Scripts/inject-keys.sh`, override only if needed
+| Secret | Used for | Read by |
+|--------|----------|---------|
+| `ASC_KEY_ID` | App Store Connect API key ID | TestFlight upload, build-number lookup, device registration, signing refresh |
+| `ASC_ISSUER_ID` | App Store Connect API issuer ID | same as above |
+| `ASC_KEY_BASE64` | Base64-encoded `.p8` private key | same as above |
+| `KEYCHAIN_PASSWORD` | Password for the temporary CI keychain | every signed build |
+| `MATCH_PASSWORD` | Passphrase that decrypts the `match` assets | every signed build |
+| `FASTLANE_RO_PAT` | Fine-grained PAT with read access to the `match` repo | every signed build |
+| `FASTLANE_RW_PAT` | The same PAT with write access | `update_signing_data.yml` only |
+| `GOOGLE_SERVICE_INFO_DEV_BASE64` | Base64 development `GoogleService-Info.plist` | PR builds and tests |
+| `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | Base64 production `GoogleService-Info.plist` | release and nightly archives |
 
-| Variable | What it is / where it's used |
-|----------|------------------------------|
-| `TERMS_OF_USE_LINK` | Terms of Use page opened from Settings/onboarding. |
-| `PRIVACY_POLICY_LINK` | Privacy Policy page opened from Settings/onboarding. |
-| `CONTACT_EMAIL` | Support contact email opened from Settings. |
-| `REPORT_ISSUE_EMAIL` | Recipient of the in-app "report issue" mail draft (Proof of Ink tattoo upload). |
-| `LOGS_EMAIL` | Recipient of the in-app diagnostic-logs mail draft (Debug Settings → send logs). |
-| `GAME_RESULTS_FALLBACK_URL` | Fallback URL for DIM2 game results when a per-game URL is absent. Weekly-game results in chat. |
-| `MELD_BASE_URL` | Meld API base URL. Fiat on-ramp (buy crypto). |
-| `COINGECKO_BASE_URL` | CoinGecko API base URL. Token price / market data. |
-| `POSTHOG_HOST` | PostHog ingestion host. Product analytics (paired with `POSTHOG_API_KEY`). |
+Required only by the distribution target you actually use:
 
-Most apps only override these when pointing a build at different
-infrastructure. Backend and on-chain endpoints (identity backend, IPFS gateway,
-DotNS resolver, Web3 Summit, game dashboard) are not build-time variables: the
-app fetches them at runtime via Firebase Remote Config (see `RemoteAppConfig`
-and `FirebaseApplicationService`).
+| Secret | Used for | Read by |
+|--------|----------|---------|
+| `CREDENTIAL_FILE_CONTENT` | Google service-account JSON for App Distribution | `firebase_debug_distribution.yml` |
+| `FIREBASE_APP_ID` | Firebase App Distribution app ID (`1:…:ios:…`) | `firebase_debug_distribution.yml` |
+| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY` | Credentials for the S3 artifact bucket | every workflow that uploads an `.ipa` |
+| `SENTRY_AUTH_TOKEN` | Uploading dSYMs to Sentry (the build phase skips when `sentry-cli` is unconfigured — see §9) | signed builds |
+
+Optional — these gate reporting steps only, and a fork can leave them unset:
+
+| Secret | Used for | Read by |
+|--------|----------|---------|
+| `ALLURE_TOKEN` | Triggering the Allure TestOps run after a build | `_build_distribute.yml`, `testflight_distribution.yml` |
+| `NOTIFICATION_BOT_URL`, `NOTIFICATION_BOT_TOKEN` | Build success/failure notifications | `_build_distribute.yml`, `nightly_distribution.yml` |
+| `TESTFLIGHT_DISTRIBUTION_LINK`, `WEB_PAGE_DISTRIBUTION_LINK` | One ready-to-render markdown link entry each, e.g. `[TestFlight](https://testflight.apple.com/join/<id>)`. Kept in secrets so access hints stay out of the repo | `nightly_distribution.yml` |
+
+`SENTRY_DSN` and `MELD_BASIC_AUTH_TOKEN` from the first table are also stored as
+GitHub Actions secrets, because CI runs `generate_secrets.sh` from
+`.github/actions/configure-secrets` instead of reading `env-vars.sh`.
+
+Tester groups are a workflow variable rather than a secret: `FIREBASE_GROUPS` is
+set in `firebase_debug_distribution.yml` (default `polkadotapp-ios`) and can be
+overridden per run.
+
+Backend and on-chain endpoints (identity backend, IPFS gateway, DotNS resolver,
+Web3 Summit, game dashboard) are **not** build-time variables: the app fetches
+them at runtime via Firebase Remote Config (see `RemoteAppConfig` and
+`FirebaseApplicationService`).
 
 ---
 
 ## 3. Firebase setup
 
-The app uses Firebase for Remote Config. The real
-`GoogleService-Info.plist` files are **not** committed.
+The app uses Firebase for Remote Config. The real `GoogleService-Info.plist`
+files are **not** committed.
 
 1. Create a Firebase project and register two iOS apps — one for development
    (bundle id `…​.develop`) and one for production.
@@ -118,7 +129,9 @@ The app uses Firebase for Remote Config. The real
    (Debug/Dev/DevCI → Dev, Release/Nightly → Release). In CI (`RUN_IN_CI=true`)
    this copy is skipped — provide the active plist yourself.
 
-`*.plist.template` files document the expected structure with placeholder values.
+`*.plist.template` files document the expected structure with placeholder values;
+`setup-secrets.sh` copies them into the real filenames so a fresh checkout builds
+with an inert Firebase configuration until you drop in real plists.
 
 ---
 
@@ -131,7 +144,7 @@ The app uses Firebase for Remote Config. The real
 | `Release` | production id | Mainnet |
 
 Bundle ids, app name, icon and deep-link scheme live in
-`polkadot-app/Configs/*.xcconfig` and
+`Configs/*.xcconfig`, `polkadot-app/Configs/*.xcconfig` and
 `NotificationServiceExtension/Configs/*.xcconfig`. Change them to your own
 identifiers before distributing.
 
@@ -144,8 +157,9 @@ its `NotificationServiceExtension`.
 
 Recommended: **App Store Connect API key** (`.p8`) for non-interactive signing
 and uploads. Generate one in App Store Connect → Users and Access → Integrations
-→ Keys, and expose it to CI as `APP_STORE_CONNECT_KEY_ID`,
-`APP_STORE_CONNECT_ISSUER_ID`, `APP_STORE_CONNECT_KEY_CONTENT`.
+→ Keys. The shipped pipeline reads it from the `ASC_KEY_ID`, `ASC_ISSUER_ID`
+and `ASC_KEY_BASE64` secrets (§2); if you drive the upload yourself, export it
+under whatever names your own tooling expects.
 
 For certificates and provisioning profiles, pick one of:
 
@@ -164,8 +178,8 @@ provisioning profile via the export options when archiving.
 ## 6. Build & archive
 
 ```bash
-# Generate build-time config
-./Scripts/inject-keys.sh
+# Generate build-time config (also run automatically by the Xcode build phase)
+./Runscripts/generate_secrets.sh
 
 # Archive
 xcodebuild -project polkadot-app.xcodeproj \
@@ -204,8 +218,8 @@ your App Store Connect API key:
 
 ```bash
 xcrun altool --upload-app -f build/polkadot-app.ipa -t ios \
-  --apiKey "$APP_STORE_CONNECT_KEY_ID" \
-  --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+  --apiKey "$ASC_KEY_ID" \
+  --apiIssuer "$ASC_ISSUER_ID"
 ```
 
 (`xcrun altool` reads the `.p8` from `~/.appstoreconnect/private_keys/` or
@@ -238,32 +252,32 @@ service-account JSON, or `--service-credentials-file`).
 
 Sentry is disabled for `Release` builds — the SDK is only compiled into
 `TESTNET_FEATURE` configurations (`Debug`/`DevCI`/`Nightly`). Accordingly, the
-**"Upload Debug Symbols to Sentry"** Xcode build phase uploads dSYMs only on
-`DevCI` and `Nightly` builds and skips `Debug` and `Release`. It also requires
-`SENTRY_ORG` and `SENTRY_PROJECT` to be set (and `sentry-cli` installed with
-`SENTRY_AUTH_TOKEN` configured); otherwise it skips silently. Leave them unset
-to disable Sentry uploads entirely.
+**"Upload Debug Symbols to Sentry"** Xcode build phase uploads dSYMs on all
+configurations except `Debug` and `Release`, and only when `sentry-cli` is
+installed; otherwise it prints a warning and continues.
 
-The repo also ships a `.mcp.json.template` that registers the **Sentry MCP
-server** for AI tooling (e.g. Claude Code). It embeds an organisation-specific
-Sentry org/project, so the real `.mcp.json` is gitignored. `setup-secrets.sh`
-scaffolds it from the template; edit the URL to your own
-`…/mcp/<org>/<project>`. This is optional and unrelated to building the app.
+> The build phase currently hardcodes `SENTRY_ORG` and `SENTRY_PROJECT` (set to
+> the upstream project). **Change these to your own org/project** — or remove
+> the build phase entirely — before uploading symbols from your own builds.
+> Authenticate `sentry-cli` with a `SENTRY_AUTH_TOKEN` in your environment.
 
 ---
 
-## 10. Wiring it into CI
+## 10. The default CI/CD setup
 
-A typical distribution job:
+The repo ships a GitHub Actions pipeline (`.github/workflows/`) driven by Fastlane
+lanes (`fastlane/`): PR build and tests, plus TestFlight and Firebase
+distribution. Distribution workflows are manual (`workflow_dispatch`) and gated to
+named maintainers. The pipeline is preconfigured for the upstream project — a fork
+supplies its own GitHub Actions secrets, `match` signing repo, and runners to run
+it. The steps above (§5–9) are what the lanes automate.
 
-1. Check out the repo, install Xcode and SwiftPM dependencies.
-2. Export secrets from your secret store into the environment.
-3. Provide the real `GoogleService-Info` plists.
-4. Run `./Scripts/inject-keys.sh`.
-5. Import signing certificate + profile into a CI keychain.
-6. `xcodebuild archive` → `xcodebuild -exportArchive`.
-7. Upload to TestFlight (`xcrun altool`) or Firebase (`firebase appdistribution`).
+The secrets the workflows expect are listed in §2 under "Signing & distribution",
+grouped by whether they are required for any signed build, required for a
+particular distribution target, or optional. A fork also needs to repoint
+`fastlane/Matchfile` and `.github/actions/install` at its own `match` repository,
+and `fastlane/Appfile` at its own Apple team.
 
-Keep every credential in your CI provider's secret store — never commit
+Keep every credential in the GitHub Actions secret store — never commit
 `env-vars.sh`, the real `GoogleService-Info` plists, signing certificates, or API
 keys.

@@ -21,16 +21,34 @@ extension AppConfig {
             AppConfigProvider.shared.getRemoteConfig()!.dotNsResolver!
         }
 
-        static let dotNsBrowse = "browse.dot"
-        static let dotNsGameWebview = "game-webview.dot"
-        static let dotNsCollectibles = "collectibles-webview.dot"
+        private static var dotNsProtocolRegistryAddress: String {
+            AppConfigProvider.shared.getRemoteConfig()!.dotNsProtocolRegistry!
+        }
+
+        /// Optional by design: an absent key disables manifest resolution and leaves legacy names
+        /// working, so a value that will not decode has to degrade the same way rather than take
+        /// every launch down with the rest of the config.
+        private static var dotNsNameRegistryAddress: Data? {
+            guard let raw = AppConfigProvider.shared.getRemoteConfig()?.dotNsNameRegistry else {
+                return nil
+            }
+
+            return try? raw.fromHex()
+        }
+
+        static let dotNsBrowse = "browse"
+        static let dotNsGameWebview = "game-webview"
+        static let dotNsCollectibles = "collectibles-webview"
 
         static func config() throws -> DotNsConfig {
-            let address = try Self.dotNsResolverAddress.fromHex()
+            let resolverAddress = try Self.dotNsResolverAddress.fromHex()
+            let protocolRegistryAddress = try Self.dotNsProtocolRegistryAddress.fromHex()
 
             return DotNsConfig(
                 contractsChainId: AppConfig.Chains.assethubChain,
-                resolverContractAddress: address,
+                resolverContractAddress: resolverAddress,
+                protocolRegistryContractAddress: protocolRegistryAddress,
+                nameRegistryContractAddress: Self.dotNsNameRegistryAddress,
                 ipfsGatewayBaseUrl: AppConfig.KnownIPFS.main
             )
         }

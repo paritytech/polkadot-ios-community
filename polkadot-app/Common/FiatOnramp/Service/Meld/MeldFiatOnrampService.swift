@@ -12,10 +12,11 @@ struct MeldFiatOnrampConfiguration {
 }
 
 extension MeldFiatOnrampConfiguration {
+    // The Basic auth token is injected from env-vars.sh / CI secrets via
+    // GeneratedSecrets. Do not commit the production value to source.
     static var prod: Self = .init(
-        baseUrl: CIKeys.meldBaseURL.asConfigURL,
-        // Injected at build time from polkadot-app/env-vars.sh (MELD_BASIC_AUTH_TOKEN).
-        basicAuthToken: CIKeys.meldBasicAuthToken,
+        baseUrl: URL(string: "https://api.meld.io/")!,
+        basicAuthToken: GeneratedSecrets.meldBasicAuthToken,
         fiatCurrencyCode: "USD",
         countryCode: Locale.autoupdatingCurrent.region?.identifier ?? "US",
         chainAssetId: AppConfig.Assets.fiatOnrampFundedAsset

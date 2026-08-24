@@ -560,7 +560,9 @@ private extension DIM2ChatInteractor {
         do {
             try await backgroundExecutor.execute { [self] in
                 let result = try await markStallActivity("Game registration") {
-                    try await registrationService.registerForGame(with: mode, airdrop: airdrop).asyncExecute()
+                    try await markStallRegion("Registration") {
+                        try await registrationService.registerForGame(with: mode, airdrop: airdrop).asyncExecute()
+                    }
                 }
 
                 switch result.status {

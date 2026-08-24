@@ -1,6 +1,6 @@
 import Foundation
 import SubstrateSdk
-import SubstrateStateCall
+@preconcurrency import SubstrateStateCall
 import Operation_iOS
 import BigInt
 

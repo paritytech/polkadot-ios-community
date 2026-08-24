@@ -2,12 +2,12 @@ import UIKit
 import UIKitExt
 
 final class SSOSigningRequestHandler: SSORequestHandling {
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let signingHandler: TransactionSigningHandling
     private let logger: LoggerProtocol
 
     init(
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         signingHandler: TransactionSigningHandling,
         logger: LoggerProtocol = Logger.shared
     ) {
@@ -16,9 +16,9 @@ final class SSOSigningRequestHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .signingRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .signingRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

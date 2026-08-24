@@ -17,7 +17,8 @@ extension ServiceCoordinator {
         syncService: DetermineStateSyncServicing,
         personhoodRegistrationService: PersonhoodRegistrationServicing,
         claimStatusStore: ClaimStatusStore,
-        audioSessionManager: AudioSessionManaging
+        audioSessionManager: AudioSessionManaging,
+        spaFlowState: SPAFlowState
     ) -> ChatExtensionsRegistering {
         let productRepositoryFactory = ProductRepositoryFactory()
 
@@ -31,6 +32,7 @@ extension ServiceCoordinator {
             productFileProvider: productFileProvider,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             usernameStorage: UsernameStorage(),
+            hostProvider: spaFlowState.hostProvider,
             notificationService: UserNotificationService.shared,
             runtimeProvider: truapiRuntimeProvider,
             accountManager: accountManager
@@ -38,7 +40,9 @@ extension ServiceCoordinator {
 
         let productBotProvider = ProductBotProvider(
             productProvider: productRepositoryFactory.createProvider(),
-            botFactory: botFactory
+            botFactory: botFactory,
+            dotNsResolver: spaFlowState.dotNsResolver,
+            productResolver: spaFlowState.productResolver
         )
 
         return MainActor.assumeIsolated {

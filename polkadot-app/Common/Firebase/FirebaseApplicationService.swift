@@ -93,7 +93,9 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             identityBackendUrl: url(for: .identityBackendUrl),
             ipfsGatewayUrl: url(for: .ipfsGatewayUrl),
             gameDashboardUrl: url(for: .gameDashboardUrl),
-            dotNsResolver: dotNsResolverAddress()
+            dotNsResolver: dotNsResolverAddress(),
+            dotNsProtocolRegistry: dotNsProtocolRegistryAddress(),
+            dotNsNameRegistry: dotNsNameRegistryAddress()
         )
     }
 
@@ -146,14 +148,30 @@ private extension FirebaseApplicationService {
         return URL(string: value)
     }
 
-    func dotNsResolverAddress() -> String? {
+    func dotNsConfigEntry(_ field: String, treatingEmptyAsMissing: Bool = false) -> String? {
         let json = remoteConfig[.dotNsResolver].jsonValue as? [String: String]
-        return json?["resolverContractAddress"]
+        guard let value = json?[field] else { return nil }
+
+        return treatingEmptyAsMissing && value.isEmpty ? nil : value
+    }
+
+    func dotNsResolverAddress() -> String? {
+        dotNsConfigEntry("resolverContractAddress")
+    }
+
+    func dotNsProtocolRegistryAddress() -> String? {
+        dotNsConfigEntry("protocolRegistryAddress")
+    }
+
+    func dotNsNameRegistryAddress() -> String? {
+        // Empty counts as absent: payloads published before manifest support carry no name
+        // registry, and an empty address would read as a configured one.
+        dotNsConfigEntry("registryContractAddress", treatingEmptyAsMissing: true)
     }
 
     func asyncWaitForRemoteConfigValues<T: Decodable>(for key: String) -> CompoundOperationWrapper<T> {
         CompoundOperationWrapper(targetOperation: AsyncClosureOperation<T>(
-            operationClosure: { [weak self] closure in
+            operationClosure: { [logger, weak self] closure in
                 guard let self else {
                     return
                 }
@@ -164,6 +182,7 @@ private extension FirebaseApplicationService {
 
                     closure(.success(models))
                 } catch {
+                    logger.error("Failed to decode remote config: \(error) \(key)")
                     closure(.failure(error))
                 }
             },

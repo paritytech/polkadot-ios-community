@@ -7,7 +7,7 @@ final class GameReportWireframe {
     let chatId: Chat.Id
     private let moduleNavigator: ModuleNavigating
     private let resultsDependencies: GameResultsDependencies
-    private let preloader = GameResultsPreloader()
+    private let preloader: GameResultsPreloader
     private var resultsModule: GameResultsViewFactory.Module?
 
     init(
@@ -18,6 +18,14 @@ final class GameReportWireframe {
         self.chatId = chatId
         self.resultsDependencies = resultsDependencies
         self.moduleNavigator = moduleNavigator
+
+        let urlProvider = GameResultsURLProvider(
+            spaFlowState: resultsDependencies.spaFlowState,
+            dotNsLabel: AppConfig.DotNs.dotNsGameWebview,
+            firebaseFallback: { FirebaseApplicationService.shared.asyncWaitGameResultsFallbackURL() },
+            bundledFallbackURL: GameResultsWebViewFactory.fallbackURL
+        )
+        preloader = GameResultsPreloader(urlProvider: urlProvider)
         preloader.start()
     }
 }

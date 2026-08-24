@@ -4,12 +4,12 @@ import Individuality
 
 final class SSOResourceAllocationRequestHandler: SSORequestHandling {
     private let accountManager: ProductsAccountManaging
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let logger: LoggerProtocol
 
     init(
         accountManager: ProductsAccountManaging,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.accountManager = accountManager
@@ -17,9 +17,9 @@ final class SSOResourceAllocationRequestHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .resourceAllocationRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .resourceAllocationRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

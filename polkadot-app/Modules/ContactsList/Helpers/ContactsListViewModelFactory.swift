@@ -240,7 +240,8 @@ private extension ContactsListViewModelFactory {
             return replyContent.ownContent.text ?? ""
 
         case .reacted,
-             .reactionRemoved:
+             .reactionRemoved,
+             .compactedMessages:
             return nil
 
         case let .edited(editedContent):

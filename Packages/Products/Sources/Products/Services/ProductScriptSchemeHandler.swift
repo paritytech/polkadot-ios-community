@@ -76,25 +76,27 @@ extension ProductScriptSchemeHandler: WKURLSchemeHandler {
         // No cancellation needed for synchronous file reads
     }
 
-    private func resolveContent(for requestedPath: String) -> (relativePath: String, data: Data)? {
+    func resolveContent(for requestedPath: String) -> (relativePath: String, data: Data)? {
         guard !requestedPath.isEmpty else {
             return loadContent(at: entryRelativePath)
         }
 
-        let exact = loadContent(at: requestedPath)
-
-        guard exact == nil else { return exact }
-
-        guard requestedPath.contains(".") else {
-            // no file extension
-            let directory = requestedPath.hasSuffix("/") ? requestedPath : requestedPath + "/"
-            return loadContent(at: directory + entryRelativePath)
+        if let exact = loadContent(at: requestedPath) {
+            return exact
         }
 
-        return nil
+        // A path with an extension is an asset request; a miss there is a real 404, not a route.
+        guard !requestedPath.contains(".") else {
+            return nil
+        }
+
+        // Extensionless miss = a client-side route. Try a nested index, then fall back to the root
+        // entry so the SPA router can resolve deep links (history-API fallback).
+        let directory = requestedPath.hasSuffix("/") ? requestedPath : requestedPath + "/"
+        return loadContent(at: directory + entryRelativePath) ?? loadContent(at: entryRelativePath)
     }
 
-    private func loadContent(at relativePath: String) -> (relativePath: String, data: Data)? {
+    func loadContent(at relativePath: String) -> (relativePath: String, data: Data)? {
         guard let data = productFileProvider.load(for: productId, relativePath: relativePath) else {
             return nil
         }

@@ -6,7 +6,9 @@ import UIKitExt
 /// Rust SPA runtime: resolves the product content, publishes the scheme
 /// handler, injects the bootstrap + container scripts into the engine, and
 /// returns the page URL. The TrUAPI core serves product requests over its
-/// localhost ws-bridge; no ContainerBridge is installed in rust mode.
+/// localhost ws-bridge; no ContainerBridge is installed in rust mode. Camera/mic
+/// media capture (getUserMedia) is answered by a `JSDeviceCapabilityHandler`
+/// registered on the engine.
 ///
 /// An actor so `start`/`dispose` never race on runtime state. Actors are
 /// reentrant, so `dispose()` can interleave while `start` is suspended:
@@ -16,6 +18,7 @@ actor SPARustRuntime {
     private let executionModel: RustRuntimeEnvironment.ExecutionModel
     private let configuration: SPAConfiguration
     private let dotNsResolver: DotNsResolverProtocol
+    private let productResolver: ProductResolving
     private let schemeHandlerProxy: SchemeHandlerProxy
     private let logger: LoggerProtocol
 
@@ -28,12 +31,14 @@ actor SPARustRuntime {
         executionModel: RustRuntimeEnvironment.ExecutionModel,
         configuration: SPAConfiguration,
         dotNsResolver: DotNsResolverProtocol,
+        productResolver: ProductResolving,
         schemeHandlerProxy: SchemeHandlerProxy,
         logger: LoggerProtocol
     ) {
         self.executionModel = executionModel
         self.configuration = configuration
         self.dotNsResolver = dotNsResolver
+        self.productResolver = productResolver
         self.schemeHandlerProxy = schemeHandlerProxy
         self.logger = logger
     }
@@ -66,6 +71,13 @@ extension SPARustRuntime: SPARuntimeProtocol {
         try checkNotDisposed()
         let bootstrapScript = try executionModel.startBridge()
         let scriptsFactory = SPARustRuntimeScriptsFactory(bootstrapScript: bootstrapScript)
+
+        // Camera/mic media capture (getUserMedia) is answered query-only from
+        // the execution's persisted device authorization. The container leaves
+        // RTCPeerConnection available, so no ContainerBridge is needed.
+        await engine.registerJSDeviceCapabilityHandler(
+            executionModel.execution.makeDeviceCapabilityHandler()
+        )
 
         try await engine.initialize(with: scriptsFactory.makeScripts())
 
@@ -111,7 +123,10 @@ private extension SPARustRuntime {
     func prepareDotNsContent() async throws -> URL {
         let domain = configuration.page.host.toDotDomain()
 
-        let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: domain)
+        // Bytes come from the app executable's subname; the origin stays the base domain, which
+        // is what permission grants and web storage are keyed by.
+        let contentId = try await productResolver.resolve(domain).appContentId
+        let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: contentId)
 
         let schemeHandler = ProductScriptSchemeHandler(
             productId: domain,

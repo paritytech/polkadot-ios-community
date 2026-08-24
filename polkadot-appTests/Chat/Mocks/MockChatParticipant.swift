@@ -34,6 +34,12 @@ final class MockChatParticipant: TypeErasedDelegateStoring {
         MessageExchange.OutgoingMessageError?
     ) -> Void)?
 
+    var didCompactMessagesClosure: ((
+        any PeerSessionProtocol,
+        Message,
+        [Message]
+    ) -> Void)?
+
     var didDeliverMessagesClosure: ((
         any PeerSessionProtocol,
         [Message],
@@ -58,6 +64,14 @@ final class MockChatParticipant: TypeErasedDelegateStoring {
 }
 
 extension MockChatParticipant: PeerSessionDelegate {
+    func peerSession(
+        _ peerSession: any PeerSessionProtocol,
+        didCompactMessages compactedMessage: Chat.OpaqueMessage,
+        originalMessages: [Chat.OpaqueMessage]
+    ) {
+        didCompactMessagesClosure?(peerSession, compactedMessage, originalMessages)
+    }
+
     func peerSession(
         _ peerSession: any PeerSessionProtocol,
         didUpdateState state: PeerSessionState

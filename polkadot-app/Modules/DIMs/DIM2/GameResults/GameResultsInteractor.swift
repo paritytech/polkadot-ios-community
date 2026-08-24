@@ -201,8 +201,8 @@ private extension GameResultsInteractor {
         logger
             .debug(
                 "[GameDebug] initial input built " +
-                    "score=\(initial.attestations.score)/\(initial.attestations.total) " +
-                    "passed=\(initial.attestations.passed) " +
+                    "score=\(String(describing: initial.attestations.score))/\(initial.attestations.total) " +
+                    "passed=\(String(describing: initial.attestations.passed)) " +
                     "matchedHashes=\(initial.attestationHashes.count) " +
                     "member.justBecameMember=\(initial.member.justBecameMember) " +
                     "member.displayName=\(initial.member.displayName ?? "nil") " +

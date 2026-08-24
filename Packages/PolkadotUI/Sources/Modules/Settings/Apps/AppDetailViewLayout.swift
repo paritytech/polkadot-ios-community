@@ -24,12 +24,19 @@ public struct AppDetailViewLayout: View {
 private extension AppDetailViewLayout {
     var header: some View {
         VStack(spacing: 8) {
-            AppIconPlaceholder(size: 72, cornerRadius: 16)
+            DSAsyncAvatar(placeholder: viewModel.avatar, icon: viewModel.icon, size: .s72)
 
             Text(viewModel.name)
                 .typography(.headlineSmall)
                 .foregroundColor(Color.fgPrimary)
                 .multilineTextAlignment(.center)
+
+            if let subtitle = viewModel.subtitle {
+                Text(subtitle)
+                    .typography(.bodyMedium)
+                    .foregroundColor(Color.fgSecondary)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
     }

@@ -16,7 +16,6 @@ private extension ContactsListWireframe {
             return
         }
 
-        chat.controller.hidesBottomBarWhenPushed = true
         view?.controller.navigationController?.pushViewController(chat.controller, animated: true)
     }
 }

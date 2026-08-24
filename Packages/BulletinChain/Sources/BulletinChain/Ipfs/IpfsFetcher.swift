@@ -7,6 +7,9 @@ public enum IpfsFetcherError: Error {
 
 public protocol IpfsFetching {
     func lookupBy(rawHash: Data) async throws -> Data
+
+    /// For content already addressed by CID, such as a product manifest's icon.
+    func lookupBy(cid: String) async throws -> Data
 }
 
 public final class IpfsFetcher: IpfsFetching {
@@ -23,6 +26,16 @@ public final class IpfsFetcher: IpfsFetching {
             throw IpfsFetcherError.invalidHash
         }
 
+        return try await fetch(url)
+    }
+
+    public func lookupBy(cid: String) async throws -> Data {
+        try await fetch(converter.ipfsURL(cid: cid))
+    }
+}
+
+private extension IpfsFetcher {
+    func fetch(_ url: URL) async throws -> Data {
         let (data, response) = try await session.data(from: url)
         try response.ensureSuccess()
 

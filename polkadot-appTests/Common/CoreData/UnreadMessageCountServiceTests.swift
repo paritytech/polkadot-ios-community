@@ -169,7 +169,9 @@ private extension UnreadMessageCountServiceTests {
             status: status,
             timestamp: 0,
             content: content,
-            reactions: []
+            reactions: [],
+            compactionId: nil,
+            relatedMessages: []
         )
     }
 }

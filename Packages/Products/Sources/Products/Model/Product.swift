@@ -11,9 +11,3 @@ public struct Product: Identifiable {
         self.name = name
     }
 }
-
-public extension ProductId {
-    static func fromUrl(_ url: URL) -> ProductId? {
-        ProductHost.fromUrl(url)?.toDotDomain()
-    }
-}

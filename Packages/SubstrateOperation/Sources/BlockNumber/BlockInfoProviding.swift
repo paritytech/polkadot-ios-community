@@ -14,6 +14,7 @@ public protocol BlockInfoProviding {
     func fetchBlockHash(_ blockNumber: BlockNumber) async throws -> BlockHashData
 
     func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header>
+    func subscribeNewHeads() -> AnyAsyncSequence<Block.Header>
 }
 
 public final class BlockInfoProvider: BlockInfoProviding {
@@ -97,6 +98,20 @@ public final class BlockInfoProvider: BlockInfoProviding {
             let subscription: AnyAsyncSequence<JSONRPCSubscriptionUpdate<Block.Header>> = connection.asyncSubscribe(
                 "chain_subscribeFinalizedHeads",
                 unsubscribeMethod: "chain_unsubscribeFinalizedHeads"
+            )
+            return subscription.map(\.params.result).eraseToAnyAsyncSequence()
+        } catch {
+            return AsyncFailSequence(error)
+                .eraseToAnyAsyncSequence()
+        }
+    }
+
+    public func subscribeNewHeads() -> AnyAsyncSequence<Block.Header> {
+        do {
+            let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)
+            let subscription: AnyAsyncSequence<JSONRPCSubscriptionUpdate<Block.Header>> = connection.asyncSubscribe(
+                "chain_subscribeNewHeads",
+                unsubscribeMethod: "chain_unsubscribeNewHeads"
             )
             return subscription.map(\.params.result).eraseToAnyAsyncSequence()
         } catch {

@@ -20,7 +20,6 @@ final class ChatRequestListWireframe: ChatRequestListWireframeProtocol {
             return
         }
 
-        chatView.controller.hidesBottomBarWhenPushed = true
         view?.controller.navigationController?.pushViewController(
             chatView.controller,
             animated: true

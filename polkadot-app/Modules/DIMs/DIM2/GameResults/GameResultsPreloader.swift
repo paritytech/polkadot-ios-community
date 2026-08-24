@@ -7,8 +7,8 @@ final class GameResultsPreloader {
     private var isPageReady = false
     private var resolvedURL: URL?
 
-    init(urlProvider: GameResultsURLProviding? = nil) {
-        self.urlProvider = urlProvider ?? GameResultsURLProvider.makeDefault()
+    init(urlProvider: GameResultsURLProviding) {
+        self.urlProvider = urlProvider
     }
 
     func start() {

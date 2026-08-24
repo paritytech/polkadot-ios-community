@@ -27,7 +27,12 @@ enum WalletMainViewFactory {
         )
 
         let interactor = WalletMainInteractor(
-            collectiblesURLProvider: CollectiblesURLProvider.makeDefault(),
+            collectiblesURLProvider: CollectiblesURLProvider(
+                spaFlowState: context.flowState,
+                dotNsLabel: AppConfig.DotNs.dotNsCollectibles,
+                remoteConfig: FirebaseFacade.shared,
+                firebaseFallback: { FirebaseApplicationService.shared.asyncWaitCollectiblesFallbackURL() }
+            ),
             networkStatusObserver: networkStatusObserver
         )
 

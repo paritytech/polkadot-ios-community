@@ -66,6 +66,7 @@ class ChatExtensionBot {
              .chatRequest,
              .versionedChatRequest,
              .richText,
+             .compactedMessages,
              .unsupported:
             return .skipped
         case let .extensionActionResponse(content, _):

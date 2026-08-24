@@ -1,5 +1,4 @@
 import Foundation_iOS
-import Combine
 import UIKitExt
 import PolkadotUI
 
@@ -27,9 +26,9 @@ protocol ClaimUsernamePresenterProtocol: AnyObject {
 protocol ClaimUsernameInteractorInputProtocol: AnyObject {
     var metadata: UsernameMetadata { get }
 
-    func check(username: Username) -> AnyPublisher<UsernameAvailableType, any Error>
-    func claim(username: Username) -> AnyPublisher<Username, Error>
-    func save(username: Username)
+    func check(username: Username) async throws -> UsernameAvailableType
+    func claim(username: Username) async throws -> Username
+    func save(username: Username) async
 }
 
 @MainActor

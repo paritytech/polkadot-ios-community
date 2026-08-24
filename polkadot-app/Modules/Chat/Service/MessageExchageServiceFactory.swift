@@ -9,8 +9,22 @@ import KeyDerivation
 protocol MessageExchageServiceMaking {
     func makeService<M: MessageExchange.CodableMessage>(
         statementStoreConnection: StatementStoreConnecting,
-        delegate: AnyPeerSessionDelegate<M>
+        delegate: AnyPeerSessionDelegate<M>,
+        compactorFactory: AnyMessageCompactorFactory<M>?
     ) throws -> AnyMessageExchangeService<M>
+}
+
+extension MessageExchageServiceMaking {
+    func makeService<M: MessageExchange.CodableMessage>(
+        statementStoreConnection: StatementStoreConnecting,
+        delegate: AnyPeerSessionDelegate<M>
+    ) throws -> AnyMessageExchangeService<M> {
+        try makeService(
+            statementStoreConnection: statementStoreConnection,
+            delegate: delegate,
+            compactorFactory: nil
+        )
+    }
 }
 
 final class MessageExchangeServiceFactory {
@@ -73,7 +87,8 @@ final class MessageExchangeServiceFactory {
 extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
     func makeService<M: MessageExchange.CodableMessage>(
         statementStoreConnection: StatementStoreConnecting,
-        delegate: AnyPeerSessionDelegate<M>
+        delegate: AnyPeerSessionDelegate<M>,
+        compactorFactory: AnyMessageCompactorFactory<M>? = nil
     ) throws -> AnyMessageExchangeService<M> {
         let subscriptionFactory = StatementSubscriptionFactory(
             statementStoreFetcher: statementStoreConnection,
@@ -98,6 +113,7 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
             },
             subscriptionFactory: subscriptionFactory,
             maxStatementSize: maxStatementSize,
+            compactorFactory: compactorFactory,
             operationQueue: operationQueue,
             logger: logger
         )

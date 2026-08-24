@@ -52,7 +52,8 @@ final class LightPersonTests: XCTestCase {
 
             let params = try factory.deriveLitePersonParams(
                 for: username,
-                verifier: verifierAddress
+                verifier: verifierAddress,
+                reservedUsername: nil
             )
 
             try logger.info("main: \(params.accountId.toAddress(using: .substrate(42)))")

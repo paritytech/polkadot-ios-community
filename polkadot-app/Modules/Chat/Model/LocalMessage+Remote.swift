@@ -2,7 +2,11 @@ import Foundation
 
 extension Chat.LocalMessage {
     func canSendToRemote() -> Bool {
-        content.canSendToRemote()
+        guard compactionId == nil else {
+            return false
+        }
+
+        return content.canSendToRemote()
     }
 
     func toRemote() -> Chat.RemoteMessage? {
@@ -46,7 +50,8 @@ extension Chat.LocalMessage.Content {
              .multiChatAccepted,
              .deviceAdded,
              .deviceRemoved,
-             .call:
+             .call,
+             .compactedMessages:
             true
 
         case let .richText(richText):
@@ -111,6 +116,8 @@ private extension Chat.LocalMessage.Content {
             case let .closed(content):
                 .dataChannelClosed(content)
             }
+        case let .compactedMessages(content):
+            .compactedMessages(content)
         case .unsupported:
             nil
         case .staticTextImageContent,
@@ -152,7 +159,8 @@ private extension Chat.LocalMessage.Content {
              .deviceRemoved,
              .dataChannelOffer,
              .dataChannelAnswer,
-             .dataChannelClosed:
+             .dataChannelClosed,
+             .compactedMessages:
             true
         case .dataChannelCandidates:
             // ICE candidates are pure peer-to-peer signaling and have no

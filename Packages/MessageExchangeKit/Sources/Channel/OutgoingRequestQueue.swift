@@ -31,6 +31,11 @@ final class OutgoingRequestQueue<M: MessageExchange.CodableMessage> {
 }
 
 extension OutgoingRequestQueue: OutgoingRequestQueueing {
+    func reset(route: PeerSessionRoute) {
+        currentRequests[route] = nil
+        queuedMessages[route] = []
+    }
+
     func attemptRequestExtensionFromQueue() -> Set<PeerSessionRoute> {
         var messagesToRetry = [Message]()
 

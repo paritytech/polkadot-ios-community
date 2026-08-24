@@ -44,5 +44,7 @@ protocol RootInteractorOutputProtocol: AnyObject {
 
 @MainActor
 protocol RootPresenterFactoryProtocol {
-    static func createPresenter(with window: UIWindow) -> RootPresenterProtocol
+    static func createPresenter(
+        with window: UIWindow
+    ) -> RootPresenterProtocol
 }

@@ -33,14 +33,16 @@ final class DirectURLNavigationDecisionHandler: SPANavigationDecisionHandling {
 
 final class DotNsNavigationDecisionHandler: SPANavigationDecisionHandling {
     private let baseHost: ProductHost
+    private let hostProvider: ProductHostProviding
 
-    init(baseHost: ProductHost) {
+    init(baseHost: ProductHost, hostProvider: ProductHostProviding) {
         self.baseHost = baseHost
+        self.hostProvider = hostProvider
     }
 
     func decide(for navigationAction: WKNavigationAction) -> SPANavigationDecision {
         guard let url = navigationAction.request.url,
-              let host = ProductHost.fromUrl(url)
+              let host = hostProvider.host(url: url)
         else {
             return .allow
         }

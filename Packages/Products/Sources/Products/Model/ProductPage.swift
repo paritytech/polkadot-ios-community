@@ -1,6 +1,6 @@
 import Foundation
 
-public struct ProductPage {
+public struct ProductPage: Sendable {
     public let host: ProductHost
     public let page: String?
 
@@ -10,16 +10,24 @@ public struct ProductPage {
     }
 }
 
-public extension ProductPage {
-    static func fromUrl(_ url: URL) -> ProductPage? {
-        guard let host = ProductHost.fromUrl(url) else {
+extension ProductPage {
+    static func fromUrl(_ url: URL, tld: String) -> ProductPage? {
+        guard let host = ProductHost.fromUrl(url, tld: tld) else {
             return nil
         }
 
         return ProductPage(host: host, page: relativePart(of: url))
     }
 
-    func applied(to url: URL) -> URL {
+    static func fromNavigationDestination(_ dest: String, tld: String) -> ProductPage? {
+        guard let url = URL(string: dest), url.host() != nil else {
+            return ProductHost.parse(dest, tld: tld).map { ProductPage(host: $0) }
+        }
+
+        return ProductPage.fromUrl(url, tld: tld)
+    }
+
+    public func applied(to url: URL) -> URL {
         guard
             let page,
             !page.isEmpty,

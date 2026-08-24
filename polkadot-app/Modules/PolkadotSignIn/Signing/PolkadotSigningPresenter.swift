@@ -1,6 +1,5 @@
 import Foundation
 import PolkadotUI
-import Keystore_iOS
 
 @MainActor
 final class PolkadotSigningPresenter {
@@ -36,7 +35,7 @@ extension PolkadotSigningPresenter: PolkadotSigningPresenterProtocol {
     }
 
     func cancel() {
-        interactor.reject()
+        wireframe.hide(view: view, decision: .rejected)
     }
 
     func viewDetails() {
@@ -70,24 +69,12 @@ extension PolkadotSigningPresenter: PolkadotSigningInteractorOutputProtocol {
         markAsInProgress()
     }
 
-    func didFinishSigning() {
-        wireframe.hide(view: view)
+    func didFinishSigning(with result: PolkadotHostSigningResult) {
+        wireframe.hide(view: view, decision: .signed(result))
     }
 
-    func didFailToSign(with error: Error) {
-        handleResultSubmissionError(error)
-    }
-
-    func didStartRejecting() {
-        markAsInProgress()
-    }
-
-    func didFinishRejecting() {
-        wireframe.hide(view: view)
-    }
-
-    func didFailToReject(with error: Error) {
-        handleResultSubmissionError(error)
+    func didFailToSign(with _: Error) {
+        markAsFailed()
     }
 }
 
@@ -97,49 +84,10 @@ private extension PolkadotSigningPresenter {
         provideViewModel()
     }
 
-    func unmarkAsInProgress() {
-        isInProgress = false
-        provideViewModel()
-    }
-
     func markAsFailed() {
         isInProgress = false
         isFailed = true
         provideViewModel()
-    }
-
-    func handleResultSubmissionError(_ error: Error) {
-        if let knownError = error as? PolkadotHostMessageError {
-            switch knownError {
-            case .submissionFailed:
-                unmarkAsInProgress()
-
-                wireframe.present(
-                    message: String(localized: .polkadotHostPostError),
-                    title: String(localized: .Common.error),
-                    closeAction: String(localized: .Common.close),
-                    from: view
-                )
-            case let .messageTooBig(maxSize, actualSize):
-                unmarkAsInProgress()
-
-                wireframe.present(
-                    message: String(
-                        localized: .polkadotHostMessageTooBigError(
-                            actualSize: ByteSizeFormatter.string(fromBytes: actualSize),
-                            maxSize: ByteSizeFormatter.string(fromBytes: maxSize)
-                        )
-                    ),
-                    title: String(localized: .Common.error),
-                    closeAction: String(localized: .Common.close),
-                    from: view
-                )
-            default:
-                markAsFailed()
-            }
-        } else {
-            markAsFailed()
-        }
     }
 
     func provideViewModel() {

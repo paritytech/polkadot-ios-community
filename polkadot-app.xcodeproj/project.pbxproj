@@ -29,6 +29,7 @@
 		A57CAF662F45ECB70066D722 /* StructuredConcurrency in Frameworks */ = {isa = PBXBuildFile; productRef = A57CAF652F45ECB70066D722 /* StructuredConcurrency */; };
 		A57CAF682F45ED940066D722 /* StructuredConcurrency in Frameworks */ = {isa = PBXBuildFile; productRef = A57CAF672F45ED940066D722 /* StructuredConcurrency */; };
 		A5A948F02F4CA925001E514C /* Coinage in Frameworks */ = {isa = PBXBuildFile; productRef = A5A948EF2F4CA925001E514C /* Coinage */; };
+		A5A948F22F4CA925001E5150 /* ExtrinsicServiceExt in Frameworks */ = {isa = PBXBuildFile; productRef = A5A948F12F4CA925001E5150 /* ExtrinsicServiceExt */; };
 		A5B2502E2F47481900E46E09 /* KeyDerivation in Frameworks */ = {isa = PBXBuildFile; productRef = A5B2502D2F47481900E46E09 /* KeyDerivation */; };
 		A5B250302F47482000E46E09 /* KeyDerivation in Frameworks */ = {isa = PBXBuildFile; productRef = A5B2502F2F47482000E46E09 /* KeyDerivation */; };
 		A5B436FF2E96B82700CFF21D /* AppDependencies in Frameworks */ = {isa = PBXBuildFile; productRef = A5B436FE2E96B82700CFF21D /* AppDependencies */; };
@@ -109,10 +110,8 @@
 			membershipExceptions = (
 				AppConfig/AppConfig.swift,
 				AppConfig/AppConfigProvider.swift,
-				"AppConfig/CIKeys+URL.swift",
 				AppConfig/KnownChains.swift,
 				AppConfig/RemoteAppConfig.swift,
-				CIKeys.generated.swift,
 				Common/Crypto/Keychain.swift,
 				Common/Crypto/RootEntropyManaging.swift,
 				"Common/Logger/FileManager+Logging.swift",
@@ -200,6 +199,7 @@
 				Modules/Chat/Model/CoreData/VoIPContactOutgoingSettings.swift,
 				"Modules/Chat/Model/Date+Chat.swift",
 				"Modules/Chat/Model/LocalMessage+RichContent.swift",
+				Modules/Chat/Model/OpaqueMessageWrapper.swift,
 				Modules/Chat/Model/RemoteChatMessage.swift,
 				Modules/Chat/Service/ChatEncryptionManager.swift,
 				Modules/Chat/Service/ChatPrivateKeyFactory.swift,
@@ -220,6 +220,7 @@
 				"Configs/polkadot-app.devci.xcconfig",
 				"Configs/polkadot-app.nightly.xcconfig",
 				"Configs/polkadot-app.release.xcconfig",
+				"env-vars.template.sh",
 				Info.plist,
 				"polkadot-app.xctestplan",
 			);
@@ -333,6 +334,7 @@
 				A5B5899C2F5F0F4E00A9458D /* OperationExt in Frameworks */,
 				A5B436FF2E96B82700CFF21D /* AppDependencies in Frameworks */,
 				A5A948F02F4CA925001E514C /* Coinage in Frameworks */,
+				A5A948F22F4CA925001E5150 /* ExtrinsicServiceExt in Frameworks */,
 				0C2A9D532F868F4F00E753AE /* SubstrateSdkExt in Frameworks */,
 				A57CAF662F45ECB70066D722 /* StructuredConcurrency in Frameworks */,
 				0CEC59AC2F08EBFC0009CC37 /* FoundationExt in Frameworks */,
@@ -488,6 +490,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A5EDAAF72E93ECB0005DDA62 /* Build configuration list for PBXNativeTarget "polkadot-app" */;
 			buildPhases = (
+				A5C0DE010000000000000001 /* Generate Secrets */,
 				A574D8672E93FF2100BA6060 /* Run Swiftformat */,
 				A574D8682E93FF3700BA6060 /* Run Swiftlint */,
 				A574D8662E93F8AE00BA6060 /* Google info */,
@@ -523,6 +526,7 @@
 				A5B2502D2F47481900E46E09 /* KeyDerivation */,
 				0C62514B2F50808100A92259 /* HandoffService */,
 				A5A948EF2F4CA925001E514C /* Coinage */,
+				A5A948F12F4CA925001E5150 /* ExtrinsicServiceExt */,
 				A5B5899B2F5F0F4E00A9458D /* OperationExt */,
 				B10000012F7C000000000AAA /* Products */,
 				0C2A9D522F868F4F00E753AE /* SubstrateSdkExt */,
@@ -719,7 +723,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"$RUN_IN_CI\" == \"true\" ] || [ \"${CONFIGURATION}\" == \"DevCI\" ]; then\n    echo \"Skipping SwiftLint in CI environment\"\n    exit 0\nfi\n\nsource \"${SRCROOT}/Runscripts/homebrew_run.sh\"\nsetup_environment\n\nARGS=\"\"\nif [ -f \"swiftlint-baseline.json\" ]; then\n    ARGS=\"--baseline swiftlint-baseline.json\"\nfi\n\n# 1 - tool, 2 - arguments, 3 - fallback url\nhandle_tool \"swiftlint\" \"$ARGS\" \"https://github.com/realm/swiftlint\"\n";
+			shellScript = "source \"${SRCROOT}/Runscripts/homebrew_run.sh\"\nsetup_environment\n\nARGS=\"\"\nif [ -f \"swiftlint-baseline.json\" ]; then\n    ARGS=\"--baseline swiftlint-baseline.json\"\nfi\n\n# 1 - tool, 2 - arguments, 3 - fallback url\nhandle_tool \"swiftlint\" \"$ARGS\" \"https://github.com/realm/swiftlint\"\n";
+		};
+		A5C0DE010000000000000001 /* Generate Secrets */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Generate Secrets";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/polkadot-app/Generated/Secrets.generated.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"$RUN_IN_CI\" = \"true\" ]; then\n    echo \"Skipping secrets generation in CI\"\n    exit 0\nfi\n\n\"${SRCROOT}/Runscripts/generate_secrets.sh\"\n";
 		};
 		F06E600066544128849BC813 /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -796,6 +820,7 @@
 				CODE_SIGN_ENTITLEMENTS = NotificationServiceExtension/NotificationServiceExtensionDebug.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NotificationServiceExtension;
@@ -828,6 +853,7 @@
 				CODE_SIGN_ENTITLEMENTS = NotificationServiceExtension/NotificationServiceExtensionDevCI.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NotificationServiceExtension;
@@ -861,6 +887,7 @@
 				CODE_SIGN_ENTITLEMENTS = NotificationServiceExtension/NotificationServiceExtensionRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NotificationServiceExtension;
@@ -892,6 +919,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -914,6 +942,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -936,6 +965,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -988,6 +1018,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1026,6 +1057,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1067,6 +1099,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
@@ -1119,6 +1152,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1181,6 +1215,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1211,6 +1246,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1257,6 +1293,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1298,6 +1335,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
@@ -1321,6 +1359,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
@@ -1373,6 +1412,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -1403,6 +1443,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1444,6 +1485,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
@@ -1467,6 +1509,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -1492,6 +1535,7 @@
 				CODE_SIGN_ENTITLEMENTS = NotificationServiceExtension/NotificationServiceExtensionRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = P2PX3JU8FT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = NotificationServiceExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = NotificationServiceExtension;
@@ -1661,6 +1705,10 @@
 		A5A948EF2F4CA925001E514C /* Coinage */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Coinage;
+		};
+		A5A948F12F4CA925001E5150 /* ExtrinsicServiceExt */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ExtrinsicServiceExt;
 		};
 		A5B2502D2F47481900E46E09 /* KeyDerivation */ = {
 			isa = XCSwiftPackageProductDependency;

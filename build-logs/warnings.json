@@ -1,40 +1,10 @@
 {
-  "count": 91,
+  "count": 85,
   "warnings": [
     {
       "path": "",
       "line": null,
-      "message": "'HandoffService' is missing a dependency on 'FoundationExt' because dependency scan of Swift module 'HandoffService' discovered a dependency on 'FoundationExt'"
-    },
-    {
-      "path": "",
-      "line": null,
-      "message": "CDContactGame.contacts does not have an inverse; this is an advanced setting (no object can be in multiple destinations for a specific relationship) [7]"
-    },
-    {
-      "path": "",
-      "line": null,
-      "message": "CDMetaAccount.chainAccounts does not have an inverse; this is an advanced setting (no object can be in multiple destinations for a specific relationship) [7]"
-    },
-    {
-      "path": "",
-      "line": null,
-      "message": "Debug session ended with code 15: Terminated due to signal 15"
-    },
-    {
-      "path": "",
-      "line": null,
       "message": "Run script build phase 'Upload Debug Symbols to Sentry' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking \"Based on dependency analysis\" in the script phase."
-    },
-    {
-      "path": "",
-      "line": null,
-      "message": "The inverse relationship for CDChainAccount.metaAccount does not reciprocate an inverse relationship [2]"
-    },
-    {
-      "path": "",
-      "line": null,
-      "message": "The inverse relationship for CDChatContact.game does not reciprocate an inverse relationship [2]"
     },
     {
       "path": "",
@@ -93,13 +63,13 @@
     },
     {
       "path": "polkadot-app/Common/Services/ServiceCoordinator.swift",
-      "line": 498,
+      "line": 543,
       "message": "Large Tuple Violation: Tuples should have at most 2 members (large_tuple)"
     },
     {
       "path": "polkadot-app/Common/Services/ServiceCoordinator.swift",
-      "line": 549,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 549 (file_length)"
+      "line": 594,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 594 (file_length)"
     },
     {
       "path": "polkadot-app/Common/Wallet/WalletCardViewModel.swift",
@@ -108,23 +78,18 @@
     },
     {
       "path": "polkadot-app/Modules/AssetDetails/AssetDetailsViewLayout.swift",
-      "line": 122,
+      "line": 125,
       "message": "Todo Violation: TODOs should be resolved (Debug purposes only) (todo)"
     },
     {
       "path": "polkadot-app/Modules/Chat/ChatExtension/Extensions/WeeklyGame/DIM2ChatExtension.swift",
-      "line": 396,
-      "message": "String interpolation produces a debug description for an optional value; did you mean to make this explicit?"
-    },
-    {
-      "path": "polkadot-app/Modules/Chat/ChatExtension/Extensions/WeeklyGame/DIM2ChatExtension.swift",
-      "line": 682,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 682 (file_length)"
+      "line": 742,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 742 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/Chat/ChatExtension/Extensions/WeeklyGame/Interactor/DIM2ChatInteractor.swift",
-      "line": 715,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 715 (file_length)"
+      "line": 758,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 758 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/Chat/ChatInteractor.swift",
@@ -133,7 +98,7 @@
     },
     {
       "path": "polkadot-app/Modules/Chat/Helpers/ChatViewModelFactory.swift",
-      "line": 715,
+      "line": 716,
       "message": "Todo Violation: TODOs should be resolved (fetch info by content.assetId ...) (todo)"
     },
     {
@@ -168,12 +133,17 @@
     },
     {
       "path": "polkadot-app/Modules/Chat/Service/ChatOutboxService.swift",
-      "line": 553,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 553 (file_length)"
+      "line": 601,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 601 (file_length)"
+    },
+    {
+      "path": "polkadot-app/Modules/Chat/Service/ChatPrivateKeyFactory.swift",
+      "line": 21,
+      "message": "Todo Violation: TODOs should be resolved (Products — remove once the Gam...) (todo)"
     },
     {
       "path": "polkadot-app/Modules/Chat/Service/MessageExchangeChatCoordinator+PeerSessionDelegate.swift",
-      "line": 95,
+      "line": 99,
       "message": "Todo Violation: TODOs should be resolved (Consider to remove before rele...) (todo)"
     },
     {
@@ -188,22 +158,17 @@
     },
     {
       "path": "polkadot-app/Modules/ChatCall/Connection/CallEngine.swift",
-      "line": 673,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 673 (file_length)"
+      "line": 675,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 675 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/ChatCall/Connection/ChatPeerConnectionSignaler.swift",
-      "line": 157,
+      "line": 169,
       "message": "Cyclomatic Complexity Violation: Function should have complexity 10 or less; currently complexity is 12 (cyclomatic_complexity)"
     },
     {
-      "path": "polkadot-app/Modules/ChatCall/Connection/TransceiverConfigStrategy.swift",
-      "line": 124,
-      "message": "'setCodecPreferences' is deprecated: Use setCodecPreferences:error: instead."
-    },
-    {
       "path": "polkadot-app/Modules/ContactsList/Helpers/ContactsListViewModelFactory.swift",
-      "line": 277,
+      "line": 279,
       "message": "Todo Violation: TODOs should be resolved (Design a user-facing represent...) (todo)"
     },
     {
@@ -273,8 +238,8 @@
     },
     {
       "path": "polkadot-app/Modules/DIMs/DIM2/Game/GameVideo/GameVideoInteractor.swift",
-      "line": 525,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 525 (file_length)"
+      "line": 538,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 538 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/DIMs/DIM2/Game/GameVideo/GameVideoViewModelFactory+Filters.swift",
@@ -288,8 +253,8 @@
     },
     {
       "path": "polkadot-app/Modules/DIMs/DIM2/Game/GameVideo/Views/GameVideoPlayerItemView.swift",
-      "line": 574,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 574 (file_length)"
+      "line": 560,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 560 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/DIMs/DIM2/Game/GameVideo/Views/GameVideoPlayersView.swift",
@@ -330,11 +295,6 @@
       "path": "polkadot-app/Modules/DIMs/DIM2/Game/Renderer/Shaders/CommonTypes.metal",
       "line": 58,
       "message": "Unused variable 'kSamplerNearestClamp'"
-    },
-    {
-      "path": "polkadot-app/Modules/DIMs/DIM2/Game/Services/VideoGameP2P/Connection/VideoGamePeerEngine.swift",
-      "line": 607,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 607 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/DIMs/DIM2/GameResults/GameResultsInteractor.swift",
@@ -412,6 +372,11 @@
       "message": "Todo Violation: TODOs should be resolved (Implement alias signer when av...) (todo)"
     },
     {
+      "path": "polkadot-app/Modules/MainTabBar/Chrome/TabBarBottomChromeController.swift",
+      "line": 552,
+      "message": "File Length Violation: File should contain 500 lines or less: currently contains 552 (file_length)"
+    },
+    {
       "path": "polkadot-app/Modules/MobRule/Services/IPFSResourceLoaderDelegate.swift",
       "line": 43,
       "message": "Todo Violation: TODOs should be resolved (Detect codec type automaticall...) (todo)"
@@ -420,11 +385,6 @@
       "path": "polkadot-app/Modules/PolkadotSignIn/LinkedDevices/LinkedDevicesPresenter.swift",
       "line": 41,
       "message": "Todo Violation: TODOs should be resolved (Navigate to how it works) (todo)"
-    },
-    {
-      "path": "polkadot-app/Modules/PolkadotSignIn/Services/DeviceSync/DeviceSyncSession.swift",
-      "line": 620,
-      "message": "File Length Violation: File should contain 500 lines or less: currently contains 620 (file_length)"
     },
     {
       "path": "polkadot-app/Modules/PolkadotSignIn/Services/PolkadotHandshakeService.swift",
@@ -448,8 +408,18 @@
     },
     {
       "path": "polkadot-app/Modules/Products/ProductsNativeApiFactory.swift",
-      "line": 62,
+      "line": 63,
       "message": "Main actor-isolated class property 'shared' can not be referenced from a nonisolated context; this is an error in the Swift 6 language mode"
+    },
+    {
+      "path": "polkadot-app/Modules/Products/TrUAPI/RustHostRuntimeBridge.swift",
+      "line": 76,
+      "message": "Todo Violation: TODOs should be resolved (pass the real SSO host identit...) (todo)"
+    },
+    {
+      "path": "polkadot-app/Modules/Products/TrUAPI/RustRuntimeEnvironment.swift",
+      "line": 48,
+      "message": "Todo Violation: TODOs should be resolved ((chat PR): open with ``RustCha...) (todo)"
     },
     {
       "path": "polkadot-app/Modules/SearchContact/SearchContactPresenter.swift",

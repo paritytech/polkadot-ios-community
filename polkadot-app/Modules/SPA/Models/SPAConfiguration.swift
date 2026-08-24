@@ -37,12 +37,12 @@ struct SPAConfiguration {
 }
 
 extension SPAConfiguration {
-    static func browseRoot() -> SPAConfiguration {
+    static func browseRoot(host: ProductHost) -> SPAConfiguration {
         SPAConfiguration(
             title: nil,
             isRootScreen: true,
             showMoreButton: false,
-            page: ProductPage(host: ProductHost(rawString: AppConfig.DotNs.dotNsBrowse)!)
+            page: ProductPage(host: host)
         )
     }
 }

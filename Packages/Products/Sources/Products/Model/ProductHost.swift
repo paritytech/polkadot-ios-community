@@ -1,70 +1,75 @@
 import Foundation
 
-public struct ProductHost {
-    static let dotDomain = "dot"
+public struct ProductHost: Sendable {
     static let liDomain = "li"
-    static let shareRootDomains: Set<String> = [dotDomain, "paseo"]
+    static let shareRootDomains: Set<String> = ["dot", "paseo", "test"]
     static let separator = "."
-
     public static let shareHosts: Set<String> = Set(shareRootDomains.map { $0 + separator + liDomain })
 
-    let components: [String]
+    public let name: String
+    let root: String
 
-    public var name: String {
-        let lastIndex = components.isShareDomain ? components.count - 3 : components.count - 2
+    /// Direct construction. Fails on an empty name or root, or a root containing a separator,
+    /// or an empty sub-label inside name (e.g. "a..b").
+    init?(name: String, root: String) {
+        guard !name.isEmpty, !root.isEmpty, !root.contains(ProductHost.separator) else {
+            return nil
+        }
 
-        return components[0 ... lastIndex].joined(separator: ProductHost.separator)
+        let nameComponents = name.components(separatedBy: ProductHost.separator)
+        guard !nameComponents.contains(where: \.isEmpty) else {
+            return nil
+        }
+
+        self.name = name
+        self.root = root
     }
 
     public func toDotDomain() -> String {
-        guard components.isShareDomain else {
-            return components.joined(separator: ProductHost.separator)
-        }
-
-        let nameComponents = components[0 ..< components.count - 2] + [ProductHost.dotDomain]
-
-        return nameComponents.joined(separator: ProductHost.separator)
+        name + ProductHost.separator + root
     }
+}
 
-    public init?(rawString: String) {
+extension ProductHost {
+    static func parse(_ rawString: String, tld: String) -> ProductHost? {
         let parsedComponent = rawString.components(separatedBy: ProductHost.separator)
 
         guard !parsedComponent.contains(where: \.isEmpty) else {
             return nil
         }
 
-        guard parsedComponent.isDotDomain || parsedComponent.isShareDomain else {
-            return nil
+        // dot-domain form: count >= 2 && last == tld
+        if parsedComponent.count >= 2, parsedComponent.last == tld {
+            let nameComponents = parsedComponent.dropLast()
+            let name = nameComponents.joined(separator: ProductHost.separator)
+            return ProductHost(name: name, root: tld)
         }
 
-        components = parsedComponent
-    }
-}
+        // share form: count >= 3 && components[count-2] in shareRootDomains && last == "li"
+        if parsedComponent.count >= 3, shareRootDomains.contains(parsedComponent[parsedComponent.count - 2]),
+           parsedComponent.last == liDomain {
+            let root = parsedComponent[parsedComponent.count - 2]
+            let nameComponents = parsedComponent.dropLast(2)
+            let name = nameComponents.joined(separator: ProductHost.separator)
+            return ProductHost(name: name, root: root)
+        }
 
-public extension ProductHost {
-    static func fromUrl(_ url: URL) -> ProductHost? {
+        return nil
+    }
+
+    static func fromUrl(_ url: URL, tld: String) -> ProductHost? {
         guard let rawHost = url.host() else {
             return nil
         }
 
-        return ProductHost(rawString: rawHost)
+        return parse(rawHost, tld: tld)
     }
 
-    static func fromNavigationDestination(_ dest: String) -> ProductHost? {
+    static func fromNavigationDestination(_ dest: String, tld: String) -> ProductHost? {
         guard let url = URL(string: dest), url.host() != nil else {
-            return ProductHost(rawString: dest)
+            return parse(dest, tld: tld)
         }
 
-        return ProductHost.fromUrl(url)
-    }
-}
-
-private extension [String] {
-    var isDotDomain: Bool {
-        count >= 2 && self.last == ProductHost.dotDomain
-    }
-
-    var isShareDomain: Bool {
-        count >= 3 && ProductHost.shareRootDomains.contains(self[count - 2]) && self[count - 1] == ProductHost.liDomain
+        return ProductHost.fromUrl(url, tld: tld)
     }
 }

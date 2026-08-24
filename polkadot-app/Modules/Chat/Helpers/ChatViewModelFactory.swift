@@ -39,7 +39,7 @@ final class ChatViewModelFactory {
     let attachmentViewModelFactory: ChatAttachmentViewModelMaking
     let productRepository: AnyDataProviderRepository<Product>
     let productNameCache: ProductNameCaching
-    let dotNsResolver: DotNsResolverProtocol?
+    let flowState: SPAFlowState
     let logger: LoggerProtocol
 
     init(
@@ -51,7 +51,7 @@ final class ChatViewModelFactory {
         attachmentViewModelFactory: ChatAttachmentViewModelMaking,
         productRepository: AnyDataProviderRepository<Product>,
         productNameCache: ProductNameCaching,
-        dotNsResolver: DotNsResolverProtocol?,
+        flowState: SPAFlowState,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.timeFormatter = timeFormatter
@@ -61,7 +61,7 @@ final class ChatViewModelFactory {
         self.attachmentViewModelFactory = attachmentViewModelFactory
         self.productRepository = productRepository
         self.productNameCache = productNameCache
-        self.dotNsResolver = dotNsResolver
+        self.flowState = flowState
         self.logger = logger
         customDecodersById = customDecoders.reduce(into: [:]) {
             $0[$1.identifier.rawValue] = $1
@@ -506,6 +506,9 @@ private extension ChatViewModelFactory {
                     actions: actions
                 )
             ]
+
+        case .compactedMessages:
+            return []
         }
     }
 

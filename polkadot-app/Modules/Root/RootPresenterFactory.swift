@@ -7,7 +7,10 @@ import SubstrateSdk
 import ChainRegistry
 
 enum RootPresenterFactory: RootPresenterFactoryProtocol {
-    static func createPresenter(with window: UIWindow) -> RootPresenterProtocol {
+    static func createPresenter(
+        with window: UIWindow
+    ) -> RootPresenterProtocol {
+        let flowStateProvider = SPAFlowStateProvider()
         let foregroundPresentationController = PushForegroundPresentationController()
 
         let chatRouteHandler = PeerChatPushRouteHandler(
@@ -33,12 +36,12 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             pushTapHandler: pushHandler,
             foregroundPresentationDecider: foregroundPresentationController
         )
-
         let wireframe = RootWireframe(
             window: window,
             userNotificationService: userNotificationService,
             foregroundVisibilityReporter: foregroundPresentationController,
-            deepLinkHandling: DeferredLinkHandler.shared
+            deepLinkHandling: DeferredLinkHandler.shared,
+            flowStateProvider: flowStateProvider
         )
 
         let migrator = createDatabaseMigrator()
@@ -63,13 +66,12 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             fallback: .dashboard
         )
 
-        let makeResolver = { SPAFlowState.create()?.dotNsResolver }
         let chainRegistryClosure = { ChainRegistryFacade.sharedRegistry }
 
         let browsePrewarmer = ProductContentPrewarmer(
-            makeDomain: { AppConfig.DotNs.dotNsBrowse },
+            makeLabel: { AppConfig.DotNs.dotNsBrowse },
             chainRegistryClosure: chainRegistryClosure,
-            makeResolver: makeResolver
+            flowStateProvider: flowStateProvider
         )
 
         let interactor = RootInteractor(

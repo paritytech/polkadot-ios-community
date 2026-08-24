@@ -77,4 +77,18 @@ final class MockHOPFileLoader: HandoffFileLoading, @unchecked Sendable {
         }
         .eraseToAnyAsyncSequence()
     }
+
+    func uploadBlob(
+        _ data: Data,
+        sender _: SenderProofProviding,
+        recipients _: FileRecipients
+    ) async throws -> FileHash {
+        try data.blake2b32()
+    }
+
+    func downloadBlob(
+        _: FileHash,
+        claimer _: FileClaimer,
+        onConfirm _: @escaping HandoffBlobConfirmClosure
+    ) async throws {}
 }

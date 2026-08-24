@@ -13,11 +13,11 @@ protocol ExtrinsicSubmissionMonitorFacadeProtocol {
 final class ExtrinsicSubmissionMonitorFacade {
     let chainRegistry: ChainRegistryProtocol
     let operationQueue: OperationQueue
-    let extrinsicServiceFactory: ExtrinsicServiceFactoryProtocol
+    let extrinsicServiceFactory: ExtrinsicServiceCreating
     let logger: LoggerProtocol
 
     init(
-        extrinsicServiceFactory: ExtrinsicServiceFactoryProtocol,
+        extrinsicServiceFactory: ExtrinsicServiceCreating,
         chainRegistry: ChainRegistryProtocol,
         operationQueue: OperationQueue,
         logger: LoggerProtocol
@@ -54,11 +54,21 @@ final class ExtrinsicSubmissionMonitorFacade {
 
 extension ExtrinsicSubmissionMonitorFacade: ExtrinsicSubmissionMonitorFacadeProtocol {
     func createMonitorFactory(chain: ChainProtocol) throws -> ExtrinsicSubmitMonitorFactoryProtocol {
+        try createMonitorFactory(chain: chain, submitter: nil)
+    }
+}
+
+extension ExtrinsicSubmissionMonitorFacade {
+    func createMonitorFactory(
+        chain: ChainProtocol,
+        submitter: ExtrinsicSubmitting?
+    ) throws -> ExtrinsicSubmitMonitorFactoryProtocol {
         let connection = try chainRegistry.getConnectionOrError(for: chain.chainId)
         let runtimeProvider = try chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
 
         let extrinsicService = try extrinsicServiceFactory.createExtrinsicService(
-            chain: chain
+            chain: chain,
+            submitter: submitter
         )
 
         let statusService = ExtrinsicStatusService(

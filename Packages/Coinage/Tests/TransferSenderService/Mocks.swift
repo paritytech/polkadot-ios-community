@@ -352,6 +352,10 @@ extension TransferSenderServiceTests {
         func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header> {
             AsyncStream<Block.Header> { _ in }.eraseToAnyAsyncSequence()
         }
+
+        func subscribeNewHeads() -> AnyAsyncSequence<Block.Header> {
+            AsyncStream<Block.Header> { $0.finish() }.eraseToAnyAsyncSequence()
+        }
     }
 
     /// Runs the operation inline, no OS background assertion — deterministic for tests.

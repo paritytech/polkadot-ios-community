@@ -1,4 +1,5 @@
 import UIKit
+import DesignSystem
 import PolkadotUI
 import SnapKit
 
@@ -8,7 +9,10 @@ private struct ScreenOverride {
 }
 
 final class TabBarBottomChromeController: UIViewController {
-    private let glassContainer = DSGlassContainerView(shape: .rounded(32))
+    private let glassContainer = DSGlassContainerView(
+        shape: .rounded(32),
+        tint: UIColor.bgSurfaceContainer
+    )
     private let barView = DSTabBarView()
     private let floatingWidgetContainerView = MainTabBarFloatingWidgetStackView()
     private let tabsPanelView = DSTabBarTabsPanelView()
@@ -22,12 +26,12 @@ final class TabBarBottomChromeController: UIViewController {
     private weak var appliedContentController: UIViewController?
 
     private var isTabRoot = true
-    private var stackFolds = false
+    private var foldDerived: TabBarFoldDerived = .none
     private weak var navigationScreen: UIViewController?
     private var screenOverrides: [ScreenOverride] = []
     private var pendingFoldVelocity: CGFloat = 0
     private var isFoldInterpolating = false
-    private var state: TabBarFoldState = .shown
+    private var state: TabBarVisibilityState = .shown
     private var appliedGlassContainerHeight: CGFloat = 0
     private var foldAnimator: UIViewPropertyAnimator?
     private var panelAnimator: UIViewPropertyAnimator?
@@ -39,7 +43,7 @@ final class TabBarBottomChromeController: UIViewController {
     var onChipCloseRequested: ((UUID) -> Void)?
 
     private var occupiedHeight: CGFloat {
-        guard TabBarFoldPolicy.contributesClearance(isTabRoot: isTabRoot) else {
+        guard TabBarVisibilityPolicy.contributesClearance(isTabRoot: isTabRoot) else {
             return view.safeAreaInsets.bottom
         }
         return DSTabBarView.preferredHeight()
@@ -88,7 +92,7 @@ final class TabBarBottomChromeController: UIViewController {
             return
         }
         foldOffsetWidth = view.bounds.width
-        applyFold(barView.isFolded, animated: false, initialVelocity: 0)
+        applyVisibility(state, animated: false, initialVelocity: 0)
     }
 
     func setItems(_ items: [DSTabBarItem]) {
@@ -113,13 +117,14 @@ final class TabBarBottomChromeController: UIViewController {
         )
         tabsPanelView.closeActionTitle = String(localized: .Common.close)
 
+        if chips.isEmpty || availablePanelHeight <= 0 {
+            setPanelOpen(false, animated: true)
+            return
+        }
+
         let animator = isPanelOpen ? makePanelAnimator() : nil
         updateGlassContainerHeight(animator: animator)
         animator?.startAnimation()
-
-        if chips.isEmpty || availablePanelHeight <= 0 {
-            setPanelOpen(false, animated: true)
-        }
     }
 
     func setPanelOpen(_ open: Bool, animated: Bool) {
@@ -140,7 +145,7 @@ final class TabBarBottomChromeController: UIViewController {
         animatingAlongside transitionCoordinator: UIViewControllerTransitionCoordinator? = nil
     ) {
         isTabRoot = context.isTabRoot
-        stackFolds = context.stackFolds
+        foldDerived = context.foldDerived
         navigationScreen = context.screen
 
         applyLayout(context, animatingAlongside: transitionCoordinator)
@@ -157,11 +162,22 @@ final class TabBarBottomChromeController: UIViewController {
         updateLayout(animatingAlongside: transitionCoordinator)
     }
 
-    func setFoldProgress(_ progress: CGFloat, targetFolded: Bool) {
-        isFoldInterpolating = true
+    /// Resolves the visibility state a context would settle on, without committing it — used to
+    /// drive the offset alongside an interactive navigation transition.
+    func resolvedState(for context: TabBarChromeContext) -> TabBarVisibilityState {
+        TabBarVisibilityPolicy.state(
+            isTabRoot: context.isTabRoot,
+            derived: context.foldDerived,
+            override: override(for: context.screen)
+        )
+    }
 
-        let foldedOffset = DSTabBarView.foldedTranslationX(availableWidth: view.bounds.width)
-        applyFoldOffset(foldedOffset * (targetFolded ? progress : 1 - progress))
+    /// Moves the chrome toward `state` in sync with an interactive transition. Unlike `apply(state:)`
+    /// it runs no animator of its own, so the caller's transition coordinator owns the timing.
+    func setInteractiveTarget(_ state: TabBarVisibilityState) {
+        isFoldInterpolating = true
+        barView.isFolded = state == .folded
+        applyFoldOffset(translationX(for: state))
     }
 
     func attachWidget(_ configuration: any HashableContentConfiguration, for id: AppWidgetID) {
@@ -186,20 +202,47 @@ final class TabBarBottomChromeController: UIViewController {
 
         updateLayout()
     }
+
+    deinit {
+        cancelAnimator(panelAnimator)
+        cancelAnimator(foldAnimator)
+    }
 }
 
 // MARK: - Fold state
 
 private extension TabBarBottomChromeController {
+    /// A property animator must reach `.inactive` before it is released; otherwise UIKit raises
+    /// `NSInternalInconsistencyException` on dealloc.
+    func cancelAnimator(_ animator: UIViewPropertyAnimator?) {
+        guard let animator else {
+            return
+        }
+
+        switch animator.state {
+        case .active:
+            animator.stopAnimation(false)
+            animator.finishAnimation(at: .current)
+        case .stopped:
+            animator.finishAnimation(at: .current)
+        default:
+            break
+        }
+    }
+
     var currentOverride: TabBarFoldOverride {
-        guard let navigationScreen else {
+        override(for: navigationScreen)
+    }
+
+    func override(for screen: UIViewController?) -> TabBarFoldOverride {
+        guard let screen else {
             return .none
         }
-        return screenOverrides.first { $0.screen === navigationScreen }?.value ?? .none
+        return screenOverrides.first { $0.screen === screen }?.value ?? .none
     }
 
     func setUserOverride(_ override: TabBarFoldOverride, velocityX: CGFloat) {
-        guard !isTabRoot, let navigationScreen else {
+        guard state != .hidden, !isTabRoot, let navigationScreen else {
             return
         }
 
@@ -211,14 +254,14 @@ private extension TabBarBottomChromeController {
     }
 
     func refresh() {
-        apply(state: TabBarFoldPolicy.state(
+        apply(state: TabBarVisibilityPolicy.state(
             isTabRoot: isTabRoot,
-            stackFolds: stackFolds,
+            derived: foldDerived,
             override: currentOverride
         ))
     }
 
-    func apply(state newState: TabBarFoldState) {
+    func apply(state newState: TabBarVisibilityState) {
         let foldVelocity = pendingFoldVelocity
         pendingFoldVelocity = 0
 
@@ -228,24 +271,21 @@ private extension TabBarBottomChromeController {
         isFoldInterpolating = false
 
         state = newState
-        if newState == .folded {
+        if newState != .shown {
             setPanelOpen(false, animated: false)
         }
-        applyFold(newState == .folded, animated: true, initialVelocity: foldVelocity)
+        applyVisibility(newState, animated: true, initialVelocity: foldVelocity)
     }
 
-    func applyFold(_ folded: Bool, animated: Bool, initialVelocity: CGFloat) {
-        barView.isFolded = folded
+    func applyVisibility(_ state: TabBarVisibilityState, animated: Bool, initialVelocity: CGFloat) {
+        barView.isFolded = state == .folded
         foldOffsetWidth = view.bounds.width
 
-        if foldAnimator?.state == .active {
-            foldAnimator?.stopAnimation(false)
-            foldAnimator?.finishAnimation(at: .current)
-        }
+        let previousFoldAnimator = foldAnimator
         foldAnimator = nil
+        cancelAnimator(previousFoldAnimator)
 
-        let foldedOffset = DSTabBarView.foldedTranslationX(availableWidth: view.bounds.width)
-        let offset = folded ? foldedOffset : 0
+        let offset = translationX(for: state)
         let apply = { self.applyFoldOffset(offset) }
 
         guard animated else {
@@ -253,8 +293,7 @@ private extension TabBarBottomChromeController {
             return
         }
 
-        let distance = abs(foldedOffset)
-        let normalized = distance > 0 ? abs(initialVelocity) / distance : 0
+        let normalized = foldReferenceDistance(for: state).map { abs(initialVelocity) / $0 } ?? 0
         let timing = UISpringTimingParameters(
             dampingRatio: 0.85,
             initialVelocity: CGVector(dx: normalized, dy: 0)
@@ -266,6 +305,25 @@ private extension TabBarBottomChromeController {
         }
         foldAnimator = animator
         animator.startAnimation()
+    }
+
+    func translationX(for state: TabBarVisibilityState) -> CGFloat {
+        switch state {
+        case .shown:
+            0
+        case .folded:
+            DSTabBarView.foldedTranslationX(availableWidth: view.bounds.width)
+        case .hidden:
+            DSTabBarView.hiddenTranslationX(availableWidth: view.bounds.width)
+        }
+    }
+
+    /// Normalises gesture velocity by the state's travel distance; `nil` when there is no travel.
+    func foldReferenceDistance(for state: TabBarVisibilityState) -> CGFloat? {
+        let distance = state == .hidden
+            ? abs(DSTabBarView.hiddenTranslationX(availableWidth: view.bounds.width))
+            : abs(DSTabBarView.foldedTranslationX(availableWidth: view.bounds.width))
+        return distance > 0 ? distance : nil
     }
 
     /// Glass cannot be moved by a transform on a nested view, so the whole container is translated.
@@ -326,10 +384,9 @@ private extension TabBarBottomChromeController {
 
     /// One animator drives the panel contents and the container resize so they cannot drift apart.
     func makePanelAnimator() -> UIViewPropertyAnimator {
-        if panelAnimator?.state == .active {
-            panelAnimator?.stopAnimation(false)
-            panelAnimator?.finishAnimation(at: .current)
-        }
+        let previousPanelAnimator = panelAnimator
+        panelAnimator = nil
+        cancelAnimator(previousPanelAnimator)
 
         let animator = UIViewPropertyAnimator(
             duration: DSTabBarTabsPanelView.openDuration,

@@ -21,9 +21,7 @@ final class MixnetUploadService: @unchecked Sendable {
     let logger: LoggerProtocol
 
     let context: MixnetUploadContext
-
-    // Sender probably should be dynamic in future and be decided based on chat
-    let proofWallet: WalletManaging
+    let senderProvider: AttachmentsSenderProviding
     let allowanceManager: AllowanceManaging
 
     private var uploadTask: Task<Void, Never>?
@@ -32,13 +30,13 @@ final class MixnetUploadService: @unchecked Sendable {
         loaderFactory: HOPFileLoaderMaking,
         storageFacade: StorageFacadeProtocol,
         uploadContextFactory: UploadFileContextFactory,
-        proofWallet: WalletManaging,
+        senderProvider: AttachmentsSenderProviding,
         allowanceManager: AllowanceManaging,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.loaderFactory = loaderFactory
-        self.proofWallet = proofWallet
+        self.senderProvider = senderProvider
         self.allowanceManager = allowanceManager
         self.uploadContextFactory = uploadContextFactory
 
@@ -88,7 +86,7 @@ private extension MixnetUploadService {
     func performUploadingIfNeeded(for uploadData: MixnetUploadData) async {
         await context.processUploadData(
             for: uploadData
-        ) { [logger, loaderFactory, uploadContextFactory, proofWallet, weak self] in
+        ) { [logger, loaderFactory, uploadContextFactory, senderProvider, allowanceManager, weak self] in
             Task {
                 do {
                     try await markStallActivity("Sending attachment") {
@@ -103,6 +101,11 @@ private extension MixnetUploadService {
 
                         let fileLoader = try loaderFactory.makeLoader(for: credentials.node)
                         let recipients = try FileRecipients(ticket: credentials.ticket)
+
+                        let proofWallet = try await senderProvider.getWallet(for: uploadData.chatId)
+
+                        let accountId = try proofWallet.getRawPublicKey()
+                        try await allowanceManager.allocate(accountId: accountId, policy: .ignore, priority: .normal)
 
                         let sender = try proofWallet.getMultiSigner()
                         let proofProvider = SenderProofProvider(sender: sender) { data in
@@ -194,15 +197,12 @@ private extension MixnetUploadService {
     }
 
     func startUploading() {
-        uploadTask = Task { [proofWallet, allowanceManager, messageProviderFactory, logger] in
+        uploadTask = Task { [messageProviderFactory, logger] in
             do {
                 try await withRetry(
                     maxAttempts: MixnetUploadService.retryMaxAttempts,
                     initialDelay: MixnetUploadService.retryInitialDelay
                 ) { [weak self] in
-                    let accountId = try proofWallet.getRawPublicKey()
-                    try await allowanceManager.allocate(accountId: accountId, policy: .ignore, priority: .normal)
-
                     let stream = messageProviderFactory.subscribeMessages(
                         with: .newLocalDeviceOutgoingRemoteRichTextMessages()
                     )

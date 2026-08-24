@@ -2,6 +2,7 @@ import Foundation
 import SubstrateSdk
 import Coinage
 import ChainRegistry
+import Products
 
 protocol WalletFlowContextProtocol {
     var depositService: DepositServiceProtocol { get }
@@ -12,6 +13,7 @@ protocol WalletFlowContextProtocol {
     var personDataStore: DetermineStatePersonDataStore { get }
     var balanceSyncStateStorage: BalanceSyncStateStoring { get }
     var networkStatusService: NetworkStatusProviding { get }
+    var flowState: SPAFlowState { get }
 }
 
 final class WalletFlowContext: WalletFlowContextProtocol {
@@ -23,6 +25,7 @@ final class WalletFlowContext: WalletFlowContextProtocol {
     let personDataStore: DetermineStatePersonDataStore
     let balanceSyncStateStorage: BalanceSyncStateStoring
     let networkStatusService: NetworkStatusProviding
+    let flowState: SPAFlowState
 
     init(
         depositService: DepositServiceProtocol,
@@ -32,7 +35,8 @@ final class WalletFlowContext: WalletFlowContextProtocol {
         coinageBackupSyncService: CoinageBackupSyncServicing,
         personDataStore: DetermineStatePersonDataStore,
         networkStatusService: NetworkStatusProviding,
-        balanceSyncStateStorage: BalanceSyncStateStoring = BalanceSyncStateStorage()
+        balanceSyncStateStorage: BalanceSyncStateStoring = BalanceSyncStateStorage(),
+        flowState: SPAFlowState
     ) {
         self.depositService = depositService
         self.fiatOnrampService = fiatOnrampService
@@ -42,5 +46,6 @@ final class WalletFlowContext: WalletFlowContextProtocol {
         self.personDataStore = personDataStore
         self.networkStatusService = networkStatusService
         self.balanceSyncStateStorage = balanceSyncStateStorage
+        self.flowState = flowState
     }
 }

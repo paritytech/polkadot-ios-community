@@ -3,15 +3,18 @@ import DesignSystem
 
 public struct DisclosureListRow<Leading: View>: View {
     private let title: String
+    private let subtitle: String?
     private let leading: Leading
     private let onTap: () -> Void
 
     public init(
         title: String,
+        subtitle: String? = nil,
         @ViewBuilder leading: () -> Leading,
         onTap: @escaping () -> Void
     ) {
         self.title = title
+        self.subtitle = subtitle
         self.leading = leading()
         self.onTap = onTap
     }
@@ -21,9 +24,19 @@ public struct DisclosureListRow<Leading: View>: View {
             HStack(spacing: 12) {
                 leading
 
-                Text(title)
-                    .typography(.titleLarge)
-                    .foregroundColor(Color(.fgPrimary))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .typography(.titleLarge)
+                        .foregroundColor(Color(.fgPrimary))
+                        .lineLimit(1)
+
+                    if let subtitle {
+                        Text(subtitle)
+                            .typography(.bodyMedium)
+                            .foregroundColor(Color(.fgSecondary))
+                            .lineLimit(1)
+                    }
+                }
 
                 Spacer()
 
@@ -39,7 +52,7 @@ public struct DisclosureListRow<Leading: View>: View {
 }
 
 public extension DisclosureListRow where Leading == EmptyView {
-    init(title: String, onTap: @escaping () -> Void) {
-        self.init(title: title, leading: { EmptyView() }, onTap: onTap)
+    init(title: String, subtitle: String? = nil, onTap: @escaping () -> Void) {
+        self.init(title: title, subtitle: subtitle, leading: { EmptyView() }, onTap: onTap)
     }
 }

@@ -2,6 +2,7 @@ import Foundation
 import Operation_iOS
 import CoreData
 import SubstrateSdk
+import OperationExt
 
 protocol MessagesLocalStorageServicing {
     func message(
@@ -22,22 +23,41 @@ protocol MessagesLocalStorageServicing {
         messageIds: Set<String>,
         contactId: AccountId
     ) -> CompoundOperationWrapper<Void>
+
+    func fetchExpandedMessages(
+        for compactionIds: Set<String>
+    ) -> CompoundOperationWrapper<[Chat.LocalMessage]>
+
+    func commitCompaction(
+        compactedRemoteMessage: Chat.RemoteMessage,
+        originalMessageIds: [String]
+    ) -> BaseOperation<Void>
 }
 
 final class MessagesLocalStorageService: MessagesLocalStorageServicing {
     private let repositoryFactory: ChatMessageRepositoryMaking
     private let statusUpdateRepositoryFactory: ChatMessageStatusUpdateRepositoryMaking
+    private let compactionCommitRepository: AnyDataProviderRepository<CompactionCommitMapper.Model>
     private let logger: LoggerProtocol
+    private let operationQueue: OperationQueue
 
     init(
         repositoryFactory: ChatMessageRepositoryMaking = ChatMessageRepositoryFactory(),
         statusUpdateRepositoryFactory: ChatMessageStatusUpdateRepositoryMaking =
             ChatMessageStatusUpdateRepositoryFactory(),
+        storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
+        operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.repositoryFactory = repositoryFactory
         self.statusUpdateRepositoryFactory = statusUpdateRepositoryFactory
+        self.operationQueue = operationQueue
         self.logger = logger
+
+        compactionCommitRepository = storageFacade.createRepository(
+            mapper: CompactionCommitMapper().eraseType()
+        )
+        .eraseType()
     }
 
     func message(
@@ -69,6 +89,24 @@ final class MessagesLocalStorageService: MessagesLocalStorageServicing {
 
     func markAsSeen(_ messageIds: [String]) -> CompoundOperationWrapper<Void> {
         updateStatusWrapper(for: messageIds, to: .incoming(.seen))
+    }
+
+    func fetchExpandedMessages(
+        for compactionIds: Set<String>
+    ) -> CompoundOperationWrapper<[Chat.LocalMessage]> {
+        expandedMessagesWrapper(for: compactionIds, accumulatedMessages: [])
+    }
+
+    func commitCompaction(
+        compactedRemoteMessage: Chat.RemoteMessage,
+        originalMessageIds: [String]
+    ) -> BaseOperation<Void> {
+        let commitModel = CompactionCommitMapper.Model(
+            compactedRemoteMessage: compactedRemoteMessage,
+            originalMessageIds: originalMessageIds
+        )
+
+        return compactionCommitRepository.saveOperation({ [commitModel] }, { [] })
     }
 
     func markSentAsNewIfMissingIn(
@@ -139,5 +177,49 @@ private extension MessagesLocalStorageService {
             targetOperation: saveOperation,
             dependencies: [fetchExisting]
         )
+    }
+
+    func fetchByCompactionIds(_ compactionIds: Set<String>) -> BaseOperation<[Chat.LocalMessage]> {
+        let filter = NSPredicate.messagesByCompactionIds(compactionIds)
+        let repository = repositoryFactory.createRepository(forFilter: filter)
+        return repository.fetchAllOperation(with: RepositoryFetchOptions())
+    }
+
+    func expandedMessagesWrapper(
+        for compactionIds: Set<String>,
+        accumulatedMessages: [Chat.LocalMessage]
+    ) -> CompoundOperationWrapper<[Chat.LocalMessage]> {
+        guard !compactionIds.isEmpty else {
+            return .createWithResult(accumulatedMessages)
+        }
+
+        let fetchOperation = fetchByCompactionIds(compactionIds)
+
+        let wrapper = OperationCombiningService<[Chat.LocalMessage]>.compoundNonOptionalWrapper(
+            operationQueue: operationQueue
+        ) {
+            let allMessageIds = Set(accumulatedMessages.map(\.messageId))
+            let directMessages = try fetchOperation
+                .extractNoCancellableResultData()
+                .filter { !allMessageIds.contains($0.messageId) }
+
+            let nestedCompactionIds = Set(
+                directMessages
+                    .filter { $0.content.contentType == .compactedMessages }
+                    .map(\.messageId)
+            )
+
+            let newMessages = accumulatedMessages + directMessages
+
+            guard !nestedCompactionIds.isEmpty else {
+                return .createWithResult(newMessages)
+            }
+
+            return self.expandedMessagesWrapper(for: nestedCompactionIds, accumulatedMessages: newMessages)
+        }
+
+        wrapper.addDependency(operations: [fetchOperation])
+
+        return wrapper.insertingHead(operations: [fetchOperation])
     }
 }

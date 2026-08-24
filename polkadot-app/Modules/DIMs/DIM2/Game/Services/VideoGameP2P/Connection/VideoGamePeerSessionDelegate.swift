@@ -100,6 +100,12 @@ final class VideoGamePeerSessionDelegate: VideoGamePeerSessionDelegating {
         respondHandler(.success)
     }
 
+    func peerSession(
+        _: any PeerSessionProtocol,
+        didCompactMessages _: OpaqueVideoGameSignalingEnvelope,
+        originalMessages _: [OpaqueVideoGameSignalingEnvelope]
+    ) {}
+
     func peerSessionDidReceiveMessagesError(
         _: any PeerSessionProtocol,
         respondHandler: @escaping (MessageExchange.ResponseCode) -> Void

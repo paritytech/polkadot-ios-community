@@ -6,24 +6,28 @@ final class RootWireframe: RootWireframeProtocol {
     private let userNotificationService: UserNotificationServicing
     private weak var foregroundVisibilityReporter: PushForegroundVisibilityReporting?
     private let deepLinkHandler: DeferredLinkHandling
+    private let flowStateProvider: any SPAFlowStateProviding
 
     init(
         window: UIWindow,
         userNotificationService: UserNotificationServicing,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting?,
-        deepLinkHandling: DeferredLinkHandling
+        deepLinkHandling: DeferredLinkHandling,
+        flowStateProvider: any SPAFlowStateProviding
     ) {
         self.window = window
         self.userNotificationService = userNotificationService
         self.foregroundVisibilityReporter = foregroundVisibilityReporter
         deepLinkHandler = deepLinkHandling
+        self.flowStateProvider = flowStateProvider
     }
 
     func showDashboard() {
         guard let dashboard = MainTabBarViewFactory.createView(
             userNotificationService: userNotificationService,
             foregroundVisibilityReporter: foregroundVisibilityReporter,
-            deepLinkHandling: deepLinkHandler
+            deepLinkHandling: deepLinkHandler,
+            flowStateProvider: flowStateProvider
         ) else {
             return
         }

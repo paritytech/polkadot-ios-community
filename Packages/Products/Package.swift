@@ -90,6 +90,8 @@ let package = Package(
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "web3swift", package: "web3swift"),
                 .product(name: "KeyDerivation", package: "KeyDerivation"),
+                .product(name: "SDKLogger", package: "logger-ios"),
+                .product(name: "AsyncExtensions", package: "AsyncExtensions"),
             ]
         )
     ]

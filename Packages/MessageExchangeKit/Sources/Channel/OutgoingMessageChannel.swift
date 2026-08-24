@@ -76,21 +76,20 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
         return true
     }
 
-    func restoreState(from requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
+    func activate(restoringState requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
         requestQueue.currentRequests = requests
+        isActive = true
+
+        logger?.debug("Trying to send messages as channel became active")
+        let extendedRoutes = requestQueue.attemptRequestExtensionFromQueue()
+        for route in extendedRoutes {
+            resendCurrentRequest(on: route)
+        }
+        sendQueuedRequests()
     }
 
-    func setActive(_ isActive: Bool) {
-        self.isActive = isActive
-
-        if isActive {
-            logger?.debug("Trying to send messages as channel became active")
-            let extendedRoutes = requestQueue.attemptRequestExtensionFromQueue()
-            for route in extendedRoutes {
-                resendCurrentRequest(on: route)
-            }
-            sendQueuedRequests()
-        }
+    func deactivate() {
+        isActive = false
     }
 
     func addMessagesToQueue(_ messages: [Message]) {
@@ -127,6 +126,12 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
         if didQueue {
             sendQueuedRequests()
         }
+    }
+
+    func reset(route: PeerSessionRoute) {
+        submissionTasks[route]?.cancel()
+        submissionTasks[route] = nil
+        requestQueue.reset(route: route)
     }
 }
 

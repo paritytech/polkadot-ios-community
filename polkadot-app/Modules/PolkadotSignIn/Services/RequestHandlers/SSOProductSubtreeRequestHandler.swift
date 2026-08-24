@@ -7,12 +7,12 @@ import Products
 /// on-chain once used. Only `AutoSigning` requires consent.
 final class SSOProductSubtreeRequestHandler: SSORequestHandling {
     private let accountManager: ProductsAccountManaging
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let logger: LoggerProtocol
 
     init(
         accountManager: ProductsAccountManaging,
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.accountManager = accountManager
@@ -20,9 +20,9 @@ final class SSOProductSubtreeRequestHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .productSubtreeRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .productSubtreeRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

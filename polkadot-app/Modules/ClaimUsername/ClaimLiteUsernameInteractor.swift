@@ -1,18 +1,19 @@
 import UIKit
 import SubstrateSdk
 import Operation_iOS
-import Combine
 import KeyDerivation
 import SubstrateSdkExt
+import StructuredConcurrency
+import Individuality
 
 struct ClaimLiteUsernameDependency {
     let walletSetupManagerFactory: () -> WalletSetupManaging
     let registrationParamsFactory: (
         _ mainWallet: WalletManaging
     ) throws -> LitePersonParamsFactoryProtocol
+    let chainTimeProvider: () -> ChainTimeProviding
     let usernameOperationFactory: () -> UsernameOperationFactoryProtocol
     let usernameStorage: () -> UsernameStoring
-    let operationQueue: () -> OperationQueue
     let mainWallet: WalletManaging
 }
 
@@ -24,7 +25,6 @@ final class ClaimLiteUsernameInteractor {
 
     lazy var usernameOperationFactory = dependencies.usernameOperationFactory()
     lazy var usernameStorage = dependencies.usernameStorage()
-    lazy var operationQueue = dependencies.operationQueue()
 
     let logger: LoggerProtocol
 
@@ -44,26 +44,33 @@ extension ClaimLiteUsernameInteractor: ClaimUsernameInteractorInputProtocol {
         .default
     }
 
-    func claim(username: Username) -> AnyPublisher<Username, Error> {
-        if walletCreated {
-            claimWithPersistedWallet(username)
-        } else {
-            createWalletsThenClaimUsername(username)
+    func claim(username: Username) async throws -> Username {
+        await presenter?.didChangeAccountCreation(inProgress: true)
+
+        do {
+            if !walletCreated {
+                try await createWallet()
+            }
+
+            return try await performClaim(
+                username: username,
+                registrationFactory: registrationFactory()
+            )
+        } catch {
+            await presenter?.didChangeAccountCreation(inProgress: false)
+            throw error
         }
     }
 
-    func check(username: Username) -> AnyPublisher<UsernameAvailableType, any Error> {
-        usernameOperationFactory.availableUsernameWrapper(for: username.value)
-            .publisher(in: operationQueue)
-            .delayAtLeast(for: 0.3)
-            .eraseToAnyPublisher()
+    func check(username: Username) async throws -> UsernameAvailableType {
+        try await withMinDuration(.milliseconds(300)) {
+            try await usernameOperationFactory.availableUsernameWrapper(for: username.value).asyncExecute()
+        }
     }
 
-    func save(username: Username) {
+    func save(username: Username) async {
         usernameStorage.username = username
-        MainActor.assumeIsolated {
-            presenter?.didSaveUsername()
-        }
+        await presenter?.didSaveUsername()
     }
 }
 
@@ -76,107 +83,77 @@ private extension ClaimLiteUsernameInteractor {
         try dependencies.registrationParamsFactory(dependencies.mainWallet)
     }
 
-    func claimWithPersistedWallet(_ username: Username) -> AnyPublisher<Username, Error> {
-        do {
-            let factory = try registrationFactory()
-            return performClaim(username: username, registrationFactory: factory)
-        } catch {
-            return Fail(error: error).eraseToAnyPublisher()
-        }
-    }
-
     func performClaim(
         username: Username,
         registrationFactory: LitePersonParamsFactoryProtocol
-    ) -> AnyPublisher<Username, Error> {
-        usernameOperationFactory.attester()
-            .publisher(in: operationQueue)
-            .tryMap { $0.attester }
-            .flatMap { accountId in
-                Result {
-                    try registrationFactory.deriveLitePersonParams(
-                        for: username.partialUsername,
-                        verifier: accountId
-                    )
-                }
-                .publisher
-            }
-            .tryMap {
-                try RegisterUsernameParameters(
-                    username: username.partialUsername,
-                    preferredDigits: username.digits,
-                    candidateAccountId: $0.accountId.toAddress(using: .substrate(42)),
-                    candidateSignature: $0.accountIdProofSignature,
-                    ringVrfKey: $0.personMemberKey,
-                    proofOfOwnership: $0.membershipProofSignature,
-                    identifierKey: $0.encryptionIdentifier.scaleEncoded(),
-                    consumerRegistrationSignature: $0.resourcesSignature
-                )
-            }
-            .flatMap { [usernameOperationFactory, operationQueue] in
-                usernameOperationFactory.claimUsername(
-                    using: $0
-                )
-                .publisher(in: operationQueue)
-            }
-            .map { Username(value: $0.username) }
-            .eraseToAnyPublisher()
+    ) async throws -> Username {
+        let attester = try await usernameOperationFactory.attester().asyncExecute().attester
+        let signedAt = try await dependencies.chainTimeProvider().nowSeconds()
+
+        let requestParams = try registrationFactory.registrationParams(
+            for: username,
+            attester: attester,
+            signedAt: signedAt
+        )
+
+        let response = try await usernameOperationFactory.claimUsername(using: requestParams).asyncExecute()
+
+        return Username(value: response.username)
     }
 
-    func createWalletsThenClaimUsername(_ username: Username) -> AnyPublisher<Username, Error> {
-        MainActor.assumeIsolated {
-            presenter?.didChangeAccountCreation(inProgress: true)
+    func createWallet() async throws {
+        guard await authorizeUserAsync() else {
+            throw FlowError.internalError
         }
 
-        return authorizeUser()
-            .flatMap { [dependencies] _ -> AnyPublisher<Void, Error> in
-                Result {
-                    let walletSetupManager = dependencies.walletSetupManagerFactory()
-                    try walletSetupManager.createWallets(with: nil)
-                }
-                .publisher
-                .eraseToAnyPublisher()
-            }
-            .flatMap { [weak self] _ -> AnyPublisher<Username, Error> in
-                guard let self else {
-                    return Fail(error: FlowError.internalError).eraseToAnyPublisher()
-                }
+        let walletSetupManager = dependencies.walletSetupManagerFactory()
+        try walletSetupManager.createWallets(with: nil)
 
-                walletCreated = true
-                return claimWithPersistedWallet(username)
-            }
-            .handleEvents(
-                receiveCompletion: { [weak self] _ in
-                    Task { @MainActor in
-                        self?.presenter?.didChangeAccountCreation(inProgress: false)
-                    }
-                },
-                receiveCancel: { [weak self] in
-                    Task { @MainActor in
-                        self?.presenter?.didChangeAccountCreation(inProgress: false)
-                    }
-                }
-            )
-            .eraseToAnyPublisher()
+        walletCreated = true
     }
 
-    func authorizeUser() -> AnyPublisher<Void, Error> {
-        Future { [presenter] promise in
-            guard let presenter else {
-                promise(.failure(FlowError.internalError))
-                return
-            }
+    func authorizeUserAsync() async -> Bool {
+        guard let presenter else {
+            return false
+        }
 
-            MainActor.assumeIsolated {
+        return await withCheckedContinuation { continuation in
+            Task { @MainActor in
                 presenter.authorizeUser { authorized in
-                    if authorized {
-                        promise(.success(()))
-                    } else {
-                        promise(.failure(FlowError.internalError))
-                    }
+                    continuation.resume(returning: authorized)
                 }
             }
         }
-        .eraseToAnyPublisher()
+    }
+}
+
+private extension LitePersonParamsFactoryProtocol {
+    func registrationParams(
+        for username: Username,
+        attester: AccountId,
+        signedAt: UInt64
+    ) throws -> RegisterUsernameParameters {
+        let params = try deriveRegistrationParams(
+            for: username.partialUsername,
+            attester: attester,
+            signedAt: signedAt,
+            reservedUsername: username.partialUsername
+        )
+
+        return try RegisterUsernameParameters(
+            username: username.partialUsername,
+            preferredDigits: username.digits,
+            candidateAccountId: params.litePerson.accountId.toAddress(using: .genericFormat),
+            candidateSignature: params.litePerson.accountIdProofSignature,
+            ringVrfKey: params.litePerson.personMemberKey,
+            proofOfOwnership: params.litePerson.membershipProofSignature,
+            identifierKey: params.litePerson.encryptionIdentifier.scaleEncoded(),
+            consumerRegistrationSignature: params.litePerson.resourcesSignature,
+            dotns: .init(
+                signature: params.reservation.signature,
+                signedAt: Int(params.reservation.signedAt),
+                reservedUsername: params.reservation.reservedUsername
+            )
+        )
     }
 }

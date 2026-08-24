@@ -1,7 +1,7 @@
 import Foundation
 import SubstrateSdk
 
-protocol ReviveContractCalling {
+protocol ReviveContractCalling: Sendable {
     func callReadOnly(
         connection: JSONRPCEngine,
         runtimeProvider: RuntimeCodingServiceProtocol,

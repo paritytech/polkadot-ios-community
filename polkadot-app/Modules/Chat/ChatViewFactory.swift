@@ -94,7 +94,7 @@ enum ChatViewFactory {
             ),
             productRepository: ProductRepositoryFactory().createRepository(),
             productNameCache: ProductNameCache(),
-            dotNsResolver: SPAFlowState.create()?.dotNsResolver
+            flowState: flowState.flowState
         )
 
         let presenter = ChatPresenter(

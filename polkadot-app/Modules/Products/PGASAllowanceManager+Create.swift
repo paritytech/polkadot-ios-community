@@ -1,4 +1,5 @@
 import Foundation
+import ExtrinsicService
 import Individuality
 import KeyDerivation
 import Operation_iOS
@@ -37,10 +38,19 @@ extension PGASAllowanceManager {
             operationQueue: operationQueue
         )
 
-        guard
-            let ahChain = chainRegistry.getChain(for: AppConfig.Chains.assethubChain),
-            let monitorFactory = try? extrinsicFacade.createMonitorFactory(chain: ahChain)
-        else {
+        let logger = Logger.shared
+
+        guard let ahChain = chainRegistry.getChain(for: AppConfig.Chains.assethubChain) else {
+            logger.error("PGAS disabled: AssetHub chain not found in registry")
+            return nil
+        }
+
+        let monitorFactory: ExtrinsicSubmitMonitorFactoryProtocol
+
+        do {
+            monitorFactory = try extrinsicFacade.createMonitorFactory(chain: ahChain)
+        } catch {
+            logger.error("PGAS disabled: monitor factory failed: \(error)")
             return nil
         }
 

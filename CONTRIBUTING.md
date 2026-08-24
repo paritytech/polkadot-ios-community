@@ -22,11 +22,11 @@ Requirements: Xcode with the iOS 17.0+ SDK.
 ```bash
 git clone https://github.com/paritytech/polkadot-ios-community.git
 cd polkadot-ios-community
-./Scripts/setup-secrets.sh
+./Runscripts/setup-secrets.sh
 open polkadot-app.xcodeproj
 ```
 
-`Scripts/setup-secrets.sh` scaffolds the gitignored config files from templates
+`Runscripts/setup-secrets.sh` scaffolds the gitignored config files from templates
 and generates the build-time configuration. Swift Package Manager dependencies
 resolve automatically on first build. See [CLAUDE.md](./CLAUDE.md) for the
 architecture overview and [docs/PUBLISHING.md](./docs/PUBLISHING.md) for
@@ -63,7 +63,5 @@ xcodebuild test -project polkadot-app.xcodeproj -scheme polkadot-appTests \
 ## Licensing of contributions
 
 By contributing, you agree that your contributions are licensed under the
-project's [GNU General Public License v3.0](./LICENSE). Don't add dependencies
-or code under licenses incompatible with GPL-3.0; the CI license-compliance
-check ([`Scripts/check-license-compliance.sh`](./Scripts/check-license-compliance.sh))
-enforces part of this.
+project's [GNU General Public License v3.0](./LICENSE). Don't add dependencies or
+code under licenses incompatible with GPL-3.0.

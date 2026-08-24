@@ -10,7 +10,7 @@ final class SPARustRuntimeInteractor {
     weak var presenter: SPAInteractorOutputProtocol?
 
     private let runtimeFactory: SPARuntimeFactoryProtocol
-    private let dotNsResolver: DotNsResolverProtocol
+    private let productResolver: ProductResolving
     private let configuration: SPAConfiguration
     private let logger: LoggerProtocol
     private let productRepository: AnyDataProviderRepository<Product>
@@ -18,20 +18,22 @@ final class SPARustRuntimeInteractor {
 
     private var runtime: SPARuntimeProtocol?
     private var jsEngine: JSEngineProtocol?
+    // Held so the synchronous `hasChatEntry` can answer from the manifest without re-resolving.
+    private var resolvedProduct: ResolvedProduct?
 
     private var setupTask: Task<Void, Never>?
     private var openChatTask: Task<Void, Never>?
 
     init(
         runtimeFactory: SPARuntimeFactoryProtocol,
-        dotNsResolver: DotNsResolverProtocol,
+        productResolver: ProductResolving,
         configuration: SPAConfiguration,
         logger: LoggerProtocol,
         productRepository: AnyDataProviderRepository<Product>,
         chatProviderFactory: ChatContactDataProviderMaking
     ) {
         self.runtimeFactory = runtimeFactory
-        self.dotNsResolver = dotNsResolver
+        self.productResolver = productResolver
         self.configuration = configuration
         self.logger = logger
         self.productRepository = productRepository
@@ -64,7 +66,8 @@ extension SPARustRuntimeInteractor: SPAInteractorInputProtocol {
     }
 
     func hasChatEntry() -> Bool {
-        dotNsResolver.hasChatEntry(configuration.page.host.toDotDomain())
+        // Declared, or not offered: a product with no worker manifest has no chat surface here.
+        resolvedProduct?.executables.worker?.includesChat ?? false
     }
 
     func openChat() {
@@ -106,8 +109,11 @@ private extension SPARustRuntimeInteractor {
             )
             runtime = newRuntime
 
-            setupTask = Task { [weak self] in
+            setupTask = Task { [weak self, productResolver, configuration] in
                 do {
+                    self?.resolvedProduct = try await productResolver
+                        .resolve(configuration.page.host.toDotDomain())
+
                     let url = try await newRuntime.start(with: engine)
                     self?.presenter?.didRequestNavigation(to: url)
                 } catch is CancellationError {
@@ -124,7 +130,10 @@ private extension SPARustRuntimeInteractor {
     }
 
     func enableProduct() async throws -> ChatExtension.Id {
-        let product = Product(id: configuration.page.host.toDotDomain(), name: configuration.page.host.name)
+        let product = Product(
+            id: configuration.page.host.toDotDomain(),
+            name: resolvedProduct?.displayName ?? configuration.page.host.name
+        )
         let extensionId = product.extensionId
 
         let existingProduct = try await productRepository

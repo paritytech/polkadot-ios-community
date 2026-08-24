@@ -2,13 +2,13 @@ import Foundation
 import KeyDerivation
 
 final class SSOSignRawLegacyHandler: SSORequestHandling {
-    private let messageSender: PolkadotHostMessageSending
+    private let messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>
     private let signingHandler: TransactionSigningHandling
     private let accountResolver: IdentityAccountResolving
     private let logger: LoggerProtocol
 
     init(
-        messageSender: PolkadotHostMessageSending,
+        messageSender: any PolkadotHostMessageSending<PolkadotHostRemoteMessage>,
         signingHandler: TransactionSigningHandling,
         accountResolver: IdentityAccountResolving = IdentityAccountResolver(),
         logger: LoggerProtocol = Logger.shared
@@ -19,9 +19,9 @@ final class SSOSignRawLegacyHandler: SSORequestHandling {
         self.logger = logger
     }
 
-    func canHandle(_ content: PolkadotHostRemoteMessage.LatestContent) -> Bool {
-        if case .signRawLegacyRequest = content { return true }
-        return false
+    func canHandle(_ message: PolkadotHostRemoteMessage) -> Bool {
+        guard case .signRawLegacyRequest = message.latestContent() else { return false }
+        return true
     }
 
     func handle(

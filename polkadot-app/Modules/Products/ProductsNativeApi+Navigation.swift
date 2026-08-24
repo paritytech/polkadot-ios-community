@@ -9,8 +9,8 @@ extension ProductsNativeApi {
     private static let allowedExternalSchemes: Set<String> = ["http", "https", "mailto", "tel", "sms", "maps"]
 
     func navigateTo(destination: String) async throws {
-        if let destinationHost = ProductHost.fromNavigationDestination(destination) {
-            try await navigationRouter.navigateTo(destination: destinationHost)
+        if let destinationPage = hostProvider.page(navigationDestination: destination) {
+            try await navigationRouter.navigateTo(destination: destinationPage)
             return
         }
 
@@ -40,7 +40,7 @@ extension ProductsNativeApi {
         }
 
         // Same-product short-circuit: a product can always access its own assets.
-        if let requestedProduct = ProductId.fromUrl(parsed), requestedProduct == productId {
+        if let requestedProduct = hostProvider.host(url: parsed)?.toDotDomain(), requestedProduct == productId {
             return true
         }
 

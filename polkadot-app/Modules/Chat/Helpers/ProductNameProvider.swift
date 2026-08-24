@@ -7,6 +7,7 @@ actor ProductNameProvider {
     private nonisolated let host: ProductHost
     private nonisolated let productRepository: AnyDataProviderRepository<Product>
     private nonisolated let dotNsResolver: DotNsResolverProtocol?
+    private nonisolated let productResolver: ProductResolving?
     private nonisolated let nameCache: ProductNameCaching
     private nonisolated let htmlParser: ProductLinkHTMLParsing
     private var currentTask: Task<Void, Never>?
@@ -15,12 +16,14 @@ actor ProductNameProvider {
         host: ProductHost,
         productRepository: AnyDataProviderRepository<Product>,
         dotNsResolver: DotNsResolverProtocol?,
+        productResolver: ProductResolving?,
         nameCache: ProductNameCaching,
         htmlParser: ProductLinkHTMLParsing = ProductLinkHTMLParser()
     ) {
         self.host = host
         self.productRepository = productRepository
         self.dotNsResolver = dotNsResolver
+        self.productResolver = productResolver
         self.nameCache = nameCache
         self.htmlParser = htmlParser
     }
@@ -74,6 +77,18 @@ private extension ProductNameProvider {
             return cachedName
         }
 
+        switch await fetchManifestName(domain: domain) {
+        case let .declared(name):
+            nameCache.store(name: name, for: domain)
+            return name
+        case .malformed:
+            // The product's own bug. A title scraped from the base archive would name content the
+            // product stopped declaring, so it keeps the domain until the publisher fixes it.
+            return fallback
+        case .undeclared:
+            break
+        }
+
         let storedProduct = try? await productRepository
             .fetchOperation(by: { domain }, options: RepositoryFetchOptions())
             .asyncExecute()
@@ -92,6 +107,28 @@ private extension ProductNameProvider {
         }
 
         return resolved
+    }
+
+    /// `undeclared` covers both a product that publishes no manifest and a name that could not be
+    /// read at all; either way the archive is the only remaining source of a name.
+    enum ManifestName {
+        case declared(String)
+        case malformed
+        case undeclared
+    }
+
+    nonisolated func fetchManifestName(domain: String) async -> ManifestName {
+        guard let productResolver else { return .undeclared }
+
+        do {
+            let resolved = try await productResolver.resolve(domain)
+
+            return resolved.hasManifest ? .declared(resolved.displayName) : .undeclared
+        } catch ProductResolutionError.malformedManifest {
+            return .malformed
+        } catch {
+            return .undeclared
+        }
     }
 
     nonisolated func fetchHTMLTitle(domain: String) async -> String? {

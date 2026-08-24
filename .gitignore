@@ -34,7 +34,6 @@ playground.xcworkspace
 .swiftpm/
 .build/
 source_packages
-DerivedData/
 
 # CocoaPods
 #
@@ -54,6 +53,17 @@ DerivedData/
 
 Carthage/Build/
 
+# fastlane
+#
+# It is recommended to not store the screenshots in the git repo.
+# Instead, use fastlane to re-generate the screenshots whenever they are needed.
+# For more information about the recommended setup visit:
+# https://docs.fastlane.tools/best-practices/source-control/#source-control
+
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
 ### SwiftPackageManager ###
 xcuserdata
 # *.xcodeproj
@@ -68,19 +78,14 @@ xcuserdata
 /*.gcno
 **/xcshareddata/WorkspaceSettings.xcsettings
 
-# Secrets — never commit real credentials. See docs/PUBLISHING.md.
-polkadot-app/env-vars.sh
-*.generated.swift
-.env*
-!.env.example
-
-# Real Firebase config (scaffolded from the *.template files by Scripts/setup-secrets.sh)
-polkadot-app/GoogleService-Info.plist
-polkadot-app/GoogleService/GoogleService-Info-Dev.plist
-polkadot-app/GoogleService/GoogleService-Info-Release.plist
-
-# MCP config (embeds an org-specific Sentry org/project; scaffolded from .mcp.json.template)
+# MCP config (may embed an org-specific Sentry org/project; keep local)
 .mcp.json
+
+# Secrets
+polkadot-app/env-vars.sh
+polkadot-app/GoogleService-Info.plist
+polkadot-app/GoogleService/GoogleService-Info-*.plist
+*.generated.swift
 
 # Misc
 **/.DS_Store
@@ -93,9 +98,3 @@ __pycache__
 
 # temp
 tmp/
-
-# AI agent local state (shared config like CLAUDE.md stays tracked)
-.claude/
-.codex/
-.cursor/
-.gemini/
