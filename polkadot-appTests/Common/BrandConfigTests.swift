@@ -25,7 +25,6 @@ struct BrandConfigTests {
         }
 
         #expect(!AppConfig.Brand.deeplinkSchemes.isEmpty)
-        #expect(AppConfig.Brand.Key.allCases.count == 10)
     }
 
     @Test("Deeplink scheme agrees with the registered URL type")

@@ -3,19 +3,6 @@ import Foundation
 /// Build-time brand identity, injected through Info.plist by Configs/brand.xcconfig.
 extension AppConfig {
     enum Brand {
-        enum Key: String, CaseIterable {
-            case displayName = "BrandDisplayName"
-            case appGroup = "BrandAppGroup"
-            case deeplinkScheme = "BrandDeeplinkScheme"
-            case deeplinkSchemes = "BrandDeeplinkSchemes"
-            case shareRoot = "BrandShareRoot"
-            case cashSymbol = "BrandCashSymbol"
-            case fiatSymbol = "BrandFiatSymbol"
-            case termsHost = "BrandTermsHost"
-            case privacyHost = "BrandPrivacyHost"
-            case contactEmail = "BrandContactEmail"
-        }
-
         static var displayName: String { string(.displayName) }
         static var appGroup: String { string(.appGroup) }
         static var deeplinkScheme: String { string(.deeplinkScheme) }
@@ -30,6 +17,19 @@ extension AppConfig {
 }
 
 private extension AppConfig.Brand {
+    enum Key: String, CaseIterable {
+        case displayName = "BrandDisplayName"
+        case appGroup = "BrandAppGroup"
+        case deeplinkScheme = "BrandDeeplinkScheme"
+        case deeplinkSchemes = "BrandDeeplinkSchemes"
+        case shareRoot = "BrandShareRoot"
+        case cashSymbol = "BrandCashSymbol"
+        case fiatSymbol = "BrandFiatSymbol"
+        case termsHost = "BrandTermsHost"
+        case privacyHost = "BrandPrivacyHost"
+        case contactEmail = "BrandContactEmail"
+    }
+
     static func string(_ key: Key) -> String {
         guard
             let value = Bundle.main.object(forInfoDictionaryKey: key.rawValue) as? String,
