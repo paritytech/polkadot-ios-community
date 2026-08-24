@@ -156,19 +156,25 @@ private extension JWTTokenManager {
         guard
             let payload = try? JWTParser.parse(token),
             let subject = (payload.claims["accountId"] ?? payload.claims["sub"]) as? String,
+            let subjectKey = Self.publicKeyHex(subject),
             let publicKey = try? authStore.fetchAuthWallet().getRawPublicKey()
         else {
             return true
         }
 
-        return Self.normalizedHex(subject) == Self.normalizedHex(publicKey.toHex())
+        return subjectKey == Self.publicKeyHex(publicKey.toHex())
     }
 
-    /// Lowercase, `0x`-free form, so a subject sent with a prefix still
-    /// compares equal to a locally derived key rendered without one.
-    static func normalizedHex(_ value: String) -> String {
+    /// `value` as a bare lowercase 32-byte hex key, or nil when it is not one.
+    ///
+    /// A subject that is not a public key — a placeholder, or a backend that
+    /// stops sending the claim — leaves nothing to compare, and the caller
+    /// then keeps its cached token instead of re-attesting on every call.
+    static func publicKeyHex(_ value: String) -> String? {
         let lowered = value.lowercased()
-        return lowered.hasPrefix("0x") ? String(lowered.dropFirst(2)) : lowered
+        let bare = lowered.hasPrefix("0x") ? String(lowered.dropFirst(2)) : lowered
+        guard bare.count == 64, bare.allSatisfy(\.isHexDigit) else { return nil }
+        return bare
     }
 
     /// Tries refresh token first, falls back to full attestation.
