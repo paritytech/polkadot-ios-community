@@ -25,12 +25,13 @@ enum TattooListViewFactory {
         let dimAsset = AppConfig.Assets.dimAsset
 
         let chainRegistry = ChainRegistryFacade.sharedRegistry
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
         guard
             let dimChain = chainRegistry.getChain(for: dimAsset.chainId),
             let dimAsset = dimChain.chainAsset(for: dimAsset.assetId),
             let interactor = createInteractor(state: state),
             let peopleChain = chainRegistry.getChain(for: AppConfig.Chains.chatChain),
-            let candidateAccountId = try? SelectedWallet.candidate.fetchAccount(
+            let candidateAccountId = try? walletRepo.candidate().fetchAccount(
                 for: peopleChain
             ).accountId,
             let utilityAssetInfo = peopleChain.utilityAsset()?.digitalDollarDisplayInfo // TODO: unclear
@@ -77,17 +78,17 @@ enum TattooListViewFactory {
         let chatChain = AppConfig.Chains.chatChain
         let chainRegistry = ChainRegistryFacade.sharedRegistry
         let extrinsicMonitorFacade = ExtrinsicSubmissionMonitorFacade.default()
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
 
         guard
             let chain = chainRegistry.getChain(for: chatChain),
             let connection = chainRegistry.getConnection(for: chain.chainId),
             let runtimeProvider = chainRegistry.getRuntimeProvider(for: chain.chainId),
-            let extrinsicMonitor = try? extrinsicMonitorFacade.createMonitorFactory(chain: chain)
+            let extrinsicMonitor = try? extrinsicMonitorFacade.createMonitorFactory(chain: chain),
+            let selectedWallet = try? walletRepo.candidate()
         else {
             return nil
         }
-
-        let selectedWallet = SelectedWallet.candidate
 
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
 

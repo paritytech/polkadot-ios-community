@@ -65,7 +65,9 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
 
         let tokenProvider = JWTTokenManager.shared
         let deviceKeyManager = DeviceEncryptionKeyManager.shared
-        let messageExchangeModeProvider = ChatMessageExchangeModeProvider()
+        let messageExchangeModeProvider = try ChatMessageExchangeModeProvider(
+            tld: DotNsTldProviderFacade.shared.currentTldOrError()
+        )
 
         let compactorFactory = ChatMessageCompactorFactory(
             allowanceManager: bulletInManager,
@@ -105,8 +107,8 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
 
     func makeTrUAPIHostCoordinator(
         runtimeProvider: TrUAPIHostRuntimeProviding
-    ) -> MessageExchangeSignInHostCoordinating {
-        SSOTruAPICoordinator(
+    ) throws -> MessageExchangeSignInHostCoordinating {
+        try SSOTruAPICoordinator(
             ownKeyId: Chat.Contact.Own.sso(),
             serviceFactory: makeSSOServiceFactory(),
             runtimeProvider: runtimeProvider
@@ -116,8 +118,8 @@ extension MessageExchangeCoordinatorFactory: MessageExchangeCoordinatorMaking {
     func makeNativeHostCoordinator(
         accountManager: ProductsAccountManaging,
         sponsorFactory: TransactionSponsorMaking
-    ) -> MessageExchangeSignInHostCoordinating {
-        MessageExchangeSignInHostCoordinator(
+    ) throws -> MessageExchangeSignInHostCoordinating {
+        try MessageExchangeSignInHostCoordinator(
             ownKeyId: Chat.Contact.Own.sso(),
             serviceFactory: makeSSOServiceFactory(),
             accountManager: accountManager,

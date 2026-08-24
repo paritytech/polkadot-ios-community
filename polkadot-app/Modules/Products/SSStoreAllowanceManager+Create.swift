@@ -1,4 +1,5 @@
 import Foundation
+import Products
 import Individuality
 import KeyDerivation
 import Operation_iOS
@@ -13,17 +14,26 @@ extension SSStoreAllowanceManager {
         chainRegistry: ChainRegistryProtocol,
         userStorageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         substrateStorageFacade: StorageFacadeProtocol = SubstrateDataStorageFacade.shared,
-        entropyManager: RootEntropyManaging = RootEntropyManager.shared
+        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
+        walletRepo: WalletManagerRepositoryProtocol = .shared,
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) -> SSStoreAllowanceManager? {
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
 
+        guard
+            let tld = try? tldProvider.currentTldOrError(),
+            let wallet = try? walletRepo.main()
+        else {
+            return nil
+        }
+
         let keyResolver = BandersnatchKeyResolver(
-            liteKeyManager: BandersnatchKeyManager.litePerson(entropyManager: entropyManager),
-            fullKeyManager: BandersnatchKeyManager.fullPerson(entropyManager: entropyManager)
+            liteKeyManager: BandersnatchKeyManager.litePerson(for: tld, entropyManager: entropyManager),
+            fullKeyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
         )
 
         let originFactory = AsResourcesOriginFactory(
-            wallet: SelectedWallet.main,
+            wallet: wallet,
             keyResolver: keyResolver,
             chainRegistry: chainRegistry
         )

@@ -99,7 +99,9 @@ enum GameVideoViewFactory {
             return nil
         }
 
-        let gameSignKeyId = GameAccountFactory.makeWalletKeyId(for: flowState.source)
+        guard let gameSignKeyId = try? GameAccountFactory.makeWalletKeyId(for: flowState.source) else {
+            return nil
+        }
 
         let workQueue = DispatchQueue(label: "GameVideoModule.workQueue")
 

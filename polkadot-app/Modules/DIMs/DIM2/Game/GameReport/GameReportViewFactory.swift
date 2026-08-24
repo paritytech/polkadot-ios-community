@@ -68,8 +68,17 @@ enum GameReportViewFactory {
                 + "nodes=\(chain.nodes.map(\.url))"
         )
 
-        let candidateWallet = SelectedWallet.candidate
-        let scoreWallet = SelectedWallet.scoreAlias
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
+        guard
+            let candidateWallet = try? walletRepo.candidate(),
+            let scoreWallet = try? walletRepo.scoreAlias(),
+            let reportVrfManager = try? vrfRepo.fullPerson()
+        else {
+            logger.error("Failed to resolve game wallets")
+            return nil
+        }
 
         let extrinsicSubmissionFacade = ExtrinsicSubmissionMonitorFacade(
             chainRegistry: chainRegistry,
@@ -78,9 +87,7 @@ enum GameReportViewFactory {
             logger: logger
         )
 
-        guard let extrinsicSubmitMonitor = try? extrinsicSubmissionFacade
-            .createMonitorFactory(chain: chain)
-        else {
+        guard let extrinsicSubmitMonitor = try? extrinsicSubmissionFacade.createMonitorFactory(chain: chain) else {
             logger.error("Failed to create extrinsicSubmitMonitor")
             return nil
         }
@@ -102,7 +109,7 @@ enum GameReportViewFactory {
             extrinsicSubmitMonitor: extrinsicSubmitMonitor,
             candidateOriginFactory: ExtrinsicOriginFactory.personCandidate(),
             personhoodOriginFactory: PersonhoodOriginFactory(
-                vrfManager: BandersnatchKeyManager.fullPerson(),
+                vrfManager: reportVrfManager,
                 chainRegistry: chainRegistry,
                 operationQueue: operationQueue,
                 logger: logger
@@ -129,7 +136,7 @@ enum GameReportViewFactory {
             return nil
         }
 
-        let claimBeneficiary = (try? SelectedWallet.depositWallet.getMultiSigner().getAccountId())
+        let claimBeneficiary = (try? walletRepo.depositWallet().getMultiSigner().getAccountId())
             ?? candidateAccount.accountId
         logger.debug(
             "[GameDebug] claim beneficiary=depositWallet(\(claimBeneficiary.toHex(includePrefix: true).prefix(12))…) " +
@@ -160,10 +167,7 @@ enum GameReportViewFactory {
             spaFlowState: spaFlowState
         )
 
-        return Components(
-            interactor: interactor,
-            resultsDependencies: resultsDependencies
-        )
+        return Components(interactor: interactor, resultsDependencies: resultsDependencies)
     }
 
     private struct AirdropComponents {
@@ -180,13 +184,19 @@ enum GameReportViewFactory {
         chainRegistry: ChainRegistryProtocol,
         operationQueue: OperationQueue
     ) -> AirdropComponents? {
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
         guard
             let connection = try? chainRegistry.getConnectionOrError(for: chain.chainId),
-            let runtimeProvider = try? chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
+            let runtimeProvider = try? chainRegistry.getRuntimeProviderOrError(for: chain.chainId),
+            let vrfManager = try? vrfRepo.fullPerson(),
+            let candidateWallet = try? walletRepo.candidate(),
+            let scoreWallet = try? walletRepo.scoreAlias()
         else { return nil }
 
         let personhoodOriginFactory = PersonhoodOriginFactory(
-            vrfManager: BandersnatchKeyManager.fullPerson(),
+            vrfManager: vrfManager,
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
             logger: Logger.shared
@@ -206,8 +216,8 @@ enum GameReportViewFactory {
             ),
             member: GameMemberService(connection: connection, runtimeService: runtimeProvider),
             claim: AirdropClaimSubmitService(
-                candidateWallet: SelectedWallet.candidate,
-                scoreWallet: SelectedWallet.scoreAlias,
+                candidateWallet: candidateWallet,
+                scoreWallet: scoreWallet,
                 chain: chain,
                 extrinsicSubmitMonitor: extrinsicSubmitMonitor,
                 candidateOriginFactory: ExtrinsicOriginFactory.personCandidate(),

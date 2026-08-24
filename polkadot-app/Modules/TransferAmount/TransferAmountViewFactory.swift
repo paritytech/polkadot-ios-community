@@ -159,7 +159,12 @@ enum TransferAmountViewFactory {
         lifecycleReporter: TransferLifecycleReporting = NoOpTransferLifecycleReporter()
     ) -> TransferAmountInteractor? {
         let queue = OperationManagerFacade.sharedDefaultQueue
-        let wallet = SelectedWallet.main
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+
+        guard let wallet = try? walletRepo.main() else {
+            return nil
+        }
+
         let logger = Logger.shared
 
         let repositoryFactory = RecentContactRepositoryFactory(

@@ -11,7 +11,9 @@ extension ServiceCoordinator {
         do {
             let signerManager = ChatSignerManager()
             let signer = try signerManager.makeSigner(for: Chat.Contact.Own.main().signKeyId)
-            let messageExchangeModeProvider = ChatMessageExchangeModeProvider()
+            let messageExchangeModeProvider = try ChatMessageExchangeModeProvider(
+                tld: DotNsTldProviderFacade.shared.currentTldOrError()
+            )
 
             return DeviceSyncService(
                 ownStatementAccountId: signer.accountId,
@@ -42,7 +44,7 @@ extension ServiceCoordinator {
 
             let encryptionKey = try DeviceEncryptionKeyManager.shared.getOrCreatePrivateKey()
 
-            let ownKeyId = Chat.Contact.Own.main()
+            let ownKeyId = try Chat.Contact.Own.main()
 
             await deviceSyncService.setup(configuration: DeviceSyncServiceConfiguration(
                 connection: statementsConnection,

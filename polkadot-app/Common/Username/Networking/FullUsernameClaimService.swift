@@ -30,8 +30,8 @@ final class FullUsernameClaimService {
         extrinsicSubmitMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         extrinsicOriginFactory: PersonhoodOriginFactoryProtocol,
         litePersonOriginFactory: ExtrinsicOriginDefiningFactoryProtocol,
-        liteWallet: WalletManaging = SelectedWallet.main,
-        resourcesWallet: WalletManaging = SelectedWallet.resourcesAlias,
+        liteWallet: WalletManaging,
+        resourcesWallet: WalletManaging,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.chain = chain

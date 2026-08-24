@@ -1,4 +1,5 @@
 import Foundation
+import Products
 import ExtrinsicService
 import Individuality
 import KeyDerivation
@@ -13,13 +14,18 @@ extension PGASAllowanceManager {
         chainRegistry: ChainRegistryProtocol,
         userStorageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         substrateStorageFacade: StorageFacadeProtocol = SubstrateDataStorageFacade.shared,
-        entropyManager: RootEntropyManaging = RootEntropyManager.shared
+        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) -> PGASAllowanceManager? {
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
 
+        guard let tld = try? tldProvider.currentTldOrError() else {
+            return nil
+        }
+
         let keyResolver = BandersnatchKeyResolver(
-            liteKeyManager: BandersnatchKeyManager.litePerson(entropyManager: entropyManager),
-            fullKeyManager: BandersnatchKeyManager.fullPerson(entropyManager: entropyManager)
+            liteKeyManager: BandersnatchKeyManager.litePerson(for: tld, entropyManager: entropyManager),
+            fullKeyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
         )
 
         let pgasOriginFactory = PGasOriginFactory(

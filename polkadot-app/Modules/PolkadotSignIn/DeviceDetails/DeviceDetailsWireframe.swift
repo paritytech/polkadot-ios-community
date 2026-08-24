@@ -14,11 +14,13 @@ final class DeviceDetailsWireframe: DeviceDetailsWireframeProtocol {
         device: Chat.LocalDevice,
         onResult: @escaping (Bool) -> Void
     ) {
-        let removeView = RemoveDeviceViewFactory.createView(
+        guard let removeView = RemoveDeviceViewFactory.createView(
             device: device,
             serviceCoordinator: serviceCoordinator,
             onResult: onResult
-        )
+        ) else {
+            return
+        }
 
         view?.controller.present(removeView.controller, animated: true)
     }

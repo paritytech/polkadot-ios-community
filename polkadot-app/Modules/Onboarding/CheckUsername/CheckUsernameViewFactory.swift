@@ -17,8 +17,13 @@ enum CheckUsernameViewFactory {
             logger: Logger.shared
         )
 
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        guard let selectedWallet = try? walletRepo.main() else {
+            return nil
+        }
+
         let interactor = CheckUsernameInteractor(
-            selectedWallet: SelectedWallet.main,
+            selectedWallet: selectedWallet,
             identityService: identityService,
             settingsManager: SettingsManager.shared
         )
