@@ -12,14 +12,15 @@ protocol IdentityAccountResolving {
 }
 
 struct IdentityAccountResolver: IdentityAccountResolving {
-    private let identityWallet: WalletManaging
+    private let walletRepo: WalletManagerRepositoryProtocol
 
-    init(identityWallet: WalletManaging = SelectedWallet.main) {
-        self.identityWallet = identityWallet
+    init(walletRepo: WalletManagerRepositoryProtocol = .shared) {
+        self.walletRepo = walletRepo
     }
 
     @discardableResult
     func resolveWallet(for accountId: AccountId) throws -> WalletManaging {
+        let identityWallet = try walletRepo.main()
         let identityAccountId = try identityWallet.getRawPublicKey()
 
         guard identityAccountId == accountId else {

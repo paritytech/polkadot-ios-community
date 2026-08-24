@@ -29,6 +29,8 @@ private struct StubTldProvider: DotNsTldProviding {
     func resolveTld() async throws -> String {
         "dot"
     }
+
+    func refresh() {}
 }
 
 private func makeRuntime(

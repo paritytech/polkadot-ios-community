@@ -1,30 +1,33 @@
 import Foundation
+import Products
 
 extension Chat.Contact.Own {
-    static func main() -> Chat.Contact.Own {
-        Chat.Contact.Own(
-            signKeyId: WalletDerivationPath.main,
+    static func main(tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared) throws -> Chat.Contact.Own {
+        try Chat.Contact.Own(
+            signKeyId: WalletDerivationPath.main(for: tldProvider.currentTldOrError()),
             encryptionKeyId: ChatEncryptionDomain.mainChat.rawValue
         )
     }
 
-    static func sso() -> Chat.Contact.Own {
-        Chat.Contact.Own(
-            signKeyId: WalletDerivationPath.main,
+    static func sso(tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared) throws -> Chat.Contact.Own {
+        try Chat.Contact.Own(
+            signKeyId: WalletDerivationPath.main(for: tldProvider.currentTldOrError()),
             encryptionKeyId: ChatEncryptionDomain.sso.rawValue
         )
     }
 
-    static func gameCandidate() -> Chat.Contact.Own {
-        Chat.Contact.Own(
-            signKeyId: WalletDerivationPath.candidate,
+    static func gameCandidate(tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared) throws -> Chat.Contact
+        .Own {
+        try Chat.Contact.Own(
+            signKeyId: WalletDerivationPath.candidate(for: tldProvider.currentTldOrError()),
             encryptionKeyId: gameEncryptionKeyId()
         )
     }
 
-    static func gameExternal() -> Chat.Contact.Own {
-        Chat.Contact.Own(
-            signKeyId: WalletDerivationPath.score,
+    static func gameExternal(tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared) throws -> Chat.Contact
+        .Own {
+        try Chat.Contact.Own(
+            signKeyId: WalletDerivationPath.score(for: tldProvider.currentTldOrError()),
             encryptionKeyId: gameEncryptionKeyId()
         )
     }
@@ -33,7 +36,14 @@ extension Chat.Contact.Own {
         ChatEncryptionDomain.game.rawValue
     }
 
-    static func allPossibleIds() -> Set<Chat.Contact.Own> {
-        [main(), sso(), gameCandidate(), gameExternal()]
+    static func allPossibleIds(
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
+    ) throws -> Set<Chat.Contact.Own> {
+        try [
+            main(tldProvider: tldProvider),
+            sso(tldProvider: tldProvider),
+            gameCandidate(tldProvider: tldProvider),
+            gameExternal(tldProvider: tldProvider)
+        ]
     }
 }

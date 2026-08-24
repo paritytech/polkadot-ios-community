@@ -17,8 +17,11 @@ extension ServiceCoordinator {
     static func createPersonhoodServices(
         syncStateStore: DetermineStateSyncStore
     ) -> PersonhoodServices? {
-        let vrfManager = BandersnatchKeyManager.fullPerson()
-        guard let candidateAccountId = try? SelectedWallet.candidate.getRawPublicKey(),
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
+        guard let vrfManager = try? vrfRepo.fullPerson(),
+              let candidateAccountId = try? walletRepo.candidate().getRawPublicKey(),
               let chain = try? ChainRegistryFacade.sharedRegistry.getChainOrError(
                   for: AppConfig.Chains.usernameChain
               ) else {
@@ -43,14 +46,14 @@ extension ServiceCoordinator {
             extrinsicSubmissionFacade: extrinsicSubmissionMonitor
         )
 
-        let registrationService = createPersonhoodRegistrationService(
-            chain: chain,
-            vrfManager: vrfManager,
-            operationFactory: operationFactory,
-            selfIncludeSubmissionService: selfIncludeSubmissionService
-        )
-
         guard
+            let registrationService = try? createPersonhoodRegistrationService(
+                chain: chain,
+                walletRepo: walletRepo,
+                vrfManager: vrfManager,
+                operationFactory: operationFactory,
+                selfIncludeSubmissionService: selfIncludeSubmissionService
+            ),
             let backgroundService = createPersonRegistrationBackgroundService(),
             let selfIncludeBackgroundService = createPersonSelfIncludeBackgroundService(
                 submitter: selfIncludeSubmissionService
@@ -81,16 +84,17 @@ extension ServiceCoordinator {
 private extension ServiceCoordinator {
     static func createPersonhoodRegistrationService(
         chain: ChainProtocol,
+        walletRepo: WalletManagerRepositoryProtocol,
         vrfManager: BandersnatchKeyManaging,
         operationFactory: PersonhoodRegistrationOperationMaking,
         selfIncludeSubmissionService: SelfIncludeSubmitting
-    ) -> PersonhoodRegistrationService {
-        PersonhoodRegistrationService(
+    ) throws -> PersonhoodRegistrationService {
+        try PersonhoodRegistrationService(
             chain: chain,
-            candidateWallet: SelectedWallet.candidate,
-            mobRuleWallet: SelectedWallet.mobRuleAlias,
-            scoreWallet: SelectedWallet.scoreAlias,
-            resourcesWallet: SelectedWallet.resourcesAlias,
+            candidateWallet: walletRepo.candidate(),
+            mobRuleWallet: walletRepo.mobRuleAlias(),
+            scoreWallet: walletRepo.scoreAlias(),
+            resourcesWallet: walletRepo.resourcesAlias(),
             vrfManager: vrfManager,
             blockNumberOperationFactory: BlockNumberOperationFactory(
                 chainRegistry: ChainRegistryFacade.sharedRegistry,
@@ -110,9 +114,13 @@ private extension ServiceCoordinator {
 
     static func createPersonRegistrationBackgroundService() -> PersonRegistrationBackgroundServiceProtocol? {
         let chainRegistry = ChainRegistryFacade.sharedRegistry
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
 
         guard let chain = chainRegistry.getChain(for: AppConfig.Chains.usernameChain),
-              let runtimeProvider = chainRegistry.getRuntimeProvider(for: AppConfig.Chains.usernameChain) else {
+              let runtimeProvider = chainRegistry.getRuntimeProvider(for: AppConfig.Chains.usernameChain),
+              let vrfManager = try? vrfRepo.fullPerson(),
+              let scoreWallet = try? walletRepo.scoreAlias() else {
             return nil
         }
 
@@ -129,12 +137,10 @@ private extension ServiceCoordinator {
             operationQueue: OperationManagerFacade.sharedDefaultQueue
         )
 
-        let vrfManager = BandersnatchKeyManager.fullPerson()
-
         let fetcher = PersonRegistrationStateFetcher(
-            mobRuleWallet: SelectedWallet.mobRuleAlias,
-            scoreWallet: SelectedWallet.scoreAlias,
-            resourcesWallet: SelectedWallet.resourcesAlias,
+            mobRuleWallet: walletRepo.mobRuleAlias(),
+            scoreWallet: scoreWallet,
+            resourcesWallet: walletRepo.resourcesAlias(),
             vrfManager: vrfManager,
             chain: chain,
             runtimeProvider: runtimeProvider,
@@ -154,10 +160,12 @@ private extension ServiceCoordinator {
         submitter: SelfIncludeSubmitting
     ) -> PersonSelfIncludeBackgroundServiceProtocol? {
         let chainRegistry = ChainRegistryFacade.sharedRegistry
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
 
         guard
             let chain = chainRegistry.getChain(for: AppConfig.Chains.usernameChain),
-            let runtimeProvider = chainRegistry.getRuntimeProvider(for: AppConfig.Chains.usernameChain)
+            let runtimeProvider = chainRegistry.getRuntimeProvider(for: AppConfig.Chains.usernameChain),
+            let vrfManager = try? vrfRepo.fullPerson()
         else {
             return nil
         }
@@ -168,8 +176,6 @@ private extension ServiceCoordinator {
             operationQueue: OperationManagerFacade.runtimeSyncQueue,
             reachabilityManager: ReachabilityManager.shared
         )
-
-        let vrfManager = BandersnatchKeyManager.fullPerson()
 
         let fetcher = PersonSelfIncludeStateFetcher(
             vrfManager: vrfManager,

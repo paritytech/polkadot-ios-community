@@ -21,7 +21,7 @@
 
             return AppFactoryResetChecker(
                 storage: UsernameStorage(),
-                wallet: SelectedWallet.main,
+                walletRepo: .shared,
                 identityService: identityService
             )
         }

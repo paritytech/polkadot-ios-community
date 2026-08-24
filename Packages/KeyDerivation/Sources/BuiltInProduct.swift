@@ -6,13 +6,31 @@ import Foundation
 /// derivation layout for now.
 public enum BuiltInProduct {
     /// Game (DIM2).
-    public static let dim2 = "dim2.dot"
+    public static func dim2(for tld: String) -> String {
+        product(for: "dim2", tld: tld)
+    }
+
     /// PoI (DIM1).
-    public static let poi = "poi.dot"
+    public static func poi(for tld: String) -> String {
+        product(for: "poi", tld: tld)
+    }
+
     /// Funding.
-    public static let fund = "fund.dot"
+    public static func fund(for tld: String) -> String {
+        product(for: "fund", tld: tld)
+    }
+
     /// Public light person identity.
-    public static let uid = "uid.dot"
+    public static func uid(for tld: String) -> String {
+        product(for: "uid", tld: tld)
+    }
+
     /// Personhood — ring-VRF key domain for full/light person keys.
-    public static let personhood = "peopl.dot"
+    public static func personhood(for tld: String) -> String {
+        product(for: "peopl", tld: tld)
+    }
+
+    static func product(for name: String, tld: String) -> String {
+        "\(name).\(tld)"
+    }
 }

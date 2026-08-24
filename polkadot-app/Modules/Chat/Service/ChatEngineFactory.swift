@@ -1,31 +1,38 @@
 import Foundation
 import MessageExchangeKit
+import Products
 import Keystore_iOS
 
 protocol ChatEngineFactoryProtocol {
-    func createChatEngine(for model: ChatOpenModel.NewRequest) -> ChatEngineProtocol
-    func createChatEngine(for model: Chat.Id) -> ChatEngineProtocol
+    func createChatEngine(for model: ChatOpenModel.NewRequest) throws -> ChatEngineProtocol
+    func createChatEngine(for model: Chat.Id) throws -> ChatEngineProtocol
 }
 
 final class ChatEngineFactory: ChatEngineFactoryProtocol {
     let flowState: ChatFlowState
-    init(flowState: ChatFlowState) {
+    let tldProvider: DotNsTldProviding
+
+    init(
+        flowState: ChatFlowState,
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
+    ) {
         self.flowState = flowState
+        self.tldProvider = tldProvider
     }
 
-    func createChatEngine(for model: Chat.Id) -> any ChatEngineProtocol {
-        createChatEngine(for: nil, chatId: model)
+    func createChatEngine(for model: Chat.Id) throws -> any ChatEngineProtocol {
+        try createChatEngine(for: nil, chatId: model)
     }
 
-    func createChatEngine(for model: ChatOpenModel.NewRequest) -> any ChatEngineProtocol {
+    func createChatEngine(for model: ChatOpenModel.NewRequest) throws -> any ChatEngineProtocol {
         let chatId = Chat.Id.person(model.remoteContact.accountId)
-        return createChatEngine(for: model, chatId: chatId)
+        return try createChatEngine(for: model, chatId: chatId)
     }
 
     private func createChatEngine(
         for request: ChatOpenModel.NewRequest?,
         chatId: Chat.Id
-    ) -> any ChatEngineProtocol {
+    ) throws -> any ChatEngineProtocol {
         let chatIdFactory = ChatPushIdFactory(
             encryptionManager: ChatEncryptionManager(),
             signManager: ChatSignerManager(),
@@ -34,7 +41,9 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
         )
 
         let storageFacade = UserDataStorageFacade.shared
-        let messageExchangeModeProvider = ChatMessageExchangeModeProvider()
+        let messageExchangeModeProvider = try ChatMessageExchangeModeProvider(
+            tld: tldProvider.currentTldOrError()
+        )
         let leaveChatService = LeaveChatService(
             outboxService: flowState.outboxService,
             messageExchangeModeProvider: messageExchangeModeProvider

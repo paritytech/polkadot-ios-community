@@ -19,19 +19,19 @@ protocol FullUsernameAvailabilityValidating {
 }
 
 final class FullUsernameAvailabilityValidator {
-    private let walletModel: WalletManaging
+    private let walletRepo: WalletManagerRepositoryProtocol
     private let chainId: ChainModel.Id
     private let chainRegistry: ChainRegistryProtocol
     private let storageRequestFactory: StorageRequestFactoryProtocol
     private let operationQueue: OperationQueue
 
     init(
-        walletModel: WalletManaging = SelectedWallet.main,
+        walletRepo: WalletManagerRepositoryProtocol = .shared,
         chainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue
     ) {
-        self.walletModel = walletModel
+        self.walletRepo = walletRepo
         self.chainId = chainId
         self.chainRegistry = chainRegistry
         self.operationQueue = operationQueue
@@ -73,7 +73,7 @@ extension FullUsernameAvailabilityValidator: FullUsernameAvailabilityValidating 
             return .free
         }
 
-        guard let accountId = try? walletModel.getRawPublicKey() else {
+        guard let accountId = try? walletRepo.main().getRawPublicKey() else {
             throw CheckAvailabilityError.missingAccountId
         }
 
