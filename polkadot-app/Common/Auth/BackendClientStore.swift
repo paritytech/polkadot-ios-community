@@ -11,18 +11,15 @@ final class BackendAuthStore: BackendAuthStoring {
     private let keychain: KeystoreProtocol
     private let sessionIdStore: BackendSessionIdStoring
     private let entropyManager: RootEntropyManaging
-    private let mainWalletProvider: () -> WalletManaging
 
     init(
         keychain: KeystoreProtocol = Keychain(),
         sessionIdStore: BackendSessionIdStoring = BackendSessionIdStore(),
-        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
-        mainWalletProvider: @escaping () -> WalletManaging = { SelectedWallet.main }
+        entropyManager: RootEntropyManaging = RootEntropyManager.shared
     ) {
         self.keychain = keychain
         self.sessionIdStore = sessionIdStore
         self.entropyManager = entropyManager
-        self.mainWalletProvider = mainWalletProvider
     }
 
     /// The identity the backend sees on `/auth/token`.
@@ -38,7 +35,7 @@ final class BackendAuthStore: BackendAuthStoring {
     /// (availability checks, attester lookup).
     func fetchAuthWallet() throws -> WalletManaging {
         if (try? entropyManager.hasRootEntropy()) == true {
-            return mainWalletProvider()
+            return SelectedWallet.main
         }
 
         let seedBytes = try fetchOrCreateSeedBytes()
