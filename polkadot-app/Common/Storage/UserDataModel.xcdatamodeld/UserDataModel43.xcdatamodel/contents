@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24901" systemVersion="25F71" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24902" systemVersion="25C56" minimumToolsVersion="Automatic" sourceLanguage="Swift" usedWithSwiftData="YES" userDefinedModelVersionIdentifier="">
     <entity name="CDAirdropRegistration" representedClassName="CDAirdropRegistration" syncable="YES" codeGenerationType="class">
         <attribute name="beneficiary" optional="YES" attributeType="Binary"/>
         <attribute name="gameIndex" optional="YES" attributeType="Integer 64" usesScalarValueType="YES"/>
@@ -10,18 +10,12 @@
         <attribute name="accountId" optional="YES" attributeType="Binary"/>
         <attribute name="allocatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
-        <attribute name="kind" optional="NO" attributeType="Integer 16" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="latestRenewedPeriod" optional="NO" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="priorityLevel" optional="NO" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="kind" attributeType="Integer 16" defaultValueString="-1" usesScalarValueType="YES"/>
+        <attribute name="latestRenewedPeriod" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
+        <attribute name="priorityLevel" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
     </entity>
     <entity name="CDBannedPlayer" representedClassName="CDBannedPlayer" syncable="YES" codeGenerationType="class">
         <attribute name="accountId" optional="YES" attributeType="String"/>
-    </entity>
-    <entity name="CDChainAccount" representedClassName="CDChainAccount" syncable="YES" codeGenerationType="class">
-        <attribute name="accountId" attributeType="String"/>
-        <attribute name="chainId" attributeType="String"/>
-        <attribute name="cryptoType" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="publicKey" attributeType="Binary"/>
     </entity>
     <entity name="CDChat" representedClassName="CDChat" syncable="YES" codeGenerationType="class">
         <attribute name="chatType" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
@@ -147,6 +141,25 @@
         <attribute name="gameIndex" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contacts" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="game" inverseEntity="CDChatContact"/>
     </entity>
+    <entity name="CDDurabilityEntry" representedClassName="CDDurabilityEntry" syncable="YES" codeGenerationType="class">
+        <attribute name="checkpointHash" attributeType="Binary"/>
+        <attribute name="checkpointNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="mortality" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sequence" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="successBlockHash" optional="YES" attributeType="Binary"/>
+        <attribute name="successBlockNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="txHash" optional="YES" attributeType="Binary"/>
+        <relationship name="assets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDEntryAsset" inverseName="entry" inverseEntity="CDEntryAsset"/>
+    </entity>
+    <entity name="CDEntryAsset" representedClassName="CDEntryAsset" syncable="YES" codeGenerationType="class">
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="index" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="role" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityEntry" inverseName="assets" inverseEntity="CDDurabilityEntry"/>
+    </entity>
     <entity name="CDExternalPayment" representedClassName="CDExternalPayment" syncable="YES" codeGenerationType="class">
         <attribute name="amountInPlanks" attributeType="String"/>
         <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
@@ -167,9 +180,9 @@
         <attribute name="voteCounter" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="voteUpdateDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
     </entity>
-    <entity name="CDKeystoreIntegrity" representedClassName="CDKeystoreIntegrity" syncable="YES" codeGenerationType="class">
-        <attribute name="integrityKey" attributeType="Binary"/>
-        <attribute name="keyTag" attributeType="String"/>
+    <entity name="CDHandoffMark" representedClassName="CDHandoffMark" syncable="YES" codeGenerationType="class">
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="identifier" attributeType="String"/>
     </entity>
     <entity name="CDLocalDevice" representedClassName="CDLocalDevice" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
@@ -284,28 +297,5 @@
         <attribute name="recyclerIndex" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
         <attribute name="recyclerRevision" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
         <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
-    </entity>
-    <entity name="CDDurabilityEntry" representedClassName="CDDurabilityEntry" syncable="YES" codeGenerationType="class">
-        <attribute name="checkpointHash" attributeType="Binary"/>
-        <attribute name="checkpointNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="mortality" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="sequence" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="successBlockHash" optional="YES" attributeType="Binary"/>
-        <attribute name="successBlockNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="txHash" optional="YES" attributeType="Binary"/>
-        <relationship name="assets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDEntryAsset" inverseName="entry" inverseEntity="CDEntryAsset"/>
-    </entity>
-    <entity name="CDEntryAsset" representedClassName="CDEntryAsset" syncable="YES" codeGenerationType="class">
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="index" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="role" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityEntry" inverseName="assets" inverseEntity="CDDurabilityEntry"/>
-    </entity>
-    <entity name="CDHandoffMark" representedClassName="CDHandoffMark" syncable="YES" codeGenerationType="class">
-        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="identifier" attributeType="String"/>
     </entity>
 </model>
