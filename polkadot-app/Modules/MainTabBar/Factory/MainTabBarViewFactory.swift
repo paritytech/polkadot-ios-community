@@ -143,6 +143,12 @@ enum MainTabBarViewFactory {
             moduleNavigator: moduleNavigator,
             remoteContactResolver: RemoteContactOperationFactory()
         )
+        #if FEATURE_SIGN_IN
+            let signInHandler: [URLHandlingServiceProtocol] = [polkadotSignInService]
+        #else
+            let signInHandler: [URLHandlingServiceProtocol] = []
+        #endif
+
         #if FEATURE_DIMS
             let dimHandlers: [URLHandlingServiceProtocol] = [
                 DIM1OpenService(),
@@ -180,8 +186,7 @@ enum MainTabBarViewFactory {
             logger: Logger.shared
         )
 
-        return URLHandlingService(children: [
-            polkadotSignInService,
+        return URLHandlingService(children: signInHandler + [
             chatService
         ] + dimHandlers + [
             fiatOnrampRedirect,

@@ -8,6 +8,8 @@
 //                      actions, the extension-enable guard       (Debug, DevCI).
 // FEATURE_PRIZES     — prize branding and the game reveal webview   (Nightly).
 // FEATURE_PRODUCTS   — the browse tab                            (Debug, DevCI, Nightly).
+// FEATURE_SIGN_IN    — sign in with Polkadot: the `pair` deeplink
+//                      and the linked-devices settings row       (Debug, DevCI, Nightly).
 //
 // Release sets none of them: no environment flag, no feature flag.
 //
