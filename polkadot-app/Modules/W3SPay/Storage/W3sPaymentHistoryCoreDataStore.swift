@@ -11,7 +11,7 @@ final class W3sPaymentHistoryCoreDataStore: W3sPaymentHistoryStoring, @unchecked
     private let storageFacade: StorageFacadeProtocol
     private let operationQueue: OperationQueue
     private let logger: LoggerProtocol
-    private let statusSerializer = StatusUpdateSerializer()
+    private let statusSerializer = SerialOperationQueue()
 
     init(
         storageFacade: StorageFacadeProtocol,
