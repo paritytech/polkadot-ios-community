@@ -4,13 +4,12 @@
 // which .github/scripts/add_swift_flags.py appends to during CI builds.
 // Brand identity values come from Configs/brand.xcconfig — gitignored, created from
 // Configs/brand.template.xcconfig. Identity is not in version control.
-//
-// ICON_SUFFIX is intentionally unset: ASSETCATALOG_COMPILER_APPICON_NAME resolves to "AppIcon".
 
 #include "brand.xcconfig"
 
 BASE_SWIFT_FLAGS = "-DNIGHTLY" "-DTESTNET_FEATURE" "-DFEATURE_DIMS" "-DFEATURE_PRIZES" "-DFEATURE_PRODUCTS" "-DFEATURE_SIGN_IN"
 
 APP_NAME        = $(BRAND_DISPLAY_NAME)
+ICON_SUFFIX     = Nightly
 APP_MAIN_BUNDLE = $(BRAND_BUNDLE_ROOT)
 DEEPLINK        = $(BRAND_DEEPLINK)
