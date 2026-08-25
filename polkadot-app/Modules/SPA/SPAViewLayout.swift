@@ -18,7 +18,13 @@ final class SPAViewLayout: UIView {
     }()
 
     let moreButton = SPAViewLayout.makeIconButton(systemName: "ellipsis")
-    let minimizeButton = SPAViewLayout.makeIconButton(systemName: "chevron.down")
+
+    // Products live on as tabs only where the browse tab exists; elsewhere the pill closes them.
+    #if FEATURE_PRODUCTS
+        let minimizeButton = SPAViewLayout.makeIconButton(systemName: "chevron.down")
+    #else
+        let minimizeButton = SPAViewLayout.makeIconButton(systemName: "xmark")
+    #endif
 
     let minimizeContainer = UIView()
     let moreContainer = UIView()
@@ -86,7 +92,12 @@ final class SPAViewLayout: UIView {
         isBrowserToolbarLayout = true
 
         addSubview(webView)
-        webView.scrollView.contentInsetAdjustmentBehavior = .never
+
+        #if FEATURE_PRODUCTS
+            webView.scrollView.contentInsetAdjustmentBehavior = .never
+        #else
+            webView.scrollView.contentInsetAdjustmentBehavior = .automatic
+        #endif
 
         setupTopPills()
         setupAccessibility()
@@ -100,12 +111,16 @@ final class SPAViewLayout: UIView {
         collapseFraction = fraction
 
         let apply = { [self] in
-            let sideScale = max(0.001, 1.0 - fraction)
-            let sideTransform = CGAffineTransform(scaleX: sideScale, y: sideScale)
-            minimizeContainer.transform = sideTransform
-            minimizeContainer.alpha = 1.0 - fraction
-            moreContainer.transform = sideTransform
-            moreContainer.alpha = 1.0 - fraction
+            // Without the browse tab the pill is the only way out of a product, so it stays put.
+            // The pills float above the web view, so collapsing still reclaims the content space.
+            #if FEATURE_PRODUCTS
+                let sideScale = max(0.001, 1.0 - fraction)
+                let sideTransform = CGAffineTransform(scaleX: sideScale, y: sideScale)
+                minimizeContainer.transform = sideTransform
+                minimizeContainer.alpha = 1.0 - fraction
+                moreContainer.transform = sideTransform
+                moreContainer.alpha = 1.0 - fraction
+            #endif
 
             layoutWebViewFrame()
         }
@@ -131,11 +146,17 @@ final class SPAViewLayout: UIView {
 
 private extension SPAViewLayout {
     func layoutWebViewFrame() {
-        let expandedTop = safeAreaInsets.top + topChromeHeight
-        let collapsedTop = safeAreaInsets.top + Constants.collapsedTopHeight
-        let top = expandedTop + (collapsedTop - expandedTop) * collapseFraction
+        #if FEATURE_PRODUCTS
+            let expandedTop = safeAreaInsets.top + topChromeHeight
+            let collapsedTop = safeAreaInsets.top + Constants.collapsedTopHeight
+            let top = expandedTop + (collapsedTop - expandedTop) * collapseFraction
 
-        webView.frame = CGRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - top))
+            webView.frame = CGRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - top))
+        #else
+            // The pills stay pinned here, so the web view spans the full height and content
+            // scrolls beneath them. The safe-area inset keeps it clear of the chrome.
+            webView.frame = bounds
+        #endif
     }
 
     func setupActivityIndicatorLayout() {
@@ -148,9 +169,19 @@ private extension SPAViewLayout {
     private func setupLoadProgressLayout() {
         addSubview(loadProgressView)
         loadProgressView.snp.makeConstraints { make in
-            make.top.equalTo(safeAreaLayoutGuide.snp.top)
+            make.top.equalTo(safeAreaLayoutGuide.snp.top).offset(-chromeSafeAreaInset)
             make.leading.trailing.equalToSuperview()
         }
+    }
+
+    /// The browser-tab controller inflates the top safe area by the chrome height so the web view
+    /// insets its content. The chrome itself lives inside that strip, so it backs the inset out.
+    var chromeSafeAreaInset: CGFloat {
+        #if FEATURE_PRODUCTS
+            0
+        #else
+            isBrowserToolbarLayout ? topChromeHeight : 0
+        #endif
     }
 
     func setupTopPills() {
@@ -159,7 +190,7 @@ private extension SPAViewLayout {
 
         minimizeContainer.snp.makeConstraints { make in
             make.leading.equalTo(safeAreaLayoutGuide).offset(Constants.topSideInset)
-            make.top.equalTo(safeAreaLayoutGuide.snp.top).offset(Constants.topEdgeGap)
+            make.top.equalTo(safeAreaLayoutGuide.snp.top).offset(Constants.topEdgeGap - chromeSafeAreaInset)
             make.size.equalTo(Constants.topPillSize)
         }
 
@@ -181,7 +212,12 @@ private extension SPAViewLayout {
 
     func setupAccessibility() {
         moreButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMore)
-        minimizeButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMinimize)
+
+        #if FEATURE_PRODUCTS
+            minimizeButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMinimize)
+        #else
+            minimizeButton.accessibilityLabel = String(localized: .Common.close)
+        #endif
     }
 
     static func makeIconButton(systemName: String) -> UIButton {
