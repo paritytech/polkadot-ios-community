@@ -84,7 +84,8 @@ enum MainTabBarViewFactory {
         let view = MainTabBarViewController(
             presenter: presenter,
             viewFactory: tabFactory,
-            browserCoordinator: browserCoordinator
+            browserCoordinator: browserCoordinator,
+            flowStateProvider: flowStateProvider
         )
 
         presenter.view = view
