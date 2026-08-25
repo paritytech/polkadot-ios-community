@@ -18,7 +18,7 @@ extension AssetModel {
         AssetBalanceDisplayInfo(
             displayPrecision: 2,
             assetPrecision: Int16(bitPattern: precision),
-            symbol: "CASH",
+            symbol: AppConfig.Brand.cashSymbol,
             symbolValueSeparator: " ",
             symbolPosition: .suffix,
             icon: nil
@@ -35,7 +35,7 @@ extension AssetBalanceDisplayInfo {
         AssetBalanceDisplayInfo(
             displayPrecision: 2,
             assetPrecision: 2,
-            symbol: "$",
+            symbol: AppConfig.Brand.fiatSymbol,
             symbolValueSeparator: "",
             symbolPosition: .prefix,
             icon: nil

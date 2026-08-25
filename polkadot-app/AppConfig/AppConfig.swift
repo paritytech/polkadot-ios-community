@@ -3,17 +3,11 @@ import SubstrateSdk
 import ChainRegistry
 
 enum AppConfig {
-    static let termsOfUseLink: URL = .init(
-        string: "https://parity.io",
-        encodingInvalidCharacters: false
-    )!
+    static var termsOfUseLink: URL { Brand.termsURL }
 
-    static let privacyPolicyLink: URL = .init(
-        string: "https://parity.io",
-        encodingInvalidCharacters: false
-    )!
+    static var privacyPolicyLink: URL { Brand.privacyURL }
 
-    static let contactEmail = "info@parity.io"
+    static var contactEmail: String { Brand.contactEmail }
 
     static let timestampRefreshInterval: TimeInterval = 60
 

@@ -1,35 +1,30 @@
 import Foundation
 
 extension AppConfig {
-    #if F_DEV
-        private static let appDeepLinkScheme: String = "polkadotappdev"
-    #else
-        private static let appDeepLinkScheme: String = "polkadotapp"
-    #endif
     enum DeepLink {
-        static var scheme: String { appDeepLinkScheme }
+        static var scheme: String { Brand.deeplinkScheme }
 
         /// Schemes across all build flavors; the active one depends on the configuration.
-        static let knownSchemes: Set<String> = ["polkadotapp", "polkadotappdev"]
+        static var knownSchemes: Set<String> { Brand.deeplinkSchemes }
 
         static func chat(_ chatId: Chat.Id, force: Bool) -> URL {
             let idPart = "id=\(chatId.rawRepresentation)"
             let forcePart = "force=\(force)"
 
-            return URL(string: AppConfig.appDeepLinkScheme + "://chat?\(idPart)&\(forcePart)")!
+            return URL(string: DeepLink.scheme + "://chat?\(idPart)&\(forcePart)")!
         }
 
         static func reserve() -> URL {
-            URL(string: AppConfig.appDeepLinkScheme + "://tattoo")!
+            URL(string: DeepLink.scheme + "://tattoo")!
         }
 
         static func tattooUploading() -> URL {
-            URL(string: AppConfig.appDeepLinkScheme + "://tattoo/uploading")!
+            URL(string: DeepLink.scheme + "://tattoo/uploading")!
         }
 
         static func game(intendedGameIndex: Int? = nil) -> URL {
             var components = URLComponents()
-            components.scheme = AppConfig.appDeepLinkScheme
+            components.scheme = DeepLink.scheme
             components.host = "game"
 
             if let intendedGameIndex {
@@ -45,11 +40,11 @@ extension AppConfig {
             let idPart = "id=\(game)"
             let datePart = "date=\(gameDate.formatted(.iso8601))"
 
-            return URL(string: AppConfig.appDeepLinkScheme + "://players?\(idPart)&\(datePart)")!
+            return URL(string: DeepLink.scheme + "://players?\(idPart)&\(datePart)")!
         }
 
         static func fiatOnramp(sessionId: String) -> URL {
-            URL(string: AppConfig.appDeepLinkScheme + "://fiatOnramp/buySuccess?sessionId=\(sessionId)")!
+            URL(string: DeepLink.scheme + "://fiatOnramp/buySuccess?sessionId=\(sessionId)")!
         }
     }
 }

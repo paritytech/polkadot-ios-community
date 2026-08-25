@@ -1,0 +1,36 @@
+// Reference for Configs/brand.xcconfig, the real brand file — which is COMMITTED.
+// Nothing needs to be copied after a clone; the build reads brand.xcconfig, never
+// this file. This template exists to document the key contract for a new brand:
+// copy it, replace every value, and point base.*.xcconfig at the result. The values
+// here are PLACEHOLDERS — they build, but they name nothing that exists: no
+// provisioning profile, no associated domain, no App Group.
+//
+// A deleted or renamed Configs/brand.xcconfig is a hard build error at config parse:
+//     Configs/base.debug.xcconfig:7: error: could not find included file 'brand.xcconfig' in search paths
+//
+// An INCOMPLETE Configs/brand.xcconfig is not caught at build time. A key present
+// here but absent there expands to an empty string in Info.plist, and AppConfig.Brand
+// traps at launch naming the key. Add a key to both files in the same commit.
+//
+// URLs are stored as HOST (and path) ONLY, never a scheme. An xcconfig treats "//"
+// as a comment start anywhere on the line, so "https://example.com" would silently
+// resolve to "https:". Swift composes the scheme, matching
+// ProductUniversalLink.scheme = "https".
+//
+// Config-axis values (compiler flags, ICON_SUFFIX, the .develop suffix) live in
+// Configs/base.*.xcconfig, not here. Every key below must be present and non-empty.
+//
+// BRAND_DEEPLINK must not collide with the scheme of any other installed brand:
+// iOS resolves a cross-brand scheme collision non-deterministically.
+
+BRAND_DISPLAY_NAME = Example
+BRAND_BUNDLE_ROOT = com.example.app
+BRAND_DEEPLINK = exampleapp
+BRAND_DEEPLINK_DEV = exampleappdev
+BRAND_SHARE_ROOT = example.com
+BRAND_SHARE_ROOT_TEST = test.example.com
+BRAND_CASH_SYMBOL = CASH
+BRAND_FIAT_SYMBOL = $
+BRAND_TERMS_HOST = example.com/terms
+BRAND_PRIVACY_HOST = example.com/privacy
+BRAND_CONTACT_EMAIL = info@example.com
