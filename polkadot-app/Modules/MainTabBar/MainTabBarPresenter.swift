@@ -7,7 +7,13 @@ final class MainTabBarPresenter {
     let wireframe: MainTabBarWireframeProtocol
     let interactor: MainTabBarInteractorInputProtocol
 
-    let tabItems: [TabBarItem] = [.chat, .wallet, .scan, .browse, .settings]
+    // `.scan` must stay the centre slot: DSTabBarRow derives it as `itemCount / 2`, which holds
+    // for both arms here (index 2 of 5, index 2 of 4).
+    #if FEATURE_PRODUCTS
+        let tabItems: [TabBarItem] = [.chat, .wallet, .scan, .browse, .settings]
+    #else
+        let tabItems: [TabBarItem] = [.chat, .wallet, .scan, .settings]
+    #endif
 
     private let chipViewModelFactory: SPATabChipViewModelFactory
     private var settingsBadge: TabBarBadge?

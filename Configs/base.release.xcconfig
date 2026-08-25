@@ -6,10 +6,13 @@
 // Configs/brand.template.xcconfig. Identity is not in version control.
 //
 // ICON_SUFFIX is intentionally unset: ASSETCATALOG_COMPILER_APPICON_NAME resolves to "AppIcon".
+//
+// BASE_SWIFT_FLAGS is intentionally empty: Release carries no environment and no feature
+// flags. See polkadot-app/Configs/BuildFeatures.swift for the flag matrix.
 
 #include "brand.xcconfig"
 
-BASE_SWIFT_FLAGS = "-DFEATURE_PRIZES"
+BASE_SWIFT_FLAGS =
 
 APP_NAME        = $(BRAND_DISPLAY_NAME)
 APP_MAIN_BUNDLE = $(BRAND_BUNDLE_ROOT)

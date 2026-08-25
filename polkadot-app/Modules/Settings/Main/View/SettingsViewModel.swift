@@ -75,7 +75,12 @@ enum SettingsViewModel {
                 #else
                     [.revoke]
                 #endif
-            case .security: [.backup, .apps, .linkedDevices, .blockedUsers]
+            case .security:
+                #if FEATURE_PRODUCTS
+                    [.backup, .apps, .linkedDevices, .blockedUsers]
+                #else
+                    [.backup, .linkedDevices, .blockedUsers]
+                #endif
             case .legal: [.privacy, .termsOfUse]
             case .support: [.contactUs]
             }

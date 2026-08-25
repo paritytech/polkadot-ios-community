@@ -147,8 +147,11 @@ final class ServiceCoordinator {
 
 extension ServiceCoordinator: ServiceCoordinatorProtocol {
     func setup() {
-        determineStateSyncService.setup()
-        personhoodBackgroundService.setup()
+        #if FEATURE_DIMS
+            determineStateSyncService.setup()
+            personhoodBackgroundService.setup()
+        #endif
+
         chatCoordinator.setup()
         chatExtensionsRegistry.discover()
         chatRequestCoordinator.setup()
@@ -191,7 +194,11 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
 
     func throttle() {
         determineStateSyncService.throttle()
-        personhoodBackgroundService.throttle()
+
+        #if FEATURE_DIMS
+            personhoodBackgroundService.throttle()
+        #endif
+
         chatCoordinator.throttle()
         chatRequestCoordinator.throttle()
         fiatOnrampTrackingService.throttle()

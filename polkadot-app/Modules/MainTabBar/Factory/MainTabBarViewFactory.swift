@@ -143,12 +143,19 @@ enum MainTabBarViewFactory {
             moduleNavigator: moduleNavigator,
             remoteContactResolver: RemoteContactOperationFactory()
         )
-        let gameOpen = DIM2OpenService(
-            serviceCoordinator: serviceCoordinator,
-            flowState: flowState.flowState
-        )
-        let screenOpen = DIM1OpenService()
-        let gameChatOpen = GameChatService(flowState: flowState)
+        #if FEATURE_DIMS
+            let dimHandlers: [URLHandlingServiceProtocol] = [
+                DIM1OpenService(),
+                DIM2OpenService(
+                    serviceCoordinator: serviceCoordinator,
+                    flowState: flowState.flowState
+                ),
+                GameChatService(flowState: flowState)
+            ]
+        #else
+            let dimHandlers: [URLHandlingServiceProtocol] = []
+        #endif
+
         let fiatOnrampRedirect = FiatOnrampRedirectService(
             fiatOnrampTransactionTracking: serviceCoordinator.fiatOnrampTrackingService
         )
@@ -175,10 +182,8 @@ enum MainTabBarViewFactory {
 
         return URLHandlingService(children: [
             polkadotSignInService,
-            chatService,
-            screenOpen,
-            gameOpen,
-            gameChatOpen,
+            chatService
+        ] + dimHandlers + [
             fiatOnrampRedirect,
             payDeeplink,
             productOpen,
