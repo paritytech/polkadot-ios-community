@@ -31,7 +31,9 @@ struct PlasticCardView: View {
                                 .accessibilityId(AccessibilityID.Wallet.usernameDisplay)
                         }
 
-                        rankView
+                        if viewModel.isRankVisible {
+                            rankView
+                        }
                     }
 
                     Spacer()
