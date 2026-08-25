@@ -870,6 +870,17 @@
         }
       }
     },
+    "topUp.resolve.error" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can not resolve Topup"
+          }
+        }
+      }
+    },
     "topUp.title" : {
       "extractionState" : "manual",
       "localizations" : {

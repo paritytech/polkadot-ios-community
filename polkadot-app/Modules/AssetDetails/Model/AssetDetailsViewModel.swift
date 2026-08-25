@@ -49,14 +49,10 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
     var onBackupCancel: (() -> Void)? { get set }
     var onBackupWhyUpdate: (() -> Void)? { get set }
 
-    #if TESTNET_FEATURE
-        var isFaucetInProgress: Bool {
-            get set
-        }
-        var onTopUp: (() -> Void)? {
-            get set
-        }
+    var isTopUpInProgress: Bool { get set }
+    var onTopUp: (() -> Void)? { get set }
 
+    #if TESTNET_FEATURE
         var onMakeAllVouchersReady: (() -> Void)? { get set }
     #endif
 }
@@ -80,9 +76,10 @@ class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
     var onBackupCancel: (() -> Void)?
     var onBackupWhyUpdate: (() -> Void)?
 
+    var isTopUpInProgress: Bool = false
+    var onTopUp: (() -> Void)?
+
     #if TESTNET_FEATURE
-        var isFaucetInProgress: Bool = false
-        var onTopUp: (() -> Void)?
         var onMakeAllVouchersReady: (() -> Void)?
     #endif
 }

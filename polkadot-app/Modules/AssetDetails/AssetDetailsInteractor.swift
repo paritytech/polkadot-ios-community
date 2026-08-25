@@ -12,6 +12,8 @@ import AsyncAlgorithms
 import ChainRegistry
 import EventCenter
 import BackgroundExecution
+import Products
+import UIKitExt
 
 final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     weak var presenter: AssetDetailsInteractorOutputProtocol?
@@ -42,6 +44,13 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
 
         var topupService: TopUpService?
         var faucetTask: Task<Void, Error>?
+    #else
+        enum TopUpProductError: Error {
+            case unresolvedHost
+        }
+
+        private let hostProvider: ProductHostProviding
+        private var topUpProductTask: Task<Void, Never>?
     #endif
 
     init(
@@ -55,6 +64,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         voucherProvider: StreamableProvider<Voucher>,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
+        hostProvider: ProductHostProviding,
         eventCenter: EventCenterProtocol = EventCenter.shared
     ) {
         self.priceLocalSubscriptionFactory = priceLocalSubscriptionFactory
@@ -70,6 +80,8 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
             self.voucherProvider = voucherProvider
 
             self.voucherRepository = voucherRepository
+        #else
+            self.hostProvider = hostProvider
         #endif
     }
 
@@ -196,6 +208,23 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                 }
             }
         }
+    #else
+        func openTopUpProduct() {
+            topUpProductTask?.cancel()
+            topUpProductTask = Task { [weak presenter, hostProvider] in
+                do {
+                    guard
+                        let host = try await hostProvider.resolveHost(label: AppConfig.DotNs.dotNsGetSome)
+                    else {
+                        throw TopUpProductError.unresolvedHost
+                    }
+
+                    await presenter?.didResolveTopUpProduct(.success(ProductPage(host: host)))
+                } catch {
+                    await presenter?.didResolveTopUpProduct(.failure(error))
+                }
+            }
+        }
     #endif
 
     private func subscribeToBalances() {
@@ -310,3 +339,14 @@ extension AssetDetailsInteractor: AppEventVisiting {
         }
     }
 }
+
+#if !TESTNET_FEATURE
+    extension AssetDetailsInteractor.TopUpProductError: ErrorContentConvertible {
+        func toErrorContent() -> ErrorContent {
+            ErrorContent(
+                title: String(localized: .Common.error),
+                message: String(localized: .Products.topUpResolveError)
+            )
+        }
+    }
+#endif

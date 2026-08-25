@@ -59,11 +59,11 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
             presenter?.onBackupWhyUpdate()
         }
 
-        #if TESTNET_FEATURE
-            viewModel.onTopUp = { [weak presenter] in
-                presenter?.onTopUp()
-            }
+        viewModel.onTopUp = { [weak presenter] in
+            presenter?.onTopUp()
+        }
 
+        #if TESTNET_FEATURE
             viewModel.onMakeAllVouchersReady = { [weak presenter] in
                 presenter?.onMakeAllVouchersReady()
             }
@@ -128,11 +128,9 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         }
     }
 
-    #if TESTNET_FEATURE
-        func didReceive(faucetLoading: Bool) {
-            viewModel.isFaucetInProgress = faucetLoading
-        }
-    #endif
+    func didReceive(topUpLoading: Bool) {
+        viewModel.isTopUpInProgress = topUpLoading
+    }
 
     private func emitCardUpdate() {
         viewModel.balanceCardModel = .init(

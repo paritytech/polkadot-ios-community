@@ -97,27 +97,25 @@ struct AssetDetailsView: View {
             }
             .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
 
-            #if TESTNET_FEATURE
-                Button {
-                    viewModel.onTopUp?()
-                } label: {
-                    Group {
-                        if viewModel.isFaucetInProgress {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.fgPrimaryInverted)
-                        } else {
-                            Image(.add24)
-                                .renderingMode(.template)
-                        }
+            Button {
+                viewModel.onTopUp?()
+            } label: {
+                Group {
+                    if viewModel.isTopUpInProgress {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.fgPrimaryInverted)
+                    } else {
+                        Image(.add24)
+                            .renderingMode(.template)
                     }
-                    .frame(width: 56, height: 56)
-                    .foregroundStyle(Color.fgPrimaryInverted)
-                    .background(.bgActionPrimary, in: Circle())
                 }
-                .disabled(viewModel.isFaucetInProgress)
-                .accessibilityId(AccessibilityID.Wallet.addFundsButton)
-            #endif
+                .frame(width: 56, height: 56)
+                .foregroundStyle(Color.fgPrimaryInverted)
+                .background(.bgActionPrimary, in: Circle())
+            }
+            .disabled(viewModel.isTopUpInProgress)
+            .accessibilityId(AccessibilityID.Wallet.addFundsButton)
         }
     }
 }

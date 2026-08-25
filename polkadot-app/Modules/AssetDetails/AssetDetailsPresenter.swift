@@ -4,6 +4,7 @@ import SubstrateSdk
 import PolkadotUI
 import Coinage
 import ChainRegistry
+import Products
 
 @MainActor
 final class AssetDetailsPresenter {
@@ -114,12 +115,17 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
         interactor?.removeFailedFiatOnrampTransactions()
     }
 
-    #if TESTNET_FEATURE
-        func onTopUp() {
-            view?.didReceive(faucetLoading: true)
-            interactor?.topUp()
-        }
+    func onTopUp() {
+        view?.didReceive(topUpLoading: true)
 
+        #if TESTNET_FEATURE
+            interactor?.topUp()
+        #else
+            interactor?.openTopUpProduct()
+        #endif
+    }
+
+    #if TESTNET_FEATURE
         func onMakeAllVouchersReady() {
             interactor?.makeAllVouchersReady()
         }
@@ -129,7 +135,7 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
 extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
     #if TESTNET_FEATURE
         func didCompleteTopUp(_ result: Result<Void, Error>) {
-            view?.didReceive(faucetLoading: false)
+            view?.didReceive(topUpLoading: false)
 
             guard case let .failure(error) = result else {
                 return
@@ -142,6 +148,17 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             self.coins = coins
             self.vouchers = vouchers
             provideCoinageBreakdown()
+        }
+    #else
+        func didResolveTopUpProduct(_ result: Result<ProductPage, Error>) {
+            view?.didReceive(topUpLoading: false)
+
+            switch result {
+            case let .success(page):
+                wireframe.showProduct(page: page)
+            case let .failure(error):
+                wireframe.present(error: error, from: view)
+            }
         }
     #endif
 
