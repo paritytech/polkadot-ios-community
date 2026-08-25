@@ -170,10 +170,17 @@ enum MainTabBarViewFactory {
             coinageService: serviceCoordinator.coinageService,
             moduleNavigator: moduleNavigator
         )
-        let productOpen = ProductSPAOpenService(
-            moduleNavigator: moduleNavigator,
-            hostProvider: hostProvider
-        )
+        #if FEATURE_PRODUCTS
+            let productHandlers: [URLHandlingServiceProtocol] = [
+                ProductSPAOpenService(
+                    moduleNavigator: moduleNavigator,
+                    hostProvider: hostProvider
+                )
+            ]
+        #else
+            let productHandlers: [URLHandlingServiceProtocol] = []
+        #endif
+
         let historyStorage = W3sPaymentHistoryCoreDataStore(storageFacade: UserDataStorageFacade.shared)
 
         let w3sPayLauncher = W3sPayLauncher(
@@ -191,8 +198,8 @@ enum MainTabBarViewFactory {
             chatService
         ] + dimHandlers + [
             fiatOnrampRedirect,
-            payDeeplink,
-            productOpen,
+            payDeeplink
+        ] + productHandlers + [
             w3sPayDeeplink
         ])
     }
