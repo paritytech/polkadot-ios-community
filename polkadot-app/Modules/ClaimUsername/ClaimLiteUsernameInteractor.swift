@@ -9,12 +9,14 @@ import Individuality
 struct ClaimLiteUsernameDependency {
     let walletSetupManagerFactory: () -> WalletSetupManaging
     let registrationParamsFactory: (
-        _ mainWallet: WalletManaging
+        _ mainWallet: WalletManaging,
+        _ liteVrfManager: BandersnatchKeyManager
     ) throws -> LitePersonParamsFactoryProtocol
     let chainTimeProvider: () -> ChainTimeProviding
     let usernameOperationFactory: () -> UsernameOperationFactoryProtocol
     let usernameStorage: () -> UsernameStoring
-    let mainWallet: WalletManaging
+    let walletRepo: WalletManagerRepositoryProtocol
+    let vrfRepo: BandersnatchManagerRepositoryProtocol
 }
 
 final class ClaimLiteUsernameInteractor {
@@ -80,7 +82,9 @@ private extension ClaimLiteUsernameInteractor {
     }
 
     func registrationFactory() throws -> LitePersonParamsFactoryProtocol {
-        try dependencies.registrationParamsFactory(dependencies.mainWallet)
+        let mainWallet = try dependencies.walletRepo.main()
+        let liteVrfManager = try dependencies.vrfRepo.litePerson()
+        return try dependencies.registrationParamsFactory(mainWallet, liteVrfManager)
     }
 
     func performClaim(

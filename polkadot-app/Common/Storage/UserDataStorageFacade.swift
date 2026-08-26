@@ -30,18 +30,11 @@ enum UserStorageParams {
     /// and each process writes its timestamp under its own bundle identifier.
     /// Bundle.main is unusable here: in the NSE process it resolves to the extension.
     static var historyTrackingTargets: [String] {
-        let appGroup = AppConfig.Brand.appGroup
-        let groupPrefix = "group."
-
-        guard appGroup.hasPrefix(groupPrefix) else {
-            fatalError("App Group '\(appGroup)' must start with '\(groupPrefix)'")
-        }
-
-        let appIdentifier = String(appGroup.dropFirst(groupPrefix.count))
+        let bundleRoot = AppConfig.Brand.bundleRoot
 
         return [
-            appIdentifier,
-            appIdentifier + ".NotificationServiceExtension"
+            bundleRoot,
+            bundleRoot + ".NotificationServiceExtension"
         ]
     }
 }

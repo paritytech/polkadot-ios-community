@@ -166,7 +166,7 @@ private extension ChatExtensionsRegistry {
             syncService: syncService,
             personhoodRegistrationService: personhoodRegistrationService
         )
-        let dim1FlowState = createDIM1FlowState(for: peerFlowState)
+        let dim1FlowState = try createDIM1FlowState(for: peerFlowState)
         let dim2FlowState = try createDIM2FlowState(for: peerFlowState)
 
         return DimStates(peerState: peerFlowState, dim1: dim1FlowState, dim2: dim2FlowState)
@@ -178,11 +178,13 @@ private extension ChatExtensionsRegistry {
         syncService: DetermineStateSyncServicing,
         personhoodRegistrationService: PersonhoodRegistrationServicing
     ) throws -> DIMSSharedFlowState {
-        let candidateAccountId = try SelectedWallet.candidate.getRawPublicKey()
-        let mobRuleAccountId = try SelectedWallet.mobRuleAlias.getRawPublicKey()
-        let scoreAccountId = try SelectedWallet.scoreAlias.getRawPublicKey()
-        let resourcesAccountId = try SelectedWallet.resourcesAlias.getRawPublicKey()
-        let vrfManager = BandersnatchKeyManager.fullPerson()
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+        let candidateAccountId = try walletRepo.candidate().getRawPublicKey()
+        let mobRuleAccountId = try walletRepo.mobRuleAlias().getRawPublicKey()
+        let scoreAccountId = try walletRepo.scoreAlias().getRawPublicKey()
+        let resourcesAccountId = try walletRepo.resourcesAlias().getRawPublicKey()
+        let vrfManager = try vrfRepo.fullPerson()
         let memberKey = try vrfManager.getMemberKey()
         let chainRegistry = ChainRegistryFacade.sharedRegistry
 
@@ -260,10 +262,13 @@ private extension ChatExtensionsRegistry {
                 )
             }
 
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
         return try DIM2SharedFlowState(
-            candidateWallet: SelectedWallet.candidate,
-            score: SelectedWallet.scoreAlias,
-            vrfManager: BandersnatchKeyManager.fullPerson(),
+            candidateWallet: walletRepo.candidate(),
+            score: walletRepo.scoreAlias(),
+            vrfManager: vrfRepo.fullPerson(),
             chatEncryptionManager: chatEncryptionManager,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             chainId: AppConfig.Chains.usernameChain,
@@ -278,16 +283,19 @@ private extension ChatExtensionsRegistry {
         )
     }
 
-    private static func createDIM1FlowState(for peerState: DIMSSharedFlowState) -> DIM1SharedFlowState {
-        DIM1SharedFlowState(
+    private static func createDIM1FlowState(for peerState: DIMSSharedFlowState) throws -> DIM1SharedFlowState {
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
+        return try DIM1SharedFlowState(
             commonStateStore: peerState.syncStateStore,
             personStateStore: peerState.personDataStore,
             gameInfoSyncService: peerState.gameInfoSyncService,
-            vrfManager: BandersnatchKeyManager.fullPerson(),
-            candidateWallet: SelectedWallet.candidate,
-            mobRuleWallet: SelectedWallet.mobRuleAlias,
-            scoreWallet: SelectedWallet.scoreAlias,
-            resourcesWallet: SelectedWallet.resourcesAlias,
+            vrfManager: vrfRepo.fullPerson(),
+            candidateWallet: walletRepo.candidate(),
+            mobRuleWallet: walletRepo.mobRuleAlias(),
+            scoreWallet: walletRepo.scoreAlias(),
+            resourcesWallet: walletRepo.resourcesAlias(),
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             proofOfInkChainId: AppConfig.Chains.usernameChain,
             gameChainId: AppConfig.Chains.usernameChain,

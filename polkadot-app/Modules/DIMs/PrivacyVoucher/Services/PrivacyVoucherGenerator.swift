@@ -9,14 +9,11 @@ protocol PrivacyVoucherGenerating {
 
 final class PrivacyVoucherGenerator: PrivacyVoucherGenerating {
     private let keyFactory: PrivacyVoucherKeyFactoryProtocol
-    private let candidateAccount: WalletManaging
 
     init(
-        keyFactory: PrivacyVoucherKeyFactoryProtocol = PrivacyVoucherKeyFactory(),
-        candidateAccount: WalletManaging = SelectedWallet.candidate
+        keyFactory: PrivacyVoucherKeyFactoryProtocol = PrivacyVoucherKeyFactory()
     ) {
         self.keyFactory = keyFactory
-        self.candidateAccount = candidateAccount
     }
 
     func deriveKey(for type: PrivacyVoucherType, index: Int) throws -> MemberKeyData {

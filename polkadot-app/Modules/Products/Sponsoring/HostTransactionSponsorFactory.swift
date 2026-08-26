@@ -12,27 +12,25 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
     private let accountManager: ProductsAccountManaging
     private let resourceKeyManager: ProductResourceKeyManaging
     private let chainRegistry: ChainRegistryProtocol
+    private let keyResolver: BandersnatchKeyResolving
     private let logger: LoggerProtocol
 
     init(
         accountManager: ProductsAccountManaging,
         resourceKeyManager: ProductResourceKeyManaging,
         chainRegistry: ChainRegistryProtocol,
+        keyResolver: BandersnatchKeyResolving,
         logger: LoggerProtocol
     ) {
         self.accountManager = accountManager
         self.resourceKeyManager = resourceKeyManager
         self.chainRegistry = chainRegistry
+        self.keyResolver = keyResolver
         self.logger = logger
     }
 
     func makePreimageSponsor() -> PreimageSubmitSponsoring {
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
-
-        let keyResolver = BandersnatchKeyResolver(
-            liteKeyManager: BandersnatchKeyManager.litePerson(),
-            fullKeyManager: BandersnatchKeyManager.fullPerson()
-        )
 
         let storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),
@@ -80,11 +78,6 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
 
     func makeStatementStoreSponsor() -> StatementStoreSponsoring {
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
-
-        let keyResolver = BandersnatchKeyResolver(
-            liteKeyManager: BandersnatchKeyManager.litePerson(),
-            fullKeyManager: BandersnatchKeyManager.fullPerson()
-        )
 
         let storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),

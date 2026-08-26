@@ -116,7 +116,7 @@ private extension DeviceSyncIncomingUpdateApplier {
                     continue
                 }
 
-                var contact = Chat.Contact(
+                var contact = try Chat.Contact(
                     remoteContact: remoteContact,
                     ownKeyId: .main()
                 )

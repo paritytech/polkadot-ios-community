@@ -36,8 +36,11 @@ extension MeldFiatOnrampConfiguration {
         )
     }
 
-    static func resolveWalletAddress(for chainAsset: ChainAsset) -> String? {
-        guard let account = try? SelectedWallet.main.fetchAccount(for: chainAsset.chain) else {
+    static func resolveWalletAddress(
+        for chainAsset: ChainAsset,
+        walletRepo: WalletManagerRepositoryProtocol = .shared
+    ) -> String? {
+        guard let account = try? walletRepo.main().fetchAccount(for: chainAsset.chain) else {
             return nil
         }
 

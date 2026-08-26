@@ -36,15 +36,16 @@ private extension MobRulesFactory {
             logger: logger
         )
 
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
         guard
             let chain = chainRegistry.getChain(for: chainId),
             let connection = chainRegistry.getConnection(for: chainId),
-            let runtimeProvider = chainRegistry.getRuntimeProvider(for: chainId)
+            let runtimeProvider = chainRegistry.getRuntimeProvider(for: chainId),
+            let vrfManager = try? vrfRepo.fullPerson()
         else {
             return nil
         }
-
-        let vrfManager = BandersnatchKeyManager.fullPerson()
 
         let extrinsicOriginFactory = PersonhoodOriginFactory(
             vrfManager: vrfManager,

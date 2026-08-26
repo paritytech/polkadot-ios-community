@@ -103,11 +103,15 @@ private extension ServiceCoordinator {
             return nil
         }
 
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+
         guard
             let connection = chainRegistry.getConnection(for: coinageChainId),
-            let runtimeProvider = chainRegistry.getRuntimeProvider(for: coinageChainId)
+            let runtimeProvider = chainRegistry.getRuntimeProvider(for: coinageChainId),
+            let fullPersonKeyManager = try? vrfRepo.fullPerson(),
+            let lightPersonKeyManager = try? vrfRepo.litePerson()
         else {
-            logger.error("Failed to get connection/runtime for coinage")
+            logger.error("Failed to get connection/runtime/personhood keys for coinage")
             return nil
         }
 
@@ -130,8 +134,8 @@ private extension ServiceCoordinator {
             operationQueue: operationQueue,
             chain: chain,
             voucherKeyFactory: voucherKeypairFactory,
-            fullPersonKeyManager: BandersnatchKeyManager.fullPerson(),
-            lightPersonKeyManager: BandersnatchKeyManager.litePerson(),
+            fullPersonKeyManager: fullPersonKeyManager,
+            lightPersonKeyManager: lightPersonKeyManager,
             unloadTokenResolver: unloadTokenResolver,
             connection: connection,
             runtimeCodingService: runtimeProvider,

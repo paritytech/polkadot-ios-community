@@ -5,6 +5,7 @@ extension AppConfig {
     enum Brand {
         static var displayName: String { string(.displayName) }
         static var appGroup: String { string(.appGroup) }
+        static var bundleRoot: String { string(.bundleRoot) }
         static var deeplinkScheme: String { string(.deeplinkScheme) }
         static var deeplinkSchemes: Set<String> { schemeSet(.deeplinkSchemes) }
         static var shareRoot: String { string(.shareRoot) }
@@ -20,6 +21,7 @@ private extension AppConfig.Brand {
     enum Key: String, CaseIterable {
         case displayName = "BrandDisplayName"
         case appGroup = "BrandAppGroup"
+        case bundleRoot = "BrandBundleRoot"
         case deeplinkScheme = "BrandDeeplinkScheme"
         case deeplinkSchemes = "BrandDeeplinkSchemes"
         case shareRoot = "BrandShareRoot"

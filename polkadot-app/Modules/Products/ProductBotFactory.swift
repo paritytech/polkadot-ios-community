@@ -22,6 +22,7 @@ final class ProductBotFactory {
     private let logger: LoggerProtocol
     private let accountManager: ProductsAccountManaging
     private let hostProvider: ProductHostProviding
+    private let vrfRepo: BandersnatchManagerRepositoryProtocol
 
     init(
         productFileProvider: ChatProductFileProviding,
@@ -35,6 +36,7 @@ final class ProductBotFactory {
         settingsManager: SettingsManagerProtocol = SettingsManager.shared,
         runtimeProvider: TrUAPIHostRuntimeProviding,
         accountManager: ProductsAccountManaging,
+        vrfRepo: BandersnatchManagerRepositoryProtocol = .shared,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.productFileProvider = productFileProvider
@@ -48,6 +50,7 @@ final class ProductBotFactory {
         self.settingsManager = settingsManager
         self.runtimeProvider = runtimeProvider
         self.accountManager = accountManager
+        self.vrfRepo = vrfRepo
         self.logger = logger
     }
 
@@ -122,10 +125,11 @@ private extension ProductBotFactory {
             userDefaults: SharedContainerGroup.userDefaults
         )
 
-        let sponsorFactory = HostTransactionSponsorFactory(
+        let sponsorFactory = try HostTransactionSponsorFactory(
             accountManager: accountManager,
             resourceKeyManager: resourceKeyManager,
             chainRegistry: chainRegistry,
+            keyResolver: vrfRepo.keyResolver(),
             logger: logger
         )
 

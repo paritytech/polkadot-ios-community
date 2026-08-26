@@ -42,27 +42,31 @@ enum GameAccountFactory {
         chain: ChainModel,
         registeredSource: People.RegisteredSource?
     ) -> AccountProtocol? {
-        let wallet = makeWallet(for: registeredSource)
+        guard let wallet = try? makeWallet(for: registeredSource) else {
+            return nil
+        }
         return try? wallet.fetchAccount(for: chain)
     }
 
-    static func makeWallet(for registeredSource: People.RegisteredSource?) -> WalletManaging {
+    static func makeWallet(for registeredSource: People.RegisteredSource?) throws -> WalletManaging {
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
         switch registeredSource {
         case .proofOfInk:
-            SelectedWallet.scoreAlias
+            return try walletRepo.scoreAlias()
         case .game,
              nil:
-            SelectedWallet.candidate
+            return try walletRepo.candidate()
         }
     }
 
-    static func makeWalletKeyId(for registeredSource: People.RegisteredSource?) -> String {
+    static func makeWalletKeyId(for registeredSource: People.RegisteredSource?) throws -> String {
+        let tld = try DotNsTldProviderFacade.shared.currentTldOrError()
         switch registeredSource {
         case .proofOfInk:
-            WalletDerivationPath.score
+            return WalletDerivationPath.score(for: tld)
         case .game,
              nil:
-            WalletDerivationPath.candidate
+            return WalletDerivationPath.candidate(for: tld)
         }
     }
 }

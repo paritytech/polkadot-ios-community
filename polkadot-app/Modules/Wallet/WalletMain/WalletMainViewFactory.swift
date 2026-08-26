@@ -10,9 +10,10 @@ enum WalletMainViewFactory {
         chainAssetId: ChainAssetId
     ) -> WalletMainViewProtocol? {
         let chainRegistry = ChainRegistryFacade.sharedRegistry
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
 
-        let wallet = SelectedWallet.main
         guard
+            let wallet = try? walletRepo.main(),
             let chain = chainRegistry.getChain(for: chainAssetId.chainId),
             let chainAsset = chain.chainAsset(for: chainAssetId.assetId)
         else {
