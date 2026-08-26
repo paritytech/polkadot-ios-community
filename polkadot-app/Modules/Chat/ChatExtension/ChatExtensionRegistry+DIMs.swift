@@ -62,43 +62,9 @@ extension ChatExtensionsRegistry {
                         return []
                     }
 
-                    let userNotificationService = UserNotificationService.shared
-                    let videoPreviewPlayerFactory = VideoPreviewPlayerFactory(
-                        audioSessionManager: audioSessionManager
-                    )
-
-                    let dim1Wireframe = DIM1Wireframe(
-                        application: UIApplication.shared,
-                        botSettings: SettingsManager.shared,
-                        videoPreviewPlayerFactory: videoPreviewPlayerFactory
-                    )
-
-                    let dim1NotificationService = DIM1NotificationService(
-                        localNotificationService: userNotificationService
-                    )
-
-                    let dim1Interactor = DIM1ChatInteractor(
+                    let dim1 = createDIM1(
                         flowState: dimsState.dim1,
-                        notificationService: dim1NotificationService
-                    )
-
-                    let dim1Actions: [ChatExtensionActions.ActionModel] = [
-                        .init(
-                            title: String(localized: .MobRule.chatName),
-                            subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
-                            identifier: MobRulesChatExtension.identifier
-                        ),
-                        .init(
-                            title: String(localized: .WeeklyGame.chatName),
-                            subtitle: String(localized: .ChatExtension.actionOpenWeeklyGameSubtitle),
-                            identifier: DIM2ChatExtension.identifier
-                        )
-                    ]
-
-                    let dim1 = DIM1ChatExtension(
-                        interactor: dim1Interactor,
-                        wireframe: dim1Wireframe,
-                        personActions: dim1Actions
+                        audioSessionManager: audioSessionManager
                     )
 
                     let peerActions: [ChatExtensionActions.ActionModel] = [
@@ -147,6 +113,50 @@ private extension ChatExtensionsRegistry {
             logger: logger
         )
     }
+
+    #if FEATURE_DIMS_FULL
+        @MainActor
+        static func createDIM1(
+            flowState: DIM1SharedFlowStateProtocol,
+            audioSessionManager: AudioSessionManaging
+        ) -> DIM1ChatExtension {
+            let videoPreviewPlayerFactory = VideoPreviewPlayerFactory(
+                audioSessionManager: audioSessionManager
+            )
+
+            let wireframe = DIM1Wireframe(
+                application: UIApplication.shared,
+                botSettings: SettingsManager.shared,
+                videoPreviewPlayerFactory: videoPreviewPlayerFactory
+            )
+
+            let interactor = DIM1ChatInteractor(
+                flowState: flowState,
+                notificationService: DIM1NotificationService(
+                    localNotificationService: UserNotificationService.shared
+                )
+            )
+
+            let actions: [ChatExtensionActions.ActionModel] = [
+                .init(
+                    title: String(localized: .MobRule.chatName),
+                    subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
+                    identifier: MobRulesChatExtension.identifier
+                ),
+                .init(
+                    title: String(localized: .WeeklyGame.chatName),
+                    subtitle: String(localized: .ChatExtension.actionOpenWeeklyGameSubtitle),
+                    identifier: DIM2ChatExtension.identifier
+                )
+            ]
+
+            return DIM1ChatExtension(
+                interactor: interactor,
+                wireframe: wireframe,
+                personActions: actions
+            )
+        }
+    #endif
 
     struct DimStates {
         let peerState: DIMSSharedFlowStateProtocol
