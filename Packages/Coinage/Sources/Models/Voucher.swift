@@ -113,6 +113,14 @@ public struct Voucher: Equatable, CoinageDerivable {
 
 extension Voucher: Operation_iOS.Identifiable {
     public var identifier: String {
+        Self.identifier(for: derivationIndex)
+    }
+}
+
+public extension Voucher {
+    /// The storage identifier for a voucher at `derivationIndex`. Single source of truth so no
+    /// call site hand-writes the string form.
+    static func identifier(for derivationIndex: UInt32) -> String {
         "\(derivationIndex)"
     }
 }

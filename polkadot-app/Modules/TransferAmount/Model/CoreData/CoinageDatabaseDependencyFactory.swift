@@ -29,16 +29,6 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeCoinStateRepository() -> AnyDataProviderRepository<Coin> {
-        let mapper = CoinStateMapper()
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: AnyCoreDataMapper(mapper)
-        )
-        return AnyDataProviderRepository(repository)
-    }
-
     func makeVoucherRepository() -> AnyDataProviderRepository<Voucher> {
         let mapper = VoucherMapper()
         let repository = storageFacade.createRepository(

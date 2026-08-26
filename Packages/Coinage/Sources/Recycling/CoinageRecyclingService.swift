@@ -147,7 +147,6 @@ private extension CoinageRecyclingService {
             prepared = try await prepareRecycle(coin)
         } catch {
             logger.error("Pre-submission error for coin \(coin.derivationIndex): \(error)")
-            try? await coinService.markAvailable(coinIds: [coin.identifier])
             return .failed(error)
         }
 
@@ -168,9 +167,8 @@ private extension CoinageRecyclingService {
     /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`)
     /// before submission so a crash mid-flight is recoverable. Throws before anything is broadcast.
     func prepareRecycle(_ coin: Coin) async throws -> PreparedRecycle {
-        // Lock the coin first: a crash at any later point leaves a recoverable `.recycling` coin.
-        try await coinService.markRecycling(coinIds: [coin.identifier])
-
+        // The coin is reserved by its `load_recycler` durability entry at submission — a live
+        // input derives to `.pendingTransfer` — so no separate pre-lock is written here.
         let voucher = try await voucherAllocator
             .allocate(exponent: coin.exponent)
             .withLocalState(.pendingOnboarding)
@@ -214,13 +212,13 @@ private extension CoinageRecyclingService {
                     { [prepared.voucher.withLocalState(.available)] },
                     { [] }
                 ).asyncExecute()
-            try await coinService.markSpent(coinIds: [coin.identifier])
+            try await coinService.save(coins: [coin.changing(isOnchain: false)])
             logger.debug("Recycled coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
             return .recycled(prepared.voucher)
 
         case let .failure(error):
             logger.warning("Coin \(coin.derivationIndex) destroyed on-chain: \(error)")
-            try await coinService.markSpent(coinIds: [coin.identifier])
+            try await coinService.save(coins: [coin.changing(isOnchain: false)])
             try await voucherRepository.saveOperation(
                 { [] },
                 { [prepared.voucher.identifier] }

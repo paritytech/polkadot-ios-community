@@ -132,15 +132,14 @@ extension CoinStateSyncService {
             guard let coin = coinMap[mappingKey] else { continue }
 
             if let onChainCoin {
-                // Present on chain -> Update local age
+                // Present on chain -> record presence and sync age.
                 let onChainAge = onChainCoin.age
-                guard coin.age != onChainAge else { continue }
-                coinsToUpdate.append(coin.changing(age: onChainAge))
+                guard coin.age != onChainAge || !coin.isOnchain else { continue }
+                coinsToUpdate.append(coin.changing(age: onChainAge).changing(isOnchain: true))
             } else {
-                // Not present on chain
-                guard coin.age != nil else { continue }
-                // Local has age + not present on chain -> Mark coin as SPENT
-                coinsToUpdate.append(coin.changing(state: .spent))
+                // Seen before and now absent -> a peer claimed it; derived as spent.
+                guard coin.age != nil, coin.isOnchain else { continue }
+                coinsToUpdate.append(coin.changing(isOnchain: false))
             }
         }
 

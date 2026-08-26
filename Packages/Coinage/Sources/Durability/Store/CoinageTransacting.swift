@@ -6,14 +6,14 @@ import Foundation
 /// transaction commits. Registration validates using predicated lookups and then
 /// writes, so a rejected registration leaves nothing behind.
 public protocol CoinageStoreTransaction {
-    /// Identifiers among `candidates` already claimed as an input by a non-failure entry.
-    func claimedInputIdentifiers(among candidates: Set<String>) throws -> Set<String>
-    /// Identifiers among `candidates` already minted as an output by any entry.
-    func mintedOutputIdentifiers(among candidates: Set<String>) throws -> Set<String>
-    /// Identifiers among `candidates` already claimed as a received-coin input by any entry.
-    func receivedInputIdentifiers(among candidates: Set<String>) throws -> Set<String>
-    /// Identifiers among `candidates` carrying a handoff mark.
-    func markedIdentifiers(among candidates: Set<String>) throws -> Set<String>
+    /// Identifiers among `inputs` already claimed as an input by a non-failure entry.
+    func claimedInputIdentifiers(among inputs: [Input]) throws -> Set<String>
+    /// Identifiers among `outputs` already minted as an output by any entry.
+    func mintedOutputIdentifiers(among outputs: [OwnAsset]) throws -> Set<String>
+    /// Identifiers among `outputs` already claimed as a received-coin input by any entry.
+    func receivedInputIdentifiers(among outputs: [OwnAsset]) throws -> Set<String>
+    /// Identifiers among `inputs` carrying a handoff mark.
+    func markedIdentifiers(among inputs: [Input]) throws -> Set<String>
     /// Next sequence number to assign to a new entry.
     func nextSequence() throws -> Int64
     func upsert(_ entry: DurabilityEntry) throws

@@ -20,7 +20,7 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
     init(storageFacade: StorageFacadeProtocol, transacting: any CoinageTransacting) {
         let entryRepository = storageFacade.createRepository(
             filter: nil,
-            sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurabilityEntry.sequence), ascending: true)],
+            sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: true)],
             mapper: AnyCoreDataMapper(DurabilityEntryMapper())
         )
         repository = AnyDataProviderRepository(entryRepository)
@@ -40,13 +40,10 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
 extension DurabilityCoreDataStore {
     func register(_ entry: DurabilityEntry) async throws {
         try await transacting.withTransaction { tx in
-            let inputIds = Set(entry.inputs.map(\.identifier))
-            let outputIds = Set(entry.outputs.map(\.identifier))
-
-            let claimedInputs = try tx.claimedInputIdentifiers(among: inputIds)
-            let mintedOutputs = try tx.mintedOutputIdentifiers(among: outputIds)
-            let receivedInputs = try tx.receivedInputIdentifiers(among: outputIds)
-            let marks = try tx.markedIdentifiers(among: inputIds)
+            let claimedInputs = try tx.claimedInputIdentifiers(among: entry.inputs)
+            let mintedOutputs = try tx.mintedOutputIdentifiers(among: entry.outputs)
+            let receivedInputs = try tx.receivedInputIdentifiers(among: entry.outputs)
+            let marks = try tx.markedIdentifiers(among: entry.inputs)
 
             try RegistrationValidator.validate(
                 entry,

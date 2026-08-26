@@ -71,7 +71,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
 
         let allCoins = try await coinService.fetchAllCoins()
         let spendableCoins = allCoins.filter { $0.state == .available }
-        let nonSpentCoins = allCoins.filter(\.state.isAvailableOrRecycling)
+        let nonSpentCoins = allCoins.filter { $0.state == .available }
         let spendableTotal = totalValue(of: spendableCoins, context: context)
 
         if spendableTotal >= deficit {

@@ -54,7 +54,6 @@ public extension CoinageService {
         }
 
         let coinRepository = databaseFactory.makeCoinRepository()
-        let coinStateRepository = databaseFactory.makeCoinStateRepository()
         let voucherRepository = databaseFactory.makeVoucherRepository()
         let voucherLocationRepository = databaseFactory.makeVoucherLocationRepository()
 
@@ -80,10 +79,7 @@ public extension CoinageService {
             voucherRepository: voucherRepository,
             voucherLoaderFactory: voucherLoaderFactory
         )
-        let coinService = CoinService(
-            coinRepository: coinRepository,
-            coinStateRepository: coinStateRepository
-        )
+        let coinService = CoinService(coinRepository: coinRepository)
         let contextLoader = DenominationContextLoader(runtimeService: runtimeService)
 
         let readinessLoader = RecyclerReadinessLoader(
@@ -157,7 +153,6 @@ public extension CoinageService {
 
         let reconciler = ProjectionReconciler(
             store: durabilityStore,
-            coinService: coinService,
             voucherService: voucherService,
             logger: logger
         )

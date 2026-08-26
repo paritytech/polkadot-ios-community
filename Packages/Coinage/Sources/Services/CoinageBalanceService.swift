@@ -236,8 +236,7 @@ extension CoinageBalanceService {
             }
         }
 
-        let lockedPlanks = lockedVouchersPlanks + coinPlanks.recycling + coinPlanks.expiringSoon
-            + coinPlanks.pending
+        let lockedPlanks = lockedVouchersPlanks + coinPlanks.expiringSoon + coinPlanks.pending
 
         return (
             spendable: CoinageSpendableBalanceModel(
@@ -273,11 +272,10 @@ extension CoinageBalanceService {
         coins: some Collection<Coin>,
         assetStatuses: [OwnAsset: CoinageAssetState],
         context: DenominationBreakdownContext
-    ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt, recycling: BigUInt) {
+    ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt) {
         var spendable = BigUInt(0)
         var pending = BigUInt(0)
         var expiringSoon = BigUInt(0)
-        var recycling = BigUInt(0)
 
         for coin in coins {
             let amount = context.valueInPlanks(for: coin.exponent)
@@ -300,11 +298,6 @@ extension CoinageBalanceService {
                 continue
             }
 
-            if coin.state == .recycling {
-                recycling += amount
-                continue
-            }
-
             // Coin is selectable: present at best head and not locked/handed off.
             if coin.isSelectable {
                 spendable += amount
@@ -315,6 +308,6 @@ extension CoinageBalanceService {
             // one means the coin is gone.
         }
 
-        return (spendable, pending, expiringSoon, recycling)
+        return (spendable, pending, expiringSoon)
     }
 }

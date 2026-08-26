@@ -4,100 +4,81 @@ import Coinage
 import Operation_iOS
 import SubstrateSdk
 
-/// Maps ``DurabilityEntry`` to `CDDurabilityEntry`.
+/// Maps ``DurabilityEntry`` to `CDDurability`.
 ///
-/// Inputs and outputs are stored in a separate `CDEntryAsset` relation, keyed by stable
-/// identifiers that the engine uses for set operations.
+/// Inputs and outputs are immutable: they are written once when the entry is first inserted and
+/// never rewritten, so a status update only touches the entry's own fields. Each row identifies
+/// its asset through typed scalars (see ``DurabilityRowCoding``); the `CDCoin` / `CDVoucher`
+/// relation is populated opportunistically — and lazily on later saves, once an output's coin
+/// row exists — so a status change can be propagated to the asset's subscribers.
 final class DurabilityEntryMapper: CoreDataMapperProtocol {
     typealias DataProviderModel = DurabilityEntry
-    typealias CoreDataEntity = CDDurabilityEntry
+    typealias CoreDataEntity = CDDurability
 
-    var entityIdentifierFieldName: String { #keyPath(CDDurabilityEntry.identifier) }
+    var entityIdentifierFieldName: String { #keyPath(CDDurability.identifier) }
 
-    private static let roleInput: Int16 = 0
-    private static let roleOutput: Int16 = 1
-
-    func transform(entity: CDDurabilityEntry) throws -> DurabilityEntry {
+    func transform(entity: CDDurability) throws -> DurabilityEntry {
         guard let identifier = entity.identifier, let id = UUID(uuidString: identifier) else {
-            throw CoreDataMapperError.missingRequiredData(
-                keyPath: #keyPath(CDDurabilityEntry.identifier)
-            )
-        }
-        guard let checkpointHash = entity.checkpointHash else {
-            throw CoreDataMapperError.missingRequiredData(
-                keyPath: #keyPath(CDDurabilityEntry.checkpointHash)
-            )
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.identifier))
         }
         guard let status = EntryStatus(rawValue: Int(entity.status)) else {
-            throw CoreDataMapperError.missingRequiredData(
-                keyPath: #keyPath(CDDurabilityEntry.status)
-            )
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.status))
         }
 
-        let successDetectedAt = entity.successBlockHash.map {
-            BlockRef(number: UInt32(bitPattern: entity.successBlockNumber), hash: $0)
-        }
-
-        let inputs = transformInputs(from: entity.assets)
-        let outputs = transformOutputs(from: entity.assets)
+        let checkpoint = try blockRef(
+            hash: entity.checkpointHash,
+            number: entity.checkpointNumber,
+            keyPath: #keyPath(CDDurability.checkpointHash)
+        )
 
         return DurabilityEntry(
             id: id,
             sequence: entity.sequence,
-            inputs: inputs,
-            outputs: outputs,
-            txHash: entity.txHash,
-            checkpoint: BlockRef(
-                number: UInt32(bitPattern: entity.checkpointNumber),
-                hash: checkpointHash
+            inputs: transformInputs(from: entity.inputs),
+            outputs: transformOutputs(from: entity.outputs),
+            txHash: entity.txHash.flatMap { try? Data(hexString: $0) },
+            checkpoint: checkpoint,
+            mortality: UInt32(truncatingIfNeeded: entity.mortality),
+            successDetectedAt: try? blockRef(
+                hash: entity.successHash,
+                number: entity.successNumber,
+                keyPath: #keyPath(CDDurability.successHash)
             ),
-            mortality: UInt32(bitPattern: entity.mortality),
-            successDetectedAt: successDetectedAt,
             status: status,
             createdAt: entity.createdAt ?? Date()
         )
     }
 
     func populate(
-        entity: CDDurabilityEntry,
+        entity: CDDurability,
         from model: DurabilityEntry,
         using context: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
         entity.sequence = model.sequence
-        entity.txHash = model.txHash
-        entity.checkpointNumber = Int32(bitPattern: model.checkpoint.number)
-        entity.checkpointHash = model.checkpoint.hash
-        entity.mortality = Int32(bitPattern: model.mortality)
-        entity.successBlockNumber = Int32(bitPattern: model.successDetectedAt?.number ?? 0)
-        entity.successBlockHash = model.successDetectedAt?.hash
         entity.status = Int16(model.status.rawValue)
         entity.createdAt = model.createdAt
+        entity.mortality = Int64(model.mortality)
+        entity.checkpointHash = model.checkpoint.hash.toHex()
+        entity.checkpointNumber = NSNumber(value: model.checkpoint.number)
+        entity.txHash = model.txHash?.toHex()
+        entity.successHash = model.successDetectedAt?.hash.toHex()
+        entity.successNumber = model.successDetectedAt.map { NSNumber(value: $0.number) }
 
-        try populateAssets(entity: entity, inputs: model.inputs, outputs: model.outputs, using: context)
+        // Inputs and outputs never change once the entry exists — write them only on first insert.
+        if entity.isInserted {
+            try populateInputs(entity: entity, inputs: model.inputs, using: context)
+            try populateOutputs(entity: entity, outputs: model.outputs, using: context)
+        }
+
+        touchRelatedAssets(of: entity, in: context)
     }
 }
 
 // MARK: - AssetCoding
 
+/// Parses the domain identifier of a handoff mark ("coin:N" / "voucher:N") back into an asset.
 enum AssetCoding {
-    static func input(from identifier: String) -> Input? {
-        let parts = identifier.split(separator: ":", maxSplits: 1)
-        guard parts.count == 2 else { return nil }
-        let value = String(parts[1])
-
-        switch parts[0] {
-        case "coin":
-            return UInt32(value).map { .coin(.own($0)) }
-        case "received":
-            return (try? Data(hexString: value)).map { .coin(.received($0)) }
-        case "voucher":
-            return UInt32(value).map { .recyclerVoucher($0) }
-        default:
-            return nil
-        }
-    }
-
     static func ownAsset(from identifier: String) -> OwnAsset? {
         let parts = identifier.split(separator: ":", maxSplits: 1)
         guard parts.count == 2, let index = UInt32(parts[1]) else { return nil }
@@ -110,72 +91,106 @@ enum AssetCoding {
     }
 }
 
-// MARK: - Private
+// MARK: - Transform
 
 private extension DurabilityEntryMapper {
-    func transformInputs(from assets: NSSet?) -> [Input] {
-        guard let assets = assets as? Set<CDEntryAsset> else { return [] }
-        return assets
-            .filter { $0.role == Self.roleInput }
-            .sorted { $0.index < $1.index }
-            .compactMap { asset in
-                guard let identifier = asset.identifier else { return nil }
-                return AssetCoding.input(from: identifier)
-            }
+    func blockRef(hash: String?, number: NSNumber?, keyPath: String) throws -> BlockRef {
+        guard let hash, let number else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: keyPath)
+        }
+        return try BlockRef(number: number.uint32Value, hash: Data(hexString: hash))
     }
 
-    func transformOutputs(from assets: NSSet?) -> [OwnAsset] {
-        guard let assets = assets as? Set<CDEntryAsset> else { return [] }
-        return assets
-            .filter { $0.role == Self.roleOutput }
-            .sorted { $0.index < $1.index }
-            .compactMap { asset in
-                guard let identifier = asset.identifier else { return nil }
-                return AssetCoding.ownAsset(from: identifier)
-            }
+    func transformInputs(from rows: NSSet?) -> [Input] {
+        guard let rows = rows as? Set<CDDurabilityInput> else { return [] }
+        return rows.sorted { $0.index < $1.index }.compactMap(DurabilityRowCoding.input(from:))
     }
 
-    func populateAssets(
-        entity: CDDurabilityEntry,
+    func transformOutputs(from rows: NSSet?) -> [OwnAsset] {
+        guard let rows = rows as? Set<CDDurabilityOutput> else { return [] }
+        return rows.sorted { $0.index < $1.index }.compactMap(DurabilityRowCoding.ownAsset(from:))
+    }
+}
+
+// MARK: - Populate
+
+private extension DurabilityEntryMapper {
+    func populateInputs(
+        entity: CDDurability,
         inputs: [Input],
+        using context: NSManagedObjectContext
+    ) throws {
+        for (index, input) in inputs.enumerated() {
+            guard let row = insert("CDDurabilityInput", context) as CDDurabilityInput? else {
+                throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityInput.identifier))
+            }
+            row.identifier = UUID().uuidString
+            row.index = Int16(index)
+            row.entry = entity
+            DurabilityRowCoding.encode(input, into: row, in: context)
+        }
+    }
+
+    func populateOutputs(
+        entity: CDDurability,
         outputs: [OwnAsset],
         using context: NSManagedObjectContext
     ) throws {
-        (entity.assets as? Set<CDEntryAsset>)?.forEach { context.delete($0) }
-
-        try insertAssets(
-            identifiers: inputs.map(\.identifier),
-            role: Self.roleInput,
-            into: entity,
-            context: context
-        )
-        try insertAssets(
-            identifiers: outputs.map(\.identifier),
-            role: Self.roleOutput,
-            into: entity,
-            context: context
-        )
+        for (index, output) in outputs.enumerated() {
+            guard let row = insert("CDDurabilityOutput", context) as CDDurabilityOutput? else {
+                throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityOutput.identifier))
+            }
+            row.identifier = UUID().uuidString
+            row.index = Int16(index)
+            row.entry = entity
+            DurabilityRowCoding.encode(output, into: row, in: context)
+        }
     }
 
-    func insertAssets(
-        identifiers: [String],
-        role: Int16,
-        into entity: CDDurabilityEntry,
-        context: NSManagedObjectContext
-    ) throws {
-        for (index, identifier) in identifiers.enumerated() {
-            guard let asset = NSEntityDescription.insertNewObject(
-                forEntityName: "CDEntryAsset",
-                into: context
-            ) as? CDEntryAsset else {
-                throw CoreDataMapperError.missingRequiredData(
-                    keyPath: #keyPath(CDEntryAsset.identifier)
-                )
+    /// Signals the linked coins/vouchers as changed so their CoreData snapshot subscribers re-emit
+    /// when this entry's status changes — the `willChange`/`didChange` TouchParent pattern. Relations
+    /// are lazily filled here for outputs whose coin row did not yet exist at registration.
+    func touchRelatedAssets(of entity: CDDurability, in context: NSManagedObjectContext) {
+        var coins: Set<CDCoin> = []
+        var vouchers: Set<CDVoucher> = []
+
+        for row in (entity.inputs as? Set<CDDurabilityInput>) ?? [] {
+            guard let input = DurabilityRowCoding.input(from: row) else { continue }
+            if let coin = row.coin ?? DurabilityAssetLinker.coin(for: input, in: context) {
+                row.coin = coin
+                coins.insert(coin)
             }
-            asset.identifier = identifier
-            asset.role = role
-            asset.index = Int16(index)
-            asset.entry = entity
+            if let voucher = row.voucher ?? DurabilityAssetLinker.voucher(for: input, in: context) {
+                row.voucher = voucher
+                vouchers.insert(voucher)
+            }
         }
+
+        for row in (entity.outputs as? Set<CDDurabilityOutput>) ?? [] {
+            guard let output = DurabilityRowCoding.ownAsset(from: row) else { continue }
+            if let coin = row.coin ?? DurabilityAssetLinker.coin(for: output, in: context) {
+                row.coin = coin
+                coins.insert(coin)
+            }
+            if let voucher = row.voucher ?? DurabilityAssetLinker.voucher(for: output, in: context) {
+                row.voucher = voucher
+                vouchers.insert(voucher)
+            }
+        }
+
+        for coin in coins {
+            let key = #keyPath(CDCoin.durabilityInputs)
+            coin.willChangeValue(forKey: key)
+            coin.didChangeValue(forKey: key)
+        }
+        for voucher in vouchers {
+            let key = #keyPath(CDVoucher.durabilityInputs)
+            voucher.willChangeValue(forKey: key)
+            voucher.didChangeValue(forKey: key)
+        }
+    }
+
+    func insert<Entity: NSManagedObject>(_ entityName: String, _ context: NSManagedObjectContext) -> Entity? {
+        NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Entity
     }
 }

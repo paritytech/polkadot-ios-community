@@ -286,11 +286,18 @@ private extension AssetDetailsPresenter {
             let coinDetails = coins
                 .sorted { $0.derivationIndex < $1.derivationIndex }
                 .map { coin in
-                    CoinDetailViewModel(
+                    let stateLabel =
+                        switch coin.state {
+                        case .available: "Available"
+                        case .pendingTransfer: "Reserved"
+                        case .pendingMint: "Pending mint"
+                        case .handedOff: "Handed off"
+                        case .spent: "Spent"
+                        }
+                    return CoinDetailViewModel(
                         id: coin.identifier,
                         exponent: "2^\(coin.exponent)",
-                        state: coin.state == .available ? "Available" : coin
-                            .state == .recycling ? "Recycling" : "Spent",
+                        state: stateLabel,
                         age: coin.age.map { "\($0)" } ?? "Unknown"
                     )
                 }

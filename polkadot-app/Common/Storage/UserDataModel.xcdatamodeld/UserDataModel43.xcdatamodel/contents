@@ -129,7 +129,10 @@
         <attribute name="derivationIndex" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
-        <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
+        <attribute name="isOnchain" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <relationship name="durabilityInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDDurabilityInput" inverseName="coin" inverseEntity="CDDurabilityInput"/>
+        <relationship name="durabilityOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityOutput" inverseName="coin" inverseEntity="CDDurabilityOutput"/>
+        <relationship name="handoffMark" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDHandoffMark" inverseName="coin" inverseEntity="CDHandoffMark"/>
     </entity>
     <entity name="CDContactDevice" representedClassName="CDContactDevice" syncable="YES" codeGenerationType="class">
         <attribute name="encryptionPublicKey" attributeType="Binary"/>
@@ -141,24 +144,39 @@
         <attribute name="gameIndex" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contacts" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="game" inverseEntity="CDChatContact"/>
     </entity>
-    <entity name="CDDurabilityEntry" representedClassName="CDDurabilityEntry" syncable="YES" codeGenerationType="class">
-        <attribute name="checkpointHash" attributeType="Binary"/>
-        <attribute name="checkpointNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+    <entity name="CDDurability" representedClassName="CDDurability" syncable="YES" codeGenerationType="class">
+        <attribute name="checkpointHash" optional="YES" attributeType="String"/>
+        <attribute name="checkpointNumber" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
         <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="groupId" optional="YES" attributeType="String"/>
         <attribute name="identifier" attributeType="String"/>
-        <attribute name="mortality" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="mortality" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="sequence" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="successBlockHash" optional="YES" attributeType="Binary"/>
-        <attribute name="successBlockNumber" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="txHash" optional="YES" attributeType="Binary"/>
-        <relationship name="assets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDEntryAsset" inverseName="entry" inverseEntity="CDEntryAsset"/>
+        <attribute name="successHash" optional="YES" attributeType="String"/>
+        <attribute name="successNumber" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+        <attribute name="txHash" optional="YES" attributeType="String"/>
+        <relationship name="inputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDDurabilityInput" inverseName="entry" inverseEntity="CDDurabilityInput"/>
+        <relationship name="outputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDDurabilityOutput" inverseName="entry" inverseEntity="CDDurabilityOutput"/>
     </entity>
-    <entity name="CDEntryAsset" representedClassName="CDEntryAsset" syncable="YES" codeGenerationType="class">
+    <entity name="CDDurabilityInput" representedClassName="CDDurabilityInput" syncable="YES" codeGenerationType="class">
+        <attribute name="assetKind" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="derivationIndex" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="index" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="role" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityEntry" inverseName="assets" inverseEntity="CDDurabilityEntry"/>
+        <attribute name="receivedPubKey" optional="YES" attributeType="String"/>
+        <relationship name="coin" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoin" inverseName="durabilityInputs" inverseEntity="CDCoin"/>
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurability" inverseName="inputs" inverseEntity="CDDurability"/>
+        <relationship name="voucher" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDVoucher" inverseName="durabilityInputs" inverseEntity="CDVoucher"/>
+    </entity>
+    <entity name="CDDurabilityOutput" representedClassName="CDDurabilityOutput" syncable="YES" codeGenerationType="class">
+        <attribute name="assetKind" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="derivationIndex" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="index" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="coin" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoin" inverseName="durabilityOutput" inverseEntity="CDCoin"/>
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurability" inverseName="outputs" inverseEntity="CDDurability"/>
+        <relationship name="voucher" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDVoucher" inverseName="durabilityOutput" inverseEntity="CDVoucher"/>
     </entity>
     <entity name="CDExternalPayment" representedClassName="CDExternalPayment" syncable="YES" codeGenerationType="class">
         <attribute name="amountInPlanks" attributeType="String"/>
@@ -183,6 +201,8 @@
     <entity name="CDHandoffMark" representedClassName="CDHandoffMark" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="identifier" attributeType="String"/>
+        <attribute name="state" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <relationship name="coin" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoin" inverseName="handoffMark" inverseEntity="CDCoin"/>
     </entity>
     <entity name="CDLocalDevice" representedClassName="CDLocalDevice" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
@@ -296,5 +316,7 @@
         <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="recyclerIndex" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
         <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
+        <relationship name="durabilityInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDDurabilityInput" inverseName="voucher" inverseEntity="CDDurabilityInput"/>
+        <relationship name="durabilityOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityOutput" inverseName="voucher" inverseEntity="CDDurabilityOutput"/>
     </entity>
 </model>

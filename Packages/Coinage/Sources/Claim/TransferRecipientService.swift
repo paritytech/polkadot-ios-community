@@ -673,7 +673,7 @@ private extension TransferRecipientService {
 
         for (spent, source) in zip(spentCoins, sourceCoins) {
             guard let source, source.age >= CoinageConstants.coinMaxAge else { continue }
-            coinsToRestore.append(spent.changing(state: .available).changing(age: source.age))
+            coinsToRestore.append(spent.changing(isOnchain: true).changing(age: source.age))
             totalPlanks += context.valueInPlanks(for: spent.exponent)
         }
 

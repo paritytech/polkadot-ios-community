@@ -5,7 +5,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "extrinsic-service-ios",
         url: "https://github.com/novasamatech/extrinsic-service-ios",
-        version: .exact("1.12.0"),
+        version: .commit("650686180c78e8da8658daffe9422329eec4b242"),
         products: ["ExtrinsicService"]
     ),
     .init(
