@@ -17,8 +17,6 @@ enum DSTabBarMetrics {
     static let badgeDiameter: CGFloat = 8
     static let liftedScaleX: CGFloat = 1.08
     static let liftedScaleY: CGFloat = 1.3
-    static let pillTintAlpha: CGFloat = 0.2
-    static let pillTintInversion: CGFloat = 0.22
     static let foldedVisibleWidth: CGFloat = 19
     static let foldFlickVelocity: CGFloat = 800
     static let foldFlickMinTravel: CGFloat = 20
