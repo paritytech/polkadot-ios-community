@@ -175,7 +175,6 @@ jobs:
 
       - name: Collect merged PRs (markdown for notification)
         id: collect_prs_markdown
-        if: ${{ inputs.is_nightly }}
         uses: novasamatech/github-actions/collect-prs@v5
         with:
           github_token: ${{ github.token }}
@@ -184,7 +183,11 @@ jobs:
           release_notes_format: markdown
 
   check_and_build:
-    name: Check and Build TestFlight (${{ matrix.variant.name }})
+    # The configuration is part of the name so that a caller invoking this workflow
+    # twice in one run (nightly_distribution builds Nightly and Release together)
+    # produces distinct job names — check-job-conclusion matches by name suffix and
+    # would otherwise resolve both lookups to the same leg.
+    name: Check and Build TestFlight (${{ inputs.build_configuration }} / ${{ matrix.variant.name }})
     runs-on: macos-26
     needs: prepare_build_metadata
     strategy:
@@ -298,14 +301,16 @@ jobs:
           BUILD_NUMBER: ${{ needs.prepare_build_metadata.outputs.build_number }}
           MARKETING_VERSION: ${{ needs.prepare_build_metadata.outputs.marketing_version }}
           RELEASE_PR_NUMBER: ${{ inputs.release_pr_number }}
+          BUILD_CONFIGURATION: ${{ inputs.build_configuration }}
         with:
           github-token: ${{ github.token }}
           script: |
             const buildNumber = process.env.BUILD_NUMBER;
             const marketingVersion = process.env.MARKETING_VERSION;
+            const configuration = process.env.BUILD_CONFIGURATION;
             const prNumber = parseInt(process.env.RELEASE_PR_NUMBER, 10);
 
-            const comment = `### TestFlight Build Done
+            const comment = `### ${configuration} TestFlight Build Done
 
             - **Version:** ${marketingVersion}
             - **Build number:** ${buildNumber}
@@ -370,7 +375,7 @@ jobs:
         id: check
         uses: ./.github/actions/check-job-conclusion
         with:
-          job_name: "Check and Build TestFlight (default)"
+          job_name: "Check and Build TestFlight (${{ inputs.build_configuration }} / default)"
           github_token: ${{ github.token }}
 
   trigger_allure_tests:

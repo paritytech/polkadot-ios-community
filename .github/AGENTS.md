@@ -27,8 +27,8 @@ Application secrets come from GitHub Actions repository secrets and are passed o
 | `nightly_prepare.yml` | `workflow_dispatch` or weekday schedule at `16:00 UTC` | Prepare a nightly branch/PR (no version bump), trigger nightly distribution; skips when no changes vs `main` |
 | `release_prepare.yml` | `workflow_dispatch` | Prepare a release branch/PR (optional version bump), trigger release distribution; `source_ref: main` dispatches a direct build with no branch/PR (`no-bump` only) |
 | `_prepare_pipeline.yml` | `workflow_call` (reusable) | Shared prepare logic: bump, branch/PR creation, no-changes decision, distribution trigger |
-| `nightly_distribution.yml` | bot `workflow_dispatch` | Nightly TestFlight build, external group distribution, auto-merge PR, Matrix notification |
-| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, external group distribution, S3 upload |
+| `nightly_distribution.yml` | bot `workflow_dispatch` | Nightly **and** Release TestFlight builds from one branch/PR, external group distribution, auto-merge PR once both succeed, combined Matrix notification |
+| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, external group distribution, S3 upload, Matrix notification |
 | `_build_distribute.yml` | `workflow_call` (reusable) | Shared build/distribute: metadata, matrix build, TestFlight upload, S3, PR comment, result check |
 | `release_branch_lifecycle.yml` | `pull_request.closed` to `main` (`release/*`) | Backport PR on merge; delete branch on close without merge (shared by both flows) |
 | `testflight_distribution.yml` | `workflow_dispatch` | Ad-hoc TestFlight distribution for allowlisted actors |
@@ -206,6 +206,9 @@ Suffix notes:
 
 2. nightly_distribution.yml / release_distribution.yml
    └── uses _build_distribute.yml
+       (nightly calls it twice — Nightly and Release from the same branch/PR;
+        the configuration is in the job name so each leg's check_default_build
+        resolves its own result)
        ├── prepare_build_metadata
        │     ├── Verify bot-driven trigger / bot-authored PR
        │     ├── Read release notes + increment_step from PR body
@@ -224,8 +227,10 @@ Suffix notes:
        └── send_failure_notification (Telegram, on failure)
 
 3. Caller-specific jobs (gated on succeeded)
-   ├── [nightly] auto_merge PR + delete branch
-   └── [nightly] send Matrix release notification
+   ├── [nightly] auto_merge PR + delete branch (needs BOTH legs green)
+   └── send Matrix release notification
+         ├── [nightly] one combined message covering both legs, all four links
+         └── [release] its own message, release links only
 
 4. release_branch_lifecycle.yml (on release/* PR closed to main)
    ├── merged -> create backport PR: release branch -> source_ref

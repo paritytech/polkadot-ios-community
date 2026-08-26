@@ -98,7 +98,8 @@ Optional — these gate reporting steps only, and a fork can leave them unset:
 |--------|----------|---------|
 | `ALLURE_TOKEN` | Triggering the Allure TestOps run after a build | `_build_distribute.yml`, `testflight_distribution.yml` |
 | `NOTIFICATION_BOT_URL`, `NOTIFICATION_BOT_TOKEN` | Build success/failure notifications | `_build_distribute.yml`, `nightly_distribution.yml` |
-| `TESTFLIGHT_DISTRIBUTION_LINK`, `WEB_PAGE_DISTRIBUTION_LINK` | One ready-to-render markdown link entry each, e.g. `[TestFlight](https://testflight.apple.com/join/<id>)`. Kept in secrets so access hints stay out of the repo | `nightly_distribution.yml` |
+| `TESTFLIGHT_DISTRIBUTION_LINK`, `WEB_PAGE_DISTRIBUTION_LINK` | One ready-to-render markdown link entry each, e.g. `[TestFlight](https://testflight.apple.com/join/<id>)`. Kept in secrets so access hints stay out of the repo. | `release_distribution.yml`, `nightly_distribution.yml` |
+| `TESTFLIGHT_NIGHTLY_DISTRIBUTION_LINK`, `WEB_PAGE_NIGHTLY_DISTRIBUTION_LINK` | A TestFlight join link is per-group per-app, so the two streams cannot share one | `nightly_distribution.yml` |
 
 `SENTRY_DSN` and `MELD_BASIC_AUTH_TOKEN` from the first table are also stored as
 GitHub Actions secrets, because CI runs `generate_secrets.sh` from
