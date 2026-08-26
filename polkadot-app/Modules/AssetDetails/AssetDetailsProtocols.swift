@@ -18,6 +18,7 @@ protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
 
     #if TESTNET_FEATURE
         func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel)
+        func didReceive(testnetTopUpLoading: Bool)
     #endif
 }
 
@@ -34,6 +35,7 @@ protocol AssetDetailsPresenterProtocol: AnyObject {
     func onTopUp()
 
     #if TESTNET_FEATURE
+        func onTestnetTopUp()
         func onMakeAllVouchersReady()
     #endif
 }
@@ -45,11 +47,11 @@ protocol AssetDetailsInteractorInputProtocol: AnyObject {
     func triggerSync()
     func cancelBackupNotification()
 
+    func openTopUpProduct()
+
     #if TESTNET_FEATURE
         func topUp()
         func makeAllVouchersReady()
-    #else
-        func openTopUpProduct()
     #endif
 }
 
@@ -65,11 +67,11 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     func didCompleteRecovery()
     func didClearBackupNotification()
 
+    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>)
+
     #if TESTNET_FEATURE
         func didReceive(coins: [Coin], vouchers: [Voucher])
         func didCompleteTopUp(_ result: Result<Void, Error>)
-    #else
-        func didResolveTopUpProduct(_ result: Result<ProductPage, Error>)
     #endif
 }
 

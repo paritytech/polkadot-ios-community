@@ -118,14 +118,16 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
     func onTopUp() {
         view?.didReceive(topUpLoading: true)
 
-        #if TESTNET_FEATURE
-            interactor?.topUp()
-        #else
-            interactor?.openTopUpProduct()
-        #endif
+        interactor?.openTopUpProduct()
     }
 
     #if TESTNET_FEATURE
+        func onTestnetTopUp() {
+            view?.didReceive(testnetTopUpLoading: true)
+
+            interactor?.topUp()
+        }
+
         func onMakeAllVouchersReady() {
             interactor?.makeAllVouchersReady()
         }
@@ -133,9 +135,20 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
 }
 
 extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
+    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>) {
+        view?.didReceive(topUpLoading: false)
+
+        switch result {
+        case let .success(page):
+            wireframe.showProduct(page: page)
+        case let .failure(error):
+            wireframe.present(error: error, from: view)
+        }
+    }
+
     #if TESTNET_FEATURE
         func didCompleteTopUp(_ result: Result<Void, Error>) {
-            view?.didReceive(topUpLoading: false)
+            view?.didReceive(testnetTopUpLoading: false)
 
             guard case let .failure(error) = result else {
                 return
@@ -148,17 +161,6 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             self.coins = coins
             self.vouchers = vouchers
             provideCoinageBreakdown()
-        }
-    #else
-        func didResolveTopUpProduct(_ result: Result<ProductPage, Error>) {
-            view?.didReceive(topUpLoading: false)
-
-            switch result {
-            case let .success(page):
-                wireframe.showProduct(page: page)
-            case let .failure(error):
-                wireframe.present(error: error, from: view)
-            }
         }
     #endif
 

@@ -64,6 +64,10 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         }
 
         #if TESTNET_FEATURE
+            viewModel.onTestnetTopUp = { [weak presenter] in
+                presenter?.onTestnetTopUp()
+            }
+
             viewModel.onMakeAllVouchersReady = { [weak presenter] in
                 presenter?.onMakeAllVouchersReady()
             }
@@ -100,6 +104,10 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
     #if TESTNET_FEATURE
         func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel) {
             viewModel.coinageBreakdown = coinageBreakdown
+        }
+
+        func didReceive(testnetTopUpLoading: Bool) {
+            viewModel.isTestnetTopUpInProgress = testnetTopUpLoading
         }
     #endif
 

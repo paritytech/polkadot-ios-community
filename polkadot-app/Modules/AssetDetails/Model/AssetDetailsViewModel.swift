@@ -53,6 +53,8 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
     var onTopUp: (() -> Void)? { get set }
 
     #if TESTNET_FEATURE
+        var isTestnetTopUpInProgress: Bool { get set }
+        var onTestnetTopUp: (() -> Void)? { get set }
         var onMakeAllVouchersReady: (() -> Void)? { get set }
     #endif
 }
@@ -80,6 +82,8 @@ class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
     var onTopUp: (() -> Void)?
 
     #if TESTNET_FEATURE
+        var isTestnetTopUpInProgress: Bool = false
+        var onTestnetTopUp: (() -> Void)?
         var onMakeAllVouchersReady: (() -> Void)?
     #endif
 }

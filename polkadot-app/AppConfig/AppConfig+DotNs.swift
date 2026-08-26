@@ -37,7 +37,7 @@ extension AppConfig {
         }
 
         static let dotNsBrowse = "browse"
-        static let dotNsGetSome = "getsome"
+        static let dotNsGetSome = "getcash"
         static let dotNsGameWebview = "game-webview"
         static let dotNsCollectibles = "collectibles-webview"
 
