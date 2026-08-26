@@ -36,7 +36,10 @@ lane :get_testflight_build_number do
   # Use the highest build number across all builds instead of `latest_testflight_build_number`:
   # that action returns the most recently uploaded build, so a manual upload with a lower number
   # drags the counter backwards. Taking the max keeps it monotonic.
-  app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+  # Nightly and Release are separate App Store Connect records with independent
+  # build-number sequences, so the caller selects which one to query.
+  app_identifier = ENV["IOS_BUNDLE_ID"]
+  app_identifier = CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier) if app_identifier.to_s.empty?
   app = Spaceship::ConnectAPI::App.find(app_identifier)
   UI.user_error!("App not found for bundle id '#{app_identifier}'") if app.nil?
 

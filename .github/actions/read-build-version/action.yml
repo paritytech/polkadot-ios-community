@@ -1,11 +1,19 @@
 name: "Read Build Version"
-description: "Reads MARKETING_VERSION from the Release config and computes the next TestFlight build number. Requires the iOS environment (install action) to be set up by the caller."
+description: "Reads MARKETING_VERSION from the given config and computes the next TestFlight build number for the given bundle id. Requires the iOS environment (install action) to be set up by the caller."
 
 inputs:
   pbxproj_path:
     description: "Path to project.pbxproj"
     required: false
     default: "polkadot-app.xcodeproj/project.pbxproj"
+  config_name:
+    description: "Xcode configuration to read MARKETING_VERSION from (Release or Nightly)"
+    required: false
+    default: "Release"
+  ios_bundle_id:
+    description: "Bundle id whose TestFlight build numbers are queried. Nightly and Release are separate App Store Connect records."
+    required: false
+    default: "io.parity.polkadotapp"
   increment_step:
     description: "How much to add to the latest TestFlight build number (1 if empty)"
     required: false
@@ -22,7 +30,7 @@ inputs:
 
 outputs:
   marketing_version:
-    description: "MARKETING_VERSION from the Release configuration"
+    description: "MARKETING_VERSION from the requested configuration"
     value: ${{ steps.read.outputs.marketing_version }}
   build_number:
     description: "Next TestFlight build number (latest + increment_step)"
@@ -36,10 +44,11 @@ runs:
       shell: bash
       env:
         PBXPROJ_PATH: ${{ inputs.pbxproj_path }}
+        CONFIG_NAME: ${{ inputs.config_name }}
       run: |
         set -euo pipefail
         python3 .github/scripts/read_versions.py "${PBXPROJ_PATH}" \
-          --config-name "Release" \
+          --config-name "${CONFIG_NAME}" \
           --output-format env | grep "marketing_version=" >> "$GITHUB_OUTPUT"
 
     - name: Get expected build number
@@ -47,6 +56,7 @@ runs:
       shell: bash
       env:
         INCREMENT_STEP: ${{ inputs.increment_step }}
+        IOS_BUNDLE_ID: ${{ inputs.ios_bundle_id }}
         ASC_KEY_ID: ${{ inputs.asc_key_id }}
         ASC_ISSUER_ID: ${{ inputs.asc_issuer_id }}
         ASC_KEY_BASE64: ${{ inputs.asc_key_base64 }}

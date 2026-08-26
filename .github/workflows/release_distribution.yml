@@ -37,7 +37,7 @@ jobs:
       increment_step: ${{ inputs.increment_step || '' }}
       build_configuration: "Release"
       is_nightly: false
-      distribute_to_external_group: false
-      external_group_name: ""
+      distribute_to_external_group: true
+      external_group_name: "Daily test builds"
       s3_static_subdir: "releases"
     secrets: inherit

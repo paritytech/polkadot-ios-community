@@ -80,7 +80,8 @@ Required for any signed build:
 | `FASTLANE_RO_PAT` | Fine-grained PAT with read access to the `match` repo | every signed build |
 | `FASTLANE_RW_PAT` | The same PAT with write access | `update_signing_data.yml` only |
 | `GOOGLE_SERVICE_INFO_DEV_BASE64` | Base64 development `GoogleService-Info.plist` | PR builds and tests |
-| `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | Base64 production `GoogleService-Info.plist` | release and nightly archives |
+| `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | Base64 production `GoogleService-Info.plist` | release archives |
+| `GOOGLE_SERVICE_INFO_NIGHTLY_BASE64` | Base64 nightly `GoogleService-Info.plist` (separate Firebase app for `…​.nightly`) | nightly archives, nightly simulator build |
 
 Required only by the distribution target you actually use:
 
@@ -124,10 +125,11 @@ files are **not** committed.
 2. Download each `GoogleService-Info.plist` and save them as:
    - `polkadot-app/GoogleService/GoogleService-Info-Dev.plist`
    - `polkadot-app/GoogleService/GoogleService-Info-Release.plist`
+   - `polkadot-app/GoogleService/GoogleService-Info-Nightly.plist`
 3. During a build, the **"Google info"** build phase copies the correct one to
    `polkadot-app/GoogleService-Info.plist` based on `$CONFIGURATION`
-   (Debug/Dev/DevCI → Dev, Release/Nightly → Release). In CI (`RUN_IN_CI=true`)
-   this copy is skipped — provide the active plist yourself.
+   (Debug/Dev/DevCI → Dev, Nightly → Nightly, Release → Release). In CI
+   (`RUN_IN_CI=true`) this copy is skipped — provide the active plist yourself.
 
 `*.plist.template` files document the expected structure with placeholder values;
 `setup-secrets.sh` copies them into the real filenames so a fresh checkout builds
@@ -140,8 +142,8 @@ with an inert Firebase configuration until you drop in real plists.
 | Configuration | Bundle id | Environment |
 |---------------|-----------|-------------|
 | `Debug` / `DevCI` | `…​.develop` | Unstable preview backend |
-| `Nightly` | production id | Stable testnet — distributed via TestFlight |
-| `Release` | production id | Mainnet |
+| `Nightly` | `…​.nightly` | Stable testnet — separate app, own TestFlight external group |
+| `Release` | production id | Mainnet — own TestFlight external group |
 
 Bundle ids, app name, icon and deep-link scheme live in
 `Configs/*.xcconfig`, `polkadot-app/Configs/*.xcconfig` and
