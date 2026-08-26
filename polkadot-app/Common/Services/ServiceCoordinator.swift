@@ -199,9 +199,8 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
     }
 
     func throttle() {
-        determineStateSyncService.throttle()
-
         #if FEATURE_DIMS
+            determineStateSyncService.throttle()
             personhoodBackgroundService.throttle()
         #endif
 
