@@ -2,26 +2,29 @@ import Foundation
 import SubstrateSdk
 
 /// A coin or voucher consumed by a durability entry.
-public enum Input: Hashable, Sendable {
+public enum DurabilityInput: Hashable, Sendable {
     case coin(CoinInput)
-    case recyclerVoucher(UInt32)
+    case recyclerVoucher(DerivationIndex)
 }
 
 /// A coin an entry consumes: either one this wallet minted, addressed by derivation index,
 /// or one received from a peer, addressed by the on-chain public key it was sent to.
 public enum CoinInput: Hashable, Sendable {
-    case own(UInt32)
+    case own(DerivationIndex)
     case received(Data)
 }
 
 /// An asset this wallet mints, and can therefore hold local projected state for.
 public enum OwnAsset: Hashable, Sendable {
-    case coin(UInt32)
-    case recyclerVoucher(UInt32)
+    case coin(DerivationIndex)
+    case recyclerVoucher(DerivationIndex)
 }
 
+/// An asset a durability entry mints. An output is always one this wallet owns.
+public typealias DurabilityOutput = OwnAsset
+
 public extension OwnAsset {
-    /// Stable key for storage rows and set operations. Shared with ``Input/identifier`` so
+    /// Stable key for storage rows and set operations. Shared with ``DurabilityInput/identifier`` so
     /// an output and an input naming the same asset compare equal.
     var identifier: String {
         switch self {
@@ -36,14 +39,14 @@ public extension OwnAsset {
     }
 
     /// Derivation index, which every own asset has.
-    var derivationIndex: UInt32 {
+    var derivationIndex: DerivationIndex {
         switch self {
         case let .coin(index),
              let .recyclerVoucher(index): index
         }
     }
 
-    var asInput: Input {
+    var asInput: DurabilityInput {
         switch self {
         case let .coin(index): .coin(.own(index))
         case let .recyclerVoucher(index): .recyclerVoucher(index)
@@ -51,7 +54,7 @@ public extension OwnAsset {
     }
 }
 
-public extension Input {
+public extension DurabilityInput {
     var identifier: String {
         switch self {
         case let .coin(.own(index)): "coin:\(index)"

@@ -330,7 +330,7 @@ public extension CoinageService {
 }
 
 extension VoucherKeyDeriving {
-    func alias(for index: UInt32) throws -> Data {
+    func alias(for index: DerivationIndex) throws -> Data {
         let voucher = Voucher(
             exponent: 0,
             derivationIndex: index,

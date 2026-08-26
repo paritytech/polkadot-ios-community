@@ -2,7 +2,7 @@ import KeyDerivation
 
 /// A protocol for models that can be derived using an index.
 public protocol CoinageDerivable {
-    var derivationIndex: UInt32 { get }
+    var derivationIndex: DerivationIndex { get }
 }
 
 public protocol CoinageKeypairFactory {

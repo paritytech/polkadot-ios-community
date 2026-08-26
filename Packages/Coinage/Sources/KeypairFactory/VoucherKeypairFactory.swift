@@ -8,10 +8,10 @@ public protocol VoucherKeyDeriving: CoinageKeypairFactory where Model == Voucher
 }
 
 extension VoucherKeyDeriving {
-    func derivePublicKey(placeholderIndex index: UInt32) throws -> PublicKey {
+    func derivePublicKey(placeholderIndex index: DerivationIndex) throws -> PublicKey {
         let placeholder = Voucher(
             exponent: 0,
-            derivationIndex: UInt32(index),
+            derivationIndex: index,
             allocatedAt: .now,
             readyAt: .distantPast
         )

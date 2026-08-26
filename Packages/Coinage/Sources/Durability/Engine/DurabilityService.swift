@@ -7,7 +7,7 @@ import os
 public protocol DurabilityServicing: Sendable {
     /// Registers an entry, submits its extrinsic, and tracks it to completion.
     func submit(
-        inputs: [Input],
+        inputs: [DurabilityInput],
         outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
@@ -35,7 +35,7 @@ public protocol DurabilityServicing: Sendable {
     ///
     /// The caller takes ownership and MUST reach exactly one of
     /// `submitRegistered(entryId:builder:origin:)` or `abandon(_:)` on every path.
-    func register(inputs: [Input], outputs: [OwnAsset]) async throws -> TransactionId
+    func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId
 
     /// Starts a recovery pass without waiting for it. Never awaited by startup: a single
     /// unresolvable entry must not hold the app for a mortality window.
@@ -106,7 +106,7 @@ public final class DurabilityService: @unchecked Sendable {
 
 extension DurabilityService: DurabilityServicing {
     public func submit(
-        inputs: [Input],
+        inputs: [DurabilityInput],
         outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
@@ -130,7 +130,7 @@ extension DurabilityService: DurabilityServicing {
         registrar.abandon(id)
     }
 
-    public func register(inputs: [Input], outputs: [OwnAsset]) async throws -> TransactionId {
+    public func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId {
         try await registrar.register(inputs: inputs, outputs: outputs).id
     }
 

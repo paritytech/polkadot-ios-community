@@ -107,12 +107,12 @@ final class ClaimPlanStatusMapper: CoreDataMapperProtocol {
 private struct CodableClaimPlanEntry: ScaleCodable {
     let entryIndex: Int
     let destinationExponent: Int16
-    let destinationDerivationIndex: UInt32
+    let destinationDerivationIndex: DerivationIndex
 
     init(
         entryIndex: Int,
         destinationExponent: Int16,
-        destinationDerivationIndex: UInt32
+        destinationDerivationIndex: DerivationIndex
     ) {
         self.entryIndex = entryIndex
         self.destinationExponent = destinationExponent
@@ -122,7 +122,7 @@ private struct CodableClaimPlanEntry: ScaleCodable {
     init(scaleDecoder: any ScaleDecoding) throws {
         entryIndex = try Int(Int16(scaleDecoder: scaleDecoder))
         destinationExponent = try Int16(scaleDecoder: scaleDecoder)
-        destinationDerivationIndex = try UInt32(scaleDecoder: scaleDecoder)
+        destinationDerivationIndex = try DerivationIndex(scaleDecoder: scaleDecoder)
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {

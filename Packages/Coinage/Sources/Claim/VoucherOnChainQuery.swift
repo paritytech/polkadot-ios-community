@@ -22,14 +22,14 @@ protocol VoucherOnChainQuerying: Sendable {
     /// Returns an array of optionals in the same order as the input indices.
     /// Returns nil for an index when either the recycler location or member record is absent.
     func fetchVouchers(
-        for derivationIndices: [UInt32],
+        for derivationIndices: [DerivationIndex],
         atBlockHash: Data?
     ) async throws -> [VoucherOnChainInfo?]
 }
 
 extension VoucherOnChainQuerying {
     func fetchVouchers(
-        for derivationIndices: [UInt32]
+        for derivationIndices: [DerivationIndex]
     ) async throws -> [VoucherOnChainInfo?] {
         try await fetchVouchers(for: derivationIndices, atBlockHash: nil)
     }
@@ -42,15 +42,15 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
     private let connection: any JSONRPCEngine
     private let runtimeService: any RuntimeCodingServiceProtocol
     private let storageRequestFactory: any StorageRequestFactoryProtocol
-    private let publicKeyProvider: (UInt32) throws -> Data
-    private let aliasProvider: (UInt32) throws -> Data
+    private let publicKeyProvider: (DerivationIndex) throws -> Data
+    private let aliasProvider: (DerivationIndex) throws -> Data
 
     init(
         connection: any JSONRPCEngine,
         runtimeService: any RuntimeCodingServiceProtocol,
         storageRequestFactory: any StorageRequestFactoryProtocol,
-        publicKeyProvider: @escaping (UInt32) throws -> Data,
-        aliasProvider: @escaping (UInt32) throws -> Data
+        publicKeyProvider: @escaping (DerivationIndex) throws -> Data,
+        aliasProvider: @escaping (DerivationIndex) throws -> Data
     ) {
         self.connection = connection
         self.runtimeService = runtimeService
@@ -60,13 +60,13 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
     }
 
     func fetchVouchers(
-        for derivationIndices: [UInt32],
+        for derivationIndices: [DerivationIndex],
         atBlockHash: Data?
     ) async throws -> [VoucherOnChainInfo?] {
-        typealias IndexedKey = (index: UInt32, publicKey: Data)
-        typealias IndexedKeyWithExponent = (index: UInt32, publicKey: Data, exponent: Int16)
+        typealias IndexedKey = (index: DerivationIndex, publicKey: Data)
+        typealias IndexedKeyWithExponent = (index: DerivationIndex, publicKey: Data, exponent: Int16)
         typealias IndexedKeyWithPosition = (
-            index: UInt32,
+            index: DerivationIndex,
             exponent: Int16,
             ringIndex: MembersPallet.RingIndex,
             ringPosition: MembersPallet.RingPosition
@@ -108,7 +108,7 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
             },
             atBlockHash: atBlockHash
         )
-        let infoByIndex: [UInt32: VoucherOnChainInfo] = zip(withPositions, aliasStates)
+        let infoByIndex: [DerivationIndex: VoucherOnChainInfo] = zip(withPositions, aliasStates)
             .reduce(into: [:]) { dict, pair in
                 let (key, aliasState) = pair
                 dict[key.index] = VoucherOnChainInfo(
@@ -166,7 +166,7 @@ private extension VoucherOnChainQueryService {
     }
 
     func fetchAliasStates(
-        for keys: [(derivationIndex: UInt32, exponent: Int16, ringIndex: MembersPallet.RingIndex)],
+        for keys: [(derivationIndex: DerivationIndex, exponent: Int16, ringIndex: MembersPallet.RingIndex)],
         atBlockHash: Data?
     ) async throws -> [CoinagePallet.AliasState?] {
         guard !keys.isEmpty else { return [] }

@@ -19,7 +19,7 @@ public struct DurabilityEntry: Sendable, Equatable {
     /// predecessor.
     public var sequence: Int64
 
-    public let inputs: [Input]
+    public let inputs: [DurabilityInput]
     public let outputs: [OwnAsset]
 
     /// Hash of the submitted extrinsic, captured by `SubmissionWatcher`. Rule 7 searches
@@ -44,7 +44,7 @@ public struct DurabilityEntry: Sendable, Equatable {
     public init(
         id: TransactionId = UUID(),
         sequence: Int64 = 0,
-        inputs: [Input],
+        inputs: [DurabilityInput],
         outputs: [OwnAsset],
         txHash: Data? = nil,
         checkpoint: BlockRef,

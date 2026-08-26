@@ -58,7 +58,7 @@ struct RegistrationInvariantTests {
     @Test("Rejects input already claimed by a live entry")
     func rejectInputClaimedByLiveEntry() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(5))
+        let input = DurabilityInput.coin(.own(5))
 
         try await store.register(.fixture(inputs: [input]))
 
@@ -70,7 +70,7 @@ struct RegistrationInvariantTests {
     @Test("Rejects input already claimed by a finalized-success entry")
     func rejectInputClaimedByFinalizedEntry() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(7))
+        let input = DurabilityInput.coin(.own(7))
 
         let first = DurabilityEntry.fixture(inputs: [input])
         try await store.register(first)
@@ -85,7 +85,7 @@ struct RegistrationInvariantTests {
     @Test("Allows input claimed by a failure entry to be consumed by new entry")
     func allowsInputFromFailureEntry() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(9))
+        let input = DurabilityInput.coin(.own(9))
 
         let first = DurabilityEntry.fixture(inputs: [input])
         try await store.register(first)
@@ -159,7 +159,7 @@ struct RegistrationInvariantTests {
     @Test("Rejected registration leaves no entry in store")
     func rejectedRegistrationNoEntry() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(5))
+        let input = DurabilityInput.coin(.own(5))
 
         try await store.register(.fixture(inputs: [input]))
 
@@ -179,7 +179,7 @@ struct RegistrationInvariantTests {
     @Test("Rejected registration leaves watched set unchanged")
     func rejectedRegistrationWatchedSetClean() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(5))
+        let input = DurabilityInput.coin(.own(5))
 
         try await store.register(.fixture(inputs: [input]))
 

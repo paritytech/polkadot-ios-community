@@ -161,7 +161,8 @@ private extension ServiceCoordinator {
         )
         let durabilityStore = DurabilityCoreDataStore(
             storageFacade: UserDataStorageFacade.shared,
-            transacting: transacting
+            transacting: transacting,
+            coinKeyDeriver: CoinKeypairFactory(entropyManager: RootEntropyManager.shared)
         )
 
         return CoinageService.make(

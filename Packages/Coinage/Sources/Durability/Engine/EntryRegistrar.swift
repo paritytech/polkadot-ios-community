@@ -31,7 +31,7 @@ public struct EntryRegistrar {
     ///
     /// The caller submits only after this returns; a throw means nothing was registered and
     /// nothing is owned.
-    public func register(inputs: [Input], outputs: [OwnAsset]) async throws -> DurabilityEntry {
+    public func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> DurabilityEntry {
         guard !inputs.isEmpty || !outputs.isEmpty else {
             throw DurabilityError.emptyEntry
         }

@@ -93,7 +93,7 @@ struct AssetStateTests {
     @Test("Reservation deducts immediately")
     func reservationDeductsImmediately() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(5))
+        let input = DurabilityInput.coin(.own(5))
 
         // Reserve the coin by registering an entry that uses it
         try await store.register(.fixture(inputs: [input], outputs: [.coin(10)]))
@@ -107,7 +107,7 @@ struct AssetStateTests {
     @Test("Reservation returns on failure")
     func reservationReturnedOnFailure() async throws {
         let store = MockDurabilityStore()
-        let input = Input.coin(.own(5))
+        let input = DurabilityInput.coin(.own(5))
 
         let first = DurabilityEntry.fixture(inputs: [input])
         try await store.register(first)

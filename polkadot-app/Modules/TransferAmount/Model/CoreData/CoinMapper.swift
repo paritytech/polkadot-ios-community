@@ -18,7 +18,7 @@ extension CoinMapper: CoreDataMapperProtocol {
 
         return Coin(
             exponent: entity.exponent,
-            derivationIndex: UInt32(bitPattern: entity.derivationIndex),
+            derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             age: age,
             state: Self.deriveState(entity: entity, age: age),
             isOnchain: entity.isOnchain
@@ -31,7 +31,7 @@ extension CoinMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
-        entity.derivationIndex = Int32(bitPattern: model.derivationIndex)
+        entity.derivationIndex = model.derivationIndex.toCoreData()
         entity.exponent = model.exponent
         entity.age = model.age ?? -1
         entity.isOnchain = model.isOnchain
@@ -46,7 +46,7 @@ private extension CoinMapper {
     /// presence. Mirrors the balance/selection semantics the old projection materialized, now
     /// computed on read.
     static func deriveState(entity: CDCoin, age: Int16?) -> Coin.State {
-        if entity.handoffMark != nil { return .handedOff }
+        if entity.handoffMark != CoinHandoffMark.none.rawValue { return .handedOff }
 
         let consumerStatuses = ((entity.durabilityInputs as? Set<CDDurabilityInput>) ?? [])
             .compactMap { $0.entry.flatMap { EntryStatus(rawValue: Int($0.status)) } }

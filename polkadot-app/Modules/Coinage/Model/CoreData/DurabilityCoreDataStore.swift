@@ -14,10 +14,15 @@ import Operation_iOS
 /// private queue serialises concurrent registrations.
 final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
     private let repository: AnyDataProviderRepository<DurabilityEntry>
-    private let markRepository: AnyDataProviderRepository<HandoffMark>
+    private let coinRepository: AnyDataProviderRepository<Coin>
     private let transacting: any CoinageTransacting
+    private let validator: RegistrationValidator
 
-    init(storageFacade: StorageFacadeProtocol, transacting: any CoinageTransacting) {
+    init(
+        storageFacade: StorageFacadeProtocol,
+        transacting: any CoinageTransacting,
+        coinKeyDeriver: any CoinKeyDeriving
+    ) {
         let entryRepository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: true)],
@@ -25,13 +30,14 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
         )
         repository = AnyDataProviderRepository(entryRepository)
 
-        let marks = storageFacade.createRepository(
+        let coins = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
-            mapper: AnyCoreDataMapper(HandoffMarkMapper())
+            mapper: AnyCoreDataMapper(CoinMapper())
         )
-        markRepository = AnyDataProviderRepository(marks)
+        coinRepository = AnyDataProviderRepository(coins)
         self.transacting = transacting
+        validator = RegistrationValidator(coinKeyDeriver: coinKeyDeriver)
     }
 }
 
@@ -39,24 +45,13 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
 
 extension DurabilityCoreDataStore {
     func register(_ entry: DurabilityEntry) async throws {
-        try await transacting.withTransaction { tx in
-            let claimedInputs = try tx.claimedInputIdentifiers(among: entry.inputs)
-            let mintedOutputs = try tx.mintedOutputIdentifiers(among: entry.outputs)
-            let receivedInputs = try tx.receivedInputIdentifiers(among: entry.outputs)
-            let marks = try tx.markedIdentifiers(among: entry.inputs)
-
-            try RegistrationValidator.validate(
-                entry,
-                claimedInputs: claimedInputs,
-                mintedOutputs: mintedOutputs,
-                receivedInputs: receivedInputs,
-                marks: marks
-            )
+        try await transacting.withTransaction { [validator] transaction in
+            try validator.validate(entry, transaction: transaction)
 
             var sequenced = entry
-            sequenced.sequence = try tx.nextSequence()
+            sequenced.sequence = try transaction.nextSequence()
 
-            try tx.upsert(sequenced)
+            try transaction.upsert(sequenced)
         }
     }
 }
@@ -76,6 +71,9 @@ extension DurabilityCoreDataStore {
         try await write(id, \.txHash, txHash)
     }
 
+    /// Field and status writes go through the same serialized transaction as registration, so they
+    /// share one context with the `subscribeSnapshot` readers and never race a concurrent write.
+    /// `upsert` re-populates the existing row; the mapper leaves its immutable inputs/outputs alone.
     private func write<Value>(
         _ id: TransactionId,
         _ field: WritableKeyPath<DurabilityEntry, Value>,
@@ -85,7 +83,7 @@ extension DurabilityCoreDataStore {
             throw DurabilityError.entryNotFound(id)
         }
         entry[keyPath: field] = value
-        try await repository.saveOperation({ [entry] }, { [] }).asyncExecute()
+        try await transacting.withTransaction { try $0.upsert(entry) }
     }
 }
 
@@ -117,7 +115,7 @@ extension DurabilityCoreDataStore {
         }
     }
 
-    func consumers(of input: Input) async throws -> [DurabilityEntry] {
+    func consumers(of input: DurabilityInput) async throws -> [DurabilityEntry] {
         let identifier = input.identifier
         return try await fetchAll().filter { entry in
             entry.inputs.contains { $0.identifier == identifier }
@@ -133,15 +131,20 @@ extension DurabilityCoreDataStore {
     }
 
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        let identifier = asset.identifier
-        return try await fetchMarks().contains { $0.identifier == identifier }
+        guard case let .coin(index) = asset else { return false }
+        return try await handedOffCoinModels().contains { $0.derivationIndex == index }
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
-        try await fetchMarks().compactMap { AssetCoding.ownAsset(from: $0.identifier) }
+        try await handedOffCoinModels().map { .coin($0.derivationIndex) }
     }
 
-    private func fetchMarks() async throws -> [HandoffMark] {
-        try await markRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
+    /// A handoff mark is stored on `CDCoin`, so `.handedOff` — derived from it — identifies a
+    /// handed-off coin. The mark is insert-only, so this never mistakes a released coin for one.
+    private func handedOffCoinModels() async throws -> [Coin] {
+        try await coinRepository
+            .fetchAllOperation(with: RepositoryFetchOptions())
+            .asyncExecute()
+            .filter { $0.state == .handedOff }
     }
 }

@@ -13,7 +13,7 @@ extension DurabilityEntry {
     /// durability suites vary from.
     static func fixture(
         id: TransactionId = UUID(),
-        inputs: [Input] = [],
+        inputs: [DurabilityInput] = [],
         outputs: [OwnAsset] = [],
         checkpoint: BlockRef = .fixture(100),
         status: EntryStatus = .pending

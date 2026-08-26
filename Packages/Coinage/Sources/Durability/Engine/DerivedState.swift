@@ -121,7 +121,7 @@ public extension EntrySnapshot {
         inputs(atFinalized: atFinalized).contains(where: Self.exists)
     }
 
-    /// Input reads at the finalized or the best head.
+    /// DurabilityInput reads at the finalized or the best head.
     func inputs(atFinalized: Bool) -> [ReadResult<AssetPresence>] {
         atFinalized ? inputsAtFinalized : inputsAtBest
     }

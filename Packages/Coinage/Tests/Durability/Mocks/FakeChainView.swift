@@ -94,7 +94,7 @@ actor FakeChainView: DurabilityChainReading {
     }
 
     func readInputs(
-        _ inputs: [Input],
+        _ inputs: [DurabilityInput],
         at block: BlockRef
     ) async -> [ReadResult<AssetPresence>] {
         inputResults[block.number] ?? Array(repeating: .absent, count: inputs.count)

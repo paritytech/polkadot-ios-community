@@ -5,12 +5,12 @@ import Individuality
 
 struct MemberStatusResult: BatchStorageSubscriptionResult {
     struct MemberUpdate {
-        let derivationIndex: UInt32
+        let derivationIndex: DerivationIndex
         let ringPosition: MembersPallet.RingPosition?
     }
 
     struct RingStatusUpdate {
-        let derivationIndex: UInt32
+        let derivationIndex: DerivationIndex
         let ringKeysStatus: MembersPallet.RingKeysStatus?
     }
 

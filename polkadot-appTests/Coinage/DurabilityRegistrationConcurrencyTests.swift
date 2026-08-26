@@ -22,7 +22,11 @@ final class DurabilityRegistrationConcurrencyTests {
     init() {
         facade = UserDataStorageTestFacade()
         let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-        store = DurabilityCoreDataStore(storageFacade: facade, transacting: transacting)
+        store = DurabilityCoreDataStore(
+            storageFacade: facade,
+            transacting: transacting,
+            coinKeyDeriver: StubCoinKeyDeriver()
+        )
     }
 
     @Test("concurrent registrations on the same input admit exactly one")
@@ -30,9 +34,13 @@ final class DurabilityRegistrationConcurrencyTests {
         for _ in 0 ..< 50 {
             let facade = UserDataStorageTestFacade()
             let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-            let store = DurabilityCoreDataStore(storageFacade: facade, transacting: transacting)
+            let store = DurabilityCoreDataStore(
+                storageFacade: facade,
+                transacting: transacting,
+                coinKeyDeriver: StubCoinKeyDeriver()
+            )
 
-            let sharedInput = Input.coin(.own(0))
+            let sharedInput = DurabilityInput.coin(.own(0))
             let id1 = TransactionId()
             let id2 = TransactionId()
 
@@ -97,7 +105,11 @@ final class DurabilityRegistrationConcurrencyTests {
         for _ in 0 ..< 50 {
             let facade = UserDataStorageTestFacade()
             let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-            let store = DurabilityCoreDataStore(storageFacade: facade, transacting: transacting)
+            let store = DurabilityCoreDataStore(
+                storageFacade: facade,
+                transacting: transacting,
+                coinKeyDeriver: StubCoinKeyDeriver()
+            )
 
             let entries = (0 ..< 10).map { i in
                 DurabilityEntry(
@@ -147,7 +159,7 @@ final class DurabilityRegistrationConcurrencyTests {
     @Test("rejected registration leaves nothing behind")
     func rejectedRegistrationLeavesNothingBehind() async throws {
         // First registration should succeed
-        let firstInput = Input.coin(.own(0))
+        let firstInput = DurabilityInput.coin(.own(0))
         let firstEntry = DurabilityEntry(
             id: TransactionId(),
             inputs: [firstInput],
@@ -198,7 +210,7 @@ final class DurabilityRegistrationConcurrencyTests {
     /// would be rejected as a double-spend.
     @Test("an input claimed only by a failed entry can be registered again")
     func inputOfFailedEntryIsRegistrableAgain() async throws {
-        let input = Input.coin(.own(7))
+        let input = DurabilityInput.coin(.own(7))
         let failedId = TransactionId()
 
         let failedEntry = DurabilityEntry(
@@ -231,7 +243,7 @@ final class DurabilityRegistrationConcurrencyTests {
 
     @Test("an input claimed by a live entry is still rejected after another entry fails")
     func liveClaimSurvivesUnrelatedFailure() async throws {
-        let liveInput = Input.coin(.own(7))
+        let liveInput = DurabilityInput.coin(.own(7))
         let failedId = TransactionId()
 
         let failedEntry = DurabilityEntry(
@@ -264,5 +276,17 @@ final class DurabilityRegistrationConcurrencyTests {
         await #expect(throws: DurabilityError.inputAlreadyClaimed(liveInput.identifier)) {
             try await store.register(conflicting)
         }
+    }
+}
+
+/// Deterministic coin public key from the derivation index — enough for registration validation,
+/// which only needs distinct, stable keys.
+private struct StubCoinKeyDeriver: CoinKeyDeriving {
+    func derivePublicKey(for model: Coin) throws -> PublicKey {
+        withUnsafeBytes(of: model.derivationIndex.bigEndian) { Data($0) }
+    }
+
+    func derivePrivateKey(for _: Coin) throws -> PrivateKey {
+        Data()
     }
 }

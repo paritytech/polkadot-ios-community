@@ -55,7 +55,7 @@ extension VoucherMapper: CoreDataMapperProtocol {
 
         return Voucher(
             exponent: entity.exponent,
-            derivationIndex: UInt32(entity.derivationIndex),
+            derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
@@ -70,7 +70,7 @@ extension VoucherMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
-        entity.derivationIndex = Int64(model.derivationIndex)
+        entity.derivationIndex = model.derivationIndex.toCoreData()
         entity.exponent = model.exponent
         entity.readyAt = model.readyAt
         entity.allocatedAt = model.allocatedAt

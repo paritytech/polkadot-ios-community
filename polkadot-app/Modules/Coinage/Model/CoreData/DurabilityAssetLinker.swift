@@ -2,19 +2,19 @@ import CoreData
 import Coinage
 import Foundation
 
-/// Resolves the `CDCoin` / `CDVoucher` row a durability ``Input`` or ``OwnAsset`` points at, so
+/// Resolves the `CDCoin` / `CDVoucher` row a durability ``DurabilityInput`` or ``OwnAsset`` points at, so
 /// input/output rows can hold a real relation to the asset for change propagation.
 ///
 /// Matching is on the asset's derivation index, taken straight from the typed case — a received
 /// coin or a not-yet-existing row resolves to `nil`. The row's `identifier` string stays the
 /// source of truth; the relation is populated opportunistically.
 enum DurabilityAssetLinker {
-    static func coin(for input: Input, in context: NSManagedObjectContext) -> CDCoin? {
+    static func coin(for input: DurabilityInput, in context: NSManagedObjectContext) -> CDCoin? {
         guard case let .coin(.own(index)) = input else { return nil }
         return coin(index: index, in: context)
     }
 
-    static func voucher(for input: Input, in context: NSManagedObjectContext) -> CDVoucher? {
+    static func voucher(for input: DurabilityInput, in context: NSManagedObjectContext) -> CDVoucher? {
         guard case let .recyclerVoucher(index) = input else { return nil }
         return voucher(index: index, in: context)
     }
@@ -31,11 +31,11 @@ enum DurabilityAssetLinker {
 }
 
 private extension DurabilityAssetLinker {
-    static func coin(index: UInt32, in context: NSManagedObjectContext) -> CDCoin? {
+    static func coin(index: DerivationIndex, in context: NSManagedObjectContext) -> CDCoin? {
         fetchFirst("CDCoin", identifier: Coin.identifier(for: index), in: context)
     }
 
-    static func voucher(index: UInt32, in context: NSManagedObjectContext) -> CDVoucher? {
+    static func voucher(index: DerivationIndex, in context: NSManagedObjectContext) -> CDVoucher? {
         fetchFirst("CDVoucher", identifier: Voucher.identifier(for: index), in: context)
     }
 

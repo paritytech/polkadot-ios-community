@@ -71,7 +71,7 @@ extension DurabilityChainReader: DurabilityChainReading {
         view.connectionToken == connectionToken
     }
 
-    func readInputs(_ inputs: [Input], at block: BlockRef) async -> [ReadResult<AssetPresence>] {
+    func readInputs(_ inputs: [DurabilityInput], at block: BlockRef) async -> [ReadResult<AssetPresence>] {
         await read(assets: inputs.map(AssetQuery.init(input:)), at: block)
     }
 
@@ -105,7 +105,7 @@ extension DurabilityChainReader: DurabilityChainReading {
 private extension DurabilityChainReader {
     /// One asset to read, in its original position so results can be returned in order.
     struct AssetQuery {
-        let input: Input
+        let input: DurabilityInput
     }
 
     /// A coin whose key cannot be derived is left out of both batches, so its position keeps
@@ -125,7 +125,7 @@ private extension DurabilityChainReader {
             }
         }
 
-        let vouchers = assets.enumerated().compactMap { position, asset -> (position: Int, index: UInt32)? in
+        let vouchers = assets.enumerated().compactMap { position, asset -> (position: Int, index: DerivationIndex)? in
             guard case let .recyclerVoucher(index) = asset.input else { return nil }
             return (position, index)
         }
@@ -163,7 +163,7 @@ private extension DurabilityChainReader {
     }
 
     func fetchVouchers(
-        indices: [UInt32],
+        indices: [DerivationIndex],
         at block: BlockRef
     ) async -> [ReadResult<AssetPresence>] {
         guard !indices.isEmpty else { return [] }

@@ -279,9 +279,9 @@ extension VoucherLocationService {
     private func ringPositionUpdates(
         from memberUpdates: [MemberStatusResult.MemberUpdate],
         snapshot: SyncSnapshot,
-        voucherMap: [UInt32: Voucher]
-    ) -> [UInt32: Voucher] {
-        var updates: [UInt32: Voucher] = [:]
+        voucherMap: [DerivationIndex: Voucher]
+    ) -> [DerivationIndex: Voucher] {
+        var updates: [DerivationIndex: Voucher] = [:]
 
         for update in memberUpdates {
             let derivationIndex = update.derivationIndex
@@ -325,8 +325,8 @@ extension VoucherLocationService {
     private func applyRingStatusUpdates(
         _ ringStatusUpdates: [MemberStatusResult.RingStatusUpdate],
         snapshot: SyncSnapshot,
-        voucherMap: [UInt32: Voucher],
-        into updates: inout [UInt32: Voucher]
+        voucherMap: [DerivationIndex: Voucher],
+        into updates: inout [DerivationIndex: Voucher]
     ) {
         for update in ringStatusUpdates {
             let derivationIndex = update.derivationIndex
@@ -370,18 +370,18 @@ extension VoucherLocationService {
         var degradedVouchers: [Voucher] = []
         // Tracks which derivation indices have an active ringKeysStatus subscription in the current batch.
         // Compared against discovered ring positions after each emission to detect when resubscription is needed.
-        var subscribedDerivationIndices: Set<UInt32> = []
+        var subscribedDerivationIndices: Set<DerivationIndex> = []
         // Persisted across partial emissions — Substrate subscriptions may deliver position and status in separate
         // batches.
         // Keyed by derivation index
-        var accumulatedRingPositions: [UInt32: MembersPallet.RingPosition] = [:]
-        var accumulatedRingStatuses: [UInt32: MembersPallet.RingKeysStatus] = [:]
+        var accumulatedRingPositions: [DerivationIndex: MembersPallet.RingPosition] = [:]
+        var accumulatedRingStatuses: [DerivationIndex: MembersPallet.RingKeysStatus] = [:]
     }
 
     private struct SyncSnapshot {
         let pendingVouchers: [Voucher]
         let degradedVouchers: [Voucher]
-        let accumulatedRingPositions: [UInt32: MembersPallet.RingPosition]
-        let accumulatedRingStatuses: [UInt32: MembersPallet.RingKeysStatus]
+        let accumulatedRingPositions: [DerivationIndex: MembersPallet.RingPosition]
+        let accumulatedRingStatuses: [DerivationIndex: MembersPallet.RingKeysStatus]
     }
 }

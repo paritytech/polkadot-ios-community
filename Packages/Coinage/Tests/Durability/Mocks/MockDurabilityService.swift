@@ -34,7 +34,7 @@ actor MockDurabilityService: DurabilityServicing {
     let store: MockDurabilityStore
     let callJournal: CallJournal
 
-    private(set) var submittedInputs: [[Input]] = []
+    private(set) var submittedInputs: [[DurabilityInput]] = []
     private(set) var submittedOutputs: [[OwnAsset]] = []
     private(set) var recoveryPassCount: Int = 0
 
@@ -60,7 +60,7 @@ actor MockDurabilityService: DurabilityServicing {
     }
 
     func submit(
-        inputs: [Input],
+        inputs: [DurabilityInput],
         outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
@@ -69,7 +69,7 @@ actor MockDurabilityService: DurabilityServicing {
         return try await submitRegistered(entryId: id, builder: builder, origin: origin)
     }
 
-    func register(inputs: [Input], outputs: [OwnAsset]) async throws -> TransactionId {
+    func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId {
         submittedInputs.append(inputs)
         submittedOutputs.append(outputs)
         callJournal.record("register")

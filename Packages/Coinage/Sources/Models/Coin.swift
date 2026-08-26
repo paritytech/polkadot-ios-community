@@ -4,7 +4,7 @@ import SubstrateSdk
 
 public struct Coin: Equatable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
-    public let derivationIndex: UInt32
+    public let derivationIndex: DerivationIndex
     public let age: Int16? // nil = unknown, 0 = fresh from unload/split
 
     /// Local status, derived from the durability entry graph at fetch time — not stored. Set by
@@ -32,7 +32,7 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
 
     public init(
         exponent: Int16,
-        derivationIndex: UInt32,
+        derivationIndex: DerivationIndex,
         age: Int16?,
         state: State = .available,
         isOnchain: Bool = false
@@ -66,7 +66,7 @@ extension Coin: Operation_iOS.Identifiable {
 public extension Coin {
     /// The storage identifier for a coin at `derivationIndex`. Single source of truth so no
     /// call site hand-writes the string form.
-    static func identifier(for derivationIndex: UInt32) -> String {
+    static func identifier(for derivationIndex: DerivationIndex) -> String {
         "\(derivationIndex)"
     }
 }

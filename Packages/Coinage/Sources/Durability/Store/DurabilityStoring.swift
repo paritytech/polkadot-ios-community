@@ -32,7 +32,7 @@ public protocol DurabilityStoring: Sendable {
     func minter(of asset: OwnAsset) async throws -> DurabilityEntry?
 
     /// Every entry consuming this input, including terminal ones.
-    func consumers(of input: Input) async throws -> [DurabilityEntry]
+    func consumers(of input: DurabilityInput) async throws -> [DurabilityEntry]
 
     func markHandedOff(_ asset: OwnAsset) async throws
 

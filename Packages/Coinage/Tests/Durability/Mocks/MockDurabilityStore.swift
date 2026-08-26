@@ -73,7 +73,7 @@ actor MockDurabilityStore: DurabilityStoring {
         entries.values.first { $0.outputs.contains(asset) }
     }
 
-    func consumers(of input: Input) async throws -> [DurabilityEntry] {
+    func consumers(of input: DurabilityInput) async throws -> [DurabilityEntry] {
         sortedEntries.filter { $0.inputs.contains(input) }
     }
 

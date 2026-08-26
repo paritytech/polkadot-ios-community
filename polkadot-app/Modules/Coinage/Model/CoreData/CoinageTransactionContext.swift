@@ -46,39 +46,48 @@ final class CoinageTransactionContext: CoinageTransacting, @unchecked Sendable {
 private class Transaction: CoinageStoreTransaction {
     private let context: NSManagedObjectContext
     private let entryMapper = DurabilityEntryMapper()
-    private let markMapper = HandoffMarkMapper()
 
     init(context: NSManagedObjectContext) {
         self.context = context
     }
 
-    func claimedInputIdentifiers(among inputs: [Input]) throws -> Set<String> {
-        let rows = try matchingInputRows(for: inputs, nonFailureOnly: true)
-        return Set(rows.compactMap { DurabilityRowCoding.input(from: $0)?.identifier })
+    func claimedInputs(among inputs: Set<DurabilityInput>) throws -> Set<DurabilityInput> {
+        let rows = try matchingInputRows(for: Array(inputs), nonFailureOnly: true)
+        return Set(rows.compactMap(durabilityInput(from:)))
     }
 
-    func mintedOutputIdentifiers(among outputs: [OwnAsset]) throws -> Set<String> {
-        let rows = try matchingOutputRows(for: outputs)
-        return Set(rows.compactMap { DurabilityRowCoding.ownAsset(from: $0)?.identifier })
+    func mintedOutput(among outputs: Set<DurabilityOutput>) throws -> Set<DurabilityOutput> {
+        let rows = try matchingOutputRows(for: Array(outputs))
+        return Set(rows.compactMap(durabilityOutput(from:)))
     }
 
-    func receivedInputIdentifiers(among outputs: [OwnAsset]) throws -> Set<String> {
-        let candidates = Set(outputs.map(\.identifier))
+    func receivedInputPublicKeys(among publicKeys: Set<Data>) throws -> Set<Data> {
+        guard !publicKeys.isEmpty else { return [] }
+
         let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
-        request.predicate = NSPredicate(format: "%K != nil", #keyPath(CDDurabilityInput.receivedPubKey))
+        request.predicate = NSPredicate(
+            format: "%K IN %@", #keyPath(CDDurabilityInput.receivedPubKey), publicKeys.map { $0.toHex() }
+        )
 
-        let identifiers = try context.fetch(request).compactMap { DurabilityRowCoding.input(from: $0)?.identifier }
-        return Set(identifiers.filter(candidates.contains))
+        let matched = try context.fetch(request).compactMap(\.receivedPubKey)
+        return Set(matched.compactMap { try? Data(hexString: $0) })
     }
 
-    func markedIdentifiers(among inputs: [Input]) throws -> Set<String> {
-        let identifiers = inputs.compactMap { $0.ownAsset?.identifier }
-        guard !identifiers.isEmpty else { return [] }
+    func handedOff(among inputs: Set<DurabilityInput>) throws -> Set<DurabilityInput> {
+        var inputsByIndex: [Int64: DurabilityInput] = [:]
+        for input in inputs {
+            if case let .coin(.own(index)) = input { inputsByIndex[index.toCoreData()] = input }
+        }
+        guard !inputsByIndex.isEmpty else { return [] }
 
-        let request = NSFetchRequest<CDHandoffMark>(entityName: "CDHandoffMark")
-        request.predicate = NSPredicate(format: "%K IN %@", #keyPath(CDHandoffMark.identifier), identifiers)
+        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
+        request.predicate = NSPredicate(
+            format: "derivationIndex IN %@ AND handoffMark != %d",
+            Array(inputsByIndex.keys).map { NSNumber(value: $0) },
+            Int(CoinHandoffMark.none.rawValue)
+        )
 
-        return try Set(context.fetch(request).compactMap(\.identifier))
+        return try Set(context.fetch(request).compactMap { inputsByIndex[$0.derivationIndex] })
     }
 
     func nextSequence() throws -> Int64 {
@@ -107,39 +116,32 @@ private class Transaction: CoinageStoreTransaction {
     }
 
     func insertMark(_ asset: OwnAsset) throws {
-        let request = NSFetchRequest<CDHandoffMark>(entityName: Self.markEntity)
-        request.predicate = NSPredicate(
-            format: "%K = %@",
-            #keyPath(CDHandoffMark.identifier),
-            asset.identifier
-        )
+        guard case let .coin(index) = asset else { return }
 
-        guard try context.fetch(request).isEmpty else { return }
+        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
+        request.predicate = NSPredicate(format: "identifier == %@", Coin.identifier(for: index))
+        request.fetchLimit = 1
 
-        guard let entity: CDHandoffMark = insert(Self.markEntity) else {
-            throw DurabilityError.entryNotFound(TransactionId())
-        }
-
-        let mark = HandoffMark(identifier: asset.identifier, createdAt: Date())
-        try markMapper.populate(entity: entity, from: mark, using: context)
+        // Insert-only: the mark goes down before the keys leave and is never retracted.
+        let coin = try context.fetch(request).first
+        coin?.handoffMark = CoinHandoffMark.committed.rawValue
     }
 }
 
 private extension Transaction {
     static var entryEntity: String { "CDDurability" }
-    static var markEntity: String { "CDHandoffMark" }
 
     func insert<Entity: NSManagedObject>(_ entityName: String) -> Entity? {
         NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Entity
     }
 
-    func matchingInputRows(for inputs: [Input], nonFailureOnly: Bool) throws -> [CDDurabilityInput] {
+    func matchingInputRows(for inputs: [DurabilityInput], nonFailureOnly: Bool) throws -> [CDDurabilityInput] {
         let coinIndices = inputs.compactMap { input -> Int64? in
-            if case let .coin(.own(index)) = input { return Int64(index) }
+            if case let .coin(.own(index)) = input { return index.toCoreData() }
             return nil
         }
         let voucherIndices = inputs.compactMap { input -> Int64? in
-            if case let .recyclerVoucher(index) = input { return Int64(index) }
+            if case let .recyclerVoucher(index) = input { return index.toCoreData() }
             return nil
         }
         let receivedKeys = inputs.compactMap { input -> String? in
@@ -147,10 +149,24 @@ private extension Transaction {
             return nil
         }
 
-        var subpredicates = assetPredicates(coinIndices: coinIndices, voucherIndices: voucherIndices)
+        var subpredicates: [NSPredicate] = []
+        if !coinIndices.isEmpty {
+            subpredicates.append(NSPredicate(
+                format: "coin.derivationIndex IN %@",
+                coinIndices.map { NSNumber(value: $0) }
+            ))
+        }
+        if !voucherIndices.isEmpty {
+            subpredicates.append(NSPredicate(
+                format: "voucher.derivationIndex IN %@",
+                voucherIndices.map { NSNumber(value: $0) }
+            ))
+        }
         if !receivedKeys.isEmpty {
             subpredicates.append(NSPredicate(
-                format: "%K IN %@", #keyPath(CDDurabilityInput.receivedPubKey), receivedKeys
+                format: "%K IN %@",
+                #keyPath(CDDurabilityInput.receivedPubKey),
+                receivedKeys
             ))
         }
         guard !subpredicates.isEmpty else { return [] }
@@ -171,17 +187,29 @@ private extension Transaction {
         return try context.fetch(request)
     }
 
-    func matchingOutputRows(for outputs: [OwnAsset]) throws -> [CDDurabilityOutput] {
+    func matchingOutputRows(for outputs: [DurabilityOutput]) throws -> [CDDurabilityOutput] {
         let coinIndices = outputs.compactMap { asset -> Int64? in
-            if case let .coin(index) = asset { return Int64(index) }
+            if case let .coin(index) = asset { return index.toCoreData() }
             return nil
         }
         let voucherIndices = outputs.compactMap { asset -> Int64? in
-            if case let .recyclerVoucher(index) = asset { return Int64(index) }
+            if case let .recyclerVoucher(index) = asset { return index.toCoreData() }
             return nil
         }
 
-        let subpredicates = assetPredicates(coinIndices: coinIndices, voucherIndices: voucherIndices)
+        var subpredicates: [NSPredicate] = []
+        if !coinIndices.isEmpty {
+            subpredicates.append(NSPredicate(
+                format: "coin.derivationIndex IN %@",
+                coinIndices.map { NSNumber(value: $0) }
+            ))
+        }
+        if !voucherIndices.isEmpty {
+            subpredicates.append(NSPredicate(
+                format: "voucher.derivationIndex IN %@",
+                voucherIndices.map { NSNumber(value: $0) }
+            ))
+        }
         guard !subpredicates.isEmpty else { return [] }
 
         let request = NSFetchRequest<CDDurabilityOutput>(entityName: "CDDurabilityOutput")
@@ -189,23 +217,28 @@ private extension Transaction {
         return try context.fetch(request)
     }
 
-    /// Predicates over the `assetKind` + `derivationIndex` columns shared by input and output rows.
-    func assetPredicates(coinIndices: [Int64], voucherIndices: [Int64]) -> [NSPredicate] {
-        var predicates: [NSPredicate] = []
-        if !coinIndices.isEmpty {
-            predicates.append(NSPredicate(
-                format: "assetKind == %d AND derivationIndex IN %@",
-                Int(DurabilityRowCoding.AssetKind.coin.rawValue),
-                coinIndices.map { NSNumber(value: $0) }
-            ))
+    /// Reconstructs the typed input an input row references, from its relations / received key.
+    func durabilityInput(from row: CDDurabilityInput) -> DurabilityInput? {
+        if let hex = row.receivedPubKey, let publicKey = try? Data(hexString: hex) {
+            return .coin(.received(publicKey))
         }
-        if !voucherIndices.isEmpty {
-            predicates.append(NSPredicate(
-                format: "assetKind == %d AND derivationIndex IN %@",
-                Int(DurabilityRowCoding.AssetKind.voucher.rawValue),
-                voucherIndices.map { NSNumber(value: $0) }
-            ))
+        if let coin = row.coin {
+            return .coin(.own(DerivationIndex.fromCoreData(coin.derivationIndex)))
         }
-        return predicates
+        if let voucher = row.voucher {
+            return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
+        }
+        return nil
+    }
+
+    /// Reconstructs the typed output an output row references, from its relations.
+    func durabilityOutput(from row: CDDurabilityOutput) -> DurabilityOutput? {
+        if let coin = row.coin {
+            return .coin(DerivationIndex.fromCoreData(coin.derivationIndex))
+        }
+        if let voucher = row.voucher {
+            return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
+        }
+        return nil
     }
 }

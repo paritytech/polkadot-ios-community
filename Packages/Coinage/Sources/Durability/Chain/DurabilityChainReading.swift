@@ -38,7 +38,7 @@ public protocol DurabilityChainReading: Sendable {
     func isCurrent(_ view: ChainView) async -> Bool
 
     /// Presence of each input at `block`, in the order given.
-    func readInputs(_ inputs: [Input], at block: BlockRef) async -> [ReadResult<AssetPresence>]
+    func readInputs(_ inputs: [DurabilityInput], at block: BlockRef) async -> [ReadResult<AssetPresence>]
 
     /// Presence of each output at `block`, in the order given.
     func readOutputs(_ outputs: [OwnAsset], at block: BlockRef) async -> [ReadResult<AssetPresence>]
