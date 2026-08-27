@@ -22,8 +22,8 @@ final class AssetDetailsPresenter {
     private let chainAsset: ChainAsset
     private var balance: Decimal = 0
     private var lockedAmount: Decimal = 0
-    private var coins: [Coin] = []
-    private var vouchers: [Voucher] = []
+    private var coins: [TrackedCoin] = []
+    private var vouchers: [TrackedVoucher] = []
     private var price: PriceData?
     let logger: LoggerProtocol
 
@@ -138,7 +138,7 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             wireframe.present(error: error, from: view)
         }
 
-        func didReceive(coins: [Coin], vouchers: [Voucher]) {
+        func didReceive(coins: [TrackedCoin], vouchers: [TrackedVoucher]) {
             self.coins = coins
             self.vouchers = vouchers
             provideCoinageBreakdown()
@@ -284,16 +284,17 @@ private extension AssetDetailsPresenter {
             dateFormatter.timeStyle = .short
 
             let coinDetails = coins
-                .sorted { $0.derivationIndex < $1.derivationIndex }
-                .map { coin in
-                    let stateLabel =
-                        switch coin.state {
-                        case .available: "Available"
-                        case .pendingTransfer: "Reserved"
-                        case .pendingMint: "Pending mint"
-                        case .handedOff: "Handed off"
-                        case .spent: "Spent"
-                        }
+                .sorted { $0.coin.derivationIndex < $1.coin.derivationIndex }
+                .map { tracked in
+                    let coin = tracked.coin
+                    let state = tracked.state
+                    let stateLabel: String = {
+                        if coin.handoffMark != .none { return "Handed off" }
+                        if state.isConsumed { return "Spent" }
+                        if state.isInUse { return "Reserved" }
+                        if !coin.isOnchain { return "Pending mint" }
+                        return "Available"
+                    }()
                     return CoinDetailViewModel(
                         id: coin.identifier,
                         exponent: "2^\(coin.exponent)",
@@ -303,8 +304,9 @@ private extension AssetDetailsPresenter {
                 }
 
             let voucherDetails = vouchers
-                .sorted { $0.derivationIndex < $1.derivationIndex }
-                .map { voucher in
+                .sorted { $0.voucher.derivationIndex < $1.voucher.derivationIndex }
+                .map { tracked in
+                    let voucher = tracked.voucher
                     let stateString: String =
                         switch voucher.remoteState {
                         case .unlocated: "Unlocated"
@@ -328,7 +330,7 @@ private extension AssetDetailsPresenter {
                 totalBalance: formatted(from: balance),
                 spendableBalance: formatted(from: spendable),
                 pendingBalance: formatted(from: lockedAmount),
-                coinCount: coins.filter { $0.state == .available }.count,
+                coinCount: coins.filter(\.state.isFree).count,
                 voucherCount: vouchers.count,
                 coinDetails: coinDetails,
                 voucherDetails: voucherDetails

@@ -5,7 +5,7 @@ import Foundation
 public struct CoinageAssetState: Equatable, Sendable {
     // whether a coin was transferred to another recipient
     public let handedOff: Bool
-    
+
     /// The status of the non-failure entry consuming this asset, or nil if none does.
     public let consumerStatus: EntryStatus?
     /// The status of the minting entry, or nil if no local entry minted this asset.

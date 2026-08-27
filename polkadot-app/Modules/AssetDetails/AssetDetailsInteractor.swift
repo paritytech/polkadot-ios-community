@@ -34,8 +34,8 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
 
     #if TESTNET_FEATURE
         private var coinageSubscriptionTask: Task<Void, Never>?
-        private let coinProvider: StreamableProvider<Coin>
-        private let voucherProvider: StreamableProvider<Voucher>
+        private let coinProvider: StreamableProvider<TrackedCoin>
+        private let voucherProvider: StreamableProvider<TrackedVoucher>
         private let backgroundExecutor: BackgroundExecuting
 
         let voucherRepository: AnyDataProviderRepository<Voucher>
@@ -51,8 +51,8 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         coinageService: CoinageServicing,
         coinageBackupSyncService: any CoinageBackupSyncServicing,
         balanceSyncStateStorage: BalanceSyncStateStoring,
-        coinProvider: StreamableProvider<Coin>,
-        voucherProvider: StreamableProvider<Voucher>,
+        coinProvider: StreamableProvider<TrackedCoin>,
+        voucherProvider: StreamableProvider<TrackedVoucher>,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
         eventCenter: EventCenterProtocol = EventCenter.shared
@@ -181,9 +181,9 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
             coinageSubscriptionTask?.cancel()
             coinageSubscriptionTask = Task { [weak self, coinProvider, voucherProvider] in
                 let coinsStream = coinProvider.asyncStream()
-                    .scan([String: Coin]()) { dict, changes in changes.mergeToDict(dict) }
+                    .scan([String: TrackedCoin]()) { dict, changes in changes.mergeToDict(dict) }
                 let vouchersStream = voucherProvider.asyncStream()
-                    .scan([String: Voucher]()) { dict, changes in changes.mergeToDict(dict) }
+                    .scan([String: TrackedVoucher]()) { dict, changes in changes.mergeToDict(dict) }
 
                 do {
                     for try await (coinsDict, vouchersDict) in combineLatest(coinsStream, vouchersStream) {

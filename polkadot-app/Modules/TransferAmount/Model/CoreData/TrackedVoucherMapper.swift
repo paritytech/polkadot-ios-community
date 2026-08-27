@@ -18,8 +18,8 @@ final class TrackedVoucherMapper {
 
 extension TrackedVoucherMapper: CoreDataMapperProtocol {
     func transform(entity: CoreDataEntity) throws -> DataProviderModel {
-        TrackedVoucher(
-            voucher: try voucherMapper.transform(entity: entity),
+        try TrackedVoucher(
+            voucher: voucherMapper.transform(entity: entity),
             state: CoinageAssetStateDeriver.state(
                 handedOff: false,
                 inputs: entity.durabilityInputs,

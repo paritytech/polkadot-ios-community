@@ -11,7 +11,7 @@ import KeyDerivation
 /// A service that monitors local coins and synchronizes their on-chain state.
 public final class CoinStateSyncService: BaseSyncService {
     private let coinService: CoinServiceProtocol
-    private let coinProvider: StreamableProvider<Coin>
+    private let coinProvider: StreamableProvider<TrackedCoin>
     private let coinKeyDeriver: any CoinKeyDeriving
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
@@ -21,7 +21,7 @@ public final class CoinStateSyncService: BaseSyncService {
 
     public init(
         coinService: CoinServiceProtocol,
-        coinProvider: StreamableProvider<Coin>,
+        coinProvider: StreamableProvider<TrackedCoin>,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
         entropyManager: any RootEntropyManaging,
@@ -46,11 +46,16 @@ public final class CoinStateSyncService: BaseSyncService {
             guard let self else { return }
 
             let stream = coinProvider.asyncStream()
-                .scan([String: Coin]()) { dict, changes in
+                .scan([String: TrackedCoin]()) { dict, changes in
                     changes.mergeToDict(dict)
                 }
-                .map(\.values)
-                .map { $0.filter { $0.state != .spent && $0.age == nil } }
+                .map { (dict: [String: TrackedCoin]) -> [Coin] in
+                    // Coins never seen on chain and not already consumed — the ones needing a sync.
+                    dict.values.compactMap { tracked in
+                        guard !tracked.state.isConsumed, tracked.coin.age == nil else { return nil }
+                        return tracked.coin
+                    }
+                }
 
             for try await coins in stream {
                 guard !coins.isEmpty else {
@@ -115,11 +120,12 @@ extension CoinStateSyncService {
     }
 
     private func handleSubscriptionUpdate(_ result: CoinSyncResult) async throws {
-        let availableCoins = try await coinService.fetchAllCoins()
+        let availableCoins = try await coinService.fetchAllTrackedCoins()
         guard !availableCoins.isEmpty else { return }
 
         var coinMap: [String: Coin] = [:]
-        for coin in availableCoins where coin.state != .spent {
+        for tracked in availableCoins where !tracked.state.isConsumed {
+            let coin = tracked.coin
             guard let pubKey = try? coinKeyDeriver.derivePublicKey(for: coin) else {
                 continue
             }

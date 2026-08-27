@@ -229,12 +229,9 @@ private extension CoinageRecyclingService {
     }
 
     func fetchEligibleCoins() async throws -> [Coin] {
-        try await coinService.fetchAllCoins()
-            .filter { coin in
-                guard let age = coin.age else { return false }
-
-                return coin.state == .available && age >= recycleAtAge
-            }
+        try await coinService.fetchAllTrackedCoins()
+            .filter { $0.isAwaitingRecycling(for: recycleAtAge) }
+            .map(\.coin)
             .sorted { ($0.age ?? 0) > ($1.age ?? 0) }
     }
 }

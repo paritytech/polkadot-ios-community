@@ -139,12 +139,12 @@ extension DurabilityCoreDataStore {
         try await handedOffCoinModels().map { .coin($0.derivationIndex) }
     }
 
-    /// A handoff mark is stored on `CDCoin`, so `.handedOff` — derived from it — identifies a
+    /// The handoff mark is stored on `CDCoin`, so a non-`.none` `handoffMark` identifies a
     /// handed-off coin. The mark is insert-only, so this never mistakes a released coin for one.
     private func handedOffCoinModels() async throws -> [Coin] {
         try await coinRepository
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
-            .filter { $0.state == .handedOff }
+            .filter { $0.handoffMark != .none }
     }
 }

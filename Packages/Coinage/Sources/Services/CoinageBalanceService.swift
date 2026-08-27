@@ -247,7 +247,7 @@ extension CoinageBalanceService {
                 spendable += amount
             } else if tracked.isMinting {
                 pending += amount
-            } else if tracked.isAwaitingRecycling {
+            } else if tracked.isAwaitingRecycling() {
                 expiringSoon += amount
             }
         }

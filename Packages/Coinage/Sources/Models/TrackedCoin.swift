@@ -26,9 +26,11 @@ extension TrackedCoin {
         state.isFree && !coin.isOnchain && state.minterStatus?.isLive == true
     }
 
-    /// On chain and free, but aged past the recycle threshold — due for recycling, not spendable.
-    var isAwaitingRecycling: Bool {
-        state.isFree && coin.isOnchain && !coin.isAgeValidToSpend
+    /// On chain and free, but aged at/past `recycleAtAge` — due for recycling, not spendable.
+    func isAwaitingRecycling(for recycleAtAge: Int16 = CoinageConstants.recycleAtAge) -> Bool {
+        guard let age = coin.age else { return false }
+
+        return state.isFree && coin.isOnchain && age >= recycleAtAge
     }
 }
 

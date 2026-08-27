@@ -19,7 +19,7 @@ extension CoinMapper: CoreDataMapperProtocol {
         guard let handoffMark = CoinHandoffMark(rawValue: entity.handoffMark) else {
             throw CoreDataMapperError.unexpected(#keyPath(CDCoin.handoffMark))
         }
-        
+
         return Coin(
             exponent: entity.exponent,
             derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),

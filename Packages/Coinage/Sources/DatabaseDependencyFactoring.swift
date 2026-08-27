@@ -4,7 +4,9 @@ import Operation_iOS
 /// Implemented in the main app target to bridge CoreData infrastructure to the package.
 public protocol DatabaseDependencyFactoring: Sendable {
     func makeCoinRepository() -> AnyDataProviderRepository<Coin>
+    func makeTrackedCoinRepository() -> AnyDataProviderRepository<TrackedCoin>
     func makeVoucherRepository() -> AnyDataProviderRepository<Voucher>
+    func makeTrackedVoucherRepository() -> AnyDataProviderRepository<TrackedVoucher>
     func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher>
     func makeCoinProvider() -> StreamableProvider<Coin>
     func makeVoucherProvider() -> StreamableProvider<Voucher>

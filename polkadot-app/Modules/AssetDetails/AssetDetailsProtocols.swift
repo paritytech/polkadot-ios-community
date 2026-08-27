@@ -62,7 +62,7 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     func didClearBackupNotification()
 
     #if TESTNET_FEATURE
-        func didReceive(coins: [Coin], vouchers: [Voucher])
+        func didReceive(coins: [TrackedCoin], vouchers: [TrackedVoucher])
         func didCompleteTopUp(_ result: Result<Void, Error>)
     #endif
 }

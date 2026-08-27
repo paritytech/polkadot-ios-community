@@ -12,18 +12,16 @@ public enum EntryStatus: Int, Sendable, Equatable {
 }
 
 public extension EntryStatus {
-    /** Live transactions hold their inputs locked. */
+    /// Live transactions hold their inputs locked.
     var isLive: Bool {
         self == .pending || self == .pendingSuccess
     }
-    
-    /**
-     * Executed in a block, finalized or not.
-     *
-     * The threshold to read on-chain presence against: a coin is only absent-because-consumed if whatever
-     * minted it actually ran, and asking for finality there while presence is read at the best head reports
-     * a coin that plainly existed a moment ago as one that may never have.
-    */
+
+    /// * Executed in a block, finalized or not.
+    /// *
+    /// * The threshold to read on-chain presence against: a coin is only absent-because-consumed if whatever
+    /// * minted it actually ran, and asking for finality there while presence is read at the best head reports
+    /// * a coin that plainly existed a moment ago as one that may never have.
     var isArrived: Bool {
         self == .pendingSuccess || self == .finalizedSuccess
     }

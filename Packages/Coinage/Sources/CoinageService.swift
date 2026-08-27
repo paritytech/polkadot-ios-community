@@ -277,8 +277,8 @@ extension CoinageService: CoinageServicing {
             throw CoinageError.notConfigured
         }
 
-        let coins = try await coinService.fetchAllCoins()
-        let vouchers = try await voucherService.fetchAvailableInRecycler()
+        let coins = try await coinService.fetchAllTrackedCoins()
+        let vouchers = try await voucherService.fetchAllTracked()
 
         let result = try await senderService.previewStrategy(
             amount: amount,
@@ -372,7 +372,9 @@ extension CoinageService: CoinageServicing {
     }
 
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {
-        let spentCoins = try await coinService.fetchAllCoins().filter { $0.state == .spent }
+        let spentCoins = try await coinService.fetchAllTrackedCoins()
+            .filter(\.state.isConsumed)
+            .map(\.coin)
         guard !spentCoins.isEmpty else { return .zero }
         let context = try await denominationContext()
         return try await ongoingTransferService.recoverSpentCoins(

@@ -54,6 +54,8 @@ public extension CoinageService {
         }
 
         let coinRepository = databaseFactory.makeCoinRepository()
+        let trackedCoinRepository = databaseFactory.makeTrackedCoinRepository()
+        let trackedVoucherRepository = databaseFactory.makeTrackedVoucherRepository()
         let voucherRepository = databaseFactory.makeVoucherRepository()
         let voucherLocationRepository = databaseFactory.makeVoucherLocationRepository()
 
@@ -77,9 +79,13 @@ public extension CoinageService {
         )
         let voucherService = VoucherService(
             voucherRepository: voucherRepository,
+            trackedVoucherRepository: trackedVoucherRepository,
             voucherLoaderFactory: voucherLoaderFactory
         )
-        let coinService = CoinService(coinRepository: coinRepository)
+        let coinService = CoinService(
+            coinRepository: coinRepository,
+            trackedCoinRepository: trackedCoinRepository
+        )
         let contextLoader = DenominationContextLoader(runtimeService: runtimeService)
 
         let readinessLoader = RecyclerReadinessLoader(
@@ -253,10 +259,9 @@ public extension CoinageService {
             logger: logger
         )
 
-        let coinProvider = databaseFactory.makeCoinProvider()
         let coinStateSyncService = CoinStateSyncService(
             coinService: coinService,
-            coinProvider: coinProvider,
+            coinProvider: databaseFactory.makeTrackedCoinProvider(),
             connection: connection,
             runtimeService: runtimeService,
             entropyManager: rootEntropyManager,

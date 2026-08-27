@@ -73,7 +73,7 @@ public extension Coin {
     static func identifier(for derivationIndex: DerivationIndex) -> String {
         "\(derivationIndex)"
     }
-    
+
     var hasEverBeenOnChain: Bool {
         age != nil
     }
