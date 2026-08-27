@@ -36,7 +36,7 @@ scaffold() {
 scaffold "$APP_DIR/env-vars.template.sh" "$APP_DIR/env-vars.sh"
 scaffold "$GS_DIR/GoogleService-Info-Dev.plist.template" "$GS_DIR/GoogleService-Info-Dev.plist"
 scaffold "$GS_DIR/GoogleService-Info-Release.plist.template" "$GS_DIR/GoogleService-Info-Release.plist"
-scaffold "$GS_DIR/GoogleService-Info-Nightly.plist.template" "$GS_DIR/GoogleService-Info-Nightly.plist"
+scaffold "$GS_DIR/GoogleService-Info-Safety.plist.template" "$GS_DIR/GoogleService-Info-Safety.plist"
 
 echo ""
 echo "Generating Secrets.generated.swift..."

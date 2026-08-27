@@ -80,8 +80,8 @@ Required for any signed build:
 | `FASTLANE_RO_PAT` | Fine-grained PAT with read access to the `match` repo | every signed build |
 | `FASTLANE_RW_PAT` | The same PAT with write access | `update_signing_data.yml` only |
 | `GOOGLE_SERVICE_INFO_DEV_BASE64` | Base64 development `GoogleService-Info.plist` | PR builds and tests |
-| `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | Base64 production `GoogleService-Info.plist` | release archives |
-| `GOOGLE_SERVICE_INFO_NIGHTLY_BASE64` | Base64 nightly `GoogleService-Info.plist` (separate Firebase app for `…​.nightly`) | nightly archives, nightly simulator build |
+| `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | Base64 production `GoogleService-Info.plist` | release and nightly archives, nightly simulator build |
+| `GOOGLE_SERVICE_INFO_SAFETY_BASE64` | Base64 Safetynet `GoogleService-Info.plist` (separate Firebase app for `…​.safety`) | Safetynet archives |
 
 Required only by the distribution target you actually use:
 
@@ -99,7 +99,7 @@ Optional — these gate reporting steps only, and a fork can leave them unset:
 | `ALLURE_TOKEN` | Triggering the Allure TestOps run after a build | `_build_distribute.yml`, `testflight_distribution.yml` |
 | `NOTIFICATION_BOT_URL`, `NOTIFICATION_BOT_TOKEN` | Build success/failure notifications | `_build_distribute.yml`, `nightly_distribution.yml` |
 | `TESTFLIGHT_DISTRIBUTION_LINK`, `WEB_PAGE_DISTRIBUTION_LINK` | One ready-to-render markdown link entry each, e.g. `[TestFlight](https://testflight.apple.com/join/<id>)`. Kept in secrets so access hints stay out of the repo. | `release_distribution.yml`, `nightly_distribution.yml` |
-| `TESTFLIGHT_NIGHTLY_DISTRIBUTION_LINK`, `WEB_PAGE_NIGHTLY_DISTRIBUTION_LINK` | A TestFlight join link is per-group per-app, so the two streams cannot share one | `nightly_distribution.yml` |
+| `TESTFLIGHT_SAFETY_DISTRIBUTION_LINK`, `WEB_PAGE_SAFETY_DISTRIBUTION_LINK` | A TestFlight join link is per-group per-app, and Safetynet is its own app | `nightly_distribution.yml` |
 
 `SENTRY_DSN` and `MELD_BASIC_AUTH_TOKEN` from the first table are also stored as
 GitHub Actions secrets, because CI runs `generate_secrets.sh` from
@@ -126,10 +126,10 @@ files are **not** committed.
 2. Download each `GoogleService-Info.plist` and save them as:
    - `polkadot-app/GoogleService/GoogleService-Info-Dev.plist`
    - `polkadot-app/GoogleService/GoogleService-Info-Release.plist`
-   - `polkadot-app/GoogleService/GoogleService-Info-Nightly.plist`
+   - `polkadot-app/GoogleService/GoogleService-Info-Safety.plist`
 3. During a build, the **"Google info"** build phase copies the correct one to
    `polkadot-app/GoogleService-Info.plist` based on `$CONFIGURATION`
-   (Debug/Dev/DevCI → Dev, Nightly → Nightly, Release → Release). In CI
+   (Debug/Dev/DevCI → Dev, Safetynet → Safety, Release/Nightly → Release). In CI
    (`RUN_IN_CI=true`) this copy is skipped — provide the active plist yourself.
 
 `*.plist.template` files document the expected structure with placeholder values;
@@ -143,8 +143,9 @@ with an inert Firebase configuration until you drop in real plists.
 | Configuration | Bundle id | Environment |
 |---------------|-----------|-------------|
 | `Debug` / `DevCI` | `…​.develop` | Unstable preview backend |
-| `Nightly` | `…​.nightly` | Stable testnet — separate app, own TestFlight external group |
-| `Release` | production id | Mainnet — own TestFlight external group |
+| `Nightly` | production id | Stable testnet, full feature set — TestFlight internal testers |
+| `Release` | production id | Mainnet — TestFlight internal testers |
+| `Safetynet` | `…​.safety` | Nightly chains, Release feature set — the release build proven before release; separate app, installs alongside production |
 
 Bundle ids, app name, icon and deep-link scheme live in
 `Configs/*.xcconfig`, `polkadot-app/Configs/*.xcconfig` and

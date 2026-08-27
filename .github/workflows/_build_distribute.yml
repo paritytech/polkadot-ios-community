@@ -20,9 +20,6 @@ on:
       build_configuration:
         required: true
         type: string
-      is_nightly:
-        required: true
-        type: boolean
       distribute_to_external_group:
         required: false
         type: boolean
@@ -51,13 +48,15 @@ env:
   CI_FAILURE_TELEGRAM_CHAT_IDS: "-1002068063370"
   ALLURE_TESTPLAN_ID: "734"
   ALLURE_LAUNCH_NAME: "iOS TestFlight Tests"
-  # Nightly ships as a separate app (`.nightly` suffix, see Configs/base.nightly.xcconfig),
-  # so it has its own App Store Connect record, Match profiles and Firebase app.
+  # Safetynet ships as a separate app (`.safety` suffix, see Configs/base.safetynet.xcconfig),
+  # so it has its own App Store Connect record, Match profiles and Firebase app. Every other
+  # configuration builds the production app. The identity follows the configuration, not the
+  # nightly/release axis — a nightly run builds both Nightly and Safetynet.
   # Workflow-level env cannot reference other env vars, hence the repeated suffix expression.
-  IOS_BUNDLE_ID: "io.parity.polkadotapp${{ inputs.is_nightly && '.nightly' || '' }}"
-  IOS_EXTENSION_BUNDLE_ID: "io.parity.polkadotapp${{ inputs.is_nightly && '.nightly' || '' }}.NotificationServiceExtension"
-  PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp${{ inputs.is_nightly && '.nightly' || '' }}"
-  EXTENSION_PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp${{ inputs.is_nightly && '.nightly' || '' }}.NotificationServiceExtension"
+  IOS_BUNDLE_ID: "io.parity.polkadotapp${{ inputs.build_configuration == 'Safetynet' && '.safety' || '' }}"
+  IOS_EXTENSION_BUNDLE_ID: "io.parity.polkadotapp${{ inputs.build_configuration == 'Safetynet' && '.safety' || '' }}.NotificationServiceExtension"
+  PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp${{ inputs.build_configuration == 'Safetynet' && '.safety' || '' }}"
+  EXTENSION_PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp${{ inputs.build_configuration == 'Safetynet' && '.safety' || '' }}.NotificationServiceExtension"
   CODE_SIGN_IDENTITY: "Apple Distribution"
   EXPORT_METHOD: "app-store"
   RUN_IN_CI: true
@@ -165,8 +164,8 @@ jobs:
         uses: ./.github/actions/read-build-version
         with:
           increment_step: ${{ steps.release_notes.outputs.increment_step }}
-          # Nightly and Release are separate App Store Connect records, so each
-          # stream carries its own independent TestFlight build-number sequence.
+          # Safetynet has its own App Store Connect record, so it carries a TestFlight
+          # build-number sequence independent of the production app's.
           ios_bundle_id: ${{ env.IOS_BUNDLE_ID }}
           config_name: ${{ inputs.build_configuration }}
           asc_key_id: ${{ secrets.ASC_KEY_ID }}
@@ -213,9 +212,14 @@ jobs:
 
       - name: Add extra Swift flags to xcconfig
         if: matrix.variant.extra_swift_flags != ''
+        env:
+          # The leaf xcconfig is named after the configuration being built.
+          BUILD_CONFIGURATION: ${{ inputs.build_configuration }}
         run: |
+          set -euo pipefail
+          config_name=$(echo "${BUILD_CONFIGURATION}" | tr '[:upper:]' '[:lower:]')
           python3 .github/scripts/add_swift_flags.py \
-            "polkadot-app/Configs/polkadot-app.${{ inputs.is_nightly && 'nightly' || 'release' }}.xcconfig" \
+            "polkadot-app/Configs/polkadot-app.${config_name}.xcconfig" \
             "${{ matrix.variant.extra_swift_flags }}"
 
       - name: Setup iOS Environment
@@ -246,7 +250,7 @@ jobs:
           keychain_password: ${{ secrets.KEYCHAIN_PASSWORD }}
           match_password: ${{ secrets.MATCH_PASSWORD }}
           google_service_info_dev_base64: ${{ secrets.GOOGLE_SERVICE_INFO_DEV_BASE64 }}
-          google_service_info_release_base64: ${{ inputs.is_nightly && secrets.GOOGLE_SERVICE_INFO_NIGHTLY_BASE64 || secrets.GOOGLE_SERVICE_INFO_RELEASE_BASE64 }}
+          google_service_info_release_base64: ${{ inputs.build_configuration == 'Safetynet' && secrets.GOOGLE_SERVICE_INFO_SAFETY_BASE64 || secrets.GOOGLE_SERVICE_INFO_RELEASE_BASE64 }}
           sentry_dsn: ${{ secrets.SENTRY_DSN }}
           meld_basic_auth_token: ${{ secrets.MELD_BASIC_AUTH_TOKEN }}
 
@@ -254,7 +258,7 @@ jobs:
         if: ${{ !matrix.variant.upload_to_testflight }}
         uses: ./.github/actions/configure-google-services
         with:
-          google_service_info_base64: ${{ inputs.is_nightly && secrets.GOOGLE_SERVICE_INFO_NIGHTLY_BASE64 || secrets.GOOGLE_SERVICE_INFO_RELEASE_BASE64 }}
+          google_service_info_base64: ${{ inputs.build_configuration == 'Safetynet' && secrets.GOOGLE_SERVICE_INFO_SAFETY_BASE64 || secrets.GOOGLE_SERVICE_INFO_RELEASE_BASE64 }}
           expected_bundle_id: ${{ env.IOS_BUNDLE_ID }}
 
       - name: Configure secrets for non-TestFlight build
@@ -401,11 +405,11 @@ jobs:
         uses: novasamatech/github-actions/send-notification@v5
         with:
           message: |
-            ❌ iOS ${{ inputs.is_nightly && 'Nightly' || 'Release' }} build failed
+            ❌ iOS ${{ inputs.build_configuration }} build failed
             Branch: ${{ inputs.release_branch }}
             Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           html_message: |
-            ❌ <b>iOS ${{ inputs.is_nightly && 'Nightly' || 'Release' }} build failed</b>
+            ❌ <b>iOS ${{ inputs.build_configuration }} build failed</b>
             Branch: <code>${{ inputs.release_branch }}</code>
             <a href="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}">View run</a>
           bot_url: ${{ secrets.NOTIFICATION_BOT_URL }}

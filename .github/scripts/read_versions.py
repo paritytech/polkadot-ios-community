@@ -29,14 +29,19 @@ def read_versions(pbxproj_path, config_name=None):
     if config_name:
         # Read from specific configuration block by name
         # Pattern: <config_id> /* <config_name> */ = { ... };
+        # A configuration name appears once per target plus once at project level, and
+        # only the target blocks carry MARKETING_VERSION — so take the first block that
+        # declares one rather than the first block by name.
         config_pattern = (
             rf"\w{{24}}\s*/\*\s*{re.escape(config_name)}\s*\*/\s*=\s*\{{[^}}]*?\}}"
         )
-        config_match = re.search(config_pattern, content, re.DOTALL)
-        if config_match:
-            search_text = config_match.group(0)
-        else:
+        blocks = re.findall(config_pattern, content, re.DOTALL)
+        if not blocks:
             raise ValueError(f"Configuration '{config_name}' not found")
+
+        search_text = next(
+            (block for block in blocks if "MARKETING_VERSION" in block), blocks[0]
+        )
     else:
         # Read from anywhere in the file (take first occurrence)
         search_text = content

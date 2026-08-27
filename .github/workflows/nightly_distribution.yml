@@ -24,28 +24,31 @@ jobs:
       release_branch: ${{ inputs.release_branch }}
       release_pr_number: ${{ inputs.release_pr_number }}
       build_configuration: "Nightly"
-      is_nightly: true
-      distribute_to_external_group: true
-      # use "Test external distribution" to test CI without publishing to the public group
-      external_group_name: "Daily test builds"
+      # Internal distribution only: no external group, no beta review. Nightly carries the
+      # production bundle id, so it lands in the production app's TestFlight.
+      distribute_to_external_group: false
+      external_group_name: ""
       s3_static_subdir: "nightly"
     secrets: inherit
 
-  # A nightly run ships the same commit to both apps: the Nightly record and the
-  # production one. Kept as a job here rather than a dispatch of
-  # release_distribution.yml so that auto_merge below can wait for both legs —
-  # a separate run would race the branch deletion.
+  # A nightly run ships the same commit to both apps: the production one (via the Nightly
+  # configuration above) and the Safetynet one. Kept as a job here rather than a dispatch of
+  # release_distribution.yml so that auto_merge below can wait for both legs — a separate run
+  # would race the branch deletion.
+  #
+  # Safetynet is what Release ships — release feature set — running against the nightly
+  # environment, under its own bundle id so it installs alongside the real app. See
+  # Configs/base.safetynet.xcconfig.
   build_release:
     uses: ./.github/workflows/_build_distribute.yml
     with:
       release_branch: ${{ inputs.release_branch }}
       release_pr_number: ${{ inputs.release_pr_number }}
-      build_configuration: "Release"
-      is_nightly: false
-      distribute_to_external_group: true
-      # use "Test external distribution" to test CI without publishing to the public group
-      external_group_name: "Daily test builds"
-      s3_static_subdir: "releases"
+      build_configuration: "Safetynet"
+      distribute_to_external_group: false
+      external_group_name: ""
+      # Its own static path: the release static object is the latest real Release build.
+      s3_static_subdir: "safetynet"
     secrets: inherit
 
   auto_merge:
@@ -110,17 +113,17 @@ jobs:
           pr_list: ${{ needs.build.outputs.pr_list_markdown }}
           release_info: |
             Nightly: ${{ needs.build.outputs.marketing_version }} (${{ needs.build.outputs.build_number }})
-            Release: ${{ needs.build_release.outputs.marketing_version }} (${{ needs.build_release.outputs.build_number }})
+            Safetynet: ${{ needs.build_release.outputs.marketing_version }} (${{ needs.build_release.outputs.build_number }})
           download_links_format: inline
           # Each secret holds one ready-to-render markdown link entry, e.g.
           # "[TestFlight](https://testflight.apple.com/join/<id>)". The label is part
           # of the secret so that access hints stay out of the public repo — with all
           # four rendered together the labels are what distinguishes the two apps.
           download_links: |
-            ${{ secrets.TESTFLIGHT_NIGHTLY_DISTRIBUTION_LINK }}
-            ${{ secrets.WEB_PAGE_NIGHTLY_DISTRIBUTION_LINK }}
             ${{ secrets.TESTFLIGHT_DISTRIBUTION_LINK }}
             ${{ secrets.WEB_PAGE_DISTRIBUTION_LINK }}
+            ${{ secrets.TESTFLIGHT_SAFETY_DISTRIBUTION_LINK }}
+            ${{ secrets.WEB_PAGE_SAFETY_DISTRIBUTION_LINK }}
           bot_url: ${{ secrets.NOTIFICATION_BOT_URL }}
           bot_api_token: ${{ secrets.NOTIFICATION_BOT_TOKEN }}
           matrix_room_ids: ${{ env.CI_MATRIX_ROOM_IDS }}

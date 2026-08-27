@@ -75,8 +75,8 @@ lane :update_signing_data do
       "appstore" => [
         "io.parity.polkadotapp",
         "io.parity.polkadotapp.NotificationServiceExtension",
-        "io.parity.polkadotapp.nightly",
-        "io.parity.polkadotapp.nightly.NotificationServiceExtension"
+        "io.parity.polkadotapp.safety",
+        "io.parity.polkadotapp.safety.NotificationServiceExtension"
       ]
     }
 

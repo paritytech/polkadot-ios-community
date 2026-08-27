@@ -25,7 +25,7 @@ permissions:
   contents: write
 
 env:
-  IOS_BUNDLE_ID: "io.parity.polkadotapp.nightly"
+  IOS_BUNDLE_ID: "io.parity.polkadotapp"
   FASTLANE_CONFIGURATION: "Nightly"
   RUN_IN_CI: "true"
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -44,7 +44,7 @@ jobs:
       - name: Configure Google services
         uses: ./.github/actions/configure-google-services
         with:
-          google_service_info_base64: ${{ secrets.GOOGLE_SERVICE_INFO_NIGHTLY_BASE64 }}
+          google_service_info_base64: ${{ secrets.GOOGLE_SERVICE_INFO_RELEASE_BASE64 }}
           expected_bundle_id: ${{ env.IOS_BUNDLE_ID }}
 
       - name: Configure secrets

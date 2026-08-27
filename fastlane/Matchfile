@@ -4,8 +4,8 @@ type("development")
 app_identifier([
   "io.parity.polkadotapp",
   "io.parity.polkadotapp.NotificationServiceExtension",
-  "io.parity.polkadotapp.nightly",
-  "io.parity.polkadotapp.nightly.NotificationServiceExtension",
+  "io.parity.polkadotapp.safety",
+  "io.parity.polkadotapp.safety.NotificationServiceExtension",
   "io.parity.polkadotapp.develop",
   "io.parity.polkadotapp.develop.NotificationServiceExtension"
 ])
