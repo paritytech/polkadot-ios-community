@@ -7,7 +7,7 @@ extension AppConfig {
         static var appGroup: String { string(.appGroup) }
         static var bundleRoot: String { string(.bundleRoot) }
         static var deeplinkScheme: String { string(.deeplinkScheme) }
-        static var deeplinkSchemes: Set<String> { schemeSet(.deeplinkSchemes) }
+        static var deeplinkBase: String { string(.deeplinkBase) }
         static var shareRoot: String { string(.shareRoot) }
         static var cashSymbol: String { string(.cashSymbol) }
         static var fiatSymbol: String { string(.fiatSymbol) }
@@ -23,7 +23,7 @@ private extension AppConfig.Brand {
         case appGroup = "BrandAppGroup"
         case bundleRoot = "BrandBundleRoot"
         case deeplinkScheme = "BrandDeeplinkScheme"
-        case deeplinkSchemes = "BrandDeeplinkSchemes"
+        case deeplinkBase = "BrandDeeplinkBase"
         case shareRoot = "BrandShareRoot"
         case cashSymbol = "BrandCashSymbol"
         case fiatSymbol = "BrandFiatSymbol"
@@ -52,18 +52,6 @@ private extension AppConfig.Brand {
         }
 
         return url
-    }
-
-    static func schemeSet(_ key: Key) -> Set<String> {
-        guard
-            let values = Bundle.main.object(forInfoDictionaryKey: key.rawValue) as? [String],
-            !values.isEmpty,
-            values.allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-        else {
-            fatalError(misconfiguration(key))
-        }
-
-        return Set(values)
     }
 
     static func misconfiguration(_ key: Key) -> String {

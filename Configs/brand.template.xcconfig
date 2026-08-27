@@ -21,13 +21,14 @@
 // Config-axis values (compiler flags, ICON_SUFFIX, the .develop suffix) live in
 // Configs/base.*.xcconfig, not here. Every key below must be present and non-empty.
 //
-// BRAND_DEEPLINK must not collide with the scheme of any other installed brand:
-// iOS resolves a cross-brand scheme collision non-deterministically.
+// BRAND_DEEPLINK is the scheme base. Each configuration appends its own suffix to it
+// (Configs/base.*.xcconfig) so every installable app id owns a distinct scheme. The base
+// must not collide with any other installed brand's: iOS resolves a scheme collision
+// non-deterministically.
 
 BRAND_DISPLAY_NAME = Example
 BRAND_BUNDLE_ROOT = com.example.app
 BRAND_DEEPLINK = exampleapp
-BRAND_DEEPLINK_DEV = exampleappdev
 BRAND_SHARE_ROOT = example.com
 BRAND_SHARE_ROOT_TEST = test.example.com
 BRAND_CASH_SYMBOL = CASH
