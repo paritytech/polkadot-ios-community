@@ -340,13 +340,11 @@ extension AssetDetailsInteractor: AppEventVisiting {
     }
 }
 
-#if !TESTNET_FEATURE
-    extension AssetDetailsInteractor.TopUpProductError: ErrorContentConvertible {
-        func toErrorContent() -> ErrorContent {
-            ErrorContent(
-                title: String(localized: .Common.error),
-                message: String(localized: .Products.topUpResolveError)
-            )
-        }
+extension AssetDetailsInteractor.TopUpProductError: ErrorContentConvertible {
+    func toErrorContent() -> ErrorContent {
+        ErrorContent(
+            title: String(localized: .Common.error),
+            message: String(localized: .Products.topUpResolveError)
+        )
     }
-#endif
+}
