@@ -12,8 +12,6 @@ struct RemoteAppConfig {
     /// Absent in payloads published before manifest support, which disables manifest
     /// resolution and leaves legacy resolution working.
     let dotNsNameRegistry: String?
-    /// Absent until remote config publishes the key; consumers fall back to instance 0,
-    /// which the runtime creates at genesis for the external asset.
     let coinageInstanceId: UInt32?
 }
 
@@ -23,6 +21,7 @@ extension RemoteAppConfig {
             && ipfsGatewayUrl != nil
             && dotNsResolver != nil
             && dotNsProtocolRegistry != nil
+            && coinageInstanceId != nil
 
         #if TESTNET_FEATURE
             result = result && gameDashboardUrl != nil
