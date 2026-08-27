@@ -9,7 +9,7 @@ extension ProductPermissionGuard {
         repository: ProductPermissionRepositoryProtocol = ProductPermissionRepository(),
         osAsker: OSPermissionAsking = OSPermissionAsker()
     ) -> ProductPermissionGuard {
-        let requester = ProductPermissionRequester(router: router)
+        let requester = ProductPermissionRequesterFactory.create(router: router)
 
         let networkHandler = NetworkAccessPermissionHandler(
             repository: repository,
