@@ -3,6 +3,7 @@ import PolkadotUI
 import Coinage
 import UIKitExt
 import ChainRegistry
+import Products
 
 protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     func didSetCards(viewModels: [WalletCardCreateViewModel])
@@ -13,9 +14,11 @@ protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     func didShowBackupNotification()
     func didHideBackupNotification()
 
+    func didReceive(topUpLoading: Bool)
+
     #if TESTNET_FEATURE
         func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel)
-        func didReceive(faucetLoading: Bool)
+        func didReceive(testnetTopUpLoading: Bool)
     #endif
 }
 
@@ -29,9 +32,10 @@ protocol AssetDetailsPresenterProtocol: AnyObject {
     func onBackupSync()
     func onBackupCancel()
     func onBackupWhyUpdate()
+    func onTopUp()
 
     #if TESTNET_FEATURE
-        func onTopUp()
+        func onTestnetTopUp()
         func onMakeAllVouchersReady()
     #endif
 }
@@ -42,6 +46,8 @@ protocol AssetDetailsInteractorInputProtocol: AnyObject {
     func removeFailedFiatOnrampTransactions()
     func triggerSync()
     func cancelBackupNotification()
+
+    func openTopUpProduct()
 
     #if TESTNET_FEATURE
         func topUp()
@@ -61,6 +67,8 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     func didCompleteRecovery()
     func didClearBackupNotification()
 
+    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>)
+
     #if TESTNET_FEATURE
         func didReceive(coins: [Coin], vouchers: [Voucher])
         func didCompleteTopUp(_ result: Result<Void, Error>)
@@ -72,4 +80,6 @@ protocol AssetDetailsWireframeProtocol: AlertPresentable, ErrorPresentable, Back
     func showTransfer(from view: ControllerBackedProtocol?, chainAsset: ChainAsset)
 
     func showAddTokens(from view: ControllerBackedProtocol?)
+
+    func showProduct(page: ProductPage)
 }

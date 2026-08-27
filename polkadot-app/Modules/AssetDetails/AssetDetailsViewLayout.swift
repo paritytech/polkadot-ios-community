@@ -91,38 +91,69 @@ struct AssetDetailsView: View {
     }
 
     private func actions() -> some View {
-        HStack(spacing: 12) {
-            DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
-                viewModel.onSendMoney?()
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
+                    viewModel.onSendMoney?()
+                }
+                .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
+
+                topUpButton()
             }
-            .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
 
             #if TESTNET_FEATURE
-                Button {
-                    viewModel.onTopUp?()
-                } label: {
-                    Group {
-                        if viewModel.isFaucetInProgress {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.fgPrimaryInverted)
-                        } else {
-                            Image(.add24)
-                                .renderingMode(.template)
-                        }
-                    }
-                    .frame(width: 56, height: 56)
-                    .foregroundStyle(Color.fgPrimaryInverted)
-                    .background(.bgActionPrimary, in: Circle())
-                }
-                .disabled(viewModel.isFaucetInProgress)
-                .accessibilityId(AccessibilityID.Wallet.addFundsButton)
+                testnetTopUpButton()
             #endif
         }
     }
+
+    private func topUpButton() -> some View {
+        Button {
+            viewModel.onTopUp?()
+        } label: {
+            Group {
+                if viewModel.isTopUpInProgress {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.fgPrimaryInverted)
+                } else {
+                    Image(.add24)
+                        .renderingMode(.template)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .foregroundStyle(Color.fgPrimaryInverted)
+            .background(.bgActionPrimary, in: Circle())
+        }
+        .disabled(viewModel.isTopUpInProgress)
+        .accessibilityId(AccessibilityID.Wallet.addFundsButton)
+    }
+
+    #if TESTNET_FEATURE
+        private func testnetTopUpButton() -> some View {
+            Button {
+                viewModel.onTestnetTopUp?()
+            } label: {
+                Group {
+                    if viewModel.isTestnetTopUpInProgress {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.fgPrimaryInverted)
+                    } else {
+                        Text(verbatim: "Faucet Top Up")
+                            .textStyle(.body14SemiBold())
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .foregroundStyle(Color.fgPrimaryInverted)
+                .background(.bgActionPrimary, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .disabled(viewModel.isTestnetTopUpInProgress)
+        }
+    #endif
 }
 
-// TODO: Debug purposes only
 #if TESTNET_FEATURE
     private struct CoinageBalanceBreakdownView: View {
         let breakdown: CoinageBalanceBreakdownViewModel

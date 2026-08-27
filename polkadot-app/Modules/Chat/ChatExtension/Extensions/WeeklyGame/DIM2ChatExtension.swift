@@ -98,7 +98,7 @@ extension DIM2ChatExtension {
     static let welcomeIndexKey = "welcomeIndex:\(DIM2ChatExtension.identifier)"
 
     static var welcome1Content: Chat.LocalMessage.Content {
-        #if W3S
+        #if FEATURE_PRIZES
             .staticTextImageContent(.init(
                 text: String(localized: .WeeklyGame.w3SWelcome1),
                 media: UIImage(resource: .WeeklyGame.prize1)
@@ -109,7 +109,7 @@ extension DIM2ChatExtension {
     }
 
     fileprivate static var animatedWelcomes: [Chat.LocalMessage.Content] {
-        #if W3S
+        #if FEATURE_PRIZES
             [
                 .staticTextImageContent(.init(
                     text: String(localized: .WeeklyGame.w3SWelcome2),
@@ -188,7 +188,7 @@ extension DIM2ChatExtension: DIM2ChatExtending {
     var identifier: ChatExtension.Id { Self.identifier }
 
     var peerMetadata: Chat.PeerMetadata {
-        #if W3S
+        #if FEATURE_PRIZES
             let name = String(localized: .WeeklyGame.polkadotPrizesChatName)
             let icon = Chat.PeerMetadata.Icon.image(UIImage(resource: .WeeklyGame.prizesIcon).pngData())
         #else
@@ -206,7 +206,7 @@ extension DIM2ChatExtension: DIM2ChatExtending {
     }
 
     func deliverAutomaticMessages(_ context: ChatExtensionDiscoverContextProtocol) {
-        #if !W3S
+        #if FEATURE_DIMS_FULL
             guard settings.isEnabled(extId: identifier) else {
                 return
             }

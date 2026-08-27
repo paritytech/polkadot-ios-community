@@ -28,12 +28,14 @@ extension WalletMainInteractor: WalletMainInteractorInputProtocol {
             self?.presenter?.didReceive(networkStatus: status)
         }
 
-        resolutionTask = Task { [weak self, collectiblesURLProvider] in
-            let url = await collectiblesURLProvider.resolveURL()
+        #if FEATURE_DIMS
+            resolutionTask = Task { [weak self, collectiblesURLProvider] in
+                let url = await collectiblesURLProvider.resolveURL()
 
-            guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else { return }
 
-            await self?.presenter?.didReceiveCollectibles(url: url)
-        }
+                await self?.presenter?.didReceiveCollectibles(url: url)
+            }
+        #endif
     }
 }

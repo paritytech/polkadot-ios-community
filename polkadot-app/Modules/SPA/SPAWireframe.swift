@@ -49,4 +49,10 @@ final class SPAWireframe: SPAWireframeProtocol, ChatNavigating {
     func close(tabId: UUID) {
         UIApplication.shared.mainTabBarController?.closeSPA(tabId: tabId)
     }
+
+    #if !FEATURE_PRODUCTS
+        func dismissProduct(from view: ControllerBackedProtocol?) {
+            view?.controller.dismiss(animated: true)
+        }
+    #endif
 }
