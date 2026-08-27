@@ -5,8 +5,9 @@ import Foundation
 /// Derives the durability overlay (``CoinageAssetState``) for a coin or voucher row from its
 /// input/output entry relations.
 enum CoinageAssetStateDeriver {
-    static func state(inputs: NSSet?, output: CDDurabilityOutput?) -> CoinageAssetState {
+    static func state(handedOff: Bool, inputs: NSSet?, output: CDDurabilityOutput?) -> CoinageAssetState {
         CoinageAssetState(
+            handedOff: handedOff,
             consumerStatus: consumerStatus(of: inputs),
             minterStatus: status(of: output?.entry)
         )

@@ -73,11 +73,15 @@ public extension Coin {
     static func identifier(for derivationIndex: DerivationIndex) -> String {
         "\(derivationIndex)"
     }
+    
+    var hasEverBeenOnChain: Bool {
+        age != nil
+    }
 
     /// Coins past `coinMaxAge` are due for imminent recycling and must not be
     /// picked for new transfers — the chain may invalidate them before inclusion.
-    var isExpiringSoon: Bool {
+    var isAgeValidToSpend: Bool {
         guard let age else { return false }
-        return age >= CoinageConstants.recycleAtAge
+        return age < CoinageConstants.recycleAtAge
     }
 }

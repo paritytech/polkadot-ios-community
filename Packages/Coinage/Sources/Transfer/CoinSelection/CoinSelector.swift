@@ -4,8 +4,8 @@ import BigInt
 /// Consolidates all parameters for coin selection.
 struct SelectCoinsInput {
     let amount: BigUInt
-    let coins: [Coin]
-    let vouchers: [Voucher]
+    let coins: [TrackedCoin]
+    let vouchers: [TrackedVoucher]
     let breakdownContext: DenominationBreakdownContext
     let maxVouchersPerGroup: Int
 }
@@ -37,7 +37,7 @@ extension CoinSelector: CoinSelecting {
         }
 
         // Outer-layer restriction: `isExpiringSoon` is necessary but not sufficient per spec.
-        let availableCoins = input.coins.filter { $0.isSelectable && !$0.isExpiringSoon }
+        let availableCoins = input.coins.filter { $0.isSelectable }
 
         guard !availableCoins.isEmpty || !input.vouchers.isEmpty else {
             throw CoinSelectionError.emptyWallet

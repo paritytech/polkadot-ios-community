@@ -40,7 +40,7 @@ public final class StatusUpdateTransaction: Sendable {
             return
         }
 
-        guard !entry.status.isTerminal else { return }
+        guard entry.status.isLive else { return }
 
         guard entry.status == observedStatus else { return }
 

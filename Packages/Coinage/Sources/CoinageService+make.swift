@@ -319,8 +319,8 @@ public extension CoinageService {
             voucherLocationService: voucherLocationService,
             recyclingService: recyclingService,
             applicationStateStreamFactory: applicationStateStreamFactory,
-            coinProvider: coinProvider,
-            voucherProvider: voucherProvider,
+            trackedCoinProvider: databaseFactory.makeTrackedCoinProvider(),
+            trackedVoucherProvider: databaseFactory.makeTrackedVoucherProvider(),
             recoveryService: recoveryService,
             logger: logger
         )

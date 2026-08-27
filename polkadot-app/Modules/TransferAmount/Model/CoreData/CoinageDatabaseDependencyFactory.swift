@@ -110,4 +110,66 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
             operationManager: OperationManager(operationQueue: operationQueue)
         )
     }
+
+    func makeTrackedCoinProvider() -> StreamableProvider<TrackedCoin> {
+        let mapper = AnyCoreDataMapper(TrackedCoinMapper())
+
+        let repository = storageFacade.createRepository(
+            filter: nil,
+            sortDescriptors: [],
+            mapper: mapper
+        )
+
+        let repositoryObservable = CoreDataContextObservable(
+            service: storageFacade.databaseService,
+            mapper: mapper,
+            predicate: { _ in true }
+        )
+
+        repositoryObservable.start { [logger] error in
+            if let error {
+                logger.error("Did receive error: \(error)")
+            }
+        }
+
+        let source = AnyStreamableSource(EmptyStreamableSource<TrackedCoin>())
+
+        return StreamableProvider(
+            source: source,
+            repository: AnyDataProviderRepository(repository),
+            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+    }
+
+    func makeTrackedVoucherProvider() -> StreamableProvider<TrackedVoucher> {
+        let mapper = AnyCoreDataMapper(TrackedVoucherMapper())
+
+        let repository = storageFacade.createRepository(
+            filter: nil,
+            sortDescriptors: [],
+            mapper: mapper
+        )
+
+        let repositoryObservable = CoreDataContextObservable(
+            service: storageFacade.databaseService,
+            mapper: mapper,
+            predicate: { _ in true }
+        )
+
+        repositoryObservable.start { [logger] error in
+            if let error {
+                logger.error("Did receive error: \(error)")
+            }
+        }
+
+        let source = AnyStreamableSource(EmptyStreamableSource<TrackedVoucher>())
+
+        return StreamableProvider(
+            source: source,
+            repository: AnyDataProviderRepository(repository),
+            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+    }
 }

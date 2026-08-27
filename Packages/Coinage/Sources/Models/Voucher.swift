@@ -109,6 +109,16 @@ public struct Voucher: Equatable, CoinageDerivable {
     public func effectivePrivacy(at date: Date = .now) -> VoucherPrivacyLevel {
         privacy == .full && date >= readyAt ? .full : .degraded
     }
+
+    public var isInRecycler: Bool {
+        if case .inRecycler = remoteState { true } else { false }
+    }
+
+    /// Spendable without leaking its origin: in the recycler, past its unload delay, and drawn from
+    /// a ring large enough to hide it. A missing half only lowers it to degraded, not unusable.
+    public func isReadyToUseSecured(at date: Date = .now) -> Bool {
+        isInRecycler && effectivePrivacy(at: date) == .full
+    }
 }
 
 extension Voucher: Operation_iOS.Identifiable {

@@ -118,9 +118,9 @@ public actor CoinageService {
 
     private let contextLoader: DenominationContextLoaderProtocol
 
-    // Balance observation
-    private let coinProvider: StreamableProvider<Coin>
-    private let voucherProvider: StreamableProvider<Voucher>
+    // Balance observation — tracked providers carry the derived durability overlay per asset
+    private let trackedCoinProvider: StreamableProvider<TrackedCoin>
+    private let trackedVoucherProvider: StreamableProvider<TrackedVoucher>
     private let logger: SDKLoggerProtocol?
 
     // App State
@@ -154,8 +154,8 @@ public actor CoinageService {
         voucherLocationService: VoucherLocationService? = nil,
         recyclingService: any CoinageRecyclingServicing,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
-        coinProvider: StreamableProvider<Coin>,
-        voucherProvider: StreamableProvider<Voucher>,
+        trackedCoinProvider: StreamableProvider<TrackedCoin>,
+        trackedVoucherProvider: StreamableProvider<TrackedVoucher>,
         recoveryService: any CoinageBackupRecoveryServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -170,8 +170,8 @@ public actor CoinageService {
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
         self.applicationStateStreamFactory = applicationStateStreamFactory
-        self.coinProvider = coinProvider
-        self.voucherProvider = voucherProvider
+        self.trackedCoinProvider = trackedCoinProvider
+        self.trackedVoucherProvider = trackedVoucherProvider
         self.recoveryService = recoveryService
         self.durabilityService = durabilityService
         self.logger = logger
@@ -345,9 +345,8 @@ extension CoinageService: CoinageServicing {
         }
         let service = CoinageBalanceService(
             denominationContext: context,
-            voucherProvider: voucherProvider,
-            coinProvider: coinProvider,
-            durability: durabilityService,
+            voucherProvider: trackedVoucherProvider,
+            coinProvider: trackedCoinProvider,
             logger: logger
         )
         service.start()

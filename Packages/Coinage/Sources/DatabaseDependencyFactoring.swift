@@ -8,4 +8,6 @@ public protocol DatabaseDependencyFactoring: Sendable {
     func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher>
     func makeCoinProvider() -> StreamableProvider<Coin>
     func makeVoucherProvider() -> StreamableProvider<Voucher>
+    func makeTrackedCoinProvider() -> StreamableProvider<TrackedCoin>
+    func makeTrackedVoucherProvider() -> StreamableProvider<TrackedVoucher>
 }

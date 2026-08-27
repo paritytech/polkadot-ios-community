@@ -18,9 +18,11 @@ final class TrackedCoinMapper {
 
 extension TrackedCoinMapper: CoreDataMapperProtocol {
     func transform(entity: CoreDataEntity) throws -> DataProviderModel {
-        TrackedCoin(
-            coin: try coinMapper.transform(entity: entity),
+        let coin = try coinMapper.transform(entity: entity)
+        return TrackedCoin(
+            coin: coin,
             state: CoinageAssetStateDeriver.state(
+                handedOff: coin.handoffMark != .none,
                 inputs: entity.durabilityInputs,
                 output: entity.durabilityOutput
             )

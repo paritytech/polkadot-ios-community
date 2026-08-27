@@ -19,8 +19,8 @@ protocol TransferSenderServicing: Actor {
     /// - Throws: CoinSelectionError on failure
     func previewStrategy(
         amount: BigUInt,
-        availableCoins: [Coin],
-        availableVouchers: [Voucher],
+        availableCoins: [TrackedCoin],
+        availableVouchers: [TrackedVoucher],
         breakdownContext: DenominationBreakdownContext
     ) async throws -> CoinSelectionResult
 
@@ -137,8 +137,8 @@ extension TransferSenderService: TransferSenderServicing {
 
     func previewStrategy(
         amount: BigUInt,
-        availableCoins: [Coin],
-        availableVouchers: [Voucher],
+        availableCoins: [TrackedCoin],
+        availableVouchers: [TrackedVoucher],
         breakdownContext: DenominationBreakdownContext
     ) async throws -> CoinSelectionResult {
         let maxVouchers = try await maxVouchersPerGroup()
