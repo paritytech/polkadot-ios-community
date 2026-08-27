@@ -55,8 +55,11 @@ jobs:
     name: Auto-merge nightly build PR
     runs-on: ubuntu-latest
     needs: [build, build_release]
+    # TEMPORARY: muted while the reworked nightly pipeline is under test, so trial runs
+    # do not merge to main or delete the branch. Re-enable by dropping `false &&`.
     if: >-
-      ${{ !cancelled() &&
+      ${{ false &&
+      !cancelled() &&
       needs.build.outputs.succeeded == 'true' &&
       needs.build_release.outputs.succeeded == 'true' }}
     steps:
@@ -100,8 +103,11 @@ jobs:
     name: Send Release Notification
     runs-on: ubuntu-latest
     needs: [build, build_release]
+    # TEMPORARY: muted while the reworked nightly pipeline is under test, so trial runs
+    # do not announce themselves in the Matrix rooms. Re-enable by dropping `false &&`.
     if: >-
-      ${{ !cancelled() &&
+      ${{ false &&
+      !cancelled() &&
       needs.build.outputs.succeeded == 'true' &&
       needs.build_release.outputs.succeeded == 'true' }}
     steps:
