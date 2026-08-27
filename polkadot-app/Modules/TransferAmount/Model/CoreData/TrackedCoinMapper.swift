@@ -1,0 +1,37 @@
+import Foundation
+import CoreData
+import Coinage
+import Operation_iOS
+
+/// Maps a `CDCoin` to a ``TrackedCoin`` — the raw coin plus the durability overlay derived from its
+/// input/output entry relations. Read-only: `populate` is unsupported.
+final class TrackedCoinMapper {
+    var entityIdentifierFieldName: String {
+        #keyPath(CoreDataEntity.identifier)
+    }
+
+    typealias DataProviderModel = TrackedCoin
+    typealias CoreDataEntity = CDCoin
+
+    private let coinMapper = CoinMapper()
+}
+
+extension TrackedCoinMapper: CoreDataMapperProtocol {
+    func transform(entity: CoreDataEntity) throws -> DataProviderModel {
+        TrackedCoin(
+            coin: try coinMapper.transform(entity: entity),
+            state: CoinageAssetStateDeriver.state(
+                inputs: entity.durabilityInputs,
+                output: entity.durabilityOutput
+            )
+        )
+    }
+
+    func populate(
+        entity _: CoreDataEntity,
+        from _: DataProviderModel,
+        using _: NSManagedObjectContext
+    ) throws {
+        throw CoreDataMapperError.unsupported
+    }
+}

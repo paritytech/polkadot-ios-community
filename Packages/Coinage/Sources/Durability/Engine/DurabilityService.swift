@@ -55,10 +55,6 @@ public protocol DurabilityServicing: Sendable {
     /// coin can never enter another entry, and its payment status is derived on demand.
     func registerHandoff(_ coin: OwnAsset) async throws
 
-    func assetStatus(_ asset: OwnAsset) async throws -> CoinageAssetState
-
-    func assetStatuses(_ assets: [OwnAsset]) async throws -> [OwnAsset: CoinageAssetState]
-
     /// Appendix A status for a handed-off coin.
     func paymentStatus(of coin: OwnAsset) async throws -> CoinPaymentStatus
 }
@@ -171,36 +167,6 @@ extension DurabilityService: DurabilityServicing {
 
     public func registerHandoff(_ coin: OwnAsset) async throws {
         try await store.markHandedOff(coin)
-    }
-
-    public func assetStatus(_ asset: OwnAsset) async throws -> CoinageAssetState {
-        try await assetStatuses([asset])[asset]
-            ?? CoinageAssetState(lock: .idle, minterStatus: nil)
-    }
-
-    /// Derived from the live entry set rather than stored, so it cannot drift from it.
-    public func assetStatuses(_ assets: [OwnAsset]) async throws -> [OwnAsset: CoinageAssetState] {
-        guard !assets.isEmpty else { return [:] }
-
-        let handedOff = try await store.handedOffIdentifiers()
-        let reservedInputs = try await store.fetchLive().inputIdentifiers()
-        let mintersByOutput = try await store.fetchAll().mintersByOutputIdentifier()
-
-        return assets.reduce(into: [:]) { result, asset in
-            let identifier = asset.identifier
-            let lock: AssetStatus =
-                if handedOff.contains(identifier) {
-                    .handedOff
-                } else if reservedInputs.contains(identifier) {
-                    .reserved
-                } else {
-                    .idle
-                }
-            result[asset] = CoinageAssetState(
-                lock: lock,
-                minterStatus: mintersByOutput[identifier]?.status
-            )
-        }
     }
 
     public func paymentStatus(of coin: OwnAsset) async throws -> CoinPaymentStatus {

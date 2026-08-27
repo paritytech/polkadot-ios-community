@@ -44,13 +44,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
                 .unlocated
             }
 
-        let localState: Voucher.State =
-            switch entity.localState {
-            case 1: .pendingTransfer
-            case 2: .pendingOnboarding
-            default: .available
-            }
-
         let privacy: VoucherPrivacyLevel = entity.privacy == 1 ? .full : .degraded
 
         return Voucher(
@@ -59,7 +52,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            localState: localState,
             privacy: privacy
         )
     }
@@ -81,13 +73,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
-            }
-
-        entity.localState =
-            switch model.localState {
-            case .available: 0
-            case .pendingTransfer: 1
-            case .pendingOnboarding: 2
             }
 
         entity.privacy =

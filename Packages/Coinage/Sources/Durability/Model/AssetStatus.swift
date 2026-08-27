@@ -14,16 +14,17 @@ public enum AssetStatus: Sendable, Equatable {
     case handedOff
 }
 
-/// The two facts about an asset that only the durability subsystem knows.
+/// The two facts about an asset that only the durability subsystem knows: the status of the entry
+/// consuming it, and the status of the entry that minted it.
 public struct CoinageAssetState: Equatable, Sendable {
-    /// The lock and disposition of the asset.
-    public let lock: AssetStatus
+    /// The status of the non-failure entry consuming this asset, or nil if none does.
+    public let consumerStatus: EntryStatus?
     /// The status of the minting entry, or nil if no local entry minted this asset.
-    /// Used to distinguish absence before minting from absence after revert.
+    /// Distinguishes absence before minting from absence after revert.
     public let minterStatus: EntryStatus?
 
-    public init(lock: AssetStatus, minterStatus: EntryStatus?) {
-        self.lock = lock
+    public init(consumerStatus: EntryStatus?, minterStatus: EntryStatus?) {
+        self.consumerStatus = consumerStatus
         self.minterStatus = minterStatus
     }
 }

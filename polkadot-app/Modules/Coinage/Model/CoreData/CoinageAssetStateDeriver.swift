@@ -1,0 +1,26 @@
+import CoreData
+import Coinage
+import Foundation
+
+/// Derives the durability overlay (``CoinageAssetState``) for a coin or voucher row from its
+/// input/output entry relations.
+enum CoinageAssetStateDeriver {
+    static func state(inputs: NSSet?, output: CDDurabilityOutput?) -> CoinageAssetState {
+        CoinageAssetState(
+            consumerStatus: consumerStatus(of: inputs),
+            minterStatus: status(of: output?.entry)
+        )
+    }
+
+    /// At most one non-failure entry consumes an asset (Unique consumer invariant), so its status
+    /// is the asset's live consumer status; a released (failed-only) asset has none.
+    private static func consumerStatus(of inputs: NSSet?) -> EntryStatus? {
+        ((inputs as? Set<CDDurabilityInput>) ?? [])
+            .compactMap { status(of: $0.entry) }
+            .first { $0 != .failure }
+    }
+
+    private static func status(of entry: CDDurability?) -> EntryStatus? {
+        entry.flatMap { EntryStatus(rawValue: Int($0.status)) }
+    }
+}
