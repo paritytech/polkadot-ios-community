@@ -40,7 +40,7 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
 
     func permissionAuthorizationStatus(
         request: PermissionAuthorizationRequest
-    ) throws -> PermissionAuthorizationStatus {
+    ) async throws -> PermissionAuthorizationStatus {
         permissionRequests.append(request)
         return permissionStatus
     }
@@ -62,4 +62,8 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     }
 
     func notifyChatRoomsChanged(rooms _: [ChatRoom]) {}
+
+    func sessionChatIdentityKey() throws -> Data? {
+        nil
+    }
 }

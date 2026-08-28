@@ -1,5 +1,5 @@
 {
-  "originHash" : "6856da62b18191661034847e3a1ae439c836040dd4cb559b7f2376f6b67e5a07",
+  "originHash" : "456d52b0d900e2500ef8227e84dec3a7464cba74d95eaf6a7fb578577bd2943c",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -161,6 +161,15 @@
       "state" : {
         "revision" : "724a52eea6329b7e12d3ad8300d76ca9f3895fcc",
         "version" : "5.3.1"
+      }
+    },
+    {
+      "identity" : "host-rust-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/paritytech/host-rust-core",
+      "state" : {
+        "revision" : "e917b5200e9e58cf4c5bea906acba347dfc6d2af",
+        "version" : "0.11.0"
       }
     },
     {
@@ -546,8 +555,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/verifiable-swift",
       "state" : {
-        "revision" : "0ea7ffc9a166e913f7699fd83a30d4c156721f2b",
-        "version" : "0.6.0"
+        "revision" : "14fbbb8196e4ac4da72338f7e11738bc02ac368b",
+        "version" : "0.8.0"
       }
     },
     {

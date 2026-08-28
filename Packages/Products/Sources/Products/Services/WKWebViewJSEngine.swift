@@ -106,7 +106,7 @@ private extension WKWebViewJSEngine {
             let wkScript = WKUserScript(
                 source: script.content,
                 injectionTime: script.insertionPoint.toWkInjectionTime,
-                forMainFrameOnly: true
+                forMainFrameOnly: script.frameScope == .mainFrameOnly
             )
 
             contentController.addUserScript(wkScript)
@@ -116,7 +116,7 @@ private extension WKWebViewJSEngine {
             let wkScript = WKUserScript(
                 source: script.content,
                 injectionTime: script.insertionPoint.toWkInjectionTime,
-                forMainFrameOnly: true
+                forMainFrameOnly: script.frameScope == .mainFrameOnly
             )
 
             contentController.addUserScript(wkScript)

@@ -1,5 +1,5 @@
 {
-  "originHash" : "529069e10deff65ff86db306c033d9b72de885a1c0bb95561493d685e34d7167",
+  "originHash" : "64d4b1a492f060246f11b7e8c257dacb9ff5fcce1d211cef9aaf3fff917f2325",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/paritytech/host-rust-core",
       "state" : {
-        "revision" : "3f9ba7368f52fc3c9e8930803cb71ca46a9b1ae7",
-        "version" : "0.7.1"
+        "revision" : "e917b5200e9e58cf4c5bea906acba347dfc6d2af",
+        "version" : "0.11.0"
       }
     },
     {
