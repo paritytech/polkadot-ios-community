@@ -5,7 +5,9 @@ import SubstrateSdk
 /// Extrinsic format selected by the caller. Unlike `Extrinsic.Version` this carries no extension
 /// version payload — the extension version for V5 is resolved per-chain from remote config.
 enum ConcreteExtrinsicVersion {
+    // swiftlint:disable:next identifier_name
     case V4
+    // swiftlint:disable:next identifier_name
     case V5
 }
 
