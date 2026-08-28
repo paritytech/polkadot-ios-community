@@ -3,15 +3,16 @@ import Products
 
 enum ProductPermissionRequesterFactory {
     static func create(router: ProductPermissionRouting) -> ProductPermissionRequesting {
-        let requester = ProductPermissionRequester(router: router)
-
         #if FEATURE_PRODUCTS
-            return requester
+            let allowedProducts: Set<String> = []
         #else
-            return AutoAllowProductPermissionRequester(
-                allowedLabels: [AppConfig.DotNs.dotNsGetSome],
-                wrapped: requester
-            )
+            let allowedProducts: Set<String> = [AppConfig.DotNs.dotNsGetSome]
         #endif
+
+        let requester = ProductPermissionRequester(router: router)
+        return AutoAllowProductPermissionRequester(
+            allowedLabels: allowedProducts,
+            wrapped: requester
+        )
     }
 }
