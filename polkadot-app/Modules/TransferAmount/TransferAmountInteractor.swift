@@ -158,16 +158,20 @@ extension TransferAmountInteractor: TransferAmountInteractorInputProtocol {
 private extension TransferAmountInteractor {
     func confirmCoinageTransfer(preview: TransferPreview, sendFullAmount: Bool) async throws {
         let result = sendFullAmount ? preview.selectionResult : preview.nonDegradedResult
-        let memo = try await coinageService.executeTransfer(result: result)
+        let prepared = try await coinageService.executeTransfer(result: result)
         do {
-            try await transferSubmitter.sendTransfer(memo, to: recipient.accountId)
+            try await transferSubmitter.sendTransfer(prepared.memo, to: recipient.accountId)
         } catch {
             if transferSubmitter.isFailureFatal {
+                // Fatal send failure: leave the handoff provisional so a relaunch returns the coins.
                 throw error
             }
             logger?.error("Non-fatal chat submitter failure: \(error)")
         }
-        lifecycleReporter.start(with: .coinageMemo(memo))
+        // The memo has left toward the recipient — make the handoff final so the coins can't be
+        // reselected on this device.
+        try await prepared.handoffCommit.commit()
+        lifecycleReporter.start(with: .coinageMemo(prepared.memo))
     }
 }
 

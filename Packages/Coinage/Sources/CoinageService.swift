@@ -64,7 +64,8 @@ public protocol CoinageServicing: Actor {
     func previewTransfer(for amount: BigUInt) async throws -> TransferPreview
 
     /// Execute a transfer from a pre-computed coin selection result, skipping coin selection.
-    func executeTransfer(result: CoinSelectionResult) async throws -> TransferMemo
+    /// Returns the memo plus the provisional handoff to commit once the memo is durable.
+    func executeTransfer(result: CoinSelectionResult) async throws -> PreparedTransfer
 
     /// Scans the chain for coins and vouchers belonging to the user.
     /// Runs coin and voucher recovery concurrently.
@@ -297,22 +298,15 @@ extension CoinageService: CoinageServicing {
         return TransferPreview(selectionResult: result, fullAmount: amount, nonDegradedAmount: nonDegradedAmount)
     }
 
-    public func executeTransfer(result: CoinSelectionResult) async throws -> TransferMemo {
+    public func executeTransfer(result: CoinSelectionResult) async throws -> PreparedTransfer {
         guard let denominationContext = breakdownContext else {
             throw CoinageError.notConfigured
         }
 
-        let transferContext = TransferContext(
-            coinService: coinService,
-            voucherService: voucherService,
-            durability: durabilityService
-        )
-
         do {
             return try await senderService.execute(
                 result: result,
-                breakdownContext: denominationContext,
-                context: transferContext
+                breakdownContext: denominationContext
             )
         } catch {
             throw CoinageError.transferFailed(underlying: error)

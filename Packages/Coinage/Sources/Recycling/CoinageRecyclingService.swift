@@ -151,7 +151,7 @@ private extension CoinageRecyclingService {
         }
 
         do {
-            let result = try await durability.submit(
+            let result = try await durability.submitAwaitingOutcome(
                 inputs: [.coin(.own(coin.derivationIndex))],
                 outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
                 builder: prepared.builder,
@@ -169,9 +169,7 @@ private extension CoinageRecyclingService {
     func prepareRecycle(_ coin: Coin) async throws -> PreparedRecycle {
         // The coin is reserved by its `load_recycler` durability entry at submission — a live
         // input derives to `.pendingTransfer` — so no separate pre-lock is written here.
-        let voucher = try await voucherAllocator
-            .allocate(exponent: coin.exponent)
-            .withLocalState(.pendingOnboarding)
+        let voucher = try await voucherAllocator.allocate(exponent: coin.exponent)
 
         let memberKey = try voucherKeypairFactory.derivePublicKey(for: voucher)
         let keyManager = try voucherKeypairFactory.createKeyManager(for: voucher)
@@ -189,12 +187,7 @@ private extension CoinageRecyclingService {
         let origin = try originFactory.createAsCoinOrigin(for: coinWallet)
         let builder: ExtrinsicBuilderClosure = { try $0.adding(call: call.callAsFunction()) }
 
-        // Persist the voucher before submission so a crash mid-flight is recoverable.
-        try await voucherRepository.saveOperation(
-            { [voucher.withLocalState(.pendingOnboarding)] },
-            { [] }
-        ).asyncExecute()
-
+        // The voucher is already persisted by the allocator, so a crash mid-flight is recoverable.
         return PreparedRecycle(voucher: voucher, origin: origin, builder: builder)
     }
 
@@ -209,7 +202,7 @@ private extension CoinageRecyclingService {
         case .success:
             try await voucherRepository
                 .saveOperation(
-                    { [prepared.voucher.withLocalState(.available)] },
+                    { [prepared.voucher] },
                     { [] }
                 ).asyncExecute()
             try await coinService.save(coins: [coin.changing(isOnchain: false)])

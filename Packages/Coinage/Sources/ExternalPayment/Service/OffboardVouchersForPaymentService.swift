@@ -281,7 +281,7 @@ private extension OffboardVouchersForPaymentService {
 
         let key = submission.details.group.key
 
-        let result = try await durability.submit(
+        let result = try await durability.submitAwaitingOutcome(
             inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
             outputs: submission.details.surplusVouchers
                 .map { .recyclerVoucher($0.derivationIndex) },

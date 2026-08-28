@@ -61,9 +61,13 @@ public extension CoinageService {
 
         let voucherIndexstore = VoucherIndexstore(storage: keystore)
         let coinsIndexstore = CoinIndexstore(storage: keystore)
+        // One allocator per Coinage instance: actor isolation serialises the index counter only
+        // within a single instance.
+        let coinAllocator = CoinAllocator(storage: coinsIndexstore, coinRepository: coinRepository)
         let voucherAllocator = VoucherAllocator(
             storage: voucherIndexstore,
-            delayProvider: VoucherDelayProvider()
+            delayProvider: VoucherDelayProvider(),
+            voucherRepository: voucherRepository
         )
 
         let voucherKeypairFactory = VoucherKeypairFactory(entropyManager: rootEntropyManager)
@@ -157,18 +161,11 @@ public extension CoinageService {
             logger: logger
         )
 
-        let reconciler = ProjectionReconciler(
-            store: durabilityStore,
-            voucherService: voucherService,
-            logger: logger
-        )
-
         let recoveryPass = RecoveryPass(
             store: durabilityStore,
             chain: chainReader,
             watched: watchedEntries,
             transaction: statusTransaction,
-            reconciler: reconciler,
             logger: logger
         )
 
@@ -192,6 +189,7 @@ public extension CoinageService {
             chain: chainReader,
             watched: watchedEntries,
             transaction: statusTransaction,
+            backgroundExecutor: backgroundExecutor,
             onRelease: { [weak recoveryPass] in
                 Task { await recoveryPass?.run() }
             },
@@ -209,7 +207,9 @@ public extension CoinageService {
         )
 
         let planFactory = TransferPlanFactory(
-            coinAllocator: CoinAllocator(storage: coinsIndexstore),
+            transactionFactory: CoinageTransactionFactory(
+                coinAllocator: coinAllocator
+            ),
             voucherKeyFactory: voucherKeypairFactory,
             coinKeyFactory: coinKeypairFactory,
             durability: durabilityService,
@@ -228,7 +228,6 @@ public extension CoinageService {
             planFactory: planFactory,
             memoBuilder: memoBuilder,
             recyclerLoader: readinessLoader,
-            backgroundExecutor: backgroundExecutor,
             logger: logger
         )
 
@@ -248,7 +247,7 @@ public extension CoinageService {
         )
 
         let recipientService = TransferRecipientService(
-            coinAllocator: CoinAllocator(storage: coinsIndexstore),
+            coinAllocator: coinAllocator,
             coinKeyFactory: coinKeypairFactory,
             coinService: coinService,
             coinOnChainQuery: coinOnChainQuery,

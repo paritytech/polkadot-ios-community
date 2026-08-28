@@ -5,37 +5,24 @@ import os
 
 /// The durability subsystem's public face.
 public protocol DurabilityServicing: Sendable {
-    /// Registers an entry, submits its extrinsic, and tracks it to completion.
+    /// Registers an entry and starts tracking its extrinsic in the background, returning as soon as
+    /// the entry is committed — so the inputs are claimed before this returns, but the caller does
+    /// not wait for inclusion. Status is resolved by the tracker and the recovery pass.
     func submit(
         inputs: [DurabilityInput],
         outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
-    ) async throws -> DurabilitySubmission
+    ) async throws
 
-    /// Submits an extrinsic for an entry already registered via `register(inputs:outputs:)`.
-    ///
-    /// Registration and submission are separate so a caller can claim its inputs before any
-    /// network round-trip. Nothing may observe an asset the entry set does not yet explain.
-    func submitRegistered(
-        entryId: TransactionId,
+    /// Registers an entry, submits its extrinsic, and **awaits** its on-chain outcome. For callers
+    /// that act on the result synchronously (recycling, offboard); prefer `submit` otherwise.
+    func submitAwaitingOutcome(
+        inputs: [DurabilityInput],
+        outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
     ) async throws -> DurabilitySubmission
-
-    /// Releases ownership of a registered entry that will never be submitted.
-    ///
-    /// A caller of `register(inputs:outputs:)` owns the entry and MUST reach exactly one of
-    /// `submitRegistered(entryId:builder:origin:)` or this method on every path. An entry that
-    /// is neither submitted nor abandoned is skipped by every future recovery pass, so its
-    /// inputs stay reserved permanently.
-    func abandon(_ id: TransactionId)
-
-    /// Registers an entry without submitting it.
-    ///
-    /// The caller takes ownership and MUST reach exactly one of
-    /// `submitRegistered(entryId:builder:origin:)` or `abandon(_:)` on every path.
-    func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId
 
     /// Starts a recovery pass without waiting for it. Never awaited by startup: a single
     /// unresolvable entry must not hold the app for a mortality window.
@@ -54,6 +41,15 @@ public protocol DurabilityServicing: Sendable {
     /// Records that a coin was given to a peer. Insert-only and irreversible: from here the
     /// coin can never enter another entry, and its payment status is derived on demand.
     func registerHandoff(_ coin: OwnAsset) async throws
+
+    /// Provisionally reserves `assets` against being spent again, before their keys reach the
+    /// transport. The reservation is released on relaunch unless the returned handle is committed
+    /// once the carrying payload is durable — so a payment that fails after this point never
+    /// freezes the coins.
+    func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit
+
+    /// Clears the reservations of payments that never became durable. Runs once, on launch.
+    func releaseUncommittedHandoffs() async throws
 
     /// Appendix A status for a handed-off coin.
     func paymentStatus(of coin: OwnAsset) async throws -> CoinPaymentStatus
@@ -106,28 +102,27 @@ extension DurabilityService: DurabilityServicing {
         outputs: [OwnAsset],
         builder: @escaping ExtrinsicBuilderClosure,
         origin: any ExtrinsicOriginDefining
+    ) async throws {
+        // Registration commits and takes ownership before anything is broadcast, so an extrinsic
+        // can never exist without an entry describing what it consumes. Tracking then runs in the
+        // background: the caller does not wait for inclusion. A submission that never resolves is
+        // finished by the recovery pass at mortality.
+        let entry = try await registrar.register(inputs: inputs, outputs: outputs)
+
+        watcher.watch(entryId: entry.id, builder: builder, origin: origin)
+    }
+
+    public func submitAwaitingOutcome(
+        inputs: [DurabilityInput],
+        outputs: [OwnAsset],
+        builder: @escaping ExtrinsicBuilderClosure,
+        origin: any ExtrinsicOriginDefining
     ) async throws -> DurabilitySubmission {
         // Registration commits and takes ownership before anything is broadcast, so an
         // extrinsic can never exist without an entry describing what it consumes.
         let entry = try await registrar.register(inputs: inputs, outputs: outputs)
 
-        return try await submitRegistered(entryId: entry.id, builder: builder, origin: origin)
-    }
-
-    public func submitRegistered(
-        entryId: TransactionId,
-        builder: @escaping ExtrinsicBuilderClosure,
-        origin: any ExtrinsicOriginDefining
-    ) async throws -> DurabilitySubmission {
-        try await watcher.submit(entryId: entryId, builder: builder, origin: origin)
-    }
-
-    public func abandon(_ id: TransactionId) {
-        registrar.abandon(id)
-    }
-
-    public func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId {
-        try await registrar.register(inputs: inputs, outputs: outputs).id
+        return try await watcher.submit(entryId: entry.id, builder: builder, origin: origin)
     }
 
     public func startRecoveryPass() {
@@ -167,6 +162,15 @@ extension DurabilityService: DurabilityServicing {
 
     public func registerHandoff(_ coin: OwnAsset) async throws {
         try await store.markHandedOff(coin)
+    }
+
+    public func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
+        try await store.markHandoffPending(assets)
+        return StoreHandoffCommit(assets: assets, store: store)
+    }
+
+    public func releaseUncommittedHandoffs() async throws {
+        try await store.releaseUncommittedHandoffs()
     }
 
     public func paymentStatus(of coin: OwnAsset) async throws -> CoinPaymentStatus {

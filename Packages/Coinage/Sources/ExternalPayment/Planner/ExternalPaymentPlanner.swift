@@ -30,7 +30,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
         amount: Balance,
         context: DenominationBreakdownContext
     ) async throws -> ExternalPaymentPreview {
-        let vouchers = try await voucherService.fetchAll().filter { $0.localState == .available }
+        let vouchers = try await voucherService.fetchAll()
 
         let readyVouchers = vouchers.filter(\.remoteState.isInRecycler)
         let waitingVouchers = vouchers.filter { !$0.remoteState.isInRecycler }

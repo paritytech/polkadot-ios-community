@@ -130,6 +130,28 @@ extension DurabilityCoreDataStore {
         try await transacting.withTransaction { try $0.insertMark(asset) }
     }
 
+    func markHandoffPending(_ assets: [OwnAsset]) async throws {
+        guard !assets.isEmpty else { return }
+        try await transacting.withTransaction { transaction in
+            for asset in assets {
+                try transaction.markHandoffPending(asset)
+            }
+        }
+    }
+
+    func commitHandoffs(_ assets: [OwnAsset]) async throws {
+        guard !assets.isEmpty else { return }
+        try await transacting.withTransaction { transaction in
+            for asset in assets {
+                try transaction.commitHandoff(asset)
+            }
+        }
+    }
+
+    func releaseUncommittedHandoffs() async throws {
+        try await transacting.withTransaction { try $0.releaseUncommittedMarks() }
+    }
+
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
         guard case let .coin(index) = asset else { return false }
         return try await handedOffCoinModels().contains { $0.derivationIndex == index }

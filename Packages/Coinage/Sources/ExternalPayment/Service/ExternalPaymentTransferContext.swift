@@ -16,21 +16,18 @@ actor ExternalPaymentTransferContext {
         self.voucherService = voucherService
     }
 
-    /// Saves surplus vouchers as ``Voucher/State-swift.enum/pendingOnboarding``
-    /// before extrinsic submission. Tracked by WAL for crash recovery.
+    /// Saves surplus vouchers before extrinsic submission. Their onboarding state is derived from
+    /// the durability entry that mints them, so no local flag is written. Tracked for crash recovery.
     func savePendingOnboarding(vouchers: [Voucher]) async throws {
         guard !vouchers.isEmpty else { return }
-        let pending = vouchers.map { $0.withLocalState(.pendingOnboarding) }
-        try await voucherService.save(vouchers: pending)
+        try await voucherService.save(vouchers: vouchers)
     }
 
-    /// Marks selected vouchers as pending transfer in persistent storage.
-    /// Stores the originals so ``revert()`` can restore them if the payment fails.
+    /// Records the vouchers reserved for this payment. Their reserved state derives from the live
+    /// durability entry consuming them, so no local flag is written; the originals are kept only so
+    /// ``revert()`` can restore them if the payment fails.
     func reserve(vouchers: [Voucher]) async throws {
         pendingVouchers = vouchers
-        if !vouchers.isEmpty {
-            try await voucherService.markPendingTransfer(identifiers: vouchers.map(\.identifier))
-        }
     }
 
     /// Reverts reserved vouchers to their original state after a payment failure.
@@ -51,7 +48,7 @@ actor ExternalPaymentTransferContext {
     ///     (to be marked `available` now that the extrinsic confirmed).
     func process(
         spentVouchers: [Voucher],
-        newVouchers: [Voucher] = []
+        newVouchers _: [Voucher] = []
     ) async throws {
         let spentIds = spentVouchers.map(\.identifier)
 
@@ -59,11 +56,6 @@ actor ExternalPaymentTransferContext {
 
         do {
             try await voucherService.delete(identifiers: spentIds)
-            if !newVouchers.isEmpty {
-                try await voucherService.markAvailable(
-                    identifiers: newVouchers.map(\.identifier)
-                )
-            }
         } catch {
             pendingVouchers.append(contentsOf: spentVouchers)
             throw error

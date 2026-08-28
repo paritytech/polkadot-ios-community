@@ -29,15 +29,6 @@ public protocol VoucherServiceProtocol: Sendable {
 
     /// Delete vouchers by their string identifiers.
     func delete(identifiers: [String]) async throws
-
-    /// Mark vouchers as available by setting localState to .available.
-    func markAvailable(identifiers: [String]) async throws
-
-    /// Mark vouchers as pending transfer by setting localState to .pendingTransfer.
-    func markPendingTransfer(identifiers: [String]) async throws
-
-    /// Mark vouchers as pending onboarding by setting localState to .pendingOnboarding.
-    func markPendingOnboarding(identifiers: [String]) async throws
 }
 
 public final class VoucherService: @unchecked Sendable {
@@ -63,8 +54,8 @@ extension VoucherService: VoucherServiceProtocol {
         breakdownContext: DenominationBreakdownContext
     ) async throws {
         let loader = try voucherLoaderFactory.makeLoader(for: externalAssetHolder)
-        let vouchers = try await loader.load(amount: amount, breakdownContext: breakdownContext)
-        try await voucherRepository.saveOperation({ vouchers }, { [] }).asyncExecute()
+        // Vouchers are persisted by the allocator as they are minted.
+        _ = try await loader.load(amount: amount, breakdownContext: breakdownContext)
     }
 
     public func fetchAll() async throws -> [Voucher] {
@@ -79,7 +70,7 @@ extension VoucherService: VoucherServiceProtocol {
         try await voucherRepository
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
-            .filter { $0.localState == .available && $0.remoteState.isInRecycler }
+            .filter(\.remoteState.isInRecycler)
     }
 
     public func save(vouchers: [Voucher]) async throws {
@@ -90,35 +81,5 @@ extension VoucherService: VoucherServiceProtocol {
     public func delete(identifiers: [String]) async throws {
         guard !identifiers.isEmpty else { return }
         try await voucherRepository.saveOperation({ [] }, { identifiers }).asyncExecute()
-    }
-
-    public func markAvailable(identifiers: [String]) async throws {
-        guard !identifiers.isEmpty else { return }
-        let all = try await voucherRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
-        let updated = all
-            .filter { identifiers.contains($0.identifier) }
-            .map { $0.withLocalState(.available) }
-        guard !updated.isEmpty else { return }
-        try await voucherRepository.saveOperation({ updated }, { [] }).asyncExecute()
-    }
-
-    public func markPendingTransfer(identifiers: [String]) async throws {
-        guard !identifiers.isEmpty else { return }
-        let all = try await voucherRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
-        let updated = all
-            .filter { identifiers.contains($0.identifier) }
-            .map { $0.withLocalState(.pendingTransfer) }
-        guard !updated.isEmpty else { return }
-        try await voucherRepository.saveOperation({ updated }, { [] }).asyncExecute()
-    }
-
-    public func markPendingOnboarding(identifiers: [String]) async throws {
-        guard !identifiers.isEmpty else { return }
-        let all = try await voucherRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
-        let updated = all
-            .filter { identifiers.contains($0.identifier) }
-            .map { $0.withLocalState(.pendingOnboarding) }
-        guard !updated.isEmpty else { return }
-        try await voucherRepository.saveOperation({ updated }, { [] }).asyncExecute()
     }
 }

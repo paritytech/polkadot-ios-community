@@ -191,6 +191,9 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             await coinageTransferMonitor.setup()
             await w3sPaymentTracking.setup()
             await depositService.setup()
+            // Release provisional handoffs from payments whose keys never durably left, returning
+            // the coins. Best-effort: a cleanup failure must not hold startup.
+            try? await coinageService.durabilityService.releaseUncommittedHandoffs()
             // Not awaited: a single unresolvable entry must not hold startup
             // for a mortality window.
             coinageService.durabilityService.start()

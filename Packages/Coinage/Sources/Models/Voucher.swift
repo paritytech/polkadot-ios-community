@@ -9,18 +9,9 @@ public struct Voucher: Equatable, CoinageDerivable {
     public let allocatedAt: Date
     public let readyAt: Date
     public let remoteState: OnChainState
-    public var localState: State = .available
     public let privacy: VoucherPrivacyLevel
 
     public var recycler: Recycler? { remoteState.recycler }
-
-    /// Local operational state of the voucher - independent of on-chain state.
-    public enum State: Equatable {
-        case available
-        case pendingTransfer
-        /// Surplus voucher allocated but not yet confirmed on-chain.
-        case pendingOnboarding
-    }
 
     public enum OnChainState: Equatable {
         case unlocated
@@ -58,7 +49,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         allocatedAt: Date,
         readyAt: Date,
         remoteState: OnChainState = .unlocated,
-        localState: State = .available,
         privacy: VoucherPrivacyLevel = .degraded
     ) {
         self.exponent = exponent
@@ -66,7 +56,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         self.allocatedAt = allocatedAt
         self.readyAt = readyAt
         self.remoteState = remoteState
-        self.localState = localState
         self.privacy = privacy
     }
 
@@ -77,19 +66,6 @@ public struct Voucher: Equatable, CoinageDerivable {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            localState: localState,
-            privacy: privacy
-        )
-    }
-
-    public func withLocalState(_ localState: State) -> Voucher {
-        Voucher(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            allocatedAt: allocatedAt,
-            readyAt: readyAt,
-            remoteState: remoteState,
-            localState: localState,
             privacy: privacy
         )
     }
@@ -101,7 +77,6 @@ public struct Voucher: Equatable, CoinageDerivable {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: remoteState,
-            localState: localState,
             privacy: state
         )
     }

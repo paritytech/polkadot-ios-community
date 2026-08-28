@@ -14,7 +14,6 @@ actor RecoveryPass {
     private let chain: any DurabilityChainReading
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
-    private let reconciler: ProjectionReconciler
     private let evaluator = RuleEvaluator()
     private let logger: SDKLoggerProtocol?
 
@@ -28,14 +27,12 @@ actor RecoveryPass {
         chain: any DurabilityChainReading,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,
-        reconciler: ProjectionReconciler,
         logger: SDKLoggerProtocol?
     ) {
         self.store = store
         self.chain = chain
         self.watched = watched
         self.transaction = transaction
-        self.reconciler = reconciler
         self.logger = logger
     }
 
@@ -70,8 +67,6 @@ actor RecoveryPass {
 private extension RecoveryPass {
     func performPass() async throws {
         let view = try await chain.pinChainView()
-
-        try await reconciler.reconcile()
 
         let allEntries = try await store.fetchAll()
         let handedOff = try await store.handedOffIdentifiers()

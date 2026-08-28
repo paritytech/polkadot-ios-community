@@ -17,8 +17,9 @@ import SDKLogger
 struct SplitCoinStrategy {
     private let wholeCoins: [Coin]
     private let overflowCoin: Coin
-    private let recipientCoins: [Coin]
-    private let changeCoins: [Coin]
+    private let targetDenominations: [Denomination]
+    private let changeDenominations: [Denomination]
+    private let transactionFactory: any CoinageTransactionFactoryProtocol
     private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
@@ -27,8 +28,9 @@ struct SplitCoinStrategy {
     init(
         wholeCoins: [Coin],
         overflowCoin: Coin,
-        recipientCoins: [Coin],
-        changeCoins: [Coin],
+        targetDenominations: [Denomination],
+        changeDenominations: [Denomination],
+        transactionFactory: any CoinageTransactionFactoryProtocol,
         coinKeyFactory: any CoinKeyDeriving,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
@@ -36,8 +38,9 @@ struct SplitCoinStrategy {
     ) {
         self.wholeCoins = wholeCoins
         self.overflowCoin = overflowCoin
-        self.recipientCoins = recipientCoins
-        self.changeCoins = changeCoins
+        self.targetDenominations = targetDenominations
+        self.changeDenominations = changeDenominations
+        self.transactionFactory = transactionFactory
         self.coinKeyFactory = coinKeyFactory
         self.durability = durability
         self.originFactory = originFactory
@@ -48,17 +51,18 @@ struct SplitCoinStrategy {
 // MARK: - TransferStrategy
 
 extension SplitCoinStrategy: TransferStrategy {
-    func run(context: TransferContext) async throws {
-        try await submitSplit(context: context)
-    }
-}
+    func prepare() async throws -> PreparedStrategy {
+        let transaction = transactionFactory.newTransaction()
+        let recipientCoins = try await transaction.mintCoins(targetDenominations.map(\.exponent))
+        // Change coins stay ours — minted as outputs but not handed off, so the result is unused here.
+        _ = try await transaction.mintCoins(changeDenominations.map(\.exponent))
+        transaction.consume(coins: [overflowCoin])
+        // Recipient coins are handed off before submit: a key that reaches the recipient without a
+        // mark could be selected again. Change coins stay ours and are not handed off.
+        transaction.handOff(coins: wholeCoins + recipientCoins)
+        let assets = transaction.build()
 
-// MARK: - Private
-
-private extension SplitCoinStrategy {
-    func submitSplit(context: TransferContext) async throws {
-        let allNewCoins = recipientCoins + changeCoins
-        let splitDestinations = try buildSplitDestinations(from: allNewCoins)
+        let splitDestinations = try buildSplitDestinations(from: assets.outputCoins)
 
         let call = CoinagePallet.Calls.Split(
             splitInto: splitDestinations.sorted { $0.exponent < $1.exponent }
@@ -68,42 +72,37 @@ private extension SplitCoinStrategy {
         }
         let origin = try makeOrigin()
 
-        // Registration first: the projection writes below are only an anticipation of what the
-        // reconciler will compute, and it can only agree once the entry exists.
-        let entryId = try await durability.register(
-            inputs: [.coin(.own(overflowCoin.derivationIndex))],
-            outputs: allNewCoins.map { .coin($0.derivationIndex) }
-        )
-
-        do {
-            try await context.reserve(coins: wholeCoins + [overflowCoin], vouchers: [])
-            try await context.handOff(coins: wholeCoins)
-            try await context.insertOutputs(coins: allNewCoins)
-        } catch {
-            durability.abandon(entryId)
-            throw error
-        }
-
-        logger?.debug("Submitting split extrinsic for \(allNewCoins.count) coins")
-
-        let result = try await durability.submitRegistered(
-            entryId: entryId,
+        // One fire-and-forget submit: registers (claiming the input) and broadcasts, returning once
+        // the entry is committed. The projection writes below follow, explained by that entry.
+        logger?.debug("Submitting split extrinsic for \(assets.outputCoins.count) coins")
+        try await durability.submit(
+            inputs: assets.inputs,
+            outputs: assets.outputs,
             builder: builder,
             origin: origin
         )
 
-        switch result.submission.status {
-        case .success:
-            logger?.debug("Split extrinsic succeeded")
-            try await context.handOff(coins: recipientCoins)
-            await context.settle()
-        case let .failure(error):
-            logger?.error("Split extrinsic failed: \(error.error)")
-            await context.settle()
-            throw TransferStrategyError.submissionFailed(error.error)
-        }
-    }
+        let handoffCommit = try await durability
+            .preCommitHandoff(assets.handedOff.map { .coin($0.derivationIndex) })
 
+        var memoEntries = wholeCoins.map {
+            PlannedMemoEntry(
+                coinDerivationIndex: $0.derivationIndex,
+                valueExponent: $0.exponent,
+                source: .existingCoin(age: Int32($0.age ?? 0))
+            )
+        }
+        memoEntries += recipientCoins.map {
+            PlannedMemoEntry(coinDerivationIndex: $0.derivationIndex, valueExponent: $0.exponent, source: .fromSplit)
+        }
+
+        return PreparedStrategy(memoEntries: memoEntries, handoffCommit: handoffCommit)
+    }
+}
+
+// MARK: - Private
+
+private extension SplitCoinStrategy {
     func buildSplitDestinations(
         from coins: [Coin]
     ) throws -> [CoinagePallet.Calls.Split.SplitDestination] {

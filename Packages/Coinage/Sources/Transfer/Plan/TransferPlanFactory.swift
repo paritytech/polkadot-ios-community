@@ -5,14 +5,10 @@ import SubstrateSdk
 import SDKLogger
 import SubstrateOperation
 
-/// Factory interface for creating a complete TransferPlan from a CoinSelectionResult.
+/// Factory interface for creating a `TransferPlan` (the strategy to execute) from a selection result.
 protocol TransferPlanCreating {
-    /// Creates a complete transfer plan from a coin selection result.
-    /// - Parameters:
-    ///   - selectionResult: The coin selection result describing what to transfer
-    /// recycler groups)
-    ///   - currentDate: Current date for unload token period calculation
-    /// - Returns: A complete `TransferPlan` with strategy, memo entries, and token requirements
+    /// Builds the execution strategy for a coin selection result. Allocation, registration, and memo
+    /// building all happen later, inside the strategy's `prepare`.
     func createPlan(
         for selectionResult: CoinSelectionResult,
         currentDate: Date
@@ -20,7 +16,7 @@ protocol TransferPlanCreating {
 }
 
 final class TransferPlanFactory {
-    private let coinAllocator: CoinAllocating
+    private let transactionFactory: any CoinageTransactionFactoryProtocol
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any DurabilityServicing
@@ -30,7 +26,7 @@ final class TransferPlanFactory {
     private let logger: SDKLoggerProtocol?
 
     init(
-        coinAllocator: CoinAllocating,
+        transactionFactory: any CoinageTransactionFactoryProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
         durability: any DurabilityServicing,
@@ -39,7 +35,7 @@ final class TransferPlanFactory {
         blockInfoProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
-        self.coinAllocator = coinAllocator
+        self.transactionFactory = transactionFactory
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
         self.durability = durability
@@ -59,185 +55,35 @@ extension TransferPlanFactory: TransferPlanCreating {
     ) async throws -> TransferPlan {
         switch selectionResult {
         case let .exactMatch(coins):
-            try createExactMatchPlan(coins: coins)
+            TransferPlan(strategy: ExactMatchStrategy(coins: coins, durability: durability))
 
         case let .split(wholeCoins, overflowCoin, targetDenominations, changeDenominations):
-            try await createSplitPlan(
+            TransferPlan(strategy: SplitCoinStrategy(
                 wholeCoins: wholeCoins,
                 overflowCoin: overflowCoin,
                 targetDenominations: targetDenominations,
-                changeDenominations: changeDenominations
-            )
+                changeDenominations: changeDenominations,
+                transactionFactory: transactionFactory,
+                coinKeyFactory: coinKeyFactory,
+                durability: durability,
+                originFactory: originFactory,
+                logger: logger
+            ))
 
         case let .unloadIntoCoins(coins, perGroupAllocations):
-            try await createUnloadPlan(
-                coins: coins,
+            TransferPlan(strategy: UnloadIntoCoinsStrategy(
+                readyCoins: coins,
                 perGroupAllocations: perGroupAllocations,
-                currentDate: currentDate
-            )
-        }
-    }
-}
-
-// MARK: - Private
-
-private extension TransferPlanFactory {
-    func createExactMatchPlan(coins: [Coin]) throws -> TransferPlan {
-        let memoEntries = coins.map { coin in
-            PlannedMemoEntry(
-                coinDerivationIndex: coin.derivationIndex,
-                valueExponent: coin.exponent,
-                source: .existingCoin(age: Int32(coin.age ?? 0))
-            )
-        }
-
-        return TransferPlan(
-            strategy: ExactMatchStrategy(coins: coins),
-            plannedMemoEntries: memoEntries,
-            claimTokensRequired: 0
-        )
-    }
-
-    func createSplitPlan(
-        wholeCoins: [Coin],
-        overflowCoin: Coin,
-        targetDenominations: [Denomination],
-        changeDenominations: [Denomination]
-    ) async throws -> TransferPlan {
-        async let recipientCoinsTask = allocateCoins(for: targetDenominations)
-        async let changeCoinsTask = allocateCoins(for: changeDenominations)
-
-        let splitRecipientCoins = try await recipientCoinsTask
-        let changeCoins = try await changeCoinsTask
-
-        // Memo entries: whole coins (existing) + newly allocated coins from split
-        var memoEntries = wholeCoins.map { coin in
-            PlannedMemoEntry(
-                coinDerivationIndex: coin.derivationIndex,
-                valueExponent: coin.exponent,
-                source: .existingCoin(age: Int32(coin.age ?? 0))
-            )
-        }
-
-        memoEntries += splitRecipientCoins.map { coin in
-            PlannedMemoEntry(
-                coinDerivationIndex: coin.derivationIndex,
-                valueExponent: coin.exponent,
-                source: .fromSplit
-            )
-        }
-
-        let strategy = SplitCoinStrategy(
-            wholeCoins: wholeCoins,
-            overflowCoin: overflowCoin,
-            recipientCoins: splitRecipientCoins,
-            changeCoins: changeCoins,
-            coinKeyFactory: coinKeyFactory,
-            durability: durability,
-            originFactory: originFactory,
-            logger: logger
-        )
-
-        return TransferPlan(
-            strategy: strategy,
-            plannedMemoEntries: memoEntries,
-            claimTokensRequired: 0
-        )
-    }
-
-    func createUnloadPlan(
-        coins: [Coin],
-        perGroupAllocations: [RecyclerGroupAllocation],
-        currentDate: Date
-    ) async throws -> TransferPlan {
-        // Allocate coins per group to preserve the per-group structure
-        let groupCoinsAllocations = try await allocateCoinsPerGroup(for: perGroupAllocations)
-
-        // Memo entries: existing coins
-        var memoEntries = coins.map { coin in
-            PlannedMemoEntry(
-                coinDerivationIndex: coin.derivationIndex,
-                valueExponent: coin.exponent,
-                source: .existingCoin(age: Int32(coin.age ?? 0))
-            )
-        }
-
-        // Add memo entries for all recipient coins across all groups
-        for groupCoins in groupCoinsAllocations {
-            memoEntries += groupCoins.recipientCoins.map { coin in
-                PlannedMemoEntry(
-                    coinDerivationIndex: coin.derivationIndex,
-                    valueExponent: coin.exponent,
-                    source: .fromUnload
-                )
-            }
-        }
-
-        let strategy = UnloadIntoCoinsStrategy(
-            readyCoins: coins,
-            perGroupCoins: groupCoinsAllocations,
-            voucherKeyFactory: voucherKeyFactory,
-            recyclerLoader: recyclerLoader,
-            coinKeyFactory: coinKeyFactory,
-            durability: durability,
-            originFactory: originFactory,
-            blockInfoProvider: blockInfoProvider,
-            currentDate: currentDate,
-            logger: logger
-        )
-
-        return TransferPlan(
-            strategy: strategy,
-            plannedMemoEntries: memoEntries,
-            claimTokensRequired: max(perGroupAllocations.count, 1)
-        )
-    }
-
-    /// Allocates coins for each recycler group's denominations.
-    func allocateCoinsPerGroup(
-        for allocations: [RecyclerGroupAllocation]
-    ) async throws -> [RecyclerGroupCoins] {
-        try await withThrowingTaskGroup(of: (Int, RecyclerGroupCoins).self) { [weak self] group in
-            guard let self else { return [] }
-
-            for (index, allocation) in allocations.enumerated() {
-                group.addTask {
-                    async let recipientTask = self.allocateCoins(for: allocation.recipientDenominations)
-                    async let changeTask = self.allocateCoins(for: allocation.changeDenominations)
-
-                    return try await (index, RecyclerGroupCoins(
-                        recyclerKey: allocation.recyclerKey,
-                        vouchers: allocation.vouchers,
-                        recipientCoins: recipientTask,
-                        changeCoins: changeTask
-                    ))
-                }
-            }
-
-            var results: [(Int, RecyclerGroupCoins)] = []
-            for try await result in group {
-                results.append(result)
-            }
-
-            // Return in original order
-            return results.sorted { $0.0 < $1.0 }.map(\.1)
-        }
-    }
-
-    func allocateCoins(for denominations: [Denomination]) async throws -> [Coin] {
-        try await withThrowingTaskGroup(of: Coin.self) { group in
-            for denom in denominations {
-                group.addTask { [coinAllocator] in
-                    try await coinAllocator.allocate(exponent: denom.exponent)
-                }
-            }
-
-            var results: [Coin] = []
-            for try await coin in group {
-                results.append(coin)
-            }
-
-            return results
+                transactionFactory: transactionFactory,
+                voucherKeyFactory: voucherKeyFactory,
+                recyclerLoader: recyclerLoader,
+                coinKeyFactory: coinKeyFactory,
+                durability: durability,
+                originFactory: originFactory,
+                blockInfoProvider: blockInfoProvider,
+                currentDate: currentDate,
+                logger: logger
+            ))
         }
     }
 }

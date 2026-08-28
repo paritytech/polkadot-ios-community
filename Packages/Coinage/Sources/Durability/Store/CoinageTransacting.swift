@@ -18,6 +18,14 @@ public protocol CoinageStoreTransaction {
     func nextSequence() throws -> Int64
     func upsert(_ entry: DurabilityEntry) throws
     func insertMark(_ asset: OwnAsset) throws
+
+    /// Provisionally marks an asset handed off (`.pending`), before its keys reach the transport.
+    /// A no-op if the asset already carries a committed mark, so commit never regresses.
+    func markHandoffPending(_ asset: OwnAsset) throws
+    /// Promotes an asset's provisional mark to final (`.committed`).
+    func commitHandoff(_ asset: OwnAsset) throws
+    /// Clears every provisional (`.pending`) mark — payments whose keys never durably left.
+    func releaseUncommittedMarks() throws
 }
 
 /// Runs a body inside one store transaction.

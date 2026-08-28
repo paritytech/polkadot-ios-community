@@ -2,6 +2,8 @@ import Foundation
 @preconcurrency import ExtrinsicService
 import SubstrateSdk
 @preconcurrency import SDKLogger
+import BackgroundExecution
+import StructuredConcurrency
 
 /// A registered entry together with the submission tracking it.
 public struct DurabilitySubmission {
@@ -32,6 +34,7 @@ final class SubmissionWatcher: Sendable {
     private let chain: any DurabilityChainReading
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
+    private let backgroundExecutor: any BackgroundExecuting
     private let onRelease: @Sendable () -> Void
     private let logger: SDKLoggerProtocol?
 
@@ -47,6 +50,7 @@ final class SubmissionWatcher: Sendable {
         chain: any DurabilityChainReading,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,
+        backgroundExecutor: any BackgroundExecuting,
         onRelease: @escaping @Sendable () -> Void,
         logger: SDKLoggerProtocol?
     ) {
@@ -55,8 +59,32 @@ final class SubmissionWatcher: Sendable {
         self.chain = chain
         self.watched = watched
         self.transaction = transaction
+        self.backgroundExecutor = backgroundExecutor
         self.onRelease = onRelease
         self.logger = logger
+    }
+
+    /// Fire-and-forget submission: submits and tracks the extrinsic in a detached task, holding a
+    /// background-task assertion (via `backgroundExecutor`) so tracking survives the app being
+    /// folded. Ownership is released when tracking ends; the result is not surfaced to the caller.
+    func watch(
+        entryId: TransactionId,
+        builder: @escaping ExtrinsicBuilderClosure,
+        origin: any ExtrinsicOriginDefining
+    ) {
+        Task { [self] in
+            do {
+                try await backgroundExecutor.execute {
+                    try await markStallActivity("Coinage submission") {
+                        try await markStallRegion("Track extrinsic") {
+                            _ = try await self.submit(entryId: entryId, builder: builder, origin: origin)
+                        }
+                    }
+                }
+            } catch {
+                logger?.error("Background submission failed for \(entryId): \(error)")
+            }
+        }
     }
 
     /// Submits the entry's extrinsic and tracks it to completion.

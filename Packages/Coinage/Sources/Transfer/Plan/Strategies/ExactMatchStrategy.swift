@@ -7,20 +7,30 @@ import Foundation
 /// whether the payment was claimed.
 struct ExactMatchStrategy: TransferStrategy {
     private let coins: [Coin]
+    private let durability: any DurabilityServicing
 
-    init(coins: [Coin]) {
+    init(coins: [Coin], durability: any DurabilityServicing) {
         self.coins = coins
+        self.durability = durability
     }
 
-    func run(context: TransferContext) async throws {
+    func prepare() async throws -> PreparedStrategy {
         guard !coins.isEmpty else {
             throw TransferStrategyError.emptyCoins
         }
 
-        // No entry backs these coins, so nothing but this reservation keeps them out of a
-        // concurrent selection before the handoff mark lands.
-        try await context.reserve(coins: coins, vouchers: [])
-        try await context.handOff(coins: coins)
-        await context.settle()
+        // No entry backs these coins, so the provisional handoff mark is the only thing keeping
+        // them out of a concurrent selection until the memo is durable.
+        let handoffCommit = try await durability.preCommitHandoff(coins.map { .coin($0.derivationIndex) })
+
+        let memoEntries = coins.map {
+            PlannedMemoEntry(
+                coinDerivationIndex: $0.derivationIndex,
+                valueExponent: $0.exponent,
+                source: .existingCoin(age: Int32($0.age ?? 0))
+            )
+        }
+
+        return PreparedStrategy(memoEntries: memoEntries, handoffCommit: handoffCommit)
     }
 }

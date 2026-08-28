@@ -116,15 +116,39 @@ private class Transaction: CoinageStoreTransaction {
     }
 
     func insertMark(_ asset: OwnAsset) throws {
-        guard case let .coin(index) = asset else { return }
+        // Insert-only: the mark goes down before the keys leave and is never retracted.
+        try coinRow(for: asset)?.handoffMark = CoinHandoffMark.committed.rawValue
+    }
+
+    func markHandoffPending(_ asset: OwnAsset) throws {
+        guard let coin = try coinRow(for: asset) else { return }
+        // Never regress a committed mark back to provisional.
+        if coin.handoffMark == CoinHandoffMark.none.rawValue {
+            coin.handoffMark = CoinHandoffMark.pending.rawValue
+        }
+    }
+
+    func commitHandoff(_ asset: OwnAsset) throws {
+        try coinRow(for: asset)?.handoffMark = CoinHandoffMark.committed.rawValue
+    }
+
+    func releaseUncommittedMarks() throws {
+        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
+        request.predicate = NSPredicate(
+            format: "handoffMark == %d", Int(CoinHandoffMark.pending.rawValue)
+        )
+        for coin in try context.fetch(request) {
+            coin.handoffMark = CoinHandoffMark.none.rawValue
+        }
+    }
+
+    private func coinRow(for asset: OwnAsset) throws -> CDCoin? {
+        guard case let .coin(index) = asset else { return nil }
 
         let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
         request.predicate = NSPredicate(format: "identifier == %@", Coin.identifier(for: index))
         request.fetchLimit = 1
-
-        // Insert-only: the mark goes down before the keys leave and is never retracted.
-        let coin = try context.fetch(request).first
-        coin?.handoffMark = CoinHandoffMark.committed.rawValue
+        return try context.fetch(request).first
     }
 }
 

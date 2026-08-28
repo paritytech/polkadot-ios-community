@@ -36,6 +36,16 @@ public protocol DurabilityStoring: Sendable {
 
     func markHandedOff(_ asset: OwnAsset) async throws
 
+    /// Provisionally marks assets handed off (`.pending`) in one transaction, before their keys
+    /// reach the transport. Released on relaunch unless committed.
+    func markHandoffPending(_ assets: [OwnAsset]) async throws
+
+    /// Promotes provisional marks to final (`.committed`) — the keys have durably left.
+    func commitHandoffs(_ assets: [OwnAsset]) async throws
+
+    /// Clears every uncommitted (`.pending`) mark. Runs once, on launch.
+    func releaseUncommittedHandoffs() async throws
+
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool
 
     func handedOffCoins() async throws -> [OwnAsset]
