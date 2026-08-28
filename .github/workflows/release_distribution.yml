@@ -22,9 +22,6 @@ on:
         type: string
         default: ""
 
-env:
-  CI_MATRIX_ROOM_IDS: "!VqxAjEKxUCeJcJggHX:matrix.org,!RuUVonfeJZzoTvHUzZ:parity.io"
-
 jobs:
   build:
     # PR trigger covers hotfix pushes to release branches; nightly PRs (marked in the
@@ -67,4 +64,4 @@ jobs:
             ${{ secrets.WEB_PAGE_DISTRIBUTION_LINK }}
           bot_url: ${{ secrets.NOTIFICATION_BOT_URL }}
           bot_api_token: ${{ secrets.NOTIFICATION_BOT_TOKEN }}
-          matrix_room_ids: ${{ env.CI_MATRIX_ROOM_IDS }}
+          matrix_room_ids: ${{ secrets.CI_MATRIX_ROOM_IDS }}
