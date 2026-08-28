@@ -14,119 +14,88 @@ extension ChatExtensionsRegistry {
         personhoodRegistrationService: PersonhoodRegistrationServicing,
         audioSessionManager: AudioSessionManaging
     ) -> [ChatExtending] {
-        do {
-            let logger = Logger.shared
+        #if !FEATURE_DIMS
+            return []
+        #else
+            do {
+                let logger = Logger.shared
 
-            let dimsState = try createFlowStates(
-                syncStateStore: syncStateStore,
-                personDataStore: personDataStore,
-                syncService: syncService,
-                personhoodRegistrationService: personhoodRegistrationService
-            )
-            let settings = SettingsManager.shared
+                let dimsState = try createFlowStates(
+                    syncStateStore: syncStateStore,
+                    personDataStore: personDataStore,
+                    syncService: syncService,
+                    personhoodRegistrationService: personhoodRegistrationService
+                )
+                let settings = SettingsManager.shared
 
-            #if W3S
-                let dim2Actions: [ChatExtensionActions.ActionModel] = []
-            #else
-                let dim2Actions: [ChatExtensionActions.ActionModel] = [
-                    .init(
-                        title: String(localized: .MobRule.chatName),
-                        subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
-                        identifier: MobRulesChatExtension.identifier
-                    )
-                ]
-            #endif
+                #if FEATURE_DIMS_FULL
+                    let dim2Actions: [ChatExtensionActions.ActionModel] = [
+                        .init(
+                            title: String(localized: .MobRule.chatName),
+                            subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
+                            identifier: MobRulesChatExtension.identifier
+                        )
+                    ]
+                #else
+                    let dim2Actions: [ChatExtensionActions.ActionModel] = []
+                #endif
 
-            guard let dim2 = WeeklyGameFactory.create(
-                settings: settings,
-                dependencies: DIM2Dependencies(
-                    dim2SharedState: dimsState.dim2,
-                    dimsSharedState: dimsState.peerState
-                ),
-                personActions: dim2Actions
-            ) else {
-                logger.error("Can't create dim2")
-
-                return []
-            }
-
-            #if W3S
-                return [dim2]
-            #else
-                guard let mobRules = MobRulesFactory.create(
+                guard let dim2 = WeeklyGameFactory.create(
                     settings: settings,
-                    scoreInfoSyncService: dimsState.peerState.scoreInfoSyncService
+                    dependencies: DIM2Dependencies(
+                        dim2SharedState: dimsState.dim2,
+                        dimsSharedState: dimsState.peerState
+                    ),
+                    personActions: dim2Actions
                 ) else {
-                    logger.error("Can't create mob rule")
+                    logger.error("Can't create dim2")
+
                     return []
                 }
 
-                let userNotificationService = UserNotificationService.shared
-                let videoPreviewPlayerFactory = VideoPreviewPlayerFactory(
-                    audioSessionManager: audioSessionManager
-                )
+                #if FEATURE_DIMS_FULL
+                    guard let mobRules = MobRulesFactory.create(
+                        settings: settings,
+                        scoreInfoSyncService: dimsState.peerState.scoreInfoSyncService
+                    ) else {
+                        logger.error("Can't create mob rule")
+                        return []
+                    }
 
-                let dim1Wireframe = DIM1Wireframe(
-                    application: UIApplication.shared,
-                    botSettings: SettingsManager.shared,
-                    videoPreviewPlayerFactory: videoPreviewPlayerFactory
-                )
-
-                let dim1NotificationService = DIM1NotificationService(
-                    localNotificationService: userNotificationService
-                )
-
-                let dim1Interactor = DIM1ChatInteractor(
-                    flowState: dimsState.dim1,
-                    notificationService: dim1NotificationService
-                )
-
-                let dim1Actions: [ChatExtensionActions.ActionModel] = [
-                    .init(
-                        title: String(localized: .MobRule.chatName),
-                        subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
-                        identifier: MobRulesChatExtension.identifier
-                    ),
-                    .init(
-                        title: String(localized: .WeeklyGame.chatName),
-                        subtitle: String(localized: .ChatExtension.actionOpenWeeklyGameSubtitle),
-                        identifier: DIM2ChatExtension.identifier
+                    let dim1 = createDIM1(
+                        flowState: dimsState.dim1,
+                        audioSessionManager: audioSessionManager
                     )
-                ]
 
-                let dim1 = DIM1ChatExtension(
-                    interactor: dim1Interactor,
-                    wireframe: dim1Wireframe,
-                    personActions: dim1Actions
-                )
+                    let peerActions: [ChatExtensionActions.ActionModel] = [
+                        .init(
+                            title: String(localized: .ChatExtension.polkadotPeerActionDim1Title),
+                            subtitle: String(localized: .ChatExtension.polkadotPeerActionDim1Subtitle),
+                            identifier: dim1.identifier
+                        ),
+                        .init(
+                            title: String(localized: .ChatExtension.polkadotPeerActionDim2Title),
+                            subtitle: String(localized: .ChatExtension.polkadotPeerActionDim2Subtitle),
+                            identifier: DIM2ChatExtension.identifier
+                        )
+                    ]
 
-                let peerActions: [ChatExtensionActions.ActionModel] = [
-                    .init(
-                        title: String(localized: .ChatExtension.polkadotPeerActionDim1Title),
-                        subtitle: String(localized: .ChatExtension.polkadotPeerActionDim1Subtitle),
-                        identifier: dim1.identifier
-                    ),
-                    .init(
-                        title: String(localized: .ChatExtension.polkadotPeerActionDim2Title),
-                        subtitle: String(localized: .ChatExtension.polkadotPeerActionDim2Subtitle),
-                        identifier: DIM2ChatExtension.identifier
+                    let peerChat = createPolkadotPeer(
+                        flowState: dimsState.peerState,
+                        actions: peerActions,
+                        logger: logger
                     )
-                ]
 
-                let peerChat = createPolkadotPeer(
-                    flowState: dimsState.peerState,
-                    actions: peerActions,
-                    logger: logger
-                )
-
-                return [peerChat, dim1, dim2, mobRules]
-                    .compactMap { $0 }
-
-            #endif
-        } catch {
-            Logger.shared.error("Can't create dims state: \(error)")
-            return []
-        }
+                    return [peerChat, dim1, dim2, mobRules]
+                        .compactMap { $0 }
+                #else
+                    return [dim2]
+                #endif
+            } catch {
+                Logger.shared.error("Can't create dims state: \(error)")
+                return []
+            }
+        #endif
     }
 }
 
@@ -144,6 +113,50 @@ private extension ChatExtensionsRegistry {
             logger: logger
         )
     }
+
+    #if FEATURE_DIMS_FULL
+        @MainActor
+        static func createDIM1(
+            flowState: DIM1SharedFlowStateProtocol,
+            audioSessionManager: AudioSessionManaging
+        ) -> DIM1ChatExtension {
+            let videoPreviewPlayerFactory = VideoPreviewPlayerFactory(
+                audioSessionManager: audioSessionManager
+            )
+
+            let wireframe = DIM1Wireframe(
+                application: UIApplication.shared,
+                botSettings: SettingsManager.shared,
+                videoPreviewPlayerFactory: videoPreviewPlayerFactory
+            )
+
+            let interactor = DIM1ChatInteractor(
+                flowState: flowState,
+                notificationService: DIM1NotificationService(
+                    localNotificationService: UserNotificationService.shared
+                )
+            )
+
+            let actions: [ChatExtensionActions.ActionModel] = [
+                .init(
+                    title: String(localized: .MobRule.chatName),
+                    subtitle: String(localized: .ChatExtension.actionOpenMobRulesSubtitle),
+                    identifier: MobRulesChatExtension.identifier
+                ),
+                .init(
+                    title: String(localized: .WeeklyGame.chatName),
+                    subtitle: String(localized: .ChatExtension.actionOpenWeeklyGameSubtitle),
+                    identifier: DIM2ChatExtension.identifier
+                )
+            ]
+
+            return DIM1ChatExtension(
+                interactor: interactor,
+                wireframe: wireframe,
+                personActions: actions
+            )
+        }
+    #endif
 
     struct DimStates {
         let peerState: DIMSSharedFlowStateProtocol
