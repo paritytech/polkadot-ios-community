@@ -9,7 +9,9 @@ struct ExtrinsicVersionProviderTests {
     private func makeProvider(versions: [ChainModel.Id: UInt8] = [:]) -> ExtrinsicVersionProvider {
         let config = MockRemoteConfigManager()
         config.txExtensionVersions = versions
-        return ExtrinsicVersionProvider(remoteConfig: config)
+        return ExtrinsicVersionProvider(
+            extensionVersionProvider: ExtrinsicExtensionVersionProvider(remoteConfig: config)
+        )
     }
 
     private func isV4(_ version: Extrinsic.Version) -> Bool {
@@ -52,13 +54,5 @@ struct ExtrinsicVersionProviderTests {
 
         #expect(isV4(provider.getExtrinsicVersion(for: unknown, isSigned: true)))
         #expect(isV4(provider.getExtrinsicVersion(for: unknown, isSigned: false)))
-    }
-
-    @Test("extensionVersion reads the per-chain remote-config value, defaulting to 0")
-    func extensionVersionReadsRemoteConfig() {
-        let chain = AppConfig.Chains.usernameChain
-
-        #expect(makeProvider(versions: [chain: 7]).extensionVersion(for: chain) == 7)
-        #expect(makeProvider().extensionVersion(for: chain) == 0)
     }
 }

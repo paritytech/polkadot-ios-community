@@ -21,8 +21,8 @@ final class ExtrinsicServiceFactory {
     private let metadataHashOperationFactory: MetadataHashOperationFactoryProtocol
     private let customFeeEstimator: ExtrinsicCustomFeeEstimatingFactoryProtocol
     private let transactionExtensionFactory: ExtrinsicTransactionExtensionMaking
-    private let explicitExtrinsicVersion: Extrinsic.Version?
-    private let versionProvider: ExtrinsicVersionProviding
+    private let extrinsicVersion: ConcreteExtrinsicVersion
+    private let extensionVersionProvider: ExtrinsicExtensionVersionProviding
     private let logger: LoggerProtocol
 
     init(
@@ -30,8 +30,8 @@ final class ExtrinsicServiceFactory {
         substrateStorageFacade: StorageFacadeProtocol,
         customFeeEstimator: ExtrinsicCustomFeeEstimatingFactoryProtocol,
         transactionExtensionFactory: ExtrinsicTransactionExtensionMaking,
-        extrinsicVersion: Extrinsic.Version? = nil,
-        versionProvider: ExtrinsicVersionProviding = ExtrinsicVersionProvider(),
+        extrinsicVersion: ConcreteExtrinsicVersion = .V5,
+        extensionVersionProvider: ExtrinsicExtensionVersionProviding = ExtrinsicExtensionVersionProvider(),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
@@ -47,8 +47,8 @@ final class ExtrinsicServiceFactory {
         )
 
         self.operationQueue = operationQueue
-        explicitExtrinsicVersion = extrinsicVersion
-        self.versionProvider = versionProvider
+        self.extrinsicVersion = extrinsicVersion
+        self.extensionVersionProvider = extensionVersionProvider
         self.customFeeEstimator = customFeeEstimator
         self.transactionExtensionFactory = transactionExtensionFactory
         self.logger = logger
@@ -140,12 +140,11 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
 }
 
 private extension ExtrinsicServiceFactory {
-    /// Explicit caller override wins; otherwise native submissions keep the V5 format and only the
-    /// extension version is sourced per-chain from remote config (default 0). This preserves the
-    /// previous `.V5(extensionVersion: 0)` default while making the version configurable — the format
-    /// is never flipped to V4 for chains the provider does not special-case.
+    /// Resolves the concrete version for the configured format (default V5). The V5 extension version
+    /// is sourced per-chain from remote config (default 0); the format is never flipped to V4 unless
+    /// the caller pinned it.
     func resolveExtrinsicVersion(for chain: ChainProtocol) -> Extrinsic.Version {
-        explicitExtrinsicVersion ?? .V5(extensionVersion: versionProvider.extensionVersion(for: chain.chainId))
+        extensionVersionProvider.getExtensionVersion(for: extrinsicVersion, chainId: chain.chainId)
     }
 
     func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {

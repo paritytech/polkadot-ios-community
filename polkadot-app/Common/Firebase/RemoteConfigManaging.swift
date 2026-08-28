@@ -11,7 +11,7 @@ protocol RemoteConfigManaging: AnyObject {
     func syncedCollectiblesEnabled() -> Bool
 
     /// Per-chain transaction-extension version, keyed by chain id, from the standalone
-    /// `transaction_extension_versions` remote-config key (mirrors Android). Absent chains default to 0.
+    /// `transaction_extension_versions` remote-config key.
     func syncedTxExtensionVersions() -> [ChainModel.Id: UInt8]
 
     func asyncWaitRemoteConfig() async throws -> RemoteAppConfig

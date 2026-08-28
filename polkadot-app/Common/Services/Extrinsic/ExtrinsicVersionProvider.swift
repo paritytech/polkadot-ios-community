@@ -4,16 +4,13 @@ import SubstrateSdk
 
 protocol ExtrinsicVersionProviding {
     func getExtrinsicVersion(for chainId: ChainId, isSigned: Bool) -> Extrinsic.Version
-
-    /// Per-chain V5 transaction-extension version from remote config; unlisted chains default to 0.
-    func extensionVersion(for chainId: ChainId) -> UInt8
 }
 
 final class ExtrinsicVersionProvider {
-    private let remoteConfig: RemoteConfigManaging
+    private let extensionVersionProvider: ExtrinsicExtensionVersionProviding
 
-    init(remoteConfig: RemoteConfigManaging = FirebaseApplicationService.shared) {
-        self.remoteConfig = remoteConfig
+    init(extensionVersionProvider: ExtrinsicExtensionVersionProviding = ExtrinsicExtensionVersionProvider()) {
+        self.extensionVersionProvider = extensionVersionProvider
     }
 }
 
@@ -29,10 +26,6 @@ extension ExtrinsicVersionProvider: ExtrinsicVersionProviding {
 
         guard usesV5 else { return .V4 }
 
-        return .V5(extensionVersion: extensionVersion(for: chainId))
-    }
-
-    func extensionVersion(for chainId: ChainId) -> UInt8 {
-        remoteConfig.syncedTxExtensionVersions()[chainId] ?? 0
+        return extensionVersionProvider.getExtensionVersion(for: .V5, chainId: chainId)
     }
 }
