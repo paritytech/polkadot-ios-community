@@ -141,6 +141,10 @@ private extension SPAViewController {
 
         if configuration.isBrowserTab {
             rootView.setupBrowserTabLayout()
+
+            #if !FEATURE_PRODUCTS
+                additionalSafeAreaInsets.top = rootView.topChromeHeight
+            #endif
         } else if configuration.isRootScreen {
             rootView.setupRootLayout()
         } else {
@@ -246,7 +250,11 @@ private extension SPAViewController {
     }
 
     @objc func onMinimizeTapped() {
-        presenter.didTapMinimize()
+        #if FEATURE_PRODUCTS
+            presenter.didTapMinimize()
+        #else
+            presenter.didTapClose()
+        #endif
     }
 }
 

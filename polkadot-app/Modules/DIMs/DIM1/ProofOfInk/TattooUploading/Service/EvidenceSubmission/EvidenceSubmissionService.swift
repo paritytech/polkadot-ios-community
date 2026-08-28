@@ -102,7 +102,7 @@ final class EvidenceSubmissionService {
 
     func createExtrinsicService(
         for chainId: ChainModel.Id,
-        extrinsicVersion: Extrinsic.Version
+        extrinsicVersion: ConcreteExtrinsicVersion
     ) -> ExtrinsicServiceProtocol? {
         let serviceFactory = ExtrinsicServiceFactory(
             chainRegistry: chainRegistry,

@@ -84,7 +84,8 @@ enum MainTabBarViewFactory {
         let view = MainTabBarViewController(
             presenter: presenter,
             viewFactory: tabFactory,
-            browserCoordinator: browserCoordinator
+            browserCoordinator: browserCoordinator,
+            flowStateProvider: flowStateProvider
         )
 
         presenter.view = view
@@ -143,12 +144,25 @@ enum MainTabBarViewFactory {
             moduleNavigator: moduleNavigator,
             remoteContactResolver: RemoteContactOperationFactory()
         )
-        let gameOpen = DIM2OpenService(
-            serviceCoordinator: serviceCoordinator,
-            flowState: flowState.flowState
-        )
-        let screenOpen = DIM1OpenService()
-        let gameChatOpen = GameChatService(flowState: flowState)
+        #if FEATURE_SIGN_IN
+            let signInHandler: [URLHandlingServiceProtocol] = [polkadotSignInService]
+        #else
+            let signInHandler: [URLHandlingServiceProtocol] = []
+        #endif
+
+        #if FEATURE_DIMS
+            let dimHandlers: [URLHandlingServiceProtocol] = [
+                DIM1OpenService(),
+                DIM2OpenService(
+                    serviceCoordinator: serviceCoordinator,
+                    flowState: flowState.flowState
+                ),
+                GameChatService(flowState: flowState)
+            ]
+        #else
+            let dimHandlers: [URLHandlingServiceProtocol] = []
+        #endif
+
         let fiatOnrampRedirect = FiatOnrampRedirectService(
             fiatOnrampTransactionTracking: serviceCoordinator.fiatOnrampTrackingService
         )
@@ -156,10 +170,17 @@ enum MainTabBarViewFactory {
             coinageService: serviceCoordinator.coinageService,
             moduleNavigator: moduleNavigator
         )
-        let productOpen = ProductSPAOpenService(
-            moduleNavigator: moduleNavigator,
-            hostProvider: hostProvider
-        )
+        #if FEATURE_PRODUCTS
+            let productHandlers: [URLHandlingServiceProtocol] = [
+                ProductSPAOpenService(
+                    moduleNavigator: moduleNavigator,
+                    hostProvider: hostProvider
+                )
+            ]
+        #else
+            let productHandlers: [URLHandlingServiceProtocol] = []
+        #endif
+
         let historyStorage = W3sPaymentHistoryCoreDataStore(storageFacade: UserDataStorageFacade.shared)
 
         let w3sPayLauncher = W3sPayLauncher(
@@ -173,15 +194,12 @@ enum MainTabBarViewFactory {
             logger: Logger.shared
         )
 
-        return URLHandlingService(children: [
-            polkadotSignInService,
-            chatService,
-            screenOpen,
-            gameOpen,
-            gameChatOpen,
+        return URLHandlingService(children: signInHandler + [
+            chatService
+        ] + dimHandlers + [
             fiatOnrampRedirect,
-            payDeeplink,
-            productOpen,
+            payDeeplink
+        ] + productHandlers + [
             w3sPayDeeplink
         ])
     }

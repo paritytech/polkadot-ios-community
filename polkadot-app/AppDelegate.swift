@@ -26,9 +26,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             issueMonitoringService.setup()
         #endif
 
-        DIM1BackgroundTaskRegistrator.shared.registerBackgroundTask()
-        PersonRegistrationBackgroundTaskRegistrator.shared.registerBackgroundTask()
-        PersonSelfIncludeBackgroundTaskRegistrator.shared.registerBackgroundTask()
+        #if FEATURE_DIMS
+            DIM1BackgroundTaskRegistrator.shared.registerBackgroundTask()
+            PersonRegistrationBackgroundTaskRegistrator.shared.registerBackgroundTask()
+            PersonSelfIncludeBackgroundTaskRegistrator.shared.registerBackgroundTask()
+        #endif
+
         CoinageRecyclingTaskRegistrator.shared.registerBackgroundTask()
 
         UserNotificationService.shared.startGatheringNotifications()

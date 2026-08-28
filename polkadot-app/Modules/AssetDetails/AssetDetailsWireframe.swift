@@ -2,13 +2,24 @@ import UIKit
 import Foundation_iOS
 import UIKitExt
 import ChainRegistry
+import Products
 
 @MainActor
 final class AssetDetailsWireframe: AssetDetailsWireframeProtocol {
     let context: WalletFlowContextProtocol
 
-    init(context: WalletFlowContextProtocol) {
+    private let moduleNavigator: ModuleNavigating
+
+    init(
+        context: WalletFlowContextProtocol,
+        moduleNavigator: ModuleNavigating = ModuleNavigator()
+    ) {
         self.context = context
+        self.moduleNavigator = moduleNavigator
+    }
+
+    func showProduct(page: ProductPage) {
+        moduleNavigator.openProduct(page: page)
     }
 
     func showTransfer(from view: ControllerBackedProtocol?, chainAsset: ChainAsset) {

@@ -12,6 +12,8 @@ import AsyncAlgorithms
 import ChainRegistry
 import EventCenter
 import BackgroundExecution
+import Products
+import UIKitExt
 
 final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     weak var presenter: AssetDetailsInteractorOutputProtocol?
@@ -31,6 +33,13 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     private let eventCenter: EventCenterProtocol
 
     private var recoveryStateTask: Task<Void, Error>?
+
+    enum TopUpProductError: Error {
+        case unresolvedHost
+    }
+
+    private let hostProvider: ProductHostProviding
+    private var topUpProductTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
         private var coinageSubscriptionTask: Task<Void, Never>?
@@ -55,6 +64,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         voucherProvider: StreamableProvider<Voucher>,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
+        hostProvider: ProductHostProviding,
         eventCenter: EventCenterProtocol = EventCenter.shared
     ) {
         self.priceLocalSubscriptionFactory = priceLocalSubscriptionFactory
@@ -64,6 +74,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         self.coinageBackupSyncService = coinageBackupSyncService
         self.balanceSyncStateStorage = balanceSyncStateStorage
         self.eventCenter = eventCenter
+        self.hostProvider = hostProvider
         #if TESTNET_FEATURE
             self.backgroundExecutor = backgroundExecutor
             self.coinProvider = coinProvider
@@ -78,6 +89,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         balanceSubscriptionTask?.cancel()
         recoveryStateTask?.cancel()
         priceSubscriptionTask?.cancel()
+        topUpProductTask?.cancel()
         #if TESTNET_FEATURE
             coinageSubscriptionTask?.cancel()
         #endif
@@ -117,6 +129,23 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
     func removeFailedFiatOnrampTransactions() {
         fiatOnrampTrackingService.removeFailedTransactions()
+    }
+
+    func openTopUpProduct() {
+        topUpProductTask?.cancel()
+        topUpProductTask = Task { [weak presenter, hostProvider] in
+            do {
+                guard
+                    let host = try await hostProvider.resolveHost(label: AppConfig.DotNs.dotNsGetSome)
+                else {
+                    throw TopUpProductError.unresolvedHost
+                }
+
+                await presenter?.didResolveTopUpProduct(.success(ProductPage(host: host)))
+            } catch {
+                await presenter?.didResolveTopUpProduct(.failure(error))
+            }
+        }
     }
 
     #if TESTNET_FEATURE
@@ -308,5 +337,14 @@ extension AssetDetailsInteractor: AppEventVisiting {
                 self?.presenter?.didClearBackupNotification()
             }
         }
+    }
+}
+
+extension AssetDetailsInteractor.TopUpProductError: ErrorContentConvertible {
+    func toErrorContent() -> ErrorContent {
+        ErrorContent(
+            title: String(localized: .Common.error),
+            message: String(localized: .Products.topUpResolveError)
+        )
     }
 }

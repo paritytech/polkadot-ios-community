@@ -10,6 +10,7 @@
 | New VIPER module or module restructuring       | architecture/viper.md, architecture/multi-package.md       |
 | Adding/moving a local SPM package              | architecture/multi-package.md                              |
 | Where does this helper belong (SDK ext / feature / app) | architecture/maintainability.md (#5)                |
+| Brand/whitelabel, xcconfig axis, app identity          | architecture/maintainability.md (Brand Axis)          |
 | EventCenter, observer events, visitor extensions | architecture/event-center.md                             |
 | Using ChainRegistry from a feature             | architecture/chain-integration.md (Using ChainRegistry…)   |
 | Chat, messaging, chat extensions               | architecture/chat-extension.md                             |

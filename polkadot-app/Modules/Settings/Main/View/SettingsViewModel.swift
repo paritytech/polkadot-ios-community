@@ -75,10 +75,26 @@ enum SettingsViewModel {
                 #else
                     [.revoke]
                 #endif
-            case .security: [.backup, .apps, .linkedDevices, .blockedUsers]
+            case .security: Self.securityCells
             case .legal: [.privacy, .termsOfUse]
             case .support: [.contactUs]
             }
+        }
+
+        private static var securityCells: [CellType] {
+            var cells: [CellType] = [.backup]
+
+            #if FEATURE_PRODUCTS
+                cells.append(.apps)
+            #endif
+
+            #if FEATURE_SIGN_IN
+                cells.append(.linkedDevices)
+            #endif
+
+            cells.append(.blockedUsers)
+
+            return cells
         }
     }
 
