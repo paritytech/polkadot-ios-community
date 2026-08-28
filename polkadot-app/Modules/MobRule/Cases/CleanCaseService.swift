@@ -34,7 +34,7 @@ final class CleanCaseService: CleanCaseServicing {
         chain: ChainModel,
         extrinsicServiceFactory: ExtrinsicServiceFactoryProtocol,
         extrinsicOriginFactory: PersonhoodOriginFactoryProtocol,
-        selectedWallet: WalletManaging = SelectedWallet.mobRuleAlias,
+        selectedWallet: WalletManaging = WalletManagerRepository.shared.mobRuleAlias(),
         logger: LoggerProtocol = Logger.shared,
         dispatchQueue: DispatchQueue = DispatchQueue(label: "io.polkadot.service.cleancase.\(UUID().uuidString)")
     ) {

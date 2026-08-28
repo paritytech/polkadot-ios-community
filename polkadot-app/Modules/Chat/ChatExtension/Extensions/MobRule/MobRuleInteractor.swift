@@ -120,7 +120,7 @@ final class MobRuleInteractor: RuntimeConstantFetching {
         runtimeProvider: RuntimeProviderProtocol,
         voteService: MobRuleVoteServicing,
         scoreInfoSyncService: ScoreInfoSyncServicing,
-        selectedWallet: WalletManaging = SelectedWallet.mobRuleAlias,
+        selectedWallet: WalletManaging = WalletManagerRepository.shared.mobRuleAlias(),
         mobRuleCasesFactory: MobRuleCasesOperationFactoryProtocol = MobRuleCasesOperationFactory(),
         proofOfInkFactory: ProofOfInkOperationFactoryProtocol = ProofOfInkOperationFactory(),
         logger: LoggerProtocol = Logger.shared

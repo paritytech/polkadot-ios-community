@@ -35,6 +35,7 @@ final class DIM2ChatInteractor {
     // Airdrop
     private let airdropRegistrationStore: AirdropRegistrationStoring
     private let localNetworkPermissionService: LocalNetworkPermissionServicing
+    private let walletRepo: WalletManagerRepositoryProtocol
 
     // MARK: - State Actor
 
@@ -79,6 +80,7 @@ final class DIM2ChatInteractor {
         backgroundExecutor: BackgroundExecuting,
         airdropRegistrationStore: AirdropRegistrationStoring = AirdropRegistrationStore(),
         localNetworkPermissionService: LocalNetworkPermissionServicing,
+        walletRepo: WalletManagerRepositoryProtocol = .shared,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.dependencies = dependencies
@@ -92,6 +94,7 @@ final class DIM2ChatInteractor {
         self.backgroundExecutor = backgroundExecutor
         self.airdropRegistrationStore = airdropRegistrationStore
         self.localNetworkPermissionService = localNetworkPermissionService
+        self.walletRepo = walletRepo
         self.logger = logger
         state = DIM2ChatInteractorState()
     }
@@ -610,7 +613,7 @@ private extension DIM2ChatInteractor {
     func persistAirdropRegistration(airdrop: GamePallet.AirdropVrfs?, usesScoreAlias: Bool) async {
         guard let airdrop, let gameIndex = await state.gameInfo?.index else { return }
         do {
-            let beneficiary = try SelectedWallet.depositWallet.getMultiSigner().getAccountId()
+            let beneficiary = try walletRepo.depositWallet().getMultiSigner().getAccountId()
             try await airdropRegistrationStore.save(
                 AirdropRegistrationRecord(
                     gameIndex: gameIndex,
@@ -649,7 +652,7 @@ private extension DIM2ChatInteractor {
 
         do {
             let chain = try dim2FlowState.chainRegistry.getChainOrError(for: dim2FlowState.chainId)
-            let wallet = GameAccountFactory.makeWallet(for: dim2FlowState.source)
+            let wallet = try GameAccountFactory.makeWallet(for: dim2FlowState.source)
             let account = try wallet.fetchAccount(for: chain)
 
             guard let username = dim2FlowState.usernameStorage.username?.value else {
@@ -657,7 +660,7 @@ private extension DIM2ChatInteractor {
                 return
             }
 
-            let usernameAccountId = try SelectedWallet.main.fetchAccount(for: chain).accountId
+            let usernameAccountId = try walletRepo.main().fetchAccount(for: chain).accountId
 
             telemetry.sendRegistration(
                 localAccount: account.accountId,

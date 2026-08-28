@@ -69,8 +69,12 @@ extension SPAPresenter: SPAPresenterProtocol {
     }
 
     func didTapClose() {
-        guard let browserTabId = configuration.browserTabId else { return }
-        wireframe.close(tabId: browserTabId)
+        #if FEATURE_PRODUCTS
+            guard let browserTabId = configuration.browserTabId else { return }
+            wireframe.close(tabId: browserTabId)
+        #else
+            wireframe.dismissProduct(from: view)
+        #endif
     }
 
     func hasChatEntry() -> Bool {

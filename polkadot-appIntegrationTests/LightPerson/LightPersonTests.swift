@@ -42,7 +42,7 @@ final class LightPersonTests: XCTestCase {
             let factory = try LitePersonParamsFactory(
                 mainWallet: setupResult.main,
                 liteVrfManager: BandersnatchKeyManager(
-                    entropyDeriver: RingVrfEntropyDeriver(domain: BuiltInProduct.personhood, index: 1),
+                    entropyDeriver: RingVrfEntropyDeriver(domain: BuiltInProduct.personhood(for: "dot"), index: 1),
                     entropyManager: setupResult.entropyManager
                 ),
                 chatEncryptorManager: ChatEncryptionManager(
@@ -165,7 +165,7 @@ private extension LightPersonTests {
 
         return SetupParams(
             main: DynamicDerivedWallet(
-                derivationPath: WalletDerivationPath.main,
+                derivationPath: WalletDerivationPath.main(for: "dot"),
                 entropyManager: entropyManager
             ),
             storageFacade: userStorageFacade,

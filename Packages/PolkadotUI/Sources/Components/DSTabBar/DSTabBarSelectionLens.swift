@@ -10,15 +10,7 @@ final class DSTabBarSelectionLens: UIView {
     private var appliedLift: Bool?
 
     override init(frame: CGRect) {
-        if #available(iOS 26.0, *) {
-            pillView = DSGlassBackgroundView(
-                shape: .capsule,
-                style: .clear,
-                tint: DSTabBarSelectionLens.makePillTint()
-            )
-        } else {
-            pillView = DSTabBarSelectionLens.makeLegacyPill()
-        }
+        pillView = DSTabBarSelectionLens.makePill()
 
         super.init(frame: frame)
 
@@ -86,18 +78,9 @@ final class DSTabBarSelectionLens: UIView {
 }
 
 private extension DSTabBarSelectionLens {
-    static func makePillTint() -> UIColor {
-        UIColor { traits in
-            UIColor.fgStaticWhite
-                .blended(
-                    to: UIColor.bgSurfaceContainerInverted.resolvedColor(with: traits),
-                    progress: DSTabBarMetrics.pillTintInversion
-                )
-                .withAlphaComponent(DSTabBarMetrics.pillTintAlpha)
-        }
-    }
-
-    static func makeLegacyPill() -> UIView {
+    /// A flat fill rather than glass: clear glass samples whatever scrolls under the bar, so the
+    /// selection would drift in colour from screen to screen.
+    static func makePill() -> UIView {
         let view = UIView()
         view.backgroundColor = UIColor.bgSurfaceContainerInverted.withAlphaComponent(0.12)
         view.layer.cornerCurve = .continuous

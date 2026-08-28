@@ -73,6 +73,10 @@ enum IdentityDetailsViewFactory {
             .init(value: $0.value, isClaimed: usernameStorage.usernameClaimed)
         }
         viewModel.isPersonal = usernameStorage.isPerson
+
+        #if !FEATURE_DIMS
+            viewModel.isRankVisible = false
+        #endif
         let binding = IdentityDetailsViewBinding(viewModel: viewModel)
 
         binding.bind(to: presenter)

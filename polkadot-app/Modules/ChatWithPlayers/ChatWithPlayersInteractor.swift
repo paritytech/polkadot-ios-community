@@ -139,10 +139,10 @@ extension ChatWithPlayersInteractor: ChatWithPlayersInteractorInputProtocol {
         switch accountOrPerson {
         case .account:
             logger.debug("Using candidate account")
-            return Chat.Contact.Own.gameCandidate()
+            return try Chat.Contact.Own.gameCandidate()
         case .person:
             logger.debug("Using score alias account")
-            return Chat.Contact.Own.gameExternal()
+            return try Chat.Contact.Own.gameExternal()
         }
     }
 

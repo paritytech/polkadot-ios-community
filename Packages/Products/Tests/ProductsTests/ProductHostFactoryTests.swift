@@ -23,6 +23,8 @@ private final class StubDotNsTldProvider: DotNsTldProviding {
 
         return tld
     }
+
+    func refresh() {}
 }
 
 private func makeFactory(tld: String?, resolveError: (any Error)? = nil) -> ProductHostFactory {

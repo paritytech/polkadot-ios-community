@@ -5,6 +5,7 @@ import Foundation_iOS
 import SubstrateSdk
 import ChainRegistry
 import SubstrateSdkExt
+import Products
 
 final class RootInteractor {
     weak var presenter: RootInteractorOutputProtocol?
@@ -15,6 +16,7 @@ final class RootInteractor {
     let logger: LoggerProtocol
     let resolver: any DecisionResolver<RootDestination>
     let tokenManager: JWTTokenManaging
+    let tldProvider: DotNsTldProviding
 
     let firebaseFacade = FirebaseFacade.shared
     let browsePrewarmer: ProductContentPrewarming
@@ -34,7 +36,8 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
-        browsePrewarmer: ProductContentPrewarming
+        browsePrewarmer: ProductContentPrewarming,
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -43,6 +46,7 @@ final class RootInteractor {
         self.resolver = resolver
         self.tokenManager = tokenManager
         self.browsePrewarmer = browsePrewarmer
+        self.tldProvider = tldProvider
     }
 
     deinit {
@@ -83,13 +87,18 @@ final class RootInteractor {
     }
 
     private func completeSetupOnceRemoteConfig(from chainRegistry: ChainRegistryProtocol) {
-        Task { [weak self, firebaseFacade] in
+        Task { [weak self, firebaseFacade, tldProvider] in
             async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                 AppConfig.Chains.usernameChain,
                 AppConfig.Chains.bulletInChain
             ])
             async let remoteConfig = try firebaseFacade.asyncWaitRemoteConfig()
             _ = try? await (chainsReady, remoteConfig)
+
+            // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers
+            // every onboarding path (username claim, iCloud recovery), so downstream built-in
+            // account derivation can read the TLD synchronously.
+            _ = try? await tldProvider.resolveTld()
 
             self?.setupJWTManager()
 
@@ -180,11 +189,12 @@ private extension RootInteractor {
 
 private extension RootInteractor {
     func logWallets() {
-        let main = try? SelectedWallet.main.getRawPublicKey().toAddress(using: .genericFormat)
-        let candidate = try? SelectedWallet.candidate.getRawPublicKey().toAddress(using: .genericFormat)
-        let score = try? SelectedWallet.scoreAlias.getRawPublicKey().toAddress(using: .genericFormat)
-        let mobRule = try? SelectedWallet.mobRuleAlias.getRawPublicKey().toAddress(using: .genericFormat)
-        let resources = try? SelectedWallet.resourcesAlias.getRawPublicKey().toAddress(using: .genericFormat)
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let main = try? walletRepo.main().getRawPublicKey().toAddress(using: .genericFormat)
+        let candidate = try? walletRepo.candidate().getRawPublicKey().toAddress(using: .genericFormat)
+        let score = try? walletRepo.scoreAlias().getRawPublicKey().toAddress(using: .genericFormat)
+        let mobRule = try? walletRepo.mobRuleAlias().getRawPublicKey().toAddress(using: .genericFormat)
+        let resources = try? walletRepo.resourcesAlias().getRawPublicKey().toAddress(using: .genericFormat)
 
         logger.debug("Main address: \(main ?? "")")
         logger.debug("Candidate address: \(candidate ?? "")")

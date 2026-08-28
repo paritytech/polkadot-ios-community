@@ -50,10 +50,16 @@ enum SPAViewFactory {
             userDefaults: SharedContainerGroup.userDefaults
         )
 
+        let sponsorVrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+        guard let sponsorKeyResolver = try? sponsorVrfRepo.keyResolver() else {
+            return nil
+        }
+
         let sponsorFactory = HostTransactionSponsorFactory(
             accountManager: accountManager,
             resourceKeyManager: resourceKeyManager,
             chainRegistry: chainRegistry,
+            keyResolver: sponsorKeyResolver,
             logger: Logger.shared
         )
 

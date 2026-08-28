@@ -69,6 +69,7 @@ final class ServiceCoordinator {
     let deviceSyncService: DeviceSyncServicing
     let networkStatusService: NetworkStatusProviding
     let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
+    let tldProvider: DotNsTldProviding
     let logger: LoggerProtocol
 
     // Retained so the weakly-held dependency-locator entry stays alive for the product host.
@@ -109,6 +110,7 @@ final class ServiceCoordinator {
         deviceSyncService: DeviceSyncServicing,
         networkStatusService: NetworkStatusProviding,
         truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
+        tldProvider: DotNsTldProviding,
         logger: LoggerProtocol
     ) {
         self.chatCoordinator = chatCoordinator
@@ -139,6 +141,7 @@ final class ServiceCoordinator {
         self.deviceSyncService = deviceSyncService
         self.networkStatusService = networkStatusService
         self.truapiRuntimeProvider = truapiRuntimeProvider
+        self.tldProvider = tldProvider
         self.logger = logger
         self.paymentsSupport = paymentsSupport
         self.turnService = turnService
@@ -147,8 +150,14 @@ final class ServiceCoordinator {
 
 extension ServiceCoordinator: ServiceCoordinatorProtocol {
     func setup() {
-        determineStateSyncService.setup()
-        personhoodBackgroundService.setup()
+        // Keep the cached TLD warm on each launch without blocking.
+        tldProvider.refresh()
+
+        #if FEATURE_DIMS
+            determineStateSyncService.setup()
+            personhoodBackgroundService.setup()
+        #endif
+
         chatCoordinator.setup()
         chatExtensionsRegistry.discover()
         chatRequestCoordinator.setup()
@@ -190,8 +199,11 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
     }
 
     func throttle() {
-        determineStateSyncService.throttle()
-        personhoodBackgroundService.throttle()
+        #if FEATURE_DIMS
+            determineStateSyncService.throttle()
+            personhoodBackgroundService.throttle()
+        #endif
+
         chatCoordinator.throttle()
         chatRequestCoordinator.throttle()
         fiatOnrampTrackingService.throttle()
@@ -217,8 +229,16 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
 extension ServiceCoordinator {
     // swiftlint:disable:next function_body_length
     static func createDefault(spaFlowState: SPAFlowState) -> ServiceCoordinatorProtocol? {
-        let mainWallet = SelectedWallet.main
-        let depositWallet = SelectedWallet.depositWallet
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+
+        // The dashboard is only reachable after onboarding cached the TLD, so built-in accounts
+        // resolve synchronously here.
+        guard
+            let mainWallet = try? walletRepo.main(),
+            let depositWallet = try? walletRepo.depositWallet()
+        else {
+            return nil
+        }
 
         let logger: LoggerProtocol = Logger.shared
 
@@ -252,10 +272,16 @@ extension ServiceCoordinator {
             userDefaults: SharedContainerGroup.userDefaults
         )
 
+        let sponsorVrfRepo: BandersnatchManagerRepositoryProtocol = .shared
+        guard let sponsorKeyResolver = try? sponsorVrfRepo.keyResolver() else {
+            return nil
+        }
+
         let sponsorFactory = HostTransactionSponsorFactory(
             accountManager: accountManager,
             resourceKeyManager: resourceKeyManager,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
+            keyResolver: sponsorKeyResolver,
             logger: logger
         )
 
@@ -409,6 +435,7 @@ extension ServiceCoordinator {
             deviceSyncService: deviceSyncService,
             networkStatusService: networkStatusService,
             truapiRuntimeProvider: truapiRuntimeProvider,
+            tldProvider: DotNsTldProviderFacade.shared,
             logger: logger
         )
     }
@@ -564,21 +591,24 @@ private extension ServiceCoordinator {
         personDataStore: DetermineStatePersonDataStore
     )? {
         let logger = Logger.shared
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+        let vrfRepo: BandersnatchManagerRepositoryProtocol = .shared
 
         guard
-            let mainAccountId = try? SelectedWallet.main.getRawPublicKey(),
-            let candidateAccountId = try? SelectedWallet.candidate.getRawPublicKey(),
-            let mobRuleAccountId = try? SelectedWallet.mobRuleAlias.getRawPublicKey(),
-            let scoreAccountId = try? SelectedWallet.scoreAlias.getRawPublicKey(),
-            let resourcesAccountId = try? SelectedWallet.resourcesAlias.getRawPublicKey()
+            let mainAccountId = try? walletRepo.main().getRawPublicKey(),
+            let candidateAccountId = try? walletRepo.candidate().getRawPublicKey(),
+            let mobRuleAccountId = try? walletRepo.mobRuleAlias().getRawPublicKey(),
+            let scoreAccountId = try? walletRepo.scoreAlias().getRawPublicKey(),
+            let resourcesAccountId = try? walletRepo.resourcesAlias().getRawPublicKey()
         else {
             logger.error("Failed to get wallet account IDs for DetermineStateSyncService")
             return nil
         }
 
-        let vrfManager = BandersnatchKeyManager.fullPerson()
-
-        guard let memberKey = try? vrfManager.getMemberKey() else {
+        guard
+            let vrfManager = try? vrfRepo.fullPerson(),
+            let memberKey = try? vrfManager.getMemberKey()
+        else {
             logger.error("Failed to get member key for DetermineStateSyncService")
             return nil
         }

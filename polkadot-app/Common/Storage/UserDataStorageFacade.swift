@@ -26,18 +26,16 @@ enum UserStorageParams {
         sharedStorageDirectoryURL.appendingPathComponent(databaseName)
     }
 
+    /// CoreDataHistoryCleaner needs a timestamp for EVERY target before it deletes anything,
+    /// and each process writes its timestamp under its own bundle identifier.
+    /// Bundle.main is unusable here: in the NSE process it resolves to the extension.
     static var historyTrackingTargets: [String] {
-        #if F_DEV
-            return [
-                "io.parity.polkadotapp.develop",
-                "io.parity.polkadotapp.develop.NotificationServiceExtension"
-            ]
-        #else
-            return [
-                "io.parity.polkadotapp",
-                "io.parity.polkadotapp.NotificationServiceExtension"
-            ]
-        #endif
+        let bundleRoot = AppConfig.Brand.bundleRoot
+
+        return [
+            bundleRoot,
+            bundleRoot + ".NotificationServiceExtension"
+        ]
     }
 }
 

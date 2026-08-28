@@ -22,7 +22,7 @@ protocol ReferralTicketServicing: AnyObject {
 }
 
 final class ReferralTicketService {
-    private let personhoodMembershipWallet: WalletManaging
+    private let walletRepo: WalletManagerRepositoryProtocol
     private let chain: ChainProtocol
     private let extrinsicSubmitFacade: ExtrinsicSubmissionMonitorFacadeProtocol
     private let extrinsicOriginFactory: ExtrinsicOriginDefiningFactoryProtocol
@@ -32,14 +32,14 @@ final class ReferralTicketService {
     private var submissionFactory: ExtrinsicSubmitMonitorFactoryProtocol?
 
     init(
-        personhoodMembershipWallet: WalletManaging = SelectedWallet.candidate,
+        walletRepo: WalletManagerRepositoryProtocol = .shared,
         chain: ChainProtocol,
         extrinsicSubmitFacade: ExtrinsicSubmissionMonitorFacadeProtocol,
         extrinsicOriginFactory: ExtrinsicOriginDefiningFactoryProtocol, // AsPersonalIdentityWithAccountOriginFactory
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
-        self.personhoodMembershipWallet = personhoodMembershipWallet
+        self.walletRepo = walletRepo
         self.chain = chain
         self.extrinsicSubmitFacade = extrinsicSubmitFacade
         self.extrinsicOriginFactory = extrinsicOriginFactory
@@ -70,7 +70,7 @@ private extension ReferralTicketService {
 
             // was createAsPersonalIdentityWithAccount
             let extrinsicOrigin = try extrinsicOriginFactory.extrinsicOriginDefiner(
-                from: personhoodMembershipWallet,
+                from: walletRepo.candidate(),
                 chain: chain
             )
 

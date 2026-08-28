@@ -58,4 +58,8 @@ protocol SPAWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryab
 
     func minimize()
     func close(tabId: UUID)
+
+    #if !FEATURE_PRODUCTS
+        func dismissProduct(from view: ControllerBackedProtocol?)
+    #endif
 }
