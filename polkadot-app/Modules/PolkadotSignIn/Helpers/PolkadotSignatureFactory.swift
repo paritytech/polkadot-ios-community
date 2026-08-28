@@ -83,7 +83,7 @@ private extension PolkadotSignatureFactory {
         result: PolkadotParsedSigningRequestResult,
         chainRegistry: ChainRegistryProtocol
     ) async throws -> (ExtrinsicBuilderProtocol, RuntimeCoderFactoryProtocol) {
-        let extrinsicVersion = Extrinsic.Version.V4
+        let extrinsicVersion = legacyExtrinsicVersion(for: transaction.version)
         let genesisHash = transaction.genesisHash.withoutHexPrefix()
 
         guard let chain = chainRegistry.getChainByGenesis(for: genesisHash) else {
@@ -95,7 +95,7 @@ private extension PolkadotSignatureFactory {
             .fetchCoderFactoryOperation()
             .asyncExecute()
 
-        var builder = ExtrinsicBuilder(
+        var builder: ExtrinsicBuilderProtocol = ExtrinsicBuilder(
             extrinsicVersion: extrinsicVersion,
             specVersion: transaction.specVersion,
             transactionVersion: transaction.transactionVersion,
@@ -107,7 +107,7 @@ private extension PolkadotSignatureFactory {
 
         let accountId = try result.wallet.getRawPublicKey()
 
-        builder = try builder.with(address: MultiAddress.accoundId(accountId))
+        builder = try applyAddress(accountId, version: extrinsicVersion, to: builder)
 
         if let metadataHash = transaction.metadataHash {
             builder = builder.with(metadataHash: metadataHash)
@@ -154,10 +154,14 @@ private extension PolkadotSignatureFactory {
         let runtimeProvider = try chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
         let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
 
-        let extrinsicVersion = extrinsicVersionProvider.getExtrinsicVersion(
-            for: chain.chainId,
-            isSigned: true
-        )
+        let extrinsicVersion: Extrinsic.Version =
+            if createTransaction.txExtVersion > 0 {
+                // dApp-supplied extension version wins for v5 create-transaction requests
+                .V5(extensionVersion: createTransaction.txExtVersion)
+            } else {
+                // fall back to the per-chain default (V4, or V5 with the remote-config extension version)
+                extrinsicVersionProvider.getExtrinsicVersion(for: chain.chainId, isSigned: true)
+            }
 
         var builder: ExtrinsicBuilderProtocol = ExtrinsicBuilder(
             extrinsicVersion: extrinsicVersion,
@@ -169,12 +173,7 @@ private extension PolkadotSignatureFactory {
 
         let accountId = try result.wallet.getRawPublicKey()
 
-        switch extrinsicVersion {
-        case .V4:
-            builder = try builder.with(address: MultiAddress.accoundId(accountId))
-        case .V5:
-            builder = try builder.with(address: BytesCodable(wrappedValue: accountId))
-        }
+        builder = try applyAddress(accountId, version: extrinsicVersion, to: builder)
 
         builder = try await fillNonceIfNeeded(
             builder: builder,
@@ -208,6 +207,31 @@ private extension PolkadotSignatureFactory {
         }
 
         return (builder, codingFactory)
+    }
+}
+
+// MARK: - Version & Address Helpers
+
+private extension PolkadotSignatureFactory {
+    func legacyExtrinsicVersion(for version: PolkadotLegacyTransaction.Version) -> Extrinsic.Version {
+        // signPayload carries the extrinsic format version; v5 uses base extension version 0.
+        switch version {
+        case .version4: .V4
+        case .version5: .V5(extensionVersion: 0)
+        }
+    }
+
+    func applyAddress(
+        _ accountId: Data,
+        version: Extrinsic.Version,
+        to builder: ExtrinsicBuilderProtocol
+    ) throws -> ExtrinsicBuilderProtocol {
+        switch version {
+        case .V4:
+            try builder.with(address: MultiAddress.accoundId(accountId))
+        case .V5:
+            try builder.with(address: BytesCodable(wrappedValue: accountId))
+        }
     }
 }
 

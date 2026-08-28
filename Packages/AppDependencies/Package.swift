@@ -5,7 +5,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "extrinsic-service-ios",
         url: "https://github.com/novasamatech/extrinsic-service-ios",
-        version: .exact("1.12.0"),
+        version: .exact("1.13.0"),
         products: ["ExtrinsicService"]
     ),
     .init(
@@ -50,7 +50,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "substrate-sdk-ios",
         url: "https://github.com/novasamatech/substrate-sdk-ios",
-        version: .exact("5.10.0"),
+        version: .exact("5.11.0"),
         products: [
             "SubstrateSdk",
             "SubstrateMetadataHash"

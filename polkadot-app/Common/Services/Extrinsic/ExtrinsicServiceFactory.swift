@@ -21,7 +21,8 @@ final class ExtrinsicServiceFactory {
     private let metadataHashOperationFactory: MetadataHashOperationFactoryProtocol
     private let customFeeEstimator: ExtrinsicCustomFeeEstimatingFactoryProtocol
     private let transactionExtensionFactory: ExtrinsicTransactionExtensionMaking
-    private let extrinsicVersion: Extrinsic.Version
+    private let explicitExtrinsicVersion: Extrinsic.Version?
+    private let versionProvider: ExtrinsicVersionProviding
     private let logger: LoggerProtocol
 
     init(
@@ -29,7 +30,8 @@ final class ExtrinsicServiceFactory {
         substrateStorageFacade: StorageFacadeProtocol,
         customFeeEstimator: ExtrinsicCustomFeeEstimatingFactoryProtocol,
         transactionExtensionFactory: ExtrinsicTransactionExtensionMaking,
-        extrinsicVersion: Extrinsic.Version = .V5(extensionVersion: 0),
+        extrinsicVersion: Extrinsic.Version? = nil,
+        versionProvider: ExtrinsicVersionProviding = ExtrinsicVersionProvider(),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
@@ -45,7 +47,8 @@ final class ExtrinsicServiceFactory {
         )
 
         self.operationQueue = operationQueue
-        self.extrinsicVersion = extrinsicVersion
+        explicitExtrinsicVersion = extrinsicVersion
+        self.versionProvider = versionProvider
         self.customFeeEstimator = customFeeEstimator
         self.transactionExtensionFactory = transactionExtensionFactory
         self.logger = logger
@@ -64,6 +67,7 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
         let connection = try chainRegistry.getConnectionOrError(for: chain.chainId)
         let runtimeProvider = try chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
         let chainModel = try chainRegistry.getChainOrError(for: chain.chainId)
+        let extrinsicVersion = resolveExtrinsicVersion(for: chain)
 
         let host = ExtrinsicFeeEstimatorHost(
             chain: chain,
@@ -101,6 +105,7 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
         let connection = try chainRegistry.getConnectionOrError(for: chain.chainId)
         let runtimeProvider = try chainRegistry.getRuntimeProviderOrError(for: chain.chainId)
         let chainModel = try chainRegistry.getChainOrError(for: chain.chainId)
+        let extrinsicVersion = resolveExtrinsicVersion(for: chain)
 
         let host = ExtrinsicFeeEstimatorHost(
             chain: chain,
@@ -135,6 +140,14 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
 }
 
 private extension ExtrinsicServiceFactory {
+    /// Explicit caller override wins; otherwise native submissions keep the V5 format and only the
+    /// extension version is sourced per-chain from remote config (default 0). This preserves the
+    /// previous `.V5(extensionVersion: 0)` default while making the version configurable — the format
+    /// is never flipped to V4 for chains the provider does not special-case.
+    func resolveExtrinsicVersion(for chain: ChainProtocol) -> Extrinsic.Version {
+        explicitExtrinsicVersion ?? .V5(extensionVersion: versionProvider.extensionVersion(for: chain.chainId))
+    }
+
     func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {
         let base = try DefaultExtrinsicSubmitter(
             operationFactory: createOperationFactory(chain: chain),

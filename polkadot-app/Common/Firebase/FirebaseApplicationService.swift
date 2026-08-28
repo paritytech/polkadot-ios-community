@@ -88,6 +88,17 @@ final class FirebaseApplicationService: RemoteConfigManaging {
         remoteConfig[.collectiblesEnabled].boolValue
     }
 
+    func syncedTxExtensionVersions() -> [ChainModel.Id: UInt8] {
+        guard let json = remoteConfig[.txExtensionVersions].jsonValue as? [String: Any] else {
+            return [:]
+        }
+
+        return json.reduce(into: [:]) { result, entry in
+            guard let number = entry.value as? NSNumber else { return }
+            result[entry.key] = number.uint8Value
+        }
+    }
+
     func syncedAppConfig() -> RemoteAppConfig {
         RemoteAppConfig(
             identityBackendUrl: url(for: .identityBackendUrl),
@@ -228,6 +239,7 @@ private extension String {
     static let w3sMerchants = "w3s_merchants"
     static let collectiblesFallbackURL = "collectibles_fallback_url"
     static let collectiblesEnabled = "collectibles_enabled"
+    static let txExtensionVersions = "transaction_extension_versions"
     static let identityBackendUrl = "identity_backend_url"
     static let ipfsGatewayUrl = "ipfs_gateway_url"
     static let gameDashboardUrl = "game_dashboard_url"

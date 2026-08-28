@@ -100,6 +100,10 @@ private final class StubRemoteConfig: RemoteConfigManaging, @unchecked Sendable 
         true
     }
 
+    func syncedTxExtensionVersions() -> [ChainModel.Id: UInt8] {
+        [:]
+    }
+
     func fetchRemoteConfigValues() {}
 
     func asyncWaitChainsForRemoteConfigValues() -> CompoundOperationWrapper<[RemoteChainModel]> {
