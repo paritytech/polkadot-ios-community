@@ -38,10 +38,8 @@ private extension AutoAllowProductPermissionRequester {
     /// differs per network, and resolving it here would put a network call in
     /// front of an auto-allow.
     func isAutoAllowed(productId: String) -> Bool {
-        let components = productId.components(separatedBy: ".")
+        guard let name = ProductHost.name(fromDotDomain: productId) else { return false }
 
-        guard components.count >= 2 else { return false }
-
-        return allowedLabels.contains(components.dropLast().joined(separator: "."))
+        return allowedLabels.contains(name)
     }
 }

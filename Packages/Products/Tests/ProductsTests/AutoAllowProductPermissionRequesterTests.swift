@@ -74,4 +74,18 @@ struct AutoAllowProductPermissionRequesterTests {
         #expect(wrapped.promptCalls.count == 1)
         #expect(wrapped.promptCalls.first?.productId == "getcash")
     }
+
+    @Test("prompt delegates productId with an empty root label")
+    func promptDelegatesEmptyRootLabel() async throws {
+        let (requester, wrapped) = makeSUT(wrappedDecision: .deny)
+
+        let decision = await requester.prompt(
+            productId: "getcash..dot",
+            permission: .balanceAccess
+        )
+
+        #expect(decision == .deny)
+        #expect(wrapped.promptCalls.count == 1)
+        #expect(wrapped.promptCalls.first?.productId == "getcash..dot")
+    }
 }
