@@ -497,6 +497,17 @@ container.handleThemeSubscribe((_params, send, _interrupt) => {
   );
 });
 
+// --- Locale ---
+
+container.handleLocaleSubscribe((_params, send, _interrupt) => {
+  return subscribeNative(
+    'localeSubscribe',
+    {},
+    (result: any) => send({ languageTag: result.languageTag }),
+    () => send({ languageTag: 'en' }),
+  );
+});
+
 // --- Login ---
 
 container.handleRequestLogin((_params, { ok }) => {

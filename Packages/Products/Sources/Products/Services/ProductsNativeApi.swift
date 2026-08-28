@@ -83,6 +83,9 @@ public protocol ProductsNativeApiProtocol: AnyObject {
 
     // Theme
     func subscribeTheme() async -> AnyAsyncSequence<ProductTheme>
+
+    // Locale
+    func subscribeLocale() async -> AnyAsyncSequence<String>
 }
 
 // MARK: - Account
