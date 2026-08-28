@@ -5709,6 +5709,16 @@
     }
   };
 
+  // src/statement-topics.ts
+  var STATEMENT_TOPIC_BYTES = 32;
+  function validateStatementTopics(topics) {
+    const invalid = topics.find((topic) => topic.length !== STATEMENT_TOPIC_BYTES);
+    if (invalid === void 0)
+      return null;
+    const asUtf8 = new TextDecoder().decode(invalid);
+    return `Statement topic must be ${STATEMENT_TOPIC_BYTES} bytes, got ${invalid.length}: ${toHex2(invalid)} ("${asUtf8}")`;
+  }
+
   // src/index.ts
   var _nativeFetch = window.fetch.bind(window);
   var _NativeXMLHttpRequest = window.XMLHttpRequest;
@@ -5774,13 +5784,6 @@
     } catch {
     }
   }
-  var _createElement = document.createElement.bind(document);
-  freezeValue(document, "createElement", (tagName, options) => {
-    if (tagName.toLowerCase() === "iframe") {
-      throw new Error("iframe creation is not allowed");
-    }
-    return _createElement(tagName, options);
-  });
   window.__HOST_WEBVIEW_MARK__ = true;
   var { callNative, subscribeNative } = createNativeTransport((message) => {
     const json = JSON.stringify(message);
@@ -6173,7 +6176,14 @@
       }
     });
   };
-  container.handleStatementStoreSubscribe((filter, send, _interrupt) => {
+  container.handleStatementStoreSubscribe((filter, send, interrupt) => {
+    const topicError = validateStatementTopics(filter.value);
+    if (topicError) {
+      console.error(topicError);
+      interrupt(void 0);
+      return () => {
+      };
+    }
     const topicsHex = filter.value.map((t) => toHex2(t));
     const wireFilter = filter.tag === "MatchAll" ? { matchAll: topicsHex } : { matchAny: topicsHex };
     const unsub = subscribeNative(
@@ -6196,6 +6206,9 @@
     return unsub;
   });
   container.handleStatementStoreCreateProof(async ([account, statement], { ok: ok2, err: err2 }) => {
+    const topicError = validateStatementTopics(statement.topics);
+    if (topicError)
+      return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProof", {
         account: toNativeAccountId(account),
@@ -6213,6 +6226,9 @@
     }
   });
   container.handleStatementStoreSubmit(async (statement, { ok: ok2, err: err2 }) => {
+    const topicError = validateStatementTopics(statement.topics);
+    if (topicError)
+      return err2(new GenericError({ reason: topicError }));
     try {
       const proofValue = statement.proof.value;
       await callNative("statementStoreSubmit", {
@@ -6232,6 +6248,9 @@
     }
   });
   container.handleStatementStoreCreateProofAuthorized(async (statement, { ok: ok2, err: err2 }) => {
+    const topicError = validateStatementTopics(statement.topics);
+    if (topicError)
+      return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProofAuthorized", {
         channel: statement.channel ? toHex2(statement.channel) : void 0,
