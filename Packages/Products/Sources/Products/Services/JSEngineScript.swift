@@ -2,6 +2,7 @@ import Foundation
 
 /// Describes when and where JavaScript is injected into web content.
 public struct JSEngineScript: Sendable {
+    /// Selects when the script is injected into a document.
     public enum InsertionPoint: Sendable {
         case atDocStart
         case atDocEnd
