@@ -27,6 +27,7 @@ import {
 import { createNativeTransport } from './native-transport';
 import { ConnectionManager } from './connection-manager';
 import { WebRtcManager } from './webrtc-manager';
+import { validateStatementTopics } from './statement-topics';
 
 // =============================================================================
 // Isolation: Capture private refs BEFORE locking down globals.
@@ -116,13 +117,15 @@ if (navigator.serviceWorker) {
 }
 
 // --- DOM: block iframe creation ---
-const _createElement = document.createElement.bind(document);
-freezeValue(document, 'createElement', (tagName: string, options?: ElementCreationOptions) => {
-  if (tagName.toLowerCase() === 'iframe') {
-    throw new Error('iframe creation is not allowed');
-  }
-  return _createElement(tagName, options);
-});
+// TODO: temporary — allowing iframes while we explore a universal solution.
+//       Re-enable/replace this block once that lands.
+// const _createElement = document.createElement.bind(document);
+// freezeValue(document, 'createElement', (tagName: string, options?: ElementCreationOptions) => {
+//   if (tagName.toLowerCase() === 'iframe') {
+//     throw new Error('iframe creation is not allowed');
+//   }
+//   return _createElement(tagName, options);
+// });
 
 (window as any).__HOST_WEBVIEW_MARK__ = true;
 
@@ -614,7 +617,14 @@ container.handleChatActionSubscribe((_params, send, _interrupt) => {
 
 // --- Statement Store ---
 
-container.handleStatementStoreSubscribe((filter, send, _interrupt) => {
+container.handleStatementStoreSubscribe((filter, send, interrupt) => {
+  const topicError = validateStatementTopics(filter.value);
+  if (topicError) {
+    console.error(topicError);
+    interrupt(undefined);
+    return () => {};
+  }
+
   const topicsHex = filter.value.map((t) => toHex(t));
   const wireFilter = filter.tag === 'MatchAll' ? { matchAll: topicsHex } : { matchAny: topicsHex };
   const unsub = subscribeNative(
@@ -640,6 +650,9 @@ container.handleStatementStoreSubscribe((filter, send, _interrupt) => {
 // TODO: Remove when all migrate to authorized version
 //  Switch to product-derived account once the chain supports granting allowances (e.g. zk vouchers).
 container.handleStatementStoreCreateProof(async ([account, statement], { ok, err }) => {
+  const topicError = validateStatementTopics(statement.topics);
+  if (topicError) return err(new StatementProofErr.Unknown({ reason: topicError }));
+
   try {
     const result = await callNative('createStatementProof', {
       account: toNativeAccountId(account),
@@ -658,6 +671,9 @@ container.handleStatementStoreCreateProof(async ([account, statement], { ok, err
 });
 
 container.handleStatementStoreSubmit(async (statement, { ok, err }) => {
+  const topicError = validateStatementTopics(statement.topics);
+  if (topicError) return err(new GenericError({ reason: topicError }));
+
   try {
     const proofValue = (statement.proof as any).value;
     await callNative('statementStoreSubmit', {
@@ -680,6 +696,9 @@ container.handleStatementStoreSubmit(async (statement, { ok, err }) => {
 // --- Statement Store Create Proof Authorized (RFC-0010) ---
 
 container.handleStatementStoreCreateProofAuthorized(async (statement, { ok, err }) => {
+  const topicError = validateStatementTopics(statement.topics);
+  if (topicError) return err(new StatementProofErr.Unknown({ reason: topicError }));
+
   try {
     const result = await callNative('createStatementProofAuthorized', {
       channel: statement.channel ? toHex(statement.channel) : undefined,
