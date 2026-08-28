@@ -16,6 +16,7 @@ final class TabBarBottomChromeController: UIViewController {
     private let barView = DSTabBarView()
     private let floatingWidgetContainerView = MainTabBarFloatingWidgetStackView()
     private let tabsPanelView = DSTabBarTabsPanelView()
+    private let contentPanelView = DSTabBarContentPanelView()
 
     private var widgetControllers: [AppWidgetID: AppWidgetContentViewController] = [:]
     private weak var contentSafeAreaAdjustedViewController: UIViewController?
@@ -36,11 +37,13 @@ final class TabBarBottomChromeController: UIViewController {
     private var foldAnimator: UIViewPropertyAnimator?
     private var panelAnimator: UIViewPropertyAnimator?
     private var foldOffsetWidth: CGFloat?
+    private var openPanel: TabBarPanelKind?
 
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
     var onCentreHalfTapped: ((DSTabBarCentreSlot.Half) -> Void)?
     var onChipTapped: ((UUID) -> Void)?
     var onChipCloseRequested: ((UUID) -> Void)?
+    var onTrailingSlotTapped: (() -> Void)?
 
     private var occupiedHeight: CGFloat {
         guard TabBarVisibilityPolicy.contributesClearance(isTabRoot: isTabRoot) else {
@@ -72,6 +75,7 @@ final class TabBarBottomChromeController: UIViewController {
         installBar()
         installFloatingWidgetContainer()
         installTabsPanel()
+        installContentPanel()
         installWidgetsIfNeeded()
 
         installOutsideTapRecognizer()
@@ -118,27 +122,52 @@ final class TabBarBottomChromeController: UIViewController {
         tabsPanelView.closeActionTitle = String(localized: .Common.close)
 
         if chips.isEmpty || availablePanelHeight <= 0 {
-            setPanelOpen(false, animated: true)
+            if openPanel == .spaTabs {
+                setPanel(nil, animated: true)
+            }
             return
         }
 
-        let animator = isPanelOpen ? makePanelAnimator() : nil
+        let animator = openPanel == .spaTabs ? makePanelAnimator() : nil
         updateGlassContainerHeight(animator: animator)
         animator?.startAnimation()
     }
 
-    func setPanelOpen(_ open: Bool, animated: Bool) {
+    func setPanel(_ kind: TabBarPanelKind?, animated: Bool) {
         let animator = animated ? makePanelAnimator() : nil
 
-        tabsPanelView.setOpen(open, animator: animator)
-        barView.isPanelOpen = open
-        (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = open
+        tabsPanelView.setOpen(kind == .spaTabs, animator: animator)
+        contentPanelView.setOpen(kind == .content, animator: animator)
+        barView.isPanelOpen = kind == .spaTabs
+        barView.isTrailingPanelOpen = kind == .content
+        (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
+        openPanel = kind
         updateGlassContainerHeight(animator: animator)
 
         animator?.startAnimation()
     }
 
-    var isPanelOpen: Bool { tabsPanelView.isOpen }
+    func togglePanel(_ kind: TabBarPanelKind) {
+        setPanel(openPanel == kind ? nil : kind, animated: true)
+    }
+
+    func setTrailingPanel(slot: DSTabBarTrailingSlot?, content: (any HashableContentConfiguration)?) {
+        barView.setTrailingSlot(slot)
+        contentPanelView.setConfiguration(content)
+
+        guard openPanel == .content else {
+            return
+        }
+
+        guard slot != nil else {
+            setPanel(nil, animated: true)
+            return
+        }
+
+        let animator = makePanelAnimator()
+        updateGlassContainerHeight(animator: animator)
+        animator.startAnimation()
+    }
 
     func apply(
         _ context: TabBarChromeContext,
@@ -272,7 +301,7 @@ private extension TabBarBottomChromeController {
 
         state = newState
         if newState != .shown {
-            setPanelOpen(false, animated: false)
+            setPanel(nil, animated: false)
         }
         applyVisibility(newState, animated: true, initialVelocity: foldVelocity)
     }
@@ -379,7 +408,7 @@ private extension TabBarBottomChromeController {
             setUserOverride(.shown, velocityX: 0)
             return
         }
-        setPanelOpen(false, animated: true)
+        setPanel(nil, animated: true)
     }
 
     /// One animator drives the panel contents and the container resize so they cannot drift apart.
@@ -401,9 +430,15 @@ private extension TabBarBottomChromeController {
     }
 
     func updateGlassContainerHeight(animator: UIViewPropertyAnimator?) {
-        let containerHeight = isPanelOpen
-            ? tabsPanelView.preferredHeight(availableHeight: availablePanelHeight)
-            : DSTabBarView.capsuleHeight
+        let containerHeight: CGFloat =
+            switch openPanel {
+            case .spaTabs:
+                tabsPanelView.preferredHeight(availableHeight: availablePanelHeight)
+            case .content:
+                contentPanelView.preferredHeight(availableHeight: availablePanelHeight)
+            case nil:
+                DSTabBarView.capsuleHeight
+            }
 
         guard containerHeight != appliedGlassContainerHeight else {
             return
@@ -437,6 +472,10 @@ private extension TabBarBottomChromeController {
         barView.onCentreHalfTapped = { [weak self] half in
             self?.onCentreHalfTapped?(half)
         }
+
+        barView.onTrailingSlotTapped = { [weak self] in
+            self?.onTrailingSlotTapped?()
+        }
     }
 
     func installFloatingWidgetContainer() {
@@ -460,6 +499,16 @@ private extension TabBarBottomChromeController {
 
         tabsPanelView.onChipTapped = { [weak self] id in self?.onChipTapped?(id) }
         tabsPanelView.onChipCloseRequested = { [weak self] id in self?.onChipCloseRequested?(id) }
+    }
+
+    func installContentPanel() {
+        glassContainer.contentView.insertSubview(contentPanelView, belowSubview: barView)
+
+        contentPanelView.snp.makeConstraints { make in
+            make.top.equalToSuperview()
+            make.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(barView.snp.top)
+        }
     }
 
     func installWidgetsIfNeeded() {

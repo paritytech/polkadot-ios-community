@@ -1,4 +1,5 @@
 import UIKit
+import DesignSystem
 
 public final class DSTabBarView: UIView {
     private var itemsStorage: [DSTabBarItem] = []
@@ -60,14 +61,27 @@ public final class DSTabBarView: UIView {
 
     public var onCentreHalfTapped: ((DSTabBarCentreSlot.Half) -> Void)?
 
+    public var isTrailingPanelOpen: Bool = false {
+        didSet {
+            guard isTrailingPanelOpen != oldValue else { return }
+            updateTrailingIconTint()
+            rebuildAccessibilityElements()
+        }
+    }
+
+    public var onTrailingSlotTapped: (() -> Void)?
+
     private let content = UIView()
     private let lens = DSTabBarSelectionLens()
     private let centreSlotView = DSTabBarCentreSlotView()
+    private var trailingSlot: DSTabBarTrailingSlot?
+    private let trailingIconView = UIImageView()
 
     private var itemViews: [DSTabBarItemView] = []
     private var selectedItemViews: [DSTabBarItemView] = []
 
     private var dragState: (startX: CGFloat, currentX: CGFloat, index: Int)?
+    private lazy var trailingElement = UIAccessibilityElement(accessibilityContainer: self)
 
     public var isFolded: Bool = false
 
@@ -122,6 +136,21 @@ public final class DSTabBarView: UIView {
         centreSlotView.setAccessibility(qrLabel: qrLabel, tabsLabel: tabsLabel)
     }
 
+    public func setTrailingSlot(_ slot: DSTabBarTrailingSlot?) {
+        let presenceChanged = (trailingSlot != nil) != (slot != nil)
+        trailingSlot = slot
+
+        trailingIconView.image = slot?.icon
+        trailingElement.accessibilityLabel = slot?.accessibilityLabel
+        trailingIconView.isHidden = slot == nil
+
+        if presenceChanged {
+            animateRowReflow()
+        } else {
+            setNeedsLayout()
+        }
+    }
+
     override public func layoutSubviews() {
         super.layoutSubviews()
 
@@ -149,7 +178,8 @@ private extension DSTabBarView {
         DSTabBarRow(
             width: DSTabBarGeometry.rowWidth(capsuleWidth: bounds.width),
             itemCount: items.count,
-            isCentreExpanded: spaTabCount > 0
+            isCentreExpanded: spaTabCount > 0,
+            hasTrailingSlot: trailingSlot != nil
         )
     }
 
@@ -183,6 +213,15 @@ private extension DSTabBarView {
         content.addSubview(lens)
         lens.contentView.addSubview(centreSlotView)
         centreSlotView.isHidden = true
+
+        trailingIconView.contentMode = .scaleAspectFit
+        trailingIconView.tintColor = UIColor.fgSecondary
+        lens.contentView.addSubview(trailingIconView)
+        trailingIconView.isHidden = true
+
+        registerForTraitChanges([DSThemeTrait.self]) { (view: DSTabBarView, _) in
+            view.updateTrailingIconTint()
+        }
     }
 
     func setupGesture() {
@@ -193,6 +232,10 @@ private extension DSTabBarView {
     func setupAccessibility() {
         accessibilityTraits = .tabBar
         isAccessibilityElement = false
+    }
+
+    func updateTrailingIconTint() {
+        trailingIconView.tintColor = isTrailingPanelOpen ? UIColor.fgPrimary : UIColor.fgSecondary
     }
 
     func rebuildItemViews() {
@@ -223,6 +266,17 @@ private extension DSTabBarView {
             selectedItemViews[index].frame = frame
         }
         rebuildAccessibilityElements()
+
+        if let trailingFrame = row.trailingSlotFrame {
+            let iconSize = DSTabBarMetrics.iconSize
+            trailingIconView.frame = CGRect(
+                x: trailingFrame.midX - iconSize / 2,
+                y: trailingFrame.midY - iconSize / 2,
+                width: iconSize,
+                height: iconSize
+            )
+        }
+        trailingIconView.isHidden = trailingSlot == nil
 
         guard let centreIndex = row.centreIndex, let slot = centreSlotFrame else {
             return
@@ -260,7 +314,7 @@ private extension DSTabBarView {
             frame.origin.x = DSTabBarGeometry.clampedPillOriginX(
                 dragState.currentX,
                 pillWidth: frame.width,
-                rowWidth: row.width
+                rowWidth: row.draggableWidth
             )
             resolvedPillFrame = frame
         } else if isCentreLensParked, let centreIndex = row.centreIndex {
@@ -285,8 +339,9 @@ private extension DSTabBarView {
             guard !isFolded else {
                 return
             }
-            let locationX = recognizer.location(in: lens).x
-            let index = resolvedItemIndex(atX: locationX)
+            guard case let .item(index) = resolvedTarget(atX: recognizer.location(in: lens).x) else {
+                return
+            }
             let pill = pillFrame(forItemAt: index)
             dragState = (startX: pill.minX, currentX: pill.minX, index: index)
             updateLens(animated: true)
@@ -326,6 +381,9 @@ private extension DSTabBarView {
         switch decision {
         case .select:
             guard let dragIndex else {
+                if !isFolded, case .trailing = resolvedTarget(atX: recognizer.location(in: lens).x) {
+                    onTrailingSlotTapped?()
+                }
                 return
             }
             if dragIndex == row.centreIndex, let slot = openCentreSlotFrame {
@@ -358,12 +416,22 @@ private extension DSTabBarView {
     }
 
     func rebuildAccessibilityElements() {
-        accessibilityElements = items.enumerated().flatMap { index, item -> [Any] in
+        var elements: [Any] = items.enumerated().flatMap { index, item -> [Any] in
             if index == row.centreIndex, spaTabCount > 0 {
                 return centreSlotView.accessibilityElements ?? []
             }
             return [itemAccessibilityElement(for: item, at: index)]
         }
+
+        if trailingSlot != nil {
+            trailingElement.accessibilityTraits = isTrailingPanelOpen ? [.button, .selected] : [.button]
+            if let trailingFrame = row.trailingSlotFrame {
+                trailingElement.accessibilityFrameInContainerSpace = lens.convert(trailingFrame, to: self)
+            }
+            elements.append(trailingElement)
+        }
+
+        accessibilityElements = elements
     }
 
     func itemAccessibilityElement(for item: DSTabBarItem, at index: Int) -> UIAccessibilityElement {
@@ -376,7 +444,20 @@ private extension DSTabBarView {
     }
 }
 
+enum DSTabBarTouchTarget {
+    case item(Int)
+    case trailing
+}
+
 extension DSTabBarView {
+    func resolvedTarget(atX xPosition: CGFloat) -> DSTabBarTouchTarget {
+        if let trailingFrame = row.trailingSlotFrame,
+           xPosition >= trailingFrame.minX, xPosition <= trailingFrame.maxX {
+            return .trailing
+        }
+        return .item(resolvedItemIndex(atX: xPosition))
+    }
+
     func resolvedItemIndex(atX xPosition: CGFloat) -> Int {
         if let slot = openCentreSlotFrame,
            let centreIndex = row.centreIndex,

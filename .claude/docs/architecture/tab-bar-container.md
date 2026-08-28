@@ -19,14 +19,17 @@ The container mounts **either a tab or an SPA browser tab** — `TabBarContentSe
 | Fold state machine | `polkadot-app/Modules/MainTabBar/Chrome/TabBarFoldPolicy.swift` |
 | Bar, widgets and safe-area insets | `polkadot-app/Modules/MainTabBar/Chrome/TabBarBottomChromeController.swift` |
 | Chrome apply input | `polkadot-app/Modules/MainTabBar/Chrome/TabBarChromeContext.swift` |
+| Panel kinds | `polkadot-app/Modules/MainTabBar/Chrome/TabBarPanelKind.swift` |
 | Bar view and its parts | `Packages/PolkadotUI/Sources/Components/DSTabBar/` |
 | Row geometry (`DSTabBarRow`) | `Packages/PolkadotUI/Sources/Components/DSTabBar/DSTabBarGeometry.swift` |
 | Centre slot geometry / state | `Packages/PolkadotUI/Sources/Components/DSTabBar/DSTabBarCentreSlot.swift` |
 | Centre slot view | `.../DSTabBar/DSTabBarCentreSlotView.swift`, `DSTabBarTabsGlyphView.swift` |
 | Tabs panel | `.../DSTabBar/DSTabBarTabsPanelView.swift`, `DSTabBarPanelLayout.swift`, `DSTabBarChipView.swift` |
+| Trailing slot and content panel | `.../DSTabBar/DSTabBarTrailingSlot.swift`, `DSTabBarContentPanelView.swift` |
 | Chrome glass surface | `Packages/PolkadotUI/Sources/Components/DSGlassBackground/` |
 | SPA tab store and controller pool | `polkadot-app/Modules/Browser/` |
 | SPA chip view models | `polkadot-app/Modules/MainTabBar/SPATabChipViewModel.swift` |
+| Placeholder trailing content | `polkadot-app/Modules/MainTabBar/TabBarPanelPlaceholderContent.swift` |
 | `topmostViewController` | `Packages/UIKitExt/Sources/UIWindow/UIWindow+keyWindow.swift` |
 | `mainTabBarController` | `polkadot-app/Common/Extension/UIApplication+MainContainer.swift` |
 
@@ -84,6 +87,8 @@ Pop-to-root matches `UITabBarController`. Scroll-to-top is the addition and fire
 
 `DSTabSelectionRecognizer` tracks a single touch beginning anywhere `DSTabBarView.hitTest` claims — the capsule only. The folded bar's tap target lives on `TabBarChromePassthroughView`, which is full-bleed and can receive touches at the screen edge that the inset container cannot; a tap there routes through `setUserOverride(.shown,)`, the same path `onFoldChangeRequested` uses. The recognizer cancels once vertical travel exceeds `DSTabBarMetrics.selectionCancelVerticalSlop`; horizontal travel never cancels, since it drives drag-across-tabs (clamped by `DSTabBarGeometry.clampedPillOriginX`).
 
+Touch-to-item resolution is now `resolvedTarget(atX:) -> DSTabBarTouchTarget` (`.item(Int)` or `.trailing`), tested in order: trailing slot frame, centre slot, then nearest item. A press beginning on the trailing slot creates no `dragState`, so the lens never lifts or parks there. Only `.item` taps can drag or perform selection; `.trailing` fires `onTrailingSlotTapped` in the `.ended / .select` branch, guarded by `!isFolded` to match the `.began` phase.
+
 Cancelling does *not* hand the touch to the scroll view underneath — UIKit hit-tests once at `touchesBegan`, not on every move.
 
 **Two accepted gaps**, reviewed and kept deliberately — neither is an undiscovered bug:
@@ -97,9 +102,11 @@ They are coupled — raising the slop widens the second, lowering it widens the 
 
 When at least one SPA browser tab is open (`DSTabBarView.spaTabCount > 0`), the **centre item widens to a double-width slot** split into two halves: QR (Scan) on the left, an open-tabs glyph on the right, separated by a hairline divider.
 
-Layout comes from `DSTabBarRow`, which replaced the free functions on `DSTabBarGeometry`. The row divides its width into *units*, not items: `unitCount == itemCount + (isCentreExpanded ? 1 : 0)`, and the centre item spans two units. `centreIndex` is `itemCount / 2` — the centre is positional, so it follows the tab list rather than naming `.scan`. All widths stay derived; nothing is hardcoded per tab count.
+Layout comes from `DSTabBarRow`, which replaced the free functions on `DSTabBarGeometry`. The row divides its width into *units*, not items: `unitCount == itemCount + (isCentreExpanded ? 1 : 0) + (hasTrailingSlot ? 1 : 0)`, and the centre item spans two units. `centreIndex` is `itemCount / 2` — the centre is positional, so it follows the tab list rather than naming `.scan`. **`centreIndex` does not account for the trailing slot,** so it remains at the geometric mid-point of items alone. Consequence: the centre slot is no longer at the capsule's optical centre when the trailing slot is visible. This is accepted.
 
-The real `DSTabBarItemView` at `centreIndex` is hidden while expanded and `DSTabBarCentreSlotView` draws both halves instead. That view is **not interactive** — the existing `DSTabSelectionRecognizer` still owns the touch. `resolvedItemIndex(atX:)` maps any x inside the slot to `centreIndex` (bypassing nearest-centre search, which would otherwise split the wide slot between neighbours), and on `.select` `DSTabBarCentreSlot.half(atX:inSlot:)` decides which half fired. A QR half-tap falls through to normal selection; a tabs half-tap reports via `onCentreHalfTapped` and returns without committing selection.
+All widths stay derived; nothing is hardcoded per tab count. `itemFrame(at:)` and `trailingSlotFrame` both dispatch to a shared private `unitFrame(atUnitIndex:span:)`.
+
+The real `DSTabBarItemView` at `centreIndex` is hidden while expanded and `DSTabBarCentreSlotView` draws both halves instead. That view is **not interactive** — the existing `DSTabSelectionRecognizer` still owns the touch. `resolvedTarget(atX:)` returns `.item(centreIndex)` for any x inside the slot (bypassing nearest-centre search, which would otherwise split the wide slot between neighbours), and on `.select` `DSTabBarCentreSlot.half(atX:inSlot:)` decides which half fired. A QR half-tap falls through to normal selection; a tabs half-tap reports via `onCentreHalfTapped` and returns without committing selection.
 
 Active state is derived, not stored twice — `isTabsActive = isPanelOpen || isSPAMounted`, and `isQRActive = isQRSelected && !isTabsActive`. While tabs is active the selection lens **parks on the centre slot** (`isCentreLensParked`) regardless of which tab is actually selected, and the selected tab's accessibility element drops its `.selected` trait to match.
 
@@ -115,17 +122,33 @@ One `.capsule` shape serves both states: a true capsule at 62pt tall when collap
 
 *Rationale:* Apple's guidance (WWDC 2025 session 284, "Build a UIKit app with the new design") is that glass elements should not overlap — one floating layer, not several merged shapes. Pre-iOS 26, the same surface renders blur + tinted substrate + border + shadow as a single material; the old `setCapsuleGlassHidden` workaround is gone.
 
-## Tabs Panel
+## Tabs Panel and Content Panel
 
 `DSTabBarTabsPanelView` holds open-SPA chips in a scroll view with no background of its own; installed by `TabBarBottomChromeController` and pinned `bottom == barView.top` with `leading/trailing.equalToSuperview()` to fill the container horizontally. Chips are a fixed 5-column grid (`DSTabBarPanelLayout`); height is `min(contentHeight + capsuleHeight, availableHeight)` since the container stacks the panel and the capsule.
 
 - Long-press a chip → context menu with Close (`onChipCloseRequested`).
 - Tap a chip → mount that SPA and close the panel.
-- Panel closes on: outside tap, tab selection, `select(tab:)`, fold to `.folded`, chip list emptying, or no available height.
+- `.spaTabs` panel closes on: outside tap, tab selection, `select(tab:)`, fold to `.folded`, chip list emptying, or no available height.
 
-The outside tap is why `TabBarChromePassthroughView` is no longer purely passthrough: while the panel is open it claims self-hits (`isOutsideTapEnabled`) so the recognizer can fire. The recognizer's delegate accepts only touches landing on the chrome view itself, so bar and widget touches are unaffected. The passthrough view also carries the fold grab zone and checks it *before* the outside-tap flag, so a folded bar unfolds rather than closing the panel.
+The outside tap is why `TabBarChromePassthroughView` is no longer purely passthrough: while any panel is open it claims self-hits (`isOutsideTapEnabled`) so the recognizer can fire. The recognizer's delegate accepts only touches landing on the chrome view itself, so bar and widget touches are unaffected. The passthrough view also carries the fold grab zone and checks it *before* the outside-tap flag, so a folded bar unfolds rather than closing a panel.
 
-Chips reuse views across updates — `setChips` rebuilds only when the id sequence changes, otherwise it re-applies in place, and `DSTabBarChipView.apply` skips icon reload when the id is unchanged.
+Chips reuse views across updates — `setChips` rebuilds only when the id sequence changes, otherwise it re-applies in place, and `DSTabBarChipView.apply` skips icon reload when the id is unchanged. The "chips empty or no available height" auto-close is guarded on `openPanel == .spaTabs` so it does not close an unrelated content panel on SPA mount/unmount.
+
+### Trailing Slot and Content Panel
+
+The row now has an optional trailing chrome button as its last unit. `DSTabBarRow.hasTrailingSlot` joins `isCentreExpanded` in the unit count: `unitCount == itemCount + (isCentreExpanded ? 1 : 0) + (hasTrailingSlot ? 1 : 0)`. Both item and trailing frames derive from `unitFrame(atUnitIndex:span:)`.
+
+`row.draggableWidth` is `trailingSlotFrame?.minX ?? width`, the boundary that `clampedPillOriginX` clamps against, so a drag-across-tabs cannot park the selection pill on the trailing button.
+
+The trailing slot is drawn as a plain template `UIImageView` in `lens.contentView` — no dedicated slot view, unlike the centre slot, because it has no divider or live glyph to own. Tint is `.fgPrimary` while its panel is open, `.fgSecondary` otherwise, refreshed on `DSThemeTrait` changes. A press on it creates no drag state, so the lens never lifts; only the `.ended / .select` branch fires `onTrailingSlotTapped`, guarded by `!isFolded`.
+
+Panel state is now `TabBarBottomChromeController.openPanel: TabBarPanelKind?` (`.spaTabs` / `.content`), replacing separate `isPanelOpen` booleans. Both panels' `setOpen` run through one animator, so closing one panel is automatic when opening another — exclusivity is structural. `setPanel(_:animated:)` replaces the old two-call pattern.
+
+`DSTabBarContentPanelView` hosts any `HashableContentConfiguration` via `makeContentView()` — the same seam `AppWidgetContentViewController` uses — and reuses the content view when `defaultReuseIdentifier` is unchanged. It knows nothing about the content. Content must be self-sizing: height is `systemLayoutSizeFitting` clamped by `DSTabBarPanelLayout.panelHeight(contentHeight:availableHeight:)` (same layout the chips use), and it returns `capsuleHeight` when it has no configuration or no width yet.
+
+Content ownership: `MainTabBarPresenter` pushes a configuration through `MainTabBarViewProtocol.showTabBarPanelContent(_:)`; the view controller builds the `DSTabBarTrailingSlot` (SF Symbol `point.3.connected.trianglepath.dotted`, label from `TabBarTrailingSlot`) and calls `chromeController.setTrailingPanel(slot:content:)`. No configuration means no trailing unit at all and the row reflows — same treatment the centre slot gets when `spaTabCount` crosses 0.
+
+**Placeholder state:** the shipped configuration is `TabBarPanelPlaceholderContentConfiguration` — an explicit placeholder. This is temporary and should be replaced with real content.
 
 ## SPA Hosting
 
@@ -146,4 +169,4 @@ Chip state flows the VIPER way: `MainTabBarInteractor` observes `SPATabManaging`
 
 Add a case to `TabBarItem` (`polkadot-app/Modules/MainTabBar/MainTabBarProtocols.swift`) with a localized `title` and an asset, build the controller in `TabFactory.view(for:)`, and add an `AccessibilityID.Tab` entry. `DSTabBarView` lays items out from `DSTabBarRow`; nothing is hardcoded per tab count.
 
-**Tab count and order affect the centre slot.** `centreIndex` is `itemCount / 2`, and the centre slot's QR half assumes `.scan` sits there. Adding a tab, or reordering `MainTabBarPresenter.tabItems`, moves the slot onto whatever lands in the middle.
+**Tab count affects all unit widths.** `unitWidth` scales with `unitCount`, so adding a tab narrows every item, the centre slot (if expanded), and the trailing slot (if present). `centreIndex` is `itemCount / 2`, so adding a tab moves the centre slot onto whichever item lands in the middle. The centre slot's QR half assumes `.scan` is there; reordering `MainTabBarPresenter.tabItems` moves the slot away from it.

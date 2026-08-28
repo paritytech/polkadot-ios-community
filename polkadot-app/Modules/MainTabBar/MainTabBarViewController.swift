@@ -53,14 +53,18 @@ final class MainTabBarViewController: UIViewController {
             guard let self, half == .tabs else {
                 return
             }
-            chromeController.setPanelOpen(!chromeController.isPanelOpen, animated: true)
+            chromeController.togglePanel(.spaTabs)
+        }
+
+        chromeController.onTrailingSlotTapped = { [weak self] in
+            self?.chromeController.togglePanel(.content)
         }
 
         chromeController.onChipTapped = { [weak self] id in
             guard let self, let tab = browserCoordinator.tabs.first(where: { $0.id == id }) else {
                 return
             }
-            chromeController.setPanelOpen(false, animated: true)
+            chromeController.setPanel(nil, animated: true)
             mountSPA(for: tab)
         }
 
@@ -231,7 +235,7 @@ private extension MainTabBarViewController {
 
 extension MainTabBarViewController {
     func handleSelection(index: Int, isReselection: Bool) {
-        chromeController.setPanelOpen(false, animated: true)
+        chromeController.setPanel(nil, animated: true)
 
         guard tabs.indices.contains(index) else {
             return
@@ -270,7 +274,7 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     }
 
     func select(tab: TabBarItem) {
-        chromeController.setPanelOpen(false, animated: true)
+        chromeController.setPanel(nil, animated: true)
 
         guard let index = tabs.firstIndex(of: tab) else {
             return
@@ -295,6 +299,11 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     func showSPATabs(_ viewModels: [SPATabChipViewModel]) {
         spaChipViewModels = viewModels
         applyChips()
+    }
+
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?) {
+        let slot = configuration == nil ? nil : TabBarTrailingSlotFactory.makeSlot()
+        chromeController.setTrailingPanel(slot: slot, content: configuration)
     }
 }
 

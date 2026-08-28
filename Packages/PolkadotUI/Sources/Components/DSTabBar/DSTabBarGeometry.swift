@@ -69,6 +69,7 @@ struct DSTabBarRow {
     let width: CGFloat
     let itemCount: Int
     let isCentreExpanded: Bool
+    let hasTrailingSlot: Bool
 }
 
 extension DSTabBarRow {
@@ -76,13 +77,19 @@ extension DSTabBarRow {
         itemCount == 0 ? nil : itemCount / 2
     }
 
+    var trailingSlotFrame: CGRect? {
+        guard hasTrailingSlot else {
+            return nil
+        }
+        return unitFrame(atUnitIndex: unitCount - 1, span: 1)
+    }
+
+    var draggableWidth: CGFloat {
+        trailingSlotFrame?.minX ?? width
+    }
+
     func itemFrame(at index: Int) -> CGRect {
-        CGRect(
-            x: DSTabBarMetrics.rowPadding + CGFloat(unitIndex(forItemAt: index)) * unitStride,
-            y: 0,
-            width: unitWidth + CGFloat(unitSpan(forItemAt: index) - 1) * unitStride,
-            height: DSTabBarMetrics.itemHeight
-        )
+        unitFrame(atUnitIndex: unitIndex(forItemAt: index), span: unitSpan(forItemAt: index))
     }
 
     func pillFrame(at index: Int) -> CGRect {
@@ -109,7 +116,7 @@ extension DSTabBarRow {
 
 private extension DSTabBarRow {
     var unitCount: Int {
-        itemCount + (isCentreExpanded ? 1 : 0)
+        itemCount + (isCentreExpanded ? 1 : 0) + (hasTrailingSlot ? 1 : 0)
     }
 
     var unitWidth: CGFloat {
@@ -134,5 +141,14 @@ private extension DSTabBarRow {
             return index
         }
         return index + 1
+    }
+
+    func unitFrame(atUnitIndex unitIndex: Int, span: Int) -> CGRect {
+        CGRect(
+            x: DSTabBarMetrics.rowPadding + CGFloat(unitIndex) * unitStride,
+            y: 0,
+            width: unitWidth + CGFloat(span - 1) * unitStride,
+            height: DSTabBarMetrics.itemHeight
+        )
     }
 }

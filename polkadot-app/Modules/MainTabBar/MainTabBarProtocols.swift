@@ -9,6 +9,7 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
     func select(tab: TabBarItem)
     func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?)
 }
 
 @MainActor
@@ -84,6 +85,18 @@ extension TabBarItem {
             badge: badge.map { _ in .attention },
             accessibilityLabel: title,
             accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue
+        )
+    }
+}
+
+enum TabBarTrailingSlotFactory {
+    static func makeSlot() -> DSTabBarTrailingSlot? {
+        guard let icon = UIImage(systemName: "point.3.connected.trianglepath.dotted") else {
+            return nil
+        }
+        return DSTabBarTrailingSlot(
+            icon: icon.withRenderingMode(.alwaysTemplate),
+            accessibilityLabel: String(localized: .Common.tabBarPanelAccessibility)
         )
     }
 }
