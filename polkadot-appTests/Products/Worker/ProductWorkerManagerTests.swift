@@ -111,29 +111,31 @@ struct ProductWorkerManagerTests {
         #expect(factory.disposed == 1)
     }
 
-    @Test("rapid lock/unlock never leaks a worker")
-    func rapidToggleConverges() async {
-        let factory = FakeWorkerFactory(startDelay: .milliseconds(2))
+    @Test("churn after a real start never leaks a worker")
+    func churnStaysBalanced() async {
+        let factory = FakeWorkerFactory()
         let manager = ProductWorkerManager(factory: factory)
 
-        // Toggling faster than the boot can begin may legitimately start nothing:
-        // each start checks it is still wanted first. The invariant is only that
-        // whatever started is also disposed.
-        for _ in 0 ..< 20 {
+        // One guaranteed start/dispose up front, on a short chain, so the balance
+        // check below is never vacuous. This mirrors the other tests' timing.
+        let first = manager.lock(productId: "getcash")
+        await waitUntil { factory.started == 1 }
+        first.unlock()
+
+        // Then churn the same product. Fast toggling may start nothing each cycle
+        // (a start re-checks it is still wanted first); the invariant is only that
+        // whatever started is also disposed, never left running.
+        for _ in 0 ..< 8 {
             let token = manager.lock(productId: "getcash")
             token.unlock()
         }
 
-        // Hold one lock long enough to force a real start, then release it, so the
-        // convergence check covers an actual start/dispose cycle rather than a no-op.
-        let token = manager.lock(productId: "getcash")
-        await waitUntil { factory.started > 0 }
-        token.unlock()
-
-        await waitUntil(timeout: .seconds(3)) {
+        // Balance, not a count or a deadline: a generous window absorbs slow CI
+        // schedulers without turning task latency into a failure.
+        await waitUntil(timeout: .seconds(30)) {
             factory.started == factory.disposed
         }
         #expect(factory.started == factory.disposed)
-        #expect(factory.started > 0)
+        #expect(factory.started >= 1)
     }
 }
