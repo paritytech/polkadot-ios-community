@@ -28,14 +28,24 @@ extension ServiceCoordinator {
             contentHashCache: ContentHashCache.shared
         )
 
-        let botFactory = ProductBotFactory(
+        let workerFactory = DefaultProductWorkerFactory(
+            productResolver: spaFlowState.productResolver,
+            dotNsResolver: spaFlowState.dotNsResolver,
             productFileProvider: productFileProvider,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             usernameStorage: UsernameStorage(),
             hostProvider: spaFlowState.hostProvider,
-            notificationService: UserNotificationService.shared,
+            accountManager: accountManager,
+            workerOperations: ProductWorkerServices.shared.operations
+        )
+        ProductWorkerServices.shared.configure(factory: workerFactory)
+
+        let botFactory = ProductBotFactory(
+            productFileProvider: productFileProvider,
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            hostProvider: spaFlowState.hostProvider,
             runtimeProvider: truapiRuntimeProvider,
-            accountManager: accountManager
+            workerManager: ProductWorkerServices.shared.manager
         )
 
         let productBotProvider = ProductBotProvider(

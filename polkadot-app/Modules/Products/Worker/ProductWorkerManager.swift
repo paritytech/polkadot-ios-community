@@ -13,6 +13,13 @@ protocol ProductWorkerFactory: Sendable {
     func startWorker(productId: ProductId) async throws -> ProductWorkerRunning
 }
 
+/// A held lock plus the booted worker behind it, for a consumer that needs to
+/// drive the worker (the chat surface) rather than only keep it alive.
+struct ProductWorkerLease: Sendable {
+    let token: ProductWorkerToken
+    let worker: ProductWorkerRunning?
+}
+
 /// Ref-counts a product's worker. The worker starts on the first `lock` and is
 /// disposed once the last lock is released. Consumers (chats screen, the
 /// product's full-page screen, open host-api operations) each hold one lock.
@@ -20,6 +27,10 @@ protocol ProductWorkerManaging: Sendable {
     /// Acquire the product's worker, starting it if this is the first lock.
     /// Balance with `ProductWorkerToken.unlock()` (or let the token deinit).
     func lock(productId: ProductId) -> ProductWorkerToken
+
+    /// Like `lock`, but waits for the boot to finish and hands back the running
+    /// worker so the caller can drive it. Keep-alive consumers use `lock`.
+    func acquire(productId: ProductId) async -> ProductWorkerLease
 }
 
 /// A single lock on a product's worker. Releases exactly once, whichever comes
@@ -59,15 +70,35 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
     }
 
     private let state = OSAllocatedUnfairLock(initialState: [ProductId: Entry]())
-    private let factory: ProductWorkerFactory?
+    private let factoryLock = OSAllocatedUnfairLock<ProductWorkerFactory?>(initialState: nil)
     private let logger: LoggerProtocol
 
     /// `factory` boots the real JS worker on the first lock. It is optional so
     /// ref-counting and operations work before the boot path is wired — with no
     /// factory, `lock`/`unlock` still track consumers but start no JS worker.
-    init(factory: ProductWorkerFactory?, logger: LoggerProtocol = Logger.shared) {
-        self.factory = factory
+    /// It is set once at launch via ``setFactory(_:)`` because building a worker
+    /// needs the product dependency graph, which is assembled after this owner.
+    init(factory: ProductWorkerFactory? = nil, logger: LoggerProtocol = Logger.shared) {
+        factoryLock.withLock { $0 = factory }
         self.logger = logger
+    }
+
+    /// Install the worker-boot factory. Call once at launch, before any lock;
+    /// entries locked while the factory was nil are not retroactively booted.
+    func setFactory(_ factory: ProductWorkerFactory) {
+        factoryLock.withLock { $0 = factory }
+    }
+
+    func acquire(productId: ProductId) async -> ProductWorkerLease {
+        let token = lock(productId: productId)
+
+        // Wait for the boot triggered by (or preceding) this lock. The token
+        // keeps ref count > 0, so no dispose can run while we wait.
+        let lifecycle = state.withLock { $0[productId]?.lifecycle }
+        await lifecycle?.value
+
+        let worker = state.withLock { $0[productId]?.worker }
+        return ProductWorkerLease(token: token, worker: worker)
     }
 
     func lock(productId: ProductId) -> ProductWorkerToken {
@@ -109,8 +140,8 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
             let wanted = state.withLock { ($0[productId]?.refCount ?? 0) > 0 }
             guard wanted else { return }
 
-            // No boot path wired yet: ref-counting still holds, just no JS worker.
-            guard let factory else { return }
+            // No factory installed: ref-counting still holds, just no JS worker.
+            guard let factory = factoryLock.withLock({ $0 }) else { return }
 
             do {
                 let worker = try await factory.startWorker(productId: productId)

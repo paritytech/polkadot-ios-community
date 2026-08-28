@@ -12,6 +12,10 @@ private final class FakeWorkerManager: ProductWorkerManaging, @unchecked Sendabl
         return ProductWorkerToken { [active] in active.withLock { $0 -= 1 } }
     }
 
+    func acquire(productId: ProductId) async -> ProductWorkerLease {
+        ProductWorkerLease(token: lock(productId: productId), worker: nil)
+    }
+
     var activeCount: Int { active.withLock { $0 } }
 }
 

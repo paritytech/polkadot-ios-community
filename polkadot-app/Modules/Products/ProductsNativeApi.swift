@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Coinage
 import Products
 import SubstrateSdk
@@ -9,8 +10,10 @@ import ChainRegistry
 /// Concrete implementation of ``ProductsNativeApiProtocol`` that bridges
 /// JS bot commands to native wallet, chain registry, and chat capabilities.
 final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
-    private(set) weak var bot: (any ChatExtensionBotProtocol)?
-    let context: ChatExtensionDiscoverContextProtocol?
+    /// Chat messaging is bound while a chat surface drives this product's worker
+    /// and cleared when it detaches, so a single shared worker can serve chat
+    /// only while chat is open. Non-chat consumers (SPA, operations) never bind.
+    private let messaging = OSAllocatedUnfairLock<MessagingSupport?>(initialState: nil)
     let chainRegistry: ChainRegistryProtocol
     let usernameStorage: UsernameStoring
     let productsRouter: ProductsRouting
@@ -75,8 +78,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         operationQueue: OperationQueue,
         logger: LoggerProtocol
     ) {
-        bot = messagingSupport?.bot
-        context = messagingSupport?.context
+        messaging.withLock { $0 = messagingSupport }
         self.productId = productId
         self.chainRegistry = chainRegistry
         self.usernameStorage = usernameStorage
@@ -108,5 +110,23 @@ extension ProductsNativeApi {
     struct MessagingSupport {
         weak var bot: (any ChatExtensionBotProtocol)?
         let context: ChatExtensionDiscoverContextProtocol?
+    }
+
+    /// Bind the active chat surface so outgoing messages route to it. Called by
+    /// the chat runtime when it attaches to this product's shared worker.
+    func bindMessaging(_ support: MessagingSupport) {
+        messaging.withLock { $0 = support }
+    }
+
+    /// Clear the chat binding when the chat surface detaches. Outgoing message
+    /// calls then fail with ``ProductNativeApiError/messagesNotSupported``.
+    func unbindMessaging() {
+        messaging.withLock { $0 = nil }
+    }
+
+    /// A single consistent read of the current chat binding, so a rebind cannot
+    /// tear a `bot`/`context` pair across two separate reads.
+    var currentMessaging: MessagingSupport? {
+        messaging.withLock { $0 }
     }
 }

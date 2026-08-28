@@ -81,18 +81,15 @@ Written to be checked while the author is away. Updated as chunks land.
 
 ## Open questions (need the author)
 
-- OQ1 (chat unification, highest risk): today the chat `ProductBot` owns its own worker
-  runtime. For the managed worker to be the single instance the ref count governs, chat has
-  to source its runtime from the manager instead of creating its own. That refactor of
-  `ProductBotProvider`/`ChatExtensionStore`/`ProductBot` cannot be verified without running
-  chat on a device. Options:
-    a. Full unification now (single worker instance; chat, SPA, operations all lock it).
-    b. Minimal: chat keeps its existing worker AND locks the manager, accepting a second
-       (headless) instance until unification is verified on device.
-  Chosen default: see the chunk-5 note in this doc once it lands. Flag for review either way.
-- OQ2: worker headless start. SPA/operations lockers must start the worker without chat
-  `MessagingSupport`. Confirm a worker booted headless (no `onBotStarted`, no bot) is the
-  intended behaviour for a product opened only via its SPA screen.
+- OQ1 (chat unification): RESOLVED. Option a shipped. Chat no longer owns a worker. The
+  native chat runtime is `ManagedChatRuntime`, which locks the shared manager, drives the one
+  booted worker, and binds chat messaging only while the chat surface is alive. SPA,
+  operations and chat now all ref-count a single per-product instance. The one thing CI cannot
+  cover is the live JS chat round-trip (onBotStarted / onUserMessage / chatSendTextMessage on
+  the shared engine); it needs a device smoke test. See the chunk-6 note.
+- OQ2: RESOLVED. Worker headless start is wired. `DefaultProductWorkerFactory` boots the
+  worker with a nil `MessagingSupport`; a product opened only via its SPA screen runs the
+  worker with no bot and no `onBotStarted`, and chat binds messaging later if it attaches.
 - OQ3: `TooManyOpen` cap. host-api allows rejecting `begin` with `WorkerErr.TooManyOpen`.
   Is there a desired per-product open-operation limit? Default: no cap for now.
 - OQ4: operation persistence lifetime. On app relaunch, orphaned persisted operations from a
@@ -181,17 +178,42 @@ Written to be checked while the author is away. Updated as chunks land.
   `SPAViewFactory`).
 - Tests: `ProductWorkerOperationServiceTests`.
 
-### Chunk 5 — lockers (PARTIAL)
+### Chunk 5 — lockers (DONE, native backend)
 - SPA screen: `SPANativeRuntimeInteractor` holds a `ProductWorkerToken` for the product,
   acquired in `SPAViewFactory` and released on the interactor's deinit. So opening a
-  product's full-page screen raises the worker ref count and closing it lowers it. DONE for
-  the native backend.
-- Chat screen: NOT wired. Blocked on OQ1 — wiring chat to lock the manager without unifying
-  chat's existing `ProductBot` worker would double-boot the same product's worker (two JS
-  engines, double storage subscriptions and operation handling). The correct move is to make
-  chat source its worker from the manager (unify), which is the device-verification refactor
-  below.
-- Worker boot factory (`DefaultProductWorkerFactory`): NOT built. See OQ1/OQ2.
+  product's full-page screen raises the worker ref count and closing it lowers it.
+- Chat screen: wired via chunk 6. The native chat runtime now locks the manager instead of
+  booting its own worker, so a bot on the chats screen raises the same ref count.
+
+### Chunk 6 — chat unification (DONE, builds + unit-tested; needs a device smoke test)
+- Worker boot factory `DefaultProductWorkerFactory` now boots the real headless worker: it
+  resolves the product's worker source by id, builds the executor and a headless
+  `ProductsNativeApi`, calls `initializeBot`, and returns a `ProductScriptWorker`. Installed
+  once at launch via `ProductWorkerServices.configure(factory:)` from
+  `ServiceCoordinator+ChatExtension`, where the product dependency graph already exists.
+- `ProductScriptWorker` (`ProductChatWorking`) is the one worker instance the manager owns:
+  it wraps the executor plus its native API and exposes the chat-driving surface
+  (onBotStarted / onUserMessage / renderMessage / dispatchEvent / attach) and messaging
+  bind/unbind. Non-chat consumers only keep it alive through `ProductWorkerRunning.dispose`.
+- `ProductWorkerManager.acquire(productId:)` locks, waits for the boot, and hands back the
+  running worker so chat can drive it; keep-alive consumers still use `lock`.
+- `ManagedChatRuntime` replaces `ChatNativeRuntime` on the native path. It single-flights one
+  lease, binds messaging on `start` (before `onBotStarted`, so a welcome message still
+  routes), forwards chat calls to the shared worker, and on `dispose` unbinds messaging and
+  releases the lock. Chat is now just another ref-count consumer: the worker boots once for
+  whoever needs it first and is torn down when the last of chat / SPA / operations releases.
+- Messaging binding is a mutable, lock-guarded seam on `ProductsNativeApi`
+  (`bindMessaging` / `unbindMessaging`, read once via `currentMessaging`). The bot stays weak,
+  so the worker never pins the `ProductBot`; `context` is cleared on unbind.
+- `ProductBotFactory` native path shrank to `ManagedChatRuntime(productId:manager:)`; the
+  executor/native-API assembly moved wholesale into `DefaultProductWorkerFactory`. The rust
+  path is unchanged (native-only unification; rust ref-counting is still OQ5).
+- Tests: `ChatRuntimeTests` native cases rewritten to drive `ManagedChatRuntime` against a
+  fake manager + worker (bind + start, forward, dispose unbinds and releases). Rust cases
+  untouched. `ProductWorkerManagerTests` / `ProductWorkerOperationServiceTests` still green.
+- Device smoke test still owed: open a product's chat, confirm the welcome message and a
+  user-message reply still flow, then open its SPA screen and confirm the worker stays a
+  single instance (one boot, torn down only after both close).
 
 ## What is wired vs pending
 
