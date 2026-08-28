@@ -21,6 +21,7 @@ import {
   SigningErr,
   StatementProofErr,
   StorageErr,
+  WorkerErr,
   fromHex,
   toHex,
 } from '@novasamatech/host-api';
@@ -812,6 +813,35 @@ container.handleLocalStorageClear((key, { ok, err }) => {
     () => ok(undefined),
     (e) => err(new StorageErr.Unknown({ reason: String(e) })),
   );
+});
+
+// Native emits the current value first, then one item per later write/clear.
+// `undefined` (Option None) means the key is cleared or absent.
+container.handleLocalStorageSubscribe(({ key }, send, _interrupt) => {
+  return subscribeNative('localStorageSubscribe', { key }, (result: { value?: string | null }) => {
+    send({ value: result.value != null ? fromHex(result.value) : undefined });
+  });
+});
+
+// --- Worker operations (keep-alive; native ref-counts and persists) ---
+
+container.handleWorkerBeginOperation(async ({ label }, { ok, err }) => {
+  try {
+    const result = await callNative('workerBeginOperation', { label: label ?? undefined });
+    return ok({ id: result.id });
+  } catch (e) {
+    return err(new WorkerErr.Unknown({ reason: String(e) }));
+  }
+});
+
+// Idempotent: ending an unknown or already-ended id still succeeds.
+container.handleWorkerEndOperation(async ({ id }, { ok, err }) => {
+  try {
+    await callNative('workerEndOperation', { id });
+    return ok(undefined);
+  } catch (e) {
+    return err(new WorkerErr.Unknown({ reason: String(e) }));
+  }
 });
 
 // --- Navigation (native-bridged) ---

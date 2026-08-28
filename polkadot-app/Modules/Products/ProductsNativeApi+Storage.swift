@@ -1,4 +1,6 @@
 import Foundation
+import Products
+import AsyncExtensions
 
 // MARK: - Local Storage
 
@@ -13,5 +15,9 @@ extension ProductsNativeApi {
 
     func localStorageClear(key: String) async throws {
         await localStorage.clear(key: key)
+    }
+
+    func subscribeLocalStorage(key: String) -> AnyAsyncSequence<String?> {
+        localStorage.subscribe(key: key)
     }
 }

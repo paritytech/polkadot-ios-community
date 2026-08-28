@@ -37,6 +37,12 @@ public protocol ProductsNativeApiProtocol: AnyObject {
     func localStorageRead(key: String) async throws -> String?
     func localStorageWrite(key: String, value: String) async throws
     func localStorageClear(key: String) async throws
+    func subscribeLocalStorage(key: String) -> AnyAsyncSequence<String?>
+
+    /// Opens a keep-alive operation for the calling product; returns its host-assigned id.
+    func workerBeginOperation(label: String?) async throws -> UInt32
+    /// Closes a keep-alive operation. Idempotent: an unknown or already-ended id still succeeds.
+    func workerEndOperation(id: UInt32) async throws
     func navigateTo(destination: String) async throws
     func allowNetworkAccess(url: String) async throws -> Bool
     func allowWebRtcAccess() async throws -> Bool

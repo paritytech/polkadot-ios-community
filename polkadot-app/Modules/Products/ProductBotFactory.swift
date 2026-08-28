@@ -144,7 +144,8 @@ private extension ProductBotFactory {
             resourceKeyManager: resourceKeyManager,
             sponsorFactory: sponsorFactory,
             substrateStorageFacade: substrateStorageFacade,
-            hostProvider: hostProvider
+            hostProvider: hostProvider,
+            workerOperations: ProductWorkerServices.shared.operations
         )
 
         let scriptExecutor = ProductsScriptExecutor(

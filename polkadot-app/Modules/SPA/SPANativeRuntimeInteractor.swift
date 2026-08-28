@@ -16,6 +16,8 @@ final class SPANativeRuntimeInteractor {
     private let logger: LoggerProtocol
     private let productRepository: AnyDataProviderRepository<Product>
     private let chatProviderFactory: ChatContactDataProviderMaking
+    /// Keeps the product's worker alive while the screen is open; releases on deinit.
+    private let workerLock: ProductWorkerToken
 
     private var containerBridge: ContainerBridge?
     private var jsEngine: JSEngineProtocol?
@@ -36,7 +38,8 @@ final class SPANativeRuntimeInteractor {
         configuration: SPAConfiguration,
         logger: LoggerProtocol,
         productRepository: AnyDataProviderRepository<Product>,
-        chatProviderFactory: ChatContactDataProviderMaking
+        chatProviderFactory: ChatContactDataProviderMaking,
+        workerLock: ProductWorkerToken
     ) {
         self.nativeApi = nativeApi
         self.scriptsFactory = scriptsFactory
@@ -47,6 +50,7 @@ final class SPANativeRuntimeInteractor {
         self.logger = logger
         self.productRepository = productRepository
         self.chatProviderFactory = chatProviderFactory
+        self.workerLock = workerLock
     }
 
     deinit {

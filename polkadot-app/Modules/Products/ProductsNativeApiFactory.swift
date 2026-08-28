@@ -43,6 +43,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
     private let sponsorFactory: TransactionSponsorMaking
     private let themeManager: ThemeManagerProtocol
     private let hostProvider: ProductHostProviding
+    private let workerOperations: ProductWorkerOperating
     private let operationQueue: OperationQueue
     private let logger: LoggerProtocol
 
@@ -62,6 +63,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         osPermissionAsker: OSPermissionAsking = OSPermissionAsker(),
         themeManager: ThemeManagerProtocol = ThemeManager.shared,
         hostProvider: ProductHostProviding,
+        workerOperations: ProductWorkerOperating,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
@@ -79,6 +81,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         self.osPermissionAsker = osPermissionAsker
         self.themeManager = themeManager
         self.hostProvider = hostProvider
+        self.workerOperations = workerOperations
         self.operationQueue = operationQueue
         self.logger = logger
 
@@ -121,6 +124,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             sponsorFactory: sponsorFactory,
             themeManager: themeManager,
             hostProvider: hostProvider,
+            workerOperations: workerOperations,
             operationQueue: operationQueue,
             logger: logger
         )

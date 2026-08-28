@@ -32,6 +32,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let themeManager: ThemeManagerProtocol
     let productId: ProductId
     let hostProvider: ProductHostProviding
+    let workerOperations: ProductWorkerOperating
 
     lazy var preimageSponsor: PreimageSubmitSponsoring = sponsorFactory.makePreimageSponsor()
     lazy var statementStoreSponsor: StatementStoreSponsoring = sponsorFactory.makeStatementStoreSponsor()
@@ -70,6 +71,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         sponsorFactory: TransactionSponsorMaking,
         themeManager: ThemeManagerProtocol,
         hostProvider: ProductHostProviding,
+        workerOperations: ProductWorkerOperating,
         operationQueue: OperationQueue,
         logger: LoggerProtocol
     ) {
@@ -96,6 +98,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.sponsorFactory = sponsorFactory
         self.themeManager = themeManager
         self.hostProvider = hostProvider
+        self.workerOperations = workerOperations
         self.operationQueue = operationQueue
         self.logger = logger
     }

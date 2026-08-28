@@ -77,7 +77,8 @@ enum SPAViewFactory {
             resourceKeyManager: resourceKeyManager,
             sponsorFactory: sponsorFactory,
             substrateStorageFacade: SubstrateDataStorageFacade.shared,
-            hostProvider: flowState.hostProvider
+            hostProvider: flowState.hostProvider,
+            workerOperations: ProductWorkerServices.shared.operations
         )
 
         let nativeApi = nativeApiFactory.makeApi(
@@ -100,7 +101,10 @@ enum SPAViewFactory {
             configuration: configuration,
             logger: Logger.shared,
             productRepository: ProductRepositoryFactory().createRepository(),
-            chatProviderFactory: ChatContactDataProviderFactory()
+            chatProviderFactory: ChatContactDataProviderFactory(),
+            workerLock: ProductWorkerServices.shared.manager.lock(
+                productId: configuration.page.host.toDotDomain()
+            )
         )
 
         let presenter = SPAPresenter(

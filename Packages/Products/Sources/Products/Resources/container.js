@@ -2,15 +2,12 @@
 (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => {
-    __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-    return value;
-  };
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
-  // node_modules/nanoid/url-alphabet/index.js
+  // ../../../../triangle-js-sdks/packages/host-api/node_modules/nanoid/url-alphabet/index.js
   var urlAlphabet = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
 
-  // node_modules/nanoid/index.browser.js
+  // ../../../../triangle-js-sdks/packages/host-api/node_modules/nanoid/index.browser.js
   var nanoid = (size = 21) => {
     let id2 = "";
     let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
@@ -20,7 +17,7 @@
     return id2;
   };
 
-  // node_modules/@novasamatech/host-api/dist/helpers.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/helpers.js
   function delay(ttl) {
     return new Promise((resolve) => setTimeout(resolve, ttl));
   }
@@ -39,8 +36,17 @@
   function createRequestId() {
     return nanoid(8);
   }
+  function extractErrorMessage(err2) {
+    if (err2 instanceof Error) {
+      return err2.message;
+    }
+    if (err2) {
+      return err2.toString();
+    }
+    return "Unknown error occurred.";
+  }
 
-  // node_modules/neverthrow/dist/index.es.js
+  // ../../../../triangle-js-sdks/node_modules/neverthrow/dist/index.es.js
   var defaultErrorConfig = {
     withStackTrace: false
   };
@@ -82,24 +88,20 @@
   }
   function __values(o) {
     var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-    if (m)
-      return m.call(o);
-    if (o && typeof o.length === "number")
-      return {
-        next: function() {
-          if (o && i >= o.length)
-            o = void 0;
-          return { value: o && o[i++], done: !o };
-        }
-      };
+    if (m) return m.call(o);
+    if (o && typeof o.length === "number") return {
+      next: function() {
+        if (o && i >= o.length) o = void 0;
+        return { value: o && o[i++], done: !o };
+      }
+    };
     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
   }
   function __await(v) {
     return this instanceof __await ? (this.v = v, this) : new __await(v);
   }
   function __asyncGenerator(thisArg, _arguments, generator) {
-    if (!Symbol.asyncIterator)
-      throw new TypeError("Symbol.asyncIterator is not defined.");
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
     var g = generator.apply(thisArg, _arguments || []), i, q = [];
     return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function() {
       return this;
@@ -116,8 +118,7 @@
             q.push([n, v, a, b]) > 1 || resume(n, v);
           });
         };
-        if (f)
-          i[n] = f(i[n]);
+        if (f) i[n] = f(i[n]);
       }
     }
     function resume(n, v) {
@@ -137,8 +138,7 @@
       resume("throw", value);
     }
     function settle(f, v) {
-      if (f(v), q.shift(), q.length)
-        resume(q[0][0], q[0][1]);
+      if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]);
     }
   }
   function __asyncDelegator(o) {
@@ -155,8 +155,7 @@
     }
   }
   function __asyncValues(o) {
-    if (!Symbol.asyncIterator)
-      throw new TypeError("Symbol.asyncIterator is not defined.");
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
     var m = o[Symbol.asyncIterator], i;
     return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
       return this;
@@ -435,9 +434,9 @@
     }
     safeUnwrap() {
       const value = this.value;
-      return function* () {
+      return (function* () {
         return value;
-      }();
+      })();
     }
     _unsafeUnwrap(_) {
       return this.value;
@@ -507,10 +506,10 @@
     }
     safeUnwrap() {
       const error = this.error;
-      return function* () {
+      return (function* () {
         yield err(error);
         throw new Error("Do not use this generator out of `safeTry`");
-      }();
+      })();
     }
     _unsafeUnwrap(config) {
       throw createNeverThrowError("Called `_unsafeUnwrap` on an Err", this, config);
@@ -526,7 +525,7 @@
   };
   var fromThrowable = Result.fromThrowable;
 
-  // node_modules/scale-ts/dist/scale-ts.js
+  // ../../../../triangle-js-sdks/node_modules/scale-ts/dist/scale-ts.js
   var __defProp2 = Object.defineProperty;
   var __defNormalProp2 = (obj, key, value) => key in obj ? __defProp2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField2 = (obj, key, value) => {
@@ -848,12 +847,12 @@
   Vector.enc = VectorEnc;
   Vector.dec = VectorDec;
 
-  // node_modules/@novasamatech/scale/dist/lazy.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/lazy.js
   function lazy(fn) {
     return createCodec((v) => fn().enc(v), (v) => fn().dec(v));
   }
 
-  // node_modules/@novasamatech/scale/dist/bytes.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/bytes.js
   function Bytes2(size) {
     const codec = size === void 0 ? Bytes() : enhanceCodec(Bytes(size), (value) => {
       if (value.length > size)
@@ -863,11 +862,16 @@
       const padded = new Uint8Array(size);
       padded.set(value);
       return padded;
-    }, (value) => value);
+    }, (value) => {
+      if (value.length !== size) {
+        throw new Error(`Bytes(${size}): decoded ${value.length} bytes, expected ${size}`);
+      }
+      return value;
+    });
     return Object.assign(codec, { size });
   }
 
-  // node_modules/@polkadot-api/utils/dist/hex.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/hex.js
   var HEX_STR = "0123456789abcdef";
   function toHex(bytes) {
     const result = new Array(bytes.length + 1);
@@ -907,8 +911,7 @@
     const base = (hexString[1] === "x" ? 2 : 0) + isOdd;
     const nBytes = (hexString.length - base) / 2 + isOdd;
     const bytes = new Uint8Array(nBytes);
-    if (isOdd)
-      bytes[0] = 0 | HEX_MAP2[hexString[2]];
+    if (isOdd) bytes[0] = 0 | HEX_MAP2[hexString[2]];
     for (let i = 0; i < nBytes; ) {
       const idx = base + i * 2;
       const a = HEX_MAP2[hexString[idx]];
@@ -918,10 +921,10 @@
     return bytes;
   }
 
-  // node_modules/@polkadot-api/utils/dist/noop.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/noop.js
   var noop2 = Function.prototype;
 
-  // node_modules/@polkadot-api/utils/dist/AbortError.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/AbortError.js
   var AbortError = class extends Error {
     constructor() {
       super("Abort Error");
@@ -929,18 +932,18 @@
     }
   };
 
-  // node_modules/@novasamatech/scale/dist/hex.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/hex.js
   function Hex(size) {
     const bytes = size === void 0 ? Bytes2() : Bytes2(size);
     return Object.assign(enhanceCodec(bytes, fromHex2, (v) => toHex(v)), { size });
   }
 
-  // node_modules/@novasamatech/scale/dist/nullable.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/nullable.js
   function Nullable(inner) {
     return enhanceCodec(Option(inner), (v) => v === null ? void 0 : v, (v) => v === void 0 ? null : v);
   }
 
-  // node_modules/@novasamatech/scale/dist/optionBool.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/optionBool.js
   var OptionBool = enhanceCodec(u8, (value) => {
     if (value === void 0) {
       return 0;
@@ -959,7 +962,7 @@
     }
   });
 
-  // node_modules/@novasamatech/scale/dist/status.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/status.js
   function Status(...list) {
     return enhanceCodec(u8, (v) => {
       const i = list.indexOf(v);
@@ -976,10 +979,10 @@
     });
   }
 
-  // node_modules/@novasamatech/scale/dist/enum.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/enum.js
   var Enum2 = (inner, indexes) => Enum(inner, indexes);
 
-  // node_modules/@novasamatech/scale/dist/err.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/err.js
   function Err2(name, value, message, className = name) {
     const C = {
       [className]: class extends Error {
@@ -1015,7 +1018,7 @@
     return Object.assign(C, errorCodec);
   }
 
-  // node_modules/@novasamatech/scale/dist/errEnum.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/errEnum.js
   function ErrEnum(name, inner) {
     const variants = Object.fromEntries(Object.entries(inner).map(([k, [value, message]]) => [k, Err2(`${name}::${k}`, value, message, k)]));
     const codec = enhanceCodec(Enum2(variants), (v) => ({ tag: v.instance, value: v }), (v) => v.value);
@@ -1026,7 +1029,7 @@
     return result;
   }
 
-  // node_modules/@novasamatech/scale/dist/helpers.js
+  // ../../../../triangle-js-sdks/packages/scale/dist/helpers.js
   function resultOk(value) {
     return { success: true, value };
   }
@@ -1046,14 +1049,59 @@
     return fromHex2(hex);
   }
 
-  // node_modules/@novasamatech/host-api/dist/protocol/commonCodecs.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/callError.js
+  var versioned = (domain) => Enum2({ v1: domain }, [0]);
+  var CallError = (domain) => Enum2({
+    Domain: domain,
+    Denied: _void,
+    Unsupported: _void,
+    MalformedFrame: Struct({ reason: str }),
+    HostFailure: Struct({ reason: str })
+  }, [0, 1, 2, 3, 4]);
+  var CALL_ERROR_FAILURE = /* @__PURE__ */ Symbol("callErrorFailure");
+  var isCallErrorFailure = (value) => CALL_ERROR_FAILURE in value;
+  var CallResult = (ok2, domainErr) => {
+    const wire = Result2(ok2, CallError(versioned(domainErr)));
+    return enhanceCodec(wire, (value) => {
+      if (CALL_ERROR_FAILURE in value) {
+        return { success: false, value: value[CALL_ERROR_FAILURE] };
+      }
+      if (value.success)
+        return { success: true, value: value.value };
+      return { success: false, value: { tag: "Domain", value: { tag: "v1", value: value.value } } };
+    }, (decoded) => {
+      if (decoded.success)
+        return { success: true, value: decoded.value };
+      const callError = decoded.value;
+      if (callError.tag === "Domain") {
+        return { success: false, value: callError.value.value };
+      }
+      return { [CALL_ERROR_FAILURE]: callError };
+    });
+  };
+  var interruptError = (domainErr) => {
+    const wire = CallError(versioned(domainErr));
+    return enhanceCodec(wire, (value) => {
+      if (typeof value === "object" && value !== null && CALL_ERROR_FAILURE in value) {
+        const failure = value[CALL_ERROR_FAILURE];
+        return { tag: failure.tag, value: "value" in failure ? failure.value : void 0 };
+      }
+      return { tag: "Domain", value: { tag: "v1", value } };
+    }, (decoded) => {
+      if (decoded.tag === "Domain")
+        return decoded.value.value;
+      return { [CALL_ERROR_FAILURE]: decoded };
+    });
+  };
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/commonCodecs.js
   var GenesisHash = Hex(32);
   var GenericErr = Struct({
     reason: str
   });
   var GenericError = Err2("GenericError", GenericErr, ({ reason }) => `Unknown error: ${reason}`);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/accounts.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/accounts.js
   var AccountId = Bytes2(32);
   var PublicKey = Bytes2();
   var DotNsIdentifier = str;
@@ -1064,6 +1112,8 @@
   });
   var ProductAccountId = Tuple(DotNsIdentifier, DerivationIndex);
   var RingVrgAlias = Bytes2();
+  var RingVrfKeyHandle = ProductAccountId;
+  var RingVrfPublicKey = Bytes2(32);
   var ProductId = DotNsIdentifier;
   var ProductProofContextSuffix = DerivationIndex;
   var ProductProofContext = Tuple(ProductId, ProductProofContextSuffix);
@@ -1095,6 +1145,12 @@
     chainId: GenesisHash,
     junctions: Vector(RingLocationJunction)
   });
+  var RingVrfKeyDisclosure = Status("Anonymized", "PublicKey");
+  var RegisteredRingVrfKey = Struct({
+    handle: RingVrfKeyHandle,
+    rings: Vector(RingLocation),
+    publicKey: Option(RingVrfPublicKey)
+  });
   var VrfTranscriptItem = Struct({
     label: Bytes2(),
     value: Bytes2()
@@ -1112,14 +1168,37 @@
   var CreateProofErr = ErrEnum("CreateProofErr", {
     RingNotFound: [_void, "CreateProof: ring not found"],
     NotMember: [_void, "CreateProof: selected member key is not a member of the ring"],
+    KeyNotRegistered: [_void, "CreateProof: key handle has no registry entry"],
+    KeyNotInRing: [_void, "CreateProof: key handle is registered, but not for the requested ring"],
+    NotAllowlisted: [_void, "CreateProof: key handle is foreign and its owner has not allowlisted the caller"],
     Rejected: [_void, "CreateProof: rejected"],
     Unknown: [GenericErr, "CreateProof: unknown error"]
   });
   var GetAliasErr = ErrEnum("GetAliasErr", {
     RingNotFound: [_void, "GetAlias: ring not found"],
     NotMember: [_void, "GetAlias: selected member key is not a member of the ring"],
+    KeyNotRegistered: [_void, "GetAlias: key handle has no registry entry"],
+    KeyNotInRing: [_void, "GetAlias: key handle is registered, but not for the requested ring"],
     Rejected: [_void, "GetAlias: rejected"],
     Unknown: [GenericErr, "GetAlias: unknown error"]
+  });
+  var RegisterRingVrfKeyErr = ErrEnum("RegisterRingVrfKeyErr", {
+    NotConnected: [_void, "RegisterRingVrfKey: not connected"],
+    RingNotFound: [_void, "RegisterRingVrfKey: ring not found"],
+    Rejected: [_void, "RegisterRingVrfKey: rejected"],
+    Unknown: [GenericErr, "RegisterRingVrfKey: unknown error"]
+  });
+  var ListRingVrfKeysErr = ErrEnum("ListRingVrfKeysErr", {
+    NotConnected: [_void, "ListRingVrfKeys: not connected"],
+    Rejected: [_void, "ListRingVrfKeys: owner is not the calling product and the caller has no grant for it"],
+    Unknown: [GenericErr, "ListRingVrfKeys: unknown error"]
+  });
+  var RingVrfSignErr = ErrEnum("RingVrfSignErr", {
+    NotConnected: [_void, "RingVrfSign: not connected"],
+    KeyNotRegistered: [_void, "RingVrfSign: key handle has no registry entry"],
+    NotAllowlisted: [_void, "RingVrfSign: key handle is foreign and its owner has not allowlisted the caller"],
+    Rejected: [_void, "RingVrfSign: rejected"],
+    Unknown: [GenericErr, "RingVrfSign: unknown error"]
   });
   var GetUserIdErr = ErrEnum("GetUserIdErr", {
     PermissionDenied: [_void, "GetUserId: permission denied"],
@@ -1136,587 +1215,35 @@
   var AccountConnectionStatusV1_receive = AccountConnectionStatus;
   var AccountConnectionStatusV1_interrupt = _void;
   var GetUserIdV1_request = _void;
-  var GetUserIdV1_response = Result2(UserIdentity, GetUserIdErr);
+  var GetUserIdV1_response = CallResult(UserIdentity, GetUserIdErr);
   var AccountGetV1_request = ProductAccountId;
-  var AccountGetV1_response = Result2(ProductAccount, RequestCredentialsErr);
-  var AccountGetAliasV1_request = Tuple(ProductProofContext, RingLocation);
-  var AccountGetAliasV1_response = Result2(ContextualAlias, GetAliasErr);
-  var AccountCreateProofV1_request = Tuple(ProductProofContext, RingLocation, Bytes2());
-  var AccountCreateProofV1_response = Result2(RingVrfProof, CreateProofErr);
+  var AccountGetV1_response = CallResult(ProductAccount, RequestCredentialsErr);
+  var AccountGetAliasV1_request = Tuple(RingVrfKeyHandle, ProductProofContext, RingLocation);
+  var AccountGetAliasV1_response = CallResult(ContextualAlias, GetAliasErr);
+  var AccountCreateProofV1_request = Tuple(RingVrfKeyHandle, ProductProofContext, RingLocation, Bytes2());
+  var AccountCreateProofV1_response = CallResult(RingVrfProof, CreateProofErr);
+  var AccountRegisterRingVrfKeyV1_request = Tuple(DerivationIndex, RingLocation);
+  var AccountRegisterRingVrfKeyV1_response = CallResult(RingVrfPublicKey, RegisterRingVrfKeyErr);
+  var AccountListRingVrfKeysV1_request = Tuple(ProductId, RingVrfKeyDisclosure);
+  var AccountListRingVrfKeysV1_response = CallResult(Vector(RegisteredRingVrfKey), ListRingVrfKeysErr);
+  var AccountRingVrfSignV1_request = Tuple(RingVrfKeyHandle, Bytes2());
+  var AccountRingVrfSignV1_response = CallResult(Bytes2(), RingVrfSignErr);
   var AccountSignVrfV1_request = Struct({
     account: ProductAccountId,
     transcriptLabel: Bytes2(),
     items: Vector(VrfTranscriptItem)
   });
-  var AccountSignVrfV1_response = Result2(VrfSignature, SignVrfErr);
+  var AccountSignVrfV1_response = CallResult(VrfSignature, SignVrfErr);
   var GetLegacyAccountsV1_request = _void;
-  var GetLegacyAccountsV1_response = Result2(Vector(LegacyAccount), RequestCredentialsErr);
+  var GetLegacyAccountsV1_response = CallResult(Vector(LegacyAccount), RequestCredentialsErr);
   var LoginResult = Status("success", "alreadyConnected", "rejected");
   var LoginErr = ErrEnum("LoginErr", {
     Unknown: [GenericErr, "Login: unknown error"]
   });
   var RequestLoginV1_request = Option(str);
-  var RequestLoginV1_response = Result2(LoginResult, LoginErr);
+  var RequestLoginV1_response = CallResult(LoginResult, LoginErr);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/customRenderer.js
-  var Size = compact;
-  var Dimensions = Tuple(Size, Size, Option(Size), Option(Size));
-  var TypographyStyle = Status("headline.large", "title.medium.regular", "body.large.regular", "body.medium.regular", "body.small.regular");
-  var ButtonVariant = Status("primary", "secondary", "text");
-  var ColorToken = Status("fg.primary", "fg.secondary", "fg.tertiary", "bg.surface.main", "bg.surface.container", "bg.surface.nested", "fg.success", "fg.error", "fg.warning");
-  var ContentAlignment = Status("topStart", "topCenter", "topEnd", "centerStart", "center", "centerEnd", "bottomStart", "bottomCenter", "bottomEnd");
-  var HorizontalAlignment = Status("start", "center", "end");
-  var VerticalAlignment = Status("top", "center", "bottom");
-  var Arrangement = Status("start", "end", "center", "spaceBetween", "spaceAround", "spaceEvenly");
-  var Shape = Enum2({
-    Rounded: Size,
-    Circle: _void
-  });
-  var BorderStyle = Struct({
-    width: Size,
-    color: ColorToken,
-    shape: Option(Shape)
-  });
-  var Modifier = Enum2({
-    margin: Dimensions,
-    padding: Dimensions,
-    background: Struct({
-      color: ColorToken,
-      shape: Option(Shape)
-    }),
-    border: BorderStyle,
-    height: Size,
-    width: Size,
-    minWidth: Size,
-    minHeight: Size,
-    fillWidth: bool,
-    fillHeight: bool
-  });
-  var Children = lazy(() => CustomRendererNode);
-  function Component(props) {
-    return Struct({
-      modifiers: Vector(Modifier),
-      props,
-      children: Vector(Children)
-    });
-  }
-  var BoxProps = Struct({
-    contentAlignment: Option(ContentAlignment)
-  });
-  var ColumnProps = Struct({
-    horizontalAlignment: Option(HorizontalAlignment),
-    verticalArrangement: Option(Arrangement)
-  });
-  var RowProps = Struct({
-    verticalAlignment: Option(VerticalAlignment),
-    horizontalArrangement: Option(Arrangement)
-  });
-  var TextProps = Struct({
-    style: Option(TypographyStyle),
-    color: Option(ColorToken)
-  });
-  var ButtonProps = Struct({
-    text: str,
-    variant: Option(ButtonVariant),
-    enabled: OptionBool,
-    loading: OptionBool,
-    clickAction: Option(str)
-  });
-  var TextFieldProps = Struct({
-    text: str,
-    placeholder: Option(str),
-    label: Option(str),
-    enabled: OptionBool,
-    valueChangeAction: Option(str)
-  });
-  var CustomRendererNode = Enum2({
-    Nil: _void,
-    String: str,
-    Box: Component(BoxProps),
-    Column: Component(ColumnProps),
-    Row: Component(RowProps),
-    Spacer: Component(_void),
-    Text: Component(TextProps),
-    Button: Component(ButtonProps),
-    TextField: Component(TextFieldProps)
-  });
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/chat.js
-  var ChatRoomRegistrationErr = ErrEnum("ChatRoomRegistrationErr", {
-    PermissionDenied: [_void, "Permission denied"],
-    Unknown: [GenericErr, "Unknown error while chat registration"]
-  });
-  var ChatRoomRequest = Struct({
-    roomId: str,
-    name: str,
-    icon: str
-    // URL or base64-encoded image for contact
-  });
-  var ChatRoomRegistrationStatus = Status("New", "Exists");
-  var ChatRoomRegistrationResult = Struct({
-    status: ChatRoomRegistrationStatus
-  });
-  var ChatCreateRoomV1_request = ChatRoomRequest;
-  var ChatCreateRoomV1_response = Result2(ChatRoomRegistrationResult, ChatRoomRegistrationErr);
-  var ChatBotRegistrationErr = ErrEnum("ChatBotRegistrationErr", {
-    PermissionDenied: [_void, "Permission denied"],
-    Unknown: [GenericErr, "Unknown error while chat registration"]
-  });
-  var ChatBotRequest = Struct({
-    botId: str,
-    name: str,
-    icon: str
-    // URL or base64-encoded image for contact
-  });
-  var ChatBotRegistrationStatus = Status("New", "Exists");
-  var ChatBotRegistrationResult = Struct({
-    status: ChatBotRegistrationStatus
-  });
-  var ChatRegisterBotV1_request = ChatBotRequest;
-  var ChatRegisterBotV1_response = Result2(ChatBotRegistrationResult, ChatBotRegistrationErr);
-  var ChatRoomParticipation = Status("RoomHost", "Bot");
-  var ChatRoom = Struct({
-    roomId: str,
-    participatingAs: ChatRoomParticipation
-  });
-  var ChatListSubscribeV1_start = _void;
-  var ChatListSubscribeV1_receive = Vector(ChatRoom);
-  var ChatListSubscribeV1_interrupt = _void;
-  var ChatAction = Struct({
-    actionId: str,
-    title: str
-  });
-  var ChatActionLayout = Status("Column", "Grid");
-  var ChatActions = Struct({
-    text: Option(str),
-    actions: Vector(ChatAction),
-    layout: ChatActionLayout
-  });
-  var ChatMedia = Struct({
-    url: str
-  });
-  var ChatRichText = Struct({
-    text: Option(str),
-    media: Vector(ChatMedia)
-  });
-  var ChatFile = Struct({
-    url: str,
-    fileName: str,
-    mimeType: str,
-    sizeBytes: u64,
-    text: Option(str)
-  });
-  var ChatReaction = Struct({
-    messageId: str,
-    emoji: str
-  });
-  var ChatCustomMessage = Struct({
-    messageType: str,
-    payload: Bytes2()
-  });
-  var ChatMessageContent = Enum2({
-    Text: str,
-    RichText: ChatRichText,
-    Actions: ChatActions,
-    File: ChatFile,
-    Reaction: ChatReaction,
-    ReactionRemoved: ChatReaction,
-    Custom: ChatCustomMessage
-  });
-  var ChatMessagePostingErr = ErrEnum("ChatMessagePostingErr", {
-    MessageTooLarge: [_void, "ChatMessagePosting: message too large"],
-    Unknown: [GenericErr, "ChatMessagePosting: unknown error"]
-  });
-  var ChatPostMessageResult = Struct({
-    messageId: str
-  });
-  var ChatPostMessageV1_request = Struct({
-    roomId: str,
-    payload: ChatMessageContent
-  });
-  var ChatPostMessageV1_response = Result2(ChatPostMessageResult, ChatMessagePostingErr);
-  var ActionTrigger = Struct({
-    messageId: str,
-    actionId: str,
-    payload: Option(Bytes2())
-  });
-  var ChatCommand = Struct({
-    command: str,
-    payload: str
-  });
-  var ChatActionPayload = Enum2({
-    MessagePosted: ChatMessageContent,
-    ActionTriggered: ActionTrigger,
-    Command: ChatCommand
-  });
-  var ReceivedChatAction = Struct({
-    roomId: str,
-    peer: str,
-    payload: ChatActionPayload
-  });
-  var ChatActionSubscribeV1_start = _void;
-  var ChatActionSubscribeV1_receive = ReceivedChatAction;
-  var ChatActionSubscribeV1_interrupt = _void;
-  var ChatCustomMessageRenderingV1_start = Struct({ messageId: str, messageType: str, payload: Bytes2() });
-  var ChatCustomMessageRenderingV1_receive = CustomRendererNode;
-  var ChatCustomMessageRenderingV1_interrupt = _void;
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/createTransaction.js
-  var CreateTransactionErr = ErrEnum("CreateTransactionErr", {
-    FailedToDecode: [_void, "Failed to decode"],
-    Rejected: [_void, "Rejected"],
-    // Unsupported payload version
-    // Failed to infer missing extensions, some extension is unsupported, etc.
-    NotSupported: [str, "Not Supported"],
-    PermissionDenied: [_void, "Permission denied"],
-    Unknown: [GenericErr, "Unknown error"]
-  });
-  var TxPayloadExtensionV1 = Struct({
-    /** Identifier as defined in metadata (e.g., "CheckSpecVersion", "ChargeAssetTxPayment"). */
-    id: str,
-    /**
-     * Explicit "extra" to sign (goes into the extrinsic body).
-     * SCALE-encoded per the extension's "extra" type as defined in the metadata.
-     */
-    extra: Bytes2(),
-    /**
-     * "Implicit" data to sign (known by the chain, not included into the extrinsic body).
-     * SCALE-encoded per the extension's "additionalSigned" type as defined in the metadata.
-     */
-    additionalSigned: Bytes2()
-  });
-  function GenericTxPayloadV1(signer) {
-    return Struct({
-      signer,
-      /**
-       * Chain identifier where transaction will be executed
-       */
-      genesisHash: GenesisHash,
-      /**
-       * SCALE-encoded Call (module indicator + function indicator + params).
-       */
-      callData: Bytes2(),
-      /**
-       * Transaction extensions supplied by the caller (order irrelevant).
-       * The consumer SHOULD provide every extension that is relevant to them.
-       * The implementer MAY infer missing ones.
-       */
-      extensions: Vector(TxPayloadExtensionV1),
-      /**
-       * Transaction Extension Version.
-       * - For Extrinsic V4 MUST be 0.
-       * - For Extrinsic V5, set to any version supported by the runtime.
-       * The implementer:
-       *  - MUST use this field to determine the required extensions for creating the extrinsic.
-       *  - MAY use this field to infer missing extensions that the implementer could know how to handle.
-       */
-      txExtVersion: u8
-    });
-  }
-  var ProductAccountTransaction = GenericTxPayloadV1(ProductAccountId);
-  var LegacyTransaction = GenericTxPayloadV1(AccountId);
-  var CreateTransactionV1_request = ProductAccountTransaction;
-  var CreateTransactionV1_response = Result2(Bytes2(), CreateTransactionErr);
-  var CreateTransactionWithLegacyAccountV1_request = LegacyTransaction;
-  var CreateTransactionWithLegacyAccountV1_response = Result2(Bytes2(), CreateTransactionErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/deriveEntropy.js
-  var DeriveEntropyErr = ErrEnum("DeriveEntropyErr", {
-    Unknown: [GenericErr, "Unknown derive entropy error"]
-  });
-  var Entropy = Bytes2(32);
-  var DeriveEntropyV1_request = Bytes2();
-  var DeriveEntropyV1_response = Result2(Entropy, DeriveEntropyErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/handshake.js
-  var HandshakeErr = ErrEnum("HandshakeErr", {
-    Timeout: [_void, "Handshake: timeout"],
-    UnsupportedProtocolVersion: [_void, "Handshake: unsupported protocol version"],
-    Unknown: [GenericErr, "Handshake: unknown error"]
-  });
-  var HandshakeV1_request = u8;
-  var HandshakeV1_response = Result2(_void, HandshakeErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/localStorage.js
-  var StorageErr = ErrEnum("StorageErr", {
-    Full: [_void, "Storage is full"],
-    Unknown: [GenericErr, "Unknown storage error"]
-  });
-  var StorageKey = str;
-  var StorageValue = Bytes2();
-  var StorageReadV1_request = StorageKey;
-  var StorageReadV1_response = Result2(Option(StorageValue), StorageErr);
-  var StorageWriteV1_request = Tuple(StorageKey, StorageValue);
-  var StorageWriteV1_response = Result2(_void, StorageErr);
-  var StorageClearV1_request = StorageKey;
-  var StorageClearV1_response = Result2(_void, StorageErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/navigation.js
-  var NavigateToErr = ErrEnum("NavigateToErr", {
-    PermissionDenied: [_void, "Permission denied"],
-    Unknown: [GenericErr, "Unknown error"]
-  });
-  var NavigateToV1_request = str;
-  var NavigateToV1_response = Result2(_void, NavigateToErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/notification.js
-  var NotificationId = u32;
-  var PushNotification = Struct({
-    text: str,
-    deeplink: Option(str),
-    scheduledAt: Option(u64)
-  });
-  var PushNotificationError2 = ErrEnum("PushNotificationError", {
-    ScheduleLimitReached: [_void, "Schedule limit reached"],
-    Unknown: [GenericErr, "Unknown error"]
-  });
-  var PushNotificationV1_request = PushNotification;
-  var PushNotificationV1_response = Result2(NotificationId, PushNotificationError2);
-  var PushNotificationCancelV1_request = NotificationId;
-  var PushNotificationCancelV1_response = Result2(_void, GenericError);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/payments.js
-  var Sr25519SecretKey = Bytes2(64);
-  var PaymentId = str;
-  var CoinPaymentPurseId = u32;
-  var PaymentTopUpSource = Enum2({
-    // Account of the calling product, addressed by the RFC-0022 selector.
-    ProductAccount: DerivationIndex,
-    PrivateKey: Sr25519SecretKey,
-    Coins: Vector(Sr25519SecretKey)
-  });
-  var PaymentBalance = Struct({
-    available: u128
-  });
-  var PaymentReceipt = Struct({
-    id: PaymentId
-  });
-  var PaymentStatus = Enum2({
-    Processing: _void,
-    Completed: _void,
-    Failed: str
-  });
-  var PaymentBalanceErr = ErrEnum("PaymentBalanceErr", {
-    PermissionDenied: [_void, "permission denied"],
-    Unknown: [GenericErr, "unknown error"]
-  });
-  var PartialPaymentErr = Struct({
-    credited: u128
-  });
-  var PaymentTopUpErr = ErrEnum("PaymentTopUpErr", {
-    InsufficientFunds: [_void, "insufficient funds"],
-    InvalidSource: [_void, "invalid source"],
-    PartialPayment: [PartialPaymentErr, ({ credited }) => `partial payment: credited ${credited}`],
-    Unknown: [GenericErr, "unknown error"]
-  });
-  var PaymentRequestErr = ErrEnum("PaymentRequestErr", {
-    Rejected: [_void, "rejected"],
-    InsufficientBalance: [_void, "insufficient balance"],
-    Unknown: [GenericErr, "unknown error"]
-  });
-  var PaymentStatusErr = ErrEnum("PaymentStatusErr", {
-    PaymentNotFound: [_void, "payment not found"],
-    Unknown: [GenericErr, "unknown error"]
-  });
-  var PaymentBalanceSubscribeV1_start = Struct({
-    purse: Option(CoinPaymentPurseId)
-  });
-  var PaymentBalanceSubscribeV1_receive = PaymentBalance;
-  var PaymentBalanceSubscribeV1_interrupt = PaymentBalanceErr;
-  var PaymentTopUpV1_request = Struct({
-    into: Option(CoinPaymentPurseId),
-    amount: u128,
-    source: PaymentTopUpSource
-  });
-  var PaymentTopUpV1_response = Result2(_void, PaymentTopUpErr);
-  var PaymentRequestV1_request = Struct({
-    from: Option(CoinPaymentPurseId),
-    amount: u128,
-    destination: Bytes2(32)
-  });
-  var PaymentRequestV1_response = Result2(PaymentReceipt, PaymentRequestErr);
-  var PaymentStatusSubscribeV1_start = PaymentId;
-  var PaymentStatusSubscribeV1_receive = PaymentStatus;
-  var PaymentStatusSubscribeV1_interrupt = PaymentStatusErr;
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/preimage.js
-  var PreimageKey = Hex();
-  var PreimageValue = Bytes2();
-  var PreimageLookupSubscribeV1_start = PreimageKey;
-  var PreimageLookupSubscribeV1_receive = Nullable(PreimageValue);
-  var PreimageLookupSubscribeV1_interrupt = _void;
-  var PreimageSubmitErr = ErrEnum("PreimageSubmitErr", {
-    Unknown: [GenericErr, "Unknown error"]
-  });
-  var PreimageSubmitV1_request = PreimageValue;
-  var PreimageSubmitV1_response = Result2(PreimageKey, PreimageSubmitErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/resourceAllocation.js
-  var AllocatableResource = Enum2({
-    StatementStoreAllowance: _void,
-    BulletinAllowance: _void,
-    // Account the allowance is granted for, addressed by the RFC-0022 selector.
-    SmartContractAllowance: DerivationIndex,
-    AutoSigning: _void
-  });
-  var AllocationOutcome = Enum2({
-    Allocated: _void,
-    Rejected: _void,
-    NotAvailable: _void
-  });
-  var ResourceAllocationErr = ErrEnum("ResourceAllocationErr", {
-    Unknown: [GenericErr, "ResourceAllocation: unknown error"]
-  });
-  var RequestResourceAllocationV1_request = Vector(AllocatableResource);
-  var RequestResourceAllocationV1_response = Result2(Vector(AllocationOutcome), ResourceAllocationErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/sign.js
-  var SigningErr = ErrEnum("SigningErr", {
-    FailedToDecode: [_void, "Failed to decode"],
-    Rejected: [_void, "Rejected"],
-    PermissionDenied: [_void, "Permission denied"],
-    Unknown: [GenericErr, ({ reason }) => reason || "Unknown error"]
-  });
-  var SigningResult = Struct({
-    signature: Hex(),
-    signedTransaction: Option(Hex())
-  });
-  var RawPayload = Enum2({
-    Bytes: Bytes2(),
-    Payload: str
-  });
-  var SigningRawPayload = Struct({
-    account: ProductAccountId,
-    payload: RawPayload
-  });
-  var SigningRawPayloadWithoutAccount = Struct({
-    signer: str,
-    payload: RawPayload
-  });
-  var SignRawV1_request = SigningRawPayload;
-  var SignRawV1_response = Result2(SigningResult, SigningErr);
-  var SignRawWithLegacyAccountV1_request = SigningRawPayloadWithoutAccount;
-  var SignRawWithLegacyAccountV1_response = Result2(SigningResult, SigningErr);
-  var SigningPayloadPayload = Struct({
-    blockHash: Hex(),
-    blockNumber: Hex(),
-    era: Hex(),
-    genesisHash: Hex(),
-    method: Hex(),
-    nonce: Hex(),
-    specVersion: Hex(),
-    tip: Hex(),
-    transactionVersion: Hex(),
-    signedExtensions: Vector(str),
-    version: u32,
-    assetId: Option(Hex()),
-    metadataHash: Option(Hex()),
-    mode: Option(u32),
-    withSignedTransaction: Option(bool)
-  });
-  var SigningPayload = Struct({
-    account: ProductAccountId,
-    payload: SigningPayloadPayload
-  });
-  var SigningPayloadWithoutAccount = Struct({
-    signer: str,
-    payload: SigningPayloadPayload
-  });
-  var SignPayloadV1_request = SigningPayload;
-  var SignPayloadV1_response = Result2(SigningResult, SigningErr);
-  var SignPayloadWithLegacyAccountV1_request = SigningPayloadWithoutAccount;
-  var SignPayloadWithLegacyAccountV1_response = Result2(SigningResult, SigningErr);
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/statementStore.js
-  var Topic = Bytes2(32);
-  var Channel = Bytes2(32);
-  var DecryptionKey = Bytes2(32);
-  var Sr25519StatementProof = Struct({
-    signature: Bytes2(64),
-    signer: Bytes2(32)
-  });
-  var Ed25519StatementProof = Struct({
-    signature: Bytes2(64),
-    signer: Bytes2(32)
-  });
-  var EcdsaStatementProof = Struct({
-    signature: Bytes2(65),
-    signer: Bytes2(33)
-  });
-  var OnChainStatementProof = Struct({
-    who: Bytes2(32),
-    blockHash: Bytes2(32),
-    event: u64
-  });
-  var StatementProof = Enum2({
-    Sr25519: Sr25519StatementProof,
-    Ed25519: Ed25519StatementProof,
-    Ecdsa: EcdsaStatementProof,
-    OnChain: OnChainStatementProof
-  });
-  var Statement = Struct({
-    proof: Option(StatementProof),
-    decryptionKey: Option(DecryptionKey),
-    expiry: Option(u64),
-    channel: Option(Channel),
-    topics: Vector(Topic),
-    data: Option(Bytes2())
-  });
-  var SignedStatement = Struct({
-    proof: StatementProof,
-    decryptionKey: Option(DecryptionKey),
-    expiry: Option(u64),
-    channel: Option(Channel),
-    topics: Vector(Topic),
-    data: Option(Bytes2())
-  });
-  var TopicFilter = Enum2({
-    MatchAll: Vector(Topic),
-    MatchAny: Vector(Topic)
-  });
-  var SignedStatementsPage = Struct({
-    statements: Vector(SignedStatement),
-    isComplete: bool
-  });
-  var StatementStoreSubscribeV1_start = TopicFilter;
-  var StatementStoreSubscribeV1_receive = SignedStatementsPage;
-  var StatementStoreSubscribeV1_interrupt = _void;
-  var StatementProofErr = ErrEnum("StatementProofErr", {
-    UnableToSign: [_void, "StatementProof: unable to sign"],
-    UnknownAccount: [_void, "StatementProof: unknown account"],
-    Unknown: [GenericErr, "StatementProof: unknown error"]
-  });
-  var StatementStoreCreateProofV1_request = Tuple(ProductAccountId, Statement);
-  var StatementStoreCreateProofV1_response = Result2(StatementProof, StatementProofErr);
-  var StatementStoreCreateProofAuthorizedV1_request = Statement;
-  var StatementStoreCreateProofAuthorizedV1_response = Result2(StatementProof, StatementProofErr);
-  var StatementStoreSubmitV1_request = SignedStatement;
-  var StatementStoreSubmitV1_response = Result2(_void, GenericError);
-
-  // node_modules/nanoevents/index.js
-  var createNanoEvents = () => ({
-    emit(event, ...args) {
-      for (let callbacks = this.events[event] || [], i = 0, length = callbacks.length; i < length; i++) {
-        callbacks[i](...args);
-      }
-    },
-    events: {},
-    on(event, cb) {
-      var _a;
-      ;
-      ((_a = this.events)[event] || (_a[event] = [])).push(cb);
-      return () => {
-        this.events[event] = this.events[event]?.filter((i) => cb !== i);
-      };
-    }
-  });
-
-  // node_modules/@novasamatech/host-api/dist/constants.js
-  var SCALE_CODEC_PROTOCOL_ID = 1;
-  var HANDSHAKE_INTERVAL = 50;
-  var HANDSHAKE_TIMEOUT = 1e4;
-
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/chainInteraction.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/chainInteraction.js
   var BlockHash = Hex();
   var OperationId = str;
   var RuntimeApi = Tuple(str, u32);
@@ -1802,13 +1329,13 @@
     followSubscriptionId: str,
     hash: BlockHash
   });
-  var ChainHeadHeaderV1_response = Result2(Nullable(Hex()), GenericError);
+  var ChainHeadHeaderV1_response = CallResult(Nullable(Hex()), GenericError);
   var ChainHeadBodyV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
     hash: BlockHash
   });
-  var ChainHeadBodyV1_response = Result2(OperationStartedResult, GenericError);
+  var ChainHeadBodyV1_response = CallResult(OperationStartedResult, GenericError);
   var ChainHeadStorageV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
@@ -1816,7 +1343,7 @@
     items: Vector(StorageQueryItem),
     childTrie: Nullable(Hex())
   });
-  var ChainHeadStorageV1_response = Result2(OperationStartedResult, GenericError);
+  var ChainHeadStorageV1_response = CallResult(OperationStartedResult, GenericError);
   var ChainHeadCallV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
@@ -1824,55 +1351,721 @@
     function: str,
     callParameters: Hex()
   });
-  var ChainHeadCallV1_response = Result2(OperationStartedResult, GenericError);
+  var ChainHeadCallV1_response = CallResult(OperationStartedResult, GenericError);
   var ChainHeadUnpinV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
     hashes: Vector(BlockHash)
   });
-  var ChainHeadUnpinV1_response = Result2(_void, GenericError);
+  var ChainHeadUnpinV1_response = CallResult(_void, GenericError);
   var ChainHeadContinueV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
     operationId: OperationId
   });
-  var ChainHeadContinueV1_response = Result2(_void, GenericError);
+  var ChainHeadContinueV1_response = CallResult(_void, GenericError);
   var ChainHeadStopOperationV1_request = Struct({
     genesisHash: Hex(),
     followSubscriptionId: str,
     operationId: OperationId
   });
-  var ChainHeadStopOperationV1_response = Result2(_void, GenericError);
+  var ChainHeadStopOperationV1_response = CallResult(_void, GenericError);
+  var ChainIdentifier = Status("Relay", "AssetHub", "People", "Bulletin");
+  var ChainInfoErr = ErrEnum("ChainInfoErr", {
+    NotSupported: [_void, "ChainInfo: the host does not serve the requested chain"],
+    Unknown: [GenericErr, "ChainInfo: unknown error"]
+  });
+  var ChainInfoV1_request = Struct({ chain: ChainIdentifier });
+  var ChainInfoV1_response = CallResult(Struct({ network: str, chain: ChainIdentifier, genesisHash: Hex(32) }), ChainInfoErr);
   var ChainSpecGenesisHashV1_request = Hex();
-  var ChainSpecGenesisHashV1_response = Result2(Hex(), GenericError);
+  var ChainSpecGenesisHashV1_response = CallResult(Hex(), GenericError);
   var ChainSpecChainNameV1_request = Hex();
-  var ChainSpecChainNameV1_response = Result2(str, GenericError);
+  var ChainSpecChainNameV1_response = CallResult(str, GenericError);
   var ChainSpecPropertiesV1_request = Hex();
-  var ChainSpecPropertiesV1_response = Result2(str, GenericError);
+  var ChainSpecPropertiesV1_response = CallResult(str, GenericError);
   var TransactionBroadcastV1_request = Struct({
     genesisHash: Hex(),
     transaction: Hex()
   });
-  var TransactionBroadcastV1_response = Result2(Nullable(str), GenericError);
+  var TransactionBroadcastV1_response = CallResult(Nullable(str), GenericError);
   var TransactionStopV1_request = Struct({
     genesisHash: Hex(),
     operationId: str
   });
-  var TransactionStopV1_response = Result2(_void, GenericError);
+  var TransactionStopV1_response = CallResult(_void, GenericError);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/devicePermission.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/customRenderer.js
+  var Size = compact;
+  var Dimensions = Tuple(Size, Size, Option(Size), Option(Size));
+  var TypographyStyle = Status("headline.large", "title.medium.regular", "body.large.regular", "body.medium.regular", "body.small.regular");
+  var ButtonVariant = Status("primary", "secondary", "text");
+  var ColorToken = Status("fg.primary", "fg.secondary", "fg.tertiary", "bg.surface.main", "bg.surface.container", "bg.surface.nested", "fg.success", "fg.error", "fg.warning");
+  var ContentAlignment = Status("topStart", "topCenter", "topEnd", "centerStart", "center", "centerEnd", "bottomStart", "bottomCenter", "bottomEnd");
+  var HorizontalAlignment = Status("start", "center", "end");
+  var VerticalAlignment = Status("top", "center", "bottom");
+  var Arrangement = Status("start", "end", "center", "spaceBetween", "spaceAround", "spaceEvenly");
+  var Shape = Enum2({
+    Rounded: Size,
+    Circle: _void
+  });
+  var BorderStyle = Struct({
+    width: Size,
+    color: ColorToken,
+    shape: Option(Shape)
+  });
+  var Modifier = Enum2({
+    margin: Dimensions,
+    padding: Dimensions,
+    background: Struct({
+      color: ColorToken,
+      shape: Option(Shape)
+    }),
+    border: BorderStyle,
+    height: Size,
+    width: Size,
+    minWidth: Size,
+    minHeight: Size,
+    fillWidth: bool,
+    fillHeight: bool
+  });
+  var Children = lazy(() => CustomRendererNode);
+  function Component(props) {
+    return Struct({
+      modifiers: Vector(Modifier),
+      props,
+      children: Vector(Children)
+    });
+  }
+  var BoxProps = Struct({
+    contentAlignment: Option(ContentAlignment)
+  });
+  var ColumnProps = Struct({
+    horizontalAlignment: Option(HorizontalAlignment),
+    verticalArrangement: Option(Arrangement)
+  });
+  var RowProps = Struct({
+    verticalAlignment: Option(VerticalAlignment),
+    horizontalArrangement: Option(Arrangement)
+  });
+  var TextProps = Struct({
+    style: Option(TypographyStyle),
+    color: Option(ColorToken)
+  });
+  var ButtonProps = Struct({
+    text: str,
+    variant: Option(ButtonVariant),
+    enabled: OptionBool,
+    loading: OptionBool,
+    clickAction: Option(str)
+  });
+  var TextFieldProps = Struct({
+    text: str,
+    placeholder: Option(str),
+    label: Option(str),
+    enabled: OptionBool,
+    valueChangeAction: Option(str)
+  });
+  var CustomRendererNode = Enum2({
+    Nil: _void,
+    String: str,
+    Box: Component(BoxProps),
+    Column: Component(ColumnProps),
+    Row: Component(RowProps),
+    Spacer: Component(_void),
+    Text: Component(TextProps),
+    Button: Component(ButtonProps),
+    TextField: Component(TextFieldProps)
+  });
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/chat.js
+  var ChatRoomRegistrationErr = ErrEnum("ChatRoomRegistrationErr", {
+    PermissionDenied: [_void, "Permission denied"],
+    Unknown: [GenericErr, "Unknown error while chat registration"]
+  });
+  var ChatRoomRequest = Struct({
+    roomId: str,
+    name: str,
+    icon: str
+    // URL or base64-encoded image for contact
+  });
+  var ChatRoomRegistrationStatus = Status("New", "Exists");
+  var ChatRoomRegistrationResult = Struct({
+    status: ChatRoomRegistrationStatus
+  });
+  var ChatCreateRoomV1_request = ChatRoomRequest;
+  var ChatCreateRoomV1_response = CallResult(ChatRoomRegistrationResult, ChatRoomRegistrationErr);
+  var ChatBotRegistrationErr = ErrEnum("ChatBotRegistrationErr", {
+    PermissionDenied: [_void, "Permission denied"],
+    Unknown: [GenericErr, "Unknown error while chat registration"]
+  });
+  var ChatBotRequest = Struct({
+    botId: str,
+    name: str,
+    icon: str
+    // URL or base64-encoded image for contact
+  });
+  var ChatBotRegistrationStatus = Status("New", "Exists");
+  var ChatBotRegistrationResult = Struct({
+    status: ChatBotRegistrationStatus
+  });
+  var ChatRegisterBotV1_request = ChatBotRequest;
+  var ChatRegisterBotV1_response = CallResult(ChatBotRegistrationResult, ChatBotRegistrationErr);
+  var ChatRoomParticipation = Status("RoomHost", "Bot");
+  var ChatRoom = Struct({
+    roomId: str,
+    participatingAs: ChatRoomParticipation
+  });
+  var ChatListSubscribeV1_start = _void;
+  var ChatListSubscribeV1_receive = Vector(ChatRoom);
+  var ChatListSubscribeV1_interrupt = _void;
+  var ChatAction = Struct({
+    actionId: str,
+    title: str
+  });
+  var ChatActionLayout = Status("Column", "Grid");
+  var ChatActions = Struct({
+    text: Option(str),
+    actions: Vector(ChatAction),
+    layout: ChatActionLayout
+  });
+  var ChatMedia = Struct({
+    url: str
+  });
+  var ChatRichText = Struct({
+    text: Option(str),
+    media: Vector(ChatMedia)
+  });
+  var ChatFile = Struct({
+    url: str,
+    fileName: str,
+    mimeType: str,
+    sizeBytes: u64,
+    text: Option(str)
+  });
+  var ChatReaction = Struct({
+    messageId: str,
+    emoji: str
+  });
+  var ChatCustomMessage = Struct({
+    messageType: str,
+    payload: Bytes2()
+  });
+  var ChatMessageContent = Enum2({
+    Text: str,
+    RichText: ChatRichText,
+    Actions: ChatActions,
+    File: ChatFile,
+    Reaction: ChatReaction,
+    ReactionRemoved: ChatReaction,
+    Custom: ChatCustomMessage
+  });
+  var ChatMessagePostingErr = ErrEnum("ChatMessagePostingErr", {
+    MessageTooLarge: [_void, "ChatMessagePosting: message too large"],
+    Unknown: [GenericErr, "ChatMessagePosting: unknown error"]
+  });
+  var ChatPostMessageResult = Struct({
+    messageId: str
+  });
+  var ChatPostMessageV1_request = Struct({
+    roomId: str,
+    payload: ChatMessageContent
+  });
+  var ChatPostMessageV1_response = CallResult(ChatPostMessageResult, ChatMessagePostingErr);
+  var ActionTrigger = Struct({
+    messageId: str,
+    actionId: str,
+    payload: Option(Bytes2())
+  });
+  var ChatCommand = Struct({
+    command: str,
+    payload: str
+  });
+  var ChatActionPayload = Enum2({
+    MessagePosted: ChatMessageContent,
+    ActionTriggered: ActionTrigger,
+    Command: ChatCommand
+  });
+  var ReceivedChatAction = Struct({
+    roomId: str,
+    peer: str,
+    payload: ChatActionPayload
+  });
+  var ChatActionSubscribeV1_start = _void;
+  var ChatActionSubscribeV1_receive = ReceivedChatAction;
+  var ChatActionSubscribeV1_interrupt = _void;
+  var ChatCustomMessageRenderingV1_start = Struct({ messageId: str, messageType: str, payload: Bytes2() });
+  var ChatCustomMessageRenderingV1_receive = CustomRendererNode;
+  var ChatCustomMessageRenderingV1_interrupt = _void;
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/coinPayment.js
+  var CoinPaymentPurseId = u32;
+  var CoinPaymentBalance = u32;
+  var CoinPaymentTimestamp = u64;
+  var CoinPaymentProductId = str;
+  var CoinPaymentReceivable = Hex(32);
+  var CoinPaymentMerkleRoot = Hex(32);
+  var CoinPaymentTransactionHash = Hex(32);
+  var CoinPaymentCoinagePubKey = Hex(32);
+  var CoinPaymentPurseInfo = Struct({
+    name: str,
+    created: CoinPaymentTimestamp,
+    creator: CoinPaymentProductId,
+    balance: CoinPaymentBalance
+  });
+  var CoinPaymentCheque = Struct({
+    id: CoinPaymentReceivable,
+    amount: CoinPaymentBalance,
+    encryptedSecrets: Hex()
+  });
+  var CoinPaymentErrorValue = Status("BalanceLow", "Denied", "BadCoins", "SnipedCoins", "PurseNotFound", "ReceivableNotFound", "UnsupportedChannel", "UserAgentCapabilityUnavailable", "Internal");
+  var CoinPaymentErr = ErrEnum("CoinPaymentErr", {
+    BalanceLow: [_void, "coin payment: source purse has too little balance"],
+    Denied: [_void, "coin payment: user agent denied the operation"],
+    BadCoins: [_void, "coin payment: coin secrets do not control valid coins"],
+    SnipedCoins: [_void, "coin payment: coin secrets were claimed elsewhere"],
+    PurseNotFound: [_void, "coin payment: purse not found"],
+    ReceivableNotFound: [_void, "coin payment: receivable not found"],
+    UnsupportedChannel: [_void, "coin payment: transmission channel not supported"],
+    UserAgentCapabilityUnavailable: [_void, "coin payment: user agent capability unavailable"],
+    Internal: [_void, "coin payment: internal error"]
+  });
+  var CoinPaymentClearingReference = Struct({
+    root: CoinPaymentMerkleRoot,
+    leaves: Vector(Tuple(CoinPaymentCoinagePubKey, CoinPaymentTransactionHash))
+  });
+  var CoinPaymentStatus = Enum2({
+    Clearing: Struct({ clearing: CoinPaymentBalance, cleared: CoinPaymentBalance }),
+    Failed: Struct({
+      error: CoinPaymentErrorValue,
+      cleared: CoinPaymentBalance,
+      reference: CoinPaymentClearingReference
+    }),
+    Done: Struct({ cleared: CoinPaymentBalance, reference: CoinPaymentClearingReference })
+  });
+  var CoinPaymentTransmissionChannel = Enum2({
+    Standard: Struct({ sssTopic: Hex(32) })
+  });
+  var CoinPaymentListenForItem = Enum2({
+    Channel: CoinPaymentTransmissionChannel,
+    Cheque: CoinPaymentCheque
+  });
+  var CoinPaymentCreatePurseV1_request = Struct({ name: str });
+  var CoinPaymentCreatePurseV1_response = CallResult(Struct({ purse: CoinPaymentPurseId }), CoinPaymentErr);
+  var CoinPaymentQueryPurseV1_request = Struct({ purse: CoinPaymentPurseId });
+  var CoinPaymentQueryPurseV1_response = CallResult(Struct({ info: CoinPaymentPurseInfo }), CoinPaymentErr);
+  var CoinPaymentRebalancePurseV1_start = Struct({
+    from: CoinPaymentPurseId,
+    to: CoinPaymentPurseId,
+    amount: CoinPaymentBalance
+  });
+  var CoinPaymentRebalancePurseV1_receive = CoinPaymentStatus;
+  var CoinPaymentRebalancePurseV1_interrupt = CoinPaymentErr;
+  var CoinPaymentDeletePurseV1_start = Struct({
+    target: CoinPaymentPurseId,
+    drainInto: CoinPaymentPurseId
+  });
+  var CoinPaymentDeletePurseV1_receive = CoinPaymentStatus;
+  var CoinPaymentDeletePurseV1_interrupt = CoinPaymentErr;
+  var CoinPaymentCreateReceivableV1_request = Struct({ into: CoinPaymentPurseId });
+  var CoinPaymentCreateReceivableV1_response = CallResult(Struct({ receivable: CoinPaymentReceivable }), CoinPaymentErr);
+  var CoinPaymentCreateChequeV1_request = Struct({
+    from: CoinPaymentPurseId,
+    to: CoinPaymentReceivable,
+    amount: CoinPaymentBalance
+  });
+  var CoinPaymentCreateChequeV1_response = CallResult(Struct({ cheque: CoinPaymentCheque }), CoinPaymentErr);
+  var CoinPaymentDepositV1_start = Struct({ cheque: CoinPaymentCheque });
+  var CoinPaymentDepositV1_receive = CoinPaymentStatus;
+  var CoinPaymentDepositV1_interrupt = CoinPaymentErr;
+  var CoinPaymentRefundV1_start = Struct({ receivable: CoinPaymentReceivable });
+  var CoinPaymentRefundV1_receive = CoinPaymentStatus;
+  var CoinPaymentRefundV1_interrupt = CoinPaymentErr;
+  var CoinPaymentListenForPaymentV1_start = Struct({ receivable: CoinPaymentReceivable });
+  var CoinPaymentListenForPaymentV1_receive = CoinPaymentListenForItem;
+  var CoinPaymentListenForPaymentV1_interrupt = CoinPaymentErr;
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/createTransaction.js
+  var CreateTransactionErr = ErrEnum("CreateTransactionErr", {
+    FailedToDecode: [_void, "Failed to decode"],
+    Rejected: [_void, "Rejected"],
+    // Unsupported payload version
+    // Failed to infer missing extensions, some extension is unsupported, etc.
+    NotSupported: [str, "Not Supported"],
+    PermissionDenied: [_void, "Permission denied"],
+    Unknown: [GenericErr, "Unknown error"]
+  });
+  var TxPayloadExtensionV1 = Struct({
+    /** Identifier as defined in metadata (e.g., "CheckSpecVersion", "ChargeAssetTxPayment"). */
+    id: str,
+    /**
+     * Explicit "extra" to sign (goes into the extrinsic body).
+     * SCALE-encoded per the extension's "extra" type as defined in the metadata.
+     */
+    extra: Bytes2(),
+    /**
+     * "Implicit" data to sign (known by the chain, not included into the extrinsic body).
+     * SCALE-encoded per the extension's "additionalSigned" type as defined in the metadata.
+     */
+    additionalSigned: Bytes2()
+  });
+  function GenericTxPayloadV1(signer) {
+    return Struct({
+      signer,
+      /**
+       * Chain identifier where transaction will be executed
+       */
+      genesisHash: GenesisHash,
+      /**
+       * SCALE-encoded Call (module indicator + function indicator + params).
+       */
+      callData: Bytes2(),
+      /**
+       * Transaction extensions supplied by the caller (order irrelevant).
+       * The consumer SHOULD provide every extension that is relevant to them.
+       * The implementer MAY infer missing ones.
+       */
+      extensions: Vector(TxPayloadExtensionV1),
+      /**
+       * Transaction Extension Version.
+       * - For Extrinsic V4 MUST be 0.
+       * - For Extrinsic V5, set to any version supported by the runtime.
+       * The implementer:
+       *  - MUST use this field to determine the required extensions for creating the extrinsic.
+       *  - MAY use this field to infer missing extensions that the implementer could know how to handle.
+       */
+      txExtVersion: u8
+    });
+  }
+  var ProductAccountTransaction = GenericTxPayloadV1(ProductAccountId);
+  var LegacyTransaction = GenericTxPayloadV1(AccountId);
+  var CreateTransactionV1_request = ProductAccountTransaction;
+  var CreateTransactionV1_response = CallResult(Bytes2(), CreateTransactionErr);
+  var CreateTransactionWithLegacyAccountV1_request = LegacyTransaction;
+  var CreateTransactionWithLegacyAccountV1_response = CallResult(Bytes2(), CreateTransactionErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/deriveEntropy.js
+  var DeriveEntropyErr = ErrEnum("DeriveEntropyErr", {
+    Unknown: [GenericErr, "Unknown derive entropy error"]
+  });
+  var Entropy = Bytes2(32);
+  var DeriveEntropyV1_request = Bytes2();
+  var DeriveEntropyV1_response = CallResult(Entropy, DeriveEntropyErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/handshake.js
+  var HandshakeErr = ErrEnum("HandshakeErr", {
+    Timeout: [_void, "Handshake: timeout"],
+    UnsupportedProtocolVersion: [_void, "Handshake: unsupported protocol version"],
+    Unknown: [GenericErr, "Handshake: unknown error"]
+  });
+  var HandshakeV1_request = u8;
+  var HandshakeV1_response = CallResult(_void, HandshakeErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/localStorage.js
+  var StorageErr = ErrEnum("StorageErr", {
+    Full: [_void, "Storage is full"],
+    Unknown: [GenericErr, "Unknown storage error"]
+  });
+  var StorageKey = str;
+  var StorageValue = Bytes2();
+  var StorageReadV1_request = StorageKey;
+  var StorageReadV1_response = CallResult(Option(StorageValue), StorageErr);
+  var StorageWriteV1_request = Tuple(StorageKey, StorageValue);
+  var StorageWriteV1_response = CallResult(_void, StorageErr);
+  var StorageClearV1_request = StorageKey;
+  var StorageClearV1_response = CallResult(_void, StorageErr);
+  var StorageSubscribeV1_start = Struct({ key: StorageKey });
+  var StorageSubscribeV1_receive = Struct({ value: Option(StorageValue) });
+  var StorageSubscribeV1_interrupt = _void;
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/navigation.js
+  var NavigateToErr = ErrEnum("NavigateToErr", {
+    PermissionDenied: [_void, "Permission denied"],
+    Unknown: [GenericErr, "Unknown error"]
+  });
+  var NavigateToV1_request = str;
+  var NavigateToV1_response = CallResult(_void, NavigateToErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/notification.js
+  var NotificationId = u32;
+  var PushNotification = Struct({
+    text: str,
+    deeplink: Option(str),
+    scheduledAt: Option(u64)
+  });
+  var PushNotificationError2 = ErrEnum("PushNotificationError", {
+    ScheduleLimitReached: [_void, "Schedule limit reached"],
+    Unknown: [GenericErr, "Unknown error"]
+  });
+  var PushNotificationV1_request = PushNotification;
+  var PushNotificationV1_response = CallResult(NotificationId, PushNotificationError2);
+  var PushNotificationCancelV1_request = NotificationId;
+  var PushNotificationCancelV1_response = CallResult(_void, GenericError);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/payments.js
+  var Sr25519SecretKey = Bytes2(64);
+  var PaymentId = str;
+  var CoinPaymentPurseId2 = u32;
+  var PaymentTopUpSource = Enum2({
+    // Account of the calling product, addressed by the RFC-0022 selector.
+    ProductAccount: DerivationIndex,
+    PrivateKey: Sr25519SecretKey,
+    Coins: Vector(Sr25519SecretKey)
+  });
+  var PaymentBalance = Struct({
+    available: u128
+  });
+  var PaymentReceipt = Struct({
+    id: PaymentId
+  });
+  var PaymentStatus = Enum2({
+    Processing: _void,
+    Completed: _void,
+    Failed: str
+  });
+  var PaymentBalanceErr = ErrEnum("PaymentBalanceErr", {
+    PermissionDenied: [_void, "permission denied"],
+    Unknown: [GenericErr, "unknown error"]
+  });
+  var PartialPaymentErr = Struct({
+    credited: u128
+  });
+  var PaymentTopUpErr = ErrEnum("PaymentTopUpErr", {
+    InsufficientFunds: [_void, "insufficient funds"],
+    InvalidSource: [_void, "invalid source"],
+    PartialPayment: [PartialPaymentErr, ({ credited }) => `partial payment: credited ${credited}`],
+    Unknown: [GenericErr, "unknown error"]
+  });
+  var PaymentRequestErr = ErrEnum("PaymentRequestErr", {
+    Rejected: [_void, "rejected"],
+    InsufficientBalance: [_void, "insufficient balance"],
+    Unknown: [GenericErr, "unknown error"]
+  });
+  var PaymentStatusErr = ErrEnum("PaymentStatusErr", {
+    PaymentNotFound: [_void, "payment not found"],
+    Unknown: [GenericErr, "unknown error"]
+  });
+  var PaymentBalanceSubscribeV1_start = Struct({
+    purse: Option(CoinPaymentPurseId2)
+  });
+  var PaymentBalanceSubscribeV1_receive = PaymentBalance;
+  var PaymentBalanceSubscribeV1_interrupt = PaymentBalanceErr;
+  var PaymentTopUpV1_request = Struct({
+    into: Option(CoinPaymentPurseId2),
+    amount: u128,
+    source: PaymentTopUpSource
+  });
+  var PaymentTopUpV1_response = CallResult(_void, PaymentTopUpErr);
+  var PaymentRequestV1_request = Struct({
+    from: Option(CoinPaymentPurseId2),
+    amount: u128,
+    destination: Bytes2(32)
+  });
+  var PaymentRequestV1_response = CallResult(PaymentReceipt, PaymentRequestErr);
+  var PaymentStatusSubscribeV1_start = PaymentId;
+  var PaymentStatusSubscribeV1_receive = PaymentStatus;
+  var PaymentStatusSubscribeV1_interrupt = PaymentStatusErr;
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/preimage.js
+  var PreimageKey = Hex();
+  var PreimageValue = Bytes2();
+  var PreimageLookupSubscribeV1_start = PreimageKey;
+  var PreimageLookupSubscribeV1_receive = Nullable(PreimageValue);
+  var PreimageLookupSubscribeV1_interrupt = _void;
+  var PreimageSubmitErr = ErrEnum("PreimageSubmitErr", {
+    Unknown: [GenericErr, "Unknown error"]
+  });
+  var PreimageSubmitV1_request = PreimageValue;
+  var PreimageSubmitV1_response = CallResult(PreimageKey, PreimageSubmitErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/resourceAllocation.js
+  var AllocatableResource = Enum2({
+    StatementStoreAllowance: _void,
+    BulletinAllowance: _void,
+    // Account the allowance is granted for, addressed by the RFC-0022 selector.
+    SmartContractAllowance: DerivationIndex,
+    AutoSigning: _void
+  });
+  var AllocationOutcome = Enum2({
+    Allocated: _void,
+    Rejected: _void,
+    NotAvailable: _void
+  });
+  var ResourceAllocationErr = ErrEnum("ResourceAllocationErr", {
+    Unknown: [GenericErr, "ResourceAllocation: unknown error"]
+  });
+  var RequestResourceAllocationV1_request = Vector(AllocatableResource);
+  var RequestResourceAllocationV1_response = CallResult(Vector(AllocationOutcome), ResourceAllocationErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/sign.js
+  var SigningErr = ErrEnum("SigningErr", {
+    FailedToDecode: [_void, "Failed to decode"],
+    Rejected: [_void, "Rejected"],
+    PermissionDenied: [_void, "Permission denied"],
+    Unknown: [GenericErr, ({ reason }) => reason || "Unknown error"]
+  });
+  var SigningResult = Struct({
+    signature: Hex(),
+    signedTransaction: Option(Hex())
+  });
+  var RawPayload = Enum2({
+    Bytes: Bytes2(),
+    Payload: str
+  });
+  var SigningRawPayload = Struct({
+    account: ProductAccountId,
+    payload: RawPayload
+  });
+  var SigningRawPayloadWithoutAccount = Struct({
+    signer: str,
+    payload: RawPayload
+  });
+  var SignRawV1_request = SigningRawPayload;
+  var SignRawV1_response = CallResult(SigningResult, SigningErr);
+  var SignRawWithLegacyAccountV1_request = SigningRawPayloadWithoutAccount;
+  var SignRawWithLegacyAccountV1_response = CallResult(SigningResult, SigningErr);
+  var SigningPayloadPayload = Struct({
+    blockHash: Hex(),
+    blockNumber: Hex(),
+    era: Hex(),
+    genesisHash: Hex(),
+    method: Hex(),
+    nonce: Hex(),
+    specVersion: Hex(),
+    tip: Hex(),
+    transactionVersion: Hex(),
+    signedExtensions: Vector(str),
+    version: u32,
+    assetId: Option(Hex()),
+    metadataHash: Option(Hex()),
+    mode: Option(u32),
+    withSignedTransaction: Option(bool)
+  });
+  var SigningPayload = Struct({
+    account: ProductAccountId,
+    payload: SigningPayloadPayload
+  });
+  var SigningPayloadWithoutAccount = Struct({
+    signer: str,
+    payload: SigningPayloadPayload
+  });
+  var SignPayloadV1_request = SigningPayload;
+  var SignPayloadV1_response = CallResult(SigningResult, SigningErr);
+  var SignPayloadWithLegacyAccountV1_request = SigningPayloadWithoutAccount;
+  var SignPayloadWithLegacyAccountV1_response = CallResult(SigningResult, SigningErr);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/statementStore.js
+  var Topic = Bytes2(32);
+  var Channel = Bytes2(32);
+  var DecryptionKey = Bytes2(32);
+  var Sr25519StatementProof = Struct({
+    signature: Bytes2(64),
+    signer: Bytes2(32)
+  });
+  var Ed25519StatementProof = Struct({
+    signature: Bytes2(64),
+    signer: Bytes2(32)
+  });
+  var EcdsaStatementProof = Struct({
+    signature: Bytes2(65),
+    signer: Bytes2(33)
+  });
+  var OnChainStatementProof = Struct({
+    who: Bytes2(32),
+    blockHash: Bytes2(32),
+    event: u64
+  });
+  var StatementProof = Enum2({
+    Sr25519: Sr25519StatementProof,
+    Ed25519: Ed25519StatementProof,
+    Ecdsa: EcdsaStatementProof,
+    OnChain: OnChainStatementProof
+  });
+  var Statement = Struct({
+    proof: Option(StatementProof),
+    decryptionKey: Option(DecryptionKey),
+    expiry: Option(u64),
+    channel: Option(Channel),
+    topics: Vector(Topic),
+    data: Option(Bytes2())
+  });
+  var SignedStatement = Struct({
+    proof: StatementProof,
+    decryptionKey: Option(DecryptionKey),
+    expiry: Option(u64),
+    channel: Option(Channel),
+    topics: Vector(Topic),
+    data: Option(Bytes2())
+  });
+  var TopicFilter = Enum2({
+    MatchAll: Vector(Topic),
+    MatchAny: Vector(Topic)
+  });
+  var SignedStatementsPage = Struct({
+    statements: Vector(SignedStatement),
+    isComplete: bool
+  });
+  var StatementStoreSubscribeV1_start = TopicFilter;
+  var StatementStoreSubscribeV1_receive = SignedStatementsPage;
+  var StatementStoreSubscribeV1_interrupt = _void;
+  var StatementProofErr = ErrEnum("StatementProofErr", {
+    UnableToSign: [_void, "StatementProof: unable to sign"],
+    UnknownAccount: [_void, "StatementProof: unknown account"],
+    Unknown: [GenericErr, "StatementProof: unknown error"]
+  });
+  var StatementStoreCreateProofV1_request = Tuple(ProductAccountId, Statement);
+  var StatementStoreCreateProofV1_response = CallResult(StatementProof, StatementProofErr);
+  var StatementStoreCreateProofAuthorizedV1_request = Statement;
+  var StatementStoreCreateProofAuthorizedV1_response = CallResult(StatementProof, StatementProofErr);
+  var StatementStoreSubmitV1_request = SignedStatement;
+  var StatementStoreSubmitV1_response = CallResult(_void, GenericError);
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/worker.js
+  var WorkerErr = ErrEnum("WorkerErr", {
+    TooManyOpen: [_void, "Too many open operations"],
+    Unknown: [GenericErr, "Unknown worker operation error"]
+  });
+  var OperationId2 = u32;
+  var WorkerBeginOperationV1_request = Struct({ label: Option(str) });
+  var WorkerBeginOperationV1_response = CallResult(Struct({ id: OperationId2 }), WorkerErr);
+  var WorkerEndOperationV1_request = Struct({ id: OperationId2 });
+  var WorkerEndOperationV1_response = CallResult(_void, WorkerErr);
+
+  // ../../../../triangle-js-sdks/node_modules/nanoevents/index.js
+  var createNanoEvents = () => ({
+    emit(event, ...args) {
+      for (let callbacks = this.events[event] || [], i = 0, length = callbacks.length; i < length; i++) {
+        callbacks[i](...args);
+      }
+    },
+    events: {},
+    on(event, cb) {
+      var _a;
+      ;
+      ((_a = this.events)[event] || (_a[event] = [])).push(cb);
+      return () => {
+        this.events[event] = this.events[event]?.filter((i) => cb !== i);
+      };
+    }
+  });
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/constants.js
+  var SCALE_CODEC_PROTOCOL_ID = 1;
+  var HANDSHAKE_INTERVAL = 50;
+  var HANDSHAKE_TIMEOUT = 1e4;
+
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/devicePermission.js
   var DevicePermission = Status("Notifications", "Camera", "Microphone", "Bluetooth", "NFC", "Location", "Clipboard", "OpenUrl", "Biometrics");
   var DevicePermissionV1_request = DevicePermission;
-  var DevicePermissionV1_response = Result2(bool, GenericError);
+  var DevicePermissionV1_response = CallResult(bool, GenericError);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/feature.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/feature.js
   var Feature = Enum2({
     Chain: Hex()
   });
   var FeatureV1_request = Feature;
-  var FeatureV1_response = Result2(bool, GenericError);
+  var FeatureV1_response = CallResult(bool, GenericError);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/remotePermission.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/remotePermission.js
   var RemotePermission = Enum2({
     Remote: Vector(str),
     WebRtc: _void,
@@ -1881,9 +2074,9 @@
     StatementSubmit: _void
   });
   var RemotePermissionV1_request = RemotePermission;
-  var RemotePermissionV1_response = Result2(bool, GenericError);
+  var RemotePermissionV1_response = CallResult(bool, GenericError);
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/theme.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/theme.js
   var ThemeName = Enum2({
     Custom: str,
     Default: _void
@@ -1897,7 +2090,7 @@
   var ThemeSubscribeV1_receive = Theme;
   var ThemeSubscribeV1_interrupt = _void;
 
-  // node_modules/@novasamatech/host-api/dist/protocol/impl.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/impl.js
   var enumFromArg = (enumValues, n) => {
     return Enum2(Object.fromEntries(Object.entries(enumValues).map(([key, value]) => [key, value[n]])));
   };
@@ -1909,13 +2102,17 @@
       response: enumFromArg(values, 1)
     };
   };
+  var wrapInterrupts = (values) => Object.fromEntries(Object.entries(values).map(([key, [start, receive, interrupt]]) => [
+    key,
+    [start, receive, interrupt === _void ? interrupt : interruptError(interrupt)]
+  ]));
   var versionedSubscription = (index, values) => {
     return {
       method: "subscribe",
       index,
       start: enumFromArg(values, 0),
       receive: enumFromArg(values, 1),
-      interrupt: enumFromArg(values, 2)
+      interrupt: enumFromArg(wrapInterrupts(values), 2)
     };
   };
   function createIndexer() {
@@ -2101,15 +2298,75 @@
     host_push_notification_cancel: versionedRequest(indexer.request(), {
       v1: [PushNotificationCancelV1_request, PushNotificationCancelV1_response]
     }),
-    // Prefix 28 skips indices 136-163, reserved upstream by the truapi coin-payment
-    // methods this SDK does not implement, so `sign_vrf` lands on its specified
-    // `request_id = 164` (RFC-0023).
-    host_account_sign_vrf: versionedRequest(indexer.request(28), {
+    // RFC 0017 CoinPayment — ids 136-163. Kept in wire order and directly before
+    // `sign_vrf` so the running index fills 136-163 and `sign_vrf` lands on its
+    // specified `request_id = 164` (RFC-0023) without a skip.
+    host_coin_payment_create_purse: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreatePurseV1_request, CoinPaymentCreatePurseV1_response]
+    }),
+    host_coin_payment_query_purse: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentQueryPurseV1_request, CoinPaymentQueryPurseV1_response]
+    }),
+    host_coin_payment_rebalance_purse: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentRebalancePurseV1_start, CoinPaymentRebalancePurseV1_receive, CoinPaymentRebalancePurseV1_interrupt]
+    }),
+    host_coin_payment_delete_purse: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentDeletePurseV1_start, CoinPaymentDeletePurseV1_receive, CoinPaymentDeletePurseV1_interrupt]
+    }),
+    host_coin_payment_create_receivable: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreateReceivableV1_request, CoinPaymentCreateReceivableV1_response]
+    }),
+    host_coin_payment_create_cheque: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreateChequeV1_request, CoinPaymentCreateChequeV1_response]
+    }),
+    host_coin_payment_deposit: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentDepositV1_start, CoinPaymentDepositV1_receive, CoinPaymentDepositV1_interrupt]
+    }),
+    host_coin_payment_refund: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentRefundV1_start, CoinPaymentRefundV1_receive, CoinPaymentRefundV1_interrupt]
+    }),
+    host_coin_payment_listen_for_payment: versionedSubscription(indexer.subscription(), {
+      v1: [
+        CoinPaymentListenForPaymentV1_start,
+        CoinPaymentListenForPaymentV1_receive,
+        CoinPaymentListenForPaymentV1_interrupt
+      ]
+    }),
+    host_account_sign_vrf: versionedRequest(indexer.request(), {
       v1: [AccountSignVrfV1_request, AccountSignVrfV1_response]
+    }),
+    // Resolves a logical chain role (relay, asset hub, ...) to its network and
+    // genesis hash. truapi places it at `request_id = 166`, between `sign_vrf`
+    // and the ring-VRF block, so it must keep this position to hold that id.
+    remote_chain_get_chain_info: versionedRequest(indexer.request(), {
+      v1: [ChainInfoV1_request, ChainInfoV1_response]
+    }),
+    // RFC-0024 — explicit ring VRF key management. `create_proof` / `get_alias`
+    // changed shape in place instead, since a key handle is now mandatory there.
+    host_account_register_ring_vrf_key: versionedRequest(indexer.request(), {
+      v1: [AccountRegisterRingVrfKeyV1_request, AccountRegisterRingVrfKeyV1_response]
+    }),
+    host_account_list_ring_vrf_keys: versionedRequest(indexer.request(), {
+      v1: [AccountListRingVrfKeysV1_request, AccountListRingVrfKeysV1_response]
+    }),
+    host_account_ring_vrf_sign: versionedRequest(indexer.request(), {
+      v1: [AccountRingVrfSignV1_request, AccountRingVrfSignV1_response]
+    }),
+    // truapi places localStorage.subscribe at start_id = 174, which the running
+    // index reaches naturally once every preceding method is in place.
+    host_local_storage_subscribe: versionedSubscription(indexer.subscription(), {
+      v1: [StorageSubscribeV1_start, StorageSubscribeV1_receive, StorageSubscribeV1_interrupt]
+    }),
+    // Worker background-operation keep-alive (truapi request_id 178 / 180).
+    host_worker_begin_operation: versionedRequest(indexer.request(), {
+      v1: [WorkerBeginOperationV1_request, WorkerBeginOperationV1_response]
+    }),
+    host_worker_end_operation: versionedRequest(indexer.request(), {
+      v1: [WorkerEndOperationV1_request, WorkerEndOperationV1_response]
     })
   };
 
-  // node_modules/@novasamatech/host-api/dist/protocol/messageCodec.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/messageCodec.js
   var createPayload = (hostApi) => {
     const fields = {};
     const indexes = [];
@@ -2139,7 +2396,7 @@
     payload: MessagePayload
   });
 
-  // node_modules/@novasamatech/host-api/dist/transport.js
+  // ../../../../triangle-js-sdks/packages/host-api/dist/transport.js
   function isConnected(status) {
     return status === "connected";
   }
@@ -2326,6 +2583,11 @@
             transport.postMessage(requestId, responseMessage);
           }, (error) => {
             provider.logger.error(`handleRequest: handler for "${method}" rejected`, error);
+            const failure = enumValue("v1", {
+              [CALL_ERROR_FAILURE]: { tag: "HostFailure", value: { reason: extractErrorMessage(error) } }
+            });
+            const responseMessage = enumValue(responseAction, failure);
+            transport.postMessage(requestId, responseMessage);
           });
         });
       },
@@ -2368,7 +2630,11 @@
               const subscription2 = activeSubscriptions.get(subscriptionKey);
               if (subscription2) {
                 for (const listener2 of subscription2.listeners) {
-                  listener2.call(data.value);
+                  try {
+                    listener2.call(data.value);
+                  } catch (e) {
+                    provider.logger.error(`subscription "${method}" listener threw`, e);
+                  }
                 }
               }
             }
@@ -2512,7 +2778,7 @@
     return transport;
   }
 
-  // node_modules/@polkadot-api/raw-client/dist/RpcError.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/RpcError.js
   var __defProp3 = Object.defineProperty;
   var __defNormalProp3 = (obj, key, value) => key in obj ? __defProp3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField3 = (obj, key, value) => __defNormalProp3(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -2527,11 +2793,11 @@
     }
   };
 
-  // node_modules/@polkadot-api/json-rpc-provider/dist/index.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider/dist/index.js
   var isRequest = (msg) => "method" in msg;
   var isResponse = (msg) => !("method" in msg);
 
-  // node_modules/@polkadot-api/raw-client/dist/subscriptions-manager.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/subscriptions-manager.js
   var getSubscriptionsManager = () => {
     const subscriptions = /* @__PURE__ */ new Map();
     return {
@@ -2562,7 +2828,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/raw-client/dist/DestroyedError.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/DestroyedError.js
   var DestroyedError = class extends Error {
     constructor() {
       super("Client destroyed");
@@ -2570,7 +2836,7 @@
     }
   };
 
-  // node_modules/@polkadot-api/raw-client/dist/createClient.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/createClient.js
   var nextClientId = 1;
   var createClient = (gProvider, onNotification) => {
     let clientId = nextClientId++;
@@ -2589,8 +2855,7 @@
       if (isResponse(parsed)) {
         const { id: id2 } = parsed;
         const cb = responses.get(id2);
-        if (!cb)
-          return;
+        if (!cb) return;
         responses.delete(id2);
         return "error" in parsed ? cb.onError(new RpcError(parsed.error)) : cb.onSuccess(parsed.result, (opaqueId, subscriber) => {
           const subscriptionId = opaqueId;
@@ -2604,10 +2869,8 @@
         const { params } = parsed;
         const { subscription: subscriptionId, result, error } = params;
         if (subscriptionId && subscriptions.has(subscriptionId) && ("result" in params || error)) {
-          if (error)
-            subscriptions.error(subscriptionId, new RpcError(error));
-          else
-            subscriptions.next(subscriptionId, result);
+          if (error) subscriptions.error(subscriptionId, new RpcError(error));
+          else subscriptions.next(subscriptionId, result);
         } else {
           onNotification?.(parsed);
         }
@@ -2624,11 +2887,9 @@
     };
     let nextId = 1;
     const request = (method, params, cb) => {
-      if (!connection)
-        throw new Error("Not connected");
+      if (!connection) throw new Error("Not connected");
       const id2 = `${clientId}-${nextId++}`;
-      if (cb)
-        responses.set(id2, cb);
+      if (cb) responses.set(id2, cb);
       send(id2, method, params);
       return () => {
         responses.delete(id2);
@@ -2640,7 +2901,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/errors.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/errors.js
   var __defProp4 = Object.defineProperty;
   var __defNormalProp4 = (obj, key, value) => key in obj ? __defProp4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField4 = (obj, key, value) => __defNormalProp4(obj, key + "", value);
@@ -2685,7 +2946,7 @@
   __publicField4(_OperationInaccessibleError, "errorName", "OperationInaccessibleError");
   var OperationInaccessibleError = _OperationInaccessibleError;
 
-  // node_modules/@polkadot-api/substrate-client/dist/methods.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/methods.js
   var chainHead = {
     body: "",
     call: "",
@@ -2715,7 +2976,7 @@
     }
   );
 
-  // node_modules/@polkadot-api/substrate-client/dist/archive/errors.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/errors.js
   var __defProp5 = Object.defineProperty;
   var __defNormalProp5 = (obj, key, value) => key in obj ? __defProp5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField5 = (obj, key, value) => __defNormalProp5(obj, key + "", value);
@@ -2742,13 +3003,13 @@
     }
   };
   __publicField5(_CallError, "errorName", "CallError");
-  var CallError = _CallError;
+  var CallError2 = _CallError;
 
-  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/noop.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/noop.js
   var noop3 = () => {
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/transaction/transaction.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/transaction/transaction.js
   var getTransaction = (request) => (tx, error) => {
     let isDone = false;
     let cancel = () => {
@@ -2761,8 +3022,7 @@
             request(transaction.stop, [subscriptionId]);
             cancel = noop3;
           };
-          if (isDone)
-            cancel();
+          if (isDone) cancel();
         } else if (!isDone) {
           error(new Error("Max # of broadcasted transactions has been reached"));
         }
@@ -2774,7 +3034,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/deferred-promise.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/deferred-promise.js
   function deferred() {
     let res = () => {
     };
@@ -2787,7 +3047,7 @@
     return { promise, res, rej };
   }
 
-  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/abortablePromiseFn.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/abortablePromiseFn.js
   var abortablePromiseFn = (fn) => (...args) => new Promise((res, rej) => {
     let cancel = noop2;
     const [actualArgs, abortSignal] = args[args.length - 1] instanceof AbortSignal ? [args.slice(0, args.length - 1), args[args.length - 1]] : [args];
@@ -2804,7 +3064,7 @@
     cancel = fn(...[withCleanup(res), withCleanup(rej), ...actualArgs]);
   });
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/operation-promise.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/operation-promise.js
   var createOperationPromise = (operationName, factory) => (request) => abortablePromiseFn((res, rej, ...args) => {
     let isRunning = true;
     let cancel = () => {
@@ -2819,8 +3079,7 @@
         const stopOperation = () => {
           request(chainHead.stopOperation, [operationId]);
         };
-        if (!isRunning)
-          return stopOperation();
+        if (!isRunning) return stopOperation();
         let done = noop3;
         const _res = (x) => {
           isRunning = false;
@@ -2839,8 +3098,7 @@
               rej(new OperationError(_e.error));
             else if (_e.event === "operationInaccessible")
               rej(new OperationInaccessibleError());
-            else
-              logicCb(e, _res, _rej);
+            else logicCb(e, _res, _rej);
           },
           error: _rej
         });
@@ -2858,7 +3116,7 @@
     };
   });
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/body.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/body.js
   var createBodyFn = createOperationPromise(
     chainHead.body,
     (hash) => [
@@ -2869,7 +3127,7 @@
     ]
   );
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/call.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/call.js
   var createCallFn = createOperationPromise(
     chainHead.call,
     (hash, fnName, callParameters) => [
@@ -2880,7 +3138,7 @@
     ]
   );
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/header.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/header.js
   var createHeaderFn = (request) => (hash) => new Promise((res, rej) => {
     request(chainHead.header, [hash], {
       onSuccess: res,
@@ -2888,7 +3146,7 @@
     });
   });
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/storage-subscription.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/storage-subscription.js
   var createStorageCb = (request) => (hash, inputs, childTrie, onItems, onError, onDone, onDiscardedItems) => {
     if (inputs.length === 0) {
       onDone();
@@ -2906,8 +3164,7 @@
         const stopOperation = () => {
           request(chainHead.stopOperation, [operationId]);
         };
-        if (!isRunning)
-          return stopOperation();
+        if (!isRunning) return stopOperation();
         const doneListening = followSubscription(response.operationId, {
           next: (event) => {
             switch (event.event) {
@@ -2956,7 +3213,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/storage.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/storage.js
   var createStorageFn = (request) => {
     const cbStore = createStorageCb(request);
     return abortablePromiseFn((resolve, reject, hash, type, key, childTrie) => {
@@ -2991,7 +3248,7 @@
     });
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/unpin.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/unpin.js
   var createUnpinFn = (request) => (hashes) => hashes.length > 0 ? new Promise((res, rej) => {
     request(chainHead.unpin, [hashes], {
       onSuccess() {
@@ -3001,7 +3258,7 @@
     });
   }) : Promise.resolve();
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainhead/chainhead.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/chainhead.js
   function isOperationEvent(event) {
     return event.operationId !== void 0;
   }
@@ -3017,16 +3274,13 @@
       };
       const stopEverything = (sendUnfollow) => {
         stopListeningToFollowEvents();
-        if (followSubscription === null)
-          return;
+        if (followSubscription === null) return;
         if (sendUnfollow) {
           if (followSubscription instanceof Promise) {
             followSubscription.then((x) => {
-              if (typeof x === "string")
-                unfollowRequest(x);
+              if (typeof x === "string") unfollowRequest(x);
             });
-          } else
-            unfollowRequest(followSubscription);
+          } else unfollowRequest(followSubscription);
         }
         followSubscription = null;
         ongoingRequests.forEach((cb) => {
@@ -3080,8 +3334,7 @@
           return noop3;
         }
         const onSubscription = (subscription) => {
-          if (!cb)
-            return request(method, [subscription, ...params]);
+          if (!cb) return request(method, [subscription, ...params]);
           ongoingRequests.add(disjoint);
           const onSubscribeOperation = (operationId, subscriber) => {
             if (followSubscription === null) {
@@ -3112,10 +3365,8 @@
           return onSubscription(followSubscription);
         let onCancel = noop3;
         followSubscription.then((x) => {
-          if (x instanceof Error)
-            return disjoint();
-          if (followSubscription)
-            onCancel = onSubscription(x);
+          if (x instanceof Error) return disjoint();
+          if (followSubscription) onCancel = onSubscription(x);
         });
         return () => {
           onCancel();
@@ -3136,15 +3387,14 @@
     };
   }
 
-  // node_modules/@polkadot-api/substrate-client/dist/chainspec.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainspec.js
   var createGetChainSpec = (clientRequest) => {
     const request = abortablePromiseFn(
       (onSuccess, onError, method, params) => clientRequest(method, params, { onSuccess, onError })
     );
     let cachedPromise = null;
     return async () => {
-      if (cachedPromise)
-        return cachedPromise;
+      if (cachedPromise) return cachedPromise;
       return cachedPromise = Promise.all([
         request(chainSpec.chainName, []),
         request(chainSpec.genesisHash, []),
@@ -3157,7 +3407,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/archive/storage-subscription.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/storage-subscription.js
   var createStorageCb2 = (archiveRequest) => (hash, inputs, childTrie, onItem, onError, onDone) => {
     if (inputs.length === 0) {
       onDone();
@@ -3172,18 +3422,15 @@
         const stopOperation = () => {
           archiveRequest("stopStorage", [operationId]);
         };
-        if (!isRunning)
-          return stopOperation();
+        if (!isRunning) return stopOperation();
         const doneListening = followSubscription(operationId, {
           next: (event) => {
             const { event: type } = event;
             if (type === "storage") {
               const { event: _, ...item } = event;
               onItem(item);
-            } else if (type === "storageDone")
-              _onDone();
-            else
-              _onError(new StorageError(event.error));
+            } else if (type === "storageDone") _onDone();
+            else _onError(new StorageError(event.error));
           },
           error: onError
         });
@@ -3211,7 +3458,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/archive/storage.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/storage.js
   var createStorageFn2 = (cbStore) => abortablePromiseFn((resolve, reject, hash, type, key, childTrie) => {
     const isDescendants = type.startsWith("descendants");
     let result = isDescendants ? [] : null;
@@ -3234,11 +3481,10 @@
     );
   });
 
-  // node_modules/@polkadot-api/substrate-client/dist/archive/archive.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/archive.js
   var identity = () => (x) => x;
   var handleInvalidBlockHash = () => (result, hash) => {
-    if (result === null)
-      throw new BlockHashNotFoundError(hash);
+    if (result === null) throw new BlockHashNotFoundError(hash);
     return result;
   };
   var getArchive = (request) => {
@@ -3264,10 +3510,8 @@
     const storageSubscription = createStorageCb2(archiveRequest);
     const storage = createStorageFn2(storageSubscription);
     const call = fnCreator("call")((x, hash) => {
-      if (!x)
-        throw new BlockHashNotFoundError(hash);
-      if (!x.success)
-        throw new CallError(x.error);
+      if (!x) throw new BlockHashNotFoundError(hash);
+      if (!x.success) throw new CallError2(x.error);
       return x.value;
     });
     const finalizedHeight = fnCreator("finalizedHeight")(identity());
@@ -3283,7 +3527,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/substrate-client/dist/substrate-client.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/substrate-client.js
   var createClient2 = (provider) => {
     const { request, disconnect } = createClient(provider);
     return {
@@ -3299,7 +3543,7 @@
     };
   };
 
-  // node_modules/@novasamatech/host-container/dist/chainConnectionManager.js
+  // ../../../../triangle-js-sdks/packages/host-container/dist/chainConnectionManager.js
   var TERMINAL_OPERATION_EVENTS = /* @__PURE__ */ new Set([
     "operationBodyDone",
     "operationCallDone",
@@ -3557,7 +3801,7 @@
     return type.charAt(0).toLowerCase() + type.slice(1);
   }
 
-  // node_modules/@novasamatech/host-container/dist/debugBus.js
+  // ../../../../triangle-js-sdks/packages/host-container/dist/debugBus.js
   var bus = createNanoEvents();
   var sources = /* @__PURE__ */ new Set();
   var activeSources = /* @__PURE__ */ new Map();
@@ -3591,7 +3835,7 @@
     };
   }
 
-  // node_modules/@novasamatech/host-container/dist/createContainer.js
+  // ../../../../triangle-js-sdks/packages/host-container/dist/createContainer.js
   var UNSUPPORTED_MESSAGE_FORMAT_ERROR = "Unsupported message format";
   var NOT_IMPLEMENTED = "Not implemented";
   function guardVersion(value, tag, error) {
@@ -3668,7 +3912,7 @@
       let version = 0;
       transport.handleRequest(method, async (params) => {
         const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue(permissionVariant, void 0)));
-        const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+        const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
           return enumValue("v1", resultErr(makeError()));
         }
@@ -3694,7 +3938,7 @@
       let version = 0;
       transport.handleRequest(method, async (params) => {
         const permissionResponse = await handleDevicePermissionSlot.call(enumValue("v1", permissionVariant));
-        const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+        const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
           return enumValue("v1", resultErr(makeError()));
         }
@@ -3725,10 +3969,10 @@
     function handleV1Subscription(slot, handler) {
       init();
       const version = "v1";
-      const slotHandler = (params, send, interrupt) => {
-        return guardVersion(params, version, null).map((p) => handler(p, (payload) => send(enumValue(version, payload)), (payload) => interrupt(enumValue(version, payload)))).orTee(() => interrupt(slot.makeDefaultInterrupt())).unwrapOr(() => {
+      const slotHandler = ((params, send, interrupt) => {
+        return guardVersion(params, version, null).map((p) => handler(p, ((payload) => send(enumValue(version, payload))), ((payload) => interrupt(enumValue(version, payload))))).orTee(() => interrupt(slot.makeDefaultInterrupt())).unwrapOr(() => {
         });
-      };
+      });
       return slot.update(slotHandler);
     }
     const handleGetUserIdSlot = makeNotImplementedSlot("host_get_user_id", () => new GetUserIdErr.Unknown({ reason: NOT_IMPLEMENTED }));
@@ -3738,10 +3982,16 @@
     const handleGetLegacyAccountsSlot = makeNotImplementedSlot("host_get_legacy_accounts", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleAccountCreateProofSlot = makeNotImplementedSlot("host_account_create_proof", () => new CreateProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleAccountSignVrfSlot = makeNotImplementedSlot("host_account_sign_vrf", () => new SignVrfErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleAccountRegisterRingVrfKeySlot = makeNotImplementedSlot("host_account_register_ring_vrf_key", () => new RegisterRingVrfKeyErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleAccountListRingVrfKeysSlot = makeNotImplementedSlot("host_account_list_ring_vrf_keys", () => new ListRingVrfKeysErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleAccountRingVrfSignSlot = makeNotImplementedSlot("host_account_ring_vrf_sign", () => new RingVrfSignErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleChainGetChainInfoSlot = makeNotImplementedSlot("remote_chain_get_chain_info", () => new ChainInfoErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleDeriveEntropySlot = makeNotImplementedSlot("host_derive_entropy", () => new DeriveEntropyErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleLocalStorageReadSlot = makeNotImplementedSlot("host_local_storage_read", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleLocalStorageWriteSlot = makeNotImplementedSlot("host_local_storage_write", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleLocalStorageClearSlot = makeNotImplementedSlot("host_local_storage_clear", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleWorkerBeginOperationSlot = makeNotImplementedSlot("host_worker_begin_operation", () => new WorkerErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleWorkerEndOperationSlot = makeNotImplementedSlot("host_worker_end_operation", () => new WorkerErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleSignRawSlot = makeNotImplementedSlot("host_sign_raw", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleSignPayloadSlot = makeNotImplementedSlot("host_sign_payload", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleSignRawWithLegacyAccountSlot = makeNotImplementedSlot("host_sign_raw_with_legacy_account", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
@@ -3764,7 +4014,12 @@
     const handlePaymentTopUpSlot = makeNotImplementedSlot("host_payment_top_up", () => new PaymentTopUpErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handlePaymentRequestSlot = makeNotImplementedSlot("host_payment_request", () => new PaymentRequestErr.Unknown({ reason: NOT_IMPLEMENTED }));
     const handleRequestResourceAllocationSlot = makeNotImplementedSlot("host_request_resource_allocation", () => new ResourceAllocationErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleCoinPaymentCreatePurseSlot = makeNotImplementedSlot("host_coin_payment_create_purse", () => new CoinPaymentErr.Internal());
+    const handleCoinPaymentQueryPurseSlot = makeNotImplementedSlot("host_coin_payment_query_purse", () => new CoinPaymentErr.Internal());
+    const handleCoinPaymentCreateReceivableSlot = makeNotImplementedSlot("host_coin_payment_create_receivable", () => new CoinPaymentErr.Internal());
+    const handleCoinPaymentCreateChequeSlot = makeNotImplementedSlot("host_coin_payment_create_cheque", () => new CoinPaymentErr.Internal());
     const handleThemeSubscribeSlot = makeInterruptSlot("host_theme_subscribe", () => enumValue("v1", void 0));
+    const handleLocalStorageSubscribeSlot = makeInterruptSlot("host_local_storage_subscribe", () => enumValue("v1", void 0));
     const handleAccountConnectionStatusSubscribeSlot = makeInterruptSlot("host_account_connection_status_subscribe", () => enumValue("v1", void 0));
     const handleChatListSubscribeSlot = makeInterruptSlot("host_chat_list_subscribe", () => enumValue("v1", void 0));
     const handleChatActionSubscribeSlot = makeInterruptSlot("host_chat_action_subscribe", () => enumValue("v1", void 0));
@@ -3772,6 +4027,11 @@
     const handlePreimageLookupSubscribeSlot = makeInterruptSlot("remote_preimage_lookup_subscribe", () => enumValue("v1", void 0));
     const handlePaymentBalanceSubscribeSlot = makeInterruptSlot("host_payment_balance_subscribe", () => enumValue("v1", new PaymentBalanceErr.Unknown({ reason: NOT_IMPLEMENTED })));
     const handlePaymentStatusSubscribeSlot = makeInterruptSlot("host_payment_status_subscribe", () => enumValue("v1", new PaymentStatusErr.Unknown({ reason: NOT_IMPLEMENTED })));
+    const handleCoinPaymentRebalancePurseSlot = makeInterruptSlot("host_coin_payment_rebalance_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentDeletePurseSlot = makeInterruptSlot("host_coin_payment_delete_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentDepositSlot = makeInterruptSlot("host_coin_payment_deposit", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentRefundSlot = makeInterruptSlot("host_coin_payment_refund", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentListenForPaymentSlot = makeInterruptSlot("host_coin_payment_listen_for_payment", () => enumValue("v1", new CoinPaymentErr.Internal()));
     return {
       handleFeatureSupported(handler) {
         return handleV1Request(handleFeatureSupportedSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
@@ -3806,6 +4066,15 @@
       handleThemeSubscribe(handler) {
         return handleV1Subscription(handleThemeSubscribeSlot, handler);
       },
+      handleLocalStorageSubscribe(handler) {
+        return handleV1Subscription(handleLocalStorageSubscribeSlot, handler);
+      },
+      handleWorkerBeginOperation(handler) {
+        return handleV1Request(handleWorkerBeginOperationSlot, () => new WorkerErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleWorkerEndOperation(handler) {
+        return handleV1Request(handleWorkerEndOperationSlot, () => new WorkerErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
       handleGetUserId(handler) {
         return handleV1Request(handleGetUserIdSlot, () => new GetUserIdErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
       },
@@ -3826,6 +4095,18 @@
       },
       handleAccountSignVrf(handler) {
         return handleV1Request(handleAccountSignVrfSlot, () => new SignVrfErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleAccountRegisterRingVrfKey(handler) {
+        return handleV1Request(handleAccountRegisterRingVrfKeySlot, () => new RegisterRingVrfKeyErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleAccountListRingVrfKeys(handler) {
+        return handleV1Request(handleAccountListRingVrfKeysSlot, () => new ListRingVrfKeysErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleAccountRingVrfSign(handler) {
+        return handleV1Request(handleAccountRingVrfSignSlot, () => new RingVrfSignErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+      },
+      handleChainGetChainInfo(handler) {
+        return handleV1Request(handleChainGetChainInfoSlot, () => new ChainInfoErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
       },
       handleGetLegacyAccounts(handler) {
         return handleV1Request(handleGetLegacyAccountsSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
@@ -3900,6 +4181,33 @@
       },
       handlePaymentStatusSubscribe(handler) {
         return handleV1Subscription(handlePaymentStatusSubscribeSlot, handler);
+      },
+      handleCoinPaymentCreatePurse(handler) {
+        return handleV1Request(handleCoinPaymentCreatePurseSlot, () => new CoinPaymentErr.Internal(), handler);
+      },
+      handleCoinPaymentQueryPurse(handler) {
+        return handleV1Request(handleCoinPaymentQueryPurseSlot, () => new CoinPaymentErr.Internal(), handler);
+      },
+      handleCoinPaymentRebalancePurse(handler) {
+        return handleV1Subscription(handleCoinPaymentRebalancePurseSlot, handler);
+      },
+      handleCoinPaymentDeletePurse(handler) {
+        return handleV1Subscription(handleCoinPaymentDeletePurseSlot, handler);
+      },
+      handleCoinPaymentCreateReceivable(handler) {
+        return handleV1Request(handleCoinPaymentCreateReceivableSlot, () => new CoinPaymentErr.Internal(), handler);
+      },
+      handleCoinPaymentCreateCheque(handler) {
+        return handleV1Request(handleCoinPaymentCreateChequeSlot, () => new CoinPaymentErr.Internal(), handler);
+      },
+      handleCoinPaymentDeposit(handler) {
+        return handleV1Subscription(handleCoinPaymentDepositSlot, handler);
+      },
+      handleCoinPaymentRefund(handler) {
+        return handleV1Subscription(handleCoinPaymentRefundSlot, handler);
+      },
+      handleCoinPaymentListenForPayment(handler) {
+        return handleV1Subscription(handleCoinPaymentListenForPaymentSlot, handler);
       },
       handleRequestResourceAllocation(handler) {
         return handleV1Request(handleRequestResourceAllocationSlot, () => new ResourceAllocationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
@@ -4109,7 +4417,7 @@
           }
           const { genesisHash, transaction: transaction2 } = message.value;
           const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue("ChainSubmit", void 0)));
-          const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+          const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
           if (!permissionGranted) {
             return enumValue("v1", resultErr(new GenericError({ reason: "Permission denied" })));
           }
@@ -4181,7 +4489,7 @@
     };
   }
 
-  // node_modules/@noble/hashes/utils.js
+  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/utils.js
   function isBytes(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
   }
@@ -4254,7 +4562,7 @@
     return Object.freeze(hashC);
   }
 
-  // node_modules/@noble/hashes/_blake.js
+  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/_blake.js
   var BSIGMA = /* @__PURE__ */ Uint8Array.from([
     0,
     1,
@@ -4515,7 +4823,7 @@
     9
   ]);
 
-  // node_modules/@noble/hashes/_u64.js
+  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/_u64.js
   var U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
   var _32n = /* @__PURE__ */ BigInt(32);
   function fromBig(n, le = false) {
@@ -4536,7 +4844,7 @@
   var add3L = (Al, Bl, Cl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0);
   var add3H = (low, Ah, Bh, Ch) => Ah + Bh + Ch + (low / 2 ** 32 | 0) | 0;
 
-  // node_modules/@noble/hashes/blake2.js
+  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/blake2.js
   var B2B_IV = /* @__PURE__ */ Uint32Array.from([
     4089235720,
     1779033703,
@@ -4835,11 +5143,11 @@
   };
   var blake2b = /* @__PURE__ */ createHasher((opts) => new _BLAKE2b(opts));
 
-  // node_modules/@novasamatech/host-container/dist/deriveEntropy.js
+  // ../../../../triangle-js-sdks/packages/host-container/dist/deriveEntropy.js
   var textEncoder2 = new TextEncoder();
   var DOMAIN_SEPARATOR = textEncoder2.encode("product-entropy-derivation");
 
-  // node_modules/@novasamatech/host-container/dist/derivationIndex.js
+  // ../../../../triangle-js-sdks/packages/host-container/dist/derivationIndex.js
   var textEncoder3 = new TextEncoder();
   var INDEX_MAGIC_LENGTH = 28;
   var INDEX_MAGIC = blake2b(textEncoder3.encode("product-account-index"), { dkLen: 32 }).slice(0, INDEX_MAGIC_LENGTH);
@@ -4850,8 +5158,7 @@
     let nextId = 0;
     window["__container_callback__"] = (id2, payload) => {
       const entry = pending.get(id2);
-      if (!entry)
-        return;
+      if (!entry) return;
       const msg = typeof payload === "string" ? JSON.parse(payload) : payload;
       if ("value" in msg) {
         entry.resolve?.(msg.value);
@@ -4888,11 +5195,11 @@
     };
   }
 
-  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-opaque-token.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-opaque-token.js
   var count = 0;
   var getOpaqueToken = () => `proxyOpaque${count++}`;
 
-  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/json-rpc-message.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/json-rpc-message.js
   var jsonRpcReq = (msg) => ({
     jsonrpc: "2.0",
     ...msg
@@ -4902,7 +5209,7 @@
     ...msg
   });
 
-  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-proxy.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-proxy.js
   var getInternalId = () => `___proxyInternalId__${getOpaqueToken()}`;
   var getProxy = (toConsumer) => {
     let state = {
@@ -4918,12 +5225,10 @@
           const synToken = state.pendingBroadcasts.get(id2);
           if (synToken) {
             state.pendingBroadcasts.delete(id2);
-            if (!("result" in parsed))
-              return;
+            if (!("result" in parsed)) return;
             const upToken = parsed.result;
             const activeBroadcast = state.activeBroadcasts.get(synToken);
-            if (activeBroadcast)
-              activeBroadcast.upToken = upToken;
+            if (activeBroadcast) activeBroadcast.upToken = upToken;
             else
               state.connection.send(
                 jsonRpcReq({
@@ -4944,12 +5249,10 @@
             state.activeChainHeads.delete(subscription);
         }
       }
-      if (isActive && state.type !== 2)
-        toConsumer(parsed);
+      if (isActive && state.type !== 2) toConsumer(parsed);
     };
     const send = (msg) => {
-      if (state.type === 2)
-        return;
+      if (state.type === 2) return;
       if ("id" in msg) {
         const { method, id: id2, params } = msg;
         const [group, , methodName] = method.split("_");
@@ -5015,18 +5318,15 @@
     return {
       send,
       disconnect: () => {
-        if (state.type === 2)
-          return;
-        if (state.type === 0)
-          state.connection.disconnect();
+        if (state.type === 2) return;
+        if (state.type === 0) state.connection.disconnect();
         state = {
           type: 2
           /* Done */
         };
       },
       connect: (cb) => {
-        if (state.type !== 1)
-          throw new Error("Nonesense");
+        if (state.type !== 1) throw new Error("Nonesense");
         const { pending, activeBroadcasts } = state;
         const onGoingRequests = /* @__PURE__ */ new Map();
         const activeChainHeads = /* @__PURE__ */ new Set();
@@ -5061,8 +5361,7 @@
                   error: { code: -32603, message: "Internal error" }
                 })
               );
-            else
-              send(x.msg);
+            else send(x.msg);
           }
           onGoingRequests.clear();
         };
@@ -5093,7 +5392,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-sync-provider.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-sync-provider.js
   var noop4 = () => {
   };
   var WAIT_BASE = 250;
@@ -5109,8 +5408,7 @@
         const result = input((cb) => {
           isWaiting = false;
           stop = noop4;
-          if (!cb)
-            start();
+          if (!cb) start();
           else if (proxy)
             proxy.connect((onMsg, onHalt) => {
               let isOn = true;
@@ -5130,8 +5428,7 @@
               );
             });
         });
-        if (isWaiting)
-          stop = result;
+        if (isWaiting) stop = result;
       }, 0);
       stop = () => clearTimeout(token2);
     };
@@ -5153,16 +5450,16 @@
     };
   };
 
-  // node_modules/rxjs/dist/esm5/internal/util/identity.js
+  // ../../../../triangle-js-sdks/node_modules/rxjs/dist/esm5/internal/util/identity.js
   function identity2(x) {
     return x;
   }
 
-  // node_modules/@novasamatech/host-substrate-chain-connection/dist/helpers.js
+  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/helpers.js
   function noop5() {
   }
 
-  // node_modules/@polkadot-api/ws-provider/dist/types.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/types.js
   var WsEvent = /* @__PURE__ */ ((WsEvent2) => {
     WsEvent2["CONNECTING"] = "CONNECTING";
     WsEvent2["CONNECTED"] = "CONNECTED";
@@ -5183,7 +5480,7 @@
     return SocketEvents2;
   })(SocketEvents || {});
 
-  // node_modules/@polkadot-api/ws-provider/dist/get-async-provider.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/get-async-provider.js
   var getAsyncProvider = (input) => (onMessage, _onHalt) => {
     let connection = null;
     let pending = [];
@@ -5209,10 +5506,8 @@
     });
     return {
       send: (msg) => {
-        if (connection)
-          connection.send(msg);
-        else if (connection === null)
-          pending.push(msg);
+        if (connection) connection.send(msg);
+        else if (connection === null) pending.push(msg);
       },
       disconnect: () => {
         const x = connection;
@@ -5222,7 +5517,7 @@
     };
   };
 
-  // node_modules/@polkadot-api/ws-provider/dist/with-socket.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/with-socket.js
   var withSocket = (getWebsocket, heartbeatTimeout, connectionTimeout, logger) => {
     const logType = logger ? (type) => logger({ type }) : noop2;
     const logMsg = logger ? (type, msg) => logger({ type, msg }) : noop2;
@@ -5331,7 +5626,7 @@
     });
   };
 
-  // node_modules/@polkadot-api/ws-provider/dist/provider.js
+  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/provider.js
   var defaultConfig = {
     onStatusChanged: noop2,
     timeout: 5e3,
@@ -5351,8 +5646,7 @@
     };
     const actualEndpoints = Array.isArray(endpoints) ? endpoints : [endpoints];
     const WebsocketClass = config?.websocketClass ?? globalThis.WebSocket;
-    if (!WebsocketClass)
-      throw new Error("Missing WebSocket class");
+    if (!WebsocketClass) throw new Error("Missing WebSocket class");
     let idx = 0;
     let switchTo;
     let latestSocket = null;
@@ -5402,16 +5696,14 @@
       };
     });
     const switchFn = (uri) => {
-      if (status.type === WsEvent.CLOSE)
-        return;
+      if (status.type === WsEvent.CLOSE) return;
       switchTo = uri;
-      if (status.type !== WsEvent.ERROR && latestSocket)
-        latestSocket.close();
+      if (status.type !== WsEvent.ERROR && latestSocket) latestSocket.close();
     };
     return Object.assign(result, { switch: switchFn, getStatus: () => status });
   };
 
-  // node_modules/@novasamatech/host-substrate-chain-connection/dist/pauseController.js
+  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/pauseController.js
   var createPauseController = () => {
     let paused = false;
     let destroyed = false;
@@ -5474,7 +5766,7 @@
     return { middleware, pause, resume, isPaused: () => paused };
   };
 
-  // node_modules/@novasamatech/host-substrate-chain-connection/dist/subscriptionReplayProvider.js
+  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/subscriptionReplayProvider.js
   var isChainMethod = (method) => method.startsWith("chain_");
   var isSubscribeMethod = (method) => {
     if (isChainMethod(method))
@@ -5571,7 +5863,7 @@
     };
   };
 
-  // node_modules/@novasamatech/host-substrate-chain-connection/dist/wsProvider.js
+  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/wsProvider.js
   var STATUS_BY_WS_EVENT = {
     [WsEvent.CONNECTING]: "connecting",
     [WsEvent.CONNECTED]: "connected",
@@ -5639,8 +5931,7 @@
       });
       entry.provider = provider;
       entry.inner = provider(entry.onMessage);
-      for (const msg of entry.buffer)
-        entry.inner.send(msg);
+      for (const msg of entry.buffer) entry.inner.send(msg);
       entry.buffer.length = 0;
     }
     disconnect(genesisHash) {
@@ -5713,8 +6004,7 @@
   var STATEMENT_TOPIC_BYTES = 32;
   function validateStatementTopics(topics) {
     const invalid = topics.find((topic) => topic.length !== STATEMENT_TOPIC_BYTES);
-    if (invalid === void 0)
-      return null;
+    if (invalid === void 0) return null;
     const asUtf8 = new TextDecoder().decode(invalid);
     return `Statement topic must be ${STATEMENT_TOPIC_BYTES} bytes, got ${invalid.length}: ${toHex2(invalid)} ("${asUtf8}")`;
   }
@@ -5868,10 +6158,8 @@
       (result) => ok2({ primaryUsername: result.primaryUsername }),
       (e) => {
         const msg = String(e);
-        if (msg.includes("NotConnected"))
-          return err2(new GetUserIdErr.NotConnected());
-        if (msg.includes("PermissionDenied"))
-          return err2(new GetUserIdErr.PermissionDenied());
+        if (msg.includes("NotConnected")) return err2(new GetUserIdErr.NotConnected());
+        if (msg.includes("PermissionDenied")) return err2(new GetUserIdErr.PermissionDenied());
         return err2(new GetUserIdErr.Unknown({ reason: msg }));
       }
     );
@@ -5996,10 +6284,8 @@
       });
       return {
         send(message) {
-          if (entry.inner)
-            entry.inner.send(message);
-          else
-            entry.buffer.push(message);
+          if (entry.inner) entry.inner.send(message);
+          else entry.buffer.push(message);
         },
         disconnect() {
           connectionManager.disconnect(genesisHash);
@@ -6207,8 +6493,7 @@
   });
   container.handleStatementStoreCreateProof(async ([account, statement], { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError)
-      return err2(new StatementProofErr.Unknown({ reason: topicError }));
+    if (topicError) return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProof", {
         account: toNativeAccountId(account),
@@ -6227,8 +6512,7 @@
   });
   container.handleStatementStoreSubmit(async (statement, { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError)
-      return err2(new GenericError({ reason: topicError }));
+    if (topicError) return err2(new GenericError({ reason: topicError }));
     try {
       const proofValue = statement.proof.value;
       await callNative("statementStoreSubmit", {
@@ -6249,8 +6533,7 @@
   });
   container.handleStatementStoreCreateProofAuthorized(async (statement, { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError)
-      return err2(new StatementProofErr.Unknown({ reason: topicError }));
+    if (topicError) return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProofAuthorized", {
         channel: statement.channel ? toHex2(statement.channel) : void 0,
@@ -6348,6 +6631,27 @@
       (e) => err2(new StorageErr.Unknown({ reason: String(e) }))
     );
   });
+  container.handleLocalStorageSubscribe(({ key }, send, _interrupt) => {
+    return subscribeNative("localStorageSubscribe", { key }, (result) => {
+      send({ value: result.value != null ? fromHex3(result.value) : void 0 });
+    });
+  });
+  container.handleWorkerBeginOperation(async ({ label }, { ok: ok2, err: err2 }) => {
+    try {
+      const result = await callNative("workerBeginOperation", { label: label ?? void 0 });
+      return ok2({ id: result.id });
+    } catch (e) {
+      return err2(new WorkerErr.Unknown({ reason: String(e) }));
+    }
+  });
+  container.handleWorkerEndOperation(async ({ id: id2 }, { ok: ok2, err: err2 }) => {
+    try {
+      await callNative("workerEndOperation", { id: id2 });
+      return ok2(void 0);
+    } catch (e) {
+      return err2(new WorkerErr.Unknown({ reason: String(e) }));
+    }
+  });
   container.handleNavigateTo((destination, { ok: ok2, err: err2 }) => {
     return callNative("navigateTo", { destination }).then(
       () => ok2(void 0),
@@ -6406,10 +6710,8 @@
       return ok2({ id: result.id });
     } catch (e) {
       const msg = String(e instanceof Error ? e.message : e);
-      if (msg.includes("payment rejected"))
-        return err2(new PaymentRequestErr.Rejected());
-      if (msg.includes("insufficient balance"))
-        return err2(new PaymentRequestErr.InsufficientBalance());
+      if (msg.includes("payment rejected")) return err2(new PaymentRequestErr.Rejected());
+      if (msg.includes("insufficient balance")) return err2(new PaymentRequestErr.InsufficientBalance());
       return err2(new PaymentRequestErr.Unknown({ reason: msg }));
     }
   });
@@ -6442,12 +6744,9 @@
       "paymentStatusSubscribe",
       { paymentId },
       (payload) => {
-        if (payload.tag === "Processing")
-          send({ tag: "Processing", value: void 0 });
-        else if (payload.tag === "Completed")
-          send({ tag: "Completed", value: void 0 });
-        else
-          send({ tag: "Failed", value: payload.value ?? "" });
+        if (payload.tag === "Processing") send({ tag: "Processing", value: void 0 });
+        else if (payload.tag === "Completed") send({ tag: "Completed", value: void 0 });
+        else send({ tag: "Failed", value: payload.value ?? "" });
       },
       () => interrupt(new PaymentStatusErr.Unknown({ reason: "subscription interrupted" }))
     );
