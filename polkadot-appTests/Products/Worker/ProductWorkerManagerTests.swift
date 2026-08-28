@@ -116,13 +116,22 @@ struct ProductWorkerManagerTests {
         let factory = FakeWorkerFactory(startDelay: .milliseconds(2))
         let manager = ProductWorkerManager(factory: factory)
 
+        // Toggling faster than the boot can begin may legitimately start nothing:
+        // each start checks it is still wanted first. The invariant is only that
+        // whatever started is also disposed.
         for _ in 0 ..< 20 {
             let token = manager.lock(productId: "getcash")
             token.unlock()
         }
 
+        // Hold one lock long enough to force a real start, then release it, so the
+        // convergence check covers an actual start/dispose cycle rather than a no-op.
+        let token = manager.lock(productId: "getcash")
+        await waitUntil { factory.started > 0 }
+        token.unlock()
+
         await waitUntil(timeout: .seconds(3)) {
-            factory.started == factory.disposed && factory.started > 0
+            factory.started == factory.disposed
         }
         #expect(factory.started == factory.disposed)
         #expect(factory.started > 0)

@@ -160,8 +160,11 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
         }
     }
 
-    /// Appends a dispose step. Runs after any in-flight start, tears the worker
-    /// down, and drops the entry if nothing re-locked it meanwhile.
+    /// Appends a dispose step. Runs after any in-flight start and tears the
+    /// worker down. The entry is kept (with `worker == nil`, `refCount == 0`) so
+    /// its `lifecycle` stays the single serialized chain for this product: a
+    /// re-lock appends to it rather than starting a second, parallel chain that
+    /// could drop a just-stored worker before its paired dispose runs.
     private func chainDispose(productId: ProductId, after previous: Task<Void, Never>?) -> Task<Void, Never> {
         Task { [weak self] in
             await previous?.value
@@ -173,12 +176,6 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
                 return worker
             }
             await worker?.dispose()
-
-            state.withLock { entries in
-                if (entries[productId]?.refCount ?? 0) <= 0 {
-                    entries[productId] = nil
-                }
-            }
         }
     }
 }
