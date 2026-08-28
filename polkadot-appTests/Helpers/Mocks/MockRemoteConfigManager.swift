@@ -8,6 +8,7 @@ final class MockRemoteConfigManager: RemoteConfigManaging {
     var chainsToReturn: [RemoteChainModel] = []
     var errorToThrow: Error?
     var collectiblesEnabled = false
+    var txExtensionVersions: [ChainModel.Id: UInt8] = [:]
     var remoteConfig = RemoteAppConfig(
         identityBackendUrl: URL(string: "https://polkadot-app-stg.parity.io/"),
         ipfsGatewayUrl: nil,
@@ -28,6 +29,10 @@ final class MockRemoteConfigManager: RemoteConfigManaging {
 
     func syncedCollectiblesEnabled() -> Bool {
         collectiblesEnabled
+    }
+
+    func syncedTxExtensionVersions() -> [ChainModel.Id: UInt8] {
+        txExtensionVersions
     }
 
     func asyncWaitChainsForRemoteConfigValues() -> CompoundOperationWrapper<[RemoteChainModel]> {

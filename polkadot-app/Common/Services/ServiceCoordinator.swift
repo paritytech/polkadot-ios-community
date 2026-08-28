@@ -153,8 +153,11 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         // Keep the cached TLD warm on each launch without blocking.
         tldProvider.refresh()
 
-        determineStateSyncService.setup()
-        personhoodBackgroundService.setup()
+        #if FEATURE_DIMS
+            determineStateSyncService.setup()
+            personhoodBackgroundService.setup()
+        #endif
+
         chatCoordinator.setup()
         chatExtensionsRegistry.discover()
         chatRequestCoordinator.setup()
@@ -201,8 +204,11 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
     }
 
     func throttle() {
-        determineStateSyncService.throttle()
-        personhoodBackgroundService.throttle()
+        #if FEATURE_DIMS
+            determineStateSyncService.throttle()
+            personhoodBackgroundService.throttle()
+        #endif
+
         chatCoordinator.throttle()
         chatRequestCoordinator.throttle()
         fiatOnrampTrackingService.throttle()
