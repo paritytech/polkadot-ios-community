@@ -60,6 +60,10 @@ extension FirebaseFacade: RemoteConfigManaging {
         firebaseService.syncedCollectiblesEnabled()
     }
 
+    func syncedTxExtensionVersions() -> [ChainModel.Id: UInt8] {
+        firebaseService.syncedTxExtensionVersions()
+    }
+
     func asyncWaitRemoteConfig() async throws -> RemoteAppConfig {
         for await config in remoteConfigSubject.compacted() {
             return config
