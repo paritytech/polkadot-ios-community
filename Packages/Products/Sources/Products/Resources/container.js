@@ -2,12 +2,15 @@
 (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  var __publicField = (obj, key, value) => {
+    __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+    return value;
+  };
 
-  // ../../../../triangle-js-sdks/packages/host-api/node_modules/nanoid/url-alphabet/index.js
+  // node_modules/nanoid/url-alphabet/index.js
   var urlAlphabet = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
 
-  // ../../../../triangle-js-sdks/packages/host-api/node_modules/nanoid/index.browser.js
+  // node_modules/nanoid/index.browser.js
   var nanoid = (size = 21) => {
     let id2 = "";
     let bytes = crypto.getRandomValues(new Uint8Array(size |= 0));
@@ -17,7 +20,7 @@
     return id2;
   };
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/helpers.js
+  // node_modules/@novasamatech/host-api/dist/helpers.js
   function delay(ttl) {
     return new Promise((resolve) => setTimeout(resolve, ttl));
   }
@@ -46,7 +49,7 @@
     return "Unknown error occurred.";
   }
 
-  // ../../../../triangle-js-sdks/node_modules/neverthrow/dist/index.es.js
+  // node_modules/neverthrow/dist/index.es.js
   var defaultErrorConfig = {
     withStackTrace: false
   };
@@ -88,20 +91,24 @@
   }
   function __values(o) {
     var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-    if (m) return m.call(o);
-    if (o && typeof o.length === "number") return {
-      next: function() {
-        if (o && i >= o.length) o = void 0;
-        return { value: o && o[i++], done: !o };
-      }
-    };
+    if (m)
+      return m.call(o);
+    if (o && typeof o.length === "number")
+      return {
+        next: function() {
+          if (o && i >= o.length)
+            o = void 0;
+          return { value: o && o[i++], done: !o };
+        }
+      };
     throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
   }
   function __await(v) {
     return this instanceof __await ? (this.v = v, this) : new __await(v);
   }
   function __asyncGenerator(thisArg, _arguments, generator) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    if (!Symbol.asyncIterator)
+      throw new TypeError("Symbol.asyncIterator is not defined.");
     var g = generator.apply(thisArg, _arguments || []), i, q = [];
     return i = Object.create((typeof AsyncIterator === "function" ? AsyncIterator : Object).prototype), verb("next"), verb("throw"), verb("return", awaitReturn), i[Symbol.asyncIterator] = function() {
       return this;
@@ -118,7 +125,8 @@
             q.push([n, v, a, b]) > 1 || resume(n, v);
           });
         };
-        if (f) i[n] = f(i[n]);
+        if (f)
+          i[n] = f(i[n]);
       }
     }
     function resume(n, v) {
@@ -138,7 +146,8 @@
       resume("throw", value);
     }
     function settle(f, v) {
-      if (f(v), q.shift(), q.length) resume(q[0][0], q[0][1]);
+      if (f(v), q.shift(), q.length)
+        resume(q[0][0], q[0][1]);
     }
   }
   function __asyncDelegator(o) {
@@ -155,7 +164,8 @@
     }
   }
   function __asyncValues(o) {
-    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    if (!Symbol.asyncIterator)
+      throw new TypeError("Symbol.asyncIterator is not defined.");
     var m = o[Symbol.asyncIterator], i;
     return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function() {
       return this;
@@ -434,9 +444,9 @@
     }
     safeUnwrap() {
       const value = this.value;
-      return (function* () {
+      return function* () {
         return value;
-      })();
+      }();
     }
     _unsafeUnwrap(_) {
       return this.value;
@@ -506,10 +516,10 @@
     }
     safeUnwrap() {
       const error = this.error;
-      return (function* () {
+      return function* () {
         yield err(error);
         throw new Error("Do not use this generator out of `safeTry`");
-      })();
+      }();
     }
     _unsafeUnwrap(config) {
       throw createNeverThrowError("Called `_unsafeUnwrap` on an Err", this, config);
@@ -525,7 +535,7 @@
   };
   var fromThrowable = Result.fromThrowable;
 
-  // ../../../../triangle-js-sdks/node_modules/scale-ts/dist/scale-ts.js
+  // node_modules/scale-ts/dist/scale-ts.js
   var __defProp2 = Object.defineProperty;
   var __defNormalProp2 = (obj, key, value) => key in obj ? __defProp2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField2 = (obj, key, value) => {
@@ -847,12 +857,12 @@
   Vector.enc = VectorEnc;
   Vector.dec = VectorDec;
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/lazy.js
+  // node_modules/@novasamatech/scale/dist/lazy.js
   function lazy(fn) {
     return createCodec((v) => fn().enc(v), (v) => fn().dec(v));
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/bytes.js
+  // node_modules/@novasamatech/scale/dist/bytes.js
   function Bytes2(size) {
     const codec = size === void 0 ? Bytes() : enhanceCodec(Bytes(size), (value) => {
       if (value.length > size)
@@ -871,7 +881,7 @@
     return Object.assign(codec, { size });
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/hex.js
+  // node_modules/@polkadot-api/utils/dist/hex.js
   var HEX_STR = "0123456789abcdef";
   function toHex(bytes) {
     const result = new Array(bytes.length + 1);
@@ -911,7 +921,8 @@
     const base = (hexString[1] === "x" ? 2 : 0) + isOdd;
     const nBytes = (hexString.length - base) / 2 + isOdd;
     const bytes = new Uint8Array(nBytes);
-    if (isOdd) bytes[0] = 0 | HEX_MAP2[hexString[2]];
+    if (isOdd)
+      bytes[0] = 0 | HEX_MAP2[hexString[2]];
     for (let i = 0; i < nBytes; ) {
       const idx = base + i * 2;
       const a = HEX_MAP2[hexString[idx]];
@@ -921,10 +932,10 @@
     return bytes;
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/noop.js
+  // node_modules/@polkadot-api/utils/dist/noop.js
   var noop2 = Function.prototype;
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/utils/dist/AbortError.js
+  // node_modules/@polkadot-api/utils/dist/AbortError.js
   var AbortError = class extends Error {
     constructor() {
       super("Abort Error");
@@ -932,18 +943,18 @@
     }
   };
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/hex.js
+  // node_modules/@novasamatech/scale/dist/hex.js
   function Hex(size) {
     const bytes = size === void 0 ? Bytes2() : Bytes2(size);
     return Object.assign(enhanceCodec(bytes, fromHex2, (v) => toHex(v)), { size });
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/nullable.js
+  // node_modules/@novasamatech/scale/dist/nullable.js
   function Nullable(inner) {
     return enhanceCodec(Option(inner), (v) => v === null ? void 0 : v, (v) => v === void 0 ? null : v);
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/optionBool.js
+  // node_modules/@novasamatech/scale/dist/optionBool.js
   var OptionBool = enhanceCodec(u8, (value) => {
     if (value === void 0) {
       return 0;
@@ -962,7 +973,7 @@
     }
   });
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/status.js
+  // node_modules/@novasamatech/scale/dist/status.js
   function Status(...list) {
     return enhanceCodec(u8, (v) => {
       const i = list.indexOf(v);
@@ -979,10 +990,10 @@
     });
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/enum.js
+  // node_modules/@novasamatech/scale/dist/enum.js
   var Enum2 = (inner, indexes) => Enum(inner, indexes);
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/err.js
+  // node_modules/@novasamatech/scale/dist/err.js
   function Err2(name, value, message, className = name) {
     const C = {
       [className]: class extends Error {
@@ -1018,7 +1029,7 @@
     return Object.assign(C, errorCodec);
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/errEnum.js
+  // node_modules/@novasamatech/scale/dist/errEnum.js
   function ErrEnum(name, inner) {
     const variants = Object.fromEntries(Object.entries(inner).map(([k, [value, message]]) => [k, Err2(`${name}::${k}`, value, message, k)]));
     const codec = enhanceCodec(Enum2(variants), (v) => ({ tag: v.instance, value: v }), (v) => v.value);
@@ -1029,7 +1040,7 @@
     return result;
   }
 
-  // ../../../../triangle-js-sdks/packages/scale/dist/helpers.js
+  // node_modules/@novasamatech/scale/dist/helpers.js
   function resultOk(value) {
     return { success: true, value };
   }
@@ -1049,7 +1060,7 @@
     return fromHex2(hex);
   }
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/callError.js
+  // node_modules/@novasamatech/host-api/dist/protocol/callError.js
   var versioned = (domain) => Enum2({ v1: domain }, [0]);
   var CallError = (domain) => Enum2({
     Domain: domain,
@@ -1058,7 +1069,7 @@
     MalformedFrame: Struct({ reason: str }),
     HostFailure: Struct({ reason: str })
   }, [0, 1, 2, 3, 4]);
-  var CALL_ERROR_FAILURE = /* @__PURE__ */ Symbol("callErrorFailure");
+  var CALL_ERROR_FAILURE = Symbol("callErrorFailure");
   var isCallErrorFailure = (value) => CALL_ERROR_FAILURE in value;
   var CallResult = (ok2, domainErr) => {
     const wire = Result2(ok2, CallError(versioned(domainErr)));
@@ -1094,14 +1105,14 @@
     });
   };
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/commonCodecs.js
+  // node_modules/@novasamatech/host-api/dist/protocol/commonCodecs.js
   var GenesisHash = Hex(32);
   var GenericErr = Struct({
     reason: str
   });
   var GenericError = Err2("GenericError", GenericErr, ({ reason }) => `Unknown error: ${reason}`);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/accounts.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/accounts.js
   var AccountId = Bytes2(32);
   var PublicKey = Bytes2();
   var DotNsIdentifier = str;
@@ -1243,7 +1254,7 @@
   var RequestLoginV1_request = Option(str);
   var RequestLoginV1_response = CallResult(LoginResult, LoginErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/chainInteraction.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/chainInteraction.js
   var BlockHash = Hex();
   var OperationId = str;
   var RuntimeApi = Tuple(str, u32);
@@ -1394,7 +1405,7 @@
   });
   var TransactionStopV1_response = CallResult(_void, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/customRenderer.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/customRenderer.js
   var Size = compact;
   var Dimensions = Tuple(Size, Size, Option(Size), Option(Size));
   var TypographyStyle = Status("headline.large", "title.medium.regular", "body.large.regular", "body.medium.regular", "body.small.regular");
@@ -1477,7 +1488,7 @@
     TextField: Component(TextFieldProps)
   });
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/chat.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/chat.js
   var ChatRoomRegistrationErr = ErrEnum("ChatRoomRegistrationErr", {
     PermissionDenied: [_void, "Permission denied"],
     Unknown: [GenericErr, "Unknown error while chat registration"]
@@ -1597,7 +1608,7 @@
   var ChatCustomMessageRenderingV1_receive = CustomRendererNode;
   var ChatCustomMessageRenderingV1_interrupt = _void;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/coinPayment.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/coinPayment.js
   var CoinPaymentPurseId = u32;
   var CoinPaymentBalance = u32;
   var CoinPaymentTimestamp = u64;
@@ -1684,7 +1695,7 @@
   var CoinPaymentListenForPaymentV1_receive = CoinPaymentListenForItem;
   var CoinPaymentListenForPaymentV1_interrupt = CoinPaymentErr;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/createTransaction.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/createTransaction.js
   var CreateTransactionErr = ErrEnum("CreateTransactionErr", {
     FailedToDecode: [_void, "Failed to decode"],
     Rejected: [_void, "Rejected"],
@@ -1743,7 +1754,7 @@
   var CreateTransactionWithLegacyAccountV1_request = LegacyTransaction;
   var CreateTransactionWithLegacyAccountV1_response = CallResult(Bytes2(), CreateTransactionErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/deriveEntropy.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/deriveEntropy.js
   var DeriveEntropyErr = ErrEnum("DeriveEntropyErr", {
     Unknown: [GenericErr, "Unknown derive entropy error"]
   });
@@ -1751,7 +1762,7 @@
   var DeriveEntropyV1_request = Bytes2();
   var DeriveEntropyV1_response = CallResult(Entropy, DeriveEntropyErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/handshake.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/handshake.js
   var HandshakeErr = ErrEnum("HandshakeErr", {
     Timeout: [_void, "Handshake: timeout"],
     UnsupportedProtocolVersion: [_void, "Handshake: unsupported protocol version"],
@@ -1760,7 +1771,7 @@
   var HandshakeV1_request = u8;
   var HandshakeV1_response = CallResult(_void, HandshakeErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/localStorage.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/localStorage.js
   var StorageErr = ErrEnum("StorageErr", {
     Full: [_void, "Storage is full"],
     Unknown: [GenericErr, "Unknown storage error"]
@@ -1777,7 +1788,7 @@
   var StorageSubscribeV1_receive = Struct({ value: Option(StorageValue) });
   var StorageSubscribeV1_interrupt = _void;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/navigation.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/navigation.js
   var NavigateToErr = ErrEnum("NavigateToErr", {
     PermissionDenied: [_void, "Permission denied"],
     Unknown: [GenericErr, "Unknown error"]
@@ -1785,7 +1796,7 @@
   var NavigateToV1_request = str;
   var NavigateToV1_response = CallResult(_void, NavigateToErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/notification.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/notification.js
   var NotificationId = u32;
   var PushNotification = Struct({
     text: str,
@@ -1801,7 +1812,7 @@
   var PushNotificationCancelV1_request = NotificationId;
   var PushNotificationCancelV1_response = CallResult(_void, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/payments.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/payments.js
   var Sr25519SecretKey = Bytes2(64);
   var PaymentId = str;
   var CoinPaymentPurseId2 = u32;
@@ -1865,7 +1876,7 @@
   var PaymentStatusSubscribeV1_receive = PaymentStatus;
   var PaymentStatusSubscribeV1_interrupt = PaymentStatusErr;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/preimage.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/preimage.js
   var PreimageKey = Hex();
   var PreimageValue = Bytes2();
   var PreimageLookupSubscribeV1_start = PreimageKey;
@@ -1877,7 +1888,7 @@
   var PreimageSubmitV1_request = PreimageValue;
   var PreimageSubmitV1_response = CallResult(PreimageKey, PreimageSubmitErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/resourceAllocation.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/resourceAllocation.js
   var AllocatableResource = Enum2({
     StatementStoreAllowance: _void,
     BulletinAllowance: _void,
@@ -1896,7 +1907,7 @@
   var RequestResourceAllocationV1_request = Vector(AllocatableResource);
   var RequestResourceAllocationV1_response = CallResult(Vector(AllocationOutcome), ResourceAllocationErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/sign.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/sign.js
   var SigningErr = ErrEnum("SigningErr", {
     FailedToDecode: [_void, "Failed to decode"],
     Rejected: [_void, "Rejected"],
@@ -1953,7 +1964,7 @@
   var SignPayloadWithLegacyAccountV1_request = SigningPayloadWithoutAccount;
   var SignPayloadWithLegacyAccountV1_response = CallResult(SigningResult, SigningErr);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/statementStore.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/statementStore.js
   var Topic = Bytes2(32);
   var Channel = Bytes2(32);
   var DecryptionKey = Bytes2(32);
@@ -2019,7 +2030,7 @@
   var StatementStoreSubmitV1_request = SignedStatement;
   var StatementStoreSubmitV1_response = CallResult(_void, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/worker.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/worker.js
   var WorkerErr = ErrEnum("WorkerErr", {
     TooManyOpen: [_void, "Too many open operations"],
     Unknown: [GenericErr, "Unknown worker operation error"]
@@ -2030,7 +2041,7 @@
   var WorkerEndOperationV1_request = Struct({ id: OperationId2 });
   var WorkerEndOperationV1_response = CallResult(_void, WorkerErr);
 
-  // ../../../../triangle-js-sdks/node_modules/nanoevents/index.js
+  // node_modules/nanoevents/index.js
   var createNanoEvents = () => ({
     emit(event, ...args) {
       for (let callbacks = this.events[event] || [], i = 0, length = callbacks.length; i < length; i++) {
@@ -2048,24 +2059,24 @@
     }
   });
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/constants.js
+  // node_modules/@novasamatech/host-api/dist/constants.js
   var SCALE_CODEC_PROTOCOL_ID = 1;
   var HANDSHAKE_INTERVAL = 50;
   var HANDSHAKE_TIMEOUT = 1e4;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/devicePermission.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/devicePermission.js
   var DevicePermission = Status("Notifications", "Camera", "Microphone", "Bluetooth", "NFC", "Location", "Clipboard", "OpenUrl", "Biometrics");
   var DevicePermissionV1_request = DevicePermission;
   var DevicePermissionV1_response = CallResult(bool, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/feature.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/feature.js
   var Feature = Enum2({
     Chain: Hex()
   });
   var FeatureV1_request = Feature;
   var FeatureV1_response = CallResult(bool, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/remotePermission.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/remotePermission.js
   var RemotePermission = Enum2({
     Remote: Vector(str),
     WebRtc: _void,
@@ -2076,7 +2087,7 @@
   var RemotePermissionV1_request = RemotePermission;
   var RemotePermissionV1_response = CallResult(bool, GenericError);
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/v1/theme.js
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/theme.js
   var ThemeName = Enum2({
     Custom: str,
     Default: _void
@@ -2090,7 +2101,7 @@
   var ThemeSubscribeV1_receive = Theme;
   var ThemeSubscribeV1_interrupt = _void;
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/impl.js
+  // node_modules/@novasamatech/host-api/dist/protocol/impl.js
   var enumFromArg = (enumValues, n) => {
     return Enum2(Object.fromEntries(Object.entries(enumValues).map(([key, value]) => [key, value[n]])));
   };
@@ -2366,7 +2377,7 @@
     })
   };
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/protocol/messageCodec.js
+  // node_modules/@novasamatech/host-api/dist/protocol/messageCodec.js
   var createPayload = (hostApi) => {
     const fields = {};
     const indexes = [];
@@ -2396,7 +2407,7 @@
     payload: MessagePayload
   });
 
-  // ../../../../triangle-js-sdks/packages/host-api/dist/transport.js
+  // node_modules/@novasamatech/host-api/dist/transport.js
   function isConnected(status) {
     return status === "connected";
   }
@@ -2778,7 +2789,7 @@
     return transport;
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/RpcError.js
+  // node_modules/@polkadot-api/raw-client/dist/RpcError.js
   var __defProp3 = Object.defineProperty;
   var __defNormalProp3 = (obj, key, value) => key in obj ? __defProp3(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField3 = (obj, key, value) => __defNormalProp3(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -2793,11 +2804,11 @@
     }
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider/dist/index.js
+  // node_modules/@polkadot-api/json-rpc-provider/dist/index.js
   var isRequest = (msg) => "method" in msg;
   var isResponse = (msg) => !("method" in msg);
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/subscriptions-manager.js
+  // node_modules/@polkadot-api/raw-client/dist/subscriptions-manager.js
   var getSubscriptionsManager = () => {
     const subscriptions = /* @__PURE__ */ new Map();
     return {
@@ -2828,7 +2839,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/DestroyedError.js
+  // node_modules/@polkadot-api/raw-client/dist/DestroyedError.js
   var DestroyedError = class extends Error {
     constructor() {
       super("Client destroyed");
@@ -2836,7 +2847,7 @@
     }
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/raw-client/dist/createClient.js
+  // node_modules/@polkadot-api/raw-client/dist/createClient.js
   var nextClientId = 1;
   var createClient = (gProvider, onNotification) => {
     let clientId = nextClientId++;
@@ -2855,7 +2866,8 @@
       if (isResponse(parsed)) {
         const { id: id2 } = parsed;
         const cb = responses.get(id2);
-        if (!cb) return;
+        if (!cb)
+          return;
         responses.delete(id2);
         return "error" in parsed ? cb.onError(new RpcError(parsed.error)) : cb.onSuccess(parsed.result, (opaqueId, subscriber) => {
           const subscriptionId = opaqueId;
@@ -2869,8 +2881,10 @@
         const { params } = parsed;
         const { subscription: subscriptionId, result, error } = params;
         if (subscriptionId && subscriptions.has(subscriptionId) && ("result" in params || error)) {
-          if (error) subscriptions.error(subscriptionId, new RpcError(error));
-          else subscriptions.next(subscriptionId, result);
+          if (error)
+            subscriptions.error(subscriptionId, new RpcError(error));
+          else
+            subscriptions.next(subscriptionId, result);
         } else {
           onNotification?.(parsed);
         }
@@ -2887,9 +2901,11 @@
     };
     let nextId = 1;
     const request = (method, params, cb) => {
-      if (!connection) throw new Error("Not connected");
+      if (!connection)
+        throw new Error("Not connected");
       const id2 = `${clientId}-${nextId++}`;
-      if (cb) responses.set(id2, cb);
+      if (cb)
+        responses.set(id2, cb);
       send(id2, method, params);
       return () => {
         responses.delete(id2);
@@ -2901,7 +2917,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/errors.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/errors.js
   var __defProp4 = Object.defineProperty;
   var __defNormalProp4 = (obj, key, value) => key in obj ? __defProp4(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField4 = (obj, key, value) => __defNormalProp4(obj, key + "", value);
@@ -2946,7 +2962,7 @@
   __publicField4(_OperationInaccessibleError, "errorName", "OperationInaccessibleError");
   var OperationInaccessibleError = _OperationInaccessibleError;
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/methods.js
+  // node_modules/@polkadot-api/substrate-client/dist/methods.js
   var chainHead = {
     body: "",
     call: "",
@@ -2976,7 +2992,7 @@
     }
   );
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/errors.js
+  // node_modules/@polkadot-api/substrate-client/dist/archive/errors.js
   var __defProp5 = Object.defineProperty;
   var __defNormalProp5 = (obj, key, value) => key in obj ? __defProp5(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
   var __publicField5 = (obj, key, value) => __defNormalProp5(obj, key + "", value);
@@ -3005,11 +3021,11 @@
   __publicField5(_CallError, "errorName", "CallError");
   var CallError2 = _CallError;
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/noop.js
+  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/noop.js
   var noop3 = () => {
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/transaction/transaction.js
+  // node_modules/@polkadot-api/substrate-client/dist/transaction/transaction.js
   var getTransaction = (request) => (tx, error) => {
     let isDone = false;
     let cancel = () => {
@@ -3022,7 +3038,8 @@
             request(transaction.stop, [subscriptionId]);
             cancel = noop3;
           };
-          if (isDone) cancel();
+          if (isDone)
+            cancel();
         } else if (!isDone) {
           error(new Error("Max # of broadcasted transactions has been reached"));
         }
@@ -3034,7 +3051,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/deferred-promise.js
+  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/deferred-promise.js
   function deferred() {
     let res = () => {
     };
@@ -3047,7 +3064,7 @@
     return { promise, res, rej };
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/internal-utils/abortablePromiseFn.js
+  // node_modules/@polkadot-api/substrate-client/dist/internal-utils/abortablePromiseFn.js
   var abortablePromiseFn = (fn) => (...args) => new Promise((res, rej) => {
     let cancel = noop2;
     const [actualArgs, abortSignal] = args[args.length - 1] instanceof AbortSignal ? [args.slice(0, args.length - 1), args[args.length - 1]] : [args];
@@ -3064,7 +3081,7 @@
     cancel = fn(...[withCleanup(res), withCleanup(rej), ...actualArgs]);
   });
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/operation-promise.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/operation-promise.js
   var createOperationPromise = (operationName, factory) => (request) => abortablePromiseFn((res, rej, ...args) => {
     let isRunning = true;
     let cancel = () => {
@@ -3079,7 +3096,8 @@
         const stopOperation = () => {
           request(chainHead.stopOperation, [operationId]);
         };
-        if (!isRunning) return stopOperation();
+        if (!isRunning)
+          return stopOperation();
         let done = noop3;
         const _res = (x) => {
           isRunning = false;
@@ -3098,7 +3116,8 @@
               rej(new OperationError(_e.error));
             else if (_e.event === "operationInaccessible")
               rej(new OperationInaccessibleError());
-            else logicCb(e, _res, _rej);
+            else
+              logicCb(e, _res, _rej);
           },
           error: _rej
         });
@@ -3116,7 +3135,7 @@
     };
   });
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/body.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/body.js
   var createBodyFn = createOperationPromise(
     chainHead.body,
     (hash) => [
@@ -3127,7 +3146,7 @@
     ]
   );
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/call.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/call.js
   var createCallFn = createOperationPromise(
     chainHead.call,
     (hash, fnName, callParameters) => [
@@ -3138,7 +3157,7 @@
     ]
   );
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/header.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/header.js
   var createHeaderFn = (request) => (hash) => new Promise((res, rej) => {
     request(chainHead.header, [hash], {
       onSuccess: res,
@@ -3146,7 +3165,7 @@
     });
   });
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/storage-subscription.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/storage-subscription.js
   var createStorageCb = (request) => (hash, inputs, childTrie, onItems, onError, onDone, onDiscardedItems) => {
     if (inputs.length === 0) {
       onDone();
@@ -3164,7 +3183,8 @@
         const stopOperation = () => {
           request(chainHead.stopOperation, [operationId]);
         };
-        if (!isRunning) return stopOperation();
+        if (!isRunning)
+          return stopOperation();
         const doneListening = followSubscription(response.operationId, {
           next: (event) => {
             switch (event.event) {
@@ -3213,7 +3233,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/storage.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/storage.js
   var createStorageFn = (request) => {
     const cbStore = createStorageCb(request);
     return abortablePromiseFn((resolve, reject, hash, type, key, childTrie) => {
@@ -3248,7 +3268,7 @@
     });
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/unpin.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/unpin.js
   var createUnpinFn = (request) => (hashes) => hashes.length > 0 ? new Promise((res, rej) => {
     request(chainHead.unpin, [hashes], {
       onSuccess() {
@@ -3258,7 +3278,7 @@
     });
   }) : Promise.resolve();
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainhead/chainhead.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainhead/chainhead.js
   function isOperationEvent(event) {
     return event.operationId !== void 0;
   }
@@ -3274,13 +3294,16 @@
       };
       const stopEverything = (sendUnfollow) => {
         stopListeningToFollowEvents();
-        if (followSubscription === null) return;
+        if (followSubscription === null)
+          return;
         if (sendUnfollow) {
           if (followSubscription instanceof Promise) {
             followSubscription.then((x) => {
-              if (typeof x === "string") unfollowRequest(x);
+              if (typeof x === "string")
+                unfollowRequest(x);
             });
-          } else unfollowRequest(followSubscription);
+          } else
+            unfollowRequest(followSubscription);
         }
         followSubscription = null;
         ongoingRequests.forEach((cb) => {
@@ -3334,7 +3357,8 @@
           return noop3;
         }
         const onSubscription = (subscription) => {
-          if (!cb) return request(method, [subscription, ...params]);
+          if (!cb)
+            return request(method, [subscription, ...params]);
           ongoingRequests.add(disjoint);
           const onSubscribeOperation = (operationId, subscriber) => {
             if (followSubscription === null) {
@@ -3365,8 +3389,10 @@
           return onSubscription(followSubscription);
         let onCancel = noop3;
         followSubscription.then((x) => {
-          if (x instanceof Error) return disjoint();
-          if (followSubscription) onCancel = onSubscription(x);
+          if (x instanceof Error)
+            return disjoint();
+          if (followSubscription)
+            onCancel = onSubscription(x);
         });
         return () => {
           onCancel();
@@ -3387,14 +3413,15 @@
     };
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/chainspec.js
+  // node_modules/@polkadot-api/substrate-client/dist/chainspec.js
   var createGetChainSpec = (clientRequest) => {
     const request = abortablePromiseFn(
       (onSuccess, onError, method, params) => clientRequest(method, params, { onSuccess, onError })
     );
     let cachedPromise = null;
     return async () => {
-      if (cachedPromise) return cachedPromise;
+      if (cachedPromise)
+        return cachedPromise;
       return cachedPromise = Promise.all([
         request(chainSpec.chainName, []),
         request(chainSpec.genesisHash, []),
@@ -3407,7 +3434,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/storage-subscription.js
+  // node_modules/@polkadot-api/substrate-client/dist/archive/storage-subscription.js
   var createStorageCb2 = (archiveRequest) => (hash, inputs, childTrie, onItem, onError, onDone) => {
     if (inputs.length === 0) {
       onDone();
@@ -3422,15 +3449,18 @@
         const stopOperation = () => {
           archiveRequest("stopStorage", [operationId]);
         };
-        if (!isRunning) return stopOperation();
+        if (!isRunning)
+          return stopOperation();
         const doneListening = followSubscription(operationId, {
           next: (event) => {
             const { event: type } = event;
             if (type === "storage") {
               const { event: _, ...item } = event;
               onItem(item);
-            } else if (type === "storageDone") _onDone();
-            else _onError(new StorageError(event.error));
+            } else if (type === "storageDone")
+              _onDone();
+            else
+              _onError(new StorageError(event.error));
           },
           error: onError
         });
@@ -3458,7 +3488,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/storage.js
+  // node_modules/@polkadot-api/substrate-client/dist/archive/storage.js
   var createStorageFn2 = (cbStore) => abortablePromiseFn((resolve, reject, hash, type, key, childTrie) => {
     const isDescendants = type.startsWith("descendants");
     let result = isDescendants ? [] : null;
@@ -3481,10 +3511,11 @@
     );
   });
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/archive/archive.js
+  // node_modules/@polkadot-api/substrate-client/dist/archive/archive.js
   var identity = () => (x) => x;
   var handleInvalidBlockHash = () => (result, hash) => {
-    if (result === null) throw new BlockHashNotFoundError(hash);
+    if (result === null)
+      throw new BlockHashNotFoundError(hash);
     return result;
   };
   var getArchive = (request) => {
@@ -3510,8 +3541,10 @@
     const storageSubscription = createStorageCb2(archiveRequest);
     const storage = createStorageFn2(storageSubscription);
     const call = fnCreator("call")((x, hash) => {
-      if (!x) throw new BlockHashNotFoundError(hash);
-      if (!x.success) throw new CallError2(x.error);
+      if (!x)
+        throw new BlockHashNotFoundError(hash);
+      if (!x.success)
+        throw new CallError2(x.error);
       return x.value;
     });
     const finalizedHeight = fnCreator("finalizedHeight")(identity());
@@ -3527,7 +3560,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/substrate-client/dist/substrate-client.js
+  // node_modules/@polkadot-api/substrate-client/dist/substrate-client.js
   var createClient2 = (provider) => {
     const { request, disconnect } = createClient(provider);
     return {
@@ -3543,7 +3576,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/packages/host-container/dist/chainConnectionManager.js
+  // node_modules/@novasamatech/host-container/dist/chainConnectionManager.js
   var TERMINAL_OPERATION_EVENTS = /* @__PURE__ */ new Set([
     "operationBodyDone",
     "operationCallDone",
@@ -3801,7 +3834,7 @@
     return type.charAt(0).toLowerCase() + type.slice(1);
   }
 
-  // ../../../../triangle-js-sdks/packages/host-container/dist/debugBus.js
+  // node_modules/@novasamatech/host-container/dist/debugBus.js
   var bus = createNanoEvents();
   var sources = /* @__PURE__ */ new Set();
   var activeSources = /* @__PURE__ */ new Map();
@@ -3835,9 +3868,23 @@
     };
   }
 
-  // ../../../../triangle-js-sdks/packages/host-container/dist/createContainer.js
-  var UNSUPPORTED_MESSAGE_FORMAT_ERROR = "Unsupported message format";
-  var NOT_IMPLEMENTED = "Not implemented";
+  // node_modules/@novasamatech/host-container/dist/createContainer.js
+  var MALFORMED_FRAME_REASON = "request did not decode to a supported version";
+  var UNSUPPORTED = enumValue("v1", {
+    [CALL_ERROR_FAILURE]: { tag: "Unsupported" }
+  });
+  var MALFORMED_FRAME = enumValue("v1", {
+    [CALL_ERROR_FAILURE]: {
+      tag: "MalformedFrame",
+      value: { reason: MALFORMED_FRAME_REASON }
+    }
+  });
+  function unsupportedResponse() {
+    return UNSUPPORTED;
+  }
+  function malformedFrameResponse() {
+    return MALFORMED_FRAME;
+  }
   function guardVersion(value, tag, error) {
     if (!value) {
       return err(error);
@@ -3893,8 +3940,8 @@
         };
       };
     }
-    function makeNotImplementedSlot(method, makeError) {
-      const handler = async () => enumValue("v1", resultErr(makeError()));
+    function makeUnsupportedSlot(method) {
+      const handler = async () => unsupportedResponse();
       return makeRequestSlot(method, handler);
     }
     function makeInterruptSlot(method, makeDefaultInterrupt) {
@@ -3907,10 +3954,13 @@
       return { update, makeDefaultInterrupt };
     }
     function makePermissionGatedRequestSlot(method, permissionVariant, makeError) {
-      const defaultHandler = async () => enumValue("v1", resultErr(makeError()));
+      const defaultHandler = async () => unsupportedResponse();
       let current = defaultHandler;
       let version = 0;
       transport.handleRequest(method, async (params) => {
+        if (current === defaultHandler) {
+          return unsupportedResponse();
+        }
         const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue(permissionVariant, void 0)));
         const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
@@ -3933,10 +3983,13 @@
       };
     }
     function makeDevicePermissionGatedRequestSlot(method, permissionVariant, makeError) {
-      const defaultHandler = async () => enumValue("v1", resultErr(makeError()));
+      const defaultHandler = async () => unsupportedResponse();
       let current = defaultHandler;
       let version = 0;
       transport.handleRequest(method, async (params) => {
+        if (current === defaultHandler) {
+          return unsupportedResponse();
+        }
         const permissionResponse = await handleDevicePermissionSlot.call(enumValue("v1", permissionVariant));
         const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
@@ -3958,66 +4011,70 @@
         call: (...args) => current(...args)
       };
     }
-    function handleV1Request(slot, makeError, handler) {
+    function handleV1Request(slot, handler) {
       init();
       const version = "v1";
       return slot.update(async (params) => {
-        const error = makeError();
-        return guardVersion(params, version, error).asyncMap(async (p) => await handler(p, { ok: okAsync, err: errAsync })).andThen((r) => r.map((v) => enumValue(version, resultOk(v)))).orElse((r) => ok(enumValue(version, resultErr(r)))).unwrapOr(enumValue(version, resultErr(error)));
+        const parsed = guardVersion(params, version, null);
+        if (parsed.isErr()) {
+          return malformedFrameResponse();
+        }
+        const result = await handler(parsed.value, { ok: okAsync, err: errAsync });
+        return result.match((v) => enumValue(version, resultOk(v)), (e) => enumValue(version, resultErr(e)));
       });
     }
     function handleV1Subscription(slot, handler) {
       init();
       const version = "v1";
-      const slotHandler = ((params, send, interrupt) => {
-        return guardVersion(params, version, null).map((p) => handler(p, ((payload) => send(enumValue(version, payload))), ((payload) => interrupt(enumValue(version, payload))))).orTee(() => interrupt(slot.makeDefaultInterrupt())).unwrapOr(() => {
+      const slotHandler = (params, send, interrupt) => {
+        return guardVersion(params, version, null).map((p) => handler(p, (payload) => send(enumValue(version, payload)), (payload) => interrupt(enumValue(version, payload)))).orTee(() => interrupt(slot.makeDefaultInterrupt())).unwrapOr(() => {
         });
-      });
+      };
       return slot.update(slotHandler);
     }
-    const handleGetUserIdSlot = makeNotImplementedSlot("host_get_user_id", () => new GetUserIdErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleRequestLoginSlot = makeNotImplementedSlot("host_request_login", () => new LoginErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountGetSlot = makeNotImplementedSlot("host_account_get", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountGetAliasSlot = makeNotImplementedSlot("host_account_get_alias", () => new GetAliasErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleGetLegacyAccountsSlot = makeNotImplementedSlot("host_get_legacy_accounts", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountCreateProofSlot = makeNotImplementedSlot("host_account_create_proof", () => new CreateProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountSignVrfSlot = makeNotImplementedSlot("host_account_sign_vrf", () => new SignVrfErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountRegisterRingVrfKeySlot = makeNotImplementedSlot("host_account_register_ring_vrf_key", () => new RegisterRingVrfKeyErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountListRingVrfKeysSlot = makeNotImplementedSlot("host_account_list_ring_vrf_keys", () => new ListRingVrfKeysErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountRingVrfSignSlot = makeNotImplementedSlot("host_account_ring_vrf_sign", () => new RingVrfSignErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChainGetChainInfoSlot = makeNotImplementedSlot("remote_chain_get_chain_info", () => new ChainInfoErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleDeriveEntropySlot = makeNotImplementedSlot("host_derive_entropy", () => new DeriveEntropyErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageReadSlot = makeNotImplementedSlot("host_local_storage_read", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageWriteSlot = makeNotImplementedSlot("host_local_storage_write", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageClearSlot = makeNotImplementedSlot("host_local_storage_clear", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleWorkerBeginOperationSlot = makeNotImplementedSlot("host_worker_begin_operation", () => new WorkerErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleWorkerEndOperationSlot = makeNotImplementedSlot("host_worker_end_operation", () => new WorkerErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignRawSlot = makeNotImplementedSlot("host_sign_raw", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignPayloadSlot = makeNotImplementedSlot("host_sign_payload", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignRawWithLegacyAccountSlot = makeNotImplementedSlot("host_sign_raw_with_legacy_account", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignPayloadWithLegacyAccountSlot = makeNotImplementedSlot("host_sign_payload_with_legacy_account", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleCreateTransactionSlot = makeNotImplementedSlot("host_create_transaction", () => new CreateTransactionErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleCreateTransactionWithLegacyAccountSlot = makeNotImplementedSlot("host_create_transaction_with_legacy_account", () => new CreateTransactionErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleFeatureSupportedSlot = makeNotImplementedSlot("host_feature_supported", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleDevicePermissionSlot = makeNotImplementedSlot("host_device_permission", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleRemotePermissionSlot = makeNotImplementedSlot("remote_permission", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handlePushNotificationSlot = makeDevicePermissionGatedRequestSlot("host_push_notification", "Notifications", () => new PushNotificationError2.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePushNotificationCancelSlot = makeDevicePermissionGatedRequestSlot("host_push_notification_cancel", "Notifications", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleNavigateToSlot = makeNotImplementedSlot("host_navigate_to", () => new NavigateToErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatCreateRoomSlot = makeNotImplementedSlot("host_chat_create_room", () => new ChatRoomRegistrationErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatBotRegistrationSlot = makeNotImplementedSlot("host_chat_register_bot", () => new ChatBotRegistrationErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatPostMessageSlot = makeNotImplementedSlot("host_chat_post_message", () => new ChatMessagePostingErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreSubmitSlot = makePermissionGatedRequestSlot("remote_statement_store_submit", "StatementSubmit", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreCreateProofSlot = makeNotImplementedSlot("remote_statement_store_create_proof", () => new StatementProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreCreateProofAuthorizedSlot = makeNotImplementedSlot("remote_statement_store_create_proof_authorized", () => new StatementProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePreimageSubmitSlot = makePermissionGatedRequestSlot("remote_preimage_submit", "PreimageSubmit", () => new PreimageSubmitErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePaymentTopUpSlot = makeNotImplementedSlot("host_payment_top_up", () => new PaymentTopUpErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePaymentRequestSlot = makeNotImplementedSlot("host_payment_request", () => new PaymentRequestErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleRequestResourceAllocationSlot = makeNotImplementedSlot("host_request_resource_allocation", () => new ResourceAllocationErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleCoinPaymentCreatePurseSlot = makeNotImplementedSlot("host_coin_payment_create_purse", () => new CoinPaymentErr.Internal());
-    const handleCoinPaymentQueryPurseSlot = makeNotImplementedSlot("host_coin_payment_query_purse", () => new CoinPaymentErr.Internal());
-    const handleCoinPaymentCreateReceivableSlot = makeNotImplementedSlot("host_coin_payment_create_receivable", () => new CoinPaymentErr.Internal());
-    const handleCoinPaymentCreateChequeSlot = makeNotImplementedSlot("host_coin_payment_create_cheque", () => new CoinPaymentErr.Internal());
+    const handleGetUserIdSlot = makeUnsupportedSlot("host_get_user_id");
+    const handleRequestLoginSlot = makeUnsupportedSlot("host_request_login");
+    const handleAccountGetSlot = makeUnsupportedSlot("host_account_get");
+    const handleAccountGetAliasSlot = makeUnsupportedSlot("host_account_get_alias");
+    const handleGetLegacyAccountsSlot = makeUnsupportedSlot("host_get_legacy_accounts");
+    const handleAccountCreateProofSlot = makeUnsupportedSlot("host_account_create_proof");
+    const handleAccountSignVrfSlot = makeUnsupportedSlot("host_account_sign_vrf");
+    const handleAccountRegisterRingVrfKeySlot = makeUnsupportedSlot("host_account_register_ring_vrf_key");
+    const handleAccountListRingVrfKeysSlot = makeUnsupportedSlot("host_account_list_ring_vrf_keys");
+    const handleAccountRingVrfSignSlot = makeUnsupportedSlot("host_account_ring_vrf_sign");
+    const handleChainGetChainInfoSlot = makeUnsupportedSlot("remote_chain_get_chain_info");
+    const handleDeriveEntropySlot = makeUnsupportedSlot("host_derive_entropy");
+    const handleLocalStorageReadSlot = makeUnsupportedSlot("host_local_storage_read");
+    const handleLocalStorageWriteSlot = makeUnsupportedSlot("host_local_storage_write");
+    const handleLocalStorageClearSlot = makeUnsupportedSlot("host_local_storage_clear");
+    const handleWorkerBeginOperationSlot = makeUnsupportedSlot("host_worker_begin_operation");
+    const handleWorkerEndOperationSlot = makeUnsupportedSlot("host_worker_end_operation");
+    const handleSignRawSlot = makeUnsupportedSlot("host_sign_raw");
+    const handleSignPayloadSlot = makeUnsupportedSlot("host_sign_payload");
+    const handleSignRawWithLegacyAccountSlot = makeUnsupportedSlot("host_sign_raw_with_legacy_account");
+    const handleSignPayloadWithLegacyAccountSlot = makeUnsupportedSlot("host_sign_payload_with_legacy_account");
+    const handleCreateTransactionSlot = makeUnsupportedSlot("host_create_transaction");
+    const handleCreateTransactionWithLegacyAccountSlot = makeUnsupportedSlot("host_create_transaction_with_legacy_account");
+    const handleFeatureSupportedSlot = makeUnsupportedSlot("host_feature_supported");
+    const handleDevicePermissionSlot = makeUnsupportedSlot("host_device_permission");
+    const handleRemotePermissionSlot = makeUnsupportedSlot("remote_permission");
+    const handlePushNotificationSlot = makeDevicePermissionGatedRequestSlot("host_push_notification", "Notifications", () => new PushNotificationError2.Unknown({ reason: "Notifications permission denied" }));
+    const handlePushNotificationCancelSlot = makeDevicePermissionGatedRequestSlot("host_push_notification_cancel", "Notifications", () => new GenericError({ reason: "Notifications permission denied" }));
+    const handleNavigateToSlot = makeUnsupportedSlot("host_navigate_to");
+    const handleChatCreateRoomSlot = makeUnsupportedSlot("host_chat_create_room");
+    const handleChatBotRegistrationSlot = makeUnsupportedSlot("host_chat_register_bot");
+    const handleChatPostMessageSlot = makeUnsupportedSlot("host_chat_post_message");
+    const handleStatementStoreSubmitSlot = makePermissionGatedRequestSlot("remote_statement_store_submit", "StatementSubmit", () => new GenericError({ reason: "StatementSubmit permission denied" }));
+    const handleStatementStoreCreateProofSlot = makeUnsupportedSlot("remote_statement_store_create_proof");
+    const handleStatementStoreCreateProofAuthorizedSlot = makeUnsupportedSlot("remote_statement_store_create_proof_authorized");
+    const handlePreimageSubmitSlot = makePermissionGatedRequestSlot("remote_preimage_submit", "PreimageSubmit", () => new PreimageSubmitErr.Unknown({ reason: "PreimageSubmit permission denied" }));
+    const handlePaymentTopUpSlot = makeUnsupportedSlot("host_payment_top_up");
+    const handlePaymentRequestSlot = makeUnsupportedSlot("host_payment_request");
+    const handleRequestResourceAllocationSlot = makeUnsupportedSlot("host_request_resource_allocation");
+    const handleCoinPaymentCreatePurseSlot = makeUnsupportedSlot("host_coin_payment_create_purse");
+    const handleCoinPaymentQueryPurseSlot = makeUnsupportedSlot("host_coin_payment_query_purse");
+    const handleCoinPaymentCreateReceivableSlot = makeUnsupportedSlot("host_coin_payment_create_receivable");
+    const handleCoinPaymentCreateChequeSlot = makeUnsupportedSlot("host_coin_payment_create_cheque");
     const handleThemeSubscribeSlot = makeInterruptSlot("host_theme_subscribe", () => enumValue("v1", void 0));
     const handleLocalStorageSubscribeSlot = makeInterruptSlot("host_local_storage_subscribe", () => enumValue("v1", void 0));
     const handleAccountConnectionStatusSubscribeSlot = makeInterruptSlot("host_account_connection_status_subscribe", () => enumValue("v1", void 0));
@@ -4025,8 +4082,8 @@
     const handleChatActionSubscribeSlot = makeInterruptSlot("host_chat_action_subscribe", () => enumValue("v1", void 0));
     const handleStatementStoreSubscribeSlot = makeInterruptSlot("remote_statement_store_subscribe", () => enumValue("v1", void 0));
     const handlePreimageLookupSubscribeSlot = makeInterruptSlot("remote_preimage_lookup_subscribe", () => enumValue("v1", void 0));
-    const handlePaymentBalanceSubscribeSlot = makeInterruptSlot("host_payment_balance_subscribe", () => enumValue("v1", new PaymentBalanceErr.Unknown({ reason: NOT_IMPLEMENTED })));
-    const handlePaymentStatusSubscribeSlot = makeInterruptSlot("host_payment_status_subscribe", () => enumValue("v1", new PaymentStatusErr.Unknown({ reason: NOT_IMPLEMENTED })));
+    const handlePaymentBalanceSubscribeSlot = makeInterruptSlot("host_payment_balance_subscribe", () => enumValue("v1", new PaymentBalanceErr.Unknown({ reason: "Not implemented" })));
+    const handlePaymentStatusSubscribeSlot = makeInterruptSlot("host_payment_status_subscribe", () => enumValue("v1", new PaymentStatusErr.Unknown({ reason: "Not implemented" })));
     const handleCoinPaymentRebalancePurseSlot = makeInterruptSlot("host_coin_payment_rebalance_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
     const handleCoinPaymentDeletePurseSlot = makeInterruptSlot("host_coin_payment_delete_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
     const handleCoinPaymentDepositSlot = makeInterruptSlot("host_coin_payment_deposit", () => enumValue("v1", new CoinPaymentErr.Internal()));
@@ -4034,34 +4091,34 @@
     const handleCoinPaymentListenForPaymentSlot = makeInterruptSlot("host_coin_payment_listen_for_payment", () => enumValue("v1", new CoinPaymentErr.Internal()));
     return {
       handleFeatureSupported(handler) {
-        return handleV1Request(handleFeatureSupportedSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleFeatureSupportedSlot, handler);
       },
       handleDevicePermission(handler) {
-        return handleV1Request(handleDevicePermissionSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleDevicePermissionSlot, handler);
       },
       handlePermission(handler) {
-        return handleV1Request(handleRemotePermissionSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRemotePermissionSlot, handler);
       },
       handlePushNotification(handler) {
-        return handleV1Request(handlePushNotificationSlot, () => new PushNotificationError2.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePushNotificationSlot, handler);
       },
       handlePushNotificationCancel(handler) {
-        return handleV1Request(handlePushNotificationCancelSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePushNotificationCancelSlot, handler);
       },
       handleNavigateTo(handler) {
-        return handleV1Request(handleNavigateToSlot, () => new NavigateToErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleNavigateToSlot, handler);
       },
       handleDeriveEntropy(handler) {
-        return handleV1Request(handleDeriveEntropySlot, () => new DeriveEntropyErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleDeriveEntropySlot, handler);
       },
       handleLocalStorageRead(handler) {
-        return handleV1Request(handleLocalStorageReadSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageReadSlot, handler);
       },
       handleLocalStorageWrite(handler) {
-        return handleV1Request(handleLocalStorageWriteSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageWriteSlot, handler);
       },
       handleLocalStorageClear(handler) {
-        return handleV1Request(handleLocalStorageClearSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageClearSlot, handler);
       },
       handleThemeSubscribe(handler) {
         return handleV1Subscription(handleThemeSubscribeSlot, handler);
@@ -4070,76 +4127,76 @@
         return handleV1Subscription(handleLocalStorageSubscribeSlot, handler);
       },
       handleWorkerBeginOperation(handler) {
-        return handleV1Request(handleWorkerBeginOperationSlot, () => new WorkerErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleWorkerBeginOperationSlot, handler);
       },
       handleWorkerEndOperation(handler) {
-        return handleV1Request(handleWorkerEndOperationSlot, () => new WorkerErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleWorkerEndOperationSlot, handler);
       },
       handleGetUserId(handler) {
-        return handleV1Request(handleGetUserIdSlot, () => new GetUserIdErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleGetUserIdSlot, handler);
       },
       handleRequestLogin(handler) {
-        return handleV1Request(handleRequestLoginSlot, () => new LoginErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRequestLoginSlot, handler);
       },
       handleAccountConnectionStatusSubscribe(handler) {
         return handleV1Subscription(handleAccountConnectionStatusSubscribeSlot, handler);
       },
       handleAccountGet(handler) {
-        return handleV1Request(handleAccountGetSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountGetSlot, handler);
       },
       handleAccountGetAlias(handler) {
-        return handleV1Request(handleAccountGetAliasSlot, () => new GetAliasErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountGetAliasSlot, handler);
       },
       handleAccountCreateProof(handler) {
-        return handleV1Request(handleAccountCreateProofSlot, () => new CreateProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountCreateProofSlot, handler);
       },
       handleAccountSignVrf(handler) {
-        return handleV1Request(handleAccountSignVrfSlot, () => new SignVrfErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountSignVrfSlot, handler);
       },
       handleAccountRegisterRingVrfKey(handler) {
-        return handleV1Request(handleAccountRegisterRingVrfKeySlot, () => new RegisterRingVrfKeyErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountRegisterRingVrfKeySlot, handler);
       },
       handleAccountListRingVrfKeys(handler) {
-        return handleV1Request(handleAccountListRingVrfKeysSlot, () => new ListRingVrfKeysErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountListRingVrfKeysSlot, handler);
       },
       handleAccountRingVrfSign(handler) {
-        return handleV1Request(handleAccountRingVrfSignSlot, () => new RingVrfSignErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountRingVrfSignSlot, handler);
       },
       handleChainGetChainInfo(handler) {
-        return handleV1Request(handleChainGetChainInfoSlot, () => new ChainInfoErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChainGetChainInfoSlot, handler);
       },
       handleGetLegacyAccounts(handler) {
-        return handleV1Request(handleGetLegacyAccountsSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleGetLegacyAccountsSlot, handler);
       },
       handleCreateTransaction(handler) {
-        return handleV1Request(handleCreateTransactionSlot, () => new CreateTransactionErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleCreateTransactionSlot, handler);
       },
       handleCreateTransactionWithLegacyAccount(handler) {
-        return handleV1Request(handleCreateTransactionWithLegacyAccountSlot, () => new CreateTransactionErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleCreateTransactionWithLegacyAccountSlot, handler);
       },
       handleSignRaw(handler) {
-        return handleV1Request(handleSignRawSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignRawSlot, handler);
       },
       handleSignPayload(handler) {
-        return handleV1Request(handleSignPayloadSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignPayloadSlot, handler);
       },
       handleSignRawWithLegacyAccount(handler) {
-        return handleV1Request(handleSignRawWithLegacyAccountSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignRawWithLegacyAccountSlot, handler);
       },
       handleSignPayloadWithLegacyAccount(handler) {
-        return handleV1Request(handleSignPayloadWithLegacyAccountSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignPayloadWithLegacyAccountSlot, handler);
       },
       handleChatCreateRoom(handler) {
-        return handleV1Request(handleChatCreateRoomSlot, () => new ChatRoomRegistrationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatCreateRoomSlot, handler);
       },
       handleChatBotRegistration(handler) {
-        return handleV1Request(handleChatBotRegistrationSlot, () => new ChatBotRegistrationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatBotRegistrationSlot, handler);
       },
       handleChatListSubscribe(handler) {
         return handleV1Subscription(handleChatListSubscribeSlot, handler);
       },
       handleChatPostMessage(handler) {
-        return handleV1Request(handleChatPostMessageSlot, () => new ChatMessagePostingErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatPostMessageSlot, handler);
       },
       handleChatActionSubscribe(handler) {
         return handleV1Subscription(handleChatActionSubscribeSlot, handler);
@@ -4156,37 +4213,37 @@
         return handleV1Subscription(handleStatementStoreSubscribeSlot, handler);
       },
       handleStatementStoreCreateProof(handler) {
-        return handleV1Request(handleStatementStoreCreateProofSlot, () => new StatementProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreCreateProofSlot, handler);
       },
       handleStatementStoreCreateProofAuthorized(handler) {
-        return handleV1Request(handleStatementStoreCreateProofAuthorizedSlot, () => new StatementProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreCreateProofAuthorizedSlot, handler);
       },
       handleStatementStoreSubmit(handler) {
-        return handleV1Request(handleStatementStoreSubmitSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreSubmitSlot, handler);
       },
       handlePreimageLookupSubscribe(handler) {
         return handleV1Subscription(handlePreimageLookupSubscribeSlot, handler);
       },
       handlePreimageSubmit(handler) {
-        return handleV1Request(handlePreimageSubmitSlot, () => new PreimageSubmitErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePreimageSubmitSlot, handler);
       },
       handlePaymentBalanceSubscribe(handler) {
         return handleV1Subscription(handlePaymentBalanceSubscribeSlot, handler);
       },
       handlePaymentTopUp(handler) {
-        return handleV1Request(handlePaymentTopUpSlot, () => new PaymentTopUpErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePaymentTopUpSlot, handler);
       },
       handlePaymentRequest(handler) {
-        return handleV1Request(handlePaymentRequestSlot, () => new PaymentRequestErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePaymentRequestSlot, handler);
       },
       handlePaymentStatusSubscribe(handler) {
         return handleV1Subscription(handlePaymentStatusSubscribeSlot, handler);
       },
       handleCoinPaymentCreatePurse(handler) {
-        return handleV1Request(handleCoinPaymentCreatePurseSlot, () => new CoinPaymentErr.Internal(), handler);
+        return handleV1Request(handleCoinPaymentCreatePurseSlot, handler);
       },
       handleCoinPaymentQueryPurse(handler) {
-        return handleV1Request(handleCoinPaymentQueryPurseSlot, () => new CoinPaymentErr.Internal(), handler);
+        return handleV1Request(handleCoinPaymentQueryPurseSlot, handler);
       },
       handleCoinPaymentRebalancePurse(handler) {
         return handleV1Subscription(handleCoinPaymentRebalancePurseSlot, handler);
@@ -4195,10 +4252,10 @@
         return handleV1Subscription(handleCoinPaymentDeletePurseSlot, handler);
       },
       handleCoinPaymentCreateReceivable(handler) {
-        return handleV1Request(handleCoinPaymentCreateReceivableSlot, () => new CoinPaymentErr.Internal(), handler);
+        return handleV1Request(handleCoinPaymentCreateReceivableSlot, handler);
       },
       handleCoinPaymentCreateCheque(handler) {
-        return handleV1Request(handleCoinPaymentCreateChequeSlot, () => new CoinPaymentErr.Internal(), handler);
+        return handleV1Request(handleCoinPaymentCreateChequeSlot, handler);
       },
       handleCoinPaymentDeposit(handler) {
         return handleV1Subscription(handleCoinPaymentDepositSlot, handler);
@@ -4210,7 +4267,7 @@
         return handleV1Subscription(handleCoinPaymentListenForPaymentSlot, handler);
       },
       handleRequestResourceAllocation(handler) {
-        return handleV1Request(handleRequestResourceAllocationSlot, () => new ResourceAllocationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRequestResourceAllocationSlot, handler);
       },
       // chain interaction
       handleChainConnection(factory) {
@@ -4242,7 +4299,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_header", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4257,7 +4314,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_body", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4272,7 +4329,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_storage", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash, items, childTrie } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4295,7 +4352,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_call", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const params = message.value;
           if (!manager.hasActiveFollow(params.genesisHash)) {
@@ -4314,7 +4371,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_unpin", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hashes } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4329,7 +4386,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_continue", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4344,7 +4401,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_stop_operation", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4359,7 +4416,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_genesis_hash", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4377,7 +4434,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_chain_name", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4395,7 +4452,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_properties", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4413,7 +4470,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_transaction_broadcast", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, transaction: transaction2 } = message.value;
           const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue("ChainSubmit", void 0)));
@@ -4442,7 +4499,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_transaction_stop", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!liveBroadcasts.delete(`${genesisHash}:${operationId}`)) {
@@ -4489,7 +4546,7 @@
     };
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/utils.js
+  // node_modules/@noble/hashes/utils.js
   function isBytes(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
   }
@@ -4562,7 +4619,7 @@
     return Object.freeze(hashC);
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/_blake.js
+  // node_modules/@noble/hashes/_blake.js
   var BSIGMA = /* @__PURE__ */ Uint8Array.from([
     0,
     1,
@@ -4823,7 +4880,7 @@
     9
   ]);
 
-  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/_u64.js
+  // node_modules/@noble/hashes/_u64.js
   var U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
   var _32n = /* @__PURE__ */ BigInt(32);
   function fromBig(n, le = false) {
@@ -4844,7 +4901,7 @@
   var add3L = (Al, Bl, Cl) => (Al >>> 0) + (Bl >>> 0) + (Cl >>> 0);
   var add3H = (low, Ah, Bh, Ch) => Ah + Bh + Ch + (low / 2 ** 32 | 0) | 0;
 
-  // ../../../../triangle-js-sdks/node_modules/@noble/hashes/blake2.js
+  // node_modules/@noble/hashes/blake2.js
   var B2B_IV = /* @__PURE__ */ Uint32Array.from([
     4089235720,
     1779033703,
@@ -5143,11 +5200,11 @@
   };
   var blake2b = /* @__PURE__ */ createHasher((opts) => new _BLAKE2b(opts));
 
-  // ../../../../triangle-js-sdks/packages/host-container/dist/deriveEntropy.js
+  // node_modules/@novasamatech/host-container/dist/deriveEntropy.js
   var textEncoder2 = new TextEncoder();
   var DOMAIN_SEPARATOR = textEncoder2.encode("product-entropy-derivation");
 
-  // ../../../../triangle-js-sdks/packages/host-container/dist/derivationIndex.js
+  // node_modules/@novasamatech/host-container/dist/derivationIndex.js
   var textEncoder3 = new TextEncoder();
   var INDEX_MAGIC_LENGTH = 28;
   var INDEX_MAGIC = blake2b(textEncoder3.encode("product-account-index"), { dkLen: 32 }).slice(0, INDEX_MAGIC_LENGTH);
@@ -5158,7 +5215,8 @@
     let nextId = 0;
     window["__container_callback__"] = (id2, payload) => {
       const entry = pending.get(id2);
-      if (!entry) return;
+      if (!entry)
+        return;
       const msg = typeof payload === "string" ? JSON.parse(payload) : payload;
       if ("value" in msg) {
         entry.resolve?.(msg.value);
@@ -5195,11 +5253,11 @@
     };
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-opaque-token.js
+  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-opaque-token.js
   var count = 0;
   var getOpaqueToken = () => `proxyOpaque${count++}`;
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/json-rpc-message.js
+  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/json-rpc-message.js
   var jsonRpcReq = (msg) => ({
     jsonrpc: "2.0",
     ...msg
@@ -5209,7 +5267,7 @@
     ...msg
   });
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-proxy.js
+  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-proxy.js
   var getInternalId = () => `___proxyInternalId__${getOpaqueToken()}`;
   var getProxy = (toConsumer) => {
     let state = {
@@ -5225,10 +5283,12 @@
           const synToken = state.pendingBroadcasts.get(id2);
           if (synToken) {
             state.pendingBroadcasts.delete(id2);
-            if (!("result" in parsed)) return;
+            if (!("result" in parsed))
+              return;
             const upToken = parsed.result;
             const activeBroadcast = state.activeBroadcasts.get(synToken);
-            if (activeBroadcast) activeBroadcast.upToken = upToken;
+            if (activeBroadcast)
+              activeBroadcast.upToken = upToken;
             else
               state.connection.send(
                 jsonRpcReq({
@@ -5249,10 +5309,12 @@
             state.activeChainHeads.delete(subscription);
         }
       }
-      if (isActive && state.type !== 2) toConsumer(parsed);
+      if (isActive && state.type !== 2)
+        toConsumer(parsed);
     };
     const send = (msg) => {
-      if (state.type === 2) return;
+      if (state.type === 2)
+        return;
       if ("id" in msg) {
         const { method, id: id2, params } = msg;
         const [group, , methodName] = method.split("_");
@@ -5318,15 +5380,18 @@
     return {
       send,
       disconnect: () => {
-        if (state.type === 2) return;
-        if (state.type === 0) state.connection.disconnect();
+        if (state.type === 2)
+          return;
+        if (state.type === 0)
+          state.connection.disconnect();
         state = {
           type: 2
           /* Done */
         };
       },
       connect: (cb) => {
-        if (state.type !== 1) throw new Error("Nonesense");
+        if (state.type !== 1)
+          throw new Error("Nonesense");
         const { pending, activeBroadcasts } = state;
         const onGoingRequests = /* @__PURE__ */ new Map();
         const activeChainHeads = /* @__PURE__ */ new Set();
@@ -5361,7 +5426,8 @@
                   error: { code: -32603, message: "Internal error" }
                 })
               );
-            else send(x.msg);
+            else
+              send(x.msg);
           }
           onGoingRequests.clear();
         };
@@ -5392,7 +5458,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-sync-provider.js
+  // node_modules/@polkadot-api/json-rpc-provider-proxy/dist/get-sync-provider.js
   var noop4 = () => {
   };
   var WAIT_BASE = 250;
@@ -5408,7 +5474,8 @@
         const result = input((cb) => {
           isWaiting = false;
           stop = noop4;
-          if (!cb) start();
+          if (!cb)
+            start();
           else if (proxy)
             proxy.connect((onMsg, onHalt) => {
               let isOn = true;
@@ -5428,7 +5495,8 @@
               );
             });
         });
-        if (isWaiting) stop = result;
+        if (isWaiting)
+          stop = result;
       }, 0);
       stop = () => clearTimeout(token2);
     };
@@ -5450,16 +5518,16 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/rxjs/dist/esm5/internal/util/identity.js
+  // node_modules/rxjs/dist/esm5/internal/util/identity.js
   function identity2(x) {
     return x;
   }
 
-  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/helpers.js
+  // node_modules/@novasamatech/host-substrate-chain-connection/dist/helpers.js
   function noop5() {
   }
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/types.js
+  // node_modules/@polkadot-api/ws-provider/dist/types.js
   var WsEvent = /* @__PURE__ */ ((WsEvent2) => {
     WsEvent2["CONNECTING"] = "CONNECTING";
     WsEvent2["CONNECTED"] = "CONNECTED";
@@ -5480,7 +5548,7 @@
     return SocketEvents2;
   })(SocketEvents || {});
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/get-async-provider.js
+  // node_modules/@polkadot-api/ws-provider/dist/get-async-provider.js
   var getAsyncProvider = (input) => (onMessage, _onHalt) => {
     let connection = null;
     let pending = [];
@@ -5506,8 +5574,10 @@
     });
     return {
       send: (msg) => {
-        if (connection) connection.send(msg);
-        else if (connection === null) pending.push(msg);
+        if (connection)
+          connection.send(msg);
+        else if (connection === null)
+          pending.push(msg);
       },
       disconnect: () => {
         const x = connection;
@@ -5517,7 +5587,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/with-socket.js
+  // node_modules/@polkadot-api/ws-provider/dist/with-socket.js
   var withSocket = (getWebsocket, heartbeatTimeout, connectionTimeout, logger) => {
     const logType = logger ? (type) => logger({ type }) : noop2;
     const logMsg = logger ? (type, msg) => logger({ type, msg }) : noop2;
@@ -5626,7 +5696,7 @@
     });
   };
 
-  // ../../../../triangle-js-sdks/node_modules/@polkadot-api/ws-provider/dist/provider.js
+  // node_modules/@polkadot-api/ws-provider/dist/provider.js
   var defaultConfig = {
     onStatusChanged: noop2,
     timeout: 5e3,
@@ -5646,7 +5716,8 @@
     };
     const actualEndpoints = Array.isArray(endpoints) ? endpoints : [endpoints];
     const WebsocketClass = config?.websocketClass ?? globalThis.WebSocket;
-    if (!WebsocketClass) throw new Error("Missing WebSocket class");
+    if (!WebsocketClass)
+      throw new Error("Missing WebSocket class");
     let idx = 0;
     let switchTo;
     let latestSocket = null;
@@ -5696,14 +5767,16 @@
       };
     });
     const switchFn = (uri) => {
-      if (status.type === WsEvent.CLOSE) return;
+      if (status.type === WsEvent.CLOSE)
+        return;
       switchTo = uri;
-      if (status.type !== WsEvent.ERROR && latestSocket) latestSocket.close();
+      if (status.type !== WsEvent.ERROR && latestSocket)
+        latestSocket.close();
     };
     return Object.assign(result, { switch: switchFn, getStatus: () => status });
   };
 
-  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/pauseController.js
+  // node_modules/@novasamatech/host-substrate-chain-connection/dist/pauseController.js
   var createPauseController = () => {
     let paused = false;
     let destroyed = false;
@@ -5766,7 +5839,7 @@
     return { middleware, pause, resume, isPaused: () => paused };
   };
 
-  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/subscriptionReplayProvider.js
+  // node_modules/@novasamatech/host-substrate-chain-connection/dist/subscriptionReplayProvider.js
   var isChainMethod = (method) => method.startsWith("chain_");
   var isSubscribeMethod = (method) => {
     if (isChainMethod(method))
@@ -5863,7 +5936,7 @@
     };
   };
 
-  // ../../../../triangle-js-sdks/packages/host-substrate-chain-connection/dist/wsProvider.js
+  // node_modules/@novasamatech/host-substrate-chain-connection/dist/wsProvider.js
   var STATUS_BY_WS_EVENT = {
     [WsEvent.CONNECTING]: "connecting",
     [WsEvent.CONNECTED]: "connected",
@@ -5931,7 +6004,8 @@
       });
       entry.provider = provider;
       entry.inner = provider(entry.onMessage);
-      for (const msg of entry.buffer) entry.inner.send(msg);
+      for (const msg of entry.buffer)
+        entry.inner.send(msg);
       entry.buffer.length = 0;
     }
     disconnect(genesisHash) {
@@ -6004,7 +6078,8 @@
   var STATEMENT_TOPIC_BYTES = 32;
   function validateStatementTopics(topics) {
     const invalid = topics.find((topic) => topic.length !== STATEMENT_TOPIC_BYTES);
-    if (invalid === void 0) return null;
+    if (invalid === void 0)
+      return null;
     const asUtf8 = new TextDecoder().decode(invalid);
     return `Statement topic must be ${STATEMENT_TOPIC_BYTES} bytes, got ${invalid.length}: ${toHex2(invalid)} ("${asUtf8}")`;
   }
@@ -6158,8 +6233,10 @@
       (result) => ok2({ primaryUsername: result.primaryUsername }),
       (e) => {
         const msg = String(e);
-        if (msg.includes("NotConnected")) return err2(new GetUserIdErr.NotConnected());
-        if (msg.includes("PermissionDenied")) return err2(new GetUserIdErr.PermissionDenied());
+        if (msg.includes("NotConnected"))
+          return err2(new GetUserIdErr.NotConnected());
+        if (msg.includes("PermissionDenied"))
+          return err2(new GetUserIdErr.PermissionDenied());
         return err2(new GetUserIdErr.Unknown({ reason: msg }));
       }
     );
@@ -6284,8 +6361,10 @@
       });
       return {
         send(message) {
-          if (entry.inner) entry.inner.send(message);
-          else entry.buffer.push(message);
+          if (entry.inner)
+            entry.inner.send(message);
+          else
+            entry.buffer.push(message);
         },
         disconnect() {
           connectionManager.disconnect(genesisHash);
@@ -6493,7 +6572,8 @@
   });
   container.handleStatementStoreCreateProof(async ([account, statement], { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError) return err2(new StatementProofErr.Unknown({ reason: topicError }));
+    if (topicError)
+      return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProof", {
         account: toNativeAccountId(account),
@@ -6512,7 +6592,8 @@
   });
   container.handleStatementStoreSubmit(async (statement, { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError) return err2(new GenericError({ reason: topicError }));
+    if (topicError)
+      return err2(new GenericError({ reason: topicError }));
     try {
       const proofValue = statement.proof.value;
       await callNative("statementStoreSubmit", {
@@ -6533,7 +6614,8 @@
   });
   container.handleStatementStoreCreateProofAuthorized(async (statement, { ok: ok2, err: err2 }) => {
     const topicError = validateStatementTopics(statement.topics);
-    if (topicError) return err2(new StatementProofErr.Unknown({ reason: topicError }));
+    if (topicError)
+      return err2(new StatementProofErr.Unknown({ reason: topicError }));
     try {
       const result = await callNative("createStatementProofAuthorized", {
         channel: statement.channel ? toHex2(statement.channel) : void 0,
@@ -6710,8 +6792,10 @@
       return ok2({ id: result.id });
     } catch (e) {
       const msg = String(e instanceof Error ? e.message : e);
-      if (msg.includes("payment rejected")) return err2(new PaymentRequestErr.Rejected());
-      if (msg.includes("insufficient balance")) return err2(new PaymentRequestErr.InsufficientBalance());
+      if (msg.includes("payment rejected"))
+        return err2(new PaymentRequestErr.Rejected());
+      if (msg.includes("insufficient balance"))
+        return err2(new PaymentRequestErr.InsufficientBalance());
       return err2(new PaymentRequestErr.Unknown({ reason: msg }));
     }
   });
@@ -6744,9 +6828,12 @@
       "paymentStatusSubscribe",
       { paymentId },
       (payload) => {
-        if (payload.tag === "Processing") send({ tag: "Processing", value: void 0 });
-        else if (payload.tag === "Completed") send({ tag: "Completed", value: void 0 });
-        else send({ tag: "Failed", value: payload.value ?? "" });
+        if (payload.tag === "Processing")
+          send({ tag: "Processing", value: void 0 });
+        else if (payload.tag === "Completed")
+          send({ tag: "Completed", value: void 0 });
+        else
+          send({ tag: "Failed", value: payload.value ?? "" });
       },
       () => interrupt(new PaymentStatusErr.Unknown({ reason: "subscription interrupted" }))
     );
