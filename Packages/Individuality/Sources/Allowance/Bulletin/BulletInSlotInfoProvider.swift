@@ -124,8 +124,14 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
         let nowSeconds = try await chainTimeProvider.nowSeconds()
         let period = UInt32(TimeInterval(nowSeconds) / TimeInterval(periodDuration))
 
-        let aliases = try (0 ..< maxClaims).map { counter -> Data in
-            let context = BulletinSlotContextBuilder.context(period: period, counter: counter)
+        let networkSuffix = try await codingFactory.readNetworkSuffix(
+            for: ResourcesPallet.Constants.suffix()
+        )
+
+        let aliases = try (0 ..< maxClaims).map { [networkSuffix] counter -> Data in
+            let context = try ProductContextSuffix
+                .longTermStorage(period: period, counter: counter)
+                .context(networkSuffix: networkSuffix)
             return try personOrigin.keyManager.deriveAlias(for: context)
         }
 

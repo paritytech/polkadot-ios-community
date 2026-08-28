@@ -52,7 +52,17 @@ extension PGasOriginFactory: PGasOriginCreating {
             chain: peopleChainId
         )
 
-        let proofContext = PGASSlotContextBuilder.context(day: day, slotIndex: slotIndex)
+        let submissionRuntimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(
+            for: submissionChainId
+        )
+        let submissionCodingFactory = try await submissionRuntimeProvider
+            .fetchCoderFactoryOperation().asyncExecute()
+        let networkSuffix = try await submissionCodingFactory.readNetworkSuffix(
+            for: PGASPallet.Constants.suffix()
+        )
+        let proofContext = try ProductContextSuffix
+            .pgasClaim(day: day, slot: slotIndex)
+            .context(networkSuffix: networkSuffix)
 
         let revision = try await fetchRevision(
             for: personDeps.origin,

@@ -45,7 +45,14 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
             personOrigin: personOrigin,
             chain: chain
         )
-        let proofContext = SSSSlotContextBuilder.context(period: period, seq: seq)
+        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
+        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
+        let networkSuffix = try await codingFactory.readNetworkSuffix(
+            for: ResourcesPallet.Constants.suffix()
+        )
+        let proofContext = try ProductContextSuffix
+            .statementStoreSlot(period: period, seq: seq)
+            .context(networkSuffix: networkSuffix)
         let asResourcesOrigin = AsResourcesOriginDefinition(
             input: AsResourcesOriginInput(
                 personDeps: personDeps,
@@ -69,10 +76,14 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
             personOrigin: personOrigin,
             chain: chain
         )
-        let proofContext = BulletinSlotContextBuilder.context(
-            period: period,
-            counter: counter
+        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
+        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
+        let networkSuffix = try await codingFactory.readNetworkSuffix(
+            for: ResourcesPallet.Constants.suffix()
         )
+        let proofContext = try ProductContextSuffix
+            .longTermStorage(period: period, counter: counter)
+            .context(networkSuffix: networkSuffix)
 
         let asResourcesOrigin = AsResourcesOriginDefinition(
             input: AsResourcesOriginInput(

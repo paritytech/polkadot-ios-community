@@ -199,9 +199,15 @@ private extension StatementStoreSlotInfoProvider {
         let maxSlots = try await fetchMaxSlots(origin: personOrigin, codingFactory: codingFactory)
         guard maxSlots > 0 else { return [] }
 
+        let networkSuffix = try await codingFactory.readNetworkSuffix(
+            for: ResourcesPallet.Constants.suffix()
+        )
+
         let activeVrfManager = personOrigin.keyManager
-        let aliases = try (0 ..< maxSlots).map { seq in
-            let context = SSSSlotContextBuilder.context(period: period, seq: seq)
+        let aliases = try (0 ..< maxSlots).map { [networkSuffix] seq in
+            let context = try ProductContextSuffix
+                .statementStoreSlot(period: period, seq: seq)
+                .context(networkSuffix: networkSuffix)
             return try activeVrfManager.deriveAlias(for: context)
         }
 
