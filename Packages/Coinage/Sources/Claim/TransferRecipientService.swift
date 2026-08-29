@@ -91,7 +91,7 @@ actor TransferRecipientService {
     typealias OnChainCoin = CoinSyncResult.OnChainCoin
     private typealias HeadsSharedStream = AsyncShareSequence<AnyAsyncSequence<Block.Header>>
 
-    private let coinAllocator: any CoinAllocating
+    private let coinMinter: any CoinMinting
     private let coinKeyFactory: any CoinKeyDeriving
     private let coinService: any CoinServiceProtocol
     private let coinOnChainQuery: any CoinOnChainQuerying
@@ -110,7 +110,7 @@ actor TransferRecipientService {
     private var headsWaiterCount = 0
 
     init(
-        coinAllocator: any CoinAllocating,
+        coinMinter: any CoinMinting,
         coinKeyFactory: any CoinKeyDeriving,
         coinService: any CoinServiceProtocol,
         coinOnChainQuery: any CoinOnChainQuerying,
@@ -120,7 +120,7 @@ actor TransferRecipientService {
         blockNumberProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
-        self.coinAllocator = coinAllocator
+        self.coinMinter = coinMinter
         self.coinKeyFactory = coinKeyFactory
         self.coinService = coinService
         self.coinOnChainQuery = coinOnChainQuery
@@ -163,7 +163,7 @@ extension TransferRecipientService: OngoingTransferServicing {
     func claim(memo: TransferMemo, messageId: String) async throws {
         logger?.debug("Claiming memo with \(memo.entries.count) entries")
 
-        let memoKey = memo.identifier()
+        let memoKey = try memo.identifier()
 
         guard claimingMemos.insert(memoKey).inserted else {
             logger?.error("Already claiming this memo")
@@ -236,7 +236,7 @@ extension TransferRecipientService: OngoingTransferServicing {
 
         let memo = TransferMemo(entries: secretKeys, totalValue: total)
         // Deterministic per (keys, value) — retries dedup against any in-flight claim.
-        let messageId = "w3s-coins-\(memo.identifier().toHex())"
+        let messageId = try "w3s-coins-\(memo.identifier().toHex())"
         try await claim(memo: memo, messageId: messageId)
         return total
     }
@@ -306,7 +306,7 @@ extension TransferRecipientService: OngoingTransferServicing {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
-        logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+        try logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { [logger] in
@@ -314,7 +314,7 @@ extension TransferRecipientService: OngoingTransferServicing {
                 for try await header in stream.cancellable() {
                     count += 1
                     if count == 1 {
-                        logger?.debug(
+                        try logger?.debug(
                             "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
                         )
                     }
@@ -350,7 +350,7 @@ extension TransferRecipientService: OngoingTransferServicing {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
-        logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+        try logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
 
         try await withThrowingTaskGroup(of: Void.self) { [logger] group in
             group.addTask {
@@ -358,7 +358,7 @@ extension TransferRecipientService: OngoingTransferServicing {
                 for try await header in stream.cancellable() {
                     count += 1
                     if count == 1 {
-                        logger?.debug(
+                        try logger?.debug(
                             "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
                         )
                     }
@@ -537,13 +537,13 @@ private extension TransferRecipientService {
                 destinationCoin: entry.destinationCoin
             )
         }
-        let plan = ClaimPlan(
-            memoKey: memo.identifier(),
-            messageId: messageId,
-            entries: planEntries,
-            totalValue: memo.totalValue
-        )
         do {
+            let plan = try ClaimPlan(
+                memoKey: memo.identifier(),
+                messageId: messageId,
+                entries: planEntries,
+                totalValue: memo.totalValue
+            )
             try await planStore.save(plan: plan)
             logger?.debug("Persisted claim plan with \(planEntries.count) entries")
         } catch {
@@ -733,7 +733,7 @@ private extension TransferRecipientService {
             }
 
             do {
-                let newCoin = try await coinAllocator.allocate(exponent: Int16(sourceCoin.value))
+                let newCoin = try await coinMinter.mintCoin(exponent: Int16(sourceCoin.value))
                 prepared.append(PreparedEntry(
                     index: entry.index,
                     privateKey: entry.privateKey,

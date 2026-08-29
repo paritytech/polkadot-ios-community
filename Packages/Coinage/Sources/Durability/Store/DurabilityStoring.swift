@@ -1,3 +1,4 @@
+import AsyncExtensions
 import Foundation
 
 /// Persistence for durability entries and handoff marks.
@@ -28,13 +29,15 @@ public protocol DurabilityStoring: Sendable {
 
     func fetch(id: TransactionId) async throws -> DurabilityEntry?
 
+    /// A stream of an entry's status: the current value, then every change. For a caller that must
+    /// await a terminal outcome (offboarding an external payment) rather than fire-and-forget.
+    func subscribeStatus(of id: TransactionId) -> AnyAsyncSequence<EntryStatus>
+
     /// The entry that minted this asset, if any.
     func minter(of asset: OwnAsset) async throws -> DurabilityEntry?
 
     /// Every entry consuming this input, including terminal ones.
     func consumers(of input: DurabilityInput) async throws -> [DurabilityEntry]
-
-    func markHandedOff(_ asset: OwnAsset) async throws
 
     /// Provisionally marks assets handed off (`.pending`) in one transaction, before their keys
     /// reach the transport. Released on relaunch unless committed.

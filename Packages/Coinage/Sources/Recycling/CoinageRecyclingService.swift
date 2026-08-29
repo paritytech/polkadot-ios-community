@@ -7,16 +7,6 @@ import SDKLogger
 import SubstrateSdk
 import StructuredConcurrency
 
-/// Outcome of a single coin recycling attempt.
-enum CoinRecycleResult {
-    /// Coin successfully recycled into a new voucher.
-    case recycled(Voucher)
-    /// Post-submission failure: coin used on-chain but no voucher created.
-    case destroyed
-    /// Pre-submission failure: coin reverted to .available, safe to retry.
-    case failed(Error)
-}
-
 /// Persisted recycling intent handed from `prepareRecycle` to the submission step.
 private struct PreparedRecycle {
     let voucher: Voucher
@@ -25,11 +15,10 @@ private struct PreparedRecycle {
 }
 
 /// Schedules and executes coin recycling to prevent expiration.
-/// Processes eligible coins sequentially with three-way error handling per coin.
+/// Fire-and-forget submits each eligible coin; the durability layer resolves the outcome.
 actor CoinageRecyclingService {
     private let coinService: CoinServiceProtocol
-    private let voucherAllocator: any VoucherAllocating
-    private let voucherRepository: AnyDataProviderRepository<Voucher>
+    private let voucherMinter: any VoucherMinting
     private let coinKeypairFactory: any CoinKeyDeriving
     private let voucherKeypairFactory: any VoucherKeyDeriving
     private let durability: any DurabilityServicing
@@ -43,8 +32,7 @@ actor CoinageRecyclingService {
     init(
         schedulerFactory: CoinRecycleSchedulerMaking,
         coinService: CoinServiceProtocol,
-        voucherAllocator: any VoucherAllocating,
-        voucherRepository: AnyDataProviderRepository<Voucher>,
+        voucherMinter: any VoucherMinting,
         coinKeypairFactory: any CoinKeyDeriving,
         voucherKeypairFactory: any VoucherKeyDeriving,
         durability: any DurabilityServicing,
@@ -55,8 +43,7 @@ actor CoinageRecyclingService {
     ) {
         self.schedulerFactory = schedulerFactory
         self.coinService = coinService
-        self.voucherAllocator = voucherAllocator
-        self.voucherRepository = voucherRepository
+        self.voucherMinter = voucherMinter
         self.coinKeypairFactory = coinKeypairFactory
         self.voucherKeypairFactory = voucherKeypairFactory
         self.durability = durability
@@ -72,10 +59,7 @@ actor CoinageRecyclingService {
 extension CoinageRecyclingService: CoinageRecyclingServicing {
     func recycleCoins(_ coins: [Coin]) async throws {
         for coin in coins {
-            let result = await recycleCoin(coin)
-            if case let .failed(error) = result {
-                throw error
-            }
+            try await recycleCoin(coin)
         }
     }
 
@@ -111,57 +95,41 @@ private extension CoinageRecyclingService {
 
             logger.debug("Found \(eligibleCoins.count) eligible coins for recycling")
 
-            var recycledCount = 0
-            var destroyedCount = 0
+            var submittedCount = 0
             var failedCount = 0
 
             for coin in eligibleCoins {
                 if Task.isCancelled { break }
 
-                let result = await recycleCoin(coin)
-                switch result {
-                case .recycled: recycledCount += 1
-                case .destroyed: destroyedCount += 1
-                case .failed: failedCount += 1
+                do {
+                    try await recycleCoin(coin)
+                    submittedCount += 1
+                } catch {
+                    logger.error("Recycle failed for coin \(coin.derivationIndex), leaving for recovery: \(error)")
+                    failedCount += 1
                 }
             }
 
-            logger.debug(
-                "Recycling run complete: \(recycledCount) recycled, \(destroyedCount) destroyed, \(failedCount) failed"
-            )
+            logger.debug("Recycling run complete: \(submittedCount) submitted, \(failedCount) failed")
         } catch {
             logger.error("Recycling run failed: \(error)")
         }
     }
 
-    /// Executes the full recycling flow for a single coin, durable across crashes via the durability engine:
-    /// A recycle consumes one coin and mints one voucher, matching Appendix B's `load_recycler_with_coin`.
-    /// 1. `prepareRecycle` locks the coin, allocates the voucher, and persists voucher before submitting
-    /// 2. Submit `load_recycler_with_coin` through the durability engine (captures the checkpoint block)
-    /// 3. `resolveSubmission` commits the on-chain outcome
-    ///
-    /// A pre-submission error reverts the coin. A thrown submission is recoverable by startup recovery.
-    func recycleCoin(_ coin: Coin) async -> CoinRecycleResult {
-        let prepared: PreparedRecycle
-        do {
-            prepared = try await prepareRecycle(coin)
-        } catch {
-            logger.error("Pre-submission error for coin \(coin.derivationIndex): \(error)")
-            return .failed(error)
-        }
-
-        do {
-            let result = try await durability.submitAwaitingOutcome(
-                inputs: [.coin(.own(coin.derivationIndex))],
-                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
-                builder: prepared.builder,
-                origin: prepared.origin
-            )
-            return try await resolveSubmission(result.submission, coin: coin, prepared: prepared)
-        } catch {
-            logger.error("Submission error for coin \(coin.derivationIndex), leaving for recovery: \(error)")
-            return .failed(error)
-        }
+    /// Fire-and-forget recycle of a single coin, matching Appendix B's `load_recycler_with_coin` and
+    /// the Android model: `prepareRecycle` mints the voucher, then `submit` registers the entry —
+    /// which claims the coin — and tracks the extrinsic in the background. The durability layer
+    /// resolves the outcome; a coin whose extrinsic never lands is released by the recovery pass at
+    /// mortality, so there is nothing to roll back here.
+    func recycleCoin(_ coin: Coin) async throws {
+        let prepared = try await prepareRecycle(coin)
+        try await durability.submit(
+            inputs: [.coin(.own(coin.derivationIndex))],
+            outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
+            builder: prepared.builder,
+            origin: prepared.origin
+        )
+        logger.debug("Submitted recycle: coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
     }
 
     /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`)
@@ -169,7 +137,7 @@ private extension CoinageRecyclingService {
     func prepareRecycle(_ coin: Coin) async throws -> PreparedRecycle {
         // The coin is reserved by its `load_recycler` durability entry at submission — a live
         // input derives to `.pendingTransfer` — so no separate pre-lock is written here.
-        let voucher = try await voucherAllocator.allocate(exponent: coin.exponent)
+        let voucher = try await voucherMinter.mintVoucher(exponent: coin.exponent)
 
         let memberKey = try voucherKeypairFactory.derivePublicKey(for: voucher)
         let keyManager = try voucherKeypairFactory.createKeyManager(for: voucher)
@@ -189,36 +157,6 @@ private extension CoinageRecyclingService {
 
         // The voucher is already persisted by the allocator, so a crash mid-flight is recoverable.
         return PreparedRecycle(voucher: voucher, origin: origin, builder: builder)
-    }
-
-    /// Commits the on-chain outcome: success keeps the voucher and spends the coin,
-    /// on-chain failure drops the voucher and spends the coin.
-    func resolveSubmission(
-        _ submission: ExtrinsicMonitorSubmission,
-        coin: Coin,
-        prepared: PreparedRecycle
-    ) async throws -> CoinRecycleResult {
-        switch submission.status {
-        case .success:
-            try await voucherRepository
-                .saveOperation(
-                    { [prepared.voucher] },
-                    { [] }
-                ).asyncExecute()
-            try await coinService.save(coins: [coin.changing(isOnchain: false)])
-            logger.debug("Recycled coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
-            return .recycled(prepared.voucher)
-
-        case let .failure(error):
-            logger.warning("Coin \(coin.derivationIndex) destroyed on-chain: \(error)")
-            try await coinService.save(coins: [coin.changing(isOnchain: false)])
-            try await voucherRepository.saveOperation(
-                { [] },
-                { [prepared.voucher.identifier] }
-            ).asyncExecute()
-
-            return .destroyed
-        }
     }
 
     func fetchEligibleCoins() async throws -> [Coin] {

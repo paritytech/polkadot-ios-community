@@ -40,14 +40,14 @@ final class ClaimPlanCoreDataStore: ClaimPlanStoring, @unchecked Sendable {
     func remove(memo: TransferMemo) async throws {
         try await repository.saveOperation(
             { [] },
-            { [memo.identifier().toHex()] }
+            { try [memo.identifier().toHex()] }
         )
         .asyncExecute()
     }
 
     func plan(memo: TransferMemo) async throws -> ClaimPlan? {
         try await repository.fetchOperation(
-            by: { memo.identifier().toHex() },
+            by: { try memo.identifier().toHex() },
             options: .init()
         )
         .asyncExecute()
@@ -59,7 +59,7 @@ final class ClaimPlanCoreDataStore: ClaimPlanStoring, @unchecked Sendable {
         forMemo memo: TransferMemo
     ) async throws {
         let existing = try await repository.fetchOperation(
-            by: { memo.identifier().toHex() },
+            by: { try memo.identifier().toHex() },
             options: .init()
         )
         .asyncExecute()

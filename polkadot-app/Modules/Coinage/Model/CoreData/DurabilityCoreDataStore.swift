@@ -1,3 +1,4 @@
+import AsyncExtensions
 import Coinage
 import CoreData
 import Foundation
@@ -17,12 +18,14 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
     private let coinRepository: AnyDataProviderRepository<Coin>
     private let transacting: any CoinageTransacting
     private let validator: RegistrationValidator
+    private let storageFacade: StorageFacadeProtocol
 
     init(
         storageFacade: StorageFacadeProtocol,
         transacting: any CoinageTransacting,
         coinKeyDeriver: any CoinKeyDeriving
     ) {
+        self.storageFacade = storageFacade
         let entryRepository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: true)],
@@ -108,6 +111,15 @@ extension DurabilityCoreDataStore {
         ).asyncExecute()
     }
 
+    func subscribeStatus(of id: TransactionId) -> AnyAsyncSequence<EntryStatus> {
+        storageFacade.subscribeSingle(
+            mapper: AnyCoreDataMapper(DurabilityEntryMapper()),
+            filter: NSPredicate(format: "%K == %@", #keyPath(CDDurability.identifier), id.uuidString)
+        )
+        .compactMap { $0?.status }
+        .eraseToAnyAsyncSequence()
+    }
+
     func minter(of asset: OwnAsset) async throws -> DurabilityEntry? {
         let identifier = asset.identifier
         return try await fetchAll().first { entry in
@@ -126,10 +138,6 @@ extension DurabilityCoreDataStore {
 // MARK: - Handoff marks
 
 extension DurabilityCoreDataStore {
-    func markHandedOff(_ asset: OwnAsset) async throws {
-        try await transacting.withTransaction { try $0.insertMark(asset) }
-    }
-
     func markHandoffPending(_ assets: [OwnAsset]) async throws {
         guard !assets.isEmpty else { return }
         try await transacting.withTransaction { transaction in

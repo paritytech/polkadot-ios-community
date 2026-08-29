@@ -3,6 +3,7 @@ import Foundation
 import SubstrateSdk
 import NovaCrypto
 import Keystore_iOS
+import Operation_iOS
 @testable import Coinage
 
 struct VoucherAllocatorTests {
@@ -17,16 +18,17 @@ struct VoucherAllocatorTests {
         mockDelay = MockDelayProvider()
         allocator = VoucherAllocator(
             storage: store,
-            delayProvider: mockDelay
+            delayProvider: mockDelay,
+            voucherRepository: AnyDataProviderRepository(StubRepository<Voucher>())
         )
     }
 
     @Test("Successfully allocates a voucher")
     func allocateVoucher() async throws {
-        let expectedIndex: UInt32 = 7
+        let expectedIndex: UInt64 = 7
         let expectedDelay: TimeInterval = 3_600
 
-        try keychain.saveKey(UInt32(6).scaleEncoded(), with: store.storageKey)
+        try keychain.saveKey(UInt64(6).scaleEncoded(), with: store.storageKey)
         mockDelay.interval = expectedDelay
 
         let exponent: Int16 = -2

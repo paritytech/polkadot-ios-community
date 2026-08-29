@@ -7,8 +7,9 @@ import SubstrateSdk
 import SubstrateOperation
 import SubstrateSdkExt
 
-/// Executes the offboarding flow: submits one extrinsic per recycler group
-/// and records state changes via ``ExternalPaymentTransferContext``.
+/// Executes the offboarding flow: submits one extrinsic per recycler group.
+/// Durability tracks the spent voucher inputs and surplus outputs; the surplus vouchers are
+/// already persisted by the allocator when minted, so no local state bookkeeping is required.
 ///
 /// Each group's call must independently satisfy the pallet invariant:
 /// `input_value (= coin_value * alias_count) == external_asset_amount + sum(loaded_coin_values)`
@@ -17,7 +18,7 @@ import SubstrateSdkExt
 /// Groups without surplus use `unload_recycler_into_external_asset`.
 final class OffboardVouchersForPaymentService {
     private let voucherKeyFactory: any VoucherKeyDeriving
-    private let voucherAllocator: any VoucherAllocating
+    private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
@@ -27,7 +28,7 @@ final class OffboardVouchersForPaymentService {
 
     init(
         voucherKeyFactory: any VoucherKeyDeriving,
-        voucherAllocator: any VoucherAllocating,
+        voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
@@ -36,7 +37,7 @@ final class OffboardVouchersForPaymentService {
         logger: SDKLoggerProtocol? = nil
     ) {
         self.voucherKeyFactory = voucherKeyFactory
-        self.voucherAllocator = voucherAllocator
+        self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.durability = durability
         self.originFactory = originFactory
@@ -47,26 +48,14 @@ final class OffboardVouchersForPaymentService {
 
     func execute(
         payment: ExternalPayment,
-        vouchers: [Voucher],
-        transferContext: ExternalPaymentTransferContext
+        vouchers: [Voucher]
     ) async throws {
         guard !vouchers.isEmpty else { throw OffboardVouchersForPaymentError.emptyVouchers }
         guard !vouchers.contains(where: { $0.recycler == nil }) else {
             throw OffboardVouchersForPaymentError.missingRecyclerInfo
         }
 
-        try await transferContext.reserve(vouchers: vouchers)
-
-        do {
-            try await executeSubmissions(
-                payment: payment,
-                vouchers: vouchers,
-                transferContext: transferContext
-            )
-        } catch {
-            await transferContext.revert()
-            throw error
-        }
+        try await executeSubmissions(payment: payment, vouchers: vouchers)
     }
 }
 
@@ -75,8 +64,7 @@ final class OffboardVouchersForPaymentService {
 private extension OffboardVouchersForPaymentService {
     func executeSubmissions(
         payment: ExternalPayment,
-        vouchers: [Voucher],
-        transferContext: ExternalPaymentTransferContext
+        vouchers: [Voucher]
     ) async throws {
         let groups = groupVouchers(vouchers)
 
@@ -96,16 +84,11 @@ private extension OffboardVouchersForPaymentService {
         let keys = details.map(\.group.key)
         let revisions = try await recyclerLoader.fetchRevisions(for: keys, blockHash: blockHash)
 
-        // Build full submissions with revision and destination
         var submissions: [GroupSubmission] = []
-        var allSurplusVouchers: [Voucher] = []
-
         for (detail, origin) in zip(details, origins) {
             guard let revision = revisions[detail.group.key] else {
                 throw OffboardVouchersForPaymentError.unexpectedEmptyRevision(detail.group.key)
             }
-
-            allSurplusVouchers.append(contentsOf: detail.surplusVouchers)
 
             submissions.append(GroupSubmission(
                 details: detail,
@@ -115,60 +98,62 @@ private extension OffboardVouchersForPaymentService {
             ))
         }
 
-        // Save surplus vouchers as pendingOnboarding via transfer context
-        try await transferContext.savePendingOnboarding(vouchers: allSurplusVouchers)
+        // Fire-and-forget submit each group; registration claims its vouchers and records the surplus
+        // outputs. Collect the entry ids so their outcomes can be awaited below.
+        var entryIds: [TransactionId] = []
+        var errors: [Error] = []
+        for submission in submissions {
+            do {
+                try await entryIds.append(submitGroup(submission))
+            } catch {
+                logger?.error("Offboard group registration failed: \(error)")
+                errors.append(error)
+            }
+        }
 
-        // Submit one extrinsic per group concurrently
-        typealias GroupResult = Result<GroupSuccess, Error>
-
-        let results: [GroupResult] = await withTaskGroup(of: GroupResult.self) { taskGroup in
-            for submission in submissions {
+        // Await each group's terminal outcome via the durability layer, matching Android's
+        // `awaitOutcome`: the state machine must not report the payment completed until the chain has.
+        let outcomeErrors = await withTaskGroup(of: Error?.self) { taskGroup in
+            for id in entryIds {
                 taskGroup.addTask {
                     do {
-                        try await self.submitGroup(submission)
-                        return .success(GroupSuccess(
-                            spentVouchers: submission.details.group.vouchers,
-                            newVouchers: submission.details.surplusVouchers
-                        ))
+                        try await self.awaitOutcome(of: id)
+                        return nil
                     } catch {
-                        return .failure(error)
+                        self.logger?.error("Offboard group failed: \(error)")
+                        return error
                     }
                 }
             }
 
-            var collected: [GroupResult] = []
-            for await result in taskGroup {
-                collected.append(result)
+            var collected: [Error] = []
+            for await error in taskGroup {
+                if let error { collected.append(error) }
             }
             return collected
         }
+        errors += outcomeErrors
 
-        // Record on-chain changes locally per group
-        var collectedErrors: [Error] = []
-
-        for groupResult in results {
-            switch groupResult {
-            case let .success(success):
-                do {
-                    try await transferContext.process(
-                        spentVouchers: success.spentVouchers,
-                        newVouchers: success.newVouchers
-                    )
-                } catch {
-                    logger?.error("Failed to record offboard locally: \(error)")
-                    collectedErrors.append(error)
-                }
-            case let .failure(error):
-                logger?.error("Offboard group failed: \(error)")
-                collectedErrors.append(error)
-            }
-        }
-
-        if !collectedErrors.isEmpty {
-            throw OffboardVouchersForPaymentError.submissionFailed(collectedErrors)
+        if !errors.isEmpty {
+            throw OffboardVouchersForPaymentError.submissionFailed(errors)
         }
 
         durability.startRecoveryPass()
+    }
+
+    /// Awaits an entry's terminal status: returns on `finalizedSuccess`, throws on `failure`.
+    func awaitOutcome(of id: TransactionId) async throws {
+        for try await status in durability.subscribeTransactionStatus(id) {
+            switch status {
+            case .finalizedSuccess:
+                return
+            case .failure:
+                throw OffboardVouchersForPaymentError.groupExecutionFailed(id)
+            case .pending,
+                 .pendingSuccess:
+                continue
+            }
+        }
     }
 }
 
@@ -191,11 +176,6 @@ private extension OffboardVouchersForPaymentService {
         let revision: UInt32
         let destination: AccountId
         let origin: any ExtrinsicOriginDefining
-    }
-
-    struct GroupSuccess {
-        let spentVouchers: [Voucher]
-        let newVouchers: [Voucher]
     }
 }
 
@@ -259,21 +239,14 @@ private extension OffboardVouchersForPaymentService {
         }
 
         let denominations = denominationContext.breakdown(amount: surplusDecimal)
-        var vouchers: [Voucher] = []
-
-        for denomination in denominations {
-            let voucher = try await voucherAllocator.allocate(exponent: denomination.exponent)
-            vouchers.append(voucher)
-        }
-
-        return vouchers
+        return try await voucherMinter.mintVouchers(denominations.map(\.exponent))
     }
 }
 
 // MARK: - Submission
 
 private extension OffboardVouchersForPaymentService {
-    func submitGroup(_ submission: GroupSubmission) async throws {
+    func submitGroup(_ submission: GroupSubmission) async throws -> TransactionId {
         let aliases = try submission.details.group.vouchers.map {
             try voucherKeyFactory.createKeyManager(for: $0)
                 .deriveAlias(for: UnloadTokenContextBuilder.recyclerAliasContext)
@@ -281,7 +254,7 @@ private extension OffboardVouchersForPaymentService {
 
         let key = submission.details.group.key
 
-        let result = try await durability.submitAwaitingOutcome(
+        let id = try await durability.submit(
             inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
             outputs: submission.details.surplusVouchers
                 .map { .recyclerVoucher($0.derivationIndex) },
@@ -302,13 +275,8 @@ private extension OffboardVouchersForPaymentService {
             origin: submission.origin
         )
 
-        switch result.submission.status {
-        case .success:
-            logger?.debug("Offboard extrinsic succeeded for key \(key)")
-        case let .failure(error):
-            logger?.error("Offboard extrinsic failed for key \(key): \(error.error)")
-            throw error.error
-        }
+        logger?.debug("Offboard extrinsic submitted for key \(key)")
+        return id
     }
 
     func buildExternalAssetCall(

@@ -5,4 +5,5 @@ enum OffboardVouchersForPaymentError: Error {
     case missingRecyclerInfo
     case unexpectedEmptyRevision(RecyclerKey)
     case submissionFailed([Error])
+    case groupExecutionFailed(TransactionId)
 }

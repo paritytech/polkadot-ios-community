@@ -18,7 +18,7 @@ public protocol VoucherLoaderProtocol {
 public final class VoucherLoader: VoucherLoaderProtocol {
     private let accountId: AccountId
     private let origin: any ExtrinsicOriginDefining
-    private let allocator: any VoucherAllocating
+    private let minter: any VoucherMinting
     private let keypairFactory: any VoucherKeyDeriving
     private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
     private let runtimeService: RuntimeCodingServiceProtocol
@@ -27,7 +27,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
     init(
         accountId: AccountId,
         origin: any ExtrinsicOriginDefining,
-        allocator: any VoucherAllocating,
+        minter: any VoucherMinting,
         keypairFactory: any VoucherKeyDeriving,
         extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
         runtimeService: RuntimeCodingServiceProtocol,
@@ -35,7 +35,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
     ) {
         self.accountId = accountId
         self.origin = origin
-        self.allocator = allocator
+        self.minter = minter
         self.keypairFactory = keypairFactory
         self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
         self.runtimeService = runtimeService
@@ -101,7 +101,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
         return try await withThrowingTaskGroup(of: Pair.self) { group in
             denominations.forEach { denomination in
                 group.addTask {
-                    let voucher = try await self.allocator.allocate(exponent: denomination.exponent)
+                    let voucher = try await self.minter.mintVoucher(exponent: denomination.exponent)
                     let publicKey = try self.keypairFactory.derivePublicKey(for: voucher)
                     let keyManager = try self.keypairFactory.createKeyManager(for: voucher)
 

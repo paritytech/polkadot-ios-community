@@ -126,9 +126,7 @@ extension CoinStateSyncService {
         var coinMap: [String: Coin] = [:]
         for tracked in availableCoins where !tracked.state.isConsumed {
             let coin = tracked.coin
-            guard let pubKey = try? coinKeyDeriver.derivePublicKey(for: coin) else {
-                continue
-            }
+            let pubKey = try coinKeyDeriver.derivePublicKey(for: coin)
             coinMap[pubKey.toHex()] = coin
         }
 

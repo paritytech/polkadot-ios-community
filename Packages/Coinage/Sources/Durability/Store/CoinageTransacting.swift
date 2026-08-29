@@ -17,7 +17,6 @@ public protocol CoinageStoreTransaction {
     /// Next sequence number to assign to a new entry.
     func nextSequence() throws -> Int64
     func upsert(_ entry: DurabilityEntry) throws
-    func insertMark(_ asset: OwnAsset) throws
 
     /// Provisionally marks an asset handed off (`.pending`), before its keys reach the transport.
     /// A no-op if the asset already carries a committed mark, so commit never regresses.

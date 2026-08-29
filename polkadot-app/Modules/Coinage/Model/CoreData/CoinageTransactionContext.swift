@@ -10,8 +10,8 @@ import SubstrateSdk
 /// atomicity and consistency with `subscribeSnapshot` readers.
 ///
 /// WARNING: Do not call `withTransaction` from within another `withTransaction` body.
-/// This would deadlock on the shared serial dispatch queue. Verified callers:
-/// `DurabilityCoreDataStore:46` (register) and `:167` (markHandedOff), neither nested.
+/// This would deadlock on the shared serial dispatch queue. Verified callers in
+/// `DurabilityCoreDataStore` (register, handoff marks) are never nested.
 final class CoinageTransactionContext: CoinageTransacting, @unchecked Sendable {
     private let databaseService: CoreDataServiceProtocol
 
@@ -70,7 +70,7 @@ private class Transaction: CoinageStoreTransaction {
         )
 
         let matched = try context.fetch(request).compactMap(\.receivedPubKey)
-        return Set(matched.compactMap { try? Data(hexString: $0) })
+        return try Set(matched.map { try Data(hexString: $0) })
     }
 
     func handedOff(among inputs: Set<DurabilityInput>) throws -> Set<DurabilityInput> {
@@ -113,11 +113,6 @@ private class Transaction: CoinageStoreTransaction {
         }
 
         try entryMapper.populate(entity: entity, from: entry, using: context)
-    }
-
-    func insertMark(_ asset: OwnAsset) throws {
-        // Insert-only: the mark goes down before the keys leave and is never retracted.
-        try coinRow(for: asset)?.handoffMark = CoinHandoffMark.committed.rawValue
     }
 
     func markHandoffPending(_ asset: OwnAsset) throws {

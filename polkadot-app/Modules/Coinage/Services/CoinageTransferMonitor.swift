@@ -276,7 +276,7 @@ private extension CoinageTransferMonitor {
                                     )
                                 } else {
                                     if existingPlan == nil {
-                                        let plan = ClaimPlan(
+                                        let plan = try ClaimPlan(
                                             memoKey: memo.identifier(),
                                             messageId: messageId,
                                             entries: [],

@@ -9,7 +9,7 @@ public protocol VoucherLoaderFactoryProtocol {
 }
 
 final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
-    private let allocator: any VoucherAllocating
+    private let minter: any VoucherMinting
     private let keypairFactory: any VoucherKeyDeriving
     private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
     private let originCreating: OriginCreating
@@ -18,7 +18,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     private let logger: (any SDKLoggerProtocol)?
 
     init(
-        allocator: any VoucherAllocating,
+        minter: any VoucherMinting,
         keypairFactory: any VoucherKeyDeriving,
         extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
         originCreating: OriginCreating,
@@ -26,7 +26,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
         chain: ChainProtocol,
         logger: (any SDKLoggerProtocol)?
     ) {
-        self.allocator = allocator
+        self.minter = minter
         self.keypairFactory = keypairFactory
         self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
         self.originCreating = originCreating
@@ -42,7 +42,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
         return VoucherLoader(
             accountId: account.accountId,
             origin: origin,
-            allocator: allocator,
+            minter: minter,
             keypairFactory: keypairFactory,
             extrinsicSubmitMonitor: extrinsicSubmitMonitor,
             runtimeService: runtimeService,

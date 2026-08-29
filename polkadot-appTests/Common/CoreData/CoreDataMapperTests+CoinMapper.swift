@@ -39,22 +39,7 @@ extension CoreDataMapperTests {
         // Status is derived on read from the durability graph, presence and age — not stored. With
         // no durability entries, only presence/age drive it.
 
-        @Test("no entries, never seen on chain -> available")
-        func derivesAvailableWhenUntouched() async throws {
-            let result = try await roundTrip(Coin(exponent: 6, derivationIndex: 11, age: nil))
-            #expect(result.state == .available)
-        }
-
-        @Test("present on chain -> available")
-        func derivesAvailableWhenPresent() async throws {
-            let result = try await roundTrip(Coin(exponent: 6, derivationIndex: 12, age: 3, isOnchain: true))
-            #expect(result.state == .available)
-        }
-
-        @Test("seen on chain and now absent -> spent")
-        func derivesSpentWhenGone() async throws {
-            let result = try await roundTrip(Coin(exponent: 6, derivationIndex: 10, age: 3, isOnchain: false))
-            #expect(result.state == .spent)
-        }
+        // Coin status is no longer a stored `Coin.state`; it is derived on read as a `TrackedCoin`
+        // from the durability graph, presence and age, and is covered by the derive-on-read tests.
     }
 }

@@ -2,7 +2,8 @@ import Foundation
 import os
 import Operation_iOS
 import ExtrinsicService
-import Coinage
+import AsyncExtensions
+@testable import Coinage
 
 /// Thread-safe journal for recording mock call events.
 final class CallJournal: @unchecked Sendable {
@@ -10,7 +11,6 @@ final class CallJournal: @unchecked Sendable {
 
     private struct State {
         var events: [String] = []
-        var abandonedIds: Set<String> = []
     }
 
     func record(_ event: String) {
@@ -19,14 +19,6 @@ final class CallJournal: @unchecked Sendable {
 
     var events: [String] {
         mutex.withLock { $0.events }
-    }
-
-    func recordAbandoned(_ id: TransactionId) {
-        mutex.withLock { $0.abandonedIds.insert(id.uuidString) }
-    }
-
-    var abandonedIds: Set<String> {
-        mutex.withLock { $0.abandonedIds }
     }
 }
 
@@ -39,40 +31,41 @@ actor MockDurabilityService: DurabilityServicing {
     private(set) var recoveryPassCount: Int = 0
 
     private let submissionOutcome: SubmissionOutcome
-    private let submissionMonitor: ExtrinsicSubmitMonitorFactoryProtocol
 
     enum SubmissionOutcome {
+        /// Registration succeeds and the entry resolves to `finalizedSuccess`.
         case success
+        /// Registration succeeds and the entry resolves to `failure`.
         case chainFailure
+        /// `submit` throws before registering.
         case thrown
     }
 
     init(
         store: MockDurabilityStore = MockDurabilityStore(),
         callJournal: CallJournal = CallJournal(),
-        submissionOutcome: SubmissionOutcome = .success,
-        submissionMonitor: ExtrinsicSubmitMonitorFactoryProtocol = MockExtrinsicSubmitMonitor()
+        submissionOutcome: SubmissionOutcome = .success
     ) {
         self.store = store
         self.callJournal = callJournal
         self.submissionOutcome = submissionOutcome
-        self.submissionMonitor = submissionMonitor
     }
 
+    @discardableResult
     func submit(
         inputs: [DurabilityInput],
         outputs: [OwnAsset],
-        builder: @escaping ExtrinsicBuilderClosure,
-        origin: any ExtrinsicOriginDefining
-    ) async throws -> DurabilitySubmission {
-        let id = try await register(inputs: inputs, outputs: outputs)
-        return try await submitRegistered(entryId: id, builder: builder, origin: origin)
-    }
-
-    func register(inputs: [DurabilityInput], outputs: [OwnAsset]) async throws -> TransactionId {
+        builder _: @escaping ExtrinsicBuilderClosure,
+        origin _: any ExtrinsicOriginDefining
+    ) async throws -> TransactionId {
         submittedInputs.append(inputs)
         submittedOutputs.append(outputs)
-        callJournal.record("register")
+        callJournal.record("submit")
+
+        if case .thrown = submissionOutcome {
+            throw StubError.boom
+        }
+
         let entry = DurabilityEntry(
             inputs: inputs,
             outputs: outputs,
@@ -80,22 +73,22 @@ actor MockDurabilityService: DurabilityServicing {
             mortality: 300
         )
         try await store.register(entry)
+
+        // Drive the entry to a terminal status so a caller awaiting the outcome via
+        // `subscribeTransactionStatus` resolves immediately.
+        let terminal: EntryStatus =
+            switch submissionOutcome {
+            case .chainFailure: .failure
+            case .success,
+                 .thrown: .finalizedSuccess
+            }
+        try await store.updateStatus(entry.id, to: terminal)
+
         return entry.id
     }
 
-    func submitRegistered(
-        entryId: TransactionId,
-        builder _: @escaping ExtrinsicBuilderClosure,
-        origin _: any ExtrinsicOriginDefining
-    ) async throws -> DurabilitySubmission {
-        callJournal.record("submitRegistered")
-        let submission = try await createSubmission(for: submissionOutcome)
-        return DurabilitySubmission(transactionId: entryId, submission: submission)
-    }
-
-    nonisolated func abandon(_ id: TransactionId) {
-        callJournal.record("abandon(\(id))")
-        callJournal.recordAbandoned(id)
+    nonisolated func subscribeTransactionStatus(_ id: TransactionId) -> AnyAsyncSequence<EntryStatus> {
+        store.subscribeStatus(of: id)
     }
 
     nonisolated func startRecoveryPass() {
@@ -108,66 +101,14 @@ actor MockDurabilityService: DurabilityServicing {
 
     nonisolated func stop() {}
 
-    func transactionStatus(_ id: TransactionId) async throws -> EntryStatus {
-        guard let entry = try await store.fetch(id: id) else {
-            throw DurabilityError.entryNotFound(id)
-        }
-        return entry.status
+    func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
+        callJournal.record("preCommitHandoff")
+        try await store.markHandoffPending(assets)
+        return StoreHandoffCommit(assets: assets, store: store)
     }
 
-    func registerHandoff(_ coin: OwnAsset) async throws {
-        try await store.markHandedOff(coin)
-    }
-
-    func assetStatus(_ asset: OwnAsset) async throws -> CoinageAssetState {
-        try await assetStatuses([asset])[asset]
-            ?? CoinageAssetState(lock: .idle, minterStatus: nil)
-    }
-
-    func assetStatuses(_ assets: [OwnAsset]) async throws -> [OwnAsset: CoinageAssetState] {
-        guard !assets.isEmpty else { return [:] }
-
-        let handedOff = try await store.handedOffIdentifiers()
-        let live = try await store.fetchLive()
-        let reservedInputs = live.inputIdentifiers()
-        let allEntries = try await store.fetchAll()
-
-        var mintersByOutput: [String: EntryStatus] = [:]
-        for entry in allEntries {
-            for output in entry.outputs {
-                mintersByOutput[output.identifier] = entry.status
-            }
-        }
-
-        return assets.reduce(into: [:]) { result, asset in
-            let identifier = asset.identifier
-            let lock: AssetStatus =
-                if handedOff.contains(identifier) {
-                    .handedOff
-                } else if reservedInputs.contains(identifier) {
-                    .reserved
-                } else {
-                    .idle
-                }
-            result[asset] = CoinageAssetState(lock: lock, minterStatus: mintersByOutput[identifier])
-        }
-    }
-
-    func paymentStatus(of _: OwnAsset) async throws -> CoinPaymentStatus {
-        .detecting
-    }
-
-    private func createSubmission(
-        for outcome: SubmissionOutcome
-    ) async throws -> ExtrinsicMonitorSubmission {
-        switch outcome {
-        case .success:
-            return StubSubmission.make(status: StubSubmission.success)
-        case .chainFailure:
-            return StubSubmission.make(status: StubSubmission.failure)
-        case .thrown:
-            throw StubError.boom
-        }
+    func releaseUncommittedHandoffs() async throws {
+        try await store.releaseUncommittedHandoffs()
     }
 
     private func incrementRecoveryPassCount() {
@@ -177,56 +118,4 @@ actor MockDurabilityService: DurabilityServicing {
 
 enum StubError: Error {
     case boom
-}
-
-/// Canned extrinsic submissions shared by the mocks in this file.
-private enum StubSubmission {
-    static let txHash = "0x" + String(repeating: "0", count: 64)
-    static let blockHash = "0x" + String(repeating: "1", count: 64)
-
-    static var success: SubstrateExtrinsicStatus {
-        .success(.init(
-            extrinsicHash: txHash,
-            blockHash: blockHash,
-            blockNumber: 1,
-            extrinsicIndex: 0,
-            interestedEvents: []
-        ))
-    }
-
-    static var failure: SubstrateExtrinsicStatus {
-        .failure(.init(
-            extrinsicHash: txHash,
-            blockHash: blockHash,
-            blockNumber: 1,
-            extrinsicIndex: 0,
-            error: .other(.init(module: "test", reason: "destroyed"))
-        ))
-    }
-
-    static func make(status: SubstrateExtrinsicStatus) -> ExtrinsicMonitorSubmission {
-        ExtrinsicMonitorSubmission(
-            extrinsicSubmittedModel: ExtrinsicSubmittedModel(txHash: txHash, sender: .none),
-            status: status
-        )
-    }
-}
-
-private final class MockExtrinsicSubmitMonitor: ExtrinsicSubmitMonitorFactoryProtocol {
-    func submitAndMonitorWrapper(
-        extrinsicBuilderClosure _: @escaping ExtrinsicBuilderClosure,
-        origin _: ExtrinsicOriginDefining,
-        params _: ExtrinsicSubmissionParams
-    ) -> CompoundOperationWrapper<ExtrinsicMonitorSubmission> {
-        .createWithResult(StubSubmission.make(status: StubSubmission.success))
-    }
-
-    func submitAndMonitorWrapper(
-        extrinsicBuilderClosure _: @escaping ExtrinsicBuilderIndexedClosure,
-        origin _: ExtrinsicOriginDefining,
-        indexes _: IndexSet,
-        params _: ExtrinsicIndexedSubmissionParams
-    ) -> CompoundOperationWrapper<ExtrinsicRetriableResult<ExtrinsicMonitorSubmission>> {
-        .createWithError(StubError.boom)
-    }
 }

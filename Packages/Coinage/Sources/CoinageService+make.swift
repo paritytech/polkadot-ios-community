@@ -69,11 +69,13 @@ public extension CoinageService {
             delayProvider: VoucherDelayProvider(),
             voucherRepository: voucherRepository
         )
+        // One minter per Coinage instance wraps both allocators; every mint site goes through it.
+        let coinageMinter = CoinageMinter(coinAllocator: coinAllocator, voucherAllocator: voucherAllocator)
 
         let voucherKeypairFactory = VoucherKeypairFactory(entropyManager: rootEntropyManager)
 
         let voucherLoaderFactory = VoucherLoaderFactory(
-            allocator: voucherAllocator,
+            minter: coinageMinter,
             keypairFactory: voucherKeypairFactory,
             extrinsicSubmitMonitor: extrinsicMonitorFactory,
             originCreating: originFactory,
@@ -82,7 +84,6 @@ public extension CoinageService {
             logger: logger
         )
         let voucherService = VoucherService(
-            voucherRepository: voucherRepository,
             trackedVoucherRepository: trackedVoucherRepository,
             voucherLoaderFactory: voucherLoaderFactory
         )
@@ -198,7 +199,6 @@ public extension CoinageService {
 
         let durabilityService = DurabilityService(
             store: durabilityStore,
-            chain: chainReader,
             registrar: registrar,
             watcher: submissionWatcher,
             pass: recoveryPass,
@@ -207,9 +207,7 @@ public extension CoinageService {
         )
 
         let planFactory = TransferPlanFactory(
-            transactionFactory: CoinageTransactionFactory(
-                coinAllocator: coinAllocator
-            ),
+            minter: coinageMinter,
             voucherKeyFactory: voucherKeypairFactory,
             coinKeyFactory: coinKeypairFactory,
             durability: durabilityService,
@@ -247,7 +245,7 @@ public extension CoinageService {
         )
 
         let recipientService = TransferRecipientService(
-            coinAllocator: coinAllocator,
+            coinMinter: coinageMinter,
             coinKeyFactory: coinKeypairFactory,
             coinService: coinService,
             coinOnChainQuery: coinOnChainQuery,
@@ -280,8 +278,7 @@ public extension CoinageService {
         let recyclingService = CoinageRecyclingService(
             schedulerFactory: schedulerFactory,
             coinService: coinService,
-            voucherAllocator: voucherAllocator,
-            voucherRepository: voucherRepository,
+            voucherMinter: coinageMinter,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
             durability: durabilityService,
@@ -296,7 +293,7 @@ public extension CoinageService {
             voucherService: voucherService,
             recycler: recyclingService,
             voucherKeyFactory: voucherKeypairFactory,
-            voucherAllocator: voucherAllocator,
+            voucherMinter: coinageMinter,
             recyclerLoader: readinessLoader,
             extrinsicMonitor: extrinsicMonitorFactory,
             durability: durabilityService,

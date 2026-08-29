@@ -16,7 +16,7 @@ import SubstrateOperation
 struct UnloadIntoCoinsStrategy {
     private let readyCoins: [Coin]
     private let perGroupAllocations: [RecyclerGroupAllocation]
-    private let transactionFactory: any CoinageTransactionFactoryProtocol
+    private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let recyclerLoader: RecyclerReadinessLoading
     private let coinKeyFactory: any CoinKeyDeriving
@@ -29,7 +29,7 @@ struct UnloadIntoCoinsStrategy {
     init(
         readyCoins: [Coin],
         perGroupAllocations: [RecyclerGroupAllocation],
-        transactionFactory: any CoinageTransactionFactoryProtocol,
+        minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         recyclerLoader: RecyclerReadinessLoading,
         coinKeyFactory: any CoinKeyDeriving,
@@ -41,7 +41,7 @@ struct UnloadIntoCoinsStrategy {
     ) {
         self.readyCoins = readyCoins
         self.perGroupAllocations = perGroupAllocations
-        self.transactionFactory = transactionFactory
+        self.minter = minter
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
         self.recyclerLoader = recyclerLoader
@@ -70,10 +70,9 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // Mint each group's outputs.
         var realizedGroups: [RecyclerGroupCoins] = []
         for allocation in perGroupAllocations {
-            let transaction = transactionFactory.newTransaction()
-            let recipientCoins = try await transaction
+            let recipientCoins = try await minter
                 .mintCoins(allocation.recipientDenominations.map(\.exponent))
-            let changeCoins = try await transaction
+            let changeCoins = try await minter
                 .mintCoins(allocation.changeDenominations.map(\.exponent))
             realizedGroups.append(RecyclerGroupCoins(
                 recyclerKey: allocation.recyclerKey,

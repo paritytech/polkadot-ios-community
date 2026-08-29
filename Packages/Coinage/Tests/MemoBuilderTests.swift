@@ -12,7 +12,7 @@ struct MemoBuilderTests {
     // MARK: - Mock Private Key Deriver
 
     private final class MockCoinKeyDeriver: CoinKeyDeriving {
-        var derivedKeys: [UInt32: Data] = [:]
+        var derivedKeys: [UInt64: Data] = [:]
         var shouldThrow: Error?
 
         func derivePublicKey(for _: Coin) throws -> PublicKey {
@@ -43,7 +43,7 @@ struct MemoBuilderTests {
 
     private func makeEntry(
         exponent: Int16,
-        derivationIndex: UInt32,
+        derivationIndex: UInt64,
         source: PlannedMemoEntry.Source = .existingCoin(age: 0)
     ) -> PlannedMemoEntry {
         PlannedMemoEntry(

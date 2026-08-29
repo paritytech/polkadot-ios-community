@@ -19,7 +19,7 @@ struct SplitCoinStrategy {
     private let overflowCoin: Coin
     private let targetDenominations: [Denomination]
     private let changeDenominations: [Denomination]
-    private let transactionFactory: any CoinageTransactionFactoryProtocol
+    private let minter: any CoinMinting
     private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
@@ -30,7 +30,7 @@ struct SplitCoinStrategy {
         overflowCoin: Coin,
         targetDenominations: [Denomination],
         changeDenominations: [Denomination],
-        transactionFactory: any CoinageTransactionFactoryProtocol,
+        minter: any CoinMinting,
         coinKeyFactory: any CoinKeyDeriving,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
@@ -40,7 +40,7 @@ struct SplitCoinStrategy {
         self.overflowCoin = overflowCoin
         self.targetDenominations = targetDenominations
         self.changeDenominations = changeDenominations
-        self.transactionFactory = transactionFactory
+        self.minter = minter
         self.coinKeyFactory = coinKeyFactory
         self.durability = durability
         self.originFactory = originFactory
@@ -52,10 +52,12 @@ struct SplitCoinStrategy {
 
 extension SplitCoinStrategy: TransferStrategy {
     func prepare() async throws -> PreparedStrategy {
-        let transaction = transactionFactory.newTransaction()
-        let recipientCoins = try await transaction.mintCoins(targetDenominations.map(\.exponent))
-        // Change coins stay ours — minted as outputs but not handed off, so the result is unused here.
-        _ = try await transaction.mintCoins(changeDenominations.map(\.exponent))
+        let recipientCoins = try await minter.mintCoins(targetDenominations.map(\.exponent))
+        // Change coins stay ours — minted as outputs but not handed off.
+        let changeCoins = try await minter.mintCoins(changeDenominations.map(\.exponent))
+
+        var transaction = CoinageTransaction()
+        transaction.mint(coins: recipientCoins + changeCoins)
         transaction.consume(coins: [overflowCoin])
         // Recipient coins are handed off before submit: a key that reaches the recipient without a
         // mark could be selected again. Change coins stay ours and are not handed off.

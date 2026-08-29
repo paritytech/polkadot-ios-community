@@ -24,25 +24,33 @@ struct CoinSelectorTests {
     private func makeCoin(
         exponent: Int16,
         age: Int16 = 0,
-        derivationIndex: UInt32 = 0,
-        state: Coin.State = .available
-    ) -> Coin {
-        Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, state: state)
+        derivationIndex: UInt64 = 0,
+        selectable: Bool = true
+    ) -> TrackedCoin {
+        let coin = Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, isOnchain: true)
+        let state = selectable
+            ? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
+            : CoinageAssetState(handedOff: false, consumerStatus: .finalizedSuccess, minterStatus: nil)
+        return TrackedCoin(coin: coin, state: state)
     }
 
     private func makeVoucher(
         exponent: Int16,
-        derivationIndex: UInt32 = 0,
+        derivationIndex: UInt64 = 0,
         readyAt: Date = Date.distantPast,
         readinessState: VoucherPrivacyLevel = .full
-    ) -> Voucher {
-        Voucher(
+    ) -> TrackedVoucher {
+        let voucher = Voucher(
             exponent: exponent,
             derivationIndex: derivationIndex,
             allocatedAt: Date.distantPast,
             readyAt: readyAt,
             remoteState: .inRecycler(.init(index: 0)),
             privacy: readinessState
+        )
+        return TrackedVoucher(
+            voucher: voucher,
+            state: CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
         )
     }
 
@@ -605,8 +613,8 @@ struct CoinSelectorTests {
     @Test("Ignores spent coins")
     func ignoresSpentCoins() async throws {
         let coins = [
-            makeCoin(exponent: 3, derivationIndex: 1, state: .spent), // $8, spent
-            makeCoin(exponent: 4, derivationIndex: 2, state: .available) // $16, available
+            makeCoin(exponent: 3, derivationIndex: 1, selectable: false), // $8, spent
+            makeCoin(exponent: 4, derivationIndex: 2, selectable: true) // $16, available
         ]
 
         let result = try await makeSelector().selectCoins(SelectCoinsInput(

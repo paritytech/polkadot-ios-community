@@ -13,38 +13,35 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let planner: ExternalPaymentPlanning
     private let recycler: CoinageRecyclingServicing
     private let voucherKeyFactory: any VoucherKeyDeriving
-    private let voucherAllocator: any VoucherAllocating
+    private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
     private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
-    private let voucherService: VoucherServiceProtocol
     private let logger: SDKLoggerProtocol?
 
     init(
         planner: ExternalPaymentPlanning,
         recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
-        voucherAllocator: any VoucherAllocating,
+        voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
-        voucherService: VoucherServiceProtocol,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.planner = planner
         self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
-        self.voucherAllocator = voucherAllocator
+        self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
         self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
-        self.voucherService = voucherService
         self.logger = logger
     }
 
@@ -75,12 +72,11 @@ private extension ExternalPaymentStateMachineFactory {
             context: context,
             recycler: recycler,
             voucherKeyFactory: voucherKeyFactory,
-            voucherAllocator: voucherAllocator,
+            voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,
             durability: durability,
             originFactory: originFactory,
             blockNumberProvider: blockNumberProvider,
-            voucherService: voucherService,
             logger: logger
         )
     }

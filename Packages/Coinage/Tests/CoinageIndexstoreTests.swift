@@ -27,14 +27,14 @@ struct CoinageIndexstoreTests {
         // Verify persistence in keychain
         let storedData = try keychain.fetchKey(for: coinIndexstore.storageKey)
         let decoder = try ScaleDecoder(data: storedData)
-        let storedIndex = try UInt32(scaleDecoder: decoder)
+        let storedIndex = try UInt64(scaleDecoder: decoder)
         #expect(storedIndex == 1)
     }
 
     @Test("VoucherKeystore increments index correctly")
     func voucherIndexstoreIncrement() throws {
         // Seed with index 10
-        let initialIndex: UInt32 = 10
+        let initialIndex: UInt64 = 10
         try keychain.saveKey(initialIndex.scaleEncoded(), with: voucherIndexstore.storageKey)
 
         let nextIndex = try voucherIndexstore.getNextIndex()
@@ -44,8 +44,8 @@ struct CoinageIndexstoreTests {
     @Test("Keystores are isolated from each other")
     func indexstoreIsolation() throws {
         // Seed both with different values
-        try keychain.saveKey(UInt32(100).scaleEncoded(), with: coinIndexstore.storageKey)
-        try keychain.saveKey(UInt32(500).scaleEncoded(), with: voucherIndexstore.storageKey)
+        try keychain.saveKey(UInt64(100).scaleEncoded(), with: coinIndexstore.storageKey)
+        try keychain.saveKey(UInt64(500).scaleEncoded(), with: voucherIndexstore.storageKey)
 
         let nextCoin = try coinIndexstore.getNextIndex()
         let nextVoucher = try voucherIndexstore.getNextIndex()
@@ -54,7 +54,7 @@ struct CoinageIndexstoreTests {
         #expect(nextVoucher == 501)
 
         // Verify storage keys are distinct
-        #expect(coinIndexstore.storageKey == "coin-index")
-        #expect(voucherIndexstore.storageKey == "voucher-index")
+        #expect(coinIndexstore.storageKey == "coin-index-store")
+        #expect(voucherIndexstore.storageKey == "voucher-index-store")
     }
 }

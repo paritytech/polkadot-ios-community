@@ -58,6 +58,8 @@ extension TransferSenderServiceTests {
 
         func fetchAllCoins() async throws -> [Coin] { [] }
 
+        func fetchAllTrackedCoins() async throws -> [TrackedCoin] { [] }
+
         func save(coins: [Coin]) async throws {
             callJournal?.record("insertOutputs")
             mutex.withLock { _savedCoins.append(contentsOf: coins) }
@@ -115,6 +117,8 @@ extension TransferSenderServiceTests {
             breakdownContext _: DenominationBreakdownContext
         ) async throws {}
 
+        func fetchAllTracked() async throws -> [TrackedVoucher] { [] }
+
         func fetchAll() async throws -> [Voucher] { [] }
 
         func fetchAvailableInRecycler() async throws -> [Coinage.Voucher] {
@@ -152,13 +156,17 @@ extension TransferSenderServiceTests {
     }
 
     /// Mock coin allocator that returns coins with sequential derivation indices
-    actor MockCoinAllocator: CoinAllocating {
-        private var nextIndex: UInt32 = 100
+    actor MockCoinAllocator: CoinAllocating, CoinMinting {
+        private var nextIndex: UInt64 = 100
 
         func allocate(exponent: Int16) async throws -> Coin {
             let index = nextIndex
             nextIndex += 1
             return Coin(exponent: exponent, derivationIndex: index, age: nil)
+        }
+
+        func mintCoin(exponent: Int16) async throws -> Coin {
+            try await allocate(exponent: exponent)
         }
     }
 
@@ -191,9 +199,9 @@ extension TransferSenderServiceTests {
     }
 
     final class MockBandersnatchKeyManager: BandersnatchKeyManaging {
-        let derivationIndex: UInt32
+        let derivationIndex: UInt64
 
-        init(derivationIndex: UInt32) {
+        init(derivationIndex: UInt64) {
             self.derivationIndex = derivationIndex
         }
 

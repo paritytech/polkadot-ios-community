@@ -4,8 +4,7 @@ import StateMachine
 
 /// Unloads vouchers to external asset and transfers to destination.
 ///
-/// Creates ``ExternalPaymentTransferContext`` for reserve/process/revert
-/// and delegates to ``OffboardVouchersForPaymentService``.
+/// Delegates to ``OffboardVouchersForPaymentService``; durability tracks the resulting asset state.
 struct OffboardVouchersPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
@@ -17,13 +16,9 @@ struct OffboardVouchersPaymentState: StateMachineState {
     func transit(
         with factory: ExternalPaymentStateFactory
     ) async -> AnyStateMachineState<ExternalPaymentStateFactory, ExternalPayment> {
-        let transferContext = ExternalPaymentTransferContext(
-            voucherService: factory.voucherService
-        )
-
         let service = OffboardVouchersForPaymentService(
             voucherKeyFactory: factory.voucherKeyFactory,
-            voucherAllocator: factory.voucherAllocator,
+            voucherMinter: factory.voucherMinter,
             recyclerLoader: factory.recyclerLoader,
             durability: factory.durability,
             originFactory: factory.originFactory,
@@ -35,8 +30,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
         do {
             try await service.execute(
                 payment: payment,
-                vouchers: vouchers,
-                transferContext: transferContext
+                vouchers: vouchers
             )
             return factory.makeCompletedState(payment: payment)
         } catch {

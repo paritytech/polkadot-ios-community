@@ -114,8 +114,8 @@ final class DurabilityRegistrationConcurrencyTests {
             let entries = (0 ..< 10).map { i in
                 DurabilityEntry(
                     id: TransactionId(),
-                    inputs: [.coin(.own(UInt32(i)))],
-                    outputs: [.coin(UInt32(100 + i))],
+                    inputs: [.coin(.own(UInt64(i)))],
+                    outputs: [.coin(UInt64(100 + i))],
                     checkpoint: BlockRef(number: 100, hash: Data([100])),
                     mortality: 64,
                     successDetectedAt: nil

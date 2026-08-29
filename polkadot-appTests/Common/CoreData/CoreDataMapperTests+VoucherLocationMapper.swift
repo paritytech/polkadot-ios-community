@@ -22,8 +22,7 @@ extension CoreDataMapperTests {
                 derivationIndex: 100,
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(2_400),
-                remoteState: .unlocated,
-                localState: .available
+                remoteState: .unlocated
             )
             try await fullRepo.saveOperation({ [original] }, { [] }).asyncExecute()
 
@@ -42,7 +41,6 @@ extension CoreDataMapperTests {
             #expect(result.derivationIndex == 100)
             #expect(result.allocatedAt == now)
             #expect(result.readyAt == now.addingTimeInterval(2_400))
-            #expect(result.localState == .available)
         }
 
         @Test("throws noExistingRequest when entity does not exist")
@@ -53,8 +51,7 @@ extension CoreDataMapperTests {
                 derivationIndex: 999,
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(1_000),
-                remoteState: .onboarding,
-                localState: .available
+                remoteState: .onboarding
             )
 
             await #expect(throws: VoucherLocationMapper.MappingError.noExistingRequest) {

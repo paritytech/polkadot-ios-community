@@ -1,43 +1,45 @@
+import AsyncExtensions
 import Foundation
-import Coinage
+@testable import Coinage
 
 actor MockDurabilityStore: DurabilityStoring {
     private var entries: [TransactionId: DurabilityEntry] = [:]
-    private var marks: Set<String> = []
+    private var pendingMarks: Set<String> = []
+    private var committedMarks: Set<String> = []
     private var nextSequence: Int64 = 1
+    private var statusObservers: [TransactionId: [AsyncStream<EntryStatus>.Continuation]] = [:]
 
     var allEntries: [DurabilityEntry] {
         sortedEntries
     }
 
     var handoffIdentifiers: Set<String> {
-        marks
+        pendingMarks.union(committedMarks)
     }
 
     func register(_ entry: DurabilityEntry) async throws {
-        let inputIds = Set(entry.inputs.map(\.identifier))
-        let outputIds = Set(entry.outputs.map(\.identifier))
+        guard !entry.inputs.isEmpty || !entry.outputs.isEmpty else {
+            throw DurabilityError.emptyEntry
+        }
+
+        let mintedOutputs = Set(entries.values.flatMap { $0.outputs.map(\.identifier) })
+        if let duplicate = entry.outputs.first(where: { mintedOutputs.contains($0.identifier) }) {
+            throw DurabilityError.outputNotFresh(duplicate.identifier)
+        }
 
         let claimedInputs = Set(
             entries.values
                 .filter { $0.status != .failure }
                 .flatMap { $0.inputs.map(\.identifier) }
         )
-        let mintedOutputs = Set(entries.values.flatMap { $0.outputs.map(\.identifier) })
-        let receivedInputs = Set(
-            entries.values.flatMap(\.inputs).compactMap { input -> String? in
-                guard case .coin(.received) = input else { return nil }
-                return input.identifier
-            }
-        )
+        if let claimed = entry.inputs.first(where: { claimedInputs.contains($0.identifier) }) {
+            throw DurabilityError.inputAlreadyClaimed(claimed.identifier)
+        }
 
-        try RegistrationValidator.validate(
-            entry,
-            claimedInputs: claimedInputs,
-            mintedOutputs: mintedOutputs,
-            receivedInputs: receivedInputs,
-            marks: marks
-        )
+        let marks = handoffIdentifiers
+        if let marked = entry.inputs.first(where: { marks.contains($0.identifier) }) {
+            throw DurabilityError.inputHandedOff(marked.identifier)
+        }
 
         var sequenced = entry
         sequenced.sequence = nextSequence
@@ -47,6 +49,9 @@ actor MockDurabilityStore: DurabilityStoring {
 
     func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws {
         try mutate(id) { $0.status = status }
+        for observer in statusObservers[id] ?? [] {
+            observer.yield(status)
+        }
     }
 
     func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws {
@@ -69,6 +74,13 @@ actor MockDurabilityStore: DurabilityStoring {
         entries[id]
     }
 
+    nonisolated func subscribeStatus(of id: TransactionId) -> AnyAsyncSequence<EntryStatus> {
+        AsyncStream<EntryStatus> { continuation in
+            Task { await self.attach(continuation, to: id) }
+        }
+        .eraseToAnyAsyncSequence()
+    }
+
     func minter(of asset: OwnAsset) async throws -> DurabilityEntry? {
         entries.values.first { $0.outputs.contains(asset) }
     }
@@ -77,18 +89,36 @@ actor MockDurabilityStore: DurabilityStoring {
         sortedEntries.filter { $0.inputs.contains(input) }
     }
 
+    /// Test helper: directly records a committed handoff mark (skips the two-phase flow).
     func markHandedOff(_ asset: OwnAsset) async throws {
-        marks.insert(asset.identifier)
+        committedMarks.insert(asset.identifier)
+    }
+
+    func markHandoffPending(_ assets: [OwnAsset]) async throws {
+        for asset in assets where !committedMarks.contains(asset.identifier) {
+            pendingMarks.insert(asset.identifier)
+        }
+    }
+
+    func commitHandoffs(_ assets: [OwnAsset]) async throws {
+        for asset in assets {
+            pendingMarks.remove(asset.identifier)
+            committedMarks.insert(asset.identifier)
+        }
+    }
+
+    func releaseUncommittedHandoffs() async throws {
+        pendingMarks.removeAll()
     }
 
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        marks.contains(asset.identifier)
+        handoffIdentifiers.contains(asset.identifier)
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
-        marks.compactMap { identifier in
+        handoffIdentifiers.compactMap { identifier in
             let parts = identifier.split(separator: ":", maxSplits: 1)
-            guard parts.count == 2, let index = UInt32(parts[1]) else { return nil }
+            guard parts.count == 2, let index = UInt64(parts[1]) else { return nil }
 
             switch parts[0] {
             case "coin": return .coin(index)
@@ -102,6 +132,13 @@ actor MockDurabilityStore: DurabilityStoring {
 private extension MockDurabilityStore {
     var sortedEntries: [DurabilityEntry] {
         entries.values.sorted { $0.sequence < $1.sequence }
+    }
+
+    func attach(_ continuation: AsyncStream<EntryStatus>.Continuation, to id: TransactionId) {
+        if let entry = entries[id] {
+            continuation.yield(entry.status)
+        }
+        statusObservers[id, default: []].append(continuation)
     }
 
     func mutate(_ id: TransactionId, _ change: (inout DurabilityEntry) -> Void) throws {

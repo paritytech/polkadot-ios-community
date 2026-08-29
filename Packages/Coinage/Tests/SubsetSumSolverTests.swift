@@ -23,9 +23,9 @@ struct SubsetSumSolverTests {
     private func makeCoin(
         exponent: Int16,
         age: Int16? = nil,
-        derivationIndex: UInt32 = 0
+        derivationIndex: UInt64 = 0
     ) -> Coin {
-        Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, state: .available)
+        Coin(exponent: exponent, derivationIndex: derivationIndex, age: age)
     }
 
     // MARK: - Edge Cases
@@ -329,7 +329,7 @@ struct SubsetSumSolverTests {
         var coins: [Coin] = []
         for i in 0 ..< 50 {
             let exponent = exponents[i % exponents.count]
-            coins.append(makeCoin(exponent: exponent, derivationIndex: UInt32(i + 1)))
+            coins.append(makeCoin(exponent: exponent, derivationIndex: UInt64(i + 1)))
         }
 
         struct TimedOut: Error {}

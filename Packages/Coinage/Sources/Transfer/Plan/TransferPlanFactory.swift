@@ -16,7 +16,7 @@ protocol TransferPlanCreating {
 }
 
 final class TransferPlanFactory {
-    private let transactionFactory: any CoinageTransactionFactoryProtocol
+    private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any DurabilityServicing
@@ -26,7 +26,7 @@ final class TransferPlanFactory {
     private let logger: SDKLoggerProtocol?
 
     init(
-        transactionFactory: any CoinageTransactionFactoryProtocol,
+        minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
         durability: any DurabilityServicing,
@@ -35,7 +35,7 @@ final class TransferPlanFactory {
         blockInfoProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
-        self.transactionFactory = transactionFactory
+        self.minter = minter
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
         self.durability = durability
@@ -63,7 +63,7 @@ extension TransferPlanFactory: TransferPlanCreating {
                 overflowCoin: overflowCoin,
                 targetDenominations: targetDenominations,
                 changeDenominations: changeDenominations,
-                transactionFactory: transactionFactory,
+                minter: minter,
                 coinKeyFactory: coinKeyFactory,
                 durability: durability,
                 originFactory: originFactory,
@@ -74,7 +74,7 @@ extension TransferPlanFactory: TransferPlanCreating {
             TransferPlan(strategy: UnloadIntoCoinsStrategy(
                 readyCoins: coins,
                 perGroupAllocations: perGroupAllocations,
-                transactionFactory: transactionFactory,
+                minter: minter,
                 voucherKeyFactory: voucherKeyFactory,
                 recyclerLoader: recyclerLoader,
                 coinKeyFactory: coinKeyFactory,

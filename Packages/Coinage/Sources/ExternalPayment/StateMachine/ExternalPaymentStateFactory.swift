@@ -14,12 +14,11 @@ final class ExternalPaymentStateFactory {
     let context: DenominationBreakdownContext
     let recycler: CoinageRecyclingServicing
     let voucherKeyFactory: any VoucherKeyDeriving
-    let voucherAllocator: any VoucherAllocating
+    let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
     let durability: any DurabilityServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
-    let voucherService: VoucherServiceProtocol
     let logger: SDKLoggerProtocol?
 
     init(
@@ -27,24 +26,22 @@ final class ExternalPaymentStateFactory {
         context: DenominationBreakdownContext,
         recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
-        voucherAllocator: any VoucherAllocating,
+        voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
-        voucherService: VoucherServiceProtocol,
         logger: SDKLoggerProtocol?
     ) {
         self.planner = planner
         self.context = context
         self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
-        self.voucherAllocator = voucherAllocator
+        self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
-        self.voucherService = voucherService
         self.logger = logger
     }
 }
