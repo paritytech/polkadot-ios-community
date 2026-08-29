@@ -13,136 +13,6 @@ import BackgroundExecution
 @testable import Coinage
 
 extension TransferSenderServiceTests {
-    final class MockCoinService: CoinServiceProtocol, @unchecked Sendable {
-        private let mutex = NSLock()
-        private var _savedCoins: [Coin] = []
-        private var _markedSpentIds: [String] = []
-        private var _markedRecyclingIds: [String] = []
-        private var _markedAvailableIds: [String] = []
-        private var _markedPendingMintIds: [String] = []
-        private var _markedHandedOffIds: [String] = []
-        private var _markedPendingTransferIds: [String] = []
-        private let callJournal: CallJournal?
-
-        var savedCoins: [Coin] {
-            mutex.withLock { _savedCoins }
-        }
-
-        var markedSpentIds: [String] {
-            mutex.withLock { _markedSpentIds }
-        }
-
-        var markedRecyclingIds: [String] {
-            mutex.withLock { _markedRecyclingIds }
-        }
-
-        var markedAvailableIds: [String] {
-            mutex.withLock { _markedAvailableIds }
-        }
-
-        var markedPendingMintIds: [String] {
-            mutex.withLock { _markedPendingMintIds }
-        }
-
-        var markedHandedOffIds: [String] {
-            mutex.withLock { _markedHandedOffIds }
-        }
-
-        var markedPendingTransferIds: [String] {
-            mutex.withLock { _markedPendingTransferIds }
-        }
-
-        init(callJournal: CallJournal? = nil) {
-            self.callJournal = callJournal
-        }
-
-        func fetchAllCoins() async throws -> [Coin] { [] }
-
-        func fetchAllTrackedCoins() async throws -> [TrackedCoin] { [] }
-
-        func save(coins: [Coin]) async throws {
-            callJournal?.record("insertOutputs")
-            mutex.withLock { _savedCoins.append(contentsOf: coins) }
-        }
-
-        func markSpent(coinIds: [String]) async throws {
-            mutex.withLock { _markedSpentIds.append(contentsOf: coinIds) }
-        }
-
-        func markRecycling(coinIds: [String]) async throws {
-            mutex.withLock { _markedRecyclingIds.append(contentsOf: coinIds) }
-        }
-
-        func markAvailable(coinIds: [String]) async throws {
-            mutex.withLock { _markedAvailableIds.append(contentsOf: coinIds) }
-        }
-
-        func markPendingTransfer(coinIds: [String]) async throws {
-            callJournal?.record("reserve.coins")
-            mutex.withLock { _markedPendingTransferIds.append(contentsOf: coinIds) }
-        }
-
-        func markPendingMint(coinIds: [String]) async throws {
-            mutex.withLock { _markedPendingMintIds.append(contentsOf: coinIds) }
-        }
-
-        func markHandedOff(coinIds: [String]) async throws {
-            callJournal?.record("handOff")
-            mutex.withLock { _markedHandedOffIds.append(contentsOf: coinIds) }
-        }
-    }
-
-    final class MockVoucherService: VoucherServiceProtocol, @unchecked Sendable {
-        private let mutex = NSLock()
-        private var _deletedIdentifiers: [String] = []
-        private var _markedAvailableIds: [String] = []
-        private var _markedPendingTransferIds: [String] = []
-        private let callJournal: CallJournal?
-
-        var deletedIdentifiers: [String] {
-            mutex.withLock { _deletedIdentifiers }
-        }
-
-        var markedPendingTransferIds: [String] {
-            mutex.withLock { _markedPendingTransferIds }
-        }
-
-        init(callJournal: CallJournal? = nil) {
-            self.callJournal = callJournal
-        }
-
-        func load(
-            amount _: BigUInt,
-            externalAssetHolder _: any WalletManaging,
-            breakdownContext _: DenominationBreakdownContext
-        ) async throws {}
-
-        func fetchAllTracked() async throws -> [TrackedVoucher] { [] }
-
-        func fetchAll() async throws -> [Voucher] { [] }
-
-        func fetchAvailableInRecycler() async throws -> [Coinage.Voucher] {
-            []
-        }
-
-        func markPendingOnboarding(identifiers _: [String]) async throws {}
-
-        func save(vouchers _: [Voucher]) async throws {}
-
-        func markPendingTransfer(identifiers: [String]) async throws {
-            callJournal?.record("reserve.vouchers")
-            mutex.withLock { _markedPendingTransferIds.append(contentsOf: identifiers) }
-        }
-
-        func delete(identifiers: [String]) async throws {
-            mutex.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
-        }
-
-        func markAvailable(identifiers: [String]) async throws {
-            mutex.withLock { _markedAvailableIds.append(contentsOf: identifiers) }
-        }
-    }
-
     final class MockMemoBuilder: MemoBuilding {
         func buildMemo(
             from entries: [PlannedMemoEntry],
@@ -155,14 +25,18 @@ extension TransferSenderServiceTests {
         }
     }
 
-    /// Mock coin allocator that returns coins with sequential derivation indices
+    /// Mock coin allocator that returns coins with sequential derivation indices and records every
+    /// coin it mints, so tests can assert on the outputs the strategies persist.
     actor MockCoinAllocator: CoinAllocating, CoinMinting {
         private var nextIndex: UInt64 = 100
+        private(set) var mintedCoins: [Coin] = []
 
         func allocate(exponent: Int16) async throws -> Coin {
             let index = nextIndex
             nextIndex += 1
-            return Coin(exponent: exponent, derivationIndex: index, age: nil)
+            let coin = Coin(exponent: exponent, derivationIndex: index, age: nil)
+            mintedCoins.append(coin)
+            return coin
         }
 
         func mintCoin(exponent: Int16) async throws -> Coin {

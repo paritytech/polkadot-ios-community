@@ -28,6 +28,7 @@ actor MockDurabilityService: DurabilityServicing {
 
     private(set) var submittedInputs: [[DurabilityInput]] = []
     private(set) var submittedOutputs: [[OwnAsset]] = []
+    private(set) var handoffAssets: [OwnAsset] = []
     private(set) var recoveryPassCount: Int = 0
 
     private let submissionOutcome: SubmissionOutcome
@@ -103,6 +104,7 @@ actor MockDurabilityService: DurabilityServicing {
 
     func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
         callJournal.record("preCommitHandoff")
+        handoffAssets.append(contentsOf: assets)
         try await store.markHandoffPending(assets)
         return StoreHandoffCommit(assets: assets, store: store)
     }

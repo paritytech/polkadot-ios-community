@@ -13,8 +13,12 @@ import BackgroundExecution
 
 /// End-to-end tests for TransferSenderService using real strategy classes.
 ///
-/// Tests the complete flow: TransferSenderService -> CoinSelector -> TransferPlanFactory -> Strategy -> TransferContext
-/// External dependencies (extrinsic submission, key derivation) are mocked at the strategy level.
+/// Tests the complete flow: TransferSenderService -> CoinSelector -> TransferPlanFactory -> Strategy.
+/// The strategies drive persistence and registration through the minter and the durability store,
+/// so the observable surface is `mockMinter.mintedCoins` (persisted outputs), the durability
+/// mock's `submittedInputs`/`submittedOutputs` (registered entries), and its `handoffAssets`
+/// (coins reserved for the peer). External dependencies (extrinsic submission, key derivation)
+/// are mocked at the strategy level.
 struct TransferSenderServiceTests {
     let testContext = DenominationBreakdownContext(
         unit: BigUInt(1_000_000),
@@ -26,15 +30,13 @@ struct TransferSenderServiceTests {
     let now = Date()
 
     let journal: CallJournal
-    let mockCoinService: MockCoinService
-    let mockVoucherService: MockVoucherService
+    let mockMinter: MockCoinAllocator
     let mockDurability: MockDurabilityService
 
     init() {
         let journal = CallJournal()
         self.journal = journal
-        mockCoinService = MockCoinService(callJournal: journal)
-        mockVoucherService = MockVoucherService(callJournal: journal)
+        mockMinter = MockCoinAllocator()
         mockDurability = MockDurabilityService(callJournal: journal)
     }
 
@@ -68,8 +70,8 @@ struct TransferSenderServiceTests {
         #expect(await mockDurability.submittedInputs.isEmpty)
         #expect(await mockDurability.submittedOutputs.isEmpty)
 
-        // Coins are marked handed off
-        #expect(Set(mockCoinService.markedHandedOffIds) == Set([coin1.identifier, coin2.identifier]))
+        // Both coins are reserved for the peer
+        #expect(await handedOffIndices() == Set([coin1.coin.derivationIndex, coin2.coin.derivationIndex]))
     }
 
     // MARK: - UnloadIntoCoins Strategy Tests
@@ -113,14 +115,13 @@ struct TransferSenderServiceTests {
             return "voucher:\(idx)"
         }) == Set(["voucher:\(voucher1.voucher.derivationIndex)", "voucher:\(voucher2.voucher.derivationIndex)"]))
 
-        // All output coins (recipient + change) saved with .pendingMint state
-
-        // Recipient coins marked as handed off (subset of registered outputs)
+        // Minted output coins (recipient + change) match the registered outputs exactly, and some
+        // were reserved for the peer.
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        let handedOffSet = Set(mockCoinService.markedHandedOffIds.map { String(describing: $0) })
-        #expect(!handedOffSet.isEmpty)
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 1)
+        #expect(await !(mockDurability.handoffAssets).isEmpty)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 1)
     }
 
     @Test("Three voucher groups: all groups processed and outputs saved")
@@ -174,8 +175,9 @@ struct TransferSenderServiceTests {
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 2)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 2)
     }
 
     @Test("Five voucher groups: all groups processed and submitted")
@@ -225,8 +227,9 @@ struct TransferSenderServiceTests {
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 1)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 1)
     }
 
     @Test("Multiple vouchers same recycler group: combined and submitted as one entry")
@@ -268,11 +271,12 @@ struct TransferSenderServiceTests {
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 2)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 2)
     }
 
-    @Test("Coins and voucher: all used and outputs registered")
+    @Test("Voucher alone suffices: coins untouched, only the voucher is unloaded")
     func voucherOnlyWhenSufficientContextProcessing() async throws {
         let coin1 = makeCoin(exponent: 1, derivationIndex: 1) // $2
         let coin2 = makeCoin(exponent: 1, derivationIndex: 2) // $2
@@ -303,16 +307,15 @@ struct TransferSenderServiceTests {
         // Entry registered with voucher input
         #expect(await (mockDurability.submittedInputs).count == 1)
 
-        // Coins and voucher marked as reserved for transfer
-        #expect(Set(mockCoinService.markedPendingTransferIds) == Set([coin1.identifier, coin2.identifier]))
-        #expect(Set(mockVoucherService.markedPendingTransferIds) == Set([voucher.identifier]))
-
-        // Output coins (recipient + change) saved with .pendingMint
+        // The voucher alone covers the amount, so it is the sole consumed input; the coins stay untouched.
+        #expect(await consumedVoucherIndices() == Set([voucher.voucher.derivationIndex]))
+        #expect(await consumedCoinIndices().isEmpty)
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 1)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 1)
     }
 
     @Test("Change denominations: breakdown saved and recipient handed off")
@@ -345,15 +348,14 @@ struct TransferSenderServiceTests {
         #expect(await (mockDurability.submittedInputs).count == 1)
 
         // Change coins should have exponents 1 and 0 (for $2 and $1)
-        let changeExponents = Set(changeCoins.map(\.exponent))
-        #expect(changeExponents == Set([Int16(0), Int16(1)]))
-        #expect(changeCoins.count == 2)
-
-        // All saved coins have pendingMint state
+        let change = await changeCoins()
+        #expect(Set(change.map(\.exponent)) == Set([Int16(0), Int16(1)]))
+        #expect(change.count == 2)
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
     }
 
     @Test("Exact voucher match: outputs registered, no change needed")
@@ -387,11 +389,12 @@ struct TransferSenderServiceTests {
         // Outputs registered - only the recipient coin (exact match, no change)
         let outputs = await mockDurability.submittedOutputs[0]
         #expect(outputs.count == 1)
-        #expect(changeCoins.isEmpty)
+        #expect(await changeCoins().isEmpty)
 
         // Saved coin is the only registered output
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
     }
 
     @Test("Fractional amounts: outputs saved with fractional denominations")
@@ -426,8 +429,9 @@ struct TransferSenderServiceTests {
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 1)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 1)
     }
 
     @Test("Larger voucher with change: multiple output coins saved")
@@ -461,13 +465,14 @@ struct TransferSenderServiceTests {
 
         // Outputs saved: recipient ($25) + change ($7 = $4 + $2 + $1)
         // Change coins must have exact exponents [0, 1, 2] for $1, $2, $4
-        let changeExponents = changeCoins.map(\.exponent).sorted()
-        #expect(changeExponents == [Int16(0), Int16(1), Int16(2)])
-        #expect(changeCoins.count == 3)
+        let change = await changeCoins()
+        #expect(change.map(\.exponent).sorted() == [Int16(0), Int16(1), Int16(2)])
+        #expect(change.count == 3)
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
     }
 
     // MARK: - SplitCoin Strategy Tests
@@ -507,15 +512,14 @@ struct TransferSenderServiceTests {
         #expect(outputs.count == 4)
 
         // Change coins must have exponents [0, 1] for $1 and $2
-        let changeExponents = changeCoins.map(\.exponent).sorted()
-        #expect(changeExponents == [Int16(0), Int16(1)])
-        #expect(changeCoins.count == 2)
-
-        // All saved coins have pendingMint state
+        let change = await changeCoins()
+        #expect(change.map(\.exponent).sorted() == [Int16(0), Int16(1)])
+        #expect(change.count == 2)
 
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
     }
 
     @Test("Split with whole coins: whole coins handed off without splitting, overflow consumed")
@@ -552,21 +556,23 @@ struct TransferSenderServiceTests {
         })
 
         // Whole coins (coin1) handed off without consumption
-        #expect(mockCoinService.markedHandedOffIds.contains(coin1.identifier))
+        #expect(await handedOffIndices().contains(coin1.coin.derivationIndex))
 
-        // coin3 not used at all
-        #expect(!mockCoinService.markedPendingTransferIds.contains(coin3.identifier))
+        // coin3 not used at all — neither consumed nor handed off
+        #expect(await !consumedCoinIndices().contains(coin3.coin.derivationIndex))
+        #expect(await !handedOffIndices().contains(coin3.coin.derivationIndex))
 
         // Outputs saved (recipient $11 + change $1)
         // Saved coins match registered outputs exactly
         let registeredOutputs = await mockDurability.submittedOutputs.flatMap { $0 }
-        #expect(Set(mockCoinService.savedCoins.map(\.derivationIndex)) == Set(registeredOutputs.map(\.derivationIndex)))
-        #expect(changeCoins.count == 1)
+        #expect(await Set(mockMinter.mintedCoins.map(\.derivationIndex)) ==
+            Set(registeredOutputs.map(\.derivationIndex)))
+        #expect(await changeCoins().count == 1)
     }
 
     // MARK: - Ordering and Error Handling Tests
 
-    @Test("UnloadIntoCoins: registration precedes any projection write")
+    @Test("UnloadIntoCoins: registration precedes handoff reservation")
     func registrationPrecedesReservationForUnload() async throws {
         let voucher1 = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
         let voucher2 = makeVoucher(exponent: 3, derivationIndex: 2, recyclerIndex: 1) // $8
@@ -600,21 +606,21 @@ struct TransferSenderServiceTests {
         let events = journal.events
 
         let registerIdx = try #require(
-            events.firstIndex(of: "register"),
-            "no register event recorded"
+            events.firstIndex(of: "submit"),
+            "no submit (registration) event recorded"
         )
-        let projectionIdx = try #require(
-            events.firstIndex { $0.hasPrefix("reserve") || $0 == "insertOutputs" },
-            "no projection write recorded — the assertion below would be vacuous"
+        let handoffIdx = try #require(
+            events.firstIndex(of: "preCommitHandoff"),
+            "no handoff reservation recorded — the assertion below would be vacuous"
         )
 
         #expect(
-            registerIdx < projectionIdx,
-            "registration must precede projection writes: \(events)"
+            registerIdx < handoffIdx,
+            "registration must precede handoff reservation: \(events)"
         )
     }
 
-    @Test("SplitCoin: registration precedes any projection write")
+    @Test("SplitCoin: registration precedes handoff reservation")
     func registrationPrecedesReservationForSplit() async throws {
         let coin = makeCoin(exponent: 3, derivationIndex: 1) // $8
 
@@ -637,17 +643,17 @@ struct TransferSenderServiceTests {
         let events = journal.events
 
         let registerIdx = try #require(
-            events.firstIndex(of: "register"),
-            "no register event recorded"
+            events.firstIndex(of: "submit"),
+            "no submit (registration) event recorded"
         )
-        let projectionIdx = try #require(
-            events.firstIndex { $0.hasPrefix("reserve") || $0 == "insertOutputs" },
-            "no projection write recorded — the assertion below would be vacuous"
+        let handoffIdx = try #require(
+            events.firstIndex(of: "preCommitHandoff"),
+            "no handoff reservation recorded — the assertion below would be vacuous"
         )
 
         #expect(
-            registerIdx < projectionIdx,
-            "registration must precede projection writes: \(events)"
+            registerIdx < handoffIdx,
+            "registration must precede handoff reservation: \(events)"
         )
     }
 }
@@ -655,10 +661,33 @@ struct TransferSenderServiceTests {
 extension TransferSenderServiceTests {
     // MARK: - Helpers
 
-    private var changeCoins: [Coin] {
-        // markedHandedOffIds are likely string representations of derivation indices or identifiers
-        let handedOff = Set(mockCoinService.markedHandedOffIds.map { String(describing: $0) })
-        return mockCoinService.savedCoins.filter { !handedOff.contains(String(describing: $0.derivationIndex)) }
+    /// Derivation indices of the coins the strategy reserved for the peer via `preCommitHandoff`.
+    private func handedOffIndices() async -> Set<DerivationIndex> {
+        await Set(mockDurability.handoffAssets.map(\.derivationIndex))
+    }
+
+    /// Minted output coins that were kept (not handed off) — i.e. change.
+    private func changeCoins() async -> [Coin] {
+        let handedOff = await handedOffIndices()
+        return await mockMinter.mintedCoins.filter { !handedOff.contains($0.derivationIndex) }
+    }
+
+    /// Derivation indices of own coins consumed as durability entry inputs.
+    private func consumedCoinIndices() async -> Set<DerivationIndex> {
+        let inputs = await mockDurability.submittedInputs.flatMap { $0 }
+        return Set(inputs.compactMap { input -> DerivationIndex? in
+            guard case let .coin(.own(index)) = input else { return nil }
+            return index
+        })
+    }
+
+    /// Derivation indices of vouchers consumed as durability entry inputs.
+    private func consumedVoucherIndices() async -> Set<DerivationIndex> {
+        let inputs = await mockDurability.submittedInputs.flatMap { $0 }
+        return Set(inputs.compactMap { input -> DerivationIndex? in
+            guard case let .recyclerVoucher(index) = input else { return nil }
+            return index
+        })
     }
 
     private func waitForHandoff(
@@ -667,19 +696,15 @@ extension TransferSenderServiceTests {
     ) async throws {
         let start = Date()
         while Date().timeIntervalSince(start) < timeout {
-            let actualHandedOff = mockCoinService.markedHandedOffIds.count
-
-            if actualHandedOff >= expectedCoins {
+            if await mockDurability.handoffAssets.count >= expectedCoins {
                 return
             }
 
             try await Task.sleep(for: .milliseconds(20))
         }
 
-        throw TestError
-            .timeout(
-                "waitForHandoff: expected \(expectedCoins) handed off coins, got \(mockCoinService.markedHandedOffIds.count)"
-            )
+        let got = await mockDurability.handoffAssets.count
+        throw TestError.timeout("waitForHandoff: expected \(expectedCoins) handed off assets, got \(got)")
     }
 
     private func waitForSubmission(
@@ -737,7 +762,6 @@ extension TransferSenderServiceTests {
     }
 
     private func makeTransferSenderService(
-        coinAllocator: MockCoinAllocator = MockCoinAllocator(),
         originFactory: MockOriginFactory = MockOriginFactory(),
         recyclerLoader: MockRecyclerLoader = MockRecyclerLoader(),
         blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider(),
@@ -749,7 +773,7 @@ extension TransferSenderServiceTests {
         let voucherKeyFactory = MockVoucherKeyFactory()
 
         let planFactory = TransferPlanFactory(
-            minter: coinAllocator,
+            minter: mockMinter,
             voucherKeyFactory: voucherKeyFactory,
             coinKeyFactory: coinKeyFactory,
             durability: mockDurability,
