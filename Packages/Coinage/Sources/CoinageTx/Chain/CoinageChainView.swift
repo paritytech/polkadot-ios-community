@@ -41,6 +41,10 @@ enum BlockLookup {
 /// ``BlockBodyScan`` can be exercised without either.
 typealias BlockOutcomeLookup = @Sendable (_ txHash: Data, _ blockHash: Data) async -> BlockLookup
 
+/// Resolves a block hash to its number via a direct `chain_getHeader` RPC (Android `blockNumberAt`),
+/// returning `nil` when the read failed. Injected so the view needs no connection of its own.
+typealias BlockNumberByHash = @Sendable (_ blockHash: Data) async -> UInt32?
+
 /// Three-valued chain access for the durability engine.
 ///
 /// Every method returns `failedRead` rather than throwing on transport failure, an unknown
@@ -89,6 +93,7 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
     private let voucherQuery: any VoucherOnChainQuerying
     private let coinKeyFactory: any CoinKeyDeriving
     private let blockInfoProvider: any BlockInfoProviding
+    private let blockNumberByHash: BlockNumberByHash
     private let scan: BlockBodyScan
 
     init(
@@ -97,6 +102,7 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
         voucherQuery: any VoucherOnChainQuerying,
         coinKeyFactory: any CoinKeyDeriving,
         blockInfoProvider: any BlockInfoProviding,
+        blockNumberByHash: @escaping BlockNumberByHash,
         blockOutcome: @escaping BlockOutcomeLookup
     ) {
         finalizedHead = checkpoints.finalized
@@ -105,6 +111,7 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
         self.voucherQuery = voucherQuery
         self.coinKeyFactory = coinKeyFactory
         self.blockInfoProvider = blockInfoProvider
+        self.blockNumberByHash = blockNumberByHash
         scan = BlockBodyScan(blockOutcome: blockOutcome, blockInfoProvider: blockInfoProvider)
     }
 }
@@ -120,7 +127,7 @@ extension CoinageChainView {
     }
 
     func blockRef(forHash hash: Data) async -> ReadResult<BlockRef> {
-        guard let number = await blockNumber(forHash: hash) else { return .failedRead }
+        guard let number = await blockNumberByHash(hash) else { return .failedRead }
         return .present(BlockRef(number: number, hash: hash))
     }
 
@@ -222,22 +229,6 @@ private extension CoinageChainView {
             guard let info else { return .absent }
             return .present(AssetPresence(isUnloaded: info.isUnloaded))
         }
-    }
-
-    func blockNumber(forHash hash: Data) async -> UInt32? {
-        // The finalized-head subscription is the only header source the block provider
-        // exposes, so the number is recovered by matching the hash against the canonical
-        // chain around the current head rather than by a direct header fetch.
-        guard let current = try? await blockInfoProvider.fetchCurrent() else { return nil }
-
-        for candidate in stride(from: Int(current), through: max(Int(current) - 64, 0), by: -1) {
-            guard let candidateHash = try? await blockInfoProvider
-                .fetchBlockHash(UInt32(candidate))
-            else { continue }
-            if candidateHash == hash { return UInt32(candidate) }
-        }
-
-        return nil
     }
 }
 

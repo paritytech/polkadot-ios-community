@@ -98,6 +98,7 @@ extension CoinageChainViewFactory {
             voucherQuery: voucherQuery,
             coinKeyFactory: coinKeyFactory,
             blockInfoProvider: blockInfoProvider,
+            blockNumberByHash: { [blockOutcomeReader] in await blockOutcomeReader.blockNumber(byHash: $0) },
             blockOutcome: { [blockOutcomeReader] in await blockOutcomeReader.lookUp($0, at: $1) }
         )
     }
@@ -193,6 +194,18 @@ private final class BlockOutcomeReader: Sendable {
         }
 
         return await resolveOutcome(extrinsic: extrinsic)
+    }
+
+    /// The block's number, read straight from its header via `chain_getHeader` — Android's
+    /// `blockNumberAt`. `nil` when the read fails or the number cannot be parsed.
+    func blockNumber(byHash blockHash: Data) async -> UInt32? {
+        let operation = JSONRPCListOperation<Block.Header>(
+            engine: connection,
+            method: RPCMethod.getBlockHeader,
+            parameters: [blockHash.toHex(includePrefix: true)]
+        )
+        guard let header = try? await operation.asyncExecute() else { return nil }
+        return BlockNumber(header.number.withoutHexPrefix(), radix: 16)
     }
 }
 
