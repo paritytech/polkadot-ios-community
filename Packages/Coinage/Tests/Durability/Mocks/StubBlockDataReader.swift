@@ -4,10 +4,11 @@ import SubstrateSdk
 import SubstrateOperation
 import AsyncExtensions
 
-/// Test stub for ``BlockDataReading`` that records all calls and returns configured responses.
+/// Test stub for the block-outcome lookup closure ``BlockBodyScan`` scans with; records all
+/// calls and returns configured responses.
 ///
 /// Maps block hashes to their lookup outcomes. A hash absent from the map returns `.unreadable`.
-actor StubBlockDataReader: BlockDataReading {
+actor StubBlockDataReader {
     private let lookups: [Data: BlockLookup]
     private(set) var reads: [Data] = []
 

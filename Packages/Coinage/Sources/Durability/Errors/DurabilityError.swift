@@ -16,6 +16,4 @@ public enum DurabilityError: Error, Equatable {
     case entryNotFound(TransactionId)
     /// A pinned chain view could not be read, so the pass cannot run.
     case chainViewUnavailable
-    /// The connection backing the pinned view was replaced; the pass is abandoned.
-    case connectionReplaced
 }

@@ -2,6 +2,7 @@ import AsyncExtensions
 import Foundation
 import ExtrinsicService
 import SDKLogger
+import SubstrateSdk
 import os
 
 /// The durability subsystem's public face.
@@ -57,7 +58,7 @@ public final class DurabilityService: @unchecked Sendable {
     private let registrar: EntryRegistrar
     private let watcher: SubmissionWatcher
     private let pass: RecoveryPass
-    private let trigger: FinalizedHeadTrigger
+    private let chainFactory: any CoinageChainViewFactoryProtocol
     private let logger: SDKLoggerProtocol?
 
     private let triggerTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
@@ -67,14 +68,14 @@ public final class DurabilityService: @unchecked Sendable {
         registrar: EntryRegistrar,
         watcher: SubmissionWatcher,
         pass: RecoveryPass,
-        trigger: FinalizedHeadTrigger,
+        chainFactory: any CoinageChainViewFactoryProtocol,
         logger: SDKLoggerProtocol?
     ) {
         self.store = store
         self.registrar = registrar
         self.watcher = watcher
         self.pass = pass
-        self.trigger = trigger
+        self.chainFactory = chainFactory
         self.logger = logger
     }
 }
@@ -111,9 +112,17 @@ extension DurabilityService: DurabilityServicing {
     }
 
     public func start() {
-        let task = Task { [pass, trigger] in
+        let task = Task { [pass, chainFactory] in
             await pass.run()
-            await trigger.run()
+
+            // A pass on every newly finalized head and every new best head. Finality repairs
+            // outputs a released watcher left `pendingMint`; the best head advances several
+            // blocks earlier, so `pendingSuccess` is picked up promptly. Passes coalesce, so
+            // frequent best-head ticks do not stack up.
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await Self.runPass(on: chainFactory.finalizedHeads(), pass: pass) }
+                group.addTask { await Self.runPass(on: chainFactory.bestHeads(), pass: pass) }
+            }
         }
         let previous = triggerTask.withLock { current in
             let old = current
@@ -139,5 +148,20 @@ extension DurabilityService: DurabilityServicing {
 
     public func releaseUncommittedHandoffs() async throws {
         try await store.releaseUncommittedHandoffs()
+    }
+}
+
+// MARK: - Head-driven passes
+
+private extension DurabilityService {
+    /// Runs a pass on every head the stream yields. The factory's head streams are self-healing
+    /// and never surface an error; a throw only means the stream ended, so there is nothing to do.
+    static func runPass(on heads: AnyAsyncSequence<BlockNumber>, pass: RecoveryPass) async {
+        do {
+            for try await _ in heads {
+                guard !Task.isCancelled else { break }
+                await pass.run()
+            }
+        } catch {}
     }
 }

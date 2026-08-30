@@ -38,10 +38,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: hash, in: 101 ... 102)
@@ -70,10 +69,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result1 = await searcher.search(for: Data([99]), in: 100 ... 102)
@@ -101,10 +99,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: targetHash, in: 100 ... 101)
@@ -132,10 +129,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: hash, in: 100 ... 101)
@@ -160,10 +156,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: Data([99]), in: 100 ... 102)
@@ -193,10 +188,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: hash, in: 100 ... 102)
@@ -245,10 +239,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.search(for: hash, in: 100 ... 100)
@@ -297,10 +290,9 @@ struct BodySearchTests {
             ]
         )
 
-        let searcher = BlockBodySearcher(
-            blockData: stub,
-            blockInfoProvider: blockInfo,
-            logger: nil
+        let searcher = BlockBodyScan(
+            blockOutcome: { await stub.lookUp($0, at: $1) },
+            blockInfoProvider: blockInfo
         )
 
         let result = await searcher.outcome(

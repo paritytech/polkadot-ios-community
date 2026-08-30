@@ -34,8 +34,7 @@ struct RuleEvaluatorTests {
 
         let view = ChainView(
             finalized: BlockRef(number: finalizedNumber, hash: Data([UInt8(finalizedNumber)])),
-            best: BlockRef(number: bestNumber, hash: Data([UInt8(bestNumber)])),
-            connectionToken: UUID()
+            best: BlockRef(number: bestNumber, hash: Data([UInt8(bestNumber)]))
         )
 
         return EntrySnapshot(

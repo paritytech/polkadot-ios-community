@@ -11,7 +11,7 @@ import SDKLogger
 /// and on watcher release.
 actor RecoveryPass {
     private let store: any CoinageTxRepositoryProtocol
-    private let chain: any DurabilityChainReading
+    private let chainFactory: any CoinageChainViewFactoryProtocol
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
     private let evaluator = RuleEvaluator()
@@ -24,13 +24,13 @@ actor RecoveryPass {
 
     init(
         store: any CoinageTxRepositoryProtocol,
-        chain: any DurabilityChainReading,
+        chainFactory: any CoinageChainViewFactoryProtocol,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,
         logger: SDKLoggerProtocol?
     ) {
         self.store = store
-        self.chain = chain
+        self.chainFactory = chainFactory
         self.watched = watched
         self.transaction = transaction
         self.logger = logger
@@ -66,7 +66,10 @@ actor RecoveryPass {
 
 private extension RecoveryPass {
     func performPass() async throws {
-        let view = try await chain.pinChainView()
+        // Pin a fresh view each pass. There is no mid-pass connection check: a read is
+        // addressed by block hash, so a swapped connection yields a failed read, never a wrong
+        // verdict, and the next pass re-pins against whatever peer is current.
+        let view = try await chainFactory.pin()
 
         let allEntries = try await store.fetchAll()
         let handedOff = try await store.handedOffIdentifiers()
@@ -78,23 +81,19 @@ private extension RecoveryPass {
             // that predates it.
             guard !watched.isWatched(entry.id) else { continue }
 
-            guard await chain.isCurrent(view) else {
-                throw DurabilityError.connectionReplaced
-            }
-
             let snapshot = await makeSnapshot(
                 for: entry,
                 view: view,
                 allEntries: allEntries,
                 handedOff: handedOff
             )
-            try await decide(snapshot)
+            try await decide(snapshot, view: view)
         }
 
         try await propagate()
     }
 
-    func decide(_ snapshot: EntrySnapshot) async throws {
+    func decide(_ snapshot: EntrySnapshot, view: any CoinageChainViewProtocol) async throws {
         let verdict = evaluator.evaluate(snapshot)
         guard case .searchBodies = verdict else {
             try await transaction.apply(verdict, to: snapshot.entry.id, observedStatus: snapshot.entry.status)
@@ -111,7 +110,7 @@ private extension RecoveryPass {
             return
         }
 
-        let outcome = await chain.searchBodies(for: txHash, in: window)
+        let outcome = await view.searchBodies(for: txHash, in: window)
         let verdictFromSearch = evaluator.verdict(
             forSearch: outcome,
             windowClosed: snapshot.windowClosed
@@ -142,25 +141,27 @@ private extension RecoveryPass {
 private extension RecoveryPass {
     func makeSnapshot(
         for entry: DurabilityEntry,
-        view: ChainView,
+        view: any CoinageChainViewProtocol,
         allEntries: [DurabilityEntry],
         handedOff: Set<String>
     ) async -> EntrySnapshot {
-        async let inputsAtFinalized = chain.readInputs(entry.inputs, at: view.finalized)
-        async let inputsAtBest = chain.readInputs(entry.inputs, at: view.best)
-        async let outputsAtFinalized = chain.readOutputs(entry.outputs, at: view.finalized)
-        async let outputsAtBest = chain.readOutputs(entry.outputs, at: view.best)
+        let checkpoints = ChainView(finalized: view.finalizedHead, best: view.bestHead)
+
+        async let inputsAtFinalized = view.readInputs(entry.inputs, at: checkpoints.finalized)
+        async let inputsAtBest = view.readInputs(entry.inputs, at: checkpoints.best)
+        async let outputsAtFinalized = view.readOutputs(entry.outputs, at: checkpoints.finalized)
+        async let outputsAtBest = view.readOutputs(entry.outputs, at: checkpoints.best)
 
         let successBlockHash: ReadResult<Data> =
             if let detected = entry.successDetectedAt {
-                await chain.blockHash(at: detected.number)
+                await view.blockHash(at: detected.number)
             } else {
                 .absent
             }
 
         return await EntrySnapshot(
             entry: entry,
-            view: view,
+            view: checkpoints,
             inputsAtFinalized: inputsAtFinalized,
             inputsAtBest: inputsAtBest,
             outputsAtFinalized: outputsAtFinalized,
@@ -174,7 +175,7 @@ private extension RecoveryPass {
                 for: entry,
                 allEntries: allEntries,
                 handedOff: handedOff,
-                view: view
+                view: checkpoints
             ),
             successBlockHash: successBlockHash
         )

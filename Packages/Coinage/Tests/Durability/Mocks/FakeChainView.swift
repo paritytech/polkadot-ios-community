@@ -1,53 +1,44 @@
+import AsyncExtensions
 import Coinage
 import Foundation
+import SubstrateSdk
 
-/// A test fake for `DurabilityChainReading` that allows per-key, per-block response
-/// configuration.
+/// A test fake that is both a `CoinageChainViewProtocol` (a pinned view) and its
+/// `CoinageChainViewFactoryProtocol` (self-pinning: `pin()` returns itself), so a test injects one
+/// object wherever the engine expects either.
 ///
-/// Default behaviour for any unconfigured read is `absent`; tests must opt in to
-/// presence. Serves a pinned `ChainView` that the test sets.
-actor FakeChainView: DurabilityChainReading {
-    private var pinnedView: ChainView
+/// Default behaviour for any unconfigured read is `absent`; tests must opt in to presence. The
+/// pinned heads are whatever the test last set via ``setChainView(finalized:best:)``.
+final class FakeChainView: CoinageChainViewProtocol, CoinageChainViewFactoryProtocol, @unchecked Sendable {
+    private var checkpoints: ChainView
     private var inputResults: [UInt32: [ReadResult<AssetPresence>]] = [:]
     private var outputResults: [UInt32: [ReadResult<AssetPresence>]] = [:]
     private var hashResults: [UInt32: ReadResult<Data>] = [:]
     private var refResults: [Data: ReadResult<BlockRef>] = [:]
     private var outcomeResults: [UInt32: [Data: ReadResult<Bool>]] = [:]
     private var bodySearchResponses: [Data: BodySearchOutcome] = [:]
-    private var connectionValid = true
 
     init(
         finalized: BlockRef = BlockRef(number: 100, hash: Data([100])),
         best: BlockRef = BlockRef(number: 110, hash: Data([110]))
     ) {
-        pinnedView = ChainView(
-            finalized: finalized,
-            best: best,
-            connectionToken: UUID()
-        )
+        checkpoints = ChainView(finalized: finalized, best: best)
     }
+
+    var finalizedHead: BlockRef { checkpoints.finalized }
+    var bestHead: BlockRef { checkpoints.best }
 
     // MARK: - Configuration API
 
     func setChainView(finalized: BlockRef, best: BlockRef) {
-        pinnedView = ChainView(
-            finalized: finalized,
-            best: best,
-            connectionToken: pinnedView.connectionToken
-        )
+        checkpoints = ChainView(finalized: finalized, best: best)
     }
 
-    func setInputPresence(
-        at block: BlockRef,
-        to results: [ReadResult<AssetPresence>]
-    ) {
+    func setInputPresence(at block: BlockRef, to results: [ReadResult<AssetPresence>]) {
         inputResults[block.number] = results
     }
 
-    func setOutputPresence(
-        at block: BlockRef,
-        to results: [ReadResult<AssetPresence>]
-    ) {
+    func setOutputPresence(at block: BlockRef, to results: [ReadResult<AssetPresence>]) {
         outputResults[block.number] = results
     }
 
@@ -79,31 +70,25 @@ actor FakeChainView: DurabilityChainReading {
         bodySearchResponses[txHash] = outcome
     }
 
-    func invalidateConnection() {
-        connectionValid = false
+    // MARK: - CoinageChainViewFactoryProtocol
+
+    func pin() async throws -> any CoinageChainViewProtocol { self }
+
+    func finalizedHeads() -> AnyAsyncSequence<BlockNumber> {
+        AsyncStream<BlockNumber> { $0.finish() }.eraseToAnyAsyncSequence()
     }
 
-    // MARK: - DurabilityChainReading
-
-    func pinChainView() async throws -> ChainView {
-        pinnedView
+    func bestHeads() -> AnyAsyncSequence<BlockNumber> {
+        AsyncStream<BlockNumber> { $0.finish() }.eraseToAnyAsyncSequence()
     }
 
-    func isCurrent(_ view: ChainView) async -> Bool {
-        connectionValid && view.connectionToken == pinnedView.connectionToken
-    }
+    // MARK: - CoinageChainViewProtocol
 
-    func readInputs(
-        _ inputs: [DurabilityInput],
-        at block: BlockRef
-    ) async -> [ReadResult<AssetPresence>] {
+    func readInputs(_ inputs: [DurabilityInput], at block: BlockRef) async -> [ReadResult<AssetPresence>] {
         inputResults[block.number] ?? Array(repeating: .absent, count: inputs.count)
     }
 
-    func readOutputs(
-        _ outputs: [OwnAsset],
-        at block: BlockRef
-    ) async -> [ReadResult<AssetPresence>] {
+    func readOutputs(_ outputs: [OwnAsset], at block: BlockRef) async -> [ReadResult<AssetPresence>] {
         outputResults[block.number] ?? Array(repeating: .absent, count: outputs.count)
     }
 
@@ -119,10 +104,7 @@ actor FakeChainView: DurabilityChainReading {
         (outcomeResults[block.number] ?? [:])[txHash] ?? .absent
     }
 
-    func searchBodies(
-        for txHash: Data,
-        in _: ClosedRange<UInt32>
-    ) async -> BodySearchOutcome {
+    func searchBodies(for txHash: Data, in _: ClosedRange<UInt32>) async -> BodySearchOutcome {
         bodySearchResponses[txHash] ?? .notFoundWindowComplete
     }
 }

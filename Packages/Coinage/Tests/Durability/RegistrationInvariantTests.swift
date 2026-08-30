@@ -23,7 +23,7 @@ struct RegistrationInvariantTests {
     @Test("Rejects entry with no inputs and no outputs")
     func rejectEmptyEntry() async throws {
         let store = MockDurabilityStore()
-        await chain.setChainView(finalized: .fixture(100), best: .fixture(110))
+        chain.setChainView(finalized: .fixture(100), best: .fixture(110))
 
         await #expect(throws: DurabilityError.emptyEntry) {
             try await store.register(.fixture())
@@ -130,12 +130,12 @@ struct RegistrationInvariantTests {
         let store = MockDurabilityStore()
         let finalizedBlock = BlockRef.fixture(150)
 
-        await chain.setChainView(finalized: finalizedBlock, best: .fixture(165))
+        chain.setChainView(finalized: finalizedBlock, best: .fixture(165))
 
         let registrar = EntryRegistrar(
             store: store,
             validator: Self.stubValidator,
-            chain: chain,
+            chainFactory: chain,
             watched: watched,
             mortality: 60
         )
@@ -149,13 +149,13 @@ struct RegistrationInvariantTests {
     func noReadBeyondFinalized() async throws {
         let store = MockDurabilityStore()
 
-        await chain.setChainView(finalized: .fixture(100), best: .fixture(120))
+        chain.setChainView(finalized: .fixture(100), best: .fixture(120))
 
-        // Registrar should only call pinChainView(), not any other chain methods
+        // Registrar should only pin the chain view, not read anything beyond finalized
         let registrar = EntryRegistrar(
             store: store,
             validator: Self.stubValidator,
-            chain: chain,
+            chainFactory: chain,
             watched: watched,
             mortality: 60
         )
@@ -198,12 +198,12 @@ struct RegistrationInvariantTests {
         let registrar = EntryRegistrar(
             store: store,
             validator: Self.stubValidator,
-            chain: chain,
+            chainFactory: chain,
             watched: watched,
             mortality: 60
         )
 
-        await chain.setChainView(finalized: .fixture(100), best: .fixture(110))
+        chain.setChainView(finalized: .fixture(100), best: .fixture(110))
 
         let second = DurabilityEntry.fixture(inputs: [input])
 

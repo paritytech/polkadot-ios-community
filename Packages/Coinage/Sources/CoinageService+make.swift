@@ -133,29 +133,17 @@ public extension CoinageService {
 
         let watchedEntries = WatchedEntrySet()
 
-        let blockDataReader = BlockDataReader(
-            connection: connection,
-            runtimeService: runtimeService,
-            eventsQueryFactory: BlockEventsQueryFactory(
-                operationQueue: operationQueue,
-                eventsRepository: SubstrateEventsRepository(),
-                storageRequestFactory: storageRequestFactory,
-                logger: logger
-            )
-        )
-
-        let bodySearcher = BlockBodySearcher(
-            blockData: blockDataReader,
-            blockInfoProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        let chainReader = DurabilityChainReader(
+        let chainFactory = CoinageChainViewFactory(
             coinQuery: coinOnChainQuery,
             voucherQuery: voucherOnChainQuery,
             coinKeyFactory: coinKeypairFactory,
             blockInfoProvider: blockNumberProvider,
-            searcher: bodySearcher,
+            blockEvents: CoinageChainViewFactory.BlockEventsDependencies(
+                connection: connection,
+                runtimeService: runtimeService,
+                operationQueue: operationQueue,
+                storageRequestFactory: storageRequestFactory
+            ),
             logger: logger
         )
 
@@ -167,15 +155,9 @@ public extension CoinageService {
 
         let recoveryPass = RecoveryPass(
             store: durabilityStore,
-            chain: chainReader,
+            chainFactory: chainFactory,
             watched: watchedEntries,
             transaction: statusTransaction,
-            logger: logger
-        )
-
-        let finalizedHeadTrigger = FinalizedHeadTrigger(
-            blockInfoProvider: blockNumberProvider,
-            onHead: { [weak recoveryPass] in await recoveryPass?.run() },
             logger: logger
         )
 
@@ -185,7 +167,7 @@ public extension CoinageService {
                 coinKeyDeriver: coinKeypairFactory,
                 voucherKeyDeriver: voucherKeypairFactory
             ),
-            chain: chainReader,
+            chainFactory: chainFactory,
             watched: watchedEntries,
             mortality: CoinageConstants.entryMortality,
             logger: logger
@@ -194,7 +176,7 @@ public extension CoinageService {
         let submissionWatcher = SubmissionWatcher(
             monitor: extrinsicMonitorFactory,
             store: durabilityStore,
-            chain: chainReader,
+            chainFactory: chainFactory,
             watched: watchedEntries,
             transaction: statusTransaction,
             backgroundExecutor: backgroundExecutor,
@@ -209,7 +191,7 @@ public extension CoinageService {
             registrar: registrar,
             watcher: submissionWatcher,
             pass: recoveryPass,
-            trigger: finalizedHeadTrigger,
+            chainFactory: chainFactory,
             logger: logger
         )
 

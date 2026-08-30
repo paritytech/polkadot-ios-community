@@ -9,7 +9,7 @@ import SDKLogger
 public struct EntryRegistrar {
     private let store: any CoinageTxRepositoryProtocol
     private let validator: RegistrationValidator
-    private let chain: any DurabilityChainReading
+    private let chainFactory: any CoinageChainViewFactoryProtocol
     private let watched: WatchedEntrySet
     private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
@@ -17,14 +17,14 @@ public struct EntryRegistrar {
     public init(
         store: any CoinageTxRepositoryProtocol,
         validator: RegistrationValidator,
-        chain: any DurabilityChainReading,
+        chainFactory: any CoinageChainViewFactoryProtocol,
         watched: WatchedEntrySet,
         mortality: UInt32,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.store = store
         self.validator = validator
-        self.chain = chain
+        self.chainFactory = chainFactory
         self.watched = watched
         self.mortality = mortality
         self.logger = logger
@@ -42,7 +42,7 @@ public struct EntryRegistrar {
         // The checkpoint is the finalized head read once before registration. Rule 7's search
         // window starts here, so the extrinsic cannot appear below it. No input is read from
         // chain during registration.
-        let checkpoint = try await chain.pinChainView().finalized
+        let checkpoint = try await chainFactory.pin().finalizedHead
 
         let entry = DurabilityEntry(
             inputs: inputs,

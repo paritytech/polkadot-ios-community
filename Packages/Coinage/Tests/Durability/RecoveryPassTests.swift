@@ -12,7 +12,7 @@ struct RecoveryPassTests {
         let chain = FakeChainView()
         let watched = WatchedEntrySet()
 
-        await chain.setChainView(finalized: .fixture(150), best: .fixture(160))
+        chain.setChainView(finalized: .fixture(150), best: .fixture(160))
 
         // Start with no entries
         var liveEntries = try await store.fetchLive()
@@ -58,7 +58,7 @@ struct RecoveryPassTests {
         let store = MockDurabilityStore()
         let chain = FakeChainView()
 
-        await chain.setChainView(finalized: .fixture(150), best: .fixture(150))
+        chain.setChainView(finalized: .fixture(150), best: .fixture(150))
 
         // Create a chain: entry1 -> entry2 -> entry3
         let entry1 = DurabilityEntry.fixture(outputs: [.coin(1)])
@@ -138,13 +138,13 @@ struct RecoveryPassTests {
         let newBlock = BlockRef.fixture(150)
 
         // Start with old view
-        await chain.setChainView(finalized: oldBlock, best: oldBlock)
+        chain.setChainView(finalized: oldBlock, best: oldBlock)
 
         let entry = DurabilityEntry.fixture(outputs: [.coin(1)])
         try await store.register(entry)
 
         // Update to new view
-        await chain.setChainView(finalized: newBlock, best: newBlock)
+        chain.setChainView(finalized: newBlock, best: newBlock)
 
         // Entry should not be decided based on old view
         let fetched = try await store.fetch(id: entry.id)

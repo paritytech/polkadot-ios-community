@@ -31,7 +31,7 @@ public struct DurabilitySubmission {
 final class SubmissionWatcher: Sendable {
     private let monitor: ExtrinsicSubmitMonitorFactoryProtocol
     private let store: any CoinageTxRepositoryProtocol
-    private let chain: any DurabilityChainReading
+    private let chainFactory: any CoinageChainViewFactoryProtocol
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
     private let backgroundExecutor: any BackgroundExecuting
@@ -47,7 +47,7 @@ final class SubmissionWatcher: Sendable {
     init(
         monitor: ExtrinsicSubmitMonitorFactoryProtocol,
         store: any CoinageTxRepositoryProtocol,
-        chain: any DurabilityChainReading,
+        chainFactory: any CoinageChainViewFactoryProtocol,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,
         backgroundExecutor: any BackgroundExecuting,
@@ -56,7 +56,7 @@ final class SubmissionWatcher: Sendable {
     ) {
         self.monitor = monitor
         self.store = store
-        self.chain = chain
+        self.chainFactory = chainFactory
         self.watched = watched
         self.transaction = transaction
         self.backgroundExecutor = backgroundExecutor
@@ -203,11 +203,12 @@ private extension SubmissionWatcher {
         update: ExtrinsicStatusUpdate,
         entryId: TransactionId
     ) async {
-        guard let block = await resolveBlock(blockHash),
+        guard let view = try? await chainFactory.pin(),
+              let block = await resolveBlock(blockHash, using: view),
               let txHash = try? Data(hexString: update.extrinsicHash)
         else { return }
 
-        guard case let .present(succeeded) = await chain.dispatchOutcome(txHash: txHash, at: block)
+        guard case let .present(succeeded) = await view.dispatchOutcome(txHash: txHash, at: block)
         else { return }
 
         guard succeeded else { return }
@@ -233,11 +234,12 @@ private extension SubmissionWatcher {
         update: ExtrinsicStatusUpdate,
         entryId: TransactionId
     ) async {
-        guard let block = await resolveBlock(blockHash),
+        guard let view = try? await chainFactory.pin(),
+              let block = await resolveBlock(blockHash, using: view),
               let txHash = try? Data(hexString: update.extrinsicHash)
         else { return }
 
-        switch await chain.dispatchOutcome(txHash: txHash, at: block) {
+        switch await view.dispatchOutcome(txHash: txHash, at: block) {
         case .present(true):
             try? await store.recordSuccessDetected(entryId, at: block)
             await propose(.status(.finalizedSuccess), to: entryId)
@@ -250,9 +252,9 @@ private extension SubmissionWatcher {
         }
     }
 
-    func resolveBlock(_ blockHash: String) async -> BlockRef? {
+    func resolveBlock(_ blockHash: String, using view: any CoinageChainViewProtocol) async -> BlockRef? {
         guard let hash = try? Data(hexString: blockHash) else { return nil }
-        return await chain.blockRef(forHash: hash).value
+        return await view.blockRef(forHash: hash).value
     }
 
     func propose(_ verdict: RuleVerdict, to entryId: TransactionId) async {
