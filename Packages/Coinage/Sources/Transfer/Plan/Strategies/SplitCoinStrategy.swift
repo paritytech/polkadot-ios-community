@@ -21,7 +21,7 @@ struct SplitCoinStrategy {
     private let changeDenominations: [Denomination]
     private let minter: any CoinMinting
     private let coinKeyFactory: any CoinKeyDeriving
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let logger: SDKLoggerProtocol?
 
@@ -32,7 +32,7 @@ struct SplitCoinStrategy {
         changeDenominations: [Denomination],
         minter: any CoinMinting,
         coinKeyFactory: any CoinKeyDeriving,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         logger: SDKLoggerProtocol?
     ) {
@@ -51,7 +51,7 @@ struct SplitCoinStrategy {
 // MARK: - TransferStrategy
 
 extension SplitCoinStrategy: TransferStrategy {
-    func prepare() async throws -> PreparedStrategy {
+    func prepare(groupId: CoinageTxGroupId?) async throws -> PreparedStrategy {
         let recipientCoins = try await minter.mintCoins(targetDenominations.map(\.exponent))
         // Change coins stay ours — minted as outputs but not handed off.
         let changeCoins = try await minter.mintCoins(changeDenominations.map(\.exponent))
@@ -77,11 +77,14 @@ extension SplitCoinStrategy: TransferStrategy {
         // One fire-and-forget submit: registers (claiming the input) and broadcasts, returning once
         // the entry is committed. The projection writes below follow, explained by that entry.
         logger?.debug("Submitting split extrinsic for \(assets.outputCoins.count) coins")
-        try await durability.submit(
-            inputs: assets.inputs,
-            outputs: assets.outputs,
-            builder: builder,
-            origin: origin
+        try await durability.submitTransaction(
+            request: CoinageTxRequest(
+                inputs: assets.inputs,
+                outputs: assets.outputs,
+                builder: builder,
+                origin: origin
+            ),
+            groupId: groupId
         )
 
         let handoffCommit = try await durability

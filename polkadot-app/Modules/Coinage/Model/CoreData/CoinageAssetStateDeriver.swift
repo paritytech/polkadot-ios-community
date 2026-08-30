@@ -15,13 +15,13 @@ enum CoinageAssetStateDeriver {
 
     /// At most one non-failure entry consumes an asset (Unique consumer invariant), so its status
     /// is the asset's live consumer status; a released (failed-only) asset has none.
-    private static func consumerStatus(of inputs: NSSet?) -> EntryStatus? {
+    private static func consumerStatus(of inputs: NSSet?) -> CoinageTxStatus? {
         ((inputs as? Set<CDDurabilityInput>) ?? [])
             .compactMap { status(of: $0.entry) }
             .first { $0 != .failure }
     }
 
-    private static func status(of entry: CDDurability?) -> EntryStatus? {
-        entry.flatMap { EntryStatus(rawValue: Int($0.status)) }
+    private static func status(of entry: CDDurability?) -> CoinageTxStatus? {
+        entry.flatMap { CoinageTxStatus(rawValue: Int($0.status)) }
     }
 }

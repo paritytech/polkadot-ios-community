@@ -19,7 +19,7 @@ struct UnloadIntoCoinsStrategy {
     private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let recyclerLoader: RecyclerReadinessLoading
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockInfoProvider: any BlockInfoProviding
     private let currentDate: Date
@@ -31,7 +31,7 @@ struct UnloadIntoCoinsStrategy {
         minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         recyclerLoader: RecyclerReadinessLoading,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockInfoProvider: any BlockInfoProviding,
         currentDate: Date,
@@ -53,7 +53,7 @@ struct UnloadIntoCoinsStrategy {
 // MARK: - TransferStrategy
 
 extension UnloadIntoCoinsStrategy: TransferStrategy {
-    func prepare() async throws -> PreparedStrategy {
+    func prepare(groupId: CoinageTxGroupId?) async throws -> PreparedStrategy {
         guard !perGroupAllocations.isEmpty else {
             throw TransferStrategyError.emptyVouchers
         }
@@ -83,17 +83,16 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // failure aborts before a single extrinsic is broadcast.
         let requests = try await buildRequests(for: realizedGroups)
 
-        // One fire-and-forget submit per group: each registers (claiming its vouchers) and
-        // broadcasts, returning once committed. The projection writes below follow.
+        // Register all groups atomically under the transfer's groupId, then each broadcasts and is
+        // tracked in the background. A within-batch conflict rejects the whole transfer, so no
+        // group's vouchers are claimed without the others. The projection writes below follow.
         logger?.info("Submitting \(requests.count) unload extrinsics for \(allVouchers.count) vouchers")
-        for request in requests {
-            try await durability.submit(
-                inputs: request.inputs,
-                outputs: request.outputs,
-                builder: request.builder,
-                origin: request.origin
-            )
-        }
+        try await durability.submitTransactions(
+            requests.map {
+                CoinageTxRequest(inputs: $0.inputs, outputs: $0.outputs, builder: $0.builder, origin: $0.origin)
+            },
+            groupId: groupId
+        )
 
         // Ready coins need no submission; every group's recipient coins leave to the peer. Change
         // coins stay ours. All pre-committed before the memo can leave.
@@ -124,7 +123,7 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
 
 private extension UnloadIntoCoinsStrategy {
     struct GroupRequest {
-        let inputs: [DurabilityInput]
+        let inputs: [CoinageTxInput]
         let outputs: [OwnAsset]
         let builder: ExtrinsicBuilderClosure
         let origin: any ExtrinsicOriginDefining

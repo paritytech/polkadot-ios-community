@@ -7,14 +7,14 @@ import Foundation
 /// whether the payment was claimed.
 struct ExactMatchStrategy: TransferStrategy {
     private let coins: [Coin]
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
 
-    init(coins: [Coin], durability: any DurabilityServicing) {
+    init(coins: [Coin], durability: any CoinageTxServicing) {
         self.coins = coins
         self.durability = durability
     }
 
-    func prepare() async throws -> PreparedStrategy {
+    func prepare(groupId _: CoinageTxGroupId?) async throws -> PreparedStrategy {
         guard !coins.isEmpty else {
             throw TransferStrategyError.emptyCoins
         }

@@ -131,7 +131,7 @@ public extension CoinageService {
             aliasProvider: { try voucherKeypairFactory.alias(for: $0) }
         )
 
-        let watchedEntries = WatchedEntrySet()
+        let watchedEntries = CoinageTrackingTxSet()
 
         let chainFactory = CoinageChainViewFactory(
             coinQuery: coinOnChainQuery,
@@ -161,9 +161,9 @@ public extension CoinageService {
             logger: logger
         )
 
-        let registrar = EntryRegistrar(
+        let registrar = CoinageTxRegistrar(
             store: durabilityStore,
-            validator: RegistrationValidator(
+            validator: CoinageTxRegistrationValidator(
                 coinKeyDeriver: coinKeypairFactory,
                 voucherKeyDeriver: voucherKeypairFactory
             ),
@@ -173,7 +173,7 @@ public extension CoinageService {
             logger: logger
         )
 
-        let submissionWatcher = SubmissionWatcher(
+        let submissionWatcher = CoinageTxTracker(
             monitor: extrinsicMonitorFactory,
             store: durabilityStore,
             chainFactory: chainFactory,
@@ -186,7 +186,7 @@ public extension CoinageService {
             logger: logger
         )
 
-        let durabilityService = DurabilityService(
+        let durabilityService = CoinageTxService(
             store: durabilityStore,
             registrar: registrar,
             watcher: submissionWatcher,

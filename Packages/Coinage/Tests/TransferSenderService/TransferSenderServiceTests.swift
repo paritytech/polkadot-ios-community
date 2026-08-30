@@ -31,13 +31,13 @@ struct TransferSenderServiceTests {
 
     let journal: CallJournal
     let mockMinter: MockCoinAllocator
-    let mockDurability: MockDurabilityService
+    let mockDurability: MockCoinageTxService
 
     init() {
         let journal = CallJournal()
         self.journal = journal
         mockMinter = MockCoinAllocator()
-        mockDurability = MockDurabilityService(callJournal: journal)
+        mockDurability = MockCoinageTxService(callJournal: journal)
     }
 
     // MARK: - ExactMatch Strategy Tests
@@ -60,7 +60,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         // Then - Wait for handoff marks to be recorded
@@ -102,7 +103,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         // Wait for entries to be submitted and outputs to be saved
@@ -155,7 +157,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 3)
@@ -208,7 +211,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 5)
@@ -254,7 +258,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -299,7 +304,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -339,7 +345,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -378,7 +385,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -417,7 +425,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -455,7 +464,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -494,7 +504,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         // Then
@@ -542,7 +553,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         // Then - Split registers the overflow coin as consumed
@@ -598,7 +610,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 2)
@@ -635,7 +648,8 @@ struct TransferSenderServiceTests {
         _ = try await service.execute(
             result: result,
             currentDate: now,
-            breakdownContext: testContext
+            breakdownContext: testContext,
+            groupId: nil
         )
 
         try await waitForSubmission(expectedEntries: 1)
@@ -772,7 +786,7 @@ extension TransferSenderServiceTests {
         originFactory: MockOriginFactory = MockOriginFactory(),
         recyclerLoader: MockRecyclerLoader = MockRecyclerLoader(),
         blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider(),
-        mockDurability: MockDurabilityService = MockDurabilityService()
+        mockDurability: MockCoinageTxService = MockCoinageTxService()
     ) -> TransferSenderService {
         let coinSelector = CoinSelector()
         let memoBuilder = MockMemoBuilder()

@@ -14,7 +14,7 @@ public protocol CoinageServicing: Actor {
     /// The underlying recipient service for direct use.
     nonisolated var ongoingTransferService: any OngoingTransferServicing { get }
 
-    nonisolated var durabilityService: any DurabilityServicing { get }
+    nonisolated var durabilityService: any CoinageTxServicing { get }
 
     /// The external payment service — exposed for dependency registration.
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
@@ -65,7 +65,8 @@ public protocol CoinageServicing: Actor {
 
     /// Execute a transfer from a pre-computed coin selection result, skipping coin selection.
     /// Returns the memo plus the provisional handoff to commit once the memo is durable.
-    func executeTransfer(result: CoinSelectionResult) async throws -> PreparedTransfer
+    /// `groupId` labels the registered transaction(s) — the transfer's message id, or `nil`.
+    func executeTransfer(result: CoinSelectionResult, groupId: CoinageTxGroupId?) async throws -> PreparedTransfer
 
     /// Scans the chain for coins and vouchers belonging to the user.
     /// Runs coin and voucher recovery concurrently.
@@ -106,7 +107,7 @@ public actor CoinageService {
     // Transfers
     private let senderService: TransferSenderServicing
     public nonisolated let ongoingTransferService: any OngoingTransferServicing
-    public nonisolated let durabilityService: any DurabilityServicing
+    public nonisolated let durabilityService: any CoinageTxServicing
 
     // Sync services
     private let coinStateSyncService: CoinStateSyncService?
@@ -148,7 +149,7 @@ public actor CoinageService {
         coinKeypairFactory: any CoinKeyDeriving,
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
-        durabilityService: any DurabilityServicing,
+        durabilityService: any CoinageTxServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
         coinStateSyncService: CoinStateSyncService? = nil,
@@ -298,7 +299,10 @@ extension CoinageService: CoinageServicing {
         return TransferPreview(selectionResult: result, fullAmount: amount, nonDegradedAmount: nonDegradedAmount)
     }
 
-    public func executeTransfer(result: CoinSelectionResult) async throws -> PreparedTransfer {
+    public func executeTransfer(
+        result: CoinSelectionResult,
+        groupId: CoinageTxGroupId?
+    ) async throws -> PreparedTransfer {
         guard let denominationContext = breakdownContext else {
             throw CoinageError.notConfigured
         }
@@ -306,7 +310,8 @@ extension CoinageService: CoinageServicing {
         do {
             return try await senderService.execute(
                 result: result,
-                breakdownContext: denominationContext
+                breakdownContext: denominationContext,
+                groupId: groupId
             )
         } catch {
             throw CoinageError.transferFailed(underlying: error)

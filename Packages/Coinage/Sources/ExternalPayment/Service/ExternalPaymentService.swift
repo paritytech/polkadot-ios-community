@@ -17,7 +17,7 @@ struct ExternalPaymentDependency {
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
     let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    let durability: any DurabilityServicing
+    let durability: any CoinageTxServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
 
@@ -29,7 +29,7 @@ struct ExternalPaymentDependency {
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding
     ) {

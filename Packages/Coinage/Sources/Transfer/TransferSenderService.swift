@@ -24,19 +24,27 @@ protocol TransferSenderServicing: Actor {
 
     /// Execute a transfer from a pre-computed coin selection result, skipping coin selection.
     /// Returns the memo plus the provisional handoff to commit once the memo is durable.
+    /// `groupId` labels the transaction(s) this transfer registers (the message id), or `nil`.
     func execute(
         result: CoinSelectionResult,
         currentDate: Date,
-        breakdownContext: DenominationBreakdownContext
+        breakdownContext: DenominationBreakdownContext,
+        groupId: CoinageTxGroupId?
     ) async throws -> PreparedTransfer
 }
 
 extension TransferSenderServicing {
     func execute(
         result: CoinSelectionResult,
-        breakdownContext: DenominationBreakdownContext
+        breakdownContext: DenominationBreakdownContext,
+        groupId: CoinageTxGroupId?
     ) async throws -> PreparedTransfer {
-        try await execute(result: result, currentDate: .now, breakdownContext: breakdownContext)
+        try await execute(
+            result: result,
+            currentDate: .now,
+            breakdownContext: breakdownContext,
+            groupId: groupId
+        )
     }
 }
 
@@ -87,7 +95,8 @@ extension TransferSenderService: TransferSenderServicing {
     func execute(
         result: CoinSelectionResult,
         currentDate: Date,
-        breakdownContext: DenominationBreakdownContext
+        breakdownContext: DenominationBreakdownContext,
+        groupId: CoinageTxGroupId?
     ) async throws -> PreparedTransfer {
         let plan: TransferPlan
         do {
@@ -103,7 +112,7 @@ extension TransferSenderService: TransferSenderServicing {
         // recovery pass / relaunch.
         let prepared: PreparedStrategy
         do {
-            prepared = try await plan.strategy.prepare()
+            prepared = try await plan.strategy.prepare(groupId: groupId)
         } catch {
             logger?.error("Strategy preparation failed: \(error)")
             throw TransferSenderServiceError.strategyFailed(error)

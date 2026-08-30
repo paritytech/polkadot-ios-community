@@ -16,7 +16,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
     private let logger: SDKLoggerProtocol?
@@ -28,7 +28,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol? = nil

@@ -10,7 +10,9 @@ protocol TransferSubmitting {
     /// of swallowing them. Default `false` matches best-effort chat-memo delivery.
     var isFailureFatal: Bool { get }
 
-    func sendTransfer(_ memo: TransferMemo, to recipient: AccountId) async throws
+    /// `messageId` is the id the caller pre-generated for this transfer, used both as the coinage
+    /// transactions' groupId and as the id of the chat message that carries the memo.
+    func sendTransfer(_ memo: TransferMemo, to recipient: AccountId, messageId: Chat.MessageId) async throws
 }
 
 extension TransferSubmitting {
@@ -32,7 +34,7 @@ final class ContactChatSubmitter: TransferSubmitting {
         self.logger = logger
     }
 
-    func sendTransfer(_ memo: TransferMemo, to recipient: AccountId) async throws {
+    func sendTransfer(_ memo: TransferMemo, to recipient: AccountId, messageId: Chat.MessageId) async throws {
         let optContact = try await chatContactsProvider.getContact(by: recipient).asyncExecute()
 
         guard let contact = optContact.flatMap({ $0 }) else {
@@ -42,12 +44,13 @@ final class ContactChatSubmitter: TransferSubmitting {
 
         let operation = createMessageFactory.createTransfer(
             to: Chat.Id.person(contact.accountId),
-            memo: memo
+            memo: memo,
+            messageId: messageId
         )
         try await CompoundOperationWrapper(targetOperation: operation).asyncExecute()
     }
 }
 
 struct NoChatSubmitter: TransferSubmitting {
-    func sendTransfer(_: TransferMemo, to _: AccountId) async throws {}
+    func sendTransfer(_: TransferMemo, to _: AccountId, messageId _: Chat.MessageId) async throws {}
 }

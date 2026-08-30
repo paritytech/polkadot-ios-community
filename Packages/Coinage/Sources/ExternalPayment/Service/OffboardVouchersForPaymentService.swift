@@ -8,7 +8,7 @@ import SubstrateOperation
 import SubstrateSdkExt
 
 /// Executes the offboarding flow: submits one extrinsic per recycler group.
-/// Durability tracks the spent voucher inputs and surplus outputs; the surplus vouchers are
+/// The transaction layer tracks the spent voucher inputs and surplus outputs; the surplus vouchers are
 /// already persisted by the allocator when minted, so no local state bookkeeping is required.
 ///
 /// Each group's call must independently satisfy the pallet invariant:
@@ -20,7 +20,7 @@ final class OffboardVouchersForPaymentService {
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
     private let denominationContext: DenominationBreakdownContext
@@ -30,7 +30,7 @@ final class OffboardVouchersForPaymentService {
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         denominationContext: DenominationBreakdownContext,
@@ -100,7 +100,7 @@ private extension OffboardVouchersForPaymentService {
 
         // Fire-and-forget submit each group; registration claims its vouchers and records the surplus
         // outputs. Collect the entry ids so their outcomes can be awaited below.
-        var entryIds: [TransactionId] = []
+        var entryIds: [CoinageTxId] = []
         var errors: [Error] = []
         for submission in submissions {
             do {
@@ -142,7 +142,7 @@ private extension OffboardVouchersForPaymentService {
     }
 
     /// Awaits an entry's terminal status: returns on `finalizedSuccess`, throws on `failure`.
-    func awaitOutcome(of id: TransactionId) async throws {
+    func awaitOutcome(of id: CoinageTxId) async throws {
         for try await status in durability.subscribeTransactionStatus(id) {
             switch status {
             case .finalizedSuccess:
@@ -246,7 +246,7 @@ private extension OffboardVouchersForPaymentService {
 // MARK: - Submission
 
 private extension OffboardVouchersForPaymentService {
-    func submitGroup(_ submission: GroupSubmission) async throws -> TransactionId {
+    func submitGroup(_ submission: GroupSubmission) async throws -> CoinageTxId {
         let aliases = try submission.details.group.vouchers.map {
             try voucherKeyFactory.createKeyManager(for: $0)
                 .deriveAlias(for: UnloadTokenContextBuilder.recyclerAliasContext)
@@ -254,25 +254,28 @@ private extension OffboardVouchersForPaymentService {
 
         let key = submission.details.group.key
 
-        let id = try await durability.submit(
-            inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
-            outputs: submission.details.surplusVouchers
-                .map { .recyclerVoucher($0.derivationIndex) },
-            builder: { builder in
-                if submission.details.surplusVouchers.isEmpty {
-                    let call = self.buildExternalAssetCall(aliases: aliases, key: key, submission: submission)
-                    return try builder.adding(call: call.callAsFunction())
-                } else {
-                    let call = try self.buildExternalAssetAndVouchersCall(
-                        aliases: aliases,
-                        key: key,
-                        submission: submission
-                    )
+        let id = try await durability.submitTransaction(
+            request: CoinageTxRequest(
+                inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
+                outputs: submission.details.surplusVouchers
+                    .map { .recyclerVoucher($0.derivationIndex) },
+                builder: { builder in
+                    if submission.details.surplusVouchers.isEmpty {
+                        let call = self.buildExternalAssetCall(aliases: aliases, key: key, submission: submission)
+                        return try builder.adding(call: call.callAsFunction())
+                    } else {
+                        let call = try self.buildExternalAssetAndVouchersCall(
+                            aliases: aliases,
+                            key: key,
+                            submission: submission
+                        )
 
-                    return try builder.adding(call: call.callAsFunction())
-                }
-            },
-            origin: submission.origin
+                        return try builder.adding(call: call.callAsFunction())
+                    }
+                },
+                origin: submission.origin
+            ),
+            groupId: nil
         )
 
         logger?.debug("Offboard extrinsic submitted for key \(key)")

@@ -5,7 +5,7 @@ import Foundation
 /// `outputs` is the derivation-ref view used to register the entry; `outputCoins` is the same set
 /// as full rows, used both to persist the projected mint and to build the on-chain call.
 struct CoinageTransactionAssets {
-    let inputs: [DurabilityInput]
+    let inputs: [CoinageTxInput]
     let outputs: [OwnAsset]
     let outputCoins: [Coin]
     let handedOff: [Coin]
@@ -19,7 +19,7 @@ struct CoinageTransactionAssets {
 /// coins as outputs. It writes no status: the ledger records the transaction, and until it does
 /// nothing here has been committed to. The output rows are persisted by the minter as they are minted.
 struct CoinageTransaction {
-    private var inputs: [DurabilityInput] = []
+    private var inputs: [CoinageTxInput] = []
     private var outputCoins: [Coin] = []
     private var handedOff: [Coin] = []
 

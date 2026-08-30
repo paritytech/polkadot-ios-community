@@ -19,7 +19,7 @@ final class TransferPlanFactory {
     private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let coinKeyFactory: any CoinKeyDeriving
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let recyclerLoader: RecyclerReadinessLoading
     private let blockInfoProvider: any BlockInfoProviding
@@ -29,7 +29,7 @@ final class TransferPlanFactory {
         minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         recyclerLoader: RecyclerReadinessLoading,
         blockInfoProvider: any BlockInfoProviding,

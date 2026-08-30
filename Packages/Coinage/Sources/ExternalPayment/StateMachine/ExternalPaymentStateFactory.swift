@@ -16,7 +16,7 @@ final class ExternalPaymentStateFactory {
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
-    let durability: any DurabilityServicing
+    let durability: any CoinageTxServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
     let logger: SDKLoggerProtocol?
@@ -28,7 +28,7 @@ final class ExternalPaymentStateFactory {
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol?

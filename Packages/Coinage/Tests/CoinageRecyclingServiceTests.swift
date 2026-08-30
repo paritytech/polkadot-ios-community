@@ -122,7 +122,7 @@ private extension CoinageRecyclingServiceTests {
         let service: CoinageRecyclingService
         let coinService: RecyclingMockCoinService
         let scheduler: RecordingScheduler
-        let durabilityService: MockDurabilityService
+        let durabilityService: MockCoinageTxService
     }
 
     func makeSUT(
@@ -133,7 +133,7 @@ private extension CoinageRecyclingServiceTests {
     ) -> SUT {
         let coinService = RecyclingMockCoinService(trackedCoins: coins)
         let scheduler = RecordingScheduler()
-        let durabilityService = MockDurabilityService()
+        let durabilityService = MockCoinageTxService()
 
         let service = CoinageRecyclingService(
             schedulerFactory: RecordingSchedulerFactory(scheduler: scheduler),

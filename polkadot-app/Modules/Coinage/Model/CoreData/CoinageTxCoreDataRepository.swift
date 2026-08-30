@@ -16,7 +16,7 @@ import Operation_iOS
 /// leaves nothing behind. Validation completes before any mutation, and the shared serial
 /// `databaseService` queue serialises concurrent registrations.
 final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked Sendable {
-    private let repository: AnyDataProviderRepository<DurabilityEntry>
+    private let repository: AnyDataProviderRepository<CoinageTxEntry>
     private let coinRepository: AnyDataProviderRepository<Coin>
     private let storageFacade: StorageFacadeProtocol
     private let databaseService: CoreDataServiceProtocol
@@ -28,7 +28,7 @@ final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked
         let entryRepository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: true)],
-            mapper: AnyCoreDataMapper(DurabilityEntryMapper())
+            mapper: AnyCoreDataMapper(CoinageTxEntryMapper())
         )
         repository = AnyDataProviderRepository(entryRepository)
 
@@ -45,7 +45,7 @@ final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked
 
 extension CoinageTxCoreDataRepository {
     func register(
-        _ entry: DurabilityEntry,
+        _ entry: CoinageTxEntry,
         validation: @escaping (any CoinageTxValidationContext) throws -> Void
     ) async throws {
         try await withTransaction { transaction in
@@ -57,17 +57,37 @@ extension CoinageTxCoreDataRepository {
             try transaction.upsert(sequenced)
         }
     }
+
+    func registerAll(
+        _ entries: [CoinageTxEntry],
+        validation: @escaping (CoinageTxEntry, any CoinageTxValidationContext) throws -> Void
+    ) async throws {
+        guard !entries.isEmpty else { return }
+        try await withTransaction { transaction in
+            // Validate-then-insert each in turn: `nextSequence` and the validation filters both
+            // read the transaction's pending changes, so entry N is checked against every earlier
+            // entry in this batch as well as the committed store.
+            for entry in entries {
+                try validation(entry, transaction)
+
+                var sequenced = entry
+                sequenced.sequence = try transaction.nextSequence()
+
+                try transaction.upsert(sequenced)
+            }
+        }
+    }
 }
 
 // MARK: - Field and status writes
 
 extension CoinageTxCoreDataRepository {
-    func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws {
+    func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws {
         try await write(id, \.status, status)
     }
 
     @discardableResult
-    func compareAndSetStatus(_ id: TransactionId, observed: EntryStatus, verdict: Verdict) async throws -> Bool {
+    func compareAndSetStatus(_ id: CoinageTxId, observed: CoinageTxStatus, verdict: Verdict) async throws -> Bool {
         try await withTransaction { transaction in
             guard var entry = try transaction.entry(id) else { return false }
             guard entry.status.isLive, entry.status == observed else { return false }
@@ -86,11 +106,11 @@ extension CoinageTxCoreDataRepository {
         }
     }
 
-    func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws {
+    func recordSuccessDetected(_ id: CoinageTxId, at block: BlockRef?) async throws {
         try await write(id, \.successDetectedAt, block)
     }
 
-    func recordTxHash(_ id: TransactionId, txHash: Data) async throws {
+    func recordTxHash(_ id: CoinageTxId, txHash: Data) async throws {
         try await write(id, \.txHash, txHash)
     }
 
@@ -98,12 +118,12 @@ extension CoinageTxCoreDataRepository {
     /// share one context with the `subscribeSnapshot` readers and never race a concurrent write.
     /// `upsert` re-populates the existing row; the mapper leaves its immutable inputs/outputs alone.
     private func write<Value>(
-        _ id: TransactionId,
-        _ field: WritableKeyPath<DurabilityEntry, Value>,
+        _ id: CoinageTxId,
+        _ field: WritableKeyPath<CoinageTxEntry, Value>,
         _ value: Value
     ) async throws {
         guard var entry = try await fetch(id: id) else {
-            throw DurabilityError.entryNotFound(id)
+            throw CoinageTxError.entryNotFound(id)
         }
         entry[keyPath: field] = value
         try await withTransaction { try $0.upsert(entry) }
@@ -113,41 +133,41 @@ extension CoinageTxCoreDataRepository {
 // MARK: - Reads
 
 extension CoinageTxCoreDataRepository {
-    func fetchLive() async throws -> [DurabilityEntry] {
+    func fetchLive() async throws -> [CoinageTxEntry] {
         try await fetchAll().filter(\.status.isLive)
     }
 
-    func fetchAll() async throws -> [DurabilityEntry] {
+    func fetchAll() async throws -> [CoinageTxEntry] {
         try await repository
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
             .sorted { $0.sequence < $1.sequence }
     }
 
-    func fetch(id: TransactionId) async throws -> DurabilityEntry? {
+    func fetch(id: CoinageTxId) async throws -> CoinageTxEntry? {
         try await repository.fetchOperation(
             by: { id.uuidString },
             options: RepositoryFetchOptions()
         ).asyncExecute()
     }
 
-    func subscribeStatus(of id: TransactionId) -> AnyAsyncSequence<EntryStatus> {
+    func subscribeStatus(of id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         storageFacade.subscribeSingle(
-            mapper: AnyCoreDataMapper(DurabilityEntryMapper()),
+            mapper: AnyCoreDataMapper(CoinageTxEntryMapper()),
             filter: NSPredicate(format: "%K == %@", #keyPath(CDDurability.identifier), id.uuidString)
         )
         .compactMap { $0?.status }
         .eraseToAnyAsyncSequence()
     }
 
-    func minter(of asset: OwnAsset) async throws -> DurabilityEntry? {
+    func minter(of asset: OwnAsset) async throws -> CoinageTxEntry? {
         let identifier = asset.identifier
         return try await fetchAll().first { entry in
             entry.outputs.contains { $0.identifier == identifier }
         }
     }
 
-    func consumers(of input: DurabilityInput) async throws -> [DurabilityEntry] {
+    func consumers(of input: CoinageTxInput) async throws -> [CoinageTxEntry] {
         let identifier = input.identifier
         return try await fetchAll().filter { entry in
             entry.inputs.contains { $0.identifier == identifier }
@@ -233,7 +253,7 @@ private extension CoinageTxCoreDataRepository {
 /// visible until the enclosing `withTransaction` commits.
 private final class Transaction: CoinageTxValidationContext {
     private let context: NSManagedObjectContext
-    private let entryMapper = DurabilityEntryMapper()
+    private let entryMapper = CoinageTxEntryMapper()
 
     init(context: NSManagedObjectContext) {
         self.context = context
@@ -265,7 +285,7 @@ private final class Transaction: CoinageTxValidationContext {
         )
         let nonFailure = NSPredicate(
             format: "%K.%K != %d",
-            #keyPath(CDDurabilityInput.entry), #keyPath(CDDurability.status), EntryStatus.failure.rawValue
+            #keyPath(CDDurabilityInput.entry), #keyPath(CDDurability.status), CoinageTxStatus.failure.rawValue
         )
         let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assetMatch, nonFailure])
@@ -295,7 +315,7 @@ private final class Transaction: CoinageTxValidationContext {
         return (entities.first?.sequence ?? 0) + 1
     }
 
-    func upsert(_ entry: DurabilityEntry) throws {
+    func upsert(_ entry: CoinageTxEntry) throws {
         let request = NSFetchRequest<CDDurability>(entityName: Self.entryEntity)
         request.predicate = NSPredicate(
             format: "%K = %@",
@@ -304,13 +324,13 @@ private final class Transaction: CoinageTxValidationContext {
         )
 
         guard let entity = try context.fetch(request).first ?? insert(Self.entryEntity) else {
-            throw DurabilityError.entryNotFound(entry.id)
+            throw CoinageTxError.entryNotFound(entry.id)
         }
 
         try entryMapper.populate(entity: entity, from: entry, using: context)
     }
 
-    func entry(_ id: TransactionId) throws -> DurabilityEntry? {
+    func entry(_ id: CoinageTxId) throws -> CoinageTxEntry? {
         let request = NSFetchRequest<CDDurability>(entityName: Self.entryEntity)
         request.predicate = NSPredicate(format: "%K = %@", #keyPath(CDDurability.identifier), id.uuidString)
         request.fetchLimit = 1

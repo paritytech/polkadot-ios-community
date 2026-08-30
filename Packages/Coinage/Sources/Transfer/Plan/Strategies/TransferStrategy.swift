@@ -15,7 +15,8 @@ struct PreparedStrategy {
 /// Protocol for transfer execution strategies. Each strategy mints its outputs, fires the
 /// (background-tracked) submission, and pre-commits the handoff — all in one `prepare`.
 protocol TransferStrategy {
-    /// Mints outputs (persisted by the allocator), submits the extrinsic(s) fire-and-forget, and
-    /// pre-commits the handoff. Returns the memo entries and the handoff handle.
-    func prepare() async throws -> PreparedStrategy
+    /// Mints outputs (persisted by the allocator), submits the extrinsic(s) fire-and-forget under
+    /// `groupId` (the transfer's message id, or `nil` when ungrouped), and pre-commits the handoff.
+    /// Returns the memo entries and the handoff handle.
+    func prepare(groupId: CoinageTxGroupId?) async throws -> PreparedStrategy
 }

@@ -6,7 +6,8 @@ import Coinage
 protocol LocalMessageCreatingOperationMaking {
     func createTransfer(
         to chatId: Chat.Id,
-        memo: TransferMemo
+        memo: TransferMemo,
+        messageId: Chat.MessageId
     ) -> BaseOperation<Void>
 
     func createReplyMessageOperation(
@@ -27,7 +28,8 @@ final class LocalMessageCreatingOperationFactory: LocalMessageCreatingOperationM
 
     func createTransfer(
         to chatId: Chat.Id,
-        memo: TransferMemo
+        memo: TransferMemo,
+        messageId: Chat.MessageId
     ) -> BaseOperation<Void> {
         let content = Chat.LocalMessage.Content.Transfer(
             totalValue: memo.totalValue,
@@ -37,7 +39,8 @@ final class LocalMessageCreatingOperationFactory: LocalMessageCreatingOperationM
 
         let local = Chat.LocalMessage.newMessage(
             to: chatId,
-            content: .coinageSend(content)
+            content: .coinageSend(content),
+            messageId: messageId
         )
 
         return messagesStorageService.insertOrUpdate([local])

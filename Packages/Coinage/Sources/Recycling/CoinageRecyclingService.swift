@@ -21,7 +21,7 @@ actor CoinageRecyclingService {
     private let voucherMinter: any VoucherMinting
     private let coinKeypairFactory: any CoinKeyDeriving
     private let voucherKeypairFactory: any VoucherKeyDeriving
-    private let durability: any DurabilityServicing
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let logger: SDKLoggerProtocol
 
@@ -35,7 +35,7 @@ actor CoinageRecyclingService {
         voucherMinter: any VoucherMinting,
         coinKeypairFactory: any CoinKeyDeriving,
         voucherKeypairFactory: any VoucherKeyDeriving,
-        durability: any DurabilityServicing,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         logger: SDKLoggerProtocol,
         backgroundRecyclingInterval: TimeInterval,
@@ -123,11 +123,14 @@ private extension CoinageRecyclingService {
     /// mortality, so there is nothing to roll back here.
     func recycleCoin(_ coin: Coin) async throws {
         let prepared = try await prepareRecycle(coin)
-        try await durability.submit(
-            inputs: [.coin(.own(coin.derivationIndex))],
-            outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
-            builder: prepared.builder,
-            origin: prepared.origin
+        try await durability.submitTransaction(
+            request: CoinageTxRequest(
+                inputs: [.coin(.own(coin.derivationIndex))],
+                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
+                builder: prepared.builder,
+                origin: prepared.origin
+            ),
+            groupId: nil
         )
         logger.debug("Submitted recycle: coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
     }
