@@ -45,36 +45,41 @@ final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked
 
 extension CoinageTxCoreDataRepository {
     func register(
-        _ entry: CoinageTxEntry,
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void
+        _ registration: CoinageTxRegistration,
+        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
+        onCommit: @escaping (CoinageTxId) -> Void
     ) async throws {
         try await withTransaction { transaction in
             try validation(transaction)
 
-            var sequenced = entry
-            sequenced.sequence = try transaction.nextSequence()
+            let entry = try registration.makeEntry(id: CoinageTxId(), sequence: transaction.nextSequence())
+            try transaction.upsert(entry)
 
-            try transaction.upsert(sequenced)
+            // Inside the transaction, before the row is visible: the caller takes ownership so a pass
+            // can never reach a committed entry before the watcher does.
+            onCommit(entry.id)
         }
     }
 
     func registerAll(
-        _ entries: [CoinageTxEntry],
-        validation: @escaping (CoinageTxEntry, any CoinageTxValidationContext) throws -> Void
+        _ registrations: [CoinageTxRegistration],
+        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
+        onCommit: @escaping ([CoinageTxId]) -> Void
     ) async throws {
-        guard !entries.isEmpty else { return }
+        guard !registrations.isEmpty else { return }
         try await withTransaction { transaction in
-            // Validate-then-insert each in turn: `nextSequence` and the validation filters both
-            // read the transaction's pending changes, so entry N is checked against every earlier
-            // entry in this batch as well as the committed store.
-            for entry in entries {
-                try validation(entry, transaction)
+            // The batch is validated once, before any insert — the validation closure rejects
+            // within-batch conflicts itself, since these rows do not exist yet.
+            try validation(transaction)
 
-                var sequenced = entry
-                sequenced.sequence = try transaction.nextSequence()
-
-                try transaction.upsert(sequenced)
+            var ids: [CoinageTxId] = []
+            for registration in registrations {
+                let entry = try registration.makeEntry(id: CoinageTxId(), sequence: transaction.nextSequence())
+                try transaction.upsert(entry)
+                ids.append(entry.id)
             }
+
+            onCommit(ids)
         }
     }
 }
@@ -108,14 +113,6 @@ extension CoinageTxCoreDataRepository {
         }
     }
 
-    func recordSuccessDetected(_ id: CoinageTxId, at block: BlockRef?) async throws {
-        try await write(id, \.successDetectedAt, block)
-    }
-
-    func recordTxHash(_ id: CoinageTxId, txHash: Data) async throws {
-        try await write(id, \.txHash, txHash)
-    }
-
     /// Field and status writes go through the same serialized transaction as registration, so they
     /// share one context with the `subscribeSnapshot` readers and never race a concurrent write.
     /// `upsert` re-populates the existing row; the mapper leaves its immutable inputs/outputs alone.
@@ -135,10 +132,6 @@ extension CoinageTxCoreDataRepository {
 // MARK: - Reads
 
 extension CoinageTxCoreDataRepository {
-    func hasLiveEntries() async throws -> Bool {
-        try await getAllEntries().contains(where: \.status.isLive)
-    }
-
     func getAllEntries() async throws -> [CoinageTxEntry] {
         try await repository
             .fetchAllOperation(with: RepositoryFetchOptions())
@@ -180,9 +173,13 @@ extension CoinageTxCoreDataRepository {
 // MARK: - Handoff marks
 
 extension CoinageTxCoreDataRepository {
-    func precommitHandOff(_ assets: [OwnAsset]) async throws {
+    func precommitHandOff(
+        _ assets: [OwnAsset],
+        validation: @escaping (any CoinageTxValidationContext) throws -> Void
+    ) async throws {
         guard !assets.isEmpty else { return }
         try await withTransaction { transaction in
+            try validation(transaction)
             for asset in assets {
                 try transaction.markHandoffPending(asset)
             }

@@ -1,158 +1,161 @@
+import AsyncExtensions
 import Foundation
 @preconcurrency import ExtrinsicService
 import SubstrateSdk
 @preconcurrency import SDKLogger
 import BackgroundExecution
 import StructuredConcurrency
+import os
 
-/// A registered entry together with the submission tracking it.
-public struct CoinageTxSubmission {
-    public let transactionId: CoinageTxId
-    public let submission: ExtrinsicMonitorSubmission
-
-    public init(transactionId: CoinageTxId, submission: ExtrinsicMonitorSubmission) {
-        self.transactionId = transactionId
-        self.submission = submission
-    }
-}
-
-/// Submits an entry's extrinsic and follows it until there is nothing left to learn.
+/// Follows one already-built extrinsic from submission to a terminal outcome.
 ///
-/// Ownership is one-shot. The entry is taken by ``CoinageTxRegistrar`` before submission and
-/// released here exactly once — never re-taken, including after a resubmission — so a recovery
-/// pass and a live submission can never both be deciding the same entry.
+/// It proposes; it does not decide unilaterally. Every status change goes through the same
+/// compare-and-set (`updateTxStatus`) the recovery pass uses, so the guards apply uniformly and a
+/// status that moved underneath costs a proposal, nothing more. Mirrors Android's
+/// `CoinageSubmissionTracker`.
 ///
-/// While it owns the entry the tracker writes only evidence — `txHash` and `successDetectedAt` —
-/// never the status: the recovery pass skips watched entries, so the tracker is the sole writer
-/// but leaves the verdict to the pass, which finishes the entry after release with full evidence.
-/// Those field writes are what Rule 0 and Rule 7 read.
+/// It owns the entries it watches, and ownership is one-shot: released exactly once, never taken
+/// back — not on a resubmission (the injected `submitter` owns that), not on anything. Release drops
+/// the entry; `onRecovery` then fires only if the entry is still undecided, so the happy path never
+/// schedules a pass to re-derive an answer that already exists.
 final class CoinageTxTracker: Sendable {
-    private let monitor: ExtrinsicSubmitMonitorFactoryProtocol
+    private let submitter: any ExtrinsicSubmitting
     private let store: any CoinageTxRepositoryProtocol
     private let chainFactory: any CoinageChainViewFactoryProtocol
     private let watched: CoinageTrackingTxSet
     private let backgroundExecutor: any BackgroundExecuting
-    private let onRelease: @Sendable () -> Void
     private let logger: SDKLoggerProtocol?
 
-    /// Longest gap between status updates before the entry is handed back to the pass.
+    /// Longest gap between status updates before the entry is handed back to the pass. About fifteen
+    /// blocks against a mortality window, so it always fires while the extrinsic can still execute.
     private static let silenceTimeout: Duration = .seconds(30)
 
-    /// A dropped or invalid extrinsic is resubmitted at most this many times before release.
-    private static let maxResubmissions = 1
+    /// The queue the submitter delivers status callbacks on.
+    private static let submissionQueue = DispatchQueue(label: "com.novawallet.coinage.tx.submission")
 
     init(
-        monitor: ExtrinsicSubmitMonitorFactoryProtocol,
+        submitter: any ExtrinsicSubmitting,
         store: any CoinageTxRepositoryProtocol,
         chainFactory: any CoinageChainViewFactoryProtocol,
         watched: CoinageTrackingTxSet,
         backgroundExecutor: any BackgroundExecuting,
-        onRelease: @escaping @Sendable () -> Void,
         logger: SDKLoggerProtocol?
     ) {
-        self.monitor = monitor
+        self.submitter = submitter
         self.store = store
         self.chainFactory = chainFactory
         self.watched = watched
         self.backgroundExecutor = backgroundExecutor
-        self.onRelease = onRelease
         self.logger = logger
     }
 
-    /// Fire-and-forget submission: submits and tracks the extrinsic in a detached task, holding a
-    /// background-task assertion (via `backgroundExecutor`) so tracking survives the app being
-    /// folded. Ownership is released when tracking ends; the result is not surfaced to the caller.
-    func watch(
-        entryId: CoinageTxId,
-        builder: @escaping ExtrinsicBuilderClosure,
-        origin: any ExtrinsicOriginDefining
+    /// Submits `model` and tracks it to a terminal outcome in a detached task, holding a
+    /// background-task assertion so tracking survives the app being folded. Fire-and-forget: the
+    /// caller has already registered the entry (with its `txHash`) and taken ownership.
+    ///
+    /// On release, `onRecovery` runs only when the entry is still live — a watch that wrote a
+    /// terminal verdict has already decided it, so no pass is scheduled to re-derive it.
+    func trackTransaction(
+        _ model: ExtrinsicBuiltModel,
+        transactionId: CoinageTxId,
+        onRecovery: @escaping @Sendable () -> Void
     ) {
         Task { [self] in
-            do {
-                try await backgroundExecutor.execute {
-                    try await markStallActivity("Coinage submission") {
-                        try await markStallRegion("Track extrinsic") {
-                            _ = try await self.submit(entryId: entryId, builder: builder, origin: origin)
-                        }
-                    }
-                }
-            } catch {
-                logger?.error("Background submission failed for \(entryId): \(error)")
-            }
-        }
-    }
+            await runFollow(model: model, transactionId: transactionId)
 
-    /// Submits the entry's extrinsic and tracks it to completion.
-    ///
-    /// The caller has already registered the entry, so ownership is held on entry to this
-    /// method and given up before it returns.
-    func submit(
-        entryId: CoinageTxId,
-        builder: @escaping ExtrinsicBuilderClosure,
-        origin: any ExtrinsicOriginDefining
-    ) async throws -> CoinageTxSubmission {
-        defer { release(entryId) }
+            guard watched.release(transactionId) else { return }
 
-        let (stream, continuation) = AsyncStream<ExtrinsicStatusUpdate>.makeStream()
-
-        let params = ExtrinsicSubmissionParams(feeAssetId: nil, eventsMatcher: nil) { result in
-            switch result {
-            case let .success(update):
-                continuation.yield(update)
-            case .failure:
-                continuation.finish()
+            if await needsRecovery(transactionId) {
+                onRecovery()
             }
-        }
-
-        return try await withThrowingTaskGroup(
-            of: ExtrinsicMonitorSubmission?.self
-        ) { [monitor] group -> CoinageTxSubmission in
-            group.addTask {
-                defer { continuation.finish() }
-                return try await monitor.submitAndMonitorWrapper(
-                    extrinsicBuilderClosure: builder,
-                    origin: origin,
-                    params: params
-                )
-                .asyncExecute()
-            }
-
-            group.addTask { [weak self] in
-                await self?.follow(stream: stream, entryId: entryId)
-                return nil
-            }
-
-            var result: ExtrinsicMonitorSubmission?
-            for try await value in group {
-                if let value { result = value }
-            }
-            guard let result else {
-                throw TransferStrategyError.submissionFailed(CancellationError())
-            }
-            return CoinageTxSubmission(transactionId: entryId, submission: result)
         }
     }
 }
 
-// MARK: - Following
+// MARK: - Follow
 
 private extension CoinageTxTracker {
-    /// Consumes status updates until the stream ends or falls silent past the timeout.
-    func follow(stream: AsyncStream<ExtrinsicStatusUpdate>, entryId: CoinageTxId) async {
-        var hashRecorded = false
+    /// One tracked event: a chain status, or a terminal submission failure the submitter reported
+    /// after it declined to resubmit.
+    enum TrackEvent {
+        case status(ExtrinsicStatusUpdate)
+        case submissionFailed
+    }
 
-        await consume(stream, idleTimeout: Self.silenceTimeout) { update in
-            if !hashRecorded, let txHash = try? Data(hexString: update.extrinsicHash) {
-                try? await self.store.recordTxHash(entryId, txHash: txHash)
-                hashRecorded = true
+    func runFollow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
+        do {
+            try await backgroundExecutor.execute {
+                try await markStallActivity("Coinage submission") {
+                    try await markStallRegion("Track extrinsic") {
+                        await self.follow(model: model, transactionId: transactionId)
+                    }
+                }
             }
-
-            return await self.handle(update, entryId: entryId)
+        } catch {
+            logger?.error("Submission watch failed for \(transactionId): \(error)")
         }
     }
 
-    /// Maps one status update onto the entry. Returns true when tracking should stop.
-    func handle(_ update: ExtrinsicStatusUpdate, entryId: CoinageTxId) async -> Bool {
+    /// Recovery is for entries nobody has decided. Keyed on what the entry now says rather than on
+    /// why the watch ended: an unreadable finalized outcome or a refused proposal both leave it live
+    /// and genuinely needing the pass. Unreadable status counts as needing recovery.
+    func needsRecovery(_ id: CoinageTxId) async -> Bool {
+        guard let status = try? await store.getStatus(id) else { return true }
+        return status.isLive
+    }
+
+    func follow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
+        // A buffered channel the submitter's callbacks feed, the analogue of Android's
+        // `Channel(BUFFERED)`. `send`/`finish` are non-blocking; `next()` is cancellation-safe, so a
+        // timed-out receive drops no buffered element.
+        let events = AsyncBufferedChannel<TrackEvent>()
+        let subscriptionId = OSAllocatedUnfairLock<UInt16?>(initialState: nil)
+
+        submitter.submitAndSubscribe(
+            builtExtrinsic: model,
+            runningIn: Self.submissionQueue,
+            subscriptionIdClosure: { id in
+                subscriptionId.withLock { $0 = id }
+                return true
+            },
+            notificationClosure: { result in
+                switch result {
+                case let .success(status):
+                    events.send(.status(status.statusUpdate))
+                case .failure:
+                    events.send(.submissionFailed)
+                    events.finish()
+                }
+            }
+        )
+
+        // The exact loop Android's tracker uses:
+        // `while (true) { withTimeoutOrNull(SILENCE_TIMEOUT) { events.receiveCatching() } ?: break }`.
+        // A timeout or the channel finishing ends following and hands the entry back to the pass.
+        let iterator = events.makeAsyncIterator()
+        while true {
+            let received = try? await withTimeout(Self.silenceTimeout) { await iterator.next() }
+            guard let event = received.flatMap({ $0 }) else { break }
+            if await handle(event, transactionId: transactionId) { break }
+        }
+        events.finish()
+
+        // Stop the underlying watch if it is still open — a silence timeout ended following before
+        // the submitter reached a terminal. A no-op if the watch already finished.
+        if let id = subscriptionId.withLock({ $0 }) {
+            submitter.cancelExtrinsicWatch(for: id)
+        }
+    }
+
+    /// Maps one event onto a proposed verdict. Returns true when the entry is done being watched.
+    func handle(_ event: TrackEvent, transactionId id: CoinageTxId) async -> Bool {
+        guard case let .status(update) = event else {
+            // A pre-submission validation failure can never be included, so it is finalized-grade
+            // evidence of failure without waiting for finality.
+            await propose(id, Verdict(status: .failure, successDetectedAt: nil))
+            return true
+        }
+
         guard case let .onChain(remote) = update.extrinsicStatus else {
             // `.created` carries no chain information.
             return false
@@ -162,101 +165,99 @@ private extension CoinageTxTracker {
         case .future,
              .ready,
              .broadcast:
-            // Pre-inclusion: nothing on chain yet. The recovery pass owns the status; the tracker
-            // only records evidence (txHash above, and inclusion below).
+            // Pre-inclusion states carry no evidence; they must not lower an entry that already has
+            // some (a resubmission can put one behind an inclusion).
             return false
 
         case let .inBlock(blockHash):
-            await handleInBlock(blockHash: blockHash, update: update, entryId: entryId)
+            await handleInBlock(blockHash: blockHash, entryId: id)
             return false
 
         case let .retracted(blockHash):
-            await handleRetracted(blockHash: blockHash, entryId: entryId)
+            await clearRecordIfItNames(id, blockHash: blockHash)
             return false
 
         case let .finalized(blockHash):
-            await handleFinalized(blockHash: blockHash, update: update, entryId: entryId)
+            await handleFinalized(blockHash: blockHash, entryId: id)
             return true
 
         case .dropped,
-             .invalid:
-            // Best-effort only, and capped: the entry may still be in another peer's pool, so
-            // the pass — not this watcher — is what decides it.
-            return true
-
-        case .unsurped,
+             .invalid,
+             .unsurped,
              .finalityTimeout,
              .other:
+            // Recovery has already had its chance to resubmit by the time these surface; the pass
+            // decides from state.
             return true
         }
     }
+}
 
-    /// An inclusion in an unfinalized block. Success there is recorded as evidence, because
-    /// nothing else can see it once a peer claims the output; a failed or unreadable dispatch
-    /// records nothing and proposes nothing, so no terminal status ever rests on this block.
-    func handleInBlock(
-        blockHash: String,
-        update: ExtrinsicStatusUpdate,
-        entryId: CoinageTxId
-    ) async {
-        guard let view = try? await chainFactory.pin(),
-              let block = await resolveBlock(blockHash, using: view),
-              let txHash = try? Data(hexString: update.extrinsicHash)
+// MARK: - Verdicts
+
+private extension CoinageTxTracker {
+    /// Not finalized, so a terminal verdict must not rest on it: success is recorded as
+    /// `pendingSuccess` for the pass to finalize; a failure here proposes nothing.
+    func handleInBlock(blockHash: String, entryId: CoinageTxId) async {
+        guard let block = await blockOf(blockHash),
+              case .present(true) = await dispatchOutcome(blockHash: blockHash, entryId: entryId)
         else { return }
 
-        guard case let .present(succeeded) = await view.dispatchOutcome(txHash: txHash, at: block)
-        else { return }
-
-        guard succeeded else { return }
-
-        // Record the block where inclusion succeeded — evidence Rule 0 needs. The pass promotes the
-        // status; this write is what lets it decide the entry later without re-deriving execution.
-        try? await store.recordSuccessDetected(entryId, at: block)
+        await propose(entryId, Verdict(status: .pendingSuccess, successDetectedAt: block))
     }
 
-    /// The block an inclusion was recorded in is gone. The record is cleared only when it
-    /// names that block — a later inclusion elsewhere must survive.
-    func handleRetracted(blockHash: String, entryId: CoinageTxId) async {
-        guard let hash = try? Data(hexString: blockHash),
-              let entry = try? await store.getEntry(id: entryId),
-              let detected = entry.successDetectedAt,
-              detected.hash == hash
-        else { return }
-
-        try? await store.recordSuccessDetected(entryId, at: nil)
-    }
-
-    func handleFinalized(
-        blockHash: String,
-        update: ExtrinsicStatusUpdate,
-        entryId: CoinageTxId
-    ) async {
-        guard let view = try? await chainFactory.pin(),
-              let block = await resolveBlock(blockHash, using: view),
-              let txHash = try? Data(hexString: update.extrinsicHash)
-        else { return }
-
-        switch await view.dispatchOutcome(txHash: txHash, at: block) {
+    func handleFinalized(blockHash: String, entryId: CoinageTxId) async {
+        switch await dispatchOutcome(blockHash: blockHash, entryId: entryId) {
         case .present(true):
-            // Record the finalized success block; the pass reads it and promotes the entry.
-            try? await store.recordSuccessDetected(entryId, at: block)
-        case .present(false),
-             .absent,
+            let block = await blockOf(blockHash)
+            await propose(entryId, Verdict(status: .finalizedSuccess, successDetectedAt: block))
+        case .present(false):
+            await propose(entryId, Verdict(status: .failure, successDetectedAt: nil))
+        case .absent,
              .failedRead:
-            // Failure or unreadable outcome: record nothing and let the pass decide from state.
+            // Unreadable outcome: record nothing and let the pass decide from state.
             break
         }
     }
 
-    func resolveBlock(_ blockHash: String, using view: any CoinageChainViewProtocol) async -> BlockRef? {
-        guard let hash = try? Data(hexString: blockHash) else { return nil }
-        return await view.blockRef(forHash: hash).value
+    /// The record is cleared only when it names the retracted block; the status is lowered with it,
+    /// because leaving `pendingSuccess` on a block that no longer exists would keep the outputs
+    /// spendable for a whole mortality window on nothing.
+    func clearRecordIfItNames(_ id: CoinageTxId, blockHash: String) async {
+        guard let hash = try? Data(hexString: blockHash),
+              let entry = try? await store.getEntry(id: id),
+              entry.successDetectedAt?.hash == hash
+        else { return }
+
+        await propose(id, Verdict(status: .pending, successDetectedAt: nil))
     }
 
-    /// Releases ownership once and triggers a pass, so the entry is picked up immediately
-    /// rather than waiting for the next external trigger.
-    func release(_ entryId: CoinageTxId) {
-        guard watched.release(entryId) else { return }
-        onRelease()
+    /// A terminal entry is never rewritten, so a late event cannot un-fail a failed transaction; the
+    /// compare-and-set then covers a status that moved since it was read.
+    func propose(_ id: CoinageTxId, _ verdict: Verdict) async {
+        guard let observed = try? await store.getStatus(id), observed.isLive else { return }
+
+        do {
+            try await store.updateTxStatus(for: id, expectedCurrentStatus: observed, verdict: verdict)
+        } catch {
+            logger?.error("Proposal write failed for \(id) to \(verdict.status): \(error)")
+        }
+    }
+
+    func dispatchOutcome(blockHash: String, entryId: CoinageTxId) async -> ReadResult<Bool> {
+        guard let entry = try? await store.getEntry(id: entryId),
+              let txHash = entry.txHash,
+              let block = await blockOf(blockHash),
+              let view = try? await chainFactory.pin()
+        else { return .failedRead }
+
+        return await view.dispatchOutcome(txHash: txHash, at: block)
+    }
+
+    func blockOf(_ blockHash: String) async -> BlockRef? {
+        guard let hash = try? Data(hexString: blockHash),
+              let view = try? await chainFactory.pin()
+        else { return nil }
+        return await view.blockRef(forHash: hash).value
     }
 }

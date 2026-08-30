@@ -33,6 +33,8 @@ public extension CoinageService {
         databaseFactory: DatabaseDependencyFactoring,
         originFactory: OriginCreating,
         extrinsicMonitorFactory: ExtrinsicSubmitMonitorFactoryProtocol,
+        extrinsicOperationFactory: any ExtrinsicOperationFactoryProtocol,
+        extrinsicSubmitter: any ExtrinsicSubmitting,
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
         planStore: any ClaimPlanStoring,
@@ -156,21 +158,16 @@ public extension CoinageService {
         let registrar = CoinageTxRegistrar(
             store: durabilityStore,
             validator: CoinageTxRegistrationValidator(),
-            chainFactory: chainFactory,
             watched: watchedEntries,
-            mortality: CoinageConstants.entryMortality,
             logger: logger
         )
 
         let submissionWatcher = CoinageTxTracker(
-            monitor: extrinsicMonitorFactory,
+            submitter: extrinsicSubmitter,
             store: durabilityStore,
             chainFactory: chainFactory,
             watched: watchedEntries,
             backgroundExecutor: backgroundExecutor,
-            onRelease: { [weak recoveryPass] in
-                Task { await recoveryPass?.run() }
-            },
             logger: logger
         )
 
@@ -179,6 +176,7 @@ public extension CoinageService {
             registrar: registrar,
             watcher: submissionWatcher,
             pass: recoveryPass,
+            operationFactory: extrinsicOperationFactory,
             chainFactory: chainFactory,
             logger: logger
         )

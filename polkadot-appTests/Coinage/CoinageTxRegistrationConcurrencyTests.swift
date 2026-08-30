@@ -206,17 +206,15 @@ final class DurabilityRegistrationConcurrencyTests {
         try await persistCoins([7, 1, 2], facade: facade)
 
         let input = CoinageTxInput.coin(.own(7, testKey(7)))
-        let failedId = CoinageTxId()
 
         let failedEntry = CoinageTxEntry(
-            id: failedId,
             inputs: [input],
             outputs: [.coin(1, testKey(1))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
 
-        try await store.register(failedEntry)
+        let failedId = try await store.register(failedEntry)
         try await store.updateStatus(failedId, to: .failure)
 
         // The retry reuses the input but mints a different output — a fresh output is a separate
@@ -241,24 +239,21 @@ final class DurabilityRegistrationConcurrencyTests {
         try await persistCoins([7, 8, 1, 2, 3], facade: facade)
 
         let liveInput = CoinageTxInput.coin(.own(7, testKey(7)))
-        let failedId = CoinageTxId()
 
         let failedEntry = CoinageTxEntry(
-            id: failedId,
             inputs: [.coin(.own(8, testKey(8)))],
             outputs: [.coin(1, testKey(1))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
         let liveEntry = CoinageTxEntry(
-            id: CoinageTxId(),
             inputs: [liveInput],
             outputs: [.coin(2, testKey(2))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
 
-        try await store.register(failedEntry)
+        let failedId = try await store.register(failedEntry)
         try await store.register(liveEntry)
         try await store.updateStatus(failedId, to: .failure)
 
@@ -294,10 +289,31 @@ private func testKey(_ index: DerivationIndex) -> PublicKey {
 /// match (both derive the key the same way from the index).
 private let concurrencyValidator = CoinageTxRegistrationValidator()
 
+private final class CapturedId: @unchecked Sendable {
+    var id: CoinageTxId?
+}
+
 private extension CoinageTxCoreDataRepository {
-    /// Registers, running the real validator's invariant checks inside the store transaction — the
-    /// validation closure the store now requires. Keeps the existing `store.register(entry)` calls.
-    func register(_ entry: CoinageTxEntry) async throws {
-        try await register(entry) { try concurrencyValidator.validate(entry, transaction: $0) }
+    /// Registers a prepared entry, running the real validator's invariant checks inside the store
+    /// transaction, and returns the id the store minted. Keeps the existing `store.register(entry)`
+    /// call shape while adapting to the repo-generated-id registration API.
+    @discardableResult
+    func register(_ entry: CoinageTxEntry) async throws -> CoinageTxId {
+        let registration = CoinageTxRegistration(
+            txHash: entry.txHash ?? Data(repeating: 0, count: 32),
+            checkpoint: entry.checkpoint,
+            mortalityBlocks: entry.mortality,
+            groupId: entry.groupId,
+            inputs: entry.inputs,
+            outputs: entry.outputs
+        )
+        let captured = CapturedId()
+        try await register(
+            registration,
+            validation: { try concurrencyValidator.validate([registration], transaction: $0) },
+            onCommit: { captured.id = $0 }
+        )
+        guard let id = captured.id else { throw CoinageTxError.entryNotFound(entry.id) }
+        return id
     }
 }

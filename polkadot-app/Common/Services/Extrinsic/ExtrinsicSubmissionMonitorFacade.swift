@@ -56,6 +56,17 @@ extension ExtrinsicSubmissionMonitorFacade: ExtrinsicSubmissionMonitorFacadeProt
     func createMonitorFactory(chain: ChainProtocol) throws -> ExtrinsicSubmitMonitorFactoryProtocol {
         try createMonitorFactory(chain: chain, submitter: nil)
     }
+
+    /// The operation factory that builds (and signs) extrinsics up-front — used where the caller
+    /// needs the built model before submission, e.g. Coinage's durability tracker.
+    func createOperationFactory(chain: ChainProtocol) throws -> ExtrinsicOperationFactoryProtocol {
+        try extrinsicServiceFactory.createOperationFactory(chain: chain)
+    }
+
+    /// The fork-protected submitter (pre-submission validation + resubmit-on-fork).
+    func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {
+        try extrinsicServiceFactory.makeForkProtectedSubmitter(chain: chain)
+    }
 }
 
 extension ExtrinsicSubmissionMonitorFacade {

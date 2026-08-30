@@ -154,6 +154,14 @@ private extension ServiceCoordinator {
             return nil
         }
 
+        guard
+            let extrinsicOperationFactory = try? extrinsicMonitorFacade.createOperationFactory(chain: chain),
+            let extrinsicSubmitter = try? extrinsicMonitorFacade.makeForkProtectedSubmitter(chain: chain)
+        else {
+            logger.error("Failed to create extrinsic operation factory / submitter for coinage")
+            return nil
+        }
+
         let schedulerFactory = CoinRecycleSchedulerFactory(logger: logger)
 
         let durabilityStore = CoinageTxCoreDataRepository(
@@ -166,6 +174,8 @@ private extension ServiceCoordinator {
             databaseFactory: databaseFactory,
             originFactory: coinageOriginFactory,
             extrinsicMonitorFactory: monitorFactory,
+            extrinsicOperationFactory: extrinsicOperationFactory,
+            extrinsicSubmitter: extrinsicSubmitter,
             rootEntropyManager: RootEntropyManager.shared,
             keystore: Keychain(),
             planStore: claimPlanStore,

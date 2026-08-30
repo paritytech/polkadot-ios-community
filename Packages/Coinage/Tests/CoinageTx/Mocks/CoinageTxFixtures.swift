@@ -32,6 +32,26 @@ extension BlockRef {
     }
 }
 
+extension CoinageTxRegistration {
+    /// A registration checkpointed at block 100 with a 60-block window and a fixed `txHash` — the
+    /// baseline the registrar suites vary from.
+    static func fixture(
+        inputs: [CoinageTxInput] = [],
+        outputs: [OwnAsset] = [],
+        checkpoint: BlockRef = .fixture(100),
+        groupId: CoinageTxGroupId? = nil
+    ) -> CoinageTxRegistration {
+        CoinageTxRegistration(
+            txHash: Data(repeating: 0xAB, count: 32),
+            checkpoint: checkpoint,
+            mortalityBlocks: 60,
+            groupId: groupId,
+            inputs: inputs,
+            outputs: outputs
+        )
+    }
+}
+
 extension CoinageTxEntry {
     /// A pending entry checkpointed at block 100 with a 60-block window — the baseline the
     /// durability suites vary from.

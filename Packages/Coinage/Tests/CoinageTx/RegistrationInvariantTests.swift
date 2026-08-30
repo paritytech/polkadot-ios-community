@@ -5,7 +5,6 @@ import Testing
 
 @Suite("Registration Invariants")
 struct RegistrationInvariantTests {
-    private let chain = FakeChainView()
     private let watched = CoinageTrackingTxSet()
 
     /// The registrar requires a validator, but `MockCoinageTxRepository` enforces the invariants inline
@@ -17,7 +16,6 @@ struct RegistrationInvariantTests {
     @Test("Rejects entry with no inputs and no outputs")
     func rejectEmptyEntry() async throws {
         let store = MockCoinageTxRepository()
-        chain.setChainView(finalized: .fixture(100), best: .fixture(110))
 
         await #expect(throws: CoinageTxError.emptyEntry) {
             try await store.register(.fixture())
@@ -119,45 +117,17 @@ struct RegistrationInvariantTests {
 
     // MARK: - Checkpoint
 
-    @Test("Checkpoint equals finalized head at registration")
-    func checkpointEqualsFinalized() async throws {
+    @Test("Registration checkpoint is preserved on the stored entry")
+    func checkpointPreserved() async throws {
         let store = MockCoinageTxRepository()
-        let finalizedBlock = BlockRef.fixture(150)
+        let checkpoint = BlockRef.fixture(150)
 
-        chain.setChainView(finalized: finalizedBlock, best: .fixture(165))
+        let registrar = CoinageTxRegistrar(store: store, validator: Self.stubValidator, watched: watched)
 
-        let registrar = CoinageTxRegistrar(
-            store: store,
-            validator: Self.stubValidator,
-            chainFactory: chain,
-            watched: watched,
-            mortality: 60
-        )
+        let ids = try await registrar.register([.fixture(outputs: [.coin(0, testKey(0))], checkpoint: checkpoint)])
+        let entry = try await store.getEntry(id: #require(ids.first))
 
-        let entry = try await registrar.register(inputs: [], outputs: [.coin(0, testKey(0))])
-
-        #expect(entry.checkpoint == finalizedBlock)
-    }
-
-    @Test("No chain read beyond finalized during registration")
-    func noReadBeyondFinalized() async throws {
-        let store = MockCoinageTxRepository()
-
-        chain.setChainView(finalized: .fixture(100), best: .fixture(120))
-
-        // Registrar should only pin the chain view, not read anything beyond finalized
-        let registrar = CoinageTxRegistrar(
-            store: store,
-            validator: Self.stubValidator,
-            chainFactory: chain,
-            watched: watched,
-            mortality: 60
-        )
-
-        _ = try await registrar.register(inputs: [], outputs: [.coin(0, testKey(0))])
-
-        // If we reach here without hanging on a chain read beyond finalized,
-        // the test passes. The fake chain's defaults handle any unexpected calls.
+        #expect(entry?.checkpoint == checkpoint)
     }
 
     // MARK: - Rejected Registration Cleanup
@@ -189,26 +159,17 @@ struct RegistrationInvariantTests {
 
         try await store.register(.fixture(inputs: [input]))
 
-        let registrar = CoinageTxRegistrar(
-            store: store,
-            validator: Self.stubValidator,
-            chainFactory: chain,
-            watched: watched,
-            mortality: 60
-        )
-
-        chain.setChainView(finalized: .fixture(100), best: .fixture(110))
-
-        let second = CoinageTxEntry.fixture(inputs: [input])
+        let registrar = CoinageTxRegistrar(store: store, validator: Self.stubValidator, watched: watched)
 
         do {
-            _ = try await registrar.register(inputs: [input], outputs: [])
+            _ = try await registrar.register([.fixture(inputs: [input])])
             Issue.record("Expected registration to fail")
         } catch CoinageTxError.inputAlreadyClaimed {
-            // Expected; watched set should not contain this entry's id
+            // Expected; a rejected registration takes no ownership, so nothing new is watched.
         }
 
-        #expect(!watched.isWatched(second.id))
+        let entries = await store.allEntries
+        #expect(entries.allSatisfy { !watched.isWatched($0.id) })
     }
 
     // MARK: - Sequence Monotonicity

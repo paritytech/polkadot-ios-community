@@ -283,6 +283,6 @@ private struct NoAvailableHandleError: LocalizedError {
 
 private extension RemoteExtrinsicStatus {
     var isRecoverablePoolRejection: Bool {
-        self == .invalid
+        self == .invalid || self == .dropped
     }
 }

@@ -18,37 +18,49 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         pendingMarks.union(committedMarks)
     }
 
-    /// Convenience for the many tests that register without an extra validation closure — the
-    /// mock enforces the invariants inline (by identifier), independent of the closure the real
+    /// Convenience for the many tests that register a prepared entry directly, keeping its id — the
+    /// mock enforces the invariants inline (by public key), independent of the closure the real
     /// store runs.
     func register(_ entry: CoinageTxEntry) async throws {
-        try await register(entry) { _ in }
+        try insert(entry)
+    }
+
+    func register(
+        _ registration: CoinageTxRegistration,
+        validation _: @escaping (any CoinageTxValidationContext) throws -> Void,
+        onCommit: @escaping (CoinageTxId) -> Void
+    ) async throws {
+        let id = CoinageTxId()
+        try insert(registration.makeEntry(id: id, sequence: 0))
+        onCommit(id)
     }
 
     /// Atomic batch: on any failure the whole batch is rolled back, matching the store's single
-    /// transaction. The inline `register` already dedups a later entry against earlier ones,
-    /// since each is inserted before the next is validated.
+    /// transaction. `insert` dedups within the batch too, since each is inserted before the next.
     func registerAll(
-        _ entries: [CoinageTxEntry],
-        validation _: @escaping (CoinageTxEntry, any CoinageTxValidationContext) throws -> Void
+        _ registrations: [CoinageTxRegistration],
+        validation _: @escaping (any CoinageTxValidationContext) throws -> Void,
+        onCommit: @escaping ([CoinageTxId]) -> Void
     ) async throws {
-        let entriesSnapshot = self.entries
+        let entriesSnapshot = entries
         let sequenceSnapshot = nextSequence
         do {
-            for entry in entries {
-                try await register(entry)
+            var ids: [CoinageTxId] = []
+            for registration in registrations {
+                let id = CoinageTxId()
+                try insert(registration.makeEntry(id: id, sequence: 0))
+                ids.append(id)
             }
+            onCommit(ids)
         } catch {
-            self.entries = entriesSnapshot
+            entries = entriesSnapshot
             nextSequence = sequenceSnapshot
             throw error
         }
     }
 
-    func register(
-        _ entry: CoinageTxEntry,
-        validation _: @escaping (any CoinageTxValidationContext) throws -> Void
-    ) async throws {
+    /// Inline invariant enforcement + monotonic sequence, shared by both register paths.
+    private func insert(_ entry: CoinageTxEntry) throws {
         guard !entry.inputs.isEmpty || !entry.outputs.isEmpty else {
             throw CoinageTxError.emptyEntry
         }
@@ -110,18 +122,6 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         return true
     }
 
-    func recordSuccessDetected(_ id: CoinageTxId, at block: BlockRef?) async throws {
-        try mutate(id) { $0.successDetectedAt = block }
-    }
-
-    func recordTxHash(_ id: CoinageTxId, txHash: Data) async throws {
-        try mutate(id) { $0.txHash = txHash }
-    }
-
-    func hasLiveEntries() async throws -> Bool {
-        entries.values.contains(where: \.status.isLive)
-    }
-
     func getAllEntries() async throws -> [CoinageTxEntry] {
         sortedEntries
     }
@@ -150,7 +150,10 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         committedMarks.insert(asset)
     }
 
-    func precommitHandOff(_ assets: [OwnAsset]) async throws {
+    func precommitHandOff(
+        _ assets: [OwnAsset],
+        validation _: @escaping (any CoinageTxValidationContext) throws -> Void
+    ) async throws {
         for asset in assets where !committedMarks.contains(asset) {
             pendingMarks.insert(asset)
         }

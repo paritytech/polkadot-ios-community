@@ -2,6 +2,7 @@ import AsyncExtensions
 import Foundation
 import ExtrinsicService
 import SDKLogger
+import StructuredConcurrency
 import SubstrateSdk
 import os
 
@@ -64,6 +65,7 @@ public final class CoinageTxService: @unchecked Sendable {
     private let registrar: CoinageTxRegistrar
     private let watcher: CoinageTxTracker
     private let pass: RecoveryPass
+    private let operationFactory: any ExtrinsicOperationFactoryProtocol
     private let chainFactory: any CoinageChainViewFactoryProtocol
     private let logger: SDKLoggerProtocol?
 
@@ -74,6 +76,7 @@ public final class CoinageTxService: @unchecked Sendable {
         registrar: CoinageTxRegistrar,
         watcher: CoinageTxTracker,
         pass: RecoveryPass,
+        operationFactory: any ExtrinsicOperationFactoryProtocol,
         chainFactory: any CoinageChainViewFactoryProtocol,
         logger: SDKLoggerProtocol?
     ) {
@@ -81,6 +84,7 @@ public final class CoinageTxService: @unchecked Sendable {
         self.registrar = registrar
         self.watcher = watcher
         self.pass = pass
+        self.operationFactory = operationFactory
         self.chainFactory = chainFactory
         self.logger = logger
     }
@@ -94,19 +98,22 @@ extension CoinageTxService: CoinageTxServicing {
         request: CoinageTxRequest,
         groupId: CoinageTxGroupId?
     ) async throws -> CoinageTxId {
-        // Registration commits and takes ownership before anything is broadcast, so an extrinsic
-        // can never exist without an entry describing what it consumes. Tracking then runs in the
-        // background: the caller does not wait for inclusion. A submission that never resolves is
-        // finished by the recovery pass at mortality.
-        let entry = try await registrar.register(
-            inputs: request.inputs,
-            outputs: request.outputs,
-            groupId: groupId
-        )
+        // The extrinsic is built and signed up-front, so its hash is known before registration and
+        // the entry carries it. Registration commits and takes ownership before anything is
+        // broadcast, so an extrinsic can never exist without an entry describing what it consumes.
+        // Tracking then runs in the background; a submission that never resolves is finished by the
+        // recovery pass at mortality.
+        let model = try await buildModel(request)
+        let registrations = try buildRegistrations([request], models: [model], groupId: groupId)
 
-        watcher.watch(entryId: entry.id, builder: request.builder, origin: request.origin)
+        let ids = try await registrar.register(registrations)
+        guard let id = ids.first else {
+            throw TransferStrategyError.submissionFailed(CancellationError())
+        }
 
-        return entry.id
+        track(model, transactionId: id)
+
+        return id
     }
 
     @discardableResult
@@ -114,11 +121,18 @@ extension CoinageTxService: CoinageTxServicing {
         _ requests: [CoinageTxRequest],
         groupId: CoinageTxGroupId?
     ) async throws -> [CoinageTxId] {
-        // The batch registers atomically before anything is broadcast; only then is each tracked.
-        let ids = try await registrar.registerAll(requests: requests, groupId: groupId)
+        // Build every extrinsic before registering any, so a build failure aborts before a single
+        // extrinsic is broadcast. The batch then registers atomically; only then is each tracked.
+        var models: [ExtrinsicBuiltModel] = []
+        for request in requests {
+            try await models.append(buildModel(request))
+        }
+        let registrations = try buildRegistrations(requests, models: models, groupId: groupId)
 
-        for (id, request) in zip(ids, requests) {
-            watcher.watch(entryId: id, builder: request.builder, origin: request.origin)
+        let ids = try await registrar.register(registrations)
+
+        for (id, model) in zip(ids, models) {
+            track(model, transactionId: id)
         }
 
         return ids
@@ -165,12 +179,65 @@ extension CoinageTxService: CoinageTxServicing {
     }
 
     public func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
-        try await store.precommitHandOff(assets)
-        return StoreHandoffCommit(assets: assets, store: store)
+        try await registrar.preCommitHandoff(assets)
     }
 
     public func releaseUncommittedHandoffs() async throws {
         try await store.releaseUncommittedHandoffs()
+    }
+}
+
+// MARK: - Submission
+
+private extension CoinageTxService {
+    /// Builds and signs the single extrinsic for a request, up-front, so its hash is known before
+    /// registration.
+    func buildModel(_ request: CoinageTxRequest) async throws -> ExtrinsicBuiltModel {
+        let indexedClosure: ExtrinsicBuilderIndexedClosure = { inner, _ in try request.builder(inner) }
+        let models = try await operationFactory.buildExtrinsics(
+            indexedClosure,
+            origin: request.origin,
+            payingIn: nil,
+            indexes: IndexSet(integer: 0)
+        ).asyncExecute()
+
+        guard let model = models.first else {
+            throw TransferStrategyError.submissionFailed(CancellationError())
+        }
+        return model
+    }
+
+    /// Builds one registration per request. Both the checkpoint and the mortality window are read
+    /// from the extrinsic's own `CheckMortality` era — the window the runtime will actually enforce,
+    /// which is exactly what Rule 7 must search — rather than re-derived from the chain, matching
+    /// Android's `signedCheckpoint()` / `era.period`. The `txHash` is the up-front hash of the built
+    /// extrinsic, so an entry is resolvable by Rule 7 even before tracking records anything.
+    func buildRegistrations(
+        _ requests: [CoinageTxRequest],
+        models: [ExtrinsicBuiltModel],
+        groupId: CoinageTxGroupId?
+    ) throws -> [CoinageTxRegistration] {
+        try zip(requests, models).map { request, model in
+            guard let anchor = model.mortalityAnchorBlock, let period = model.mortalityPeriod else {
+                throw CoinageTxError.notMortal
+            }
+
+            return try CoinageTxRegistration(
+                txHash: Data(hexString: model.extrinsic).blake2b32(),
+                checkpoint: BlockRef(number: anchor.blockNumber, hash: anchor.blockHash),
+                mortalityBlocks: UInt32(period),
+                groupId: groupId,
+                inputs: request.inputs,
+                outputs: request.outputs
+            )
+        }
+    }
+
+    /// Hands an already-built extrinsic to the tracker, wiring release-time recovery to the pass.
+    func track(_ model: ExtrinsicBuiltModel, transactionId: CoinageTxId) {
+        watcher.trackTransaction(model, transactionId: transactionId) { [pass] in
+            Task { await pass.run() }
+        }
     }
 }
 

@@ -55,21 +55,4 @@ struct SubmissionWatcherTests {
         let fetched = try await store.getEntry(id: id)
         #expect(fetched?.status == .failure)
     }
-
-    @Test("recordSuccessDetected sets then clears the observed success block")
-    func recordSuccessDetectedSetAndClear() async throws {
-        let store = MockCoinageTxRepository()
-        let id = UUID()
-        let successBlock = BlockRef.fixture(150)
-
-        try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))], status: .pendingSuccess))
-
-        try await store.recordSuccessDetected(id, at: successBlock)
-        var fetched = try await store.getEntry(id: id)
-        #expect(fetched?.successDetectedAt == successBlock)
-
-        try await store.recordSuccessDetected(id, at: nil)
-        fetched = try await store.getEntry(id: id)
-        #expect(fetched?.successDetectedAt == nil)
-    }
 }
