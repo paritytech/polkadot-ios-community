@@ -15,6 +15,13 @@ public protocol DurabilityStoring: Sendable {
 
     func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws
 
+    /// Atomically applies `verdict` iff the entry's current status still equals `observed` and is
+    /// not terminal — the read and the write share one transaction, so the status cannot move
+    /// between them. Returns whether it wrote. The single guarded writer of a rule verdict; mirrors
+    /// Android's `compareAndSetStatus`.
+    @discardableResult
+    func compareAndSetStatus(_ id: TransactionId, observed: EntryStatus, verdict: Verdict) async throws -> Bool
+
     /// Writes the block where execution was observed, or clears it. Not a status change.
     func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws
 

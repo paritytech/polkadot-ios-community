@@ -33,49 +33,41 @@ public final class StatusUpdateTransaction: Sendable {
         to id: TransactionId,
         observedStatus: EntryStatus
     ) async throws {
-        guard let target = Self.resolve(verdict) else { return }
+        guard let resolved = Self.resolve(verdict) else { return }
 
         guard let entry = try await store.fetch(id: id) else {
             logger?.warning("Status proposal for unknown entry \(id)")
             return
         }
 
-        guard entry.status.isLive else { return }
+        guard entry.status.isLive, entry.status == observedStatus else { return }
 
-        guard entry.status == observedStatus else { return }
-
-        // Field write: not a status change, so it precedes the watched check and lands even
-        // while a submission owns the entry.
-        if let block = target.successBlock {
-            try await store.recordSuccessDetected(id, at: block.value)
+        // A submission owns the entry: the status is the watcher's to write and this proposal is a
+        // no-op — but `successDetectedAt` is a field write exempt from the watched check, so Rule 0
+        // keeps its evidence either way.
+        if watched.isWatched(id) {
+            if resolved.successDetectedAt.touchesRecord {
+                try await store.recordSuccessDetected(id, at: resolved.successDetectedAt.block)
+            }
+            return
         }
 
-        guard !watched.isWatched(id) else { return }
-
-        guard entry.status != target.status else { return }
-        try await store.updateStatus(id, to: target.status)
+        // Not watched: one atomic compare-and-set is the single guarded writer of both fields.
+        try await store.compareAndSetStatus(id, observed: observedStatus, verdict: resolved)
     }
 }
 
 private extension StatusUpdateTransaction {
-    /// A `successDetectedAt` write, distinguishing "write this block" from "clear it".
-    struct SuccessBlockWrite {
-        let value: BlockRef?
-    }
-
-    struct Target {
-        let status: EntryStatus
-        let successBlock: SuccessBlockWrite?
-    }
-
-    static func resolve(_ verdict: RuleVerdict) -> Target? {
+    /// Maps a rule outcome to the ``Verdict`` the store writes — `nil` for the control-flow
+    /// outcomes (`searchBodies`, `abort`), which write nothing.
+    static func resolve(_ verdict: RuleVerdict) -> Verdict? {
         switch verdict {
         case let .status(status):
-            Target(status: status, successBlock: nil)
+            Verdict(status: status, successDetectedAt: .unchanged)
         case let .statusRecordingSuccess(status, block):
-            Target(status: status, successBlock: SuccessBlockWrite(value: block))
+            Verdict(status: status, successDetectedAt: .set(block))
         case .clearSuccessAndSetPending:
-            Target(status: .pending, successBlock: SuccessBlockWrite(value: nil))
+            Verdict(status: .pending, successDetectedAt: .clear)
         case .searchBodies,
              .abort:
             nil

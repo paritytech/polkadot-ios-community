@@ -51,43 +51,50 @@ private class Transaction: CoinageStoreTransaction {
         self.context = context
     }
 
-    func claimedInputs(among inputs: Set<DurabilityInput>) throws -> Set<DurabilityInput> {
-        let rows = try matchingInputRows(for: Array(inputs), nonFailureOnly: true)
-        return Set(rows.compactMap(durabilityInput(from:)))
+    func filterMinted(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
+        guard !keys.isEmpty else { return [] }
+        let hexKeys = keys.map { $0.toHex() }
+        let request = NSFetchRequest<CDDurabilityOutput>(entityName: "CDDurabilityOutput")
+        request.predicate = NSPredicate(format: "coin.publicKey IN %@ OR voucher.publicKey IN %@", hexKeys, hexKeys)
+        return try matched(context.fetch(request).map { [$0.coin?.publicKey, $0.voucher?.publicKey] }, in: keys)
     }
 
-    func mintedOutput(among outputs: Set<DurabilityOutput>) throws -> Set<DurabilityOutput> {
-        let rows = try matchingOutputRows(for: Array(outputs))
-        return Set(rows.compactMap(durabilityOutput(from:)))
-    }
-
-    func receivedInputPublicKeys(among publicKeys: Set<Data>) throws -> Set<Data> {
-        guard !publicKeys.isEmpty else { return [] }
-
+    func filterReceived(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
+        guard !keys.isEmpty else { return [] }
         let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
         request.predicate = NSPredicate(
-            format: "%K IN %@", #keyPath(CDDurabilityInput.receivedPubKey), publicKeys.map { $0.toHex() }
+            format: "%K IN %@", #keyPath(CDDurabilityInput.receivedPubKey), keys.map { $0.toHex() }
         )
-
-        let matched = try context.fetch(request).compactMap(\.receivedPubKey)
-        return try Set(matched.map { try Data(hexString: $0) })
+        return try matched(context.fetch(request).map { [$0.receivedPubKey] }, in: keys)
     }
 
-    func handedOff(among inputs: Set<DurabilityInput>) throws -> Set<DurabilityInput> {
-        var inputsByIndex: [Int64: DurabilityInput] = [:]
-        for input in inputs {
-            if case let .coin(.own(index)) = input { inputsByIndex[index.toCoreData()] = input }
-        }
-        guard !inputsByIndex.isEmpty else { return [] }
+    func filterClaimed(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
+        guard !keys.isEmpty else { return [] }
+        let hexKeys = keys.map { $0.toHex() }
+        let assetMatch = NSPredicate(
+            format: "coin.publicKey IN %@ OR voucher.publicKey IN %@ OR %K IN %@",
+            hexKeys, hexKeys, #keyPath(CDDurabilityInput.receivedPubKey), hexKeys
+        )
+        let nonFailure = NSPredicate(
+            format: "%K.%K != %d",
+            #keyPath(CDDurabilityInput.entry), #keyPath(CDDurability.status), EntryStatus.failure.rawValue
+        )
+        let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assetMatch, nonFailure])
+        return try matched(
+            context.fetch(request).map { [$0.coin?.publicKey, $0.voucher?.publicKey, $0.receivedPubKey] },
+            in: keys
+        )
+    }
 
+    func filterHandedOff(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
+        guard !keys.isEmpty else { return [] }
         let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
         request.predicate = NSPredicate(
-            format: "derivationIndex IN %@ AND handoffMark != %d",
-            Array(inputsByIndex.keys).map { NSNumber(value: $0) },
-            Int(CoinHandoffMark.none.rawValue)
+            format: "publicKey IN %@ AND handoffMark != %d",
+            keys.map { $0.toHex() }, Int(CoinHandoffMark.none.rawValue)
         )
-
-        return try Set(context.fetch(request).compactMap { inputsByIndex[$0.derivationIndex] })
+        return try matched(context.fetch(request).map { [$0.publicKey] }, in: keys)
     }
 
     func nextSequence() throws -> Int64 {
@@ -113,6 +120,14 @@ private class Transaction: CoinageStoreTransaction {
         }
 
         try entryMapper.populate(entity: entity, from: entry, using: context)
+    }
+
+    func entry(_ id: TransactionId) throws -> DurabilityEntry? {
+        let request = NSFetchRequest<CDDurability>(entityName: Self.entryEntity)
+        request.predicate = NSPredicate(format: "%K = %@", #keyPath(CDDurability.identifier), id.uuidString)
+        request.fetchLimit = 1
+        guard let entity = try context.fetch(request).first else { return nil }
+        return try entryMapper.transform(entity: entity)
     }
 
     func markHandoffPending(_ asset: OwnAsset) throws {
@@ -154,110 +169,16 @@ private extension Transaction {
         NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Entity
     }
 
-    func matchingInputRows(for inputs: [DurabilityInput], nonFailureOnly: Bool) throws -> [CDDurabilityInput] {
-        let coinIndices = inputs.compactMap { input -> Int64? in
-            if case let .coin(.own(index)) = input { return index.toCoreData() }
-            return nil
+    /// The subset of `keys` present among the fetched rows' public-key hex strings (a row may carry
+    /// several — a coin, a voucher, or a received key), so a matched row reports back the exact key.
+    func matched(_ rowKeyHexes: [[String?]], in keys: Set<PublicKey>) throws -> Set<PublicKey> {
+        var result: Set<PublicKey> = []
+        for hexes in rowKeyHexes {
+            for hex in hexes.compactMap({ $0 }) {
+                let data = try Data(hexString: hex)
+                if keys.contains(data) { result.insert(data) }
+            }
         }
-        let voucherIndices = inputs.compactMap { input -> Int64? in
-            if case let .recyclerVoucher(index) = input { return index.toCoreData() }
-            return nil
-        }
-        let receivedKeys = inputs.compactMap { input -> String? in
-            if case let .coin(.received(data)) = input { return data.toHex() }
-            return nil
-        }
-
-        var subpredicates: [NSPredicate] = []
-        if !coinIndices.isEmpty {
-            subpredicates.append(NSPredicate(
-                format: "coin.derivationIndex IN %@",
-                coinIndices.map { NSNumber(value: $0) }
-            ))
-        }
-        if !voucherIndices.isEmpty {
-            subpredicates.append(NSPredicate(
-                format: "voucher.derivationIndex IN %@",
-                voucherIndices.map { NSNumber(value: $0) }
-            ))
-        }
-        if !receivedKeys.isEmpty {
-            subpredicates.append(NSPredicate(
-                format: "%K IN %@",
-                #keyPath(CDDurabilityInput.receivedPubKey),
-                receivedKeys
-            ))
-        }
-        guard !subpredicates.isEmpty else { return [] }
-
-        var predicate: NSPredicate = NSCompoundPredicate(orPredicateWithSubpredicates: subpredicates)
-        if nonFailureOnly {
-            let live = NSPredicate(
-                format: "%K.%K != %d",
-                #keyPath(CDDurabilityInput.entry),
-                #keyPath(CDDurability.status),
-                EntryStatus.failure.rawValue
-            )
-            predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [predicate, live])
-        }
-
-        let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
-        request.predicate = predicate
-        return try context.fetch(request)
-    }
-
-    func matchingOutputRows(for outputs: [DurabilityOutput]) throws -> [CDDurabilityOutput] {
-        let coinIndices = outputs.compactMap { asset -> Int64? in
-            if case let .coin(index) = asset { return index.toCoreData() }
-            return nil
-        }
-        let voucherIndices = outputs.compactMap { asset -> Int64? in
-            if case let .recyclerVoucher(index) = asset { return index.toCoreData() }
-            return nil
-        }
-
-        var subpredicates: [NSPredicate] = []
-        if !coinIndices.isEmpty {
-            subpredicates.append(NSPredicate(
-                format: "coin.derivationIndex IN %@",
-                coinIndices.map { NSNumber(value: $0) }
-            ))
-        }
-        if !voucherIndices.isEmpty {
-            subpredicates.append(NSPredicate(
-                format: "voucher.derivationIndex IN %@",
-                voucherIndices.map { NSNumber(value: $0) }
-            ))
-        }
-        guard !subpredicates.isEmpty else { return [] }
-
-        let request = NSFetchRequest<CDDurabilityOutput>(entityName: "CDDurabilityOutput")
-        request.predicate = NSCompoundPredicate(orPredicateWithSubpredicates: subpredicates)
-        return try context.fetch(request)
-    }
-
-    /// Reconstructs the typed input an input row references, from its relations / received key.
-    func durabilityInput(from row: CDDurabilityInput) -> DurabilityInput? {
-        if let hex = row.receivedPubKey, let publicKey = try? Data(hexString: hex) {
-            return .coin(.received(publicKey))
-        }
-        if let coin = row.coin {
-            return .coin(.own(DerivationIndex.fromCoreData(coin.derivationIndex)))
-        }
-        if let voucher = row.voucher {
-            return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
-        }
-        return nil
-    }
-
-    /// Reconstructs the typed output an output row references, from its relations.
-    func durabilityOutput(from row: CDDurabilityOutput) -> DurabilityOutput? {
-        if let coin = row.coin {
-            return .coin(DerivationIndex.fromCoreData(coin.derivationIndex))
-        }
-        if let voucher = row.voucher {
-            return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
-        }
-        return nil
+        return result
     }
 }

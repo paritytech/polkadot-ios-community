@@ -54,6 +54,29 @@ actor MockDurabilityStore: DurabilityStoring {
         }
     }
 
+    @discardableResult
+    func compareAndSetStatus(_ id: TransactionId, observed: EntryStatus, verdict: Verdict) async throws -> Bool {
+        guard let current = entries[id], current.status.isLive, current.status == observed else { return false }
+
+        let statusChanged = current.status != verdict.status
+        guard statusChanged || verdict.successDetectedAt.touchesRecord else { return false }
+
+        try mutate(id) {
+            $0.status = verdict.status
+            switch verdict.successDetectedAt {
+            case .unchanged: break
+            case .clear: $0.successDetectedAt = nil
+            case let .set(block): $0.successDetectedAt = block
+            }
+        }
+        if statusChanged {
+            for observer in statusObservers[id] ?? [] {
+                observer.yield(verdict.status)
+            }
+        }
+        return true
+    }
+
     func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws {
         try mutate(id) { $0.successDetectedAt = block }
     }

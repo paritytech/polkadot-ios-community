@@ -23,7 +23,8 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
     init(
         storageFacade: StorageFacadeProtocol,
         transacting: any CoinageTransacting,
-        coinKeyDeriver: any CoinKeyDeriving
+        coinKeyDeriver: any CoinKeyDeriving,
+        voucherKeyDeriver: any VoucherKeyDeriving
     ) {
         self.storageFacade = storageFacade
         let entryRepository = storageFacade.createRepository(
@@ -40,7 +41,7 @@ final class DurabilityCoreDataStore: DurabilityStoring, @unchecked Sendable {
         )
         coinRepository = AnyDataProviderRepository(coins)
         self.transacting = transacting
-        validator = RegistrationValidator(coinKeyDeriver: coinKeyDeriver)
+        validator = RegistrationValidator(coinKeyDeriver: coinKeyDeriver, voucherKeyDeriver: voucherKeyDeriver)
     }
 }
 
@@ -64,6 +65,26 @@ extension DurabilityCoreDataStore {
 extension DurabilityCoreDataStore {
     func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws {
         try await write(id, \.status, status)
+    }
+
+    @discardableResult
+    func compareAndSetStatus(_ id: TransactionId, observed: EntryStatus, verdict: Verdict) async throws -> Bool {
+        try await transacting.withTransaction { transaction in
+            guard var entry = try transaction.entry(id) else { return false }
+            guard entry.status.isLive, entry.status == observed else { return false }
+
+            let statusChanged = entry.status != verdict.status
+            entry.status = verdict.status
+            switch verdict.successDetectedAt {
+            case .unchanged: break
+            case .clear: entry.successDetectedAt = nil
+            case let .set(block): entry.successDetectedAt = block
+            }
+
+            guard statusChanged || verdict.successDetectedAt.touchesRecord else { return false }
+            try transaction.upsert(entry)
+            return true
+        }
     }
 
     func recordSuccessDetected(_ id: TransactionId, at block: BlockRef?) async throws {

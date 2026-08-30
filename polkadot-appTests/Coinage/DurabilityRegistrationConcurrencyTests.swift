@@ -1,6 +1,7 @@
 import Coinage
 import CoreData
 import Foundation
+import KeyDerivation
 import Testing
 
 @testable import polkadot_app
@@ -25,7 +26,8 @@ final class DurabilityRegistrationConcurrencyTests {
         store = DurabilityCoreDataStore(
             storageFacade: facade,
             transacting: transacting,
-            coinKeyDeriver: StubCoinKeyDeriver()
+            coinKeyDeriver: StubCoinKeyDeriver(),
+            voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
         )
     }
 
@@ -37,7 +39,8 @@ final class DurabilityRegistrationConcurrencyTests {
             let store = DurabilityCoreDataStore(
                 storageFacade: facade,
                 transacting: transacting,
-                coinKeyDeriver: StubCoinKeyDeriver()
+                coinKeyDeriver: StubCoinKeyDeriver(),
+                voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
             )
             try await persistCoins([0, 1, 2], facade: facade)
 
@@ -109,7 +112,8 @@ final class DurabilityRegistrationConcurrencyTests {
             let store = DurabilityCoreDataStore(
                 storageFacade: facade,
                 transacting: transacting,
-                coinKeyDeriver: StubCoinKeyDeriver()
+                coinKeyDeriver: StubCoinKeyDeriver(),
+                voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
             )
             try await persistCoins((0 ..< 10).map(UInt64.init) + (100 ..< 110).map(UInt64.init), facade: facade)
 
@@ -308,4 +312,12 @@ private struct StubCoinKeyDeriver: CoinKeyDeriving {
     func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
         Data()
     }
+}
+
+/// A fixed in-memory entropy for the real ``VoucherKeypairFactory`` — these coin-only tests never
+/// invoke the voucher deriver, but the store requires one.
+private struct FixedEntropyManager: RootEntropyManaging {
+    func fetchRootEntropy() throws -> Data { Data(repeating: 0x01, count: 32) }
+    func createRootEntropy(_: Data) throws {}
+    func hasRootEntropy() throws -> Bool { true }
 }

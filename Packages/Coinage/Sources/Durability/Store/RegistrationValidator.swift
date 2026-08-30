@@ -1,14 +1,17 @@
 import Foundation
 
-/// Validates registration invariants directly against the store transaction.
+/// Validates registration invariants directly against the store transaction, keyed by public key.
 ///
-/// It needs the coin key deriver to turn an output coin's derivation index into the on-chain
-/// public key the Fresh-outputs check compares against keys received from peers.
+/// Every asset resolves to its on-chain public key — an own coin/voucher from its index, a received
+/// coin from the key itself — so the four checks compare one key space, matching the store's
+/// ``CoinageTxValidationContext``. The offending key is mapped back to its asset for the error.
 public struct RegistrationValidator {
     private let coinKeyDeriver: any CoinKeyDeriving
+    private let voucherKeyDeriver: any VoucherKeyDeriving
 
-    public init(coinKeyDeriver: any CoinKeyDeriving) {
+    public init(coinKeyDeriver: any CoinKeyDeriving, voucherKeyDeriver: any VoucherKeyDeriving) {
         self.coinKeyDeriver = coinKeyDeriver
+        self.voucherKeyDeriver = voucherKeyDeriver
     }
 
     /// Validates the registration invariants, in order:
@@ -16,39 +19,58 @@ public struct RegistrationValidator {
     /// 2. Fresh outputs — not minted by another entry, and not a key received from a peer
     /// 3. Unique consumer — no input already claimed by a non-failure entry
     /// 4. Blocked handoff — no input carrying a handoff mark
-    public func validate(_ entry: DurabilityEntry, transaction: CoinageStoreTransaction) throws {
+    public func validate(_ entry: DurabilityEntry, transaction: CoinageTxValidationContext) throws {
         guard !entry.inputs.isEmpty || !entry.outputs.isEmpty else {
             throw DurabilityError.emptyEntry
         }
 
-        if let duplicate = try transaction.mintedOutput(among: Set(entry.outputs)).first {
-            throw DurabilityError.outputNotFresh(duplicate.identifier)
-        }
+        let outputsByKey = try publicKeys(ofOutputs: entry.outputs)
+        let inputsByKey = try publicKeys(ofInputs: entry.inputs)
+        let outputKeys = Set(outputsByKey.keys)
+        let inputKeys = Set(inputsByKey.keys)
 
-        let outputsByKey = try publicKeysByOutput(of: entry.outputs)
-        let colliding = try transaction.receivedInputPublicKeys(among: Set(outputsByKey.keys))
-        if let key = colliding.first, let output = outputsByKey[key] {
+        if let key = try transaction.filterMinted(outputKeys).first, let output = outputsByKey[key] {
+            throw DurabilityError.outputNotFresh(output.identifier)
+        }
+        if let key = try transaction.filterReceived(outputKeys).first, let output = outputsByKey[key] {
             throw DurabilityError.outputNotFresh(output.identifier)
         }
 
-        if let claimed = try transaction.claimedInputs(among: Set(entry.inputs)).first {
-            throw DurabilityError.inputAlreadyClaimed(claimed.identifier)
+        if let key = try transaction.filterClaimed(inputKeys).first, let input = inputsByKey[key] {
+            throw DurabilityError.inputAlreadyClaimed(input.identifier)
         }
 
-        if let marked = try transaction.handedOff(among: Set(entry.inputs)).first {
-            throw DurabilityError.inputHandedOff(marked.identifier)
+        if let key = try transaction.filterHandedOff(inputKeys).first, let input = inputsByKey[key] {
+            throw DurabilityError.inputHandedOff(input.identifier)
         }
     }
 
-    /// The on-chain public key of each coin output, keyed by that key. Vouchers have no such
-    /// address, so they are skipped.
-    private func publicKeysByOutput(of outputs: [DurabilityOutput]) throws -> [Data: DurabilityOutput] {
-        var result: [Data: DurabilityOutput] = [:]
+    private func publicKeys(ofOutputs outputs: [OwnAsset]) throws -> [PublicKey: OwnAsset] {
+        var result: [PublicKey: OwnAsset] = [:]
         for output in outputs {
-            guard case let .coin(index) = output else { continue }
-            let publicKey = try coinKeyDeriver.derivePublicKey(index: index)
-            result[publicKey] = output
+            try result[publicKey(of: output)] = output
         }
         return result
+    }
+
+    private func publicKeys(ofInputs inputs: [DurabilityInput]) throws -> [PublicKey: DurabilityInput] {
+        var result: [PublicKey: DurabilityInput] = [:]
+        for input in inputs {
+            let key: PublicKey =
+                switch input {
+                case let .coin(.own(index)): try coinKeyDeriver.derivePublicKey(index: index)
+                case let .coin(.received(publicKey)): publicKey
+                case let .recyclerVoucher(index): try voucherKeyDeriver.derivePublicKey(index: index)
+                }
+            result[key] = input
+        }
+        return result
+    }
+
+    private func publicKey(of asset: OwnAsset) throws -> PublicKey {
+        switch asset {
+        case let .coin(index): try coinKeyDeriver.derivePublicKey(index: index)
+        case let .recyclerVoucher(index): try voucherKeyDeriver.derivePublicKey(index: index)
+        }
     }
 }
