@@ -27,7 +27,7 @@ struct RecoveryPassTests {
         let pass = RecoveryPass(store: store, chainFactory: chain, watched: watched, logger: nil)
         await pass.run()
 
-        let promoted = try await store.fetch(id: minter.id)
+        let promoted = try await store.getEntry(id: minter.id)
         #expect(promoted?.status == .finalizedSuccess)
     }
 
@@ -49,7 +49,7 @@ struct RecoveryPassTests {
         await pass.run()
 
         // Propagation would otherwise have promoted it; ownership keeps it untouched.
-        let fetched = try await store.fetch(id: minter.id)
+        let fetched = try await store.getEntry(id: minter.id)
         #expect(fetched?.status == .pending)
     }
 
@@ -70,7 +70,7 @@ struct RecoveryPassTests {
 
     // MARK: - Compare-and-set write guard
 
-    @Test("compareAndSetStatus writes only while the observed status still holds")
+    @Test("updateTxStatus writes only while the observed status still holds")
     func compareAndSetRejectsMovedStatus() async throws {
         let store = MockCoinageTxRepository()
         let entry = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))])
@@ -79,31 +79,31 @@ struct RecoveryPassTests {
         // The status moved to pendingSuccess after the verdict was formed against pending.
         try await store.updateStatus(entry.id, to: .pendingSuccess)
 
-        let wrote = try await store.compareAndSetStatus(
-            entry.id,
-            observed: .pending,
+        let wrote = try await store.updateTxStatus(
+            for: entry.id,
+            expectedCurrentStatus: .pending,
             verdict: Verdict(status: .finalizedSuccess, successDetectedAt: nil)
         )
 
         #expect(wrote == false)
-        let fetched = try await store.fetch(id: entry.id)
+        let fetched = try await store.getEntry(id: entry.id)
         #expect(fetched?.status == .pendingSuccess)
     }
 
-    @Test("compareAndSetStatus does not overwrite a terminal entry")
+    @Test("updateTxStatus does not overwrite a terminal entry")
     func compareAndSetLeavesTerminalUntouched() async throws {
         let store = MockCoinageTxRepository()
         let entry = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))], status: .finalizedSuccess)
         try await store.register(entry)
 
-        let wrote = try await store.compareAndSetStatus(
-            entry.id,
-            observed: .finalizedSuccess,
+        let wrote = try await store.updateTxStatus(
+            for: entry.id,
+            expectedCurrentStatus: .finalizedSuccess,
             verdict: Verdict(status: .failure, successDetectedAt: nil)
         )
 
         #expect(wrote == false)
-        let fetched = try await store.fetch(id: entry.id)
+        let fetched = try await store.getEntry(id: entry.id)
         #expect(fetched?.status == .finalizedSuccess)
     }
 }

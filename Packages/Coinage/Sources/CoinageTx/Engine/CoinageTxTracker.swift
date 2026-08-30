@@ -218,7 +218,7 @@ private extension CoinageTxTracker {
     /// names that block — a later inclusion elsewhere must survive.
     func handleRetracted(blockHash: String, entryId: CoinageTxId) async {
         guard let hash = try? Data(hexString: blockHash),
-              let entry = try? await store.fetch(id: entryId),
+              let entry = try? await store.getEntry(id: entryId),
               let detected = entry.successDetectedAt,
               detected.hash == hash
         else { return }

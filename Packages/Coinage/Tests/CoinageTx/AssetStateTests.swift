@@ -17,7 +17,7 @@ struct AssetStateTests {
         let consumer = CoinageTxEntry.fixture(inputs: [coin.asInput])
         try await store.register(consumer)
 
-        let fetched = try await store.fetch(id: consumer.id)
+        let fetched = try await store.getEntry(id: consumer.id)
         #expect(fetched != nil)
         #expect(fetched?.status == .pending)
 
@@ -44,7 +44,7 @@ struct AssetStateTests {
         // A finalized head of 50 doesn't affect the coin's existence status
         // because the coin was minted at block 200, which is beyond finalized.
         // This is a read-only check, so we're just verifying store behavior.
-        let fetched = try await store.fetch(id: entry.id)
+        let fetched = try await store.getEntry(id: entry.id)
         #expect(fetched != nil)
         #expect(fetched?.outputs.contains(coin) == true)
     }
@@ -118,7 +118,7 @@ struct AssetStateTests {
         let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(11, testKey(11))])
         try await store.register(second)
 
-        let fetched = try await store.fetch(id: second.id)
+        let fetched = try await store.getEntry(id: second.id)
         #expect(fetched != nil)
     }
 

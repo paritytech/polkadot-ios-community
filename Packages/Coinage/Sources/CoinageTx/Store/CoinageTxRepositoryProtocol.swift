@@ -5,11 +5,11 @@ import Foundation
 /// `DurabilityStoring` + `CoinageTransacting` store abstraction into one repository. Mirrors
 /// Android's `CoinageEntryRepository`.
 ///
-/// Entries are never deleted. `fetchLive` filters by status; terminal rows stay as history
-/// because `minter(of:)` and `consumers(of:)` must still see them.
+/// Entries are never deleted; terminal rows stay as history because `minter(of:)` and
+/// `consumers(of:)` must still see them.
 ///
-/// Handoff marks are a separate insert-only record: `ownCoinInputs` asks whether an asset has
-/// *ever* carried a mark, so the fact has to survive any later state change.
+/// Handoff marks are a separate insert-only record: `hasEverBeenHandedOff` asks whether an asset
+/// has *ever* carried a mark, so the fact has to survive any later state change.
 public protocol CoinageTxRepositoryProtocol: Sendable {
     /// Inserts the entry after running `validation` inside the same transaction — so nothing can
     /// move what it checked before the write, and a throw leaves nothing behind. Assigns the
@@ -31,12 +31,16 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
 
     func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws
 
-    /// Atomically applies `verdict` iff the entry's current status still equals `observed` and is
-    /// not terminal — the read and the write share one transaction, so the status cannot move
-    /// between them. Returns whether it wrote. The single guarded writer of a rule verdict; mirrors
-    /// Android's `compareAndSetStatus`.
+    /// Atomically applies `verdict` iff the entry's current status still equals
+    /// `expectedCurrentStatus` and is not terminal — the read and the write share one transaction,
+    /// so the status cannot move between them. Returns whether it wrote. The single guarded writer
+    /// of a rule verdict; mirrors Android's `compareAndSetStatus`.
     @discardableResult
-    func compareAndSetStatus(_ id: CoinageTxId, observed: CoinageTxStatus, verdict: Verdict) async throws -> Bool
+    func updateTxStatus(
+        for id: CoinageTxId,
+        expectedCurrentStatus: CoinageTxStatus,
+        verdict: Verdict
+    ) async throws -> Bool
 
     /// Writes the block where execution was observed, or clears it. Not a status change.
     func recordSuccessDetected(_ id: CoinageTxId, at block: BlockRef?) async throws
@@ -44,17 +48,18 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
     /// Writes the submitted extrinsic hash. Not a status change.
     func recordTxHash(_ id: CoinageTxId, txHash: Data) async throws
 
-    /// Live entries ordered by `sequence`.
-    func fetchLive() async throws -> [CoinageTxEntry]
+    /// Whether any live (non-terminal) entry exists. Mirrors Android's `hasLiveEntries`.
+    func hasLiveEntries() async throws -> Bool
 
-    /// Every entry, live and terminal, ordered by `sequence`.
-    func fetchAll() async throws -> [CoinageTxEntry]
+    /// Every entry, live and terminal, ordered by `sequence`. Mirrors Android's `getAllEntries`.
+    func getAllEntries() async throws -> [CoinageTxEntry]
 
-    func fetch(id: CoinageTxId) async throws -> CoinageTxEntry?
+    /// The entry with this id, if any. Mirrors Android's `getEntry`.
+    func getEntry(id: CoinageTxId) async throws -> CoinageTxEntry?
 
     /// A stream of an entry's status: the current value, then every change. For a caller that must
     /// await a terminal outcome (offboarding an external payment) rather than fire-and-forget.
-    func subscribeStatus(of id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus>
+    func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus>
 
     /// The entry that minted this asset, if any.
     func minter(of asset: OwnAsset) async throws -> CoinageTxEntry?
@@ -63,11 +68,13 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
     func consumers(of input: CoinageTxInput) async throws -> [CoinageTxEntry]
 
     /// Provisionally marks assets handed off (`.pending`) in one transaction, before their keys
-    /// reach the transport. Released on relaunch unless committed.
-    func markHandoffPending(_ assets: [OwnAsset]) async throws
+    /// reach the transport. Released on relaunch unless committed. Mirrors Android's `markHandedOff`.
+    func precommitHandOff(_ assets: [OwnAsset]) async throws
 
-    /// Promotes provisional marks to final (`.committed`) — the keys have durably left.
-    func commitHandoffs(_ assets: [OwnAsset]) async throws
+    /// Promotes provisional marks to final (`.committed`) — the keys have durably left. Keyed by
+    /// ``OwnAsset/publicKey``, the form the transport can name without reconstructing the asset.
+    /// Mirrors Android's `commitHandoffs`.
+    func commitHandoffs(_ keys: [PublicKey]) async throws
 
     /// Clears every uncommitted (`.pending`) mark. Runs once, on launch.
     func releaseUncommittedHandoffs() async throws
@@ -82,5 +89,10 @@ public extension CoinageTxRepositoryProtocol {
     /// Mirrors Android's `getHandoffKeys`.
     func getHandoffKeys() async throws -> Set<PublicKey> {
         try await Set(handedOffCoins().map(\.publicKey))
+    }
+
+    /// The entry's current status, if it exists. Mirrors Android's `getStatus`.
+    func getStatus(_ id: CoinageTxId) async throws -> CoinageTxStatus? {
+        try await getEntry(id: id)?.status
     }
 }

@@ -1,10 +1,28 @@
 import Coinage
 import Foundation
+import os
 
-/// A deterministic public key from a derivation index — distinct per index and stable across calls,
-/// so the DAG, evidence, dedup, and handoff marks key consistently in tests.
+/// The real coin key factory over a fixed test entropy, so ``testKey`` yields curve-valid sr25519
+/// public keys — the recycle crypto path builds an `SNPublicKey` from them.
+private let testKeyFactory = CoinKeypairFactory(
+    entropyManager: MockEntropyManager(entropy: Data(repeating: 0x01, count: 32))
+)
+
+/// Caches derived keys: mnemonic derivation is costly and ``testKey`` is called throughout the
+/// suites; the lock keeps it safe under parallel test execution.
+private let testKeyCache = OSAllocatedUnfairLock<[DerivationIndex: PublicKey]>(initialState: [:])
+
+/// A deterministic, valid public key from a derivation index — distinct per index and stable across
+/// calls, so the DAG, evidence, dedup, and handoff marks key consistently in tests.
 func testKey(_ index: DerivationIndex) -> PublicKey {
-    withUnsafeBytes(of: index.bigEndian) { Data($0) }
+    testKeyCache.withLock { cache in
+        if let cached = cache[index] { return cached }
+        guard let key = try? testKeyFactory.derivePublicKey(index: index) else {
+            fatalError("Failed to derive test public key for index \(index)")
+        }
+        cache[index] = key
+        return key
+    }
 }
 
 extension BlockRef {

@@ -20,6 +20,6 @@ struct StoreHandoffCommit: CoinageHandoffCommit {
     let store: any CoinageTxRepositoryProtocol
 
     func commit() async throws {
-        try await store.commitHandoffs(assets)
+        try await store.commitHandoffs(assets.map(\.publicKey))
     }
 }

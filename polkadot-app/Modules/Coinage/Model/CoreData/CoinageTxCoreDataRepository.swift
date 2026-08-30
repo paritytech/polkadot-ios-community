@@ -87,10 +87,14 @@ extension CoinageTxCoreDataRepository {
     }
 
     @discardableResult
-    func compareAndSetStatus(_ id: CoinageTxId, observed: CoinageTxStatus, verdict: Verdict) async throws -> Bool {
+    func updateTxStatus(
+        for id: CoinageTxId,
+        expectedCurrentStatus: CoinageTxStatus,
+        verdict: Verdict
+    ) async throws -> Bool {
         try await withTransaction { transaction in
             guard var entry = try transaction.entry(id) else { return false }
-            guard entry.status.isLive, entry.status == observed else { return false }
+            guard entry.status.isLive, entry.status == expectedCurrentStatus else { return false }
 
             // Skip a write that changes nothing — a verdict restating the current status and record.
             guard entry.status != verdict.status || entry.successDetectedAt != verdict.successDetectedAt else {
@@ -120,7 +124,7 @@ extension CoinageTxCoreDataRepository {
         _ field: WritableKeyPath<CoinageTxEntry, Value>,
         _ value: Value
     ) async throws {
-        guard var entry = try await fetch(id: id) else {
+        guard var entry = try await getEntry(id: id) else {
             throw CoinageTxError.entryNotFound(id)
         }
         entry[keyPath: field] = value
@@ -131,25 +135,25 @@ extension CoinageTxCoreDataRepository {
 // MARK: - Reads
 
 extension CoinageTxCoreDataRepository {
-    func fetchLive() async throws -> [CoinageTxEntry] {
-        try await fetchAll().filter(\.status.isLive)
+    func hasLiveEntries() async throws -> Bool {
+        try await getAllEntries().contains(where: \.status.isLive)
     }
 
-    func fetchAll() async throws -> [CoinageTxEntry] {
+    func getAllEntries() async throws -> [CoinageTxEntry] {
         try await repository
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
             .sorted { $0.sequence < $1.sequence }
     }
 
-    func fetch(id: CoinageTxId) async throws -> CoinageTxEntry? {
+    func getEntry(id: CoinageTxId) async throws -> CoinageTxEntry? {
         try await repository.fetchOperation(
             by: { id.uuidString },
             options: RepositoryFetchOptions()
         ).asyncExecute()
     }
 
-    func subscribeStatus(of id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
+    func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         storageFacade.subscribeSingle(
             mapper: AnyCoreDataMapper(CoinageTxEntryMapper()),
             filter: NSPredicate(format: "%K == %@", #keyPath(CDDurability.identifier), id.uuidString)
@@ -160,14 +164,14 @@ extension CoinageTxCoreDataRepository {
 
     func minter(of asset: OwnAsset) async throws -> CoinageTxEntry? {
         let key = asset.publicKey
-        return try await fetchAll().first { entry in
+        return try await getAllEntries().first { entry in
             entry.outputs.contains { $0.publicKey == key }
         }
     }
 
     func consumers(of input: CoinageTxInput) async throws -> [CoinageTxEntry] {
         let key = input.publicKey
-        return try await fetchAll().filter { entry in
+        return try await getAllEntries().filter { entry in
             entry.inputs.contains { $0.publicKey == key }
         }
     }
@@ -176,7 +180,7 @@ extension CoinageTxCoreDataRepository {
 // MARK: - Handoff marks
 
 extension CoinageTxCoreDataRepository {
-    func markHandoffPending(_ assets: [OwnAsset]) async throws {
+    func precommitHandOff(_ assets: [OwnAsset]) async throws {
         guard !assets.isEmpty else { return }
         try await withTransaction { transaction in
             for asset in assets {
@@ -185,11 +189,11 @@ extension CoinageTxCoreDataRepository {
         }
     }
 
-    func commitHandoffs(_ assets: [OwnAsset]) async throws {
-        guard !assets.isEmpty else { return }
+    func commitHandoffs(_ keys: [PublicKey]) async throws {
+        guard !keys.isEmpty else { return }
         try await withTransaction { transaction in
-            for asset in assets {
-                try transaction.commitHandoff(asset)
+            for key in keys {
+                try transaction.commitHandoff(key: key)
             }
         }
     }
@@ -344,8 +348,11 @@ private final class Transaction: CoinageTxValidationContext {
         }
     }
 
-    func commitHandoff(_ asset: OwnAsset) throws {
-        try coinRow(for: asset)?.handoffMark = CoinHandoffMark.committed.rawValue
+    func commitHandoff(key: PublicKey) throws {
+        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
+        request.predicate = NSPredicate(format: "publicKey == %@", key.toHex())
+        request.fetchLimit = 1
+        try context.fetch(request).first?.handoffMark = CoinHandoffMark.committed.rawValue
     }
 
     func releaseUncommittedMarks() throws {

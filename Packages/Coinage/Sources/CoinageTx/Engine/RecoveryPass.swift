@@ -87,7 +87,7 @@ private extension RecoveryPass {
     }
 
     func loadDag() async throws -> CoinageEntryDag {
-        async let entries = store.fetchAll()
+        async let entries = store.getAllEntries()
         async let handedOff = store.getHandoffKeys()
         return try await CoinageEntryDag(entries: entries, handedOff: handedOff)
     }
@@ -128,7 +128,11 @@ private extension RecoveryPass {
             return false
         }
         do {
-            return try await store.compareAndSetStatus(entry.id, observed: entry.status, verdict: verdict)
+            return try await store.updateTxStatus(
+                for: entry.id,
+                expectedCurrentStatus: entry.status,
+                verdict: verdict
+            )
         } catch {
             logger?.error("Verdict write failed for \(entry.id): \(error)")
             return false

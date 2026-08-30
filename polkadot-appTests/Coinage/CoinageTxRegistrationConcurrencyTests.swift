@@ -132,7 +132,7 @@ final class DurabilityRegistrationConcurrencyTests {
             #expect(registrationErrors.isEmpty)
 
             // Fetch all entries and check sequences
-            let fetched = try await store.fetchAll()
+            let fetched = try await store.getAllEntries()
             #expect(fetched.count == 10)
 
             let sequences = fetched.map(\.sequence)
@@ -165,7 +165,7 @@ final class DurabilityRegistrationConcurrencyTests {
         try await store.register(firstEntry)
 
         // Verify we have exactly one entry
-        var entries = try await store.fetchAll()
+        var entries = try await store.getAllEntries()
         #expect(entries.count == 1)
 
         // Second registration attempts to use the same input — should be rejected
@@ -189,7 +189,7 @@ final class DurabilityRegistrationConcurrencyTests {
         #expect((rejectionError as? CoinageTxError) == .inputAlreadyClaimed(firstInput.publicKey.toHex()))
 
         // Verify store still holds only the first entry and no marks
-        entries = try await store.fetchAll()
+        entries = try await store.getAllEntries()
         #expect(entries.count == 1)
 
         // Verify no handoff marks were left behind
@@ -231,7 +231,7 @@ final class DurabilityRegistrationConcurrencyTests {
 
         try await store.register(retry)
 
-        let entries = try await store.fetchAll()
+        let entries = try await store.getAllEntries()
         #expect(entries.count == 2)
         #expect(entries.filter { $0.status == .failure }.count == 1)
     }

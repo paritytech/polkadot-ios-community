@@ -32,7 +32,7 @@ struct SubmissionWatcherTests {
         watched.take(id)
         _ = watched.release(id)
 
-        let fetched = try await store.fetch(id: id)
+        let fetched = try await store.getEntry(id: id)
         #expect(fetched?.status == .pending)
         #expect(fetched?.txHash == nil)
     }
@@ -45,14 +45,14 @@ struct SubmissionWatcherTests {
         try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))]))
         try await store.updateStatus(id, to: .failure)
 
-        let wrote = try await store.compareAndSetStatus(
-            id,
-            observed: .failure,
+        let wrote = try await store.updateTxStatus(
+            for: id,
+            expectedCurrentStatus: .failure,
             verdict: Verdict(status: .finalizedSuccess, successDetectedAt: nil)
         )
 
         #expect(wrote == false)
-        let fetched = try await store.fetch(id: id)
+        let fetched = try await store.getEntry(id: id)
         #expect(fetched?.status == .failure)
     }
 
@@ -65,11 +65,11 @@ struct SubmissionWatcherTests {
         try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))], status: .pendingSuccess))
 
         try await store.recordSuccessDetected(id, at: successBlock)
-        var fetched = try await store.fetch(id: id)
+        var fetched = try await store.getEntry(id: id)
         #expect(fetched?.successDetectedAt == successBlock)
 
         try await store.recordSuccessDetected(id, at: nil)
-        fetched = try await store.fetch(id: id)
+        fetched = try await store.getEntry(id: id)
         #expect(fetched?.successDetectedAt == nil)
     }
 }

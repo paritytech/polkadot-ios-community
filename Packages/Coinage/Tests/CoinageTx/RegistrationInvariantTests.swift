@@ -99,7 +99,7 @@ struct RegistrationInvariantTests {
         let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(100, testKey(100))])
         try await store.register(second)
 
-        let fetched = try await store.fetch(id: second.id)
+        let fetched = try await store.getEntry(id: second.id)
         #expect(fetched != nil)
     }
 
@@ -169,7 +169,7 @@ struct RegistrationInvariantTests {
 
         try await store.register(.fixture(inputs: [input]))
 
-        let countBefore = try await store.fetchAll().count
+        let countBefore = try await store.getAllEntries().count
 
         do {
             try await store.register(.fixture(inputs: [input]))
@@ -178,7 +178,7 @@ struct RegistrationInvariantTests {
             // Expected
         }
 
-        let countAfter = try await store.fetchAll().count
+        let countAfter = try await store.getAllEntries().count
         #expect(countBefore == countAfter)
     }
 
@@ -221,7 +221,7 @@ struct RegistrationInvariantTests {
         try await store.register(.fixture(outputs: [.coin(2, testKey(2))]))
         try await store.register(.fixture(outputs: [.coin(3, testKey(3))]))
 
-        let all = try await store.fetchAll()
+        let all = try await store.getAllEntries()
         #expect(all.count == 3)
 
         #expect(all[0].sequence < all[1].sequence)

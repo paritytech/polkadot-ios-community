@@ -86,8 +86,14 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
     }
 
     @discardableResult
-    func compareAndSetStatus(_ id: CoinageTxId, observed: CoinageTxStatus, verdict: Verdict) async throws -> Bool {
-        guard let current = entries[id], current.status.isLive, current.status == observed else { return false }
+    func updateTxStatus(
+        for id: CoinageTxId,
+        expectedCurrentStatus: CoinageTxStatus,
+        verdict: Verdict
+    ) async throws -> Bool {
+        guard let current = entries[id], current.status.isLive, current.status == expectedCurrentStatus else {
+            return false
+        }
 
         let statusChanged = current.status != verdict.status
         guard statusChanged || current.successDetectedAt != verdict.successDetectedAt else { return false }
@@ -112,19 +118,19 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         try mutate(id) { $0.txHash = txHash }
     }
 
-    func fetchLive() async throws -> [CoinageTxEntry] {
-        sortedEntries.filter(\.status.isLive)
+    func hasLiveEntries() async throws -> Bool {
+        entries.values.contains(where: \.status.isLive)
     }
 
-    func fetchAll() async throws -> [CoinageTxEntry] {
+    func getAllEntries() async throws -> [CoinageTxEntry] {
         sortedEntries
     }
 
-    func fetch(id: CoinageTxId) async throws -> CoinageTxEntry? {
+    func getEntry(id: CoinageTxId) async throws -> CoinageTxEntry? {
         entries[id]
     }
 
-    nonisolated func subscribeStatus(of id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
+    nonisolated func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         AsyncStream<CoinageTxStatus> { continuation in
             Task { await self.attach(continuation, to: id) }
         }
@@ -144,14 +150,15 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         committedMarks.insert(asset)
     }
 
-    func markHandoffPending(_ assets: [OwnAsset]) async throws {
+    func precommitHandOff(_ assets: [OwnAsset]) async throws {
         for asset in assets where !committedMarks.contains(asset) {
             pendingMarks.insert(asset)
         }
     }
 
-    func commitHandoffs(_ assets: [OwnAsset]) async throws {
-        for asset in assets {
+    func commitHandoffs(_ keys: [PublicKey]) async throws {
+        let keySet = Set(keys)
+        for asset in pendingMarks where keySet.contains(asset.publicKey) {
             pendingMarks.remove(asset)
             committedMarks.insert(asset)
         }

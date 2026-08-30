@@ -1,7 +1,7 @@
 import Foundation
 
 /// A durability entry's status write, applied atomically by
-/// ``CoinageTxRepositoryProtocol/compareAndSetStatus(_:observed:verdict:)``.
+/// ``CoinageTxRepositoryProtocol/updateTxStatus(for:expectedCurrentStatus:verdict:)``.
 ///
 /// Mirrors Android's `Verdict`: the status to write and the block where execution was observed
 /// (`nil` clears it). A verdict that keeps the existing record simply re-states the same block, so

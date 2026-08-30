@@ -125,7 +125,7 @@ extension CoinageTxService: CoinageTxServicing {
     }
 
     public func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
-        store.subscribeStatus(of: id)
+        store.subscribeStatus(id: id)
     }
 
     public func startRecoveryPass() {
@@ -165,7 +165,7 @@ extension CoinageTxService: CoinageTxServicing {
     }
 
     public func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
-        try await store.markHandoffPending(assets)
+        try await store.precommitHandOff(assets)
         return StoreHandoffCommit(assets: assets, store: store)
     }
 

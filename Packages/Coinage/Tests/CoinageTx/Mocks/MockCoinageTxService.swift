@@ -100,7 +100,7 @@ actor MockCoinageTxService: CoinageTxServicing {
     }
 
     nonisolated func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
-        store.subscribeStatus(of: id)
+        store.subscribeStatus(id: id)
     }
 
     nonisolated func startRecoveryPass() {
@@ -116,7 +116,7 @@ actor MockCoinageTxService: CoinageTxServicing {
     func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
         callJournal.record("preCommitHandoff")
         handoffAssets.append(contentsOf: assets)
-        try await store.markHandoffPending(assets)
+        try await store.precommitHandOff(assets)
         return StoreHandoffCommit(assets: assets, store: store)
     }
 
