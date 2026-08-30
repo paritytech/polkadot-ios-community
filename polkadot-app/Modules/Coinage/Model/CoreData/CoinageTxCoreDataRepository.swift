@@ -92,15 +92,13 @@ extension CoinageTxCoreDataRepository {
             guard var entry = try transaction.entry(id) else { return false }
             guard entry.status.isLive, entry.status == observed else { return false }
 
-            let statusChanged = entry.status != verdict.status
-            entry.status = verdict.status
-            switch verdict.successDetectedAt {
-            case .unchanged: break
-            case .clear: entry.successDetectedAt = nil
-            case let .set(block): entry.successDetectedAt = block
+            // Skip a write that changes nothing — a verdict restating the current status and record.
+            guard entry.status != verdict.status || entry.successDetectedAt != verdict.successDetectedAt else {
+                return false
             }
 
-            guard statusChanged || verdict.successDetectedAt.touchesRecord else { return false }
+            entry.status = verdict.status
+            entry.successDetectedAt = verdict.successDetectedAt
             try transaction.upsert(entry)
             return true
         }

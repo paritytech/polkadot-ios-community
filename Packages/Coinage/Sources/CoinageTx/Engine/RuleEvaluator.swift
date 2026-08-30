@@ -1,156 +1,205 @@
 import Foundation
 
-/// What one rule decided for one entry.
-public enum RuleVerdict: Sendable, Equatable {
-    /// Write this status.
-    case status(CoinageTxStatus)
-    /// Write this status and record the block where execution was observed.
-    case statusRecordingSuccess(CoinageTxStatus, BlockRef)
-    /// Clear the recorded success block and write `pending`.
-    case clearSuccessAndSetPending
-    /// Nothing decided this entry from state; Rule 7 must search block bodies.
-    case searchBodies
-    /// A read failed. Abort this entry for this pass without writing anything.
-    case abort
+/// What the ladder decided for one entry this pass.
+public enum RuleOutcome: Sendable, Equatable {
+    /// Write this verdict (a compare-and-set against the status the rules were evaluated from).
+    case decided(Verdict)
+    /// A read this entry depended on failed. It keeps its status and its locks, and is retried.
+    case undecided
 }
 
-/// The rule table, evaluated in the spec's order — 0, 1, 2, 3, 4, 5, 6, 3b, 4b, 7 — first
-/// match decides.
-///
-/// Pure over an ``EntrySnapshot``, so the whole table is directly unit-testable without a
-/// chain or a store. Rule 7 needs an extra chain round-trip and so is returned as
-/// ``RuleVerdict/searchBodies``; `RecoveryPass` performs the search and maps its outcome back
-/// through ``verdict(forSearch:)``, which is likewise pure.
+/// The rule table, evaluated in the spec's order — 0, 1, 2, 3, 4, 5, 6, 3b, 4b, 7 — first match
+/// decides. Impure: Rule 7 searches block bodies through the pinned ``CoinageChainViewProtocol``.
+/// Mirrors Android's `CoinageRules`.
 public struct RuleEvaluator: Sendable {
     public init() {}
 
-    public func evaluate(_ snapshot: EntrySnapshot) -> RuleVerdict {
-        if let verdict = ruleZero(snapshot) {
-            return verdict
+    public func evaluate(
+        entry: CoinageTxEntry,
+        dag: CoinageEntryDag,
+        evidence: ChainEvidence,
+        view: any CoinageChainViewProtocol
+    ) async -> RuleOutcome {
+        if let outcome = recordedInclusion(entry, evidence) {
+            return outcome
         }
 
         // Rule 1 — execution is visible at the finalized head.
-        if snapshot.executed(atFinalized: true) {
-            return .status(.finalizedSuccess)
+        if evidence.executed(entry, atFinalized: true) {
+            return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: entry.successDetectedAt))
         }
 
-        // Rule 2 — execution is visible at the best head. Recording the block is what lets
-        // Rule 0 decide the entry later without re-deriving that it executed.
-        if snapshot.executed(atFinalized: false) {
-            return .statusRecordingSuccess(.pendingSuccess, snapshot.view.best)
+        // Rule 2 — execution is visible at the best head; recording the block lets Rule 0 decide later.
+        if evidence.executed(entry, atFinalized: false) {
+            return .decided(Verdict(status: .pendingSuccess, successDetectedAt: evidence.best))
         }
 
-        // Rules 3 and 4 read only the finalized head: they decide nothing before the window
-        // closes, and past it whatever the extrinsic did happened below finality — so a
-        // terminal verdict never rests on a block that can be reorged away.
-        if snapshot.windowClosed {
-            // Rule 3 — an output nothing could have removed is definitely not there.
-            //
-            // Ordered before Rule 5 as specified. The two are both absence-based and would
-            // disagree on an entry whose output vanished, so this ordering is safe only
-            // because handoff marks plus the Unique-consumer invariant guarantee a vanished
-            // output is never `untouched`. A single missing handoff mark turns a successful
-            // entry into a false FAILURE here.
-            if snapshot.hasUntouchedAbsentOutput(atFinalized: true) {
-                return .status(.failure)
-            }
+        let windowClosed = evidence.windowClosed(entry)
 
-            // Rule 4 — an input is definitely still there to be spent.
-            if snapshot.hasAvailableInput(atFinalized: true) {
-                return .status(.failure)
-            }
+        // Rule 3 — an output nothing could have removed is definitely not there.
+        if windowClosed,
+           entry.outputs.contains(where: {
+               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.identifier, atFinalized: true)
+           }) {
+            return .decided(Verdict(status: .failure, successDetectedAt: nil))
         }
 
-        if snapshot.ownCoinInputs {
-            // Rule 5 — every input is a proven-minted coin of ours and all are gone at
-            // finality. Absence alone is ambiguous; `ownCoinInputs` is what resolves it.
-            if snapshot.allInputsAbsent(atFinalized: true) {
-                return .status(.finalizedSuccess)
-            }
-
-            // Rule 6 — the same, except one input survives at the finalized head, so the
-            // consumption is only in the best chain.
-            if snapshot.hasExistingInput(atFinalized: true),
-               snapshot.allInputsAbsent(atFinalized: false) {
-                return .status(.pendingSuccess)
-            }
+        // Rule 4 — an input is definitely still there to be spent.
+        if windowClosed, entry.inputs.contains(where: { available($0, evidence, atFinalized: true) }) {
+            return .decided(Verdict(status: .failure, successDetectedAt: nil))
         }
 
-        // Rules 3b and 4b short-circuit an entry with no positive evidence so it does not run
-        // a body search on every new head. They stop at mortality because past it the search
-        // is the only thing left that can decide the entry.
-        //
-        // For an entry already in PENDING_SUCCESS these demote rather than no-op, withdrawing
-        // optimistic selectability from its outputs. That is intended: reaching here means
-        // the success record was cleared and no positive evidence remains.
-        if !snapshot.windowClosed {
-            if snapshot.hasUntouchedAbsentOutput(atFinalized: false) {
-                return .status(.pending)
-            }
+        let provenOwnCoins = hasOnlyProvenOwnCoinInputs(entry, dag, evidence)
 
-            if snapshot.hasAvailableInput(atFinalized: false) {
-                return .status(.pending)
-            }
+        // Rule 5 — every input is a proven-minted coin of ours and all are gone at finality.
+        if provenOwnCoins, entry.inputs.allSatisfy({ evidence.absent($0.identifier, atFinalized: true) }) {
+            return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: entry.successDetectedAt))
         }
 
-        return .searchBodies
-    }
-
-    /// Rule 7's verdict, given the outcome of the body search.
-    ///
-    /// Inclusion is not success: the events at the found block say which. The window ends at
-    /// the finalized head, so both terminal verdicts rest on a finalized fact.
-    public func verdict(forSearch outcome: BodySearchOutcome, windowClosed: Bool) -> RuleVerdict {
-        switch outcome {
-        case .foundSucceeded:
-            .status(.finalizedSuccess)
-        case .foundFailed:
-            .status(.failure)
-        case .foundOutcomeUnreadable:
-            .status(.pending)
-        case .notFoundWindowComplete where windowClosed:
-            .status(.failure)
-        case .notFoundWindowComplete,
-             .incomplete:
-            .status(.pending)
+        // Rule 6 — the same, except one input survives at finality, so consumption is only best-chain.
+        if provenOwnCoins,
+           entry.inputs.contains(where: { evidence.exists($0.identifier, atFinalized: true) }),
+           entry.inputs.allSatisfy({ evidence.absent($0.identifier, atFinalized: false) }) {
+            return .decided(Verdict(status: .pendingSuccess, successDetectedAt: evidence.best))
         }
+
+        // Rules 3b / 4b — short-circuit an entry with no positive evidence so it does not run a body
+        // search on every head; they stop at mortality, past which only the search can decide it.
+        if !windowClosed,
+           entry.outputs.contains(where: {
+               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.identifier, atFinalized: false)
+           }) {
+            return .decided(Verdict(status: .pending, successDetectedAt: nil))
+        }
+
+        if !windowClosed, entry.inputs.contains(where: { available($0, evidence, atFinalized: false) }) {
+            return .decided(Verdict(status: .pending, successDetectedAt: nil))
+        }
+
+        return await searchForTransaction(entry, evidence, view, windowClosed: windowClosed)
     }
 }
 
 // MARK: - Rule 0
 
 private extension RuleEvaluator {
-    /// Rule 0 — recorded inclusion.
-    ///
-    /// Applies ahead of everything else whenever a success block is recorded. The field is
-    /// only ever written where success is already proven, so this asks only whether that
-    /// block is still real.
-    ///
-    /// Returns `nil` when no record exists, letting evaluation fall through to Rule 1.
-    func ruleZero(_ snapshot: EntrySnapshot) -> RuleVerdict? {
-        guard let detected = snapshot.entry.successDetectedAt else { return nil }
+    /// Rule 0 — recorded inclusion. Returns `nil` when no success block is recorded, letting
+    /// evaluation fall through to Rule 1.
+    func recordedInclusion(_ entry: CoinageTxEntry, _ evidence: ChainEvidence) -> RuleOutcome? {
+        guard let recorded = entry.successDetectedAt else { return nil }
 
-        switch snapshot.successBlockHash {
-        case .failedRead:
-            // No verdict, and the record is kept — it is still the best evidence we have.
-            return .abort
-        case let .present(hash) where hash == detected.hash:
-            // Clause 2 / clause 3.
-            return detected.number <= snapshot.view.finalized.number
-                ? .status(.finalizedSuccess)
-                : .status(.pendingSuccess)
-        case .present,
-             .absent:
-            // Clause 1 — the recorded block was reorged out.
-            //
-            // Writing PENDING rather than only clearing the record is load-bearing: clearing
-            // alone would leave the entry PENDING_SUCCESS with no evidence at all, keeping
-            // its outputs spendable for a full mortality window on the strength of a block
-            // that no longer exists.
-            guard snapshot.executed(atFinalized: false) else {
-                return .clearSuccessAndSetPending
+        guard let stillCanonical = evidence.recordedBlockStillCanonical else {
+            // The record's canonicality could not be read — keep it, decide nothing.
+            return .undecided
+        }
+
+        if !stillCanonical {
+            // The recorded block was reorged out. Re-derive from live evidence rather than trust it.
+            if evidence.executed(entry, atFinalized: true) {
+                return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: evidence.finalized))
             }
-            return .statusRecordingSuccess(.pendingSuccess, snapshot.view.best)
+            if evidence.executed(entry, atFinalized: false) {
+                return .decided(Verdict(status: .pendingSuccess, successDetectedAt: evidence.best))
+            }
+            // Demote to PENDING and clear: leaving PENDING_SUCCESS with no evidence would keep the
+            // outputs spendable for a full mortality window on the strength of a vanished block.
+            return .decided(Verdict(status: .pending, successDetectedAt: nil))
+        }
+
+        return recorded.number <= evidence.finalized.number
+            ? .decided(Verdict(status: .finalizedSuccess, successDetectedAt: recorded))
+            : .decided(Verdict(status: .pendingSuccess, successDetectedAt: recorded))
+    }
+}
+
+// MARK: - Rule 7
+
+private extension RuleEvaluator {
+    /// Nothing above could decide it, so look for the transaction itself. The window ends at the
+    /// finalized head, so both terminal verdicts rest on a finalized fact.
+    func searchForTransaction(
+        _ entry: CoinageTxEntry,
+        _ evidence: ChainEvidence,
+        _ view: any CoinageChainViewProtocol,
+        windowClosed: Bool
+    ) async -> RuleOutcome {
+        // No hash means the extrinsic was never broadcast, so there is nothing to find.
+        guard let txHash = entry.txHash, let window = searchWindow(entry, evidence) else {
+            return .decided(Verdict(status: windowClosed ? .failure : .pending, successDetectedAt: nil))
+        }
+
+        switch await view.searchBodies(for: txHash, in: window) {
+        case let .foundSucceeded(block):
+            return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: block))
+        case .foundFailed:
+            return .decided(Verdict(status: .failure, successDetectedAt: nil))
+        case .foundOutcomeUnreadable:
+            return .decided(Verdict(status: .pending, successDetectedAt: nil))
+        case .notFoundWindowComplete:
+            return .decided(Verdict(status: windowClosed ? .failure : .pending, successDetectedAt: nil))
+        case .incomplete:
+            return .decided(Verdict(status: .pending, successDetectedAt: nil))
+        }
+    }
+
+    func searchWindow(_ entry: CoinageTxEntry, _ evidence: ChainEvidence) -> ClosedRange<UInt32>? {
+        let from = entry.checkpoint.number
+        let to = min(entry.checkpoint.number + entry.mortality, evidence.finalized.number)
+        return from <= to ? from ... to : nil
+    }
+}
+
+// MARK: - Graph facts
+
+private extension RuleEvaluator {
+    /// The asset is still there to be spent.
+    func available(_ input: CoinageTxInput, _ evidence: ChainEvidence, atFinalized: Bool) -> Bool {
+        if input.isCoin {
+            return evidence.exists(input.identifier, atFinalized: atFinalized)
+        }
+        return evidence.exists(input.identifier, atFinalized: atFinalized)
+            && evidence.isNotUnloaded(input.identifier, atFinalized: atFinalized)
+    }
+
+    /// Nothing could have removed this output, so its absence is meaningful.
+    func noPotentialConsumers(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
+        if dag.isHandedOff(output.identifier) { return false }
+        if spent(output, dag, evidence) { return false }
+        return dag.consumers(output.identifier).allSatisfy { $0.status == .failure }
+    }
+
+    /// Once established this is permanent: a terminal status never changes, and a coin absent at a
+    /// finalized head can never come back, because addresses are never reused.
+    func spent(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
+        let consumedByFinalized = dag.consumers(output.identifier).contains { $0.status == .finalizedSuccess }
+        let provenConsumed = !output.isCoin && evidence.isUnloaded(output.identifier, atFinalized: true)
+        return consumedByFinalized || provenConsumed || spentByAbsence(output, dag, evidence)
+    }
+
+    /// Absence read as consumption, guarded by `isCoin` (a voucher's disappearance may be ring
+    /// cleaning) and the minter's window having closed (a coin minted above a shallow finalized head
+    /// reads absent simply because it does not exist there yet).
+    func spentByAbsence(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
+        guard output.isCoin, let minter = dag.minter(output.identifier) else { return false }
+        return minter.status == .finalizedSuccess
+            && evidence.absent(output.identifier, atFinalized: true)
+            && evidence.windowClosed(minter)
+    }
+
+    /// Every input is a coin we minted ourselves, proven to have existed and old enough that its
+    /// absence now is meaningful — what resolves the ambiguity in Rules 5 and 6.
+    func hasOnlyProvenOwnCoinInputs(
+        _ entry: CoinageTxEntry,
+        _ dag: CoinageEntryDag,
+        _ evidence: ChainEvidence
+    ) -> Bool {
+        guard !entry.inputs.isEmpty else { return false }
+
+        return entry.inputs.allSatisfy { input in
+            guard input.isCoin, input.isOwn, !dag.isHandedOff(input.identifier),
+                  let minter = dag.minter(input.identifier), minter.status == .finalizedSuccess
+            else { return false }
+            return evidence.windowClosed(minter)
         }
     }
 }

@@ -147,17 +147,10 @@ public extension CoinageService {
             logger: logger
         )
 
-        let statusTransaction = StatusUpdateTransaction(
-            store: durabilityStore,
-            watched: watchedEntries,
-            logger: logger
-        )
-
         let recoveryPass = RecoveryPass(
             store: durabilityStore,
             chainFactory: chainFactory,
             watched: watchedEntries,
-            transaction: statusTransaction,
             logger: logger
         )
 
@@ -178,7 +171,6 @@ public extension CoinageService {
             store: durabilityStore,
             chainFactory: chainFactory,
             watched: watchedEntries,
-            transaction: statusTransaction,
             backgroundExecutor: backgroundExecutor,
             onRelease: { [weak recoveryPass] in
                 Task { await recoveryPass?.run() }

@@ -22,18 +22,15 @@ public struct CoinageTxSubmission {
 /// released here exactly once — never re-taken, including after a resubmission — so a recovery
 /// pass and a live submission can never both be deciding the same entry.
 ///
-/// Every status the watcher derives is routed through ``StatusUpdateTransaction``, which
-/// declines proposals for a watched entry; since this watcher holds the entry for as long as
-/// it is proposing, those proposals are all no-ops. That is the spec as written. What does
-/// land are the field writes — `txHash` and `successDetectedAt` — which are not status changes
-/// and so are not declined. They are what Rule 0 and Rule 7 need, so the pass can finish the
-/// entry after release with full evidence.
+/// While it owns the entry the tracker writes only evidence — `txHash` and `successDetectedAt` —
+/// never the status: the recovery pass skips watched entries, so the tracker is the sole writer
+/// but leaves the verdict to the pass, which finishes the entry after release with full evidence.
+/// Those field writes are what Rule 0 and Rule 7 read.
 final class CoinageTxTracker: Sendable {
     private let monitor: ExtrinsicSubmitMonitorFactoryProtocol
     private let store: any CoinageTxRepositoryProtocol
     private let chainFactory: any CoinageChainViewFactoryProtocol
     private let watched: CoinageTrackingTxSet
-    private let transaction: StatusUpdateTransaction
     private let backgroundExecutor: any BackgroundExecuting
     private let onRelease: @Sendable () -> Void
     private let logger: SDKLoggerProtocol?
@@ -49,7 +46,6 @@ final class CoinageTxTracker: Sendable {
         store: any CoinageTxRepositoryProtocol,
         chainFactory: any CoinageChainViewFactoryProtocol,
         watched: CoinageTrackingTxSet,
-        transaction: StatusUpdateTransaction,
         backgroundExecutor: any BackgroundExecuting,
         onRelease: @escaping @Sendable () -> Void,
         logger: SDKLoggerProtocol?
@@ -58,7 +54,6 @@ final class CoinageTxTracker: Sendable {
         self.store = store
         self.chainFactory = chainFactory
         self.watched = watched
-        self.transaction = transaction
         self.backgroundExecutor = backgroundExecutor
         self.onRelease = onRelease
         self.logger = logger
@@ -167,7 +162,8 @@ private extension CoinageTxTracker {
         case .future,
              .ready,
              .broadcast:
-            await propose(.status(.pending), to: entryId)
+            // Pre-inclusion: nothing on chain yet. The recovery pass owns the status; the tracker
+            // only records evidence (txHash above, and inclusion below).
             return false
 
         case let .inBlock(blockHash):
@@ -213,8 +209,9 @@ private extension CoinageTxTracker {
 
         guard succeeded else { return }
 
+        // Record the block where inclusion succeeded — evidence Rule 0 needs. The pass promotes the
+        // status; this write is what lets it decide the entry later without re-deriving execution.
         try? await store.recordSuccessDetected(entryId, at: block)
-        await propose(.status(.pendingSuccess), to: entryId)
     }
 
     /// The block an inclusion was recorded in is gone. The record is cleared only when it
@@ -241,13 +238,12 @@ private extension CoinageTxTracker {
 
         switch await view.dispatchOutcome(txHash: txHash, at: block) {
         case .present(true):
+            // Record the finalized success block; the pass reads it and promotes the entry.
             try? await store.recordSuccessDetected(entryId, at: block)
-            await propose(.status(.finalizedSuccess), to: entryId)
-        case .present(false):
-            await propose(.status(.failure), to: entryId)
-        case .absent,
+        case .present(false),
+             .absent,
              .failedRead:
-            // Unreadable outcome: propose nothing and let the pass decide from state.
+            // Failure or unreadable outcome: record nothing and let the pass decide from state.
             break
         }
     }
@@ -255,15 +251,6 @@ private extension CoinageTxTracker {
     func resolveBlock(_ blockHash: String, using view: any CoinageChainViewProtocol) async -> BlockRef? {
         guard let hash = try? Data(hexString: blockHash) else { return nil }
         return await view.blockRef(forHash: hash).value
-    }
-
-    func propose(_ verdict: RuleVerdict, to entryId: CoinageTxId) async {
-        do {
-            guard let entry = try await store.fetch(id: entryId) else { return }
-            try await transaction.apply(verdict, to: entryId, observedStatus: entry.status)
-        } catch {
-            logger?.error("Status proposal failed for \(entryId): \(error)")
-        }
     }
 
     /// Releases ownership once and triggers a pass, so the entry is picked up immediately

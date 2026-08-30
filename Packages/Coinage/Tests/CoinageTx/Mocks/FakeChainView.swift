@@ -72,7 +72,12 @@ final class FakeChainView: CoinageChainViewProtocol, CoinageChainViewFactoryProt
 
     // MARK: - CoinageChainViewFactoryProtocol
 
-    func pin() async throws -> any CoinageChainViewProtocol { self }
+    private(set) var pinCount = 0
+
+    func pin() async throws -> any CoinageChainViewProtocol {
+        pinCount += 1
+        return self
+    }
 
     func finalizedHeads() -> AnyAsyncSequence<BlockNumber> {
         AsyncStream<BlockNumber> { $0.finish() }.eraseToAnyAsyncSequence()
@@ -104,7 +109,10 @@ final class FakeChainView: CoinageChainViewProtocol, CoinageChainViewFactoryProt
         (outcomeResults[block.number] ?? [:])[txHash] ?? .absent
     }
 
+    private(set) var searchedHashes: [Data] = []
+
     func searchBodies(for txHash: Data, in _: ClosedRange<UInt32>) async -> BodySearchOutcome {
-        bodySearchResponses[txHash] ?? .notFoundWindowComplete
+        searchedHashes.append(txHash)
+        return bodySearchResponses[txHash] ?? .notFoundWindowComplete
     }
 }
