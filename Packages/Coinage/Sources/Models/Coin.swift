@@ -16,10 +16,15 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
     /// Whether the coin has been handed off to a peer, and how far along.
     public var handoffMark: CoinHandoffMark = .none
 
+    /// On-chain public key (account id) derived from `derivationIndex`, cached so the durability
+    /// layer never re-derives it on the fly.
+    public let publicKey: Data
+
     public init(
         exponent: Int16,
         derivationIndex: DerivationIndex,
         age: Int16?,
+        publicKey: Data,
         isOnchain: Bool = false,
         handoffMark: CoinHandoffMark = .none
     ) {
@@ -28,6 +33,7 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
         self.age = age
         self.isOnchain = isOnchain
         self.handoffMark = handoffMark
+        self.publicKey = publicKey
     }
 
     public func changing(age: Int16) -> Coin {
@@ -36,7 +42,8 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
             derivationIndex: derivationIndex,
             age: age,
             isOnchain: isOnchain,
-            handoffMark: handoffMark
+            handoffMark: handoffMark,
+            publicKey: publicKey
         )
     }
 
@@ -46,7 +53,8 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
             derivationIndex: derivationIndex,
             age: age,
             isOnchain: isOnchain,
-            handoffMark: handoffMark
+            handoffMark: handoffMark,
+            publicKey: publicKey
         )
     }
 
@@ -56,7 +64,19 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
             derivationIndex: derivationIndex,
             age: age,
             isOnchain: isOnchain,
-            handoffMark: handoffMark
+            handoffMark: handoffMark,
+            publicKey: publicKey
+        )
+    }
+
+    public func changing(publicKey: Data?) -> Coin {
+        Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            isOnchain: isOnchain,
+            handoffMark: handoffMark,
+            publicKey: publicKey
         )
     }
 }

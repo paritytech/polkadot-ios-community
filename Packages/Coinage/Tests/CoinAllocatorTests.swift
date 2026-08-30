@@ -19,7 +19,11 @@ struct CoinAllocatorTests {
         self.store = store
         allocator = CoinAllocator(
             storage: store,
-            coinRepository: AnyDataProviderRepository(StubRepository<Coin>())
+            coinRepository: AnyDataProviderRepository(StubRepository<Coin>()),
+            keyFactory: CoinKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
+                repeating: 0x01,
+                count: 32
+            )))
         )
     }
 

@@ -61,18 +61,23 @@ public extension CoinageService {
 
         let voucherIndexstore = VoucherIndexstore(storage: keystore)
         let coinsIndexstore = CoinIndexstore(storage: keystore)
+        let coinKeypairFactory = CoinKeypairFactory(entropyManager: rootEntropyManager)
+        let voucherKeypairFactory = VoucherKeypairFactory(entropyManager: rootEntropyManager)
         // One allocator per Coinage instance: actor isolation serialises the index counter only
         // within a single instance.
-        let coinAllocator = CoinAllocator(storage: coinsIndexstore, coinRepository: coinRepository)
+        let coinAllocator = CoinAllocator(
+            storage: coinsIndexstore,
+            coinRepository: coinRepository,
+            keyFactory: coinKeypairFactory
+        )
         let voucherAllocator = VoucherAllocator(
             storage: voucherIndexstore,
             delayProvider: VoucherDelayProvider(),
-            voucherRepository: voucherRepository
+            voucherRepository: voucherRepository,
+            keyFactory: voucherKeypairFactory
         )
         // One minter per Coinage instance wraps both allocators; every mint site goes through it.
         let coinageMinter = CoinageMinter(coinAllocator: coinAllocator, voucherAllocator: voucherAllocator)
-
-        let voucherKeypairFactory = VoucherKeypairFactory(entropyManager: rootEntropyManager)
 
         let voucherLoaderFactory = VoucherLoaderFactory(
             minter: coinageMinter,
@@ -100,8 +105,6 @@ public extension CoinageService {
         )
 
         let coinSelector = CoinSelector()
-
-        let coinKeypairFactory = CoinKeypairFactory(entropyManager: rootEntropyManager)
 
         let blockNumberProvider = BlockInfoProvider(
             chainRegistry: chainResource,

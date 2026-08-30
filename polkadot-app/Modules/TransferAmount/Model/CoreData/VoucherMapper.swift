@@ -2,6 +2,7 @@ import Foundation
 import CoreData
 import Coinage
 import Operation_iOS
+import SubstrateSdk
 
 final class VoucherMapper {
     var entityIdentifierFieldName: String {
@@ -36,9 +37,9 @@ extension VoucherMapper: CoreDataMapperProtocol {
             }
 
         let state: Voucher.OnChainState =
-            if entity.state == 1 {
+            if entity.onChainState == 1 {
                 .onboarding
-            } else if entity.state == 2, let recycler {
+            } else if entity.onChainState == 2, let recycler {
                 .inRecycler(recycler)
             } else {
                 .unlocated
@@ -46,11 +47,16 @@ extension VoucherMapper: CoreDataMapperProtocol {
 
         let privacy: VoucherPrivacyLevel = entity.privacy == 1 ? .full : .degraded
 
+        guard let publicKeyHex = entity.publicKey else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDVoucher.publicKey))
+        }
+
         return Voucher(
             exponent: entity.exponent,
             derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             allocatedAt: allocatedAt,
             readyAt: readyAt,
+            publicKey: try Data(hexString: publicKeyHex),
             remoteState: state,
             privacy: privacy
         )
@@ -67,8 +73,9 @@ extension VoucherMapper: CoreDataMapperProtocol {
         entity.readyAt = model.readyAt
         entity.allocatedAt = model.allocatedAt
         entity.recyclerIndex = model.recycler.flatMap { Int64($0.index) } ?? -1
+        entity.publicKey = model.publicKey.toHex()
 
-        entity.state =
+        entity.onChainState =
             switch model.remoteState {
             case .unlocated: 0
             case .onboarding: 1

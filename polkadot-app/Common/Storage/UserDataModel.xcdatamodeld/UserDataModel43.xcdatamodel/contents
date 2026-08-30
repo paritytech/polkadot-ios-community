@@ -131,8 +131,12 @@
         <attribute name="handoffMark" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="isOnchain" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="publicKey" optional="YES" attributeType="String"/>
         <relationship name="durabilityInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDDurabilityInput" inverseName="coin" inverseEntity="CDDurabilityInput"/>
         <relationship name="durabilityOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityOutput" inverseName="coin" inverseEntity="CDDurabilityOutput"/>
+        <fetchIndex name="byCoinPublicKey">
+            <fetchIndexElement property="publicKey" type="Binary" order="ascending"/>
+        </fetchIndex>
     </entity>
     <entity name="CDContactDevice" representedClassName="CDContactDevice" syncable="YES" codeGenerationType="class">
         <attribute name="encryptionPublicKey" attributeType="Binary"/>
@@ -299,11 +303,15 @@
         <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
+        <attribute name="onChainState" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
         <attribute name="privacy" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="publicKey" optional="YES" attributeType="String"/>
         <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="recyclerIndex" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
         <relationship name="durabilityInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDDurabilityInput" inverseName="voucher" inverseEntity="CDDurabilityInput"/>
         <relationship name="durabilityOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDDurabilityOutput" inverseName="voucher" inverseEntity="CDDurabilityOutput"/>
+        <fetchIndex name="byVoucherPublicKey">
+            <fetchIndexElement property="publicKey" type="Binary" order="ascending"/>
+        </fetchIndex>
     </entity>
 </model>

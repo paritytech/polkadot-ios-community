@@ -13,19 +13,22 @@ actor VoucherAllocator: VoucherAllocating {
     private let storage: CoinageIndexstoreProtocol
     private let delayProvider: VoucherDelayProviderProtocol
     private let voucherRepository: AnyDataProviderRepository<Voucher>
+    private let keyFactory: any VoucherKeyDeriving
 
     init(
         storage: CoinageIndexstoreProtocol,
         delayProvider: VoucherDelayProviderProtocol,
-        voucherRepository: AnyDataProviderRepository<Voucher>
+        voucherRepository: AnyDataProviderRepository<Voucher>,
+        keyFactory: any VoucherKeyDeriving
     ) {
         self.storage = storage
         self.delayProvider = delayProvider
         self.voucherRepository = voucherRepository
+        self.keyFactory = keyFactory
     }
 
-    /// Allocates a new voucher index and persists the voucher, so it exists in the database from the
-    /// moment it is minted (matching the coin allocator and the Android model).
+    /// Allocates a new voucher index and persists the voucher — with its on-chain public key cached
+    /// so the durability layer never re-derives it — from the moment it is minted.
     func allocate(exponent: Int16) async throws -> Voucher {
         let index = try storage.getNextIndex()
         let delay = delayProvider.timeInterval()
@@ -35,7 +38,8 @@ actor VoucherAllocator: VoucherAllocating {
             exponent: exponent,
             derivationIndex: index,
             allocatedAt: allocatedAt,
-            readyAt: allocatedAt.addingTimeInterval(delay)
+            readyAt: allocatedAt.addingTimeInterval(delay),
+            publicKey: try keyFactory.derivePublicKey(index: index)
         )
         try await voucherRepository.saveOperation({ [voucher] }, { [] }).asyncExecute()
         return voucher

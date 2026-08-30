@@ -34,7 +34,7 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
         }
         entity.recyclerIndex = model.recycler.flatMap { Int64($0.index) } ?? -1
 
-        entity.state =
+        entity.onChainState =
             switch model.remoteState {
             case .unlocated: 0
             case .onboarding: 1

@@ -19,7 +19,11 @@ struct VoucherAllocatorTests {
         allocator = VoucherAllocator(
             storage: store,
             delayProvider: mockDelay,
-            voucherRepository: AnyDataProviderRepository(StubRepository<Voucher>())
+            voucherRepository: AnyDataProviderRepository(StubRepository<Voucher>()),
+            keyFactory: VoucherKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
+                repeating: 0x01,
+                count: 32
+            )))
         )
     }
 

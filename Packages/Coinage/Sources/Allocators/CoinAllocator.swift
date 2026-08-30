@@ -13,20 +13,28 @@ protocol CoinAllocating: Actor {
 actor CoinAllocator: CoinAllocating {
     private let storage: CoinageIndexstoreProtocol
     private let coinRepository: AnyDataProviderRepository<Coin>
+    private let keyFactory: any CoinKeyDeriving
 
     init(
         storage: CoinageIndexstoreProtocol,
-        coinRepository: AnyDataProviderRepository<Coin>
+        coinRepository: AnyDataProviderRepository<Coin>,
+        keyFactory: any CoinKeyDeriving
     ) {
         self.storage = storage
         self.coinRepository = coinRepository
+        self.keyFactory = keyFactory
     }
 
-    /// Allocates a new coin index and persists the coin, so it exists in the database from the
-    /// moment it is minted (matching the voucher allocator and the Android model).
+    /// Allocates a new coin index and persists the coin — with its on-chain public key cached so the
+    /// durability layer never re-derives it — from the moment it is minted.
     func allocate(exponent: Int16) async throws -> Coin {
         let index = try storage.getNextIndex()
-        let coin = Coin(exponent: exponent, derivationIndex: index, age: nil)
+        let coin = Coin(
+            exponent: exponent,
+            derivationIndex: index,
+            age: nil,
+            publicKey: try keyFactory.derivePublicKey(index: index)
+        )
         try await coinRepository.saveOperation({ [coin] }, { [] }).asyncExecute()
         return coin
     }
