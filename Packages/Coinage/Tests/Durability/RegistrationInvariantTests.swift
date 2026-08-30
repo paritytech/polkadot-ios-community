@@ -8,6 +8,16 @@ struct RegistrationInvariantTests {
     private let chain = FakeChainView()
     private let watched = WatchedEntrySet()
 
+    /// The registrar requires a validator, but `MockDurabilityStore` enforces the invariants inline
+    /// and ignores the closure, so this is never invoked — it only satisfies the dependency.
+    private static let stubValidator = RegistrationValidator(
+        coinKeyDeriver: CoinKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(repeating: 1, count: 32))),
+        voucherKeyDeriver: VoucherKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
+            repeating: 1,
+            count: 32
+        )))
+    )
+
     // MARK: - Non-Empty Entry
 
     @Test("Rejects entry with no inputs and no outputs")
@@ -124,6 +134,7 @@ struct RegistrationInvariantTests {
 
         let registrar = EntryRegistrar(
             store: store,
+            validator: Self.stubValidator,
             chain: chain,
             watched: watched,
             mortality: 60
@@ -143,6 +154,7 @@ struct RegistrationInvariantTests {
         // Registrar should only call pinChainView(), not any other chain methods
         let registrar = EntryRegistrar(
             store: store,
+            validator: Self.stubValidator,
             chain: chain,
             watched: watched,
             mortality: 60
@@ -185,6 +197,7 @@ struct RegistrationInvariantTests {
 
         let registrar = EntryRegistrar(
             store: store,
+            validator: Self.stubValidator,
             chain: chain,
             watched: watched,
             mortality: 60

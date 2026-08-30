@@ -6,7 +6,7 @@ import Testing
 
 @testable import polkadot_app
 
-/// Guards the serialization of `CoinageTransactionContext.withTransaction`.
+/// Guards the serialization of `CoinageTxCoreDataRepository`'s transaction.
 ///
 /// It once built a new `NSManagedObjectContext` per call instead of using the shared serial one,
 /// so two concurrent registrations each read the store before either saved, neither saw the other,
@@ -18,30 +18,18 @@ import Testing
 @Suite("Durability registration concurrency")
 final class DurabilityRegistrationConcurrencyTests {
     private var facade: UserDataStorageTestFacade!
-    private var store: DurabilityCoreDataStore!
+    private var store: CoinageTxCoreDataRepository!
 
     init() {
         facade = UserDataStorageTestFacade()
-        let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-        store = DurabilityCoreDataStore(
-            storageFacade: facade,
-            transacting: transacting,
-            coinKeyDeriver: StubCoinKeyDeriver(),
-            voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
-        )
+        store = CoinageTxCoreDataRepository(storageFacade: facade)
     }
 
     @Test("concurrent registrations on the same input admit exactly one")
     func concurrentRegistrationsOnSameInputAdmitExactlyOne() async throws {
         for _ in 0 ..< 50 {
             let facade = UserDataStorageTestFacade()
-            let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-            let store = DurabilityCoreDataStore(
-                storageFacade: facade,
-                transacting: transacting,
-                coinKeyDeriver: StubCoinKeyDeriver(),
-                voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
-            )
+            let store = CoinageTxCoreDataRepository(storageFacade: facade)
             try await persistCoins([0, 1, 2], facade: facade)
 
             let sharedInput = DurabilityInput.coin(.own(0))
@@ -108,13 +96,7 @@ final class DurabilityRegistrationConcurrencyTests {
     func concurrentRegistrationsKeepSequenceMonotonic() async throws {
         for _ in 0 ..< 50 {
             let facade = UserDataStorageTestFacade()
-            let transacting = CoinageTransactionContext(databaseService: facade.databaseService)
-            let store = DurabilityCoreDataStore(
-                storageFacade: facade,
-                transacting: transacting,
-                coinKeyDeriver: StubCoinKeyDeriver(),
-                voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
-            )
+            let store = CoinageTxCoreDataRepository(storageFacade: facade)
             try await persistCoins((0 ..< 10).map(UInt64.init) + (100 ..< 110).map(UInt64.init), facade: facade)
 
             let entries = (0 ..< 10).map { i in
@@ -320,4 +302,19 @@ private struct FixedEntropyManager: RootEntropyManaging {
     func fetchRootEntropy() throws -> Data { Data(repeating: 0x01, count: 32) }
     func createRootEntropy(_: Data) throws {}
     func hasRootEntropy() throws -> Bool { true }
+}
+
+/// The real validator, keyed the same way as `persistCoins` (via `StubCoinKeyDeriver`) so its
+/// public keys match the stored coins.
+private let concurrencyValidator = RegistrationValidator(
+    coinKeyDeriver: StubCoinKeyDeriver(),
+    voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
+)
+
+private extension CoinageTxCoreDataRepository {
+    /// Registers, running the real validator's invariant checks inside the store transaction — the
+    /// validation closure the store now requires. Keeps the existing `store.register(entry)` calls.
+    func register(_ entry: DurabilityEntry) async throws {
+        try await register(entry) { try concurrencyValidator.validate(entry, transaction: $0) }
+    }
 }

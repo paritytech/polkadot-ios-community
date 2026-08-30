@@ -10,7 +10,7 @@ import SDKLogger
 /// Triggered on launch, on a new finalized head, on connectivity return, on process resume,
 /// and on watcher release.
 actor RecoveryPass {
-    private let store: any DurabilityStoring
+    private let store: any CoinageTxRepositoryProtocol
     private let chain: any DurabilityChainReading
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
@@ -23,7 +23,7 @@ actor RecoveryPass {
     private static let maxCoalescedPasses = 2
 
     init(
-        store: any DurabilityStoring,
+        store: any CoinageTxRepositoryProtocol,
         chain: any DurabilityChainReading,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,

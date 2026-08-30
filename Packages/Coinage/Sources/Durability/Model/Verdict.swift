@@ -1,7 +1,7 @@
 import Foundation
 
 /// A durability entry's status write, applied atomically by
-/// ``DurabilityStoring/compareAndSetStatus(_:observed:verdict:)``.
+/// ``CoinageTxRepositoryProtocol/compareAndSetStatus(_:observed:verdict:)``.
 ///
 /// Mirrors Android's `Verdict`, with an explicit ``SuccessWrite`` for the recorded success block:
 /// Android's nullable field only sets or clears, but iOS also needs "leave it untouched" so a

@@ -30,7 +30,7 @@ public struct DurabilitySubmission {
 /// entry after release with full evidence.
 final class SubmissionWatcher: Sendable {
     private let monitor: ExtrinsicSubmitMonitorFactoryProtocol
-    private let store: any DurabilityStoring
+    private let store: any CoinageTxRepositoryProtocol
     private let chain: any DurabilityChainReading
     private let watched: WatchedEntrySet
     private let transaction: StatusUpdateTransaction
@@ -46,7 +46,7 @@ final class SubmissionWatcher: Sendable {
 
     init(
         monitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        store: any DurabilityStoring,
+        store: any CoinageTxRepositoryProtocol,
         chain: any DurabilityChainReading,
         watched: WatchedEntrySet,
         transaction: StatusUpdateTransaction,

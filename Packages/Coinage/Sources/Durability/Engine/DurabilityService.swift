@@ -53,7 +53,7 @@ public protocol DurabilityServicing: Sendable {
 /// its own lock. The finalized-head trigger task handle is the one mutable piece of state,
 /// guarded by a lock.
 public final class DurabilityService: @unchecked Sendable {
-    private let store: any DurabilityStoring
+    private let store: any CoinageTxRepositoryProtocol
     private let registrar: EntryRegistrar
     private let watcher: SubmissionWatcher
     private let pass: RecoveryPass
@@ -63,7 +63,7 @@ public final class DurabilityService: @unchecked Sendable {
     private let triggerTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
     init(
-        store: any DurabilityStoring,
+        store: any CoinageTxRepositoryProtocol,
         registrar: EntryRegistrar,
         watcher: SubmissionWatcher,
         pass: RecoveryPass,

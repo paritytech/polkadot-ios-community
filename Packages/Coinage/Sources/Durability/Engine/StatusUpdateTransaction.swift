@@ -18,11 +18,11 @@ import Foundation
 /// is a field write and is deliberately not subject to the watched check, so Rule 0 keeps its
 /// evidence either way.
 public final class StatusUpdateTransaction: Sendable {
-    private let store: any DurabilityStoring
+    private let store: any CoinageTxRepositoryProtocol
     private let watched: WatchedEntrySet
     private let logger: SDKLoggerProtocol?
 
-    public init(store: any DurabilityStoring, watched: WatchedEntrySet, logger: SDKLoggerProtocol?) {
+    public init(store: any CoinageTxRepositoryProtocol, watched: WatchedEntrySet, logger: SDKLoggerProtocol?) {
         self.store = store
         self.watched = watched
         self.logger = logger

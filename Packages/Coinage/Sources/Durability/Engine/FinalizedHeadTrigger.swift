@@ -56,7 +56,7 @@ final class FinalizedHeadTrigger: Sendable {
                 for try await _ in heads {
                     guard !Task.isCancelled else { return }
                     // Every head runs a full pass. A cheap `hasLiveEntries()` check on
-                    // `DurabilityStoring` belongs here — not in `RecoveryPass.run()`, because
+                    // `CoinageTxRepositoryProtocol` belongs here — not in `RecoveryPass.run()`, because
                     // `performPass` opens with `reconciler.reconcile()`, which repairs coin/voucher
                     // projection drift and must keep running for the other four call sites. A
                     // CoreData predicate count on `CDDurabilityEntry.status IN {0,1}` would do it;

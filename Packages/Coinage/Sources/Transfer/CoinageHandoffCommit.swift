@@ -17,7 +17,7 @@ public protocol CoinageHandoffCommit: Sendable {
 /// marks on `assets` to final.
 struct StoreHandoffCommit: CoinageHandoffCommit {
     let assets: [OwnAsset]
-    let store: any DurabilityStoring
+    let store: any CoinageTxRepositoryProtocol
 
     func commit() async throws {
         try await store.commitHandoffs(assets)

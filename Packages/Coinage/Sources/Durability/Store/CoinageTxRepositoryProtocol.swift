@@ -1,17 +1,23 @@
 import AsyncExtensions
 import Foundation
 
-/// Persistence for durability entries and handoff marks.
+/// Persistence for durability entries and handoff marks — the single seam that folds the former
+/// `DurabilityStoring` + `CoinageTransacting` store abstraction into one repository. Mirrors
+/// Android's `CoinageEntryRepository`.
 ///
 /// Entries are never deleted. `fetchLive` filters by status; terminal rows stay as history
 /// because `minter(of:)` and `consumers(of:)` must still see them.
 ///
 /// Handoff marks are a separate insert-only record: `ownCoinInputs` asks whether an asset has
 /// *ever* carried a mark, so the fact has to survive any later state change.
-public protocol DurabilityStoring: Sendable {
-    /// Inserts the entry. Throws ``DurabilityError`` when it violates a registration invariant.
-    /// Assigns the monotonic `sequence`.
-    func register(_ entry: DurabilityEntry) async throws
+public protocol CoinageTxRepositoryProtocol: Sendable {
+    /// Inserts the entry after running `validation` inside the same transaction — so nothing can
+    /// move what it checked before the write, and a throw leaves nothing behind. Assigns the
+    /// monotonic `sequence`. Mirrors Android's `registerValidated`.
+    func register(
+        _ entry: DurabilityEntry,
+        validation: @escaping (any CoinageTxValidationContext) throws -> Void
+    ) async throws
 
     func updateStatus(_ id: TransactionId, to status: EntryStatus) async throws
 
@@ -61,7 +67,7 @@ public protocol DurabilityStoring: Sendable {
     func handedOffCoins() async throws -> [OwnAsset]
 }
 
-public extension DurabilityStoring {
+public extension CoinageTxRepositoryProtocol {
     /// Handoff marks as a set of ``OwnAsset/identifier``, the form every caller compares against.
     func handedOffIdentifiers() async throws -> Set<String> {
         try await Set(handedOffCoins().map(\.identifier))

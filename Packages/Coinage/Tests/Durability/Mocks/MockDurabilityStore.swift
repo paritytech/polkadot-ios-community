@@ -2,7 +2,7 @@ import AsyncExtensions
 import Foundation
 @testable import Coinage
 
-actor MockDurabilityStore: DurabilityStoring {
+actor MockDurabilityStore: CoinageTxRepositoryProtocol {
     private var entries: [TransactionId: DurabilityEntry] = [:]
     private var pendingMarks: Set<String> = []
     private var committedMarks: Set<String> = []
@@ -17,7 +17,17 @@ actor MockDurabilityStore: DurabilityStoring {
         pendingMarks.union(committedMarks)
     }
 
+    /// Convenience for the many tests that register without an extra validation closure — the
+    /// mock enforces the invariants inline (by identifier), independent of the closure the real
+    /// store runs.
     func register(_ entry: DurabilityEntry) async throws {
+        try await register(entry) { _ in }
+    }
+
+    func register(
+        _ entry: DurabilityEntry,
+        validation _: @escaping (any CoinageTxValidationContext) throws -> Void
+    ) async throws {
         guard !entry.inputs.isEmpty || !entry.outputs.isEmpty else {
             throw DurabilityError.emptyEntry
         }

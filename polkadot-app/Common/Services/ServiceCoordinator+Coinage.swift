@@ -156,14 +156,8 @@ private extension ServiceCoordinator {
 
         let schedulerFactory = CoinRecycleSchedulerFactory(logger: logger)
 
-        let transacting = CoinageTransactionContext(
-            databaseService: UserDataStorageFacade.shared.databaseService
-        )
-        let durabilityStore = DurabilityCoreDataStore(
-            storageFacade: UserDataStorageFacade.shared,
-            transacting: transacting,
-            coinKeyDeriver: CoinKeypairFactory(entropyManager: RootEntropyManager.shared),
-            voucherKeyDeriver: voucherKeypairFactory
+        let durabilityStore = CoinageTxCoreDataRepository(
+            storageFacade: UserDataStorageFacade.shared
         )
 
         return CoinageService.make(

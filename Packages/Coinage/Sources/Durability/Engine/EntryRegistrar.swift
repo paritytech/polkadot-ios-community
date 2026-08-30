@@ -7,20 +7,23 @@ import SDKLogger
 /// outputs, unique consumer, blocked handoff — so a rejected registration leaves nothing
 /// behind.
 public struct EntryRegistrar {
-    private let store: any DurabilityStoring
+    private let store: any CoinageTxRepositoryProtocol
+    private let validator: RegistrationValidator
     private let chain: any DurabilityChainReading
     private let watched: WatchedEntrySet
     private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
 
     public init(
-        store: any DurabilityStoring,
+        store: any CoinageTxRepositoryProtocol,
+        validator: RegistrationValidator,
         chain: any DurabilityChainReading,
         watched: WatchedEntrySet,
         mortality: UInt32,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.store = store
+        self.validator = validator
         self.chain = chain
         self.watched = watched
         self.mortality = mortality
@@ -54,7 +57,9 @@ public struct EntryRegistrar {
         watched.take(entry.id)
 
         do {
-            try await store.register(entry)
+            try await store.register(entry) { [validator] context in
+                try validator.validate(entry, transaction: context)
+            }
         } catch {
             watched.release(entry.id)
             throw error

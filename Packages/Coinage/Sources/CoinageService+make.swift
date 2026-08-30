@@ -36,7 +36,7 @@ public extension CoinageService {
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
         planStore: any ClaimPlanStoring,
-        durabilityStore: any DurabilityStoring,
+        durabilityStore: any CoinageTxRepositoryProtocol,
         schedulerFactory: CoinRecycleSchedulerMaking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
@@ -181,6 +181,10 @@ public extension CoinageService {
 
         let registrar = EntryRegistrar(
             store: durabilityStore,
+            validator: RegistrationValidator(
+                coinKeyDeriver: coinKeypairFactory,
+                voucherKeyDeriver: voucherKeypairFactory
+            ),
             chain: chainReader,
             watched: watchedEntries,
             mortality: CoinageConstants.entryMortality,
