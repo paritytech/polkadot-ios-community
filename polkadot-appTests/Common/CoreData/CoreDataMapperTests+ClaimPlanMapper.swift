@@ -33,8 +33,24 @@ extension CoreDataMapperTests {
         @Test("roundTrip with two entries preserves entry fields")
         func roundTripWithEntries() async throws {
             let entries = [
-                ClaimPlanEntry(entryIndex: 0, destinationCoin: Coin(exponent: 10, derivationIndex: 1, age: nil)),
-                ClaimPlanEntry(entryIndex: 1, destinationCoin: Coin(exponent: 12, derivationIndex: 2, age: nil)),
+                ClaimPlanEntry(
+                    entryIndex: 0,
+                    destinationCoin: Coin(
+                        exponent: 10,
+                        derivationIndex: 1,
+                        age: nil,
+                        publicKey: Data(repeating: 0x01, count: 32)
+                    )
+                ),
+                ClaimPlanEntry(
+                    entryIndex: 1,
+                    destinationCoin: Coin(
+                        exponent: 12,
+                        derivationIndex: 2,
+                        age: nil,
+                        publicKey: Data(repeating: 0x02, count: 32)
+                    )
+                ),
             ]
             let original = makePlan(memoKey: Data([1, 2, 3, 4, 5]), messageId: "msg-123", entries: entries)
             try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
@@ -130,8 +146,24 @@ extension CoreDataMapperTests {
         @Test("updates status and claimedAmount only")
         func updatesStatusAndClaimedAmountOnly() async throws {
             let entries = [
-                ClaimPlanEntry(entryIndex: 0, destinationCoin: Coin(exponent: 10, derivationIndex: 20, age: nil)),
-                ClaimPlanEntry(entryIndex: 1, destinationCoin: Coin(exponent: 12, derivationIndex: 21, age: nil)),
+                ClaimPlanEntry(
+                    entryIndex: 0,
+                    destinationCoin: Coin(
+                        exponent: 10,
+                        derivationIndex: 20,
+                        age: nil,
+                        publicKey: Data(repeating: 0x14, count: 32)
+                    )
+                ),
+                ClaimPlanEntry(
+                    entryIndex: 1,
+                    destinationCoin: Coin(
+                        exponent: 12,
+                        derivationIndex: 21,
+                        age: nil,
+                        publicKey: Data(repeating: 0x15, count: 32)
+                    )
+                ),
             ]
             let memoKey = Data([100, 101, 102])
             let original = ClaimPlan(

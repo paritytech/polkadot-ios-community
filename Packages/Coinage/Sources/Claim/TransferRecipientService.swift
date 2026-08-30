@@ -607,10 +607,7 @@ private extension TransferRecipientService {
 
         var derivable: [(index: Int, publicKey: Data)] = []
         for entry in entries {
-            guard let pubKey = try? coinKeyFactory.derivePublicKey(for: entry.destinationCoin) else {
-                continue
-            }
-            derivable.append((entry.entryIndex, pubKey))
+            derivable.append((entry.entryIndex, entry.destinationCoin.publicKey))
         }
 
         guard !derivable.isEmpty else { return [] }

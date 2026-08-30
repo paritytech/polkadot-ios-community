@@ -34,7 +34,12 @@ extension TransferSenderServiceTests {
         func allocate(exponent: Int16) async throws -> Coin {
             let index = nextIndex
             nextIndex += 1
-            let coin = Coin(exponent: exponent, derivationIndex: index, age: nil)
+            let coin = Coin(
+                exponent: exponent,
+                derivationIndex: index,
+                age: nil,
+                publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+            )
             mintedCoins.append(coin)
             return coin
         }
@@ -45,30 +50,26 @@ extension TransferSenderServiceTests {
     }
 
     final class MockCoinKeyFactory: CoinKeyDeriving {
-        typealias Model = Coin
-
-        func derivePublicKey(for _: Coin) throws -> Data {
+        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
             Data(repeating: 0, count: 32)
         }
 
-        func derivePrivateKey(for _: Coin) throws -> Data {
+        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
             Data(repeating: 0, count: 64)
         }
     }
 
     final class MockVoucherKeyFactory: VoucherKeyDeriving {
-        typealias Model = Voucher
-
-        func derivePublicKey(for _: Voucher) throws -> Data {
+        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
             Data(repeating: 0, count: 32)
         }
 
-        func derivePrivateKey(for _: Voucher) throws -> Data {
+        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
             Data(repeating: 0, count: 64)
         }
 
-        func createKeyManager(for model: Voucher) throws -> any BandersnatchKeyManaging {
-            MockBandersnatchKeyManager(derivationIndex: model.derivationIndex)
+        func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging {
+            MockBandersnatchKeyManager(derivationIndex: index)
         }
     }
 

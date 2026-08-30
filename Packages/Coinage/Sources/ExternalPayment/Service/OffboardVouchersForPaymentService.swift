@@ -298,11 +298,10 @@ private extension OffboardVouchersForPaymentService {
         key: RecyclerKey,
         submission: GroupSubmission
     ) throws -> CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins {
-        let loadedCoinEntries = try submission.details.surplusVouchers.map { voucher in
-            let memberKey = try voucherKeyFactory.derivePublicKey(for: voucher)
-            return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins.LoadedCoin(
+        let loadedCoinEntries = submission.details.surplusVouchers.map { voucher in
+            CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins.LoadedCoin(
                 coinValue: Int8(voucher.exponent),
-                memberKey: memberKey
+                memberKey: voucher.publicKey
             )
         }
 

@@ -735,7 +735,13 @@ extension TransferSenderServiceTests {
         derivationIndex: UInt64 = 0,
         age: Int16 = 0
     ) -> TrackedCoin {
-        let coin = Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, isOnchain: true)
+        let coin = Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            isOnchain: true,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
+        )
         return TrackedCoin(
             coin: coin,
             state: CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
@@ -753,7 +759,8 @@ extension TransferSenderServiceTests {
             derivationIndex: derivationIndex,
             allocatedAt: Date.distantPast,
             readyAt: readyAt,
-            remoteState: .inRecycler(.init(index: recyclerIndex))
+            remoteState: .inRecycler(.init(index: recyclerIndex)),
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
         )
         return TrackedVoucher(
             voucher: voucher,

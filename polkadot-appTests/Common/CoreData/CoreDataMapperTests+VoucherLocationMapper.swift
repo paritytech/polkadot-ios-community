@@ -22,7 +22,8 @@ extension CoreDataMapperTests {
                 derivationIndex: 100,
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(2_400),
-                remoteState: .unlocated
+                remoteState: .unlocated,
+                publicKey: Data(repeating: 0x64, count: 32)
             )
             try await fullRepo.saveOperation({ [original] }, { [] }).asyncExecute()
 
@@ -51,7 +52,8 @@ extension CoreDataMapperTests {
                 derivationIndex: 999,
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(1_000),
-                remoteState: .onboarding
+                remoteState: .onboarding,
+                publicKey: Data(repeating: 0x13, count: 32)
             )
 
             await #expect(throws: VoucherLocationMapper.MappingError.noExistingRequest) {

@@ -110,8 +110,7 @@ private extension SplitCoinStrategy {
     ) throws -> [CoinagePallet.Calls.Split.SplitDestination] {
         var grouped: [Int16: [Data]] = [:]
         for coin in coins {
-            let accountId = try coinKeyFactory.derivePublicKey(for: coin)
-            grouped[coin.exponent, default: []].append(accountId)
+            grouped[coin.exponent, default: []].append(coin.publicKey)
         }
 
         return grouped.map { exponent, accounts in
@@ -125,7 +124,7 @@ private extension SplitCoinStrategy {
     func makeOrigin() throws -> ExtrinsicOriginDefining {
         let coinAccount = try CoinDerivedWallet(
             privateKey: coinKeyFactory.derivePrivateKey(for: overflowCoin),
-            publicKey: coinKeyFactory.derivePublicKey(for: overflowCoin)
+            publicKey: overflowCoin.publicKey
         )
 
         return try originFactory.createAsCoinOrigin(for: coinAccount)

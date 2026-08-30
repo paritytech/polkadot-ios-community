@@ -39,6 +39,7 @@ final class DurabilityRegistrationConcurrencyTests {
                 transacting: transacting,
                 coinKeyDeriver: StubCoinKeyDeriver()
             )
+            try await persistCoins([0, 1, 2], facade: facade)
 
             let sharedInput = DurabilityInput.coin(.own(0))
             let id1 = TransactionId()
@@ -110,6 +111,7 @@ final class DurabilityRegistrationConcurrencyTests {
                 transacting: transacting,
                 coinKeyDeriver: StubCoinKeyDeriver()
             )
+            try await persistCoins((0 ..< 10).map(UInt64.init) + (100 ..< 110).map(UInt64.init), facade: facade)
 
             let entries = (0 ..< 10).map { i in
                 DurabilityEntry(
@@ -158,6 +160,8 @@ final class DurabilityRegistrationConcurrencyTests {
 
     @Test("rejected registration leaves nothing behind")
     func rejectedRegistrationLeavesNothingBehind() async throws {
+        try await persistCoins([0, 1, 2], facade: facade)
+
         // First registration should succeed
         let firstInput = DurabilityInput.coin(.own(0))
         let firstEntry = DurabilityEntry(
@@ -210,6 +214,8 @@ final class DurabilityRegistrationConcurrencyTests {
     /// would be rejected as a double-spend.
     @Test("an input claimed only by a failed entry can be registered again")
     func inputOfFailedEntryIsRegistrableAgain() async throws {
+        try await persistCoins([7, 1, 2], facade: facade)
+
         let input = DurabilityInput.coin(.own(7))
         let failedId = TransactionId()
 
@@ -243,6 +249,8 @@ final class DurabilityRegistrationConcurrencyTests {
 
     @Test("an input claimed by a live entry is still rejected after another entry fails")
     func liveClaimSurvivesUnrelatedFailure() async throws {
+        try await persistCoins([7, 8, 1, 2, 3], facade: facade)
+
         let liveInput = DurabilityInput.coin(.own(7))
         let failedId = TransactionId()
 
@@ -277,16 +285,27 @@ final class DurabilityRegistrationConcurrencyTests {
             try await store.register(conflicting)
         }
     }
+
+    /// Coins must exist before a transaction registers against them, so persist the input and
+    /// output coins a test references before it registers any entry.
+    private func persistCoins(_ indices: [DerivationIndex], facade: UserDataStorageTestFacade) async throws {
+        let repo = facade.makeRepo(mapper: CoinMapper())
+        let deriver = StubCoinKeyDeriver()
+        let coins = try indices.map {
+            try Coin(exponent: 0, derivationIndex: $0, age: nil, publicKey: deriver.derivePublicKey(index: $0))
+        }
+        try await repo.saveOperation({ coins }, { [] }).asyncExecute()
+    }
 }
 
 /// Deterministic coin public key from the derivation index — enough for registration validation,
 /// which only needs distinct, stable keys.
 private struct StubCoinKeyDeriver: CoinKeyDeriving {
-    func derivePublicKey(for model: Coin) throws -> PublicKey {
-        withUnsafeBytes(of: model.derivationIndex.bigEndian) { Data($0) }
+    func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
+        withUnsafeBytes(of: index.bigEndian) { Data($0) }
     }
 
-    func derivePrivateKey(for _: Coin) throws -> PrivateKey {
+    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
         Data()
     }
 }

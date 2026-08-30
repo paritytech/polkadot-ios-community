@@ -22,7 +22,8 @@ extension CoreDataMapperTests {
                 derivationIndex: derivationIndex,
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(3_600),
-                remoteState: remoteState
+                remoteState: remoteState,
+                publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
             )
         }
 

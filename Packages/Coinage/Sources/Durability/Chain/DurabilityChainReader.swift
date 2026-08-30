@@ -116,7 +116,7 @@ private extension DurabilityChainReader {
         let coins = assets.enumerated().compactMap { position, asset -> (position: Int, key: Data)? in
             switch asset.input {
             case let .coin(.own(index)):
-                (try? coinKeyFactory.derivePublicKey(placeholderIndex: index))
+                (try? coinKeyFactory.derivePublicKey(index: index))
                     .map { (position, $0) }
             case let .coin(.received(publicKey)):
                 (position, publicKey)

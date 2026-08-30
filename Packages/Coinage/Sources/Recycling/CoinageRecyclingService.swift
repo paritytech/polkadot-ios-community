@@ -139,9 +139,9 @@ private extension CoinageRecyclingService {
         // input derives to `.pendingTransfer` — so no separate pre-lock is written here.
         let voucher = try await voucherMinter.mintVoucher(exponent: coin.exponent)
 
-        let memberKey = try voucherKeypairFactory.derivePublicKey(for: voucher)
+        let memberKey = voucher.publicKey
         let keyManager = try voucherKeypairFactory.createKeyManager(for: voucher)
-        let coinPublicKey = try coinKeypairFactory.derivePublicKey(for: coin)
+        let coinPublicKey = coin.publicKey
         let proof = try keyManager.sign(coinPublicKey)
 
         let call = CoinagePallet.Calls.LoadRecyclerWithCoin(

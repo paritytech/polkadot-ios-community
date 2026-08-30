@@ -127,7 +127,7 @@ public extension CoinageService {
             connection: connection,
             runtimeService: runtimeService,
             storageRequestFactory: storageRequestFactory,
-            publicKeyProvider: { try voucherKeypairFactory.derivePublicKey(placeholderIndex: $0) },
+            publicKeyProvider: { try voucherKeypairFactory.derivePublicKey(index: $0) },
             aliasProvider: { try voucherKeypairFactory.alias(for: $0) }
         )
 
@@ -243,8 +243,7 @@ public extension CoinageService {
 
         let transferSubmitter = CoinTransferSubmitter(
             originFactory: originFactory,
-            extrinsicMonitor: extrinsicMonitorFactory,
-            coinKeyFactory: coinKeypairFactory
+            extrinsicMonitor: extrinsicMonitorFactory
         )
 
         let recipientService = TransferRecipientService(
@@ -264,7 +263,6 @@ public extension CoinageService {
             coinProvider: databaseFactory.makeTrackedCoinProvider(),
             connection: connection,
             runtimeService: runtimeService,
-            entropyManager: rootEntropyManager,
             logger: logger
         )
 
@@ -274,7 +272,6 @@ public extension CoinageService {
             voucherProvider: voucherProvider,
             connection: connection,
             runtimeService: runtimeService,
-            entropyManager: rootEntropyManager,
             logger: logger
         )
 
@@ -335,13 +332,7 @@ public extension CoinageService {
 
 extension VoucherKeyDeriving {
     func alias(for index: DerivationIndex) throws -> Data {
-        let voucher = Voucher(
-            exponent: 0,
-            derivationIndex: index,
-            allocatedAt: .now,
-            readyAt: .now
-        )
-        return try createKeyManager(for: voucher)
+        try createKeyManager(index: index)
             .deriveAlias(for: UnloadTokenContextBuilder.recyclerAliasContext)
     }
 }

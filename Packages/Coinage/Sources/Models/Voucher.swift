@@ -13,7 +13,7 @@ public struct Voucher: Equatable, CoinageDerivable {
 
     /// On-chain public key (member key) derived from `derivationIndex`, cached so the durability
     /// layer never re-derives it on the fly.
-    public let publicKey: Data
+    public let publicKey: PublicKey
 
     public var recycler: Recycler? { remoteState.recycler }
 
@@ -52,9 +52,9 @@ public struct Voucher: Equatable, CoinageDerivable {
         derivationIndex: DerivationIndex,
         allocatedAt: Date,
         readyAt: Date,
-        publicKey: Data,
         remoteState: OnChainState = .unlocated,
-        privacy: VoucherPrivacyLevel = .degraded
+        privacy: VoucherPrivacyLevel = .degraded,
+        publicKey: PublicKey
     ) {
         self.exponent = exponent
         self.derivationIndex = derivationIndex
@@ -85,18 +85,6 @@ public struct Voucher: Equatable, CoinageDerivable {
             readyAt: readyAt,
             remoteState: remoteState,
             privacy: state,
-            publicKey: publicKey
-        )
-    }
-
-    public func changing(publicKey: Data?) -> Voucher {
-        Voucher(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            allocatedAt: allocatedAt,
-            readyAt: readyAt,
-            remoteState: remoteState,
-            privacy: privacy,
             publicKey: publicKey
         )
     }

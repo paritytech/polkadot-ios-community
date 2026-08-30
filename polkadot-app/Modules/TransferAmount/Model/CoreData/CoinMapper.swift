@@ -25,13 +25,13 @@ extension CoinMapper: CoreDataMapperProtocol {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.publicKey))
         }
 
-        return Coin(
+        return try Coin(
             exponent: entity.exponent,
             derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             age: entity.age?.int16Value,
-            publicKey: try Data(hexString: publicKeyHex),
             isOnchain: entity.isOnchain,
-            handoffMark: handoffMark
+            handoffMark: handoffMark,
+            publicKey: Data(hexString: publicKeyHex)
         )
     }
 

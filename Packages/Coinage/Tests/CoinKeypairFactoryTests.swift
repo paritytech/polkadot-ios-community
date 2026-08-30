@@ -19,18 +19,15 @@ struct CoinKeypairFactoryTests {
         let validEntropy = Data(repeating: 0x01, count: 32)
         try mockEntropyManager.createRootEntropy(validEntropy)
 
-        let coin = Coin(exponent: 0, derivationIndex: 1, age: nil)
-        let publicKey = try factory.derivePublicKey(for: coin)
+        let publicKey = try factory.derivePublicKey(index: 1)
 
         #expect(publicKey.count == 32)
     }
 
     @Test("Throws error when entropy is missing")
     func derivePublicKeyMissingEntropy() throws {
-        let coin = Coin(exponent: 0, derivationIndex: 1, age: nil)
-
         #expect(throws: RootEntropyManagerError.noEntropyFound) {
-            _ = try factory.derivePublicKey(for: coin)
+            _ = try factory.derivePublicKey(index: 1)
         }
     }
 
@@ -42,11 +39,8 @@ struct CoinKeypairFactoryTests {
         let manager2 = MockEntropyManager(entropy: entropy)
         let factory2 = CoinKeypairFactory(entropyManager: manager2)
 
-        let coin1 = Coin(exponent: 0, derivationIndex: 5, age: nil)
-        let coin2 = Coin(exponent: 0, derivationIndex: 5, age: nil)
-
-        let key1 = try factory.derivePublicKey(for: coin1)
-        let key2 = try factory2.derivePublicKey(for: coin2)
+        let key1 = try factory.derivePublicKey(index: 5)
+        let key2 = try factory2.derivePublicKey(index: 5)
 
         #expect(key1 == key2)
     }
@@ -56,24 +50,14 @@ struct CoinKeypairFactoryTests {
         let entropy = Data(repeating: 0xAB, count: 32)
         try mockEntropyManager.createRootEntropy(entropy)
 
-        let coin1 = Coin(exponent: 0, derivationIndex: 1, age: nil)
-        let coin2 = Coin(exponent: 0, derivationIndex: 2, age: nil)
-
-        let key1 = try factory.derivePublicKey(for: coin1)
-        let key2 = try factory.derivePublicKey(for: coin2)
+        let key1 = try factory.derivePublicKey(index: 1)
+        let key2 = try factory.derivePublicKey(index: 2)
 
         #expect(key1 != key2)
     }
 
     @Test("Base derivation path is correct")
     func derivationPathCorrectness() {
-        let coin = Coin(
-            exponent: 0,
-            derivationIndex: 123,
-            age: nil
-        )
-
-        let path = factory.derivationPath(for: coin)
-        #expect(path == "//pps//coin//123")
+        #expect(factory.derivationPath(index: 123) == "//pps//coin//123")
     }
 }

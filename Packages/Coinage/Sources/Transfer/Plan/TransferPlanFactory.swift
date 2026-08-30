@@ -77,7 +77,6 @@ extension TransferPlanFactory: TransferPlanCreating {
                 minter: minter,
                 voucherKeyFactory: voucherKeyFactory,
                 recyclerLoader: recyclerLoader,
-                coinKeyFactory: coinKeyFactory,
                 durability: durability,
                 originFactory: originFactory,
                 blockInfoProvider: blockInfoProvider,

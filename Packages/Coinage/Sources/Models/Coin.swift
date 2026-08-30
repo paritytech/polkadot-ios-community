@@ -18,15 +18,15 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
 
     /// On-chain public key (account id) derived from `derivationIndex`, cached so the durability
     /// layer never re-derives it on the fly.
-    public let publicKey: Data
+    public let publicKey: PublicKey
 
     public init(
         exponent: Int16,
         derivationIndex: DerivationIndex,
         age: Int16?,
-        publicKey: Data,
         isOnchain: Bool = false,
-        handoffMark: CoinHandoffMark = .none
+        handoffMark: CoinHandoffMark = .none,
+        publicKey: PublicKey
     ) {
         self.exponent = exponent
         self.derivationIndex = derivationIndex
@@ -59,17 +59,6 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
     }
 
     public func changing(handoffMark: CoinHandoffMark) -> Coin {
-        Coin(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            age: age,
-            isOnchain: isOnchain,
-            handoffMark: handoffMark,
-            publicKey: publicKey
-        )
-    }
-
-    public func changing(publicKey: Data?) -> Coin {
         Coin(
             exponent: exponent,
             derivationIndex: derivationIndex,

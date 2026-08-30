@@ -29,7 +29,6 @@ public final class VoucherLocationService: BaseSyncService {
     private let voucherProvider: StreamableProvider<Voucher>
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
-    private let keypairFactory: any VoucherKeyDeriving
     private let stateLock = OSAllocatedUnfairLock(initialState: SyncStateData())
 
     private var localVouchersMonitoringTask: Task<Void, Error>?
@@ -40,14 +39,12 @@ public final class VoucherLocationService: BaseSyncService {
         voucherProvider: StreamableProvider<Voucher>,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
-        entropyManager: any RootEntropyManaging,
         logger: any SDKLoggerProtocol
     ) {
         self.voucherRepository = voucherRepository
         self.voucherProvider = voucherProvider
         self.connection = connection
         self.runtimeService = runtimeService
-        keypairFactory = VoucherKeypairFactory(entropyManager: entropyManager)
         super.init(logger: logger)
     }
 
@@ -108,8 +105,8 @@ extension VoucherLocationService {
             return []
         }
 
-        return try pending.map { voucher in
-            let publicKey = try keypairFactory.derivePublicKey(for: voucher)
+        return pending.map { voucher in
+            let publicKey = voucher.publicKey
             let collectionId = RecyclerCollectionIdentifier.identifier(for: voucher.exponent)
 
             let mappingKey = SubscriptionKey.member(

@@ -46,7 +46,7 @@ public struct RegistrationValidator {
         var result: [Data: DurabilityOutput] = [:]
         for output in outputs {
             guard case let .coin(index) = output else { continue }
-            let publicKey = try coinKeyDeriver.derivePublicKey(placeholderIndex: index)
+            let publicKey = try coinKeyDeriver.derivePublicKey(index: index)
             result[publicKey] = output
         }
         return result

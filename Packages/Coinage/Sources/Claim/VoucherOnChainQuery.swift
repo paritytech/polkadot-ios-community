@@ -7,6 +7,7 @@ import Individuality
 // MARK: - Result type
 
 struct VoucherOnChainInfo {
+    let publicKey: Data
     let exponent: Int16
     let ringPosition: MembersPallet.RingPosition
     let aliasState: CoinagePallet.AliasState?
@@ -67,6 +68,7 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
         typealias IndexedKeyWithExponent = (index: DerivationIndex, publicKey: Data, exponent: Int16)
         typealias IndexedKeyWithPosition = (
             index: DerivationIndex,
+            publicKey: Data,
             exponent: Int16,
             ringIndex: MembersPallet.RingIndex,
             ringPosition: MembersPallet.RingPosition
@@ -98,7 +100,7 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
         let withPositions: [IndexedKeyWithPosition] =
             zip(withExponents, positions).compactMap { key, position in
                 guard let position, let ringIndex = position.ringIndex else { return nil }
-                return (key.index, key.exponent, ringIndex, position)
+                return (key.index, key.publicKey, key.exponent, ringIndex, position)
             }
 
         // Step 4: fetch alias states — include all with their state so callers can track their indices
@@ -112,6 +114,7 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
             .reduce(into: [:]) { dict, pair in
                 let (key, aliasState) = pair
                 dict[key.index] = VoucherOnChainInfo(
+                    publicKey: key.publicKey,
                     exponent: key.exponent,
                     ringPosition: key.ringPosition,
                     aliasState: aliasState

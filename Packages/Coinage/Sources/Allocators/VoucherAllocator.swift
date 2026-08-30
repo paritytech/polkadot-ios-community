@@ -34,12 +34,12 @@ actor VoucherAllocator: VoucherAllocating {
         let delay = delayProvider.timeInterval()
         let allocatedAt = Date.now
 
-        let voucher = Voucher(
+        let voucher = try Voucher(
             exponent: exponent,
             derivationIndex: index,
             allocatedAt: allocatedAt,
             readyAt: allocatedAt.addingTimeInterval(delay),
-            publicKey: try keyFactory.derivePublicKey(index: index)
+            publicKey: keyFactory.derivePublicKey(index: index)
         )
         try await voucherRepository.saveOperation({ [voucher] }, { [] }).asyncExecute()
         return voucher

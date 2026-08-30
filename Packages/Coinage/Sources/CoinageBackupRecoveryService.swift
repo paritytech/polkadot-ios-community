@@ -158,7 +158,7 @@ private extension CoinageBackupRecoveryService {
         await withCheckedContinuation { continuation in
             let keys = range.compactMap { index in
                 do {
-                    let key = try coinKeypairFactory.derivePublicKey(placeholderIndex: DerivationIndex(index))
+                    let key = try coinKeypairFactory.derivePublicKey(index: DerivationIndex(index))
                     return (DerivationIndex(index), key)
                 } catch {
                     logger?.error("Failed to derive coin key at index \(index): \(error)")
@@ -177,7 +177,8 @@ private extension CoinageBackupRecoveryService {
             return Coin(
                 exponent: Int16(onChainCoin.value),
                 derivationIndex: indexedKeys[i].index,
-                age: onChainCoin.age
+                age: onChainCoin.age,
+                publicKey: indexedKeys[i].publicKey
             )
         }
     }
@@ -242,7 +243,8 @@ private extension CoinageBackupRecoveryService {
                 derivationIndex: index,
                 allocatedAt: .now,
                 readyAt: .distantPast,
-                remoteState: state
+                remoteState: state,
+                publicKey: info.publicKey
             )
         }
     }

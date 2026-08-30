@@ -102,7 +102,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
             denominations.forEach { denomination in
                 group.addTask {
                     let voucher = try await self.minter.mintVoucher(exponent: denomination.exponent)
-                    let publicKey = try self.keypairFactory.derivePublicKey(for: voucher)
+                    let publicKey = voucher.publicKey
                     let keyManager = try self.keypairFactory.createKeyManager(for: voucher)
 
                     let proof = try keyManager.sign(self.accountId)

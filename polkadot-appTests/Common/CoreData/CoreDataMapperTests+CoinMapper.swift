@@ -21,18 +21,27 @@ extension CoreDataMapperTests {
 
         @Test("roundTrip preserves the stored identity fields")
         func roundTrip() async throws {
-            let original = Coin(exponent: 12, derivationIndex: 42, age: 5, isOnchain: true)
+            let original = Coin(
+                exponent: 12,
+                derivationIndex: 42,
+                age: 5,
+                isOnchain: true,
+                publicKey: Data(repeating: 0x2A, count: 32)
+            )
             let result = try await roundTrip(original)
 
             #expect(result.exponent == original.exponent)
             #expect(result.derivationIndex == original.derivationIndex)
             #expect(result.age == original.age)
             #expect(result.isOnchain == original.isOnchain)
+            #expect(result.publicKey == original.publicKey)
         }
 
         @Test("nil age stored as -1 and restored to nil")
         func nilAgeRestoredToNil() async throws {
-            let result = try await roundTrip(Coin(exponent: 8, derivationIndex: 100, age: nil))
+            let result = try await roundTrip(
+                Coin(exponent: 8, derivationIndex: 100, age: nil, publicKey: Data(repeating: 0x64, count: 32))
+            )
             #expect(result.age == nil)
         }
 

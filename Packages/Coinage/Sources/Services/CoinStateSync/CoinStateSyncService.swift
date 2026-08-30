@@ -12,7 +12,6 @@ import KeyDerivation
 public final class CoinStateSyncService: BaseSyncService {
     private let coinService: CoinServiceProtocol
     private let coinProvider: StreamableProvider<TrackedCoin>
-    private let coinKeyDeriver: any CoinKeyDeriving
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
 
@@ -24,14 +23,12 @@ public final class CoinStateSyncService: BaseSyncService {
         coinProvider: StreamableProvider<TrackedCoin>,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
-        entropyManager: any RootEntropyManaging,
         logger: any SDKLoggerProtocol
     ) {
         self.coinService = coinService
         self.coinProvider = coinProvider
         self.connection = connection
         self.runtimeService = runtimeService
-        coinKeyDeriver = CoinKeypairFactory(entropyManager: entropyManager)
         super.init(logger: logger)
     }
 
@@ -87,8 +84,8 @@ extension CoinStateSyncService {
     private func performSync(_ coins: [Coin]) async throws {
         syncTask?.cancel()
 
-        let requests: [BatchStorageSubscriptionRequest] = try coins.map { coin in
-            let publicKey = try self.coinKeyDeriver.derivePublicKey(for: coin)
+        let requests: [BatchStorageSubscriptionRequest] = coins.map { coin in
+            let publicKey = coin.publicKey
             let mappingKey = publicKey.toHex()
             let storagePath = CoinagePallet.Storage.coinsByOwner
             let innerRequest = MapSubscriptionRequest(
@@ -126,8 +123,7 @@ extension CoinStateSyncService {
         var coinMap: [String: Coin] = [:]
         for tracked in availableCoins where !tracked.state.isConsumed {
             let coin = tracked.coin
-            let pubKey = try coinKeyDeriver.derivePublicKey(for: coin)
-            coinMap[pubKey.toHex()] = coin
+            coinMap[coin.publicKey.toHex()] = coin
         }
 
         var coinsToUpdate: [Coin] = []

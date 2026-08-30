@@ -24,16 +24,13 @@ protocol CoinTransferSubmitting: Sendable {
 final class CoinTransferSubmitter: CoinTransferSubmitting, @unchecked Sendable {
     private let originFactory: any OriginCreating
     private let extrinsicMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
-    private let coinKeyFactory: any CoinKeyDeriving
 
     init(
         originFactory: any OriginCreating,
-        extrinsicMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
-        coinKeyFactory: any CoinKeyDeriving
+        extrinsicMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
     ) {
         self.originFactory = originFactory
         self.extrinsicMonitor = extrinsicMonitor
-        self.coinKeyFactory = coinKeyFactory
     }
 
     func submitTransfer(
@@ -46,8 +43,7 @@ final class CoinTransferSubmitter: CoinTransferSubmitting, @unchecked Sendable {
             publicKey: senderPublicKey
         )
         let origin = try originFactory.createAsCoinOrigin(for: coinWallet)
-        let destinationPublicKey = try coinKeyFactory.derivePublicKey(for: destinationCoin)
-        let call = CoinagePallet.Calls.Transfer(to: destinationPublicKey)
+        let call = CoinagePallet.Calls.Transfer(to: destinationCoin.publicKey)
         let builder: ExtrinsicBuilderClosure = { builder in
             try builder.adding(call: call.callAsFunction())
         }

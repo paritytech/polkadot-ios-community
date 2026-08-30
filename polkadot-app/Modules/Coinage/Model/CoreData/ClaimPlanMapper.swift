@@ -29,7 +29,8 @@ final class ClaimPlanMapper: CoreDataMapperProtocol {
                 destinationCoin: Coin(
                     exponent: $0.destinationExponent,
                     derivationIndex: $0.destinationDerivationIndex,
-                    age: nil
+                    age: nil,
+                    publicKey: $0.destinationPublicKey
                 )
             )
         }
@@ -64,7 +65,8 @@ final class ClaimPlanMapper: CoreDataMapperProtocol {
             CodableClaimPlanEntry(
                 entryIndex: $0.entryIndex,
                 destinationExponent: $0.destinationCoin.exponent,
-                destinationDerivationIndex: $0.destinationCoin.derivationIndex
+                destinationDerivationIndex: $0.destinationCoin.derivationIndex,
+                destinationPublicKey: $0.destinationCoin.publicKey
             )
         }
         let encoder = ScaleEncoder()
@@ -108,27 +110,32 @@ private struct CodableClaimPlanEntry: ScaleCodable {
     let entryIndex: Int
     let destinationExponent: Int16
     let destinationDerivationIndex: DerivationIndex
+    let destinationPublicKey: Data
 
     init(
         entryIndex: Int,
         destinationExponent: Int16,
-        destinationDerivationIndex: DerivationIndex
+        destinationDerivationIndex: DerivationIndex,
+        destinationPublicKey: Data
     ) {
         self.entryIndex = entryIndex
         self.destinationExponent = destinationExponent
         self.destinationDerivationIndex = destinationDerivationIndex
+        self.destinationPublicKey = destinationPublicKey
     }
 
     init(scaleDecoder: any ScaleDecoding) throws {
         entryIndex = try Int(Int16(scaleDecoder: scaleDecoder))
         destinationExponent = try Int16(scaleDecoder: scaleDecoder)
         destinationDerivationIndex = try DerivationIndex(scaleDecoder: scaleDecoder)
+        destinationPublicKey = try Data(scaleDecoder: scaleDecoder)
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
         try Int16(entryIndex).encode(scaleEncoder: scaleEncoder)
         try destinationExponent.encode(scaleEncoder: scaleEncoder)
         try destinationDerivationIndex.encode(scaleEncoder: scaleEncoder)
+        try destinationPublicKey.encode(scaleEncoder: scaleEncoder)
     }
 }
 

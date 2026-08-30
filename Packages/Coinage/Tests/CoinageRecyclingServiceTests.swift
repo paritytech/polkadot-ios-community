@@ -157,7 +157,13 @@ private extension CoinageRecyclingServiceTests {
     }
 
     func makeTracked(index: UInt64, age: Int16?, free: Bool = true, onchain: Bool = true) -> TrackedCoin {
-        let coin = Coin(exponent: 3, derivationIndex: index, age: age, isOnchain: onchain)
+        let coin = Coin(
+            exponent: 3,
+            derivationIndex: index,
+            age: age,
+            isOnchain: onchain,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+        )
         let state = free
             ? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
             : CoinageAssetState(handedOff: false, consumerStatus: .finalizedSuccess, minterStatus: nil)
@@ -196,7 +202,8 @@ private actor StubVoucherMinter: VoucherMinting {
             derivationIndex: index,
             allocatedAt: Date(),
             readyAt: Date.distantPast,
-            remoteState: .unlocated
+            remoteState: .unlocated,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
         )
     }
 }
@@ -232,19 +239,15 @@ private final class RecordingScheduler: CoinRecycleTaskScheduling, @unchecked Se
 }
 
 private final class StubCoinKeyFactory: CoinKeyDeriving {
-    typealias Model = Coin
-
-    func derivePublicKey(for _: Coin) throws -> Data { Data(repeating: 0, count: 32) }
-    func derivePrivateKey(for _: Coin) throws -> Data { Data(repeating: 0, count: 64) }
+    func derivePublicKey(index _: DerivationIndex) throws -> PublicKey { Data(repeating: 0, count: 32) }
+    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey { Data(repeating: 0, count: 64) }
 }
 
 private final class StubVoucherKeyFactory: VoucherKeyDeriving {
-    typealias Model = Voucher
+    func derivePublicKey(index _: DerivationIndex) throws -> PublicKey { Data(repeating: 0, count: 32) }
+    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey { Data(repeating: 0, count: 64) }
 
-    func derivePublicKey(for _: Voucher) throws -> Data { Data(repeating: 0, count: 32) }
-    func derivePrivateKey(for _: Voucher) throws -> Data { Data(repeating: 0, count: 64) }
-
-    func createKeyManager(for _: Voucher) throws -> any BandersnatchKeyManaging {
+    func createKeyManager(index _: DerivationIndex) throws -> any BandersnatchKeyManaging {
         StubBandersnatchKeyManager()
     }
 }

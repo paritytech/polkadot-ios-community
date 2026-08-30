@@ -27,7 +27,13 @@ struct CoinSelectorTests {
         derivationIndex: UInt64 = 0,
         selectable: Bool = true
     ) -> TrackedCoin {
-        let coin = Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, isOnchain: true)
+        let coin = Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            isOnchain: true,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
+        )
         let state = selectable
             ? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
             : CoinageAssetState(handedOff: false, consumerStatus: .finalizedSuccess, minterStatus: nil)
@@ -46,7 +52,8 @@ struct CoinSelectorTests {
             allocatedAt: Date.distantPast,
             readyAt: readyAt,
             remoteState: .inRecycler(.init(index: 0)),
-            privacy: readinessState
+            privacy: readinessState,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
         )
         return TrackedVoucher(
             voucher: voucher,

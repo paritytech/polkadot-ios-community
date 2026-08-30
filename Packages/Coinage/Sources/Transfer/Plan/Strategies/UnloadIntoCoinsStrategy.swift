@@ -19,7 +19,6 @@ struct UnloadIntoCoinsStrategy {
     private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let recyclerLoader: RecyclerReadinessLoading
-    private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any DurabilityServicing
     private let originFactory: OriginCreating
     private let blockInfoProvider: any BlockInfoProviding
@@ -32,7 +31,6 @@ struct UnloadIntoCoinsStrategy {
         minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         recyclerLoader: RecyclerReadinessLoading,
-        coinKeyFactory: any CoinKeyDeriving,
         durability: any DurabilityServicing,
         originFactory: OriginCreating,
         blockInfoProvider: any BlockInfoProviding,
@@ -43,7 +41,6 @@ struct UnloadIntoCoinsStrategy {
         self.perGroupAllocations = perGroupAllocations
         self.minter = minter
         self.voucherKeyFactory = voucherKeyFactory
-        self.coinKeyFactory = coinKeyFactory
         self.recyclerLoader = recyclerLoader
         self.durability = durability
         self.originFactory = originFactory
@@ -184,8 +181,7 @@ private extension UnloadIntoCoinsStrategy {
 
         var destGrouped: [Int16: [Data]] = [:]
         for coin in groupCoins.recipientCoins + groupCoins.changeCoins {
-            let accountId = try coinKeyFactory.derivePublicKey(for: coin)
-            destGrouped[coin.exponent, default: []].append(accountId)
+            destGrouped[coin.exponent, default: []].append(coin.publicKey)
         }
         let destinations = destGrouped.map { exponent, accounts in
             CoinagePallet.Calls.Split.SplitDestination(exponent: exponent, accounts: accounts)

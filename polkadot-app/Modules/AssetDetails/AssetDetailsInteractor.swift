@@ -193,7 +193,8 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                             derivationIndex: voucher.derivationIndex,
                             allocatedAt: voucher.allocatedAt,
                             readyAt: .now,
-                            remoteState: voucher.remoteState
+                            remoteState: voucher.remoteState,
+                            publicKey: voucher.publicKey
                         )
                     }
 

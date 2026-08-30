@@ -51,14 +51,14 @@ extension VoucherMapper: CoreDataMapperProtocol {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDVoucher.publicKey))
         }
 
-        return Voucher(
+        return try Voucher(
             exponent: entity.exponent,
             derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             allocatedAt: allocatedAt,
             readyAt: readyAt,
-            publicKey: try Data(hexString: publicKeyHex),
             remoteState: state,
-            privacy: privacy
+            privacy: privacy,
+            publicKey: Data(hexString: publicKeyHex)
         )
     }
 

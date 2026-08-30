@@ -29,11 +29,11 @@ actor CoinAllocator: CoinAllocating {
     /// durability layer never re-derives it — from the moment it is minted.
     func allocate(exponent: Int16) async throws -> Coin {
         let index = try storage.getNextIndex()
-        let coin = Coin(
+        let coin = try Coin(
             exponent: exponent,
             derivationIndex: index,
             age: nil,
-            publicKey: try keyFactory.derivePublicKey(index: index)
+            publicKey: keyFactory.derivePublicKey(index: index)
         )
         try await coinRepository.saveOperation({ [coin] }, { [] }).asyncExecute()
         return coin

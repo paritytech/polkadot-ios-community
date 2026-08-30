@@ -25,7 +25,12 @@ struct SubsetSumSolverTests {
         age: Int16? = nil,
         derivationIndex: UInt64 = 0
     ) -> Coin {
-        Coin(exponent: exponent, derivationIndex: derivationIndex, age: age)
+        Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
+        )
     }
 
     // MARK: - Edge Cases
