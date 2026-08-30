@@ -11,7 +11,7 @@ import AsyncAlgorithms
 import KeyDerivation
 
 /// Pins one ``CoinageChainViewProtocol`` per pass from a single connection, and owns the head
-/// subscriptions that drive recovery. Mirrors Android's `CoinageChainViewFactory`.
+/// subscriptions that drive recovery.
 public protocol CoinageChainViewFactoryProtocol: Sendable {
     /// Reads the finalized and best heads once and returns a view pinned to them. Throws when the
     /// best head is below finality — the peer is inconsistent and the pass must not run against it.
@@ -192,8 +192,8 @@ private final class BlockOutcomeReader: Sendable {
         return await resolveOutcome(extrinsic: extrinsic)
     }
 
-    /// The block's number, read straight from its header via `chain_getHeader` — Android's
-    /// `blockNumberAt`. `nil` when the read fails or the number cannot be parsed.
+    /// The block's number, read straight from its header via `chain_getHeader`. `nil` when the read
+    /// fails or the number cannot be parsed.
     func blockNumber(byHash blockHash: Data) async -> UInt32? {
         let operation = JSONRPCListOperation<Block.Header>(
             engine: connection,

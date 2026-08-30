@@ -4,7 +4,6 @@ import Foundation
 ///
 /// Built once per pass from `getAllEntries` + the handoff marks, so the rules and propagation query
 /// precomputed maps instead of re-scanning every entry. Keyed by each asset's stable identifier.
-/// Mirrors Android's `CoinageEntryDag`.
 public struct CoinageEntryDag: Sendable {
     public let entries: [CoinageTxEntry]
     private let handedOff: Set<PublicKey>

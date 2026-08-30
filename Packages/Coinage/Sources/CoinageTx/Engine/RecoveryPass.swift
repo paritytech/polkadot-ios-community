@@ -5,8 +5,7 @@ import SDKLogger
 ///
 /// Builds a ``CoinageEntryDag`` once, evaluates every live entry that submission tracking does not
 /// own, then propagates finalized success along the graph. Never awaited by startup: a single
-/// unresolvable entry must not hold the app for a mortality window. Mirrors Android's
-/// `RealCoinageRecoveryPass`.
+/// unresolvable entry must not hold the app for a mortality window.
 ///
 /// Rules run entirely outside any database transaction — the body search can span a whole mortality
 /// window — and the write is a compare-and-set against the status the rules were evaluated from, so

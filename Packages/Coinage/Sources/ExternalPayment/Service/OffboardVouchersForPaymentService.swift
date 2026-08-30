@@ -111,8 +111,8 @@ private extension OffboardVouchersForPaymentService {
             }
         }
 
-        // Await each group's terminal outcome via the durability layer, matching Android's
-        // `awaitOutcome`: the state machine must not report the payment completed until the chain has.
+        // Await each group's terminal outcome via the durability layer: the state machine must not
+        // report the payment completed until the chain has.
         let outcomeErrors = await withTaskGroup(of: Error?.self) { taskGroup in
             for id in entryIds {
                 taskGroup.addTask {

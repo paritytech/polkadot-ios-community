@@ -2,9 +2,9 @@ import Coinage
 import Foundation
 import Testing
 
-/// The rule ladder, ported for parity with Android's `CoinageRulesTest`. The evaluator is impure —
-/// its last rule searches block bodies through the pinned view — and pure over the earlier state,
-/// so the table is exercised by handing it a ``ChainEvidence`` and a ``CoinageEntryDag`` directly.
+/// The rule ladder. The evaluator is impure — its last rule searches block bodies through the
+/// pinned view — and pure over the earlier state, so the table is exercised by handing it a
+/// ``ChainEvidence`` and a ``CoinageEntryDag`` directly.
 @Suite("Coinage Rules")
 struct CoinageRulesTests {
     private let view = FakeChainView()

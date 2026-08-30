@@ -11,8 +11,7 @@ import os
 ///
 /// It proposes; it does not decide unilaterally. Every status change goes through the same
 /// compare-and-set (`updateTxStatus`) the recovery pass uses, so the guards apply uniformly and a
-/// status that moved underneath costs a proposal, nothing more. Mirrors Android's
-/// `CoinageSubmissionTracker`.
+/// status that moved underneath costs a proposal, nothing more.
 ///
 /// It owns the entries it watches, and ownership is one-shot: released exactly once, never taken
 /// back — not on a resubmission (the injected `submitter` owns that), not on anything. Release drops
@@ -105,9 +104,8 @@ private extension CoinageTxTracker {
     }
 
     func follow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
-        // A buffered channel the submitter's callbacks feed, the analogue of Android's
-        // `Channel(BUFFERED)`. `send`/`finish` are non-blocking; `next()` is cancellation-safe, so a
-        // timed-out receive drops no buffered element.
+        // A buffered channel the submitter's callbacks feed. `send`/`finish` are non-blocking;
+        // `next()` is cancellation-safe, so a timed-out receive drops no buffered element.
         let events = AsyncBufferedChannel<TrackEvent>()
         let subscriptionId = OSAllocatedUnfairLock<UInt16?>(initialState: nil)
 
@@ -129,9 +127,8 @@ private extension CoinageTxTracker {
             }
         )
 
-        // The exact loop Android's tracker uses:
-        // `while (true) { withTimeoutOrNull(SILENCE_TIMEOUT) { events.receiveCatching() } ?: break }`.
-        // A timeout or the channel finishing ends following and hands the entry back to the pass.
+        // Receive each event under a per-element silence timeout; a timeout or the channel finishing
+        // ends following and hands the entry back to the pass.
         let iterator = events.makeAsyncIterator()
         while true {
             let received = try? await withTimeout(Self.silenceTimeout) { await iterator.next() }

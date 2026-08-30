@@ -2,7 +2,7 @@ import Foundation
 import SubstrateSdk
 
 /// Validates registration invariants for a whole batch directly against the store transaction,
-/// keyed by public key. Mirrors Android's `CoinageEntryRegistrar.brokenInvariant`.
+/// keyed by public key.
 ///
 /// Every asset already carries its on-chain public key, so the four checks compare one key space,
 /// matching the store's ``CoinageTxValidationContext``. Within-batch conflicts are caught here too,

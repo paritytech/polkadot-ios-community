@@ -41,15 +41,15 @@ enum BlockLookup {
 /// ``BlockBodyScan`` can be exercised without either.
 typealias BlockOutcomeLookup = @Sendable (_ txHash: Data, _ blockHash: Data) async -> BlockLookup
 
-/// Resolves a block hash to its number via a direct `chain_getHeader` RPC (Android `blockNumberAt`),
-/// returning `nil` when the read failed. Injected so the view needs no connection of its own.
+/// Resolves a block hash to its number via a direct `chain_getHeader` RPC, returning `nil` when the
+/// read failed. Injected so the view needs no connection of its own.
 typealias BlockNumberByHash = @Sendable (_ blockHash: Data) async -> UInt32?
 
 /// Three-valued chain access for the durability engine.
 ///
 /// Every method returns `failedRead` rather than throwing on transport failure, an unknown
 /// block, a key missing from a batched response, or an undecodable value, so a read failure
-/// can never be mistaken for absence. Mirrors Android's `CoinageChainView`.
+/// can never be mistaken for absence.
 public protocol CoinageChainViewProtocol: Sendable {
     /// The finalized head this view is pinned to. Every read the pass makes is evaluated
     /// against this and ``bestHead``.

@@ -1,8 +1,7 @@
 import Foundation
 
 /// The public-key-keyed reads a registration validates against, all inside one store transaction —
-/// nothing it checks can move before the entry is written. Mirrors Android's
-/// `RegistrationValidationScope`.
+/// nothing it checks can move before the entry is written.
 ///
 /// Every asset is identified by its on-chain public key: an own coin or voucher by the key derived
 /// from its index, a coin received from a peer by the key itself. One key space covers them all,

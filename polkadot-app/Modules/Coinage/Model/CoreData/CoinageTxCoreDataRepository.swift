@@ -6,7 +6,7 @@ import Operation_iOS
 
 /// CoreData-backed ``CoinageTxRepositoryProtocol`` — the consolidation of the former
 /// `DurabilityCoreDataStore` (public API) and `CoinageTransactionContext` (the atomic
-/// read-validate-write transaction) into one repository. Mirrors Android's `CoinageEntryRepository`.
+/// read-validate-write transaction) into one repository.
 ///
 /// Entries are never deleted: `minter(of:)` and `consumers(of:)` must still see terminal rows,
 /// because a coin's provenance is what makes its absence mean anything. Handoff marks live on

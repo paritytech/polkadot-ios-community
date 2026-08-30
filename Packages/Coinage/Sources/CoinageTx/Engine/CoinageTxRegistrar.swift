@@ -8,7 +8,7 @@ import SubstrateSdk
 /// the checkpoint, and the mortality window) and hands them to the repository, which validates and
 /// inserts them in one transaction — so a rejected registration leaves nothing behind. Ownership is
 /// taken inside that same transaction (`onCommit`), so a pass can never reach a committed entry
-/// before the watcher does. Mirrors Android's `CoinageEntryRegistrar`.
+/// before the watcher does.
 public struct CoinageTxRegistrar {
     private let store: any CoinageTxRepositoryProtocol
     private let validator: CoinageTxRegistrationValidator

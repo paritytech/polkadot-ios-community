@@ -209,9 +209,9 @@ private extension CoinageTxService {
 
     /// Builds one registration per request. Both the checkpoint and the mortality window are read
     /// from the extrinsic's own `CheckMortality` era — the window the runtime will actually enforce,
-    /// which is exactly what Rule 7 must search — rather than re-derived from the chain, matching
-    /// Android's `signedCheckpoint()` / `era.period`. The `txHash` is the up-front hash of the built
-    /// extrinsic, so an entry is resolvable by Rule 7 even before tracking records anything.
+    /// which is exactly what Rule 7 must search — rather than re-derived from the chain. The `txHash`
+    /// is the up-front hash of the built extrinsic, so an entry is resolvable by Rule 7 even before
+    /// tracking records anything.
     func buildRegistrations(
         _ requests: [CoinageTxRequest],
         models: [ExtrinsicBuiltModel],

@@ -11,7 +11,6 @@ import Testing
 //     move to derive-on-read state.
 //
 // Rather than make obsolete, non-running code compile, it was reset to this placeholder. Its coverage
-// — balance calculation and transfer previews — is being re-established by the Android-parity ports
-// (`RealTotalBalanceUseCaseTest`, `TransferPlanTest`, etc.).
+// — balance calculation and transfer previews — is being re-established by the new ports.
 @Suite("CoinageService Tests", .disabled())
 struct CoinageServiceTests {}

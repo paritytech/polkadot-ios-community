@@ -55,7 +55,7 @@ public struct ChainEvidence: Sendable {
 // MARK: - Predicates
 
 /// Positive-form, key-based reads over the evidence, each paired with its opposite so an `unknown`
-/// read satisfies neither side. Mirrors Android's `CoinageRules` predicate set.
+/// read satisfies neither side.
 public extension ChainEvidence {
     func exists(_ key: PublicKey, atFinalized: Bool) -> Bool {
         presence(atFinalized)[key] == .present

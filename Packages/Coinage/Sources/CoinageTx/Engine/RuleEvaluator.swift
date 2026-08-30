@@ -10,7 +10,6 @@ public enum RuleOutcome: Sendable, Equatable {
 
 /// The rule table, evaluated in the spec's order — 0, 1, 2, 3, 4, 5, 6, 3b, 4b, 7 — first match
 /// decides. Impure: Rule 7 searches block bodies through the pinned ``CoinageChainViewProtocol``.
-/// Mirrors Android's `CoinageRules`.
 public struct RuleEvaluator: Sendable {
     public init() {}
 

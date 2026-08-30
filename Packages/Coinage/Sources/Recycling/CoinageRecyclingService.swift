@@ -116,8 +116,8 @@ private extension CoinageRecyclingService {
         }
     }
 
-    /// Fire-and-forget recycle of a single coin, matching Appendix B's `load_recycler_with_coin` and
-    /// the Android model: `prepareRecycle` mints the voucher, then `submit` registers the entry —
+    /// Fire-and-forget recycle of a single coin, matching Appendix B's `load_recycler_with_coin`:
+    /// `prepareRecycle` mints the voucher, then `submit` registers the entry —
     /// which claims the coin — and tracks the extrinsic in the background. The durability layer
     /// resolves the outcome; a coin whose extrinsic never lands is released by the recovery pass at
     /// mortality, so there is nothing to roll back here.

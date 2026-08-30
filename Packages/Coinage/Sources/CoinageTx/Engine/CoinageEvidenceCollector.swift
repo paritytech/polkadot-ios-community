@@ -1,8 +1,8 @@
 import Foundation
 
-/// Turns one entry plus a pinned view into the ``ChainEvidence`` the rules read. Mirrors Android's
-/// `CoinageEvidenceCollector`, built here on the chain view's existing three-valued asset reads:
-/// a present voucher already carries its unload state, which is the alias signal the rules need.
+/// Turns one entry plus a pinned view into the ``ChainEvidence`` the rules read, built on the chain
+/// view's existing three-valued asset reads: a present voucher already carries its unload state,
+/// which is the alias signal the rules need.
 public struct CoinageEvidenceCollector: Sendable {
     public init() {}
 

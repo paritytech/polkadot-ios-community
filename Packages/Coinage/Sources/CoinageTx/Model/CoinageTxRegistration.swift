@@ -2,8 +2,7 @@ import Foundation
 
 /// A transaction ready to be recorded: the hash of the already-built extrinsic, the window it can
 /// land in, and what it consumes and mints. Carries no id — the repository mints the
-/// ``CoinageTxId`` inside the write transaction and hands it to `onCommit`. Mirrors Android's
-/// `EntryRegistration`.
+/// ``CoinageTxId`` inside the write transaction and hands it to `onCommit`.
 public struct CoinageTxRegistration: Sendable, Equatable {
     public let txHash: Data
     public let checkpoint: BlockRef
