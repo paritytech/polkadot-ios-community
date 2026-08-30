@@ -78,8 +78,9 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
 }
 
 public extension CoinageTxRepositoryProtocol {
-    /// Handoff marks as a set of ``OwnAsset/identifier``, the form every caller compares against.
-    func handedOffIdentifiers() async throws -> Set<String> {
-        try await Set(handedOffCoins().map(\.identifier))
+    /// Handoff marks as a set of ``OwnAsset/publicKey``, the form the DAG and callers compare against.
+    /// Mirrors Android's `getHandoffKeys`.
+    func getHandoffKeys() async throws -> Set<PublicKey> {
+        try await Set(handedOffCoins().map(\.publicKey))
     }
 }

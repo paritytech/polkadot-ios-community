@@ -125,8 +125,8 @@ private extension CoinageRecyclingService {
         let prepared = try await prepareRecycle(coin)
         try await durability.submitTransaction(
             request: CoinageTxRequest(
-                inputs: [.coin(.own(coin.derivationIndex))],
-                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex)],
+                inputs: [.coin(.own(coin.derivationIndex, coin.publicKey))],
+                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex, prepared.voucher.publicKey)],
                 builder: prepared.builder,
                 origin: prepared.origin
             ),

@@ -39,7 +39,7 @@ public struct RuleEvaluator: Sendable {
         // Rule 3 — an output nothing could have removed is definitely not there.
         if windowClosed,
            entry.outputs.contains(where: {
-               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.identifier, atFinalized: true)
+               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.publicKey, atFinalized: true)
            }) {
             return .decided(Verdict(status: .failure, successDetectedAt: nil))
         }
@@ -52,14 +52,14 @@ public struct RuleEvaluator: Sendable {
         let provenOwnCoins = hasOnlyProvenOwnCoinInputs(entry, dag, evidence)
 
         // Rule 5 — every input is a proven-minted coin of ours and all are gone at finality.
-        if provenOwnCoins, entry.inputs.allSatisfy({ evidence.absent($0.identifier, atFinalized: true) }) {
+        if provenOwnCoins, entry.inputs.allSatisfy({ evidence.absent($0.publicKey, atFinalized: true) }) {
             return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: entry.successDetectedAt))
         }
 
         // Rule 6 — the same, except one input survives at finality, so consumption is only best-chain.
         if provenOwnCoins,
-           entry.inputs.contains(where: { evidence.exists($0.identifier, atFinalized: true) }),
-           entry.inputs.allSatisfy({ evidence.absent($0.identifier, atFinalized: false) }) {
+           entry.inputs.contains(where: { evidence.exists($0.publicKey, atFinalized: true) }),
+           entry.inputs.allSatisfy({ evidence.absent($0.publicKey, atFinalized: false) }) {
             return .decided(Verdict(status: .pendingSuccess, successDetectedAt: evidence.best))
         }
 
@@ -67,7 +67,7 @@ public struct RuleEvaluator: Sendable {
         // search on every head; they stop at mortality, past which only the search can decide it.
         if !windowClosed,
            entry.outputs.contains(where: {
-               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.identifier, atFinalized: false)
+               noPotentialConsumers($0, dag, evidence) && evidence.absent($0.publicKey, atFinalized: false)
            }) {
             return .decided(Verdict(status: .pending, successDetectedAt: nil))
         }
@@ -155,24 +155,24 @@ private extension RuleEvaluator {
     /// The asset is still there to be spent.
     func available(_ input: CoinageTxInput, _ evidence: ChainEvidence, atFinalized: Bool) -> Bool {
         if input.isCoin {
-            return evidence.exists(input.identifier, atFinalized: atFinalized)
+            return evidence.exists(input.publicKey, atFinalized: atFinalized)
         }
-        return evidence.exists(input.identifier, atFinalized: atFinalized)
-            && evidence.isNotUnloaded(input.identifier, atFinalized: atFinalized)
+        return evidence.exists(input.publicKey, atFinalized: atFinalized)
+            && evidence.isNotUnloaded(input.publicKey, atFinalized: atFinalized)
     }
 
     /// Nothing could have removed this output, so its absence is meaningful.
     func noPotentialConsumers(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
-        if dag.isHandedOff(output.identifier) { return false }
+        if dag.isHandedOff(output.publicKey) { return false }
         if spent(output, dag, evidence) { return false }
-        return dag.consumers(output.identifier).allSatisfy { $0.status == .failure }
+        return dag.consumers(output.publicKey).allSatisfy { $0.status == .failure }
     }
 
     /// Once established this is permanent: a terminal status never changes, and a coin absent at a
     /// finalized head can never come back, because addresses are never reused.
     func spent(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
-        let consumedByFinalized = dag.consumers(output.identifier).contains { $0.status == .finalizedSuccess }
-        let provenConsumed = !output.isCoin && evidence.isUnloaded(output.identifier, atFinalized: true)
+        let consumedByFinalized = dag.consumers(output.publicKey).contains { $0.status == .finalizedSuccess }
+        let provenConsumed = !output.isCoin && evidence.isUnloaded(output.publicKey, atFinalized: true)
         return consumedByFinalized || provenConsumed || spentByAbsence(output, dag, evidence)
     }
 
@@ -180,9 +180,9 @@ private extension RuleEvaluator {
     /// cleaning) and the minter's window having closed (a coin minted above a shallow finalized head
     /// reads absent simply because it does not exist there yet).
     func spentByAbsence(_ output: OwnAsset, _ dag: CoinageEntryDag, _ evidence: ChainEvidence) -> Bool {
-        guard output.isCoin, let minter = dag.minter(output.identifier) else { return false }
+        guard output.isCoin, let minter = dag.minter(output.publicKey) else { return false }
         return minter.status == .finalizedSuccess
-            && evidence.absent(output.identifier, atFinalized: true)
+            && evidence.absent(output.publicKey, atFinalized: true)
             && evidence.windowClosed(minter)
     }
 
@@ -196,8 +196,8 @@ private extension RuleEvaluator {
         guard !entry.inputs.isEmpty else { return false }
 
         return entry.inputs.allSatisfy { input in
-            guard input.isCoin, input.isOwn, !dag.isHandedOff(input.identifier),
-                  let minter = dag.minter(input.identifier), minter.status == .finalizedSuccess
+            guard input.isCoin, input.isOwn, !dag.isHandedOff(input.publicKey),
+                  let minter = dag.minter(input.publicKey), minter.status == .finalizedSuccess
             else { return false }
             return evidence.windowClosed(minter)
         }

@@ -35,7 +35,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: 130, presentAtBest: [coinOut.identifier], recordedBlockStillCanonical: false)
+            evidence(finalizedNumber: 130, presentAtBest: [coinOut.publicKey], recordedBlockStillCanonical: false)
         )
 
         let verdict = try #require(outcome.verdict)
@@ -71,7 +71,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(presentAtFinalized: [coinOut.identifier], presentAtBest: [coinOut.identifier])
+            evidence(presentAtFinalized: [coinOut.publicKey], presentAtBest: [coinOut.publicKey])
         )
 
         try #require(outcome.verdict?.status == .finalizedSuccess)
@@ -81,7 +81,7 @@ struct CoinageRulesTests {
     func rule2RecordsBestHead() async throws {
         let entry = entry(outputs: [coinOut])
 
-        let outcome = await evaluate(entry, evidence(presentAtBest: [coinOut.identifier]))
+        let outcome = await evaluate(entry, evidence(presentAtBest: [coinOut.publicKey]))
 
         let verdict = try #require(outcome.verdict)
         #expect(verdict.status == .pendingSuccess)
@@ -92,7 +92,7 @@ struct CoinageRulesTests {
     func unloadedVoucherInputIsExecution() async throws {
         let entry = entry(inputs: [voucherIn])
 
-        let outcome = await evaluate(entry, evidence(unloadedAtFinalized: [voucherIn.identifier]))
+        let outcome = await evaluate(entry, evidence(unloadedAtFinalized: [voucherIn.publicKey]))
 
         try #require(outcome.verdict?.status == .finalizedSuccess)
     }
@@ -105,7 +105,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, absentAtFinalized: [coinOut.identifier])
+            evidence(finalizedNumber: mortalityEnd + 1, absentAtFinalized: [coinOut.publicKey])
         )
 
         try #require(outcome.verdict?.status == .failure)
@@ -119,8 +119,8 @@ struct CoinageRulesTests {
             entry,
             evidence(
                 finalizedNumber: mortalityEnd,
-                absentAtFinalized: [coinOut.identifier],
-                absentAtBest: [coinOut.identifier]
+                absentAtFinalized: [coinOut.publicKey],
+                absentAtBest: [coinOut.publicKey]
             )
         )
 
@@ -136,8 +136,8 @@ struct CoinageRulesTests {
             entry,
             evidence(
                 finalizedNumber: mortalityEnd + 1,
-                presentAtFinalized: [coinIn.identifier],
-                unreadable: [coinOut.identifier]
+                presentAtFinalized: [coinIn.publicKey],
+                unreadable: [coinOut.publicKey]
             )
         )
 
@@ -152,9 +152,9 @@ struct CoinageRulesTests {
             entry,
             evidence(
                 finalizedNumber: mortalityEnd,
-                presentAtFinalized: [coinIn.identifier],
-                presentAtBest: [coinIn.identifier],
-                unreadable: [coinOut.identifier]
+                presentAtFinalized: [coinIn.publicKey],
+                presentAtBest: [coinIn.publicKey],
+                unreadable: [coinOut.publicKey]
             )
         )
 
@@ -170,7 +170,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(absentAtFinalized: [coinIn.identifier], absentAtBest: [coinIn.identifier]),
+            evidence(absentAtFinalized: [coinIn.publicKey], absentAtBest: [coinIn.publicKey]),
             dag: dag(minter, entry)
         )
 
@@ -186,10 +186,10 @@ struct CoinageRulesTests {
         let outcome = await evaluate(
             entry,
             evidence(
-                presentAtFinalized: [coinIn.identifier],
-                absentAtFinalized: [coinOut.identifier],
-                presentAtBest: [coinIn.identifier],
-                absentAtBest: [coinOut.identifier]
+                presentAtFinalized: [coinIn.publicKey],
+                absentAtFinalized: [coinOut.publicKey],
+                presentAtBest: [coinIn.publicKey],
+                absentAtBest: [coinOut.publicKey]
             ),
             dag: dag(minter, entry)
         )
@@ -204,8 +204,8 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(absentAtFinalized: [coinIn.identifier], absentAtBest: [coinIn.identifier]),
-            dag: dag(minter, entry, handedOff: [coinIn.identifier])
+            evidence(absentAtFinalized: [coinIn.publicKey], absentAtBest: [coinIn.publicKey]),
+            dag: dag(minter, entry, handedOff: [coinIn.publicKey])
         )
 
         // Falls through to the search rather than reading absence as consumption.
@@ -220,7 +220,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(absentAtFinalized: [coinIn.identifier], absentAtBest: [coinIn.identifier]),
+            evidence(absentAtFinalized: [coinIn.publicKey], absentAtBest: [coinIn.publicKey]),
             dag: dag(minter, entry)
         )
 
@@ -235,7 +235,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(unreadable: [coinIn.identifier]),
+            evidence(unreadable: [coinIn.publicKey]),
             dag: dag(minter, entry)
         )
 
@@ -251,7 +251,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.identifier]),
+            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.publicKey]),
             search: .foundSucceeded(block(120))
         )
 
@@ -264,7 +264,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.identifier]),
+            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.publicKey]),
             search: .foundFailed(block(120))
         )
 
@@ -277,7 +277,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.identifier]),
+            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.publicKey]),
             search: .foundOutcomeUnreadable(block(120))
         )
 
@@ -290,7 +290,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.identifier]),
+            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.publicKey]),
             search: .notFoundWindowComplete
         )
 
@@ -303,7 +303,7 @@ struct CoinageRulesTests {
 
         let outcome = await evaluate(
             entry,
-            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.identifier]),
+            evidence(finalizedNumber: mortalityEnd + 1, unreadable: [receivedIn.publicKey]),
             search: .incomplete
         )
 
@@ -314,9 +314,9 @@ struct CoinageRulesTests {
 // MARK: - Harness
 
 private extension CoinageRulesTests {
-    var coinIn: CoinageTxInput { .coin(.own(1)) }
-    var coinOut: OwnAsset { .coin(2) }
-    var voucherIn: CoinageTxInput { .recyclerVoucher(3) }
+    var coinIn: CoinageTxInput { .coin(.own(1, testKey(1))) }
+    var coinOut: OwnAsset { .coin(2, testKey(2)) }
+    var voucherIn: CoinageTxInput { .recyclerVoucher(3, testKey(3)) }
     var receivedIn: CoinageTxInput { .coin(.received(Data([4]))) }
 
     static let checkpointNumber: UInt32 = 100
@@ -351,7 +351,7 @@ private extension CoinageRulesTests {
         #expect(!view.searchedHashes.isEmpty)
     }
 
-    func dag(_ entries: CoinageTxEntry..., handedOff: Set<String> = []) -> CoinageEntryDag {
+    func dag(_ entries: CoinageTxEntry..., handedOff: Set<PublicKey> = []) -> CoinageEntryDag {
         CoinageEntryDag(entries: entries, handedOff: handedOff)
     }
 
@@ -359,7 +359,7 @@ private extension CoinageRulesTests {
     func finalizedMinter(_ input: CoinageTxInput, checkpointNumber: UInt32 = 0) -> CoinageTxEntry {
         entry(
             id: Self.minterId,
-            outputs: [input.ownAsset ?? .coin(0)],
+            outputs: [input.ownAsset ?? .coin(0, testKey(0))],
             status: .finalizedSuccess,
             checkpointNumber: checkpointNumber
         )
@@ -392,16 +392,16 @@ private extension CoinageRulesTests {
     /// — a failed read — so every predicate over it is false.
     func evidence(
         finalizedNumber: UInt32 = 150,
-        presentAtFinalized: [String] = [],
-        absentAtFinalized: [String] = [],
-        presentAtBest: [String] = [],
-        absentAtBest: [String] = [],
-        unloadedAtFinalized: [String] = [],
-        unreadable: [String] = [],
+        presentAtFinalized: [PublicKey] = [],
+        absentAtFinalized: [PublicKey] = [],
+        presentAtBest: [PublicKey] = [],
+        absentAtBest: [PublicKey] = [],
+        unloadedAtFinalized: [PublicKey] = [],
+        unreadable: [PublicKey] = [],
         recordedBlockStillCanonical: Bool? = nil
     ) -> ChainEvidence {
-        func presence(_ present: [String], _ absent: [String]) -> [String: ChainPresence] {
-            var result: [String: ChainPresence] = [:]
+        func presence(_ present: [PublicKey], _ absent: [PublicKey]) -> [PublicKey: ChainPresence] {
+            var result: [PublicKey: ChainPresence] = [:]
             for key in present where !unreadable.contains(key) {
                 result[key] = .present
             }

@@ -88,7 +88,7 @@ extension SplitCoinStrategy: TransferStrategy {
         )
 
         let handoffCommit = try await durability
-            .preCommitHandoff(assets.handedOff.map { .coin($0.derivationIndex) })
+            .preCommitHandoff(assets.handedOff.map { .coin($0.derivationIndex, $0.publicKey) })
 
         var memoEntries = wholeCoins.map {
             PlannedMemoEntry(

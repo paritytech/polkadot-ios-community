@@ -10,13 +10,7 @@ struct RegistrationInvariantTests {
 
     /// The registrar requires a validator, but `MockCoinageTxRepository` enforces the invariants inline
     /// and ignores the closure, so this is never invoked — it only satisfies the dependency.
-    private static let stubValidator = CoinageTxRegistrationValidator(
-        coinKeyDeriver: CoinKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(repeating: 1, count: 32))),
-        voucherKeyDeriver: VoucherKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
-            repeating: 1,
-            count: 32
-        )))
-    )
+    private static let stubValidator = CoinageTxRegistrationValidator()
 
     // MARK: - Non-Empty Entry
 
@@ -36,10 +30,10 @@ struct RegistrationInvariantTests {
     func rejectDuplicateOutput() async throws {
         let store = MockCoinageTxRepository()
 
-        try await store.register(.fixture(outputs: [.coin(0)]))
+        try await store.register(.fixture(outputs: [.coin(0, testKey(0))]))
 
-        await #expect(throws: CoinageTxError.outputNotFresh("coin:0")) {
-            try await store.register(.fixture(outputs: [.coin(0)]))
+        await #expect(throws: CoinageTxError.outputNotFresh(testKey(0).toHex())) {
+            try await store.register(.fixture(outputs: [.coin(0, testKey(0))]))
         }
     }
 
@@ -55,7 +49,7 @@ struct RegistrationInvariantTests {
         // This tests the collision between output identifier and received-coin input
         // identifier. We can simulate this by using the same "coin:X" identifier
         // through the received key derivation scenario.
-        try await store.register(.fixture(outputs: [.coin(0)]))
+        try await store.register(.fixture(outputs: [.coin(0, testKey(0))]))
 
         // Note: The actual collision detection happens at the identifier level.
         // To properly test collision, we'd need received keys that hash to
@@ -68,11 +62,11 @@ struct RegistrationInvariantTests {
     @Test("Rejects input already claimed by a live entry")
     func rejectInputClaimedByLiveEntry() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(5))
+        let input = CoinageTxInput.coin(.own(5, testKey(5)))
 
         try await store.register(.fixture(inputs: [input]))
 
-        await #expect(throws: CoinageTxError.inputAlreadyClaimed("coin:5")) {
+        await #expect(throws: CoinageTxError.inputAlreadyClaimed(testKey(5).toHex())) {
             try await store.register(.fixture(inputs: [input]))
         }
     }
@@ -80,14 +74,14 @@ struct RegistrationInvariantTests {
     @Test("Rejects input already claimed by a finalized-success entry")
     func rejectInputClaimedByFinalizedEntry() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(7))
+        let input = CoinageTxInput.coin(.own(7, testKey(7)))
 
         let first = CoinageTxEntry.fixture(inputs: [input])
         try await store.register(first)
         try await store.updateStatus(first.id, to: .finalizedSuccess)
 
         // Should still fail because a finalized entry is not a failure
-        await #expect(throws: CoinageTxError.inputAlreadyClaimed("coin:7")) {
+        await #expect(throws: CoinageTxError.inputAlreadyClaimed(testKey(7).toHex())) {
             try await store.register(.fixture(inputs: [input]))
         }
     }
@@ -95,14 +89,14 @@ struct RegistrationInvariantTests {
     @Test("Allows input claimed by a failure entry to be consumed by new entry")
     func allowsInputFromFailureEntry() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(9))
+        let input = CoinageTxInput.coin(.own(9, testKey(9)))
 
         let first = CoinageTxEntry.fixture(inputs: [input])
         try await store.register(first)
         try await store.updateStatus(first.id, to: .failure)
 
         // Should succeed because failure entries don't block reuse
-        let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(100)])
+        let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(100, testKey(100))])
         try await store.register(second)
 
         let fetched = try await store.fetch(id: second.id)
@@ -114,11 +108,11 @@ struct RegistrationInvariantTests {
     @Test("Rejects input carrying a handoff mark")
     func rejectHandedOffInput() async throws {
         let store = MockCoinageTxRepository()
-        let asset = OwnAsset.coin(42)
+        let asset = OwnAsset.coin(42, testKey(42))
 
         try await store.markHandedOff(asset)
 
-        await #expect(throws: CoinageTxError.inputHandedOff("coin:42")) {
+        await #expect(throws: CoinageTxError.inputHandedOff(testKey(42).toHex())) {
             try await store.register(.fixture(inputs: [asset.asInput]))
         }
     }
@@ -140,7 +134,7 @@ struct RegistrationInvariantTests {
             mortality: 60
         )
 
-        let entry = try await registrar.register(inputs: [], outputs: [.coin(0)])
+        let entry = try await registrar.register(inputs: [], outputs: [.coin(0, testKey(0))])
 
         #expect(entry.checkpoint == finalizedBlock)
     }
@@ -160,7 +154,7 @@ struct RegistrationInvariantTests {
             mortality: 60
         )
 
-        _ = try await registrar.register(inputs: [], outputs: [.coin(0)])
+        _ = try await registrar.register(inputs: [], outputs: [.coin(0, testKey(0))])
 
         // If we reach here without hanging on a chain read beyond finalized,
         // the test passes. The fake chain's defaults handle any unexpected calls.
@@ -171,7 +165,7 @@ struct RegistrationInvariantTests {
     @Test("Rejected registration leaves no entry in store")
     func rejectedRegistrationNoEntry() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(5))
+        let input = CoinageTxInput.coin(.own(5, testKey(5)))
 
         try await store.register(.fixture(inputs: [input]))
 
@@ -191,7 +185,7 @@ struct RegistrationInvariantTests {
     @Test("Rejected registration leaves watched set unchanged")
     func rejectedRegistrationWatchedSetClean() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(5))
+        let input = CoinageTxInput.coin(.own(5, testKey(5)))
 
         try await store.register(.fixture(inputs: [input]))
 
@@ -223,9 +217,9 @@ struct RegistrationInvariantTests {
     func sequenceMonotonic() async throws {
         let store = MockCoinageTxRepository()
 
-        try await store.register(.fixture(outputs: [.coin(1)]))
-        try await store.register(.fixture(outputs: [.coin(2)]))
-        try await store.register(.fixture(outputs: [.coin(3)]))
+        try await store.register(.fixture(outputs: [.coin(1, testKey(1))]))
+        try await store.register(.fixture(outputs: [.coin(2, testKey(2))]))
+        try await store.register(.fixture(outputs: [.coin(3, testKey(3))]))
 
         let all = try await store.fetchAll()
         #expect(all.count == 3)

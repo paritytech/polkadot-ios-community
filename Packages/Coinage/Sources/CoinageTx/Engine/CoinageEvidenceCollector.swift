@@ -17,8 +17,8 @@ public struct CoinageEvidenceCollector: Sendable {
 
         let recordedStillCanonical = await recordedBlockStillCanonical(entry, view)
 
-        let inputKeys = entry.inputs.map(\.identifier)
-        let outputKeys = entry.outputs.map(\.identifier)
+        let inputKeys = entry.inputs.map(\.publicKey)
+        let outputKeys = entry.outputs.map(\.publicKey)
 
         let (presenceF, aliasF) = await maps(
             inputKeys: inputKeys, inputReads: inputsAtFinalized,
@@ -43,13 +43,13 @@ public struct CoinageEvidenceCollector: Sendable {
 
 private extension CoinageEvidenceCollector {
     func maps(
-        inputKeys: [String],
+        inputKeys: [PublicKey],
         inputReads: [ReadResult<AssetPresence>],
-        outputKeys: [String],
+        outputKeys: [PublicKey],
         outputReads: [ReadResult<AssetPresence>]
-    ) -> (presence: [String: ChainPresence], alias: [String: AliasRead]) {
-        var presence: [String: ChainPresence] = [:]
-        var alias: [String: AliasRead] = [:]
+    ) -> (presence: [PublicKey: ChainPresence], alias: [PublicKey: AliasRead]) {
+        var presence: [PublicKey: ChainPresence] = [:]
+        var alias: [PublicKey: AliasRead] = [:]
         for (key, read) in Array(zip(inputKeys, inputReads)) + Array(zip(outputKeys, outputReads)) {
             presence[key] = Self.presence(read)
             alias[key] = Self.alias(read)

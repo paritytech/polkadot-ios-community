@@ -102,31 +102,44 @@ private extension CoinageTxEntryMapper {
         guard let rows = rows as? Set<CDDurabilityInput> else { return [] }
         return try rows.compactMap { row in
             if let hex = row.receivedPubKey {
-                let publicKey = try Data(hexString: hex)
-
-                return .coin(.received(publicKey))
+                return try .coin(.received(Data(hexString: hex)))
             }
             if let coin = row.coin {
-                return .coin(.own(DerivationIndex.fromCoreData(coin.derivationIndex)))
+                return try .coin(.own(DerivationIndex.fromCoreData(coin.derivationIndex), publicKey(coin.publicKey)))
             }
             if let voucher = row.voucher {
-                return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
+                return try .recyclerVoucher(
+                    DerivationIndex.fromCoreData(voucher.derivationIndex),
+                    publicKey(voucher.publicKey)
+                )
             }
             return nil
         }
     }
 
-    func transformOutputs(from rows: NSSet?) -> [OwnAsset] {
+    func transformOutputs(from rows: NSSet?) throws -> [OwnAsset] {
         guard let rows = rows as? Set<CDDurabilityOutput> else { return [] }
-        return rows.compactMap { row in
+        return try rows.compactMap { row in
             if let coin = row.coin {
-                return .coin(DerivationIndex.fromCoreData(coin.derivationIndex))
+                return try .coin(DerivationIndex.fromCoreData(coin.derivationIndex), publicKey(coin.publicKey))
             }
             if let voucher = row.voucher {
-                return .recyclerVoucher(DerivationIndex.fromCoreData(voucher.derivationIndex))
+                return try .recyclerVoucher(
+                    DerivationIndex.fromCoreData(voucher.derivationIndex),
+                    publicKey(voucher.publicKey)
+                )
             }
             return nil
         }
+    }
+
+    /// The stored on-chain public key of a linked coin/voucher row. Persisted at mint (coinage.md
+    /// #1), so the entry never derives it on the fly.
+    func publicKey(_ hex: String?) throws -> PublicKey {
+        guard let hex else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.publicKey))
+        }
+        return try Data(hexString: hex)
     }
 }
 

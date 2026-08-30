@@ -1,11 +1,12 @@
 import AsyncExtensions
 import Foundation
+import SubstrateSdk
 @testable import Coinage
 
 actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
     private var entries: [CoinageTxId: CoinageTxEntry] = [:]
-    private var pendingMarks: Set<String> = []
-    private var committedMarks: Set<String> = []
+    private var pendingMarks: Set<OwnAsset> = []
+    private var committedMarks: Set<OwnAsset> = []
     private var nextSequence: Int64 = 1
     private var statusObservers: [CoinageTxId: [AsyncStream<CoinageTxStatus>.Continuation]] = [:]
 
@@ -13,7 +14,7 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         sortedEntries
     }
 
-    var handoffIdentifiers: Set<String> {
+    var handoffMarks: Set<OwnAsset> {
         pendingMarks.union(committedMarks)
     }
 
@@ -52,23 +53,23 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
             throw CoinageTxError.emptyEntry
         }
 
-        let mintedOutputs = Set(entries.values.flatMap { $0.outputs.map(\.identifier) })
-        if let duplicate = entry.outputs.first(where: { mintedOutputs.contains($0.identifier) }) {
-            throw CoinageTxError.outputNotFresh(duplicate.identifier)
+        let mintedOutputs = Set(entries.values.flatMap { $0.outputs.map(\.publicKey) })
+        if let duplicate = entry.outputs.first(where: { mintedOutputs.contains($0.publicKey) }) {
+            throw CoinageTxError.outputNotFresh(duplicate.publicKey.toHex())
         }
 
         let claimedInputs = Set(
             entries.values
                 .filter { $0.status != .failure }
-                .flatMap { $0.inputs.map(\.identifier) }
+                .flatMap { $0.inputs.map(\.publicKey) }
         )
-        if let claimed = entry.inputs.first(where: { claimedInputs.contains($0.identifier) }) {
-            throw CoinageTxError.inputAlreadyClaimed(claimed.identifier)
+        if let claimed = entry.inputs.first(where: { claimedInputs.contains($0.publicKey) }) {
+            throw CoinageTxError.inputAlreadyClaimed(claimed.publicKey.toHex())
         }
 
-        let marks = handoffIdentifiers
-        if let marked = entry.inputs.first(where: { marks.contains($0.identifier) }) {
-            throw CoinageTxError.inputHandedOff(marked.identifier)
+        let markKeys = Set(handoffMarks.map(\.publicKey))
+        if let marked = entry.inputs.first(where: { markKeys.contains($0.publicKey) }) {
+            throw CoinageTxError.inputHandedOff(marked.publicKey.toHex())
         }
 
         var sequenced = entry
@@ -140,19 +141,19 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
 
     /// Test helper: directly records a committed handoff mark (skips the two-phase flow).
     func markHandedOff(_ asset: OwnAsset) async throws {
-        committedMarks.insert(asset.identifier)
+        committedMarks.insert(asset)
     }
 
     func markHandoffPending(_ assets: [OwnAsset]) async throws {
-        for asset in assets where !committedMarks.contains(asset.identifier) {
-            pendingMarks.insert(asset.identifier)
+        for asset in assets where !committedMarks.contains(asset) {
+            pendingMarks.insert(asset)
         }
     }
 
     func commitHandoffs(_ assets: [OwnAsset]) async throws {
         for asset in assets {
-            pendingMarks.remove(asset.identifier)
-            committedMarks.insert(asset.identifier)
+            pendingMarks.remove(asset)
+            committedMarks.insert(asset)
         }
     }
 
@@ -161,20 +162,11 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
     }
 
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        handoffIdentifiers.contains(asset.identifier)
+        handoffMarks.contains(asset)
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
-        handoffIdentifiers.compactMap { identifier in
-            let parts = identifier.split(separator: ":", maxSplits: 1)
-            guard parts.count == 2, let index = UInt64(parts[1]) else { return nil }
-
-            switch parts[0] {
-            case "coin": return .coin(index)
-            case "voucher": return .recyclerVoucher(index)
-            default: return nil
-            }
-        }
+        Array(handoffMarks)
     }
 }
 

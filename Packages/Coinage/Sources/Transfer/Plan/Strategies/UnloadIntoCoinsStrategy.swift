@@ -98,7 +98,7 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // coins stay ours. All pre-committed before the memo can leave.
         let handedOff = readyCoins + realizedGroups.flatMap(\.recipientCoins)
         let handoffCommit = try await durability
-            .preCommitHandoff(handedOff.map { .coin($0.derivationIndex) })
+            .preCommitHandoff(handedOff.map { .coin($0.derivationIndex, $0.publicKey) })
 
         var memoEntries = readyCoins.map {
             PlannedMemoEntry(
@@ -158,9 +158,9 @@ private extension UnloadIntoCoinsStrategy {
             let revision = revisions[groupCoins.recyclerKey]! // validated above
             let call = try buildCall(for: groupCoins, revision: revision)
             return GroupRequest(
-                inputs: groupCoins.vouchers.map { .recyclerVoucher($0.derivationIndex) },
+                inputs: groupCoins.vouchers.map { .recyclerVoucher($0.derivationIndex, $0.publicKey) },
                 outputs: (groupCoins.recipientCoins + groupCoins.changeCoins)
-                    .map { .coin($0.derivationIndex) },
+                    .map { .coin($0.derivationIndex, $0.publicKey) },
                 builder: { try $0.adding(call: call.callAsFunction()) },
                 origin: origin
             )

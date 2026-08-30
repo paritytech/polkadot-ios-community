@@ -27,7 +27,7 @@ struct SubmissionWatcherTests {
         let watched = CoinageTrackingTxSet()
         let id = UUID()
 
-        try await store.register(.fixture(id: id, outputs: [.coin(1)]))
+        try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))]))
 
         watched.take(id)
         _ = watched.release(id)
@@ -42,7 +42,7 @@ struct SubmissionWatcherTests {
         let store = MockCoinageTxRepository()
         let id = UUID()
 
-        try await store.register(.fixture(id: id, outputs: [.coin(1)]))
+        try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))]))
         try await store.updateStatus(id, to: .failure)
 
         let wrote = try await store.compareAndSetStatus(
@@ -62,7 +62,7 @@ struct SubmissionWatcherTests {
         let id = UUID()
         let successBlock = BlockRef.fixture(150)
 
-        try await store.register(.fixture(id: id, outputs: [.coin(1)], status: .pendingSuccess))
+        try await store.register(.fixture(id: id, outputs: [.coin(1, testKey(1))], status: .pendingSuccess))
 
         try await store.recordSuccessDetected(id, at: successBlock)
         var fetched = try await store.fetch(id: id)

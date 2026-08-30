@@ -1,6 +1,12 @@
 import Coinage
 import Foundation
 
+/// A deterministic public key from a derivation index — distinct per index and stable across calls,
+/// so the DAG, evidence, dedup, and handoff marks key consistently in tests.
+func testKey(_ index: DerivationIndex) -> PublicKey {
+    withUnsafeBytes(of: index.bigEndian) { Data($0) }
+}
+
 extension BlockRef {
     /// Block `number` with a hash derived from it, so distinct numbers stay distinguishable.
     static func fixture(_ number: UInt32) -> BlockRef {

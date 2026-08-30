@@ -88,7 +88,7 @@ private extension RecoveryPass {
 
     func loadDag() async throws -> CoinageEntryDag {
         async let entries = store.fetchAll()
-        async let handedOff = store.handedOffIdentifiers()
+        async let handedOff = store.getHandoffKeys()
         return try await CoinageEntryDag(entries: entries, handedOff: handedOff)
     }
 

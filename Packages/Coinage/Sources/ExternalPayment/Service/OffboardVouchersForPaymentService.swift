@@ -256,9 +256,9 @@ private extension OffboardVouchersForPaymentService {
 
         let id = try await durability.submitTransaction(
             request: CoinageTxRequest(
-                inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex) },
+                inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex, $0.publicKey) },
                 outputs: submission.details.surplusVouchers
-                    .map { .recyclerVoucher($0.derivationIndex) },
+                    .map { .recyclerVoucher($0.derivationIndex, $0.publicKey) },
                 builder: { builder in
                     if submission.details.surplusVouchers.isEmpty {
                         let call = self.buildExternalAssetCall(aliases: aliases, key: key, submission: submission)

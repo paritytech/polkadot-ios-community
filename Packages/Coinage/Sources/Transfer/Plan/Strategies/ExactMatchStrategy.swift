@@ -21,7 +21,7 @@ struct ExactMatchStrategy: TransferStrategy {
 
         // No entry backs these coins, so the provisional handoff mark is the only thing keeping
         // them out of a concurrent selection until the memo is durable.
-        let handoffCommit = try await durability.preCommitHandoff(coins.map { .coin($0.derivationIndex) })
+        let handoffCommit = try await durability.preCommitHandoff(coins.map { .coin($0.derivationIndex, $0.publicKey) })
 
         let memoEntries = coins.map {
             PlannedMemoEntry(

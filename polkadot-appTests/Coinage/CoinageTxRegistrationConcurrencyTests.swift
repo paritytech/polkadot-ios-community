@@ -1,4 +1,5 @@
 import Coinage
+import SubstrateSdk
 import CoreData
 import Foundation
 import KeyDerivation
@@ -32,14 +33,14 @@ final class DurabilityRegistrationConcurrencyTests {
             let store = CoinageTxCoreDataRepository(storageFacade: facade)
             try await persistCoins([0, 1, 2], facade: facade)
 
-            let sharedInput = CoinageTxInput.coin(.own(0))
+            let sharedInput = CoinageTxInput.coin(.own(0, testKey(0)))
             let id1 = CoinageTxId()
             let id2 = CoinageTxId()
 
             let entry1 = CoinageTxEntry(
                 id: id1,
                 inputs: [sharedInput],
-                outputs: [.coin(1)],
+                outputs: [.coin(1, testKey(1))],
                 checkpoint: BlockRef(number: 100, hash: Data([100])),
                 mortality: 64,
                 successDetectedAt: nil
@@ -48,7 +49,7 @@ final class DurabilityRegistrationConcurrencyTests {
             let entry2 = CoinageTxEntry(
                 id: id2,
                 inputs: [sharedInput],
-                outputs: [.coin(2)],
+                outputs: [.coin(2, testKey(2))],
                 checkpoint: BlockRef(number: 100, hash: Data([100])),
                 mortality: 64,
                 successDetectedAt: nil
@@ -85,9 +86,9 @@ final class DurabilityRegistrationConcurrencyTests {
 
             // The rejected one should throw inputAlreadyClaimed
             if firstSucceeded {
-                #expect((secondError as? CoinageTxError) == .inputAlreadyClaimed(sharedInput.identifier))
+                #expect((secondError as? CoinageTxError) == .inputAlreadyClaimed(sharedInput.publicKey.toHex()))
             } else {
-                #expect((firstError as? CoinageTxError) == .inputAlreadyClaimed(sharedInput.identifier))
+                #expect((firstError as? CoinageTxError) == .inputAlreadyClaimed(sharedInput.publicKey.toHex()))
             }
         }
     }
@@ -99,11 +100,13 @@ final class DurabilityRegistrationConcurrencyTests {
             let store = CoinageTxCoreDataRepository(storageFacade: facade)
             try await persistCoins((0 ..< 10).map(UInt64.init) + (100 ..< 110).map(UInt64.init), facade: facade)
 
-            let entries = (0 ..< 10).map { i in
-                CoinageTxEntry(
+            let entries = (0 ..< 10).map { i -> CoinageTxEntry in
+                let inputIndex = UInt64(i)
+                let outputIndex = UInt64(100 + i)
+                return CoinageTxEntry(
                     id: CoinageTxId(),
-                    inputs: [.coin(.own(UInt64(i)))],
-                    outputs: [.coin(UInt64(100 + i))],
+                    inputs: [.coin(.own(inputIndex, testKey(inputIndex)))],
+                    outputs: [.coin(outputIndex, testKey(outputIndex))],
                     checkpoint: BlockRef(number: 100, hash: Data([100])),
                     mortality: 64,
                     successDetectedAt: nil
@@ -149,11 +152,11 @@ final class DurabilityRegistrationConcurrencyTests {
         try await persistCoins([0, 1, 2], facade: facade)
 
         // First registration should succeed
-        let firstInput = CoinageTxInput.coin(.own(0))
+        let firstInput = CoinageTxInput.coin(.own(0, testKey(0)))
         let firstEntry = CoinageTxEntry(
             id: CoinageTxId(),
             inputs: [firstInput],
-            outputs: [.coin(1)],
+            outputs: [.coin(1, testKey(1))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64,
             successDetectedAt: nil
@@ -169,7 +172,7 @@ final class DurabilityRegistrationConcurrencyTests {
         let secondEntry = CoinageTxEntry(
             id: CoinageTxId(),
             inputs: [firstInput],
-            outputs: [.coin(2)],
+            outputs: [.coin(2, testKey(2))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64,
             successDetectedAt: nil
@@ -183,7 +186,7 @@ final class DurabilityRegistrationConcurrencyTests {
         }
 
         // Verify rejection happened
-        #expect((rejectionError as? CoinageTxError) == .inputAlreadyClaimed(firstInput.identifier))
+        #expect((rejectionError as? CoinageTxError) == .inputAlreadyClaimed(firstInput.publicKey.toHex()))
 
         // Verify store still holds only the first entry and no marks
         entries = try await store.fetchAll()
@@ -202,13 +205,13 @@ final class DurabilityRegistrationConcurrencyTests {
     func inputOfFailedEntryIsRegistrableAgain() async throws {
         try await persistCoins([7, 1, 2], facade: facade)
 
-        let input = CoinageTxInput.coin(.own(7))
+        let input = CoinageTxInput.coin(.own(7, testKey(7)))
         let failedId = CoinageTxId()
 
         let failedEntry = CoinageTxEntry(
             id: failedId,
             inputs: [input],
-            outputs: [.coin(1)],
+            outputs: [.coin(1, testKey(1))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
@@ -221,7 +224,7 @@ final class DurabilityRegistrationConcurrencyTests {
         let retry = CoinageTxEntry(
             id: CoinageTxId(),
             inputs: [input],
-            outputs: [.coin(2)],
+            outputs: [.coin(2, testKey(2))],
             checkpoint: BlockRef(number: 200, hash: Data([200])),
             mortality: 64
         )
@@ -237,20 +240,20 @@ final class DurabilityRegistrationConcurrencyTests {
     func liveClaimSurvivesUnrelatedFailure() async throws {
         try await persistCoins([7, 8, 1, 2, 3], facade: facade)
 
-        let liveInput = CoinageTxInput.coin(.own(7))
+        let liveInput = CoinageTxInput.coin(.own(7, testKey(7)))
         let failedId = CoinageTxId()
 
         let failedEntry = CoinageTxEntry(
             id: failedId,
-            inputs: [.coin(.own(8))],
-            outputs: [.coin(1)],
+            inputs: [.coin(.own(8, testKey(8)))],
+            outputs: [.coin(1, testKey(1))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
         let liveEntry = CoinageTxEntry(
             id: CoinageTxId(),
             inputs: [liveInput],
-            outputs: [.coin(2)],
+            outputs: [.coin(2, testKey(2))],
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
@@ -262,12 +265,12 @@ final class DurabilityRegistrationConcurrencyTests {
         let conflicting = CoinageTxEntry(
             id: CoinageTxId(),
             inputs: [liveInput],
-            outputs: [.coin(3)],
+            outputs: [.coin(3, testKey(3))],
             checkpoint: BlockRef(number: 200, hash: Data([200])),
             mortality: 64
         )
 
-        await #expect(throws: CoinageTxError.inputAlreadyClaimed(liveInput.identifier)) {
+        await #expect(throws: CoinageTxError.inputAlreadyClaimed(liveInput.publicKey.toHex())) {
             try await store.register(conflicting)
         }
     }
@@ -276,40 +279,20 @@ final class DurabilityRegistrationConcurrencyTests {
     /// output coins a test references before it registers any entry.
     private func persistCoins(_ indices: [DerivationIndex], facade: UserDataStorageTestFacade) async throws {
         let repo = facade.makeRepo(mapper: CoinMapper())
-        let deriver = StubCoinKeyDeriver()
-        let coins = try indices.map {
-            try Coin(exponent: 0, derivationIndex: $0, age: nil, publicKey: deriver.derivePublicKey(index: $0))
-        }
+        let coins = indices.map { Coin(exponent: 0, derivationIndex: $0, age: nil, publicKey: testKey($0)) }
         try await repo.saveOperation({ coins }, { [] }).asyncExecute()
     }
 }
 
-/// Deterministic coin public key from the derivation index — enough for registration validation,
-/// which only needs distinct, stable keys.
-private struct StubCoinKeyDeriver: CoinKeyDeriving {
-    func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
-        withUnsafeBytes(of: index.bigEndian) { Data($0) }
-    }
-
-    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
-        Data()
-    }
+/// A deterministic public key from a derivation index — distinct per index and stable, so the
+/// persisted coins' keys match the entries the tests register against them.
+private func testKey(_ index: DerivationIndex) -> PublicKey {
+    withUnsafeBytes(of: index.bigEndian) { Data($0) }
 }
 
-/// A fixed in-memory entropy for the real ``VoucherKeypairFactory`` — these coin-only tests never
-/// invoke the voucher deriver, but the store requires one.
-private struct FixedEntropyManager: RootEntropyManaging {
-    func fetchRootEntropy() throws -> Data { Data(repeating: 0x01, count: 32) }
-    func createRootEntropy(_: Data) throws {}
-    func hasRootEntropy() throws -> Bool { true }
-}
-
-/// The real validator, keyed the same way as `persistCoins` (via `StubCoinKeyDeriver`) so its
-/// public keys match the stored coins.
-private let concurrencyValidator = CoinageTxRegistrationValidator(
-    coinKeyDeriver: StubCoinKeyDeriver(),
-    voucherKeyDeriver: VoucherKeypairFactory(entropyManager: FixedEntropyManager())
-)
+/// The real validator — it reads each entry's own public keys, which `persistCoins` stores to
+/// match (both derive the key the same way from the index).
+private let concurrencyValidator = CoinageTxRegistrationValidator()
 
 private extension CoinageTxCoreDataRepository {
     /// Registers, running the real validator's invariant checks inside the store transaction — the

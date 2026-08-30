@@ -7,22 +7,22 @@ import Foundation
 /// Mirrors Android's `CoinageEntryDag`.
 public struct CoinageEntryDag: Sendable {
     public let entries: [CoinageTxEntry]
-    private let handedOff: Set<String>
-    private let minterByKey: [String: CoinageTxEntry]
-    private let consumersByKey: [String: [CoinageTxEntry]]
+    private let handedOff: Set<PublicKey>
+    private let minterByKey: [PublicKey: CoinageTxEntry]
+    private let consumersByKey: [PublicKey: [CoinageTxEntry]]
 
-    public init(entries: [CoinageTxEntry], handedOff: Set<String>) {
+    public init(entries: [CoinageTxEntry], handedOff: Set<PublicKey>) {
         self.entries = entries
         self.handedOff = handedOff
 
-        var minters: [String: CoinageTxEntry] = [:]
-        var consumers: [String: [CoinageTxEntry]] = [:]
+        var minters: [PublicKey: CoinageTxEntry] = [:]
+        var consumers: [PublicKey: [CoinageTxEntry]] = [:]
         for entry in entries {
             for output in entry.outputs {
-                minters[output.identifier] = entry
+                minters[output.publicKey] = entry
             }
             for input in entry.inputs {
-                consumers[input.identifier, default: []].append(entry)
+                consumers[input.publicKey, default: []].append(entry)
             }
         }
         minterByKey = minters
@@ -30,12 +30,12 @@ public struct CoinageEntryDag: Sendable {
     }
 
     /// The entry that minted the asset with this identifier, if any.
-    public func minter(_ key: String) -> CoinageTxEntry? {
+    public func minter(_ key: PublicKey) -> CoinageTxEntry? {
         minterByKey[key]
     }
 
     /// Every entry consuming the asset with this identifier, including terminal ones.
-    public func consumers(_ key: String) -> [CoinageTxEntry] {
+    public func consumers(_ key: PublicKey) -> [CoinageTxEntry] {
         consumersByKey[key] ?? []
     }
 
@@ -44,14 +44,14 @@ public struct CoinageEntryDag: Sendable {
         var seen: Set<CoinageTxId> = []
         var result: [CoinageTxEntry] = []
         for output in entry.outputs {
-            for consumer in consumers(output.identifier) where seen.insert(consumer.id).inserted {
+            for consumer in consumers(output.publicKey) where seen.insert(consumer.id).inserted {
                 result.append(consumer)
             }
         }
         return result
     }
 
-    public func isHandedOff(_ key: String) -> Bool {
+    public func isHandedOff(_ key: PublicKey) -> Bool {
         handedOff.contains(key)
     }
 }

@@ -1,5 +1,6 @@
 import Coinage
 import Foundation
+import SubstrateSdk
 import Testing
 
 @Suite("Asset State")
@@ -9,7 +10,7 @@ struct AssetStateTests {
     @Test("Spent coin stays spent")
     func spentStaysSpent() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(5)
+        let coin = OwnAsset.coin(5, testKey(5))
 
         try await store.register(.fixture(outputs: [coin]))
 
@@ -24,7 +25,7 @@ struct AssetStateTests {
         try await store.updateStatus(consumer.id, to: .finalizedSuccess)
 
         // The coin is now consumed by a terminal entry, so no new entry may claim it.
-        await #expect(throws: CoinageTxError.inputAlreadyClaimed(coin.identifier)) {
+        await #expect(throws: CoinageTxError.inputAlreadyClaimed(coin.publicKey.toHex())) {
             try await store.register(.fixture(inputs: [coin.asInput]))
         }
     }
@@ -34,7 +35,7 @@ struct AssetStateTests {
     @Test("Coin above shallow finalized head is not read as spent")
     func shallowHeadDoesNotMarkSpent() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(7)
+        let coin = OwnAsset.coin(7, testKey(7))
 
         // Minted at block 200, well above a finalized head of 50.
         let entry = CoinageTxEntry.fixture(outputs: [coin], checkpoint: .fixture(200))
@@ -53,7 +54,7 @@ struct AssetStateTests {
     @Test("Cleaned voucher is counted nowhere")
     func cleanedVoucherNotCounted() async throws {
         let store = MockCoinageTxRepository()
-        let voucher = OwnAsset.recyclerVoucher(3)
+        let voucher = OwnAsset.recyclerVoucher(3, testKey(3))
 
         try await store.register(.fixture(outputs: [voucher]))
 
@@ -75,7 +76,7 @@ struct AssetStateTests {
     @Test("Handed-off asset is never selectable and never registrable")
     func handedOffAssetUnusable() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(9)
+        let coin = OwnAsset.coin(9, testKey(9))
 
         try await store.register(.fixture(outputs: [coin]))
         try await store.markHandedOff(coin)
@@ -83,7 +84,7 @@ struct AssetStateTests {
         let handedOff = try await store.hasEverBeenHandedOff(coin)
         #expect(handedOff)
 
-        await #expect(throws: CoinageTxError.inputHandedOff(coin.identifier)) {
+        await #expect(throws: CoinageTxError.inputHandedOff(coin.publicKey.toHex())) {
             try await store.register(.fixture(inputs: [coin.asInput]))
         }
     }
@@ -93,13 +94,13 @@ struct AssetStateTests {
     @Test("Reservation deducts immediately")
     func reservationDeductsImmediately() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(5))
+        let input = CoinageTxInput.coin(.own(5, testKey(5)))
 
         // Reserve the coin by registering an entry that uses it
-        try await store.register(.fixture(inputs: [input], outputs: [.coin(10)]))
+        try await store.register(.fixture(inputs: [input], outputs: [.coin(10, testKey(10))]))
 
         // The input should now be claimed and unavailable
-        await #expect(throws: CoinageTxError.inputAlreadyClaimed(input.identifier)) {
+        await #expect(throws: CoinageTxError.inputAlreadyClaimed(input.publicKey.toHex())) {
             try await store.register(.fixture(inputs: [input]))
         }
     }
@@ -107,14 +108,14 @@ struct AssetStateTests {
     @Test("Reservation returns on failure")
     func reservationReturnedOnFailure() async throws {
         let store = MockCoinageTxRepository()
-        let input = CoinageTxInput.coin(.own(5))
+        let input = CoinageTxInput.coin(.own(5, testKey(5)))
 
         let first = CoinageTxEntry.fixture(inputs: [input])
         try await store.register(first)
         try await store.updateStatus(first.id, to: .failure)
 
         // The input should now be available again for a new entry
-        let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(11)])
+        let second = CoinageTxEntry.fixture(inputs: [input], outputs: [.coin(11, testKey(11))])
         try await store.register(second)
 
         let fetched = try await store.fetch(id: second.id)
@@ -126,7 +127,7 @@ struct AssetStateTests {
     @Test("assetStatuses returns lock and minter status pair")
     func assetStatusesPair() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(20)
+        let coin = OwnAsset.coin(20, testKey(20))
 
         let minter = CoinageTxEntry.fixture(outputs: [coin])
         try await store.register(minter)
@@ -147,7 +148,7 @@ struct AssetStateTests {
     @Test("Lock reflects handoff marks")
     func lockReflectsHandoff() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(15)
+        let coin = OwnAsset.coin(15, testKey(15))
 
         try await store.register(.fixture(outputs: [coin]))
         try await store.markHandedOff(coin)
@@ -157,7 +158,7 @@ struct AssetStateTests {
         #expect(handedOff)
 
         // Should not be usable in new entries
-        await #expect(throws: CoinageTxError.inputHandedOff(coin.identifier)) {
+        await #expect(throws: CoinageTxError.inputHandedOff(coin.publicKey.toHex())) {
             try await store.register(.fixture(inputs: [coin.asInput]))
         }
     }
@@ -165,7 +166,7 @@ struct AssetStateTests {
     @Test("Minter status reflects entry state")
     func minterStatusReflectsEntry() async throws {
         let store = MockCoinageTxRepository()
-        let coin = OwnAsset.coin(25)
+        let coin = OwnAsset.coin(25, testKey(25))
 
         let minter = CoinageTxEntry.fixture(outputs: [coin])
         try await store.register(minter)
@@ -188,7 +189,7 @@ struct AssetStateTests {
     @Test("No minter found for unminted asset")
     func noMinterForUnmintedAsset() async throws {
         let store = MockCoinageTxRepository()
-        let unmintedCoin = OwnAsset.coin(999)
+        let unmintedCoin = OwnAsset.coin(999, testKey(999))
 
         let minter = try await store.minter(of: unmintedCoin)
         #expect(minter == nil)

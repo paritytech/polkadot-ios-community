@@ -136,7 +136,6 @@ public extension CoinageService {
         let chainFactory = CoinageChainViewFactory(
             coinQuery: coinOnChainQuery,
             voucherQuery: voucherOnChainQuery,
-            coinKeyFactory: coinKeypairFactory,
             blockInfoProvider: blockNumberProvider,
             blockEvents: CoinageChainViewFactory.BlockEventsDependencies(
                 connection: connection,
@@ -156,10 +155,7 @@ public extension CoinageService {
 
         let registrar = CoinageTxRegistrar(
             store: durabilityStore,
-            validator: CoinageTxRegistrationValidator(
-                coinKeyDeriver: coinKeypairFactory,
-                voucherKeyDeriver: voucherKeypairFactory
-            ),
+            validator: CoinageTxRegistrationValidator(),
             chainFactory: chainFactory,
             watched: watchedEntries,
             mortality: CoinageConstants.entryMortality,

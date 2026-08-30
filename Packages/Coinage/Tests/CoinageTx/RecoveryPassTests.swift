@@ -15,10 +15,10 @@ struct RecoveryPassTests {
         let chain = FakeChainView(finalized: .fixture(150), best: .fixture(150))
         let watched = CoinageTrackingTxSet()
 
-        let minter = CoinageTxEntry.fixture(outputs: [.coin(1)])
+        let minter = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))])
         let consumer = CoinageTxEntry.fixture(
-            inputs: [.coin(.own(1))],
-            outputs: [.coin(2)],
+            inputs: [.coin(.own(1, testKey(1)))],
+            outputs: [.coin(2, testKey(2))],
             status: .finalizedSuccess
         )
         try await store.register(minter)
@@ -39,8 +39,8 @@ struct RecoveryPassTests {
         let chain = FakeChainView(finalized: .fixture(150), best: .fixture(150))
         let watched = CoinageTrackingTxSet()
 
-        let minter = CoinageTxEntry.fixture(outputs: [.coin(1)])
-        let consumer = CoinageTxEntry.fixture(inputs: [.coin(.own(1))], status: .finalizedSuccess)
+        let minter = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))])
+        let consumer = CoinageTxEntry.fixture(inputs: [.coin(.own(1, testKey(1)))], status: .finalizedSuccess)
         try await store.register(minter)
         try await store.register(consumer)
         watched.take(minter.id)
@@ -60,7 +60,7 @@ struct RecoveryPassTests {
         let chain = FakeChainView(finalized: .fixture(150), best: .fixture(150))
         let watched = CoinageTrackingTxSet()
 
-        try await store.register(CoinageTxEntry.fixture(outputs: [.coin(1)], status: .finalizedSuccess))
+        try await store.register(CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))], status: .finalizedSuccess))
 
         let pass = RecoveryPass(store: store, chainFactory: chain, watched: watched, logger: nil)
         await pass.run()
@@ -73,7 +73,7 @@ struct RecoveryPassTests {
     @Test("compareAndSetStatus writes only while the observed status still holds")
     func compareAndSetRejectsMovedStatus() async throws {
         let store = MockCoinageTxRepository()
-        let entry = CoinageTxEntry.fixture(outputs: [.coin(1)])
+        let entry = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))])
         try await store.register(entry)
 
         // The status moved to pendingSuccess after the verdict was formed against pending.
@@ -93,7 +93,7 @@ struct RecoveryPassTests {
     @Test("compareAndSetStatus does not overwrite a terminal entry")
     func compareAndSetLeavesTerminalUntouched() async throws {
         let store = MockCoinageTxRepository()
-        let entry = CoinageTxEntry.fixture(outputs: [.coin(1)], status: .finalizedSuccess)
+        let entry = CoinageTxEntry.fixture(outputs: [.coin(1, testKey(1))], status: .finalizedSuccess)
         try await store.register(entry)
 
         let wrote = try await store.compareAndSetStatus(

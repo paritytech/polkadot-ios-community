@@ -28,9 +28,9 @@ struct CoinageTransaction {
         outputCoins += coins
     }
 
-    /// Consume coins this wallet minted, addressed by derivation index.
+    /// Consume coins this wallet minted, addressed by derivation index and public key.
     mutating func consume(coins: [Coin]) {
-        inputs += coins.map { .coin(.own($0.derivationIndex)) }
+        inputs += coins.map { .coin(.own($0.derivationIndex, $0.publicKey)) }
     }
 
     /// Record coins as given to a peer.
@@ -41,7 +41,7 @@ struct CoinageTransaction {
     func build() -> CoinageTransactionAssets {
         CoinageTransactionAssets(
             inputs: inputs,
-            outputs: outputCoins.map { .coin($0.derivationIndex) },
+            outputs: outputCoins.map { .coin($0.derivationIndex, $0.publicKey) },
             outputCoins: outputCoins,
             handedOff: handedOff
         )

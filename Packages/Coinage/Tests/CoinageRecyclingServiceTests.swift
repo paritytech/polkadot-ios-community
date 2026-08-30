@@ -24,7 +24,7 @@ struct CoinageRecyclingServiceTests {
 
         // Eligible are 2 and 3, processed oldest first (3 then 2).
         let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(3)), .coin(.own(2))])
+        #expect(inputs == [.coin(.own(3, testKey(3))), .coin(.own(2, testKey(2)))])
     }
 
     @Test("Coins below the age, with unknown age, or not free/on-chain are skipped")
@@ -39,7 +39,7 @@ struct CoinageRecyclingServiceTests {
         await sut.service.recycleOldCoins()
 
         let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(1))])
+        #expect(inputs == [.coin(.own(1, testKey(1)))])
     }
 
     @Test("Eligible coins are processed oldest first")
@@ -53,7 +53,7 @@ struct CoinageRecyclingServiceTests {
         await sut.service.recycleOldCoins()
 
         let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(2)), .coin(.own(3)), .coin(.own(1))])
+        #expect(inputs == [.coin(.own(2, testKey(2))), .coin(.own(3, testKey(3))), .coin(.own(1, testKey(1)))])
     }
 
     // MARK: - Submission
@@ -66,7 +66,7 @@ struct CoinageRecyclingServiceTests {
 
         let entries = await sut.durabilityService.store.allEntries
         #expect(entries.count == 1)
-        #expect(entries.first?.inputs == [.coin(.own(7))])
+        #expect(entries.first?.inputs == [.coin(.own(7, testKey(7)))])
         #expect(entries.first?.outputs.count == 1)
     }
 
@@ -162,7 +162,7 @@ private extension CoinageRecyclingServiceTests {
             derivationIndex: index,
             age: age,
             isOnchain: onchain,
-            publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+            publicKey: testKey(index)
         )
         let state = free
             ? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
@@ -203,7 +203,7 @@ private actor StubVoucherMinter: VoucherMinting {
             allocatedAt: Date(),
             readyAt: Date.distantPast,
             remoteState: .unlocated,
-            publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+            publicKey: testKey(index)
         )
     }
 }

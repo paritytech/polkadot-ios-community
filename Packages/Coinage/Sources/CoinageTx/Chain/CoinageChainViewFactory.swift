@@ -33,7 +33,6 @@ public protocol CoinageChainViewFactoryProtocol: Sendable {
 final class CoinageChainViewFactory: CoinageChainViewFactoryProtocol, @unchecked Sendable {
     private let coinQuery: any CoinOnChainQuerying
     private let voucherQuery: any VoucherOnChainQuerying
-    private let coinKeyFactory: any CoinKeyDeriving
     private let blockInfoProvider: any BlockInfoProviding
     private let blockOutcomeReader: BlockOutcomeReader
     private let logger: SDKLoggerProtocol?
@@ -44,14 +43,12 @@ final class CoinageChainViewFactory: CoinageChainViewFactoryProtocol, @unchecked
     init(
         coinQuery: any CoinOnChainQuerying,
         voucherQuery: any VoucherOnChainQuerying,
-        coinKeyFactory: any CoinKeyDeriving,
         blockInfoProvider: any BlockInfoProviding,
         blockEvents: BlockEventsDependencies,
         logger: SDKLoggerProtocol?
     ) {
         self.coinQuery = coinQuery
         self.voucherQuery = voucherQuery
-        self.coinKeyFactory = coinKeyFactory
         self.blockInfoProvider = blockInfoProvider
         blockOutcomeReader = BlockOutcomeReader(
             connection: blockEvents.connection,
@@ -96,7 +93,6 @@ extension CoinageChainViewFactory {
             ),
             coinQuery: coinQuery,
             voucherQuery: voucherQuery,
-            coinKeyFactory: coinKeyFactory,
             blockInfoProvider: blockInfoProvider,
             blockNumberByHash: { [blockOutcomeReader] in await blockOutcomeReader.blockNumber(byHash: $0) },
             blockOutcome: { [blockOutcomeReader] in await blockOutcomeReader.lookUp($0, at: $1) }

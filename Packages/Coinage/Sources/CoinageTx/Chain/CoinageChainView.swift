@@ -91,7 +91,6 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
 
     private let coinQuery: any CoinOnChainQuerying
     private let voucherQuery: any VoucherOnChainQuerying
-    private let coinKeyFactory: any CoinKeyDeriving
     private let blockInfoProvider: any BlockInfoProviding
     private let blockNumberByHash: BlockNumberByHash
     private let scan: BlockBodyScan
@@ -100,7 +99,6 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
         checkpoints: ChainView,
         coinQuery: any CoinOnChainQuerying,
         voucherQuery: any VoucherOnChainQuerying,
-        coinKeyFactory: any CoinKeyDeriving,
         blockInfoProvider: any BlockInfoProviding,
         blockNumberByHash: @escaping BlockNumberByHash,
         blockOutcome: @escaping BlockOutcomeLookup
@@ -109,7 +107,6 @@ final class CoinageChainView: CoinageChainViewProtocol, @unchecked Sendable {
         bestHead = checkpoints.best
         self.coinQuery = coinQuery
         self.voucherQuery = voucherQuery
-        self.coinKeyFactory = coinKeyFactory
         self.blockInfoProvider = blockInfoProvider
         self.blockNumberByHash = blockNumberByHash
         scan = BlockBodyScan(blockOutcome: blockOutcome, blockInfoProvider: blockInfoProvider)
@@ -164,19 +161,11 @@ private extension CoinageChainView {
         guard !assets.isEmpty else { return [] }
 
         let coins = assets.enumerated().compactMap { position, asset -> (position: Int, key: Data)? in
-            switch asset.input {
-            case let .coin(.own(index)):
-                (try? coinKeyFactory.derivePublicKey(index: index))
-                    .map { (position, $0) }
-            case let .coin(.received(publicKey)):
-                (position, publicKey)
-            case .recyclerVoucher:
-                nil
-            }
+            asset.input.isCoin ? (position, asset.input.publicKey) : nil
         }
 
         let vouchers = assets.enumerated().compactMap { position, asset -> (position: Int, index: DerivationIndex)? in
-            guard case let .recyclerVoucher(index) = asset.input else { return nil }
+            guard case let .recyclerVoucher(index, _) = asset.input else { return nil }
             return (position, index)
         }
 

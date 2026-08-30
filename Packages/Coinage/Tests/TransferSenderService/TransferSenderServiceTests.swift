@@ -113,7 +113,7 @@ struct TransferSenderServiceTests {
         // Two groups = two entries submitted
         let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
         #expect(Set(allInputs.compactMap { input -> String? in
-            guard case let .recyclerVoucher(idx) = input else { return nil }
+            guard case let .recyclerVoucher(idx, _) = input else { return nil }
             return "voucher:\(idx)"
         }) == Set(["voucher:\(voucher1.voucher.derivationIndex)", "voucher:\(voucher2.voucher.derivationIndex)"]))
 
@@ -169,7 +169,7 @@ struct TransferSenderServiceTests {
         // All three vouchers registered as inputs across entries
         let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
         let voucherIndices = Set(allInputs.compactMap { input -> UInt64? in
-            guard case let .recyclerVoucher(index) = input else { return nil }
+            guard case let .recyclerVoucher(index, _) = input else { return nil }
             return index
         })
         #expect(voucherIndices == Set([voucher1, voucher2, voucher3].map(\.voucher.derivationIndex)))
@@ -223,7 +223,7 @@ struct TransferSenderServiceTests {
         // All five vouchers registered as inputs across entries
         let allInputs = await mockDurability.submittedInputs.flatMap { $0 }
         let voucherIndices = Set(allInputs.compactMap { input -> UInt64? in
-            guard case let .recyclerVoucher(index) = input else { return nil }
+            guard case let .recyclerVoucher(index, _) = input else { return nil }
             return index
         })
         #expect(voucherIndices ==
@@ -270,7 +270,7 @@ struct TransferSenderServiceTests {
         // Both vouchers in the entry inputs
         let inputs = await mockDurability.submittedInputs[0]
         #expect(Set(inputs.compactMap { input -> String? in
-            guard case let .recyclerVoucher(idx) = input else { return nil }
+            guard case let .recyclerVoucher(idx, _) = input else { return nil }
             return "voucher:\(idx)"
         }) == Set(["voucher:\(voucher1.voucher.derivationIndex)", "voucher:\(voucher2.voucher.derivationIndex)"]))
 
@@ -514,7 +514,7 @@ struct TransferSenderServiceTests {
         // Entry registered with overflow coin input
         let inputs = await mockDurability.submittedInputs[0]
         #expect(inputs.contains { input in
-            guard case let .coin(.own(idx)) = input else { return false }
+            guard case let .coin(.own(idx, _)) = input else { return false }
             return idx == coin.coin.derivationIndex
         })
 
@@ -563,7 +563,7 @@ struct TransferSenderServiceTests {
         // Entry registered with only overflow coin input (coin2)
         let inputs = await mockDurability.submittedInputs[0]
         #expect(inputs.contains { input in
-            guard case let .coin(.own(idx)) = input else { return false }
+            guard case let .coin(.own(idx, _)) = input else { return false }
             return idx == coin2.coin.derivationIndex
         })
 
@@ -690,7 +690,7 @@ extension TransferSenderServiceTests {
     private func consumedCoinIndices() async -> Set<DerivationIndex> {
         let inputs = await mockDurability.submittedInputs.flatMap { $0 }
         return Set(inputs.compactMap { input -> DerivationIndex? in
-            guard case let .coin(.own(index)) = input else { return nil }
+            guard case let .coin(.own(index, _)) = input else { return nil }
             return index
         })
     }
@@ -699,7 +699,7 @@ extension TransferSenderServiceTests {
     private func consumedVoucherIndices() async -> Set<DerivationIndex> {
         let inputs = await mockDurability.submittedInputs.flatMap { $0 }
         return Set(inputs.compactMap { input -> DerivationIndex? in
-            guard case let .recyclerVoucher(index) = input else { return nil }
+            guard case let .recyclerVoucher(index, _) = input else { return nil }
             return index
         })
     }

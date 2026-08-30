@@ -10,22 +10,22 @@ import Foundation
 /// source of truth; the relation is populated opportunistically.
 enum CoinageTxAssetLinker {
     static func coin(for input: CoinageTxInput, in context: NSManagedObjectContext) -> CDCoin? {
-        guard case let .coin(.own(index)) = input else { return nil }
+        guard case let .coin(.own(index, _)) = input else { return nil }
         return coin(index: index, in: context)
     }
 
     static func voucher(for input: CoinageTxInput, in context: NSManagedObjectContext) -> CDVoucher? {
-        guard case let .recyclerVoucher(index) = input else { return nil }
+        guard case let .recyclerVoucher(index, _) = input else { return nil }
         return voucher(index: index, in: context)
     }
 
     static func coin(for asset: OwnAsset, in context: NSManagedObjectContext) -> CDCoin? {
-        guard case let .coin(index) = asset else { return nil }
+        guard case let .coin(index, _) = asset else { return nil }
         return coin(index: index, in: context)
     }
 
     static func voucher(for asset: OwnAsset, in context: NSManagedObjectContext) -> CDVoucher? {
-        guard case let .recyclerVoucher(index) = asset else { return nil }
+        guard case let .recyclerVoucher(index, _) = asset else { return nil }
         return voucher(index: index, in: context)
     }
 }

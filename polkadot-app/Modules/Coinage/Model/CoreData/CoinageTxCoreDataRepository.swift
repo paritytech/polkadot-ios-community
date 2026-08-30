@@ -159,16 +159,16 @@ extension CoinageTxCoreDataRepository {
     }
 
     func minter(of asset: OwnAsset) async throws -> CoinageTxEntry? {
-        let identifier = asset.identifier
+        let key = asset.publicKey
         return try await fetchAll().first { entry in
-            entry.outputs.contains { $0.identifier == identifier }
+            entry.outputs.contains { $0.publicKey == key }
         }
     }
 
     func consumers(of input: CoinageTxInput) async throws -> [CoinageTxEntry] {
-        let identifier = input.identifier
+        let key = input.publicKey
         return try await fetchAll().filter { entry in
-            entry.inputs.contains { $0.identifier == identifier }
+            entry.inputs.contains { $0.publicKey == key }
         }
     }
 }
@@ -199,12 +199,12 @@ extension CoinageTxCoreDataRepository {
     }
 
     func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        guard case let .coin(index) = asset else { return false }
+        guard case let .coin(index, _) = asset else { return false }
         return try await handedOffCoinModels().contains { $0.derivationIndex == index }
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
-        try await handedOffCoinModels().map { .coin($0.derivationIndex) }
+        try await handedOffCoinModels().map { .coin($0.derivationIndex, $0.publicKey) }
     }
 
     /// The handoff mark is stored on `CDCoin`, so a non-`.none` `handoffMark` identifies a
@@ -359,7 +359,7 @@ private final class Transaction: CoinageTxValidationContext {
     }
 
     private func coinRow(for asset: OwnAsset) throws -> CDCoin? {
-        guard case let .coin(index) = asset else { return nil }
+        guard case let .coin(index, _) = asset else { return nil }
 
         let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
         request.predicate = NSPredicate(format: "identifier == %@", Coin.identifier(for: index))
