@@ -311,7 +311,10 @@ private extension AssetDetailsPresenter {
                         if coin.handoffMark != .none { return "Handed off" }
                         if state.isConsumed { return "Spent" }
                         if state.isInUse { return "Reserved" }
-                        if !coin.isOnchain { return "Pending mint" }
+                        if state.isMintingFailed, !coin.isOnchain { return "Minting failed" }
+                        if !coin.isOnchain {
+                            return "Pending mint"
+                        }
                         return "Available"
                     }()
                     return CoinDetailViewModel(

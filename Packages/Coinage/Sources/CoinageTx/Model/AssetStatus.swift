@@ -23,4 +23,5 @@ public extension CoinageAssetState {
     var isInUse: Bool { consumerStatus?.isLive == true }
     var isConsumed: Bool { consumerStatus == .finalizedSuccess }
     var isFree: Bool { !handedOff && !isInUse && !isConsumed }
+    var isMintingFailed: Bool { minterStatus == .failure }
 }
