@@ -80,10 +80,10 @@ private extension MainTabBarInteractor {
     func subscribeToChainStatus() {
         chainStatusSubscription = Task { [weak self, chainStatusProvider, logger] in
             do {
-                let configurationStream = await chainStatusProvider.configurationStream()
+                let statusStream = await chainStatusProvider.statusStream()
 
-                for try await configuration in configurationStream {
-                    await self?.handleChainStatusUpdate(configuration)
+                for try await rows in statusStream {
+                    await self?.handleChainStatusUpdate(rows)
                 }
             } catch {
                 logger.error("Chain status stream failed: \(error)")
@@ -192,8 +192,8 @@ private extension MainTabBarInteractor {
         presenter?.didReceivePolkadotSignInRequest(with: url)
     }
 
-    func handleChainStatusUpdate(_ configuration: any HashableContentConfiguration) {
-        presenter?.didReceiveChainStatus(configuration)
+    func handleChainStatusUpdate(_ rows: [ChainConnectionStatusViewModel]) {
+        presenter?.didReceiveChainStatus(rows)
     }
 }
 

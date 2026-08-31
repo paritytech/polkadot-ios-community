@@ -36,6 +36,7 @@ protocol ServiceCoordinatorProtocol: ApplicationServiceProtocol {
     var allowanceManagerFacade: AllowanceManagerFacade { get }
     var turnService: TURNCredentialsProviding { get }
     var networkStatusService: NetworkStatusProviding { get }
+    var chainStatusProvider: ChainStatusProviding { get }
     var truapiRuntimeProvider: TrUAPIHostRuntimeProviding { get }
 }
 
@@ -71,6 +72,7 @@ final class ServiceCoordinator {
     let turnService: TURNCredentialsProviding
     let deviceSyncService: DeviceSyncServicing
     let networkStatusService: NetworkStatusProviding
+    let chainStatusProvider: ChainStatusProviding
     let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
     let tldProvider: DotNsTldProviding
     let logger: LoggerProtocol
@@ -113,6 +115,7 @@ final class ServiceCoordinator {
         turnService: TURNCredentialsProviding,
         deviceSyncService: DeviceSyncServicing,
         networkStatusService: NetworkStatusProviding,
+        chainStatusProvider: ChainStatusProviding,
         truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
         tldProvider: DotNsTldProviding,
         logger: LoggerProtocol
@@ -145,6 +148,7 @@ final class ServiceCoordinator {
         self.allowanceRenewalService = allowanceRenewalService
         self.deviceSyncService = deviceSyncService
         self.networkStatusService = networkStatusService
+        self.chainStatusProvider = chainStatusProvider
         self.truapiRuntimeProvider = truapiRuntimeProvider
         self.tldProvider = tldProvider
         self.logger = logger
@@ -234,6 +238,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
 
 extension ServiceCoordinator {
     // swiftlint:disable:next function_body_length
+    @MainActor
     static func createDefault(spaFlowState: SPAFlowState) -> ServiceCoordinatorProtocol? {
         let walletRepo: WalletManagerRepositoryProtocol = .shared
 
@@ -407,6 +412,12 @@ extension ServiceCoordinator {
             pathMonitor: NetworkPathMonitor()
         )
 
+        let chainStatusProvider = ChainStatusProvider(
+            networkStatusService: networkStatusService,
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            logger: logger
+        )
+
         return ServiceCoordinator(
             chatCoordinator: chatCoordinator,
             depositService: depositService,
@@ -444,6 +455,7 @@ extension ServiceCoordinator {
             turnService: turnService,
             deviceSyncService: deviceSyncService,
             networkStatusService: networkStatusService,
+            chainStatusProvider: chainStatusProvider,
             truapiRuntimeProvider: truapiRuntimeProvider,
             tldProvider: DotNsTldProviderFacade.shared,
             logger: logger

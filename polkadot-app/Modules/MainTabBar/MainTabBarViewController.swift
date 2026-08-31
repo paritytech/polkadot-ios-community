@@ -301,8 +301,11 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         applyChips()
     }
 
-    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?) {
-        let slot = configuration == nil ? nil : TabBarTrailingSlotFactory.makeSlot()
+    func showTabBarPanelContent(
+        _ configuration: (any HashableContentConfiguration)?,
+        trailingTint: UIColor?
+    ) {
+        let slot = configuration == nil ? nil : TabBarTrailingSlotFactory.makeSlot(tintColor: trailingTint)
         chromeController.setTrailingPanel(slot: slot, content: configuration)
     }
 }

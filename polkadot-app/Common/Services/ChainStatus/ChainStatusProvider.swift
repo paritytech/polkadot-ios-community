@@ -6,13 +6,14 @@ import StructuredConcurrency
 
 @MainActor
 protocol ChainStatusProviding: AnyObject {
-    func configurationStream() -> AnyAsyncSequence<any HashableContentConfiguration>
+    func statusStream() -> AnyAsyncSequence<[ChainConnectionStatusViewModel]>
 }
 
-/// Feeds the tab bar peek panel with per-chain connection status.
+/// Per-chain connection status. Emits rows rather than a hosted configuration, so a host
+/// wraps them however it presents them — currently only the tab bar peek panel.
 ///
-/// The subject always holds a configuration, so the first render carries a complete row set
-/// and the trailing button exists from launch instead of popping in.
+/// One shared instance. The subject always holds a row set, so the first render carries a
+/// complete set and a host subscribing later sees live state rather than a re-seed.
 @MainActor
 final class ChainStatusProvider {
     private static let connectDebounce: Duration = .milliseconds(300)
@@ -21,7 +22,7 @@ final class ChainStatusProvider {
     private let chainRegistry: ChainRegistryProtocol
     private let logger: LoggerProtocol
 
-    private let configurationSubject: AsyncCurrentValueSubject<any HashableContentConfiguration>
+    private let rowsSubject: AsyncCurrentValueSubject<[ChainConnectionStatusViewModel]>
 
     private var statuses: [ChainConnectionTarget: NetworkStatus]
     private var names: [ChainConnectionTarget: String] = [:]
@@ -41,8 +42,8 @@ final class ChainStatusProvider {
             .reduce(into: [ChainConnectionTarget: NetworkStatus]()) { $0[$1] = .connecting }
 
         statuses = seededStatuses
-        configurationSubject = AsyncCurrentValueSubject(
-            Self.makeConfiguration(statuses: seededStatuses, names: [:])
+        rowsSubject = AsyncCurrentValueSubject(
+            Self.makeRows(statuses: seededStatuses, names: [:])
         )
     }
 
@@ -53,10 +54,10 @@ final class ChainStatusProvider {
 }
 
 extension ChainStatusProvider: ChainStatusProviding {
-    func configurationStream() -> AnyAsyncSequence<any HashableContentConfiguration> {
+    func statusStream() -> AnyAsyncSequence<[ChainConnectionStatusViewModel]> {
         startObservingIfNeeded()
 
-        return configurationSubject.eraseToAnyAsyncSequence()
+        return rowsSubject.eraseToAnyAsyncSequence()
     }
 }
 
@@ -103,7 +104,7 @@ private extension ChainStatusProvider {
         }
 
         statuses[target] = status
-        emitConfiguration()
+        emitRows()
     }
 
     func handleChainDataUpdate() {
@@ -117,18 +118,18 @@ private extension ChainStatusProvider {
         }
 
         names = updatedNames
-        emitConfiguration()
+        emitRows()
     }
 
-    func emitConfiguration() {
-        configurationSubject.send(Self.makeConfiguration(statuses: statuses, names: names))
+    func emitRows() {
+        rowsSubject.send(Self.makeRows(statuses: statuses, names: names))
     }
 
-    static func makeConfiguration(
+    static func makeRows(
         statuses: [ChainConnectionTarget: NetworkStatus],
         names: [ChainConnectionTarget: String]
-    ) -> any HashableContentConfiguration {
-        let rows = ChainConnectionTarget.allCases.map { target in
+    ) -> [ChainConnectionStatusViewModel] {
+        ChainConnectionTarget.allCases.map { target in
             let state = (statuses[target] ?? .connecting).connectionState
 
             return ChainConnectionStatusViewModel(
@@ -138,7 +139,5 @@ private extension ChainStatusProvider {
                 stateTitle: state.localizedTitle
             )
         }
-
-        return SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows: rows))
     }
 }

@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 import PolkadotUI
 
 @MainActor
@@ -73,9 +73,25 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
         view?.showSPATabs(chipViewModelFactory.createViewModels(for: tabs))
     }
 
-    func didReceiveChainStatus(_ configuration: any HashableContentConfiguration) {
+    func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
         #if !FEATURE_PRODUCTS
-            view?.showTabBarPanelContent(configuration)
+            view?.showTabBarPanelContent(
+                SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows: rows)),
+                trailingTint: trailingTint(for: rows)
+            )
         #endif
+    }
+}
+
+private extension MainTabBarPresenter {
+    /// Worst state across the chains, so a single failing chain is visible without opening the panel.
+    func trailingTint(for rows: [ChainConnectionStatusViewModel]) -> UIColor {
+        if rows.contains(where: { $0.state == .offline }) {
+            .bgStatusError
+        } else if rows.contains(where: { $0.state == .connecting }) {
+            .bgStatusWarning
+        } else {
+            .bgStatusSuccess
+        }
     }
 }

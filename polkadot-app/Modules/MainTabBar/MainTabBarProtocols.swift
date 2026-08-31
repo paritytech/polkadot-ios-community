@@ -9,7 +9,10 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
     func select(tab: TabBarItem)
     func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
-    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?)
+    func showTabBarPanelContent(
+        _ configuration: (any HashableContentConfiguration)?,
+        trailingTint: UIColor?
+    )
 }
 
 @MainActor
@@ -32,7 +35,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didRemoveWidget(for extensionId: ChatExtension.Id)
     func didReceivePolkadotSignInRequest(with url: URL)
     func didReceiveSPATabs(_ tabs: [SPATab])
-    func didReceiveChainStatus(_ configuration: any HashableContentConfiguration)
+    func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor
@@ -91,13 +94,14 @@ extension TabBarItem {
 }
 
 enum TabBarTrailingSlotFactory {
-    static func makeSlot() -> DSTabBarTrailingSlot? {
+    static func makeSlot(tintColor: UIColor?) -> DSTabBarTrailingSlot? {
         guard let icon = UIImage(systemName: "point.3.connected.trianglepath.dotted") else {
             return nil
         }
         return DSTabBarTrailingSlot(
             icon: icon.withRenderingMode(.alwaysTemplate),
-            accessibilityLabel: String(localized: .Common.tabBarPanelAccessibility)
+            accessibilityLabel: String(localized: .Common.tabBarPanelAccessibility),
+            tintColor: tintColor
         )
     }
 }

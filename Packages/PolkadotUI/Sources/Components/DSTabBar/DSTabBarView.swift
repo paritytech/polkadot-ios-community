@@ -143,6 +143,7 @@ public final class DSTabBarView: UIView {
         trailingIconView.image = slot?.icon
         trailingElement.accessibilityLabel = slot?.accessibilityLabel
         trailingIconView.isHidden = slot == nil
+        updateTrailingIconTint()
 
         if presenceChanged {
             animateRowReflow()
@@ -235,7 +236,15 @@ private extension DSTabBarView {
     }
 
     func updateTrailingIconTint() {
-        trailingIconView.tintColor = isTrailingPanelOpen ? UIColor.fgPrimary : UIColor.fgSecondary
+        if let tintColor = trailingSlot?.tintColor {
+            trailingIconView.preferredSymbolConfiguration = .init(paletteColors: [
+                tintColor,
+                isTrailingPanelOpen ? UIColor.fgPrimary : UIColor.fgSecondary
+            ])
+        } else {
+            trailingIconView.preferredSymbolConfiguration = nil
+            trailingIconView.tintColor = isTrailingPanelOpen ? UIColor.fgPrimary : UIColor.fgSecondary
+        }
     }
 
     func rebuildItemViews() {
