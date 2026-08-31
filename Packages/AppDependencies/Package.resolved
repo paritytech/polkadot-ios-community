@@ -1,5 +1,5 @@
 {
-  "originHash" : "924f0ed619f9965c3fde9814e126b2fd365dd6c55ed72e1f8a0d4317e8d1426e",
+  "originHash" : "36c6f4947fed921c107fd06bcb3834742037939ee140da6739985bd6e88fca7d",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,7 +87,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "revision" : "82383122fad6d1569006327fb77b77ec8032c086"
+        "revision" : "69cd603a942983b18be61e268fe4d0080dd94b88"
       }
     },
     {

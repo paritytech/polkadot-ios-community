@@ -236,7 +236,9 @@ private extension CoinageBackupRecoveryService {
         guard !indices.isEmpty else { return [] }
         let results = try await voucherOnChainQuery.fetchVouchers(for: indices)
         return zip(indices, results).compactMap { index, info -> Voucher? in
-            guard let info else { return nil }
+            // Only vouchers placed in a ring: the query now also reports Onboarding/Suspended members,
+            // which backup recovery has never scanned, so it keeps to ring-placed ones as before.
+            guard let info, info.ringPosition.ringIndex != nil else { return nil }
             let state: Voucher.OnChainState = info.isUnloaded ? .unlocated : info.ringPosition.onchainState
             return Voucher(
                 exponent: info.exponent,

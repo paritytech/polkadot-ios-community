@@ -10,9 +10,11 @@ struct VoucherOnChainInfo {
     let publicKey: Data
     let exponent: Int16
     let ringPosition: MembersPallet.RingPosition
-    let aliasState: CoinagePallet.AliasState?
+    /// Three-valued: a Suspended member (no ring index to key an alias under) or a failed alias read
+    /// leaves consumption `.unknown` rather than falsely reading not-unloaded.
+    let aliasEvidence: VoucherAliasEvidence
 
-    var isUnloaded: Bool { aliasState == .unloaded }
+    var isUnloaded: Bool { aliasEvidence == .unloaded }
 }
 
 // MARK: - Protocol
@@ -70,7 +72,6 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
             index: DerivationIndex,
             publicKey: Data,
             exponent: Int16,
-            ringIndex: MembersPallet.RingIndex,
             ringPosition: MembersPallet.RingPosition
         )
 
@@ -92,36 +93,70 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
                 return (key.index, key.publicKey, exponent)
             }
 
-        // Step 3: fetch positions — drop indices without position or ringIndex, carry both forward
+        // Step 3: fetch positions. A recycler member is present whatever its ring position — Onboarding
+        // and Suspended included — so only a member with no position row at all is dropped (its presence
+        // is unknown). A non-member was already dropped at step 2. This mirrors the durability reading
+        // where archival (loss of membership) is never read as absence.
         let positions = try await fetchPositions(
             for: withExponents.map { (exponent: $0.exponent, publicKey: $0.publicKey) },
             atBlockHash: atBlockHash
         )
-        let withPositions: [IndexedKeyWithPosition] =
+        let members: [IndexedKeyWithPosition] =
             zip(withExponents, positions).compactMap { key, position in
-                guard let position, let ringIndex = position.ringIndex else { return nil }
-                return (key.index, key.publicKey, key.exponent, ringIndex, position)
+                guard let position else { return nil }
+                return (key.index, key.publicKey, key.exponent, position)
             }
 
-        // Step 4: fetch alias states — include all with their state so callers can track their indices
-        let aliasStates = try await fetchAliasStates(
-            for: withPositions.map {
-                (derivationIndex: $0.index, exponent: $0.exponent, ringIndex: $0.ringIndex)
-            },
-            atBlockHash: atBlockHash
-        )
-        let infoByIndex: [DerivationIndex: VoucherOnChainInfo] = zip(withPositions, aliasStates)
-            .reduce(into: [:]) { dict, pair in
-                let (key, aliasState) = pair
-                dict[key.index] = VoucherOnChainInfo(
-                    publicKey: key.publicKey,
-                    exponent: key.exponent,
-                    ringPosition: key.ringPosition,
-                    aliasState: aliasState
-                )
+        // Step 4: alias states are keyed by ring index, so only members placed in a ring (Included) can
+        // carry one. An alias read that fails leaves only those ring-placed vouchers `.unknown`;
+        // Onboarding and Suspended verdicts come from the position alone, so a failed alias never erases
+        // what a position already proves.
+        let placed = members.compactMap {
+            member -> (derivationIndex: DerivationIndex, exponent: Int16, ringIndex: MembersPallet.RingIndex)? in
+            guard let ringIndex = member.ringPosition.ringIndex else { return nil }
+            return (member.index, member.exponent, ringIndex)
+        }
+
+        let aliasFetchSucceeded: Bool
+        var aliasByIndex: [DerivationIndex: CoinagePallet.AliasState?] = [:]
+        if let aliasStates = try? await fetchAliasStates(for: placed, atBlockHash: atBlockHash) {
+            aliasFetchSucceeded = true
+            for (key, aliasState) in zip(placed, aliasStates) {
+                aliasByIndex[key.derivationIndex] = aliasState
             }
+        } else {
+            aliasFetchSucceeded = false
+        }
+
+        let infoByIndex: [DerivationIndex: VoucherOnChainInfo] = members.reduce(into: [:]) { dict, member in
+            dict[member.index] = VoucherOnChainInfo(
+                publicKey: member.publicKey,
+                exponent: member.exponent,
+                ringPosition: member.ringPosition,
+                aliasEvidence: Self.aliasEvidence(
+                    for: member.ringPosition,
+                    aliasState: aliasByIndex[member.index] ?? nil,
+                    aliasFetchSucceeded: aliasFetchSucceeded
+                )
+            )
+        }
 
         return derivationIndices.map { infoByIndex[$0] }
+    }
+
+    /// The three-valued unload reading for one voucher. Onboarding never held a ring index, so no unload
+    /// was possible — provably not-unloaded without a read. Suspended once did but holds none now, so its
+    /// alias key cannot be formed and nothing can be said. Included reads the alias, unless that read
+    /// failed.
+    private static func aliasEvidence(
+        for position: MembersPallet.RingPosition,
+        aliasState: CoinagePallet.AliasState?,
+        aliasFetchSucceeded: Bool
+    ) -> VoucherAliasEvidence {
+        if position.isOnboarding { return .notUnloaded }
+        guard position.ringIndex != nil else { return .unknown }
+        guard aliasFetchSucceeded else { return .unknown }
+        return aliasState == .unloaded ? .unloaded : .notUnloaded
     }
 }
 

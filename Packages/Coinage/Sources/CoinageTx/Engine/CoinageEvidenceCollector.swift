@@ -82,7 +82,12 @@ private extension CoinageEvidenceCollector {
 
     static func alias(_ read: ReadResult<AssetPresence>) -> AliasRead {
         switch read {
-        case let .present(presence): presence.isUnloaded ? .unloaded : .notUnloaded
+        case let .present(presence):
+            switch presence.alias {
+            case .unloaded: .unloaded
+            case .notUnloaded: .notUnloaded
+            case .unknown: .unknown
+            }
         case .absent,
              .failedRead: .unknown
         }

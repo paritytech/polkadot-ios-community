@@ -2,16 +2,34 @@ import Foundation
 import KeyDerivation
 import SubstrateOperation
 
+/// What a voucher's recycler alias says at one block — three-valued, because a voucher can be present
+/// yet leave its unload state unreadable: Suspended from its ring (the alias key needs a ring index it
+/// no longer has), or a failed alias read. Coins have no alias; their presence carries `.notUnloaded`,
+/// which no rule consults for a coin.
+public enum VoucherAliasEvidence: Sendable, Equatable {
+    case unloaded
+    case notUnloaded
+    case unknown
+}
+
 /// On-chain presence of one asset at one block.
 ///
-/// `isUnloaded` is meaningful only for recycler vouchers: a successful unload marks the alias
-/// without removing the recycler mapping, so a spent voucher can still read present.
+/// The `alias` is meaningful only for recycler vouchers: a successful unload marks the alias without
+/// removing the recycler mapping, so a spent voucher can still read present. A present voucher may still
+/// carry `.unknown` — the case a two-valued flag could not express.
 public struct AssetPresence: Sendable, Equatable {
-    public let isUnloaded: Bool
+    public let alias: VoucherAliasEvidence
 
-    public init(isUnloaded: Bool = false) {
-        self.isUnloaded = isUnloaded
+    public init(alias: VoucherAliasEvidence) {
+        self.alias = alias
     }
+
+    /// Convenience for coins and definite voucher reads; `.unknown` needs the `alias:` initializer.
+    public init(isUnloaded: Bool = false) {
+        alias = isUnloaded ? .unloaded : .notUnloaded
+    }
+
+    public var isUnloaded: Bool { alias == .unloaded }
 }
 
 /// Result of scanning the mortality window for an extrinsic hash.
@@ -214,9 +232,15 @@ private extension CoinageChainView {
             return Array(repeating: .failedRead, count: indices.count)
         }
 
+        // A voucher is present whenever it is a recycler member — Onboarding, Suspended or Included.
+        // A nil response means it is in no recycler, which is not proof of consumption: archival removes
+        // the membership while the voucher is still redeemable, and a voucher's disappearance from the
+        // recycler must never read as absence (only a coin's absence is consumption). So an absent
+        // membership reads `failedRead` — an unknown the rules withhold a verdict on — rather than
+        // `absent`. The alias, not membership, is a voucher's only proof of being spent.
         return responses.map { info in
-            guard let info else { return .absent }
-            return .present(AssetPresence(isUnloaded: info.isUnloaded))
+            guard let info else { return .failedRead }
+            return .present(AssetPresence(alias: info.aliasEvidence))
         }
     }
 }
