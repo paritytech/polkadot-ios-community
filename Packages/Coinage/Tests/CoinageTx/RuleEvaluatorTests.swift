@@ -335,9 +335,7 @@ private extension CoinageRulesTests {
         dag: CoinageEntryDag? = nil,
         search: BodySearchOutcome = .incomplete
     ) async -> RuleOutcome {
-        if let txHash = entry.txHash {
-            view.setBodySearchResponse(txHash, to: search)
-        }
+        view.setBodySearchResponse(entry.txHash, to: search)
         return await RuleEvaluator().evaluate(
             entry: entry,
             dag: dag ?? self.dag(entry),

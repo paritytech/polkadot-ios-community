@@ -243,12 +243,11 @@ private extension CoinageTxTracker {
 
     func dispatchOutcome(blockHash: String, entryId: CoinageTxId) async -> ReadResult<Bool> {
         guard let entry = try? await store.getEntry(id: entryId),
-              let txHash = entry.txHash,
               let block = await blockOf(blockHash),
               let view = try? await chainFactory.pin()
         else { return .failedRead }
 
-        return await view.dispatchOutcome(txHash: txHash, at: block)
+        return await view.dispatchOutcome(txHash: entry.txHash, at: block)
     }
 
     func blockOf(_ blockHash: String) async -> BlockRef? {

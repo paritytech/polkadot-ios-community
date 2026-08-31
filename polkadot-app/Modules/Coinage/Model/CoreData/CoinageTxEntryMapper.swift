@@ -4,7 +4,7 @@ import Coinage
 import Operation_iOS
 import SubstrateSdk
 
-/// Maps ``CoinageTxEntry`` to `CDDurability`.
+/// Maps ``CoinageTxEntry`` to `CDCoinageTxEntry`.
 ///
 /// Inputs and outputs are immutable: they are written once when the entry is first inserted and
 /// never rewritten, so a status update only touches the entry's own fields. Each row references
@@ -12,20 +12,20 @@ import SubstrateSdk
 /// from a peer — which must already exist at registration.
 final class CoinageTxEntryMapper: CoreDataMapperProtocol {
     typealias DataProviderModel = CoinageTxEntry
-    typealias CoreDataEntity = CDDurability
+    typealias CoreDataEntity = CDCoinageTxEntry
 
-    var entityIdentifierFieldName: String { #keyPath(CDDurability.identifier) }
+    var entityIdentifierFieldName: String { #keyPath(CDCoinageTxEntry.identifier) }
 
-    func transform(entity: CDDurability) throws -> CoinageTxEntry {
+    func transform(entity: CDCoinageTxEntry) throws -> CoinageTxEntry {
         guard let identifier = entity.identifier, let id = UUID(uuidString: identifier) else {
-            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.identifier))
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxEntry.identifier))
         }
         guard let status = CoinageTxStatus(rawValue: Int(entity.status)) else {
-            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.status))
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxEntry.status))
         }
 
         guard let checkpointHash = entity.checkpointHash, let checkpointNumber = entity.checkpointNumber else {
-            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.checkpointHash))
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxEntry.checkpointHash))
         }
 
         let checkpoint = try BlockRef(
@@ -33,12 +33,10 @@ final class CoinageTxEntryMapper: CoreDataMapperProtocol {
             hash: Data(hexString: checkpointHash)
         )
 
-        let txHash: Data? =
-            if let txHashString = entity.txHash {
-                try Data(hexString: txHashString)
-            } else {
-                nil
-            }
+        guard let txHashString = entity.txHash else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxEntry.txHash))
+        }
+        let txHash = try Data(hexString: txHashString)
 
         let successDetectedAt: BlockRef? =
             if let successHash = entity.successHash, let successNumber = entity.successNumber {
@@ -48,7 +46,7 @@ final class CoinageTxEntryMapper: CoreDataMapperProtocol {
             }
 
         guard let createdAt = entity.createdAt else {
-            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurability.createdAt))
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxEntry.createdAt))
         }
 
         return try CoinageTxEntry(
@@ -67,7 +65,7 @@ final class CoinageTxEntryMapper: CoreDataMapperProtocol {
     }
 
     func populate(
-        entity: CDDurability,
+        entity: CDCoinageTxEntry,
         from model: CoinageTxEntry,
         using context: NSManagedObjectContext
     ) throws {
@@ -81,7 +79,7 @@ final class CoinageTxEntryMapper: CoreDataMapperProtocol {
         entity.mortality = Int32(bitPattern: model.mortality)
         entity.checkpointHash = model.checkpoint.hash.toHex()
         entity.checkpointNumber = NSNumber(value: model.checkpoint.number)
-        entity.txHash = model.txHash?.toHex()
+        entity.txHash = model.txHash.toHex()
         entity.successHash = model.successDetectedAt?.hash.toHex()
         entity.successNumber = model.successDetectedAt.map { NSNumber(value: $0.number) }
 
@@ -99,7 +97,7 @@ final class CoinageTxEntryMapper: CoreDataMapperProtocol {
 
 private extension CoinageTxEntryMapper {
     func transformInputs(from rows: NSSet?) throws -> [CoinageTxInput] {
-        guard let rows = rows as? Set<CDDurabilityInput> else { return [] }
+        guard let rows = rows as? Set<CDCoinageTxInput> else { return [] }
         return try rows.compactMap { row in
             if let hex = row.receivedPubKey {
                 return try .coin(.received(Data(hexString: hex)))
@@ -118,7 +116,7 @@ private extension CoinageTxEntryMapper {
     }
 
     func transformOutputs(from rows: NSSet?) throws -> [OwnAsset] {
-        guard let rows = rows as? Set<CDDurabilityOutput> else { return [] }
+        guard let rows = rows as? Set<CDCoinageTxOutput> else { return [] }
         return try rows.compactMap { row in
             if let coin = row.coin {
                 return try .coin(DerivationIndex.fromCoreData(coin.derivationIndex), publicKey(coin.publicKey))
@@ -147,16 +145,15 @@ private extension CoinageTxEntryMapper {
 
 private extension CoinageTxEntryMapper {
     func populateInputs(
-        entity: CDDurability,
+        entity: CDCoinageTxEntry,
         inputs: [CoinageTxInput],
         using context: NSManagedObjectContext
     ) throws {
         for input in inputs {
-            guard let row = insert("CDDurabilityInput", context) as CDDurabilityInput? else {
+            guard let row = insert("CDCoinageTxInput", context) as CDCoinageTxInput? else {
                 throw CoreDataMapperError.unsupported
             }
 
-            row.identifier = UUID().uuidString
             row.entry = entity
 
             switch input {
@@ -166,7 +163,7 @@ private extension CoinageTxEntryMapper {
                     if let coin = CoinageTxAssetLinker.coin(for: input, in: context) {
                         row.coin = coin
                     } else {
-                        throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityInput.coin))
+                        throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxInput.coin))
                     }
                 case let .received(accountId):
                     row.receivedPubKey = accountId.toHex()
@@ -175,23 +172,22 @@ private extension CoinageTxEntryMapper {
                 if let voucher = CoinageTxAssetLinker.voucher(for: input, in: context) {
                     row.voucher = voucher
                 } else {
-                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityInput.voucher))
+                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxInput.voucher))
                 }
             }
         }
     }
 
     func populateOutputs(
-        entity: CDDurability,
+        entity: CDCoinageTxEntry,
         outputs: [OwnAsset],
         using context: NSManagedObjectContext
     ) throws {
         for output in outputs {
-            guard let row = insert("CDDurabilityOutput", context) as CDDurabilityOutput? else {
+            guard let row = insert("CDCoinageTxOutput", context) as CDCoinageTxOutput? else {
                 throw CoreDataMapperError.unsupported
             }
 
-            row.identifier = UUID().uuidString
             row.entry = entity
 
             switch output {
@@ -199,13 +195,13 @@ private extension CoinageTxEntryMapper {
                 if let coin = CoinageTxAssetLinker.coin(for: output, in: context) {
                     row.coin = coin
                 } else {
-                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityOutput.coin))
+                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxOutput.coin))
                 }
             case .recyclerVoucher:
                 if let voucher = CoinageTxAssetLinker.voucher(for: output, in: context) {
                     row.voucher = voucher
                 } else {
-                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDDurabilityOutput.voucher))
+                    throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxOutput.voucher))
                 }
             }
         }
@@ -213,30 +209,30 @@ private extension CoinageTxEntryMapper {
 
     /// Signals the linked coins/vouchers as changed so their CoreData snapshot subscribers re-emit
     /// when this entry's status changes — the `willChange`/`didChange` TouchParent pattern.
-    func touchRelatedAssets(of entity: CDDurability, in _: NSManagedObjectContext) {
-        for row in (entity.inputs as? Set<CDDurabilityInput>) ?? [] {
+    func touchRelatedAssets(of entity: CDCoinageTxEntry, in _: NSManagedObjectContext) {
+        for row in (entity.inputs as? Set<CDCoinageTxInput>) ?? [] {
             if let coin = row.coin {
-                let key = #keyPath(CDCoin.durabilityInputs)
+                let key = #keyPath(CDCoin.coinageTxInputs)
                 coin.willChangeValue(forKey: key)
                 coin.didChangeValue(forKey: key)
             }
 
             if let voucher = row.voucher {
-                let key = #keyPath(CDVoucher.durabilityInputs)
+                let key = #keyPath(CDVoucher.coinageTxInputs)
                 voucher.willChangeValue(forKey: key)
                 voucher.didChangeValue(forKey: key)
             }
         }
 
-        for row in (entity.outputs as? Set<CDDurabilityOutput>) ?? [] {
+        for row in (entity.outputs as? Set<CDCoinageTxOutput>) ?? [] {
             if let coin = row.coin {
-                let key = #keyPath(CDCoin.durabilityOutput)
+                let key = #keyPath(CDCoin.coinageTxOutput)
                 coin.willChangeValue(forKey: key)
                 coin.didChangeValue(forKey: key)
             }
 
             if let voucher = row.voucher {
-                let key = #keyPath(CDVoucher.durabilityOutput)
+                let key = #keyPath(CDVoucher.coinageTxOutput)
                 voucher.willChangeValue(forKey: key)
                 voucher.didChangeValue(forKey: key)
             }

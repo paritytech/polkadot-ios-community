@@ -232,16 +232,15 @@ public extension CoinageService {
 
         let coinStateSyncService = CoinStateSyncService(
             coinService: coinService,
-            coinProvider: databaseFactory.makeTrackedCoinProvider(),
+            databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,
             logger: logger
         )
 
-        let voucherProvider = databaseFactory.makeVoucherProvider()
         let voucherLocationService = VoucherLocationService(
             voucherRepository: voucherLocationRepository,
-            voucherProvider: voucherProvider,
+            databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,
             logger: logger
@@ -292,8 +291,7 @@ public extension CoinageService {
             voucherLocationService: voucherLocationService,
             recyclingService: recyclingService,
             applicationStateStreamFactory: applicationStateStreamFactory,
-            trackedCoinProvider: databaseFactory.makeTrackedCoinProvider(),
-            trackedVoucherProvider: databaseFactory.makeTrackedVoucherProvider(),
+            databaseFactory: databaseFactory,
             recoveryService: recoveryService,
             logger: logger
         )

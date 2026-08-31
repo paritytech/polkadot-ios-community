@@ -43,8 +43,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
 
     #if TESTNET_FEATURE
         private var coinageSubscriptionTask: Task<Void, Never>?
-        private let coinProvider: StreamableProvider<TrackedCoin>
-        private let voucherProvider: StreamableProvider<TrackedVoucher>
+        private let databaseFactory: any DatabaseDependencyFactoring
         private let backgroundExecutor: BackgroundExecuting
 
         let voucherRepository: AnyDataProviderRepository<Voucher>
@@ -60,8 +59,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         coinageService: CoinageServicing,
         coinageBackupSyncService: any CoinageBackupSyncServicing,
         balanceSyncStateStorage: BalanceSyncStateStoring,
-        coinProvider: StreamableProvider<TrackedCoin>,
-        voucherProvider: StreamableProvider<TrackedVoucher>,
+        databaseFactory: any DatabaseDependencyFactoring,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
         hostProvider: ProductHostProviding,
@@ -77,8 +75,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         self.hostProvider = hostProvider
         #if TESTNET_FEATURE
             self.backgroundExecutor = backgroundExecutor
-            self.coinProvider = coinProvider
-            self.voucherProvider = voucherProvider
+            self.databaseFactory = databaseFactory
 
             self.voucherRepository = voucherRepository
         #endif
@@ -209,16 +206,12 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
         private func subscribeToCoinage() {
             coinageSubscriptionTask?.cancel()
-            coinageSubscriptionTask = Task { [weak self, coinProvider, voucherProvider] in
-                let coinsStream = coinProvider.asyncStream()
-                    .scan([String: TrackedCoin]()) { dict, changes in changes.mergeToDict(dict) }
-                let vouchersStream = voucherProvider.asyncStream()
-                    .scan([String: TrackedVoucher]()) { dict, changes in changes.mergeToDict(dict) }
+            coinageSubscriptionTask = Task { [weak self, databaseFactory] in
+                let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
+                let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
 
                 do {
-                    for try await (coinsDict, vouchersDict) in combineLatest(coinsStream, vouchersStream) {
-                        let coins = Array(coinsDict.values)
-                        let vouchers = Array(vouchersDict.values)
+                    for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
                         await self?.presenter?.didReceive(coins: coins, vouchers: vouchers)
                     }
                 } catch {

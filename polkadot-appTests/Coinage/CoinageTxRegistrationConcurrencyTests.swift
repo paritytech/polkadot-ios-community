@@ -41,6 +41,7 @@ final class DurabilityRegistrationConcurrencyTests {
                 id: id1,
                 inputs: [sharedInput],
                 outputs: [.coin(1, testKey(1))],
+                txHash: Data(repeating: 0xAB, count: 32),
                 checkpoint: BlockRef(number: 100, hash: Data([100])),
                 mortality: 64,
                 successDetectedAt: nil
@@ -50,6 +51,7 @@ final class DurabilityRegistrationConcurrencyTests {
                 id: id2,
                 inputs: [sharedInput],
                 outputs: [.coin(2, testKey(2))],
+                txHash: Data(repeating: 0xAB, count: 32),
                 checkpoint: BlockRef(number: 100, hash: Data([100])),
                 mortality: 64,
                 successDetectedAt: nil
@@ -107,6 +109,7 @@ final class DurabilityRegistrationConcurrencyTests {
                     id: CoinageTxId(),
                     inputs: [.coin(.own(inputIndex, testKey(inputIndex)))],
                     outputs: [.coin(outputIndex, testKey(outputIndex))],
+                    txHash: Data(repeating: 0xAB, count: 32),
                     checkpoint: BlockRef(number: 100, hash: Data([100])),
                     mortality: 64,
                     successDetectedAt: nil
@@ -157,6 +160,7 @@ final class DurabilityRegistrationConcurrencyTests {
             id: CoinageTxId(),
             inputs: [firstInput],
             outputs: [.coin(1, testKey(1))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64,
             successDetectedAt: nil
@@ -173,6 +177,7 @@ final class DurabilityRegistrationConcurrencyTests {
             id: CoinageTxId(),
             inputs: [firstInput],
             outputs: [.coin(2, testKey(2))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64,
             successDetectedAt: nil
@@ -210,6 +215,7 @@ final class DurabilityRegistrationConcurrencyTests {
         let failedEntry = CoinageTxEntry(
             inputs: [input],
             outputs: [.coin(1, testKey(1))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
@@ -223,6 +229,7 @@ final class DurabilityRegistrationConcurrencyTests {
             id: CoinageTxId(),
             inputs: [input],
             outputs: [.coin(2, testKey(2))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 200, hash: Data([200])),
             mortality: 64
         )
@@ -243,12 +250,14 @@ final class DurabilityRegistrationConcurrencyTests {
         let failedEntry = CoinageTxEntry(
             inputs: [.coin(.own(8, testKey(8)))],
             outputs: [.coin(1, testKey(1))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
         let liveEntry = CoinageTxEntry(
             inputs: [liveInput],
             outputs: [.coin(2, testKey(2))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 100, hash: Data([100])),
             mortality: 64
         )
@@ -261,6 +270,7 @@ final class DurabilityRegistrationConcurrencyTests {
             id: CoinageTxId(),
             inputs: [liveInput],
             outputs: [.coin(3, testKey(3))],
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 200, hash: Data([200])),
             mortality: 64
         )
@@ -300,7 +310,7 @@ private extension CoinageTxCoreDataRepository {
     @discardableResult
     func register(_ entry: CoinageTxEntry) async throws -> CoinageTxId {
         let registration = CoinageTxRegistration(
-            txHash: entry.txHash ?? Data(repeating: 0, count: 32),
+            txHash: entry.txHash,
             checkpoint: entry.checkpoint,
             mortalityBlocks: entry.mortality,
             groupId: entry.groupId,
@@ -309,11 +319,24 @@ private extension CoinageTxCoreDataRepository {
         )
         let captured = CapturedId()
         try await register(
-            registration,
+            [registration],
             validation: { try concurrencyValidator.validate([registration], transaction: $0) },
-            onCommit: { captured.id = $0 }
+            onCommit: { captured.id = $0.first }
         )
         guard let id = captured.id else { throw CoinageTxError.entryNotFound(entry.id) }
         return id
+    }
+
+    /// Test-only convenience mirroring the removed `updateStatus(_:to:)`: reads the current status
+    /// and applies a terminal/live verdict through the production compare-and-set.
+    func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws {
+        guard let current = try await getStatus(id) else {
+            throw CoinageTxError.entryNotFound(id)
+        }
+        _ = try await updateTxStatus(
+            for: id,
+            expectedCurrentStatus: current,
+            verdict: Verdict(status: status, successDetectedAt: nil)
+        )
     }
 }

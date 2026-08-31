@@ -6,7 +6,7 @@ import Foundation
 /// Every asset is identified by its on-chain public key: an own coin or voucher by the key derived
 /// from its index, a coin received from a peer by the key itself. One key space covers them all,
 /// which is why the four checks take and return `Set<PublicKey>`.
-public protocol CoinageTxValidationContext {
+public protocol CoinageTxValidationContextProtocol {
     /// Of `keys`, those already minted as an output by any entry.
     func filterMinted(_ keys: Set<PublicKey>) throws -> Set<PublicKey>
     /// Of `keys`, those recorded as a received-coin input by any entry.

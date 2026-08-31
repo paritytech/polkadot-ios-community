@@ -51,28 +51,25 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     }
 
     private nonisolated let denominationContext: DenominationBreakdownContext
-    private nonisolated let voucherProvider: StreamableProvider<TrackedVoucher>
-    private nonisolated let coinProvider: StreamableProvider<TrackedCoin>
+    private nonisolated let databaseFactory: any DatabaseDependencyFactoring
     private nonisolated let logger: SDKLoggerProtocol?
 
     private var balanceSubscriptionTask: Task<Void, Never>?
     private var unlockTimerTask: Task<Void, Never>?
 
-    private var latestCoins: [String: TrackedCoin] = [:]
-    private var latestVouchers: [String: TrackedVoucher] = [:]
+    private var latestCoins: [TrackedCoin] = []
+    private var latestVouchers: [TrackedVoucher] = []
 
     private nonisolated let spendableBalanceSubject: AsyncCurrentValueSubject<CoinageSpendableBalanceModel>
     private nonisolated let lockedBalanceSubject: AsyncCurrentValueSubject<CoinageBalance>
 
     init(
         denominationContext: DenominationBreakdownContext,
-        voucherProvider: StreamableProvider<TrackedVoucher>,
-        coinProvider: StreamableProvider<TrackedCoin>,
+        databaseFactory: any DatabaseDependencyFactoring,
         logger: SDKLoggerProtocol?
     ) {
         self.denominationContext = denominationContext
-        self.voucherProvider = voucherProvider
-        self.coinProvider = coinProvider
+        self.databaseFactory = databaseFactory
         self.logger = logger
 
         let zeroBalance = CoinageBalance(planks: 0, context: denominationContext)
@@ -110,18 +107,10 @@ extension CoinageBalanceService {
             guard let self else { return }
             do {
                 logger?.debug("Balance subscription started")
-                // Providers produce changes
-                // and we need to collect them to have full info
-                let coinsStream = coinProvider.asyncStream()
-                    .scan([String: TrackedCoin]()) { dict, changes in
-                        changes.mergeToDict(dict)
-                    }
-
-                let vouchersStream = voucherProvider.asyncStream()
-                    .scan([String: TrackedVoucher]()) { dict, changes in
-                        changes.mergeToDict(dict)
-                    }
-
+                // Each element is a full snapshot of the tracked set, re-emitted on every save that
+                // touches a coin/voucher or its durability entry — no manual change-merge needed.
+                let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
+                let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
                 for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
                     await updateBalancesAsync(coins: coins, vouchers: vouchers)
                 }
@@ -131,7 +120,7 @@ extension CoinageBalanceService {
         }
     }
 
-    private func updateBalancesAsync(coins: [String: TrackedCoin]?, vouchers: [String: TrackedVoucher]?) async {
+    private func updateBalancesAsync(coins: [TrackedCoin]?, vouchers: [TrackedVoucher]?) async {
         if let coins { latestCoins = coins }
         if let vouchers { latestVouchers = vouchers }
 
@@ -141,7 +130,7 @@ extension CoinageBalanceService {
 
         // Each tracked asset already carries its durability overlay (`CoinageAssetState`), derived
         // at fetch time — no separate batched durability read is needed here.
-        let (spendableBalance, lockedBalance, nextUnlock) = calculateBalance(
+        let (spendableBalance, lockedBalance, nextUnlock) = Self.calculateBalance(
             coins: currentCoins,
             vouchers: currentVouchers,
             context: denominationContext
@@ -175,21 +164,24 @@ extension CoinageBalanceService {
         }
     }
 
-    private nonisolated func calculateBalance(
-        coins: [String: TrackedCoin],
-        vouchers: [String: TrackedVoucher],
+    /// Buckets a full snapshot of tracked assets into spendable / degraded / locked. `static internal`
+    /// so the package balance test can exercise the pure logic directly (the Android
+    /// `RealTotalBalanceUseCase.calculateCoinageBalance` analogue).
+    static func calculateBalance(
+        coins: [TrackedCoin],
+        vouchers: [TrackedVoucher],
         context: DenominationBreakdownContext
     ) -> (spendable: CoinageSpendableBalanceModel, locked: CoinageBalance, nextUnlock: Date?) {
         let now = Date.now
 
-        let coinPlanks = splitCoinPlanks(coins: coins.values, context: context)
+        let coinPlanks = splitCoinPlanks(coins: coins, context: context)
 
         var lockedVouchersPlanks = BigUInt(0)
         var fullPrivacyVouchersPlanks = BigUInt(0)
         var degradedVouchersPlanks = BigUInt(0)
         var nextUnlock: Date?
 
-        for tracked in vouchers.values {
+        for tracked in vouchers {
             let voucher = tracked.voucher
             let amount = context.valueInPlanks(for: voucher.exponent)
 
@@ -232,7 +224,7 @@ extension CoinageBalanceService {
     /// | ``TrackedCoin/isSelectable`` — free, on chain, age-valid | spendable |
     /// | ``TrackedCoin/isMinting`` — not on chain yet, minter still live | pending (locked) |
     /// | ``TrackedCoin/isAwaitingRecycling`` — on chain, free, aged out | expiringSoon (locked) |
-    private nonisolated func splitCoinPlanks(
+    private static func splitCoinPlanks(
         coins: some Collection<TrackedCoin>,
         context: DenominationBreakdownContext
     ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt) {

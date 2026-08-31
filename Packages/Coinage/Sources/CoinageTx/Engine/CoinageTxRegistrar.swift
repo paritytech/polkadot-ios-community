@@ -37,7 +37,7 @@ public struct CoinageTxRegistrar {
 
         let owned = OwnedIds()
         do {
-            try await store.registerAll(
+            try await store.register(
                 registrations,
                 validation: { [validator] context in try validator.validate(registrations, transaction: context) },
                 onCommit: { [watched] ids in owned.take(ids, into: watched) }
@@ -58,7 +58,7 @@ public struct CoinageTxRegistrar {
         let keys = Set(assets.map(\.publicKey))
         try await store.precommitHandOff(assets) { context in
             let claimed = try context.filterClaimed(keys)
-            if let key = assets.first(where: { claimed.contains($0.publicKey) })?.publicKey {
+            if let key = claimed.first {
                 throw CoinageTxError.handoffOfClaimedAsset(key.toHex())
             }
         }

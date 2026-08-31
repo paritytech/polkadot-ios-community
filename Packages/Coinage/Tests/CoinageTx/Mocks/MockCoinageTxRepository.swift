@@ -25,21 +25,11 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         try insert(entry)
     }
 
-    func register(
-        _ registration: CoinageTxRegistration,
-        validation _: @escaping (any CoinageTxValidationContext) throws -> Void,
-        onCommit: @escaping (CoinageTxId) -> Void
-    ) async throws {
-        let id = CoinageTxId()
-        try insert(registration.makeEntry(id: id, sequence: 0))
-        onCommit(id)
-    }
-
     /// Atomic batch: on any failure the whole batch is rolled back, matching the store's single
     /// transaction. `insert` dedups within the batch too, since each is inserted before the next.
-    func registerAll(
+    func register(
         _ registrations: [CoinageTxRegistration],
-        validation _: @escaping (any CoinageTxValidationContext) throws -> Void,
+        validation _: @escaping (any CoinageTxValidationContextProtocol) throws -> Void,
         onCommit: @escaping ([CoinageTxId]) -> Void
     ) async throws {
         let entriesSnapshot = entries
@@ -84,14 +74,14 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
             throw CoinageTxError.inputHandedOff(marked.publicKey.toHex())
         }
 
-        var sequenced = entry
-        sequenced.sequence = nextSequence
-        entries[entry.id] = sequenced
+        entries[entry.id] = entry.withSequence(nextSequence)
         nextSequence += 1
     }
 
+    /// Test-only convenience (the production protocol has only the compare-and-set `updateTxStatus`):
+    /// forces a status and notifies observers, for setting up scenarios.
     func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws {
-        try mutate(id) { $0.status = status }
+        try mutate(id) { $0.withStatus(status) }
         for observer in statusObservers[id] ?? [] {
             observer.yield(status)
         }
@@ -111,8 +101,7 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
         guard statusChanged || current.successDetectedAt != verdict.successDetectedAt else { return false }
 
         try mutate(id) {
-            $0.status = verdict.status
-            $0.successDetectedAt = verdict.successDetectedAt
+            $0.withStatus(verdict.status).withSuccessDetectedAt(verdict.successDetectedAt)
         }
         if statusChanged {
             for observer in statusObservers[id] ?? [] {
@@ -152,7 +141,7 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
 
     func precommitHandOff(
         _ assets: [OwnAsset],
-        validation _: @escaping (any CoinageTxValidationContext) throws -> Void
+        validation _: @escaping (any CoinageTxValidationContextProtocol) throws -> Void
     ) async throws {
         for asset in assets where !committedMarks.contains(asset) {
             pendingMarks.insert(asset)
@@ -169,10 +158,6 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
 
     func releaseUncommittedHandoffs() async throws {
         pendingMarks.removeAll()
-    }
-
-    func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        handoffMarks.contains(asset)
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
@@ -192,11 +177,30 @@ private extension MockCoinageTxRepository {
         statusObservers[id, default: []].append(continuation)
     }
 
-    func mutate(_ id: CoinageTxId, _ change: (inout CoinageTxEntry) -> Void) throws {
-        guard var entry = entries[id] else {
+    func mutate(_ id: CoinageTxId, _ transform: (CoinageTxEntry) -> CoinageTxEntry) throws {
+        guard let entry = entries[id] else {
             throw CoinageTxError.entryNotFound(id)
         }
-        change(&entry)
-        entries[id] = entry
+        entries[id] = transform(entry)
+    }
+}
+
+private extension CoinageTxEntry {
+    /// The immutable entry rebuilt with a new `sequence` — the mock assigns a monotonic sequence on
+    /// insert the way the store does.
+    func withSequence(_ sequence: Int64) -> CoinageTxEntry {
+        CoinageTxEntry(
+            id: id,
+            sequence: sequence,
+            inputs: inputs,
+            outputs: outputs,
+            groupId: groupId,
+            txHash: txHash,
+            checkpoint: checkpoint,
+            mortality: mortality,
+            successDetectedAt: successDetectedAt,
+            status: status,
+            createdAt: createdAt
+        )
     }
 }

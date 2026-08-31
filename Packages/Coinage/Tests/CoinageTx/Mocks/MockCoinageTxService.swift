@@ -81,6 +81,7 @@ actor MockCoinageTxService: CoinageTxServicing {
         let entry = CoinageTxEntry(
             inputs: request.inputs,
             outputs: request.outputs,
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 0, hash: Data(repeating: 0, count: 32)),
             mortality: 300
         )

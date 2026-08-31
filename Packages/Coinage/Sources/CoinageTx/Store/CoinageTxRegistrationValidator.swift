@@ -5,7 +5,7 @@ import SubstrateSdk
 /// keyed by public key.
 ///
 /// Every asset already carries its on-chain public key, so the four checks compare one key space,
-/// matching the store's ``CoinageTxValidationContext``. Within-batch conflicts are caught here too,
+/// matching the store's ``CoinageTxValidationContextProtocol``. Within-batch conflicts are caught here too,
 /// since the rows do not exist yet when the batch is validated. The offending key is reported.
 public struct CoinageTxRegistrationValidator {
     public init() {}
@@ -17,7 +17,7 @@ public struct CoinageTxRegistrationValidator {
     /// 4. Unique consumer — no input already claimed by a non-failure entry, unique in batch
     public func validate(
         _ registrations: [CoinageTxRegistration],
-        transaction: CoinageTxValidationContext
+        transaction: CoinageTxValidationContextProtocol
     ) throws {
         guard registrations.allSatisfy({ !$0.inputs.isEmpty || !$0.outputs.isEmpty }) else {
             throw CoinageTxError.emptyEntry

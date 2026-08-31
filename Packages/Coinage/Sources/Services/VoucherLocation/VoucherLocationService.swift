@@ -26,7 +26,7 @@ import os
 ///    ring size to update readiness state once the ring reaches minimum size.
 public final class VoucherLocationService: BaseSyncService {
     private let voucherRepository: AnyDataProviderRepository<Voucher>
-    private let voucherProvider: StreamableProvider<Voucher>
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
     private let stateLock = OSAllocatedUnfairLock(initialState: SyncStateData())
@@ -36,13 +36,13 @@ public final class VoucherLocationService: BaseSyncService {
 
     public init(
         voucherRepository: AnyDataProviderRepository<Voucher>,
-        voucherProvider: StreamableProvider<Voucher>,
+        databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
         logger: any SDKLoggerProtocol
     ) {
         self.voucherRepository = voucherRepository
-        self.voucherProvider = voucherProvider
+        self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
         super.init(logger: logger)
@@ -59,11 +59,8 @@ public final class VoucherLocationService: BaseSyncService {
         localVouchersMonitoringTask = Task { [weak self] in
             guard let self else { return }
 
-            let stream = voucherProvider.asyncStream()
-                .scan([String: Voucher]()) { dict, changes in
-                    changes.mergeToDict(dict)
-                }
-                .map(\.values)
+            let stream = databaseFactory.makeTrackedVoucherSnapshotStream()
+                .map { $0.map(\.voucher) }
                 .map { vouchers -> ([Voucher], [Voucher]) in
                     let needsSync = vouchers.filter { !$0.remoteState.isInRecycler }
                     let degraded = vouchers.filter { $0.remoteState.isInRecycler && $0.privacy == .degraded }

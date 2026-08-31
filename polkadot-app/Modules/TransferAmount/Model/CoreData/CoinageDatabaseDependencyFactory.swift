@@ -1,7 +1,9 @@
+import AsyncExtensions
 import Foundation
 import Operation_iOS
 import Coinage
 @preconcurrency import SDKLogger
+import StructuredConcurrency
 
 // @unchecked: dependencies are effectively immutable + thread-safe; protocols not yet Sendable-annotated
 struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked Sendable {
@@ -69,127 +71,15 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeCoinProvider() -> StreamableProvider<Coin> {
-        let mapper = AnyCoreDataMapper(CoinMapper())
-
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: mapper
-        )
-
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
-        }
-
-        let source = AnyStreamableSource(EmptyStreamableSource<Coin>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
+    func makeTrackedCoinSnapshotStream() -> AnyAsyncSequence<[TrackedCoin]> {
+        storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedCoinMapper())
         )
     }
 
-    func makeVoucherProvider() -> StreamableProvider<Voucher> {
-        let mapper = AnyCoreDataMapper(VoucherMapper())
-
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: mapper
-        )
-
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
-        }
-
-        let source = AnyStreamableSource(EmptyStreamableSource<Voucher>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
-        )
-    }
-
-    func makeTrackedCoinProvider() -> StreamableProvider<TrackedCoin> {
-        let mapper = AnyCoreDataMapper(TrackedCoinMapper())
-
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: mapper
-        )
-
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
-        }
-
-        let source = AnyStreamableSource(EmptyStreamableSource<TrackedCoin>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
-        )
-    }
-
-    func makeTrackedVoucherProvider() -> StreamableProvider<TrackedVoucher> {
-        let mapper = AnyCoreDataMapper(TrackedVoucherMapper())
-
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: mapper
-        )
-
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
-        }
-
-        let source = AnyStreamableSource(EmptyStreamableSource<TrackedVoucher>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
+    func makeTrackedVoucherSnapshotStream() -> AnyAsyncSequence<[TrackedVoucher]> {
+        storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedVoucherMapper())
         )
     }
 }

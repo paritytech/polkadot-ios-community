@@ -1,3 +1,4 @@
+import AsyncExtensions
 import Operation_iOS
 
 /// Protocol for factories that provide database repositories for Coinage.
@@ -8,8 +9,11 @@ public protocol DatabaseDependencyFactoring: Sendable {
     func makeVoucherRepository() -> AnyDataProviderRepository<Voucher>
     func makeTrackedVoucherRepository() -> AnyDataProviderRepository<TrackedVoucher>
     func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher>
-    func makeCoinProvider() -> StreamableProvider<Coin>
-    func makeVoucherProvider() -> StreamableProvider<Voucher>
-    func makeTrackedCoinProvider() -> StreamableProvider<TrackedCoin>
-    func makeTrackedVoucherProvider() -> StreamableProvider<TrackedVoucher>
+
+    /// A stream of full ``TrackedCoin`` snapshots — the current set, then a fresh snapshot on every
+    /// CoreData save. Re-emits when an entry's status change touches a coin's relations, so the
+    /// durability overlay stays current without a separate change-merge.
+    func makeTrackedCoinSnapshotStream() -> AnyAsyncSequence<[TrackedCoin]>
+    /// The voucher analogue of ``makeTrackedCoinSnapshotStream()``.
+    func makeTrackedVoucherSnapshotStream() -> AnyAsyncSequence<[TrackedVoucher]>
 }

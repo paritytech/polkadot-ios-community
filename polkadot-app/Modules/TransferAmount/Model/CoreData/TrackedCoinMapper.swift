@@ -23,8 +23,8 @@ extension TrackedCoinMapper: CoreDataMapperProtocol {
             coin: coin,
             state: CoinageAssetStateDeriver.state(
                 handedOff: coin.handoffMark != .none,
-                inputs: entity.durabilityInputs,
-                output: entity.durabilityOutput
+                inputs: entity.coinageTxInputs,
+                output: entity.coinageTxOutput
             )
         )
     }

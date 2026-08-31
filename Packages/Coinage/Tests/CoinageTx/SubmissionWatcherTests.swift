@@ -34,7 +34,8 @@ struct SubmissionWatcherTests {
 
         let fetched = try await store.getEntry(id: id)
         #expect(fetched?.status == .pending)
-        #expect(fetched?.txHash == nil)
+        // txHash is fixed at registration and never rewritten by release.
+        #expect(fetched?.txHash == Data(repeating: 0xAB, count: 32))
     }
 
     @Test("A finalized verdict on an already-failed entry is rejected")

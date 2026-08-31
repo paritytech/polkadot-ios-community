@@ -122,12 +122,12 @@ private extension RuleEvaluator {
         _ view: any CoinageChainViewProtocol,
         windowClosed: Bool
     ) async -> RuleOutcome {
-        // No hash means the extrinsic was never broadcast, so there is nothing to find.
-        guard let txHash = entry.txHash, let window = searchWindow(entry, evidence) else {
+        // No search window means there is nothing to read yet; decide by mortality.
+        guard let window = searchWindow(entry, evidence) else {
             return .decided(Verdict(status: windowClosed ? .failure : .pending, successDetectedAt: nil))
         }
 
-        switch await view.searchBodies(for: txHash, in: window) {
+        switch await view.searchBodies(for: entry.txHash, in: window) {
         case let .foundSucceeded(block):
             return .decided(Verdict(status: .finalizedSuccess, successDetectedAt: block))
         case .foundFailed:

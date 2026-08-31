@@ -120,9 +120,8 @@ public actor CoinageService {
 
     private let contextLoader: DenominationContextLoaderProtocol
 
-    // Balance observation — tracked providers carry the derived durability overlay per asset
-    private let trackedCoinProvider: StreamableProvider<TrackedCoin>
-    private let trackedVoucherProvider: StreamableProvider<TrackedVoucher>
+    // Balance observation — the factory builds the tracked-asset snapshot streams on demand
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let logger: SDKLoggerProtocol?
 
     // App State
@@ -156,8 +155,7 @@ public actor CoinageService {
         voucherLocationService: VoucherLocationService? = nil,
         recyclingService: any CoinageRecyclingServicing,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
-        trackedCoinProvider: StreamableProvider<TrackedCoin>,
-        trackedVoucherProvider: StreamableProvider<TrackedVoucher>,
+        databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -172,8 +170,7 @@ public actor CoinageService {
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
         self.applicationStateStreamFactory = applicationStateStreamFactory
-        self.trackedCoinProvider = trackedCoinProvider
-        self.trackedVoucherProvider = trackedVoucherProvider
+        self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
         self.durabilityService = durabilityService
         self.logger = logger
@@ -344,8 +341,7 @@ extension CoinageService: CoinageServicing {
         }
         let service = CoinageBalanceService(
             denominationContext: context,
-            voucherProvider: trackedVoucherProvider,
-            coinProvider: trackedCoinProvider,
+            databaseFactory: databaseFactory,
             logger: logger
         )
         service.start()

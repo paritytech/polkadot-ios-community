@@ -58,7 +58,7 @@ struct AssetStateTests {
 
         try await store.register(.fixture(outputs: [voucher]))
 
-        let handedOff = try await store.hasEverBeenHandedOff(voucher)
+        let handedOff = try await store.getHandoffKeys().contains(voucher.publicKey)
         #expect(!handedOff)
 
         // Consumer uses and cleans the voucher
@@ -67,7 +67,7 @@ struct AssetStateTests {
         try await store.updateStatus(consumer.id, to: .finalizedSuccess)
 
         // Cleaned voucher should not be in handoff marks
-        let stillHandedOff = try await store.hasEverBeenHandedOff(voucher)
+        let stillHandedOff = try await store.getHandoffKeys().contains(voucher.publicKey)
         #expect(!stillHandedOff)
     }
 
@@ -81,7 +81,7 @@ struct AssetStateTests {
         try await store.register(.fixture(outputs: [coin]))
         try await store.markHandedOff(coin)
 
-        let handedOff = try await store.hasEverBeenHandedOff(coin)
+        let handedOff = try await store.getHandoffKeys().contains(coin.publicKey)
         #expect(handedOff)
 
         await #expect(throws: CoinageTxError.inputHandedOff(coin.publicKey.toHex())) {
@@ -154,7 +154,7 @@ struct AssetStateTests {
         try await store.markHandedOff(coin)
 
         // Verify handoff is permanent
-        let handedOff = try await store.hasEverBeenHandedOff(coin)
+        let handedOff = try await store.getHandoffKeys().contains(coin.publicKey)
         #expect(handedOff)
 
         // Should not be usable in new entries

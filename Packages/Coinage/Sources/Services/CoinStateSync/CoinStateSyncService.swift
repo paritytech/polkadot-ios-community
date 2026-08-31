@@ -11,7 +11,7 @@ import KeyDerivation
 /// A service that monitors local coins and synchronizes their on-chain state.
 public final class CoinStateSyncService: BaseSyncService {
     private let coinService: CoinServiceProtocol
-    private let coinProvider: StreamableProvider<TrackedCoin>
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
 
@@ -20,13 +20,13 @@ public final class CoinStateSyncService: BaseSyncService {
 
     public init(
         coinService: CoinServiceProtocol,
-        coinProvider: StreamableProvider<TrackedCoin>,
+        databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
         logger: any SDKLoggerProtocol
     ) {
         self.coinService = coinService
-        self.coinProvider = coinProvider
+        self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
         super.init(logger: logger)
@@ -42,13 +42,10 @@ public final class CoinStateSyncService: BaseSyncService {
         localCoinsMonitoringTask = Task { [weak self] in
             guard let self else { return }
 
-            let stream = coinProvider.asyncStream()
-                .scan([String: TrackedCoin]()) { dict, changes in
-                    changes.mergeToDict(dict)
-                }
-                .map { (dict: [String: TrackedCoin]) -> [Coin] in
+            let stream = databaseFactory.makeTrackedCoinSnapshotStream()
+                .map { (tracked: [TrackedCoin]) -> [Coin] in
                     // Coins never seen on chain and not already consumed — the ones needing a sync.
-                    dict.values.compactMap { tracked in
+                    tracked.compactMap { tracked in
                         guard !tracked.state.isConsumed, tracked.coin.age == nil else { return nil }
                         return tracked.coin
                     }

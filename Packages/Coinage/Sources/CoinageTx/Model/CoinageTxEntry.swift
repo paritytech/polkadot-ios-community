@@ -21,7 +21,7 @@ public struct CoinageTxEntry: Sendable, Equatable {
     /// Registration order. Monotonic, assigned by the store; recovery evaluates in this
     /// order so an entry consuming another's output is never decided before its
     /// predecessor.
-    public var sequence: Int64
+    public let sequence: Int64
 
     public let inputs: [CoinageTxInput]
     public let outputs: [OwnAsset]
@@ -30,9 +30,9 @@ public struct CoinageTxEntry: Sendable, Equatable {
     /// A label only: no rule reads it. It lets an operation's transactions be found together.
     public let groupId: CoinageTxGroupId?
 
-    /// Hash of the submitted extrinsic, captured by `CoinageTxTracker`. Rule 7 searches
-    /// block bodies for it. A field, not a status — writing it is not a status change.
-    public var txHash: Data?
+    /// Hash of the built extrinsic, fixed at registration. Rule 7 searches block bodies for it.
+    /// Immutable — an entry can never exist without the hash of the extrinsic it describes.
+    public let txHash: Data
 
     /// Finalized head read once immediately before registration. Rule 7's search window
     /// starts here, so no block below it can contain this extrinsic.
@@ -43,9 +43,9 @@ public struct CoinageTxEntry: Sendable, Equatable {
 
     /// Block where execution was first observed. Only ever written where success is
     /// already proven, so Rule 0 need only re-check that the block is still canonical.
-    public var successDetectedAt: BlockRef?
+    public let successDetectedAt: BlockRef?
 
-    public var status: CoinageTxStatus
+    public let status: CoinageTxStatus
 
     public let createdAt: Date
 
@@ -55,7 +55,7 @@ public struct CoinageTxEntry: Sendable, Equatable {
         inputs: [CoinageTxInput],
         outputs: [OwnAsset],
         groupId: CoinageTxGroupId? = nil,
-        txHash: Data? = nil,
+        txHash: Data,
         checkpoint: BlockRef,
         mortality: UInt32,
         successDetectedAt: BlockRef? = nil,
@@ -83,6 +83,40 @@ extension CoinageTxEntry: Operation_iOS.Identifiable {
 }
 
 public extension CoinageTxEntry {
+    /// A copy with `status` replaced — the entry is immutable, so a status write rebuilds it.
+    func withStatus(_ status: CoinageTxStatus) -> CoinageTxEntry {
+        CoinageTxEntry(
+            id: id,
+            sequence: sequence,
+            inputs: inputs,
+            outputs: outputs,
+            groupId: groupId,
+            txHash: txHash,
+            checkpoint: checkpoint,
+            mortality: mortality,
+            successDetectedAt: successDetectedAt,
+            status: status,
+            createdAt: createdAt
+        )
+    }
+
+    /// A copy with `successDetectedAt` replaced (`nil` clears the record).
+    func withSuccessDetectedAt(_ block: BlockRef?) -> CoinageTxEntry {
+        CoinageTxEntry(
+            id: id,
+            sequence: sequence,
+            inputs: inputs,
+            outputs: outputs,
+            groupId: groupId,
+            txHash: txHash,
+            checkpoint: checkpoint,
+            mortality: mortality,
+            successDetectedAt: block,
+            status: status,
+            createdAt: createdAt
+        )
+    }
+
     /// True when the extrinsic can no longer be included: `finalizedNumber` is past the last
     /// block of the entry's mortality window.
     ///

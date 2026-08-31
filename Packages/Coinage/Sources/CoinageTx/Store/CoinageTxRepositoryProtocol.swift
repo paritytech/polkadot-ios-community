@@ -7,29 +7,20 @@ import Foundation
 /// Entries are never deleted; terminal rows stay as history because `minter(of:)` and
 /// `consumers(of:)` must still see them.
 ///
-/// Handoff marks are a separate insert-only record: `hasEverBeenHandedOff` asks whether an asset
-/// has *ever* carried a mark, so the fact has to survive any later state change.
+/// Handoff marks are a separate insert-only record whose presence survives any later state change.
 public protocol CoinageTxRepositoryProtocol: Sendable {
-    /// Mints a ``CoinageTxId``, inserts an entry built from `registration`, and hands the id to
+    /// Mints a ``CoinageTxId`` per registration, inserts an entry for each, and hands the ids to
     /// `onCommit` — all inside one transaction, after `validation`, so nothing can move what it
-    /// checked and a caller can take ownership before any other reader sees the row. A throw from
-    /// `validation` leaves nothing behind. Assigns the monotonic `sequence`.
+    /// checked and a caller can take ownership before any other reader sees the rows. All commit or
+    /// none do. `validation` runs once against the whole batch (it must reject within-batch conflicts
+    /// itself, since the rows do not exist yet). A throw from `validation` leaves nothing behind.
+    /// `onCommit` receives the minted ids in registration order; each entry gets a monotonic
+    /// `sequence`.
     func register(
-        _ registration: CoinageTxRegistration,
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
-        onCommit: @escaping (CoinageTxId) -> Void
-    ) async throws
-
-    /// The same for several registrations that are one operation: all commit or none do. `validation`
-    /// runs once against the whole batch (it must reject within-batch conflicts itself, since the rows
-    /// do not exist yet). `onCommit` receives the minted ids in registration order.
-    func registerAll(
         _ registrations: [CoinageTxRegistration],
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
+        validation: @escaping (any CoinageTxValidationContextProtocol) throws -> Void,
         onCommit: @escaping ([CoinageTxId]) -> Void
     ) async throws
-
-    func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws
 
     /// Atomically applies `verdict` iff the entry's current status still equals
     /// `expectedCurrentStatus` and is not terminal — the read and the write share one transaction,
@@ -63,7 +54,7 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
     /// whole thing back. Released on relaunch unless committed.
     func precommitHandOff(
         _ assets: [OwnAsset],
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void
+        validation: @escaping (any CoinageTxValidationContextProtocol) throws -> Void
     ) async throws
 
     /// Promotes provisional marks to final (`.committed`) — the keys have durably left. Keyed by
@@ -72,8 +63,6 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
 
     /// Clears every uncommitted (`.pending`) mark. Runs once, on launch.
     func releaseUncommittedHandoffs() async throws
-
-    func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool
 
     func handedOffCoins() async throws -> [OwnAsset]
 }

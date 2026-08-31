@@ -14,12 +14,15 @@ import Operation_iOS
 ///
 /// Registration invariants are enforced in one store transaction, so a rejected registration
 /// leaves nothing behind. Validation completes before any mutation, and the shared serial
-/// `databaseService` queue serialises concurrent registrations.
+/// `databaseService` queue serialises concurrent registrations. The read side of that transaction
+/// is ``CoinageTxValidationContext``, built from the transaction's context; the write side is the
+/// private context helpers below.
 final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked Sendable {
     private let repository: AnyDataProviderRepository<CoinageTxEntry>
     private let coinRepository: AnyDataProviderRepository<Coin>
     private let storageFacade: StorageFacadeProtocol
     private let databaseService: CoreDataServiceProtocol
+    private let entryMapper = CoinageTxEntryMapper()
 
     init(storageFacade: StorageFacadeProtocol) {
         self.storageFacade = storageFacade
@@ -27,7 +30,7 @@ final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked
 
         let entryRepository = storageFacade.createRepository(
             filter: nil,
-            sortDescriptors: [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: true)],
+            sortDescriptors: [NSSortDescriptor(key: #keyPath(CDCoinageTxEntry.sequence), ascending: true)],
             mapper: AnyCoreDataMapper(CoinageTxEntryMapper())
         )
         repository = AnyDataProviderRepository(entryRepository)
@@ -45,60 +48,41 @@ final class CoinageTxCoreDataRepository: CoinageTxRepositoryProtocol, @unchecked
 
 extension CoinageTxCoreDataRepository {
     func register(
-        _ registration: CoinageTxRegistration,
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
-        onCommit: @escaping (CoinageTxId) -> Void
-    ) async throws {
-        try await withTransaction { transaction in
-            try validation(transaction)
-
-            let entry = try registration.makeEntry(id: CoinageTxId(), sequence: transaction.nextSequence())
-            try transaction.upsert(entry)
-
-            // Inside the transaction, before the row is visible: the caller takes ownership so a pass
-            // can never reach a committed entry before the watcher does.
-            onCommit(entry.id)
-        }
-    }
-
-    func registerAll(
         _ registrations: [CoinageTxRegistration],
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void,
+        validation: @escaping (any CoinageTxValidationContextProtocol) throws -> Void,
         onCommit: @escaping ([CoinageTxId]) -> Void
     ) async throws {
         guard !registrations.isEmpty else { return }
-        try await withTransaction { transaction in
+        try await withTransaction { context in
             // The batch is validated once, before any insert — the validation closure rejects
             // within-batch conflicts itself, since these rows do not exist yet.
-            try validation(transaction)
+            try validation(CoinageTxValidationContext(context: context))
 
             var ids: [CoinageTxId] = []
             for registration in registrations {
-                let entry = try registration.makeEntry(id: CoinageTxId(), sequence: transaction.nextSequence())
-                try transaction.upsert(entry)
+                let entry = try registration.makeEntry(id: CoinageTxId(), sequence: self.nextSequence(in: context))
+                try self.upsert(entry, in: context)
                 ids.append(entry.id)
             }
 
+            // Inside the transaction, before the rows are visible: the caller takes ownership so a
+            // pass can never reach a committed entry before the watcher does.
             onCommit(ids)
         }
     }
 }
 
-// MARK: - Field and status writes
+// MARK: - Status writes
 
 extension CoinageTxCoreDataRepository {
-    func updateStatus(_ id: CoinageTxId, to status: CoinageTxStatus) async throws {
-        try await write(id, \.status, status)
-    }
-
     @discardableResult
     func updateTxStatus(
         for id: CoinageTxId,
         expectedCurrentStatus: CoinageTxStatus,
         verdict: Verdict
     ) async throws -> Bool {
-        try await withTransaction { transaction in
-            guard var entry = try transaction.entry(id) else { return false }
+        try await withTransaction { context in
+            guard let entry = try self.entry(id, in: context) else { return false }
             guard entry.status.isLive, entry.status == expectedCurrentStatus else { return false }
 
             // Skip a write that changes nothing — a verdict restating the current status and record.
@@ -106,26 +90,10 @@ extension CoinageTxCoreDataRepository {
                 return false
             }
 
-            entry.status = verdict.status
-            entry.successDetectedAt = verdict.successDetectedAt
-            try transaction.upsert(entry)
+            let updated = entry.withStatus(verdict.status).withSuccessDetectedAt(verdict.successDetectedAt)
+            try self.upsert(updated, in: context)
             return true
         }
-    }
-
-    /// Field and status writes go through the same serialized transaction as registration, so they
-    /// share one context with the `subscribeSnapshot` readers and never race a concurrent write.
-    /// `upsert` re-populates the existing row; the mapper leaves its immutable inputs/outputs alone.
-    private func write<Value>(
-        _ id: CoinageTxId,
-        _ field: WritableKeyPath<CoinageTxEntry, Value>,
-        _ value: Value
-    ) async throws {
-        guard var entry = try await getEntry(id: id) else {
-            throw CoinageTxError.entryNotFound(id)
-        }
-        entry[keyPath: field] = value
-        try await withTransaction { try $0.upsert(entry) }
     }
 }
 
@@ -140,16 +108,14 @@ extension CoinageTxCoreDataRepository {
     }
 
     func getEntry(id: CoinageTxId) async throws -> CoinageTxEntry? {
-        try await repository.fetchOperation(
-            by: { id.uuidString },
-            options: RepositoryFetchOptions()
-        ).asyncExecute()
+        let operation = repository.fetchOperation(by: { id.uuidString }, options: RepositoryFetchOptions())
+        return try await operation.asyncExecute()
     }
 
     func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         storageFacade.subscribeSingle(
             mapper: AnyCoreDataMapper(CoinageTxEntryMapper()),
-            filter: NSPredicate(format: "%K == %@", #keyPath(CDDurability.identifier), id.uuidString)
+            filter: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.identifier), id.uuidString)
         )
         .compactMap { $0?.status }
         .eraseToAnyAsyncSequence()
@@ -175,33 +141,28 @@ extension CoinageTxCoreDataRepository {
 extension CoinageTxCoreDataRepository {
     func precommitHandOff(
         _ assets: [OwnAsset],
-        validation: @escaping (any CoinageTxValidationContext) throws -> Void
+        validation: @escaping (any CoinageTxValidationContextProtocol) throws -> Void
     ) async throws {
         guard !assets.isEmpty else { return }
-        try await withTransaction { transaction in
-            try validation(transaction)
+        try await withTransaction { context in
+            try validation(CoinageTxValidationContext(context: context))
             for asset in assets {
-                try transaction.markHandoffPending(asset)
+                try self.markHandoffPending(asset, in: context)
             }
         }
     }
 
     func commitHandoffs(_ keys: [PublicKey]) async throws {
         guard !keys.isEmpty else { return }
-        try await withTransaction { transaction in
+        try await withTransaction { context in
             for key in keys {
-                try transaction.commitHandoff(key: key)
+                try self.commitHandoff(key: key, in: context)
             }
         }
     }
 
     func releaseUncommittedHandoffs() async throws {
-        try await withTransaction { try $0.releaseUncommittedMarks() }
-    }
-
-    func hasEverBeenHandedOff(_ asset: OwnAsset) async throws -> Bool {
-        guard case let .coin(index, _) = asset else { return false }
-        return try await handedOffCoinModels().contains { $0.derivationIndex == index }
+        try await withTransaction { try self.releaseUncommittedMarks(in: $0) }
     }
 
     func handedOffCoins() async throws -> [OwnAsset] {
@@ -230,11 +191,10 @@ private extension CoinageTxCoreDataRepository {
     /// Invariant: `context.save()` commits whatever is pending on the shared context. This holds
     /// today because every `CoreDataRepository` write saves-or-rolls-back within its own `perform`
     /// block, but this is a convention and is unenforced app-wide.
-    func withTransaction<T>(_ body: @escaping (Transaction) throws -> T) async throws -> T {
+    func withTransaction<T>(_ body: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
         try await databaseService.perform { context in
             do {
-                let transaction = Transaction(context: context)
-                let result = try body(transaction)
+                let result = try body(context)
                 try context.save()
                 return result
             } catch {
@@ -245,68 +205,12 @@ private extension CoinageTxCoreDataRepository {
     }
 }
 
-/// One atomic unit of durability persistence, scoped to a single `NSManagedObjectContext`.
-///
-/// It exposes the public-key-keyed reads a registration validates against
-/// (``CoinageTxValidationContext``) plus the internal sequence/upsert/handoff writes; nothing is
-/// visible until the enclosing `withTransaction` commits.
-private final class Transaction: CoinageTxValidationContext {
-    private let context: NSManagedObjectContext
-    private let entryMapper = CoinageTxEntryMapper()
+// MARK: - Context write helpers
 
-    init(context: NSManagedObjectContext) {
-        self.context = context
-    }
-
-    func filterMinted(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
-        guard !keys.isEmpty else { return [] }
-        let hexKeys = keys.map { $0.toHex() }
-        let request = NSFetchRequest<CDDurabilityOutput>(entityName: "CDDurabilityOutput")
-        request.predicate = NSPredicate(format: "coin.publicKey IN %@ OR voucher.publicKey IN %@", hexKeys, hexKeys)
-        return try matched(context.fetch(request).map { [$0.coin?.publicKey, $0.voucher?.publicKey] }, in: keys)
-    }
-
-    func filterReceived(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
-        guard !keys.isEmpty else { return [] }
-        let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
-        request.predicate = NSPredicate(
-            format: "%K IN %@", #keyPath(CDDurabilityInput.receivedPubKey), keys.map { $0.toHex() }
-        )
-        return try matched(context.fetch(request).map { [$0.receivedPubKey] }, in: keys)
-    }
-
-    func filterClaimed(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
-        guard !keys.isEmpty else { return [] }
-        let hexKeys = keys.map { $0.toHex() }
-        let assetMatch = NSPredicate(
-            format: "coin.publicKey IN %@ OR voucher.publicKey IN %@ OR %K IN %@",
-            hexKeys, hexKeys, #keyPath(CDDurabilityInput.receivedPubKey), hexKeys
-        )
-        let nonFailure = NSPredicate(
-            format: "%K.%K != %d",
-            #keyPath(CDDurabilityInput.entry), #keyPath(CDDurability.status), CoinageTxStatus.failure.rawValue
-        )
-        let request = NSFetchRequest<CDDurabilityInput>(entityName: "CDDurabilityInput")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assetMatch, nonFailure])
-        return try matched(
-            context.fetch(request).map { [$0.coin?.publicKey, $0.voucher?.publicKey, $0.receivedPubKey] },
-            in: keys
-        )
-    }
-
-    func filterHandedOff(_ keys: Set<PublicKey>) throws -> Set<PublicKey> {
-        guard !keys.isEmpty else { return [] }
-        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
-        request.predicate = NSPredicate(
-            format: "publicKey IN %@ AND handoffMark != %d",
-            keys.map { $0.toHex() }, Int(CoinHandoffMark.none.rawValue)
-        )
-        return try matched(context.fetch(request).map { [$0.publicKey] }, in: keys)
-    }
-
-    func nextSequence() throws -> Int64 {
-        let request = NSFetchRequest<CDDurability>(entityName: "CDDurability")
-        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDDurability.sequence), ascending: false)]
+private extension CoinageTxCoreDataRepository {
+    func nextSequence(in context: NSManagedObjectContext) throws -> Int64 {
+        let request = NSFetchRequest<CDCoinageTxEntry>(entityName: "CDCoinageTxEntry")
+        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDCoinageTxEntry.sequence), ascending: false)]
         request.fetchLimit = 1
         request.returnsObjectsAsFaults = false
 
@@ -314,45 +218,37 @@ private final class Transaction: CoinageTxValidationContext {
         return (entities.first?.sequence ?? 0) + 1
     }
 
-    func upsert(_ entry: CoinageTxEntry) throws {
-        let request = NSFetchRequest<CDDurability>(entityName: Self.entryEntity)
-        request.predicate = NSPredicate(
-            format: "%K = %@",
-            #keyPath(CDDurability.identifier),
-            entry.identifier
+    /// Re-populates the existing row or inserts a fresh one. The mapper leaves the immutable
+    /// inputs/outputs alone on an update.
+    func upsert(_ entry: CoinageTxEntry, in context: NSManagedObjectContext) throws {
+        let existing: CDCoinageTxEntry? = try context.first(
+            for: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.identifier), entry.identifier)
         )
-
-        guard let entity = try context.fetch(request).first ?? insert(Self.entryEntity) else {
-            throw CoinageTxError.entryNotFound(entry.id)
-        }
-
+        let entity = existing ?? CDCoinageTxEntry(context: context)
         try entryMapper.populate(entity: entity, from: entry, using: context)
     }
 
-    func entry(_ id: CoinageTxId) throws -> CoinageTxEntry? {
-        let request = NSFetchRequest<CDDurability>(entityName: Self.entryEntity)
-        request.predicate = NSPredicate(format: "%K = %@", #keyPath(CDDurability.identifier), id.uuidString)
-        request.fetchLimit = 1
-        guard let entity = try context.fetch(request).first else { return nil }
+    func entry(_ id: CoinageTxId, in context: NSManagedObjectContext) throws -> CoinageTxEntry? {
+        guard let entity: CDCoinageTxEntry = try context.first(
+            for: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.identifier), id.uuidString)
+        ) else { return nil }
         return try entryMapper.transform(entity: entity)
     }
 
-    func markHandoffPending(_ asset: OwnAsset) throws {
-        guard let coin = try coinRow(for: asset) else { return }
+    func markHandoffPending(_ asset: OwnAsset, in context: NSManagedObjectContext) throws {
+        guard let coin = try coinForAsset(asset, in: context) else { return }
         // Never regress a committed mark back to provisional.
         if coin.handoffMark == CoinHandoffMark.none.rawValue {
             coin.handoffMark = CoinHandoffMark.pending.rawValue
         }
     }
 
-    func commitHandoff(key: PublicKey) throws {
-        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
-        request.predicate = NSPredicate(format: "publicKey == %@", key.toHex())
-        request.fetchLimit = 1
-        try context.fetch(request).first?.handoffMark = CoinHandoffMark.committed.rawValue
+    func commitHandoff(key: PublicKey, in context: NSManagedObjectContext) throws {
+        let coin: CDCoin? = try context.first(for: NSPredicate(format: "publicKey == %@", key.toHex()))
+        coin?.handoffMark = CoinHandoffMark.committed.rawValue
     }
 
-    func releaseUncommittedMarks() throws {
+    func releaseUncommittedMarks(in context: NSManagedObjectContext) throws {
         let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
         request.predicate = NSPredicate(
             format: "handoffMark == %d", Int(CoinHandoffMark.pending.rawValue)
@@ -362,33 +258,8 @@ private final class Transaction: CoinageTxValidationContext {
         }
     }
 
-    private func coinRow(for asset: OwnAsset) throws -> CDCoin? {
+    func coinForAsset(_ asset: OwnAsset, in context: NSManagedObjectContext) throws -> CDCoin? {
         guard case let .coin(index, _) = asset else { return nil }
-
-        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
-        request.predicate = NSPredicate(format: "identifier == %@", Coin.identifier(for: index))
-        request.fetchLimit = 1
-        return try context.fetch(request).first
-    }
-}
-
-private extension Transaction {
-    static var entryEntity: String { "CDDurability" }
-
-    func insert<Entity: NSManagedObject>(_ entityName: String) -> Entity? {
-        NSEntityDescription.insertNewObject(forEntityName: entityName, into: context) as? Entity
-    }
-
-    /// The subset of `keys` present among the fetched rows' public-key hex strings (a row may carry
-    /// several — a coin, a voucher, or a received key), so a matched row reports back the exact key.
-    func matched(_ rowKeyHexes: [[String?]], in keys: Set<PublicKey>) throws -> Set<PublicKey> {
-        var result: Set<PublicKey> = []
-        for hexes in rowKeyHexes {
-            for hex in hexes.compactMap({ $0 }) {
-                let data = try Data(hexString: hex)
-                if keys.contains(data) { result.insert(data) }
-            }
-        }
-        return result
+        return try context.first(for: NSPredicate(format: "identifier == %@", Coin.identifier(for: index)))
     }
 }

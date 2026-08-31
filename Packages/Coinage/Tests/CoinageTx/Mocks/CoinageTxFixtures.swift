@@ -66,6 +66,7 @@ extension CoinageTxEntry {
             id: id,
             inputs: inputs,
             outputs: outputs,
+            txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: checkpoint,
             mortality: 60,
             status: status

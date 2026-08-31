@@ -32,21 +32,10 @@ enum CoinageTxAssetLinker {
 
 private extension CoinageTxAssetLinker {
     static func coin(index: DerivationIndex, in context: NSManagedObjectContext) -> CDCoin? {
-        fetchFirst("CDCoin", identifier: Coin.identifier(for: index), in: context)
+        try? context.first(for: NSPredicate(format: "identifier == %@", Coin.identifier(for: index)))
     }
 
     static func voucher(index: DerivationIndex, in context: NSManagedObjectContext) -> CDVoucher? {
-        fetchFirst("CDVoucher", identifier: Voucher.identifier(for: index), in: context)
-    }
-
-    static func fetchFirst<T: NSManagedObject>(
-        _ entity: String,
-        identifier: String,
-        in context: NSManagedObjectContext
-    ) -> T? {
-        let request = NSFetchRequest<T>(entityName: entity)
-        request.predicate = NSPredicate(format: "identifier == %@", identifier)
-        request.fetchLimit = 1
-        return try? context.fetch(request).first
+        try? context.first(for: NSPredicate(format: "identifier == %@", Voucher.identifier(for: index)))
     }
 }

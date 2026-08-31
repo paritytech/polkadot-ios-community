@@ -22,8 +22,8 @@ extension TrackedVoucherMapper: CoreDataMapperProtocol {
             voucher: voucherMapper.transform(entity: entity),
             state: CoinageAssetStateDeriver.state(
                 handedOff: false,
-                inputs: entity.durabilityInputs,
-                output: entity.durabilityOutput
+                inputs: entity.coinageTxInputs,
+                output: entity.coinageTxOutput
             )
         )
     }
