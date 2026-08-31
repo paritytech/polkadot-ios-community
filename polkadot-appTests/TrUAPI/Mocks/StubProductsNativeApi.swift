@@ -84,4 +84,5 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
 
     func getUserId() async throws -> GetUserIdResult { fatalError() }
     func subscribeTheme() async -> AnyAsyncSequence<ProductTheme> { fatalError() }
+    func subscribeLocale() async -> AnyAsyncSequence<String> { fatalError() }
 }

@@ -135,6 +135,10 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         .eraseToAnyAsyncSequence()
     }
 
+    func subscribeLocale() async -> AnyAsyncSequence<String> {
+        AsyncJustSequence<String>("en-US").eraseToAnyAsyncSequence()
+    }
+
     func signPayload(_: SignTransactionPayload<ProductAccountId>) async throws -> SignResult {
         SignResult(signature: "0x00", signedTx: nil)
     }
