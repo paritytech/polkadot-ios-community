@@ -417,10 +417,17 @@ extension ServiceCoordinator {
             logger: logger
         )
 
+        let chainBlockProvider = ChainBlockProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            operationQueue: OperationManagerFacade.sharedDefaultQueue,
+            logger: logger
+        )
+
         let chainStatusProvider = ChainStatusProvider(
             networkStatusService: networkStatusService,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             latencyProvider: chainLatencyProvider,
+            blockProvider: chainBlockProvider,
             logger: logger
         )
 

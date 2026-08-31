@@ -7,6 +7,7 @@ import StructuredConcurrency
 @MainActor
 protocol ChainStatusProviding: AnyObject {
     func statusStream() -> AnyAsyncSequence<[ChainConnectionStatusViewModel]>
+    func setActive(_ isActive: Bool)
 }
 
 /// Per-chain connection status. Emits rows rather than a hosted configuration, so a host
@@ -21,6 +22,7 @@ final class ChainStatusProvider {
     private let networkStatusService: NetworkStatusProviding
     private let chainRegistry: ChainRegistryProtocol
     private let latencyProvider: ChainLatencyProviding
+    private let blockProvider: ChainBlockProviding
     private let logger: LoggerProtocol
 
     private let rowsSubject: AsyncCurrentValueSubject<[ChainConnectionStatusViewModel]>
@@ -28,6 +30,7 @@ final class ChainStatusProvider {
     private var statuses: [ChainConnectionTarget: NetworkStatus]
     private var names: [ChainConnectionTarget: String] = [:]
     private var latencies: [ChainConnectionTarget: Duration] = [:]
+    private var blocks: [ChainConnectionTarget: ChainBlockInfo] = [:]
     private var statusTasks: [Task<Void, Never>] = []
     private var isObserving = false
 
@@ -35,11 +38,13 @@ final class ChainStatusProvider {
         networkStatusService: NetworkStatusProviding,
         chainRegistry: ChainRegistryProtocol,
         latencyProvider: ChainLatencyProviding,
+        blockProvider: ChainBlockProviding,
         logger: LoggerProtocol
     ) {
         self.networkStatusService = networkStatusService
         self.chainRegistry = chainRegistry
         self.latencyProvider = latencyProvider
+        self.blockProvider = blockProvider
         self.logger = logger
 
         let seededStatuses = ChainConnectionTarget.allCases
@@ -47,7 +52,7 @@ final class ChainStatusProvider {
 
         statuses = seededStatuses
         rowsSubject = AsyncCurrentValueSubject(
-            Self.makeRows(statuses: seededStatuses, names: [:], latencies: [:])
+            Self.makeRows(statuses: seededStatuses, names: [:], latencies: [:], blocks: [:])
         )
     }
 
@@ -63,6 +68,13 @@ extension ChainStatusProvider: ChainStatusProviding {
 
         return rowsSubject.eraseToAnyAsyncSequence()
     }
+
+    /// Status subscriptions stay always-on — they cost nothing extra and keep the trailing
+    /// button coloured from launch. Only the sampling siblings are gated.
+    func setActive(_ isActive: Bool) {
+        latencyProvider.setActive(isActive)
+        blockProvider.setActive(isActive)
+    }
 }
 
 private extension ChainStatusProvider {
@@ -75,7 +87,7 @@ private extension ChainStatusProvider {
 
         statusTasks = ChainConnectionTarget.allCases.map { target in
             observeStatus(for: target)
-        } + [observeLatencies()]
+        } + [observeLatencies(), observeBlocks()]
 
         // Status updates are de-duplicated, so a chain that connects before the registry loads
         // never emits again — chain names have to come from their own subscription.
@@ -114,6 +126,18 @@ private extension ChainStatusProvider {
         }
     }
 
+    func observeBlocks() -> Task<Void, Never> {
+        Task { [weak self, blockProvider, logger] in
+            do {
+                for try await blocks in blockProvider.blockStream() {
+                    self?.handleBlocksUpdate(blocks)
+                }
+            } catch {
+                logger.error("Chain block stream failed: \(error)")
+            }
+        }
+    }
+
     func handleStatusUpdate(_ status: NetworkStatus, for target: ChainConnectionTarget) {
         let previousStatus = statuses[target]
 
@@ -123,10 +147,11 @@ private extension ChainStatusProvider {
 
         statuses[target] = status
 
-        // Without this a drop-and-reconnect keeps captioning the row with its pre-drop latency.
+        // Without this a drop-and-reconnect keeps captioning the row with its pre-drop data.
         if previousStatus == .connected {
             latencies[target] = nil
             latencyProvider.clearSamples(for: target)
+            blocks[target] = nil
         }
 
         emitRows()
@@ -138,6 +163,15 @@ private extension ChainStatusProvider {
         }
 
         latencies = updatedLatencies
+        emitRows()
+    }
+
+    func handleBlocksUpdate(_ updatedBlocks: [ChainConnectionTarget: ChainBlockInfo]) {
+        guard updatedBlocks != blocks else {
+            return
+        }
+
+        blocks = updatedBlocks
         emitRows()
     }
 
@@ -156,23 +190,29 @@ private extension ChainStatusProvider {
     }
 
     func emitRows() {
-        rowsSubject.send(Self.makeRows(statuses: statuses, names: names, latencies: latencies))
+        rowsSubject.send(
+            Self.makeRows(statuses: statuses, names: names, latencies: latencies, blocks: blocks)
+        )
     }
 
     static func makeRows(
         statuses: [ChainConnectionTarget: NetworkStatus],
         names: [ChainConnectionTarget: String],
-        latencies: [ChainConnectionTarget: Duration]
+        latencies: [ChainConnectionTarget: Duration],
+        blocks: [ChainConnectionTarget: ChainBlockInfo]
     ) -> [ChainConnectionStatusViewModel] {
         ChainConnectionTarget.allCases.map { target in
             let state = (statuses[target] ?? .connecting).connectionState
+            let block = state == .connected ? blocks[target] : nil
 
             return ChainConnectionStatusViewModel(
                 id: target.chainId,
                 title: names[target] ?? target.fallbackTitle,
                 state: state,
                 stateTitle: state.localizedTitle,
-                latencyText: state.localizedLatency(latencies[target])
+                latencyText: state.localizedLatency(latencies[target]),
+                blockText: state.localizedBlockNumber(block?.number),
+                lastBlockDate: block?.receivedAt
             )
         }
     }

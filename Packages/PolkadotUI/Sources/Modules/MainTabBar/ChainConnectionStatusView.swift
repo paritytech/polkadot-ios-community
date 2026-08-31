@@ -13,19 +13,25 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let state: ChainConnectionState
     public let stateTitle: String
     public let latencyText: String?
+    public let blockText: String?
+    public let lastBlockDate: Date?
 
     public init(
         id: String,
         title: String,
         state: ChainConnectionState,
         stateTitle: String,
-        latencyText: String?
+        latencyText: String?,
+        blockText: String?,
+        lastBlockDate: Date?
     ) {
         self.id = id
         self.title = title
         self.state = state
         self.stateTitle = stateTitle
         self.latencyText = latencyText
+        self.blockText = blockText
+        self.lastBlockDate = lastBlockDate
     }
 }
 
@@ -39,47 +45,9 @@ public struct ChainConnectionStatusView: View, Hashable {
     public var body: some View {
         VStack(spacing: 16) {
             ForEach(rows) { row in
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(dotColor(for: row.state))
-                        .frame(width: 8, height: 8)
-
-                    Text(row.title)
-                        .textStyle(.body14Regular())
-                        .foregroundStyle(Color.fgPrimary)
-
-                    Spacer()
-
-                    HStack(spacing: 4) {
-                        Text(row.stateTitle)
-                            .textStyle(.caption12Regular())
-                            .foregroundStyle(Color.fgSecondary)
-
-                        if let latencyText = row.latencyText {
-                            Text(latencyText)
-                                .textStyle(.caption12Regular())
-                                .foregroundStyle(Color.fgSecondary)
-                                .contentTransition(.numericText())
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // Rows arrive through a UIKit configuration assignment, so there is no ambient
-                // withAnimation to inherit from.
-                .animation(.default, value: row.latencyText)
+                ChainConnectionStatusRowView(row: row)
             }
         }
         .padding(16)
-    }
-
-    private func dotColor(for state: ChainConnectionState) -> Color {
-        switch state {
-        case .connected:
-            .bgStatusSuccess
-        case .connecting:
-            .bgStatusWarning
-        case .offline:
-            .bgStatusError
-        }
     }
 }

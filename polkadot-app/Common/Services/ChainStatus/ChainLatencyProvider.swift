@@ -8,6 +8,7 @@ import SubstrateSdk
 protocol ChainLatencyProviding: AnyObject {
     func latencyStream() -> AnyAsyncSequence<[ChainConnectionTarget: Duration]>
     func clearSamples(for target: ChainConnectionTarget)
+    func setActive(_ isActive: Bool)
 }
 
 /// Rolling window of the most recent probe round-trips for a single chain.
@@ -37,7 +38,7 @@ private struct ChainLatencyWindow {
     }
 }
 
-/// Per-chain round-trip latency, sampled on a fixed interval for the app's lifetime.
+/// Per-chain round-trip latency, sampled on a fixed interval while a host asks for it.
 ///
 /// Sibling to `ChainStatusProvider` rather than part of it: this owns probe timing only, so
 /// row composition stays in one place.
@@ -53,7 +54,7 @@ final class ChainLatencyProvider {
 
     private var windows: [ChainConnectionTarget: ChainLatencyWindow] = [:]
     private var probeTask: Task<Void, Never>?
-    private var isObserving = false
+    private var isActive = false
 
     init(chainRegistry: ChainRegistryProtocol, logger: LoggerProtocol) {
         self.chainRegistry = chainRegistry
@@ -67,9 +68,7 @@ final class ChainLatencyProvider {
 
 extension ChainLatencyProvider: ChainLatencyProviding {
     func latencyStream() -> AnyAsyncSequence<[ChainConnectionTarget: Duration]> {
-        startProbingIfNeeded()
-
-        return latenciesSubject.eraseToAnyAsyncSequence()
+        latenciesSubject.eraseToAnyAsyncSequence()
     }
 
     func clearSamples(for target: ChainConnectionTarget) {
@@ -77,15 +76,21 @@ extension ChainLatencyProvider: ChainLatencyProviding {
 
         emitLatencies()
     }
-}
 
-private extension ChainLatencyProvider {
-    func startProbingIfNeeded() {
-        guard !isObserving else {
+    func setActive(_ isActive: Bool) {
+        guard isActive != self.isActive else {
             return
         }
 
-        isObserving = true
+        self.isActive = isActive
+
+        guard isActive else {
+            // Samples are kept so reopening shows the last known latency instead of blanking;
+            // stale samples are dropped by status transitions, not by deactivation.
+            probeTask?.cancel()
+            probeTask = nil
+            return
+        }
 
         probeTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -95,7 +100,9 @@ private extension ChainLatencyProvider {
             }
         }
     }
+}
 
+private extension ChainLatencyProvider {
     func probeAll() async {
         let samples = await withTaskGroup(of: (ChainConnectionTarget, Duration?).self) { group in
             for target in ChainConnectionTarget.allCases {

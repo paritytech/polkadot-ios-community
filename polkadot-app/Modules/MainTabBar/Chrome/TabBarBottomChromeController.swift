@@ -44,6 +44,7 @@ final class TabBarBottomChromeController: UIViewController {
     var onChipTapped: ((UUID) -> Void)?
     var onChipCloseRequested: ((UUID) -> Void)?
     var onTrailingSlotTapped: (() -> Void)?
+    var onPanelChanged: ((TabBarPanelKind?) -> Void)?
 
     private var occupiedHeight: CGFloat {
         guard TabBarVisibilityPolicy.contributesClearance(isTabRoot: isTabRoot) else {
@@ -134,6 +135,7 @@ final class TabBarBottomChromeController: UIViewController {
     }
 
     func setPanel(_ kind: TabBarPanelKind?, animated: Bool) {
+        let previousPanel = openPanel
         let animator = animated ? makePanelAnimator() : nil
 
         tabsPanelView.setOpen(kind == .spaTabs, animator: animator)
@@ -143,6 +145,23 @@ final class TabBarBottomChromeController: UIViewController {
         (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
         openPanel = kind
         updateGlassContainerHeight(animator: animator)
+
+        // Every open and close routes through here — an outside tap or a fold would be missed
+        // by a hook on the trailing button. An open is reported once the animation settles, so
+        // content pushed by the newly activated source cannot start a second animator on the
+        // glass container height while this one is still running.
+        if previousPanel != kind {
+            if let kind, let animator {
+                animator.addCompletion { [weak self] _ in
+                    guard let self, openPanel == kind else {
+                        return
+                    }
+                    onPanelChanged?(kind)
+                }
+            } else {
+                onPanelChanged?(kind)
+            }
+        }
 
         animator?.startAnimation()
     }

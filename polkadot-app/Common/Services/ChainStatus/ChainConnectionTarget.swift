@@ -1,6 +1,7 @@
 import Foundation
 import ChainRegistry
 import PolkadotUI
+import SubstrateSdk
 
 enum ChainConnectionTarget: CaseIterable {
     case chat
@@ -62,6 +63,14 @@ extension ChainConnectionState {
         }
 
         return String(localized: .Common.chainConnectionStatusLatency(latency.roundedMilliseconds))
+    }
+
+    func localizedBlockNumber(_ blockNumber: BlockNumber?) -> String? {
+        guard self == .connected, let blockNumber else {
+            return nil
+        }
+
+        return String(localized: .Common.chainConnectionStatusBlockNumber(blockNumber.formatted()))
     }
 }
 

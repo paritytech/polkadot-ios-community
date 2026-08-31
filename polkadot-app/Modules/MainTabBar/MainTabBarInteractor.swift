@@ -74,6 +74,12 @@ extension MainTabBarInteractor: MainTabBarInteractorInputProtocol {
         subscribeToSPATabs()
         subscribeToChainStatus()
     }
+
+    func setChainStatusActive(_ isActive: Bool) {
+        MainActor.assumeIsolated {
+            chainStatusProvider.setActive(isActive)
+        }
+    }
 }
 
 private extension MainTabBarInteractor {

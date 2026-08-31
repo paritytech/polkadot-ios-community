@@ -507,6 +507,17 @@
         }
       }
     },
+    "chainConnectionStatusBlockNumber" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%@"
+          }
+        }
+      }
+    },
     "chainConnectionStatusConnected" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -535,7 +546,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "· %lld ms"
+            "value" : "%lld ms"
           }
         }
       }

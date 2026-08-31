@@ -148,18 +148,31 @@ Panel state is now `TabBarBottomChromeController.openPanel: TabBarPanelKind?` (`
 
 Content ownership: `MainTabBarPresenter` pushes a configuration through `MainTabBarViewProtocol.showTabBarPanelContent(_:)`; the view controller builds the `DSTabBarTrailingSlot` (SF Symbol `point.3.connected.trianglepath.dotted`, label from `TabBarTrailingSlot`) and calls `chromeController.setTrailingPanel(slot:content:)`. No configuration means no trailing unit at all and the row reflows — same treatment the centre slot gets when `spaTabCount` crosses 0.
 
-**Shipped content — chain connection status.** The panel holds one row per `ChainConnectionTarget` (chat, bulletin, assethub): a state dot, the chain name, and a localized state title, rendered by `ChainConnectionStatusView` in `PolkadotUI`.
+**Shipped content — chain connection status.** The panel holds one row per `ChainConnectionTarget` (chat, bulletin, assethub): a state dot, the chain name, and a lowercase state caption — `connected · 84 ms`, `connecting`, `no network` — rendered by `ChainConnectionStatusView` in `PolkadotUI`.
 
-`MainTabBarInteractor` owns two subscriptions per launch:
+Row composition lives in `ChainStatusProvider`, not in the module. `ServiceCoordinator.createDefault` builds one `ChainStatusProvider` and one `ChainLatencyProvider` and exposes the former on `ServiceCoordinatorProtocol.chainStatusProvider`; `MainTabBarViewFactory` injects it. One instance, app lifetime. The interactor keeps a single `chainStatusSubscription` forwarding `chainStatusProvider.statusStream()` to `presenter.didReceiveChainStatus(_:)`.
 
-- one `NetworkStatusObserver` per target (`statusStream(for:)` on the shared `NetworkStatusService`, which de-duplicates registry subscriptions internally — do not add a per-chain API);
-- `chainRegistry.chainsSubscribe` for the names. This one is load-bearing: the status stream applies `removeDuplicates()`, so a chain that reaches `.connected` before the registry loads emits exactly once and the row would keep its fallback title forever. `chainsUnsubscribe(self)` in `deinit` is required — that subscription is registry-held.
+*Rationale:* a per-screen provider would be a visible bug, not just waste. The status registry keys observers by target identity so duplicates do not collapse, and every new instance re-seeds to `.connecting` — rows would flicker back to connecting on each navigation.
 
-All targets are seeded to `.connecting` and pushed once during `setup()`, so the first render carries three complete rows and the trailing button exists from launch instead of popping in.
+The provider consumes `networkStatusService.statusStream(for:)` directly, one call per chain against the shared singleton, and maps `NetworkStatus` → `ChainConnectionState` in `ChainConnectionTarget.swift`. `NetworkStatus` never crosses into `PolkadotUI`. Reaching `.connected` is debounced 300 ms (`withDebounce`). `waitingForNetwork` is global rather than per-chain, so a dropped device path takes all three rows offline together.
 
-`NetworkStatus` stays app-side; `PolkadotUI` has its own `ChainConnectionState` and the presenter maps between them. Each update pushes a **fresh** configuration — a shared observable view model would mutate without calling `setTrailingPanel`, leaving the glass container's measured panel height stale.
+`chainRegistry.chainsSubscribe` supplies the names and is load-bearing: the status stream applies `removeDuplicates()`, so a chain that reaches `.connected` before the registry loads emits exactly once and the row would keep its `fallbackTitle` forever. `chainsUnsubscribe(self)` in `deinit` is required — that subscription is registry-held.
 
-`waitingForNetwork` is global rather than per-chain, so a dropped device path takes all three rows offline together.
+Seeding is structural, not a step: `rowsSubject` is an `AsyncCurrentValueSubject` **constructed** holding a complete row set, so the first render carries three rows and the trailing button exists from launch, and no later edit can drop a seed-then-push call.
+
+The provider emits `[ChainConnectionStatusViewModel]`, not a hosted configuration. `MainTabBarPresenter.didReceiveChainStatus` wraps them in `SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows:))` at its own push site — a future non-`UIContentView` host (a nav-bar dropdown) would otherwise have to unwrap a configuration it never wanted. Each update pushes a **fresh** configuration; a shared observable view model would mutate without calling `setTrailingPanel`, leaving the glass container's measured panel height stale.
+
+**Latency.** `ChainLatencyProvider` is a *sibling* of the status provider, not a part of it — it owns probe timing only, and `ChainStatusProvider` combines its stream in, so row composition stays in one place.
+
+- Probe is a timed `RPCMethod.healthCheck` (`system_health`) over `chainRegistry.getConnection(for:)`, every 30 s for the app's lifetime, all three chains concurrently in a task group.
+- `JSONRPCOptions(resendOnReconnect: false)` is required. The default `true` queues a probe issued while the socket is down and resolves it after reconnect, so the measured interval swallows the whole outage and reports a false multi-second latency. `WebSocketEngine.sendSubstratePing` in the SDK uses the identical option for its own health check.
+- Also bounded by `withTimeout(10 s)`: the flag covers a known-down socket, the timeout covers a socket that is up with a node that never answers.
+- Reported value is the median of the last 3 samples, so one slow probe cannot move the row.
+- Samples are cleared when a chain leaves `.connected`, in `ChainStatusProvider.handleStatusUpdate` — the only place that knows both facts. Without it a drop-and-reconnect shows the pre-drop number for up to 30 s.
+
+`ChainConnectionStatusViewModel.latencyText` is a `String?`, already localized and formatted app-side — `PolkadotUI` has no number formatting and no locale story. The view renders it as a second caption with `.contentTransition(.numericText())` for the digit roll, plus an explicit `.animation(.default, value:)` because a UIKit configuration push carries no ambient `withAnimation`. Both captions share one `HStack(spacing: 4)` so the `·` reads as a separator rather than two unrelated labels.
+
+*Accepted:* the roll fires every 30 s while the panel is typically open for a few seconds, so most transitions happen unseen.
 
 ## SPA Hosting
 
