@@ -28,8 +28,7 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/novasamatech/extrinsic-service-ios",
-            // Temporary: unreleased commit (PR #38) exposing status-update inits for WatcherScenarios.
-            revision: "69cd603a942983b18be61e268fe4d0080dd94b88"
+            from: "1.11.0"
         ),
         .package(
             url: "https://github.com/attaswift/BigInt",

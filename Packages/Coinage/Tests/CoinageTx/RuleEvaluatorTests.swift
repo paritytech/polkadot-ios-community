@@ -309,6 +309,96 @@ struct CoinageRulesTests {
 
         try #require(outcome.verdict?.status == .pending)
     }
+
+    // MARK: Ladder guards surfaced by the mutation sweep
+
+    @Test("Rule 3 respects the handoff guard: a handed-off output is not read as freely gone")
+    func rule3RespectsHandoffOnOutput() async throws {
+        let minter = finalizedMinter(coinIn)
+        let entry = entry(inputs: [coinIn], outputs: [coinOut])
+
+        // The output is absent past mortality, but handed off — so it has a potential consumer and Rule 3
+        // must not fail on it. The proven-own-coin input then finalizes the entry via Rule 5.
+        let outcome = await evaluate(
+            entry,
+            evidence(
+                finalizedNumber: mortalityEnd + 1,
+                absentAtFinalized: [coinIn.publicKey, coinOut.publicKey],
+                absentAtBest: [coinIn.publicKey, coinOut.publicKey]
+            ),
+            dag: dag(minter, entry, handedOff: [coinOut.publicKey])
+        )
+
+        try #require(outcome.verdict?.status == .finalizedSuccess)
+    }
+
+    @Test("Rule 3 respects a live consumer: an output a live entry still claims is not read as gone")
+    func rule3RespectsLiveConsumerOnOutput() async throws {
+        let minter = finalizedMinter(coinIn)
+        // Build the consumer before shadowing the `entry` factory with the local `entry` below.
+        let consumer = entry(id: Self.consumerId, inputs: [coinOut.asInput])
+        let entry = entry(inputs: [coinIn], outputs: [coinOut])
+
+        let outcome = await evaluate(
+            entry,
+            evidence(
+                finalizedNumber: mortalityEnd + 1,
+                absentAtFinalized: [coinIn.publicKey, coinOut.publicKey],
+                absentAtBest: [coinIn.publicKey, coinOut.publicKey]
+            ),
+            dag: dag(minter, entry, consumer)
+        )
+
+        try #require(outcome.verdict?.status == .finalizedSuccess)
+    }
+
+    @Test("Rule 6 requires proven own coins: a received-coin input is not promoted to PENDING_SUCCESS")
+    func rule6RequiresProvenOwnCoins() async throws {
+        let entry = entry(inputs: [receivedIn])
+
+        // Inside the window, the input exists at the finalized head and is gone at the best head — the
+        // shape Rule 6 fires on, but only for proven own coins. A received coin must reach the search.
+        let outcome = await evaluate(
+            entry,
+            evidence(presentAtFinalized: [receivedIn.publicKey], absentAtBest: [receivedIn.publicKey])
+        )
+
+        try #require(outcome.verdict?.status == .pending)
+    }
+
+    @Test("Rule 4b holds only inside the window: past mortality an available input reaches the search")
+    func rule4bHoldsOnlyInsideWindow() async throws {
+        let entry = entry(inputs: [receivedIn])
+
+        // Available at the best head but gone at the finalized head, past mortality. Rule 4 cannot fire
+        // (not available at F), and 4b must not hold it PENDING past the window — the search decides.
+        let outcome = await evaluate(
+            entry,
+            evidence(
+                finalizedNumber: mortalityEnd + 1,
+                absentAtFinalized: [receivedIn.publicKey],
+                presentAtBest: [receivedIn.publicKey]
+            ),
+            search: .notFoundWindowComplete
+        )
+
+        try #require(outcome.verdict?.status == .failure)
+    }
+
+    @Test("Rule 3b holds only inside the window: past mortality an absent output reaches the search")
+    func rule3bHoldsOnlyInsideWindow() async throws {
+        let entry = entry(outputs: [coinOut])
+
+        // Unreadable at the finalized head (so Rule 3 cannot fire) yet absent at the best head, past
+        // mortality. 3b must not hold it PENDING past the window — the completed search fails it.
+        let outcome = await evaluate(
+            entry,
+            evidence(finalizedNumber: mortalityEnd + 1, absentAtBest: [coinOut.publicKey]),
+            search: .notFoundWindowComplete
+        )
+
+        try #require(outcome.verdict?.status == .failure)
+    }
 }
 
 // MARK: - Harness
@@ -385,6 +475,7 @@ private extension CoinageRulesTests {
 
     static let entryId = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
     static let minterId = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    static let consumerId = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
 
     /// Builds `ChainEvidence` from identifier sets. An identifier in `unreadable` appears in no map
     /// — a failed read — so every predicate over it is false.
