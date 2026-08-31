@@ -204,20 +204,30 @@ private extension CoinageTxService {
     func buildModels(_ requests: [CoinageTxRequest]) async throws -> [ExtrinsicBuiltModel] {
         guard !requests.isEmpty else { return [] }
 
-        var models = [ExtrinsicBuiltModel?](repeating: nil, count: requests.count)
-        for group in groupBySharedOrigin(requests) {
-            let built = try await operationFactory.buildExtrinsics(
-                { builder, index in try requests[group[index]].builder(builder) },
-                origin: requests[group[0]].origin,
-                payingIn: nil,
-                indexes: IndexSet(0 ..< group.count)
-            ).asyncExecute()
-
-            guard built.count == group.count else {
-                throw TransferStrategyError.submissionFailed(CancellationError())
+        // Groups have distinct signing origins, so their builds are independent — run them
+        // concurrently rather than serialising one behind another. Results are re-assembled by
+        // original request index below, so the returned order is deterministic regardless of which
+        // group finishes first.
+        let built = try await withThrowingTaskGroup(
+            of: (indices: [Int], models: [ExtrinsicBuiltModel]).self
+        ) { taskGroup in
+            for group in groupBySharedOrigin(requests) {
+                taskGroup.addTask {
+                    try await (group, self.buildGroup(group, of: requests))
+                }
             }
-            for (position, requestIndex) in group.enumerated() {
-                models[requestIndex] = built[position]
+
+            var collected: [(indices: [Int], models: [ExtrinsicBuiltModel])] = []
+            for try await result in taskGroup {
+                collected.append(result)
+            }
+            return collected
+        }
+
+        var models = [ExtrinsicBuiltModel?](repeating: nil, count: requests.count)
+        for entry in built {
+            for (position, requestIndex) in entry.indices.enumerated() {
+                models[requestIndex] = entry.models[position]
             }
         }
 
@@ -225,6 +235,24 @@ private extension CoinageTxService {
             guard let model else { throw TransferStrategyError.submissionFailed(CancellationError()) }
             return model
         }
+    }
+
+    /// Builds one same-origin group's extrinsics in a single indexed call, so their nonces are
+    /// sequential — required for dependent transactions where one spends another's output.
+    func buildGroup(_ group: [Int], of requests: [CoinageTxRequest]) async throws -> [ExtrinsicBuiltModel] {
+        logger?.debug("Building \(group.count) extrinsic(s)")
+        let built = try await operationFactory.buildExtrinsics(
+            { builder, index in try requests[group[index]].builder(builder) },
+            origin: requests[group[0]].origin,
+            payingIn: nil,
+            indexes: IndexSet(0 ..< group.count)
+        ).asyncExecute()
+        logger?.debug("Built \(built.count) extrinsic(s)")
+
+        guard built.count == group.count else {
+            throw TransferStrategyError.submissionFailed(CancellationError())
+        }
+        return built
     }
 
     /// Groups request indices by the identity of their signing `origin`, preserving first-seen and
