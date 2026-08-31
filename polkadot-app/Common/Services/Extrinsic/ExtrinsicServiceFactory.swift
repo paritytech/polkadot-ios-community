@@ -16,7 +16,10 @@ protocol ExtrinsicServiceCreating: ExtrinsicServiceFactoryProtocol {
 
     func createOperationFactory(chain: ChainProtocol) throws -> ExtrinsicOperationFactoryProtocol
 
-    func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting
+    func makeForkProtectedSubmitter(
+        chain: ChainProtocol,
+        trackingTill: ExtrinsicTrackingTill
+    ) throws -> ExtrinsicSubmitting
 }
 
 final class ExtrinsicServiceFactory {
@@ -151,7 +154,10 @@ extension ExtrinsicServiceFactory {
         extensionVersionProvider.getExtensionVersion(for: extrinsicVersion, chainId: chain.chainId)
     }
 
-    func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {
+    func makeForkProtectedSubmitter(
+        chain: ChainProtocol,
+        trackingTill: ExtrinsicTrackingTill = .inBlock
+    ) throws -> ExtrinsicSubmitting {
         let base = try DefaultExtrinsicSubmitter(
             operationFactory: createOperationFactory(chain: chain),
             operationQueue: operationQueue,
@@ -164,6 +170,7 @@ extension ExtrinsicServiceFactory {
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
             maxAttempts: 10,
+            trackingTill: trackingTill,
             logger: logger
         )
     }

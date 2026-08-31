@@ -123,10 +123,18 @@ extension CoinageTxService: CoinageTxServicing {
     ) async throws -> [CoinageTxId] {
         // Build every extrinsic before registering any, so a build failure aborts before a single
         // extrinsic is broadcast. The batch then registers atomically; only then is each tracked.
+
+        logger?.debug("Building requests: \(requests.count) groupId: \(String(describing: groupId))")
+
         let models = try await buildModels(requests)
+
+        logger?.debug("Registering requests: \(requests.count) groupId: \(String(describing: groupId))")
+
         let registrations = try buildRegistrations(requests, models: models, groupId: groupId)
 
         let ids = try await registrar.register(registrations)
+
+        logger?.debug("Starting tracking requests")
 
         for (id, model) in zip(ids, models) {
             track(model, transactionId: id)

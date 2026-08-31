@@ -6,6 +6,7 @@ import FoundationExt
 import SubstrateOperation
 import ChainRegistry
 import BackgroundExecution
+import ExtrinsicService
 
 extension ServiceCoordinator {
     struct CoinageServices {
@@ -156,7 +157,12 @@ private extension ServiceCoordinator {
 
         guard
             let extrinsicOperationFactory = try? extrinsicMonitorFacade.createOperationFactory(chain: chain),
-            let extrinsicSubmitter = try? extrinsicMonitorFacade.makeForkProtectedSubmitter(chain: chain)
+            // Durability must observe the finalized outcome, not just inclusion, so the watch
+            // follows each extrinsic until its block is finalized.
+            let extrinsicSubmitter = try? extrinsicMonitorFacade.makeForkProtectedSubmitter(
+                chain: chain,
+                trackingTill: .finalized
+            )
         else {
             logger.error("Failed to create extrinsic operation factory / submitter for coinage")
             return nil

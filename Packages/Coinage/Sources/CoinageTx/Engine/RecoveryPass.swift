@@ -62,6 +62,8 @@ actor RecoveryPass {
 
 private extension RecoveryPass {
     func performPass() async throws {
+        logger?.debug("Starting recovery pass")
+
         let dag = try await loadDag()
         let decidable = dag.entries.filter { $0.status.isLive && !watched.isWatched($0.id) }
 
@@ -69,7 +71,12 @@ private extension RecoveryPass {
         // pass ends before pinning a view, which would be a chain read with nothing to read it for.
         guard !decidable.isEmpty else { return }
 
+        logger?.debug("Found needs to be decided: \(decidable.count)")
+
         let view = try await chainFactory.pin()
+
+        logger?.debug("Pinning view at finalized: \(view.finalizedHead.number) \(view.finalizedHead.hash.toHex())")
+        logger?.debug("Pinning view at best: \(view.bestHead.number) \(view.bestHead.hash.toHex())")
 
         var written = 0
         for entry in decidable {
@@ -79,10 +86,17 @@ private extension RecoveryPass {
             }
         }
 
+        logger?.debug("Updated \(written) entries")
+
         // Propagation reads statuses, so it needs the ones this pass just wrote: an entry promoted
         // above is exactly the successor that lets its predecessor be promoted too.
         let propagationDag = written > 0 ? try await loadDag() : dag
+
+        logger?.debug("Propagating...")
+
         try await propagate(propagationDag)
+
+        logger?.debug("Propagated")
     }
 
     func loadDag() async throws -> CoinageEntryDag {
@@ -127,6 +141,7 @@ private extension RecoveryPass {
             return false
         }
         do {
+            logger?.debug("Updating status: \(verdict.status) transaction: \(entry.id)")
             return try await store.updateTxStatus(
                 for: entry.id,
                 expectedCurrentStatus: entry.status,

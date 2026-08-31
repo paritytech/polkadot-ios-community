@@ -84,8 +84,8 @@ private extension CoinageTxTracker {
     func runFollow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
         do {
             try await backgroundExecutor.execute {
-                try await markStallActivity("Coinage submission") {
-                    try await markStallRegion("Track extrinsic") {
+                await markStallActivity("Coinage submission") {
+                    await markStallRegion("Track extrinsic") {
                         await self.follow(model: model, transactionId: transactionId)
                     }
                 }
@@ -104,10 +104,17 @@ private extension CoinageTxTracker {
     }
 
     func follow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
+        guard let view = try? await chainFactory.pin() else {
+            logger?.debug("Couldn't pin view for submission watch")
+            return
+        }
+
         // A buffered channel the submitter's callbacks feed. `send`/`finish` are non-blocking;
         // `next()` is cancellation-safe, so a timed-out receive drops no buffered element.
         let events = AsyncBufferedChannel<TrackEvent>()
         let subscriptionId = OSAllocatedUnfairLock<UInt16?>(initialState: nil)
+
+        logger?.debug("Submitting transaction: \(transactionId)")
 
         submitter.submitAndSubscribe(
             builtExtrinsic: model,
@@ -132,8 +139,19 @@ private extension CoinageTxTracker {
         let iterator = events.makeAsyncIterator()
         while true {
             let received = try? await withTimeout(Self.silenceTimeout) { await iterator.next() }
-            guard let event = received.flatMap({ $0 }) else { break }
-            if await handle(event, transactionId: transactionId) { break }
+            guard let event = received.flatMap({ $0 }) else {
+                logger?.warning("Transaction tracking timeout: \(transactionId)")
+                break
+            }
+
+            logger?.debug("New event is proposed: \(transactionId)")
+
+            let isComplete = await handle(event, transactionId: transactionId, using: view)
+
+            if isComplete {
+                logger?.debug("Terminal event for: \(transactionId)")
+                break
+            }
         }
         events.finish()
 
@@ -145,7 +163,13 @@ private extension CoinageTxTracker {
     }
 
     /// Maps one event onto a proposed verdict. Returns true when the entry is done being watched.
-    func handle(_ event: TrackEvent, transactionId id: CoinageTxId) async -> Bool {
+    func handle(
+        _ event: TrackEvent,
+        transactionId id: CoinageTxId,
+        using view: CoinageChainViewProtocol
+    ) async -> Bool {
+        logger?.debug("Handling event: \(event) transaction: \(id)")
+
         guard case let .status(update) = event else {
             // A pre-submission validation failure can never be included, so it is finalized-grade
             // evidence of failure without waiting for finality.
@@ -167,7 +191,7 @@ private extension CoinageTxTracker {
             return false
 
         case let .inBlock(blockHash):
-            await handleInBlock(blockHash: blockHash, entryId: id)
+            await handleInBlock(blockHash: blockHash, entryId: id, using: view)
             return false
 
         case let .retracted(blockHash):
@@ -175,7 +199,7 @@ private extension CoinageTxTracker {
             return false
 
         case let .finalized(blockHash):
-            await handleFinalized(blockHash: blockHash, entryId: id)
+            await handleFinalized(blockHash: blockHash, entryId: id, using: view)
             return true
 
         case .dropped,
@@ -195,18 +219,31 @@ private extension CoinageTxTracker {
 private extension CoinageTxTracker {
     /// Not finalized, so a terminal verdict must not rest on it: success is recorded as
     /// `pendingSuccess` for the pass to finalize; a failure here proposes nothing.
-    func handleInBlock(blockHash: String, entryId: CoinageTxId) async {
-        guard let block = await blockOf(blockHash),
-              case .present(true) = await dispatchOutcome(blockHash: blockHash, entryId: entryId)
-        else { return }
+    func handleInBlock(
+        blockHash: String,
+        entryId: CoinageTxId,
+        using view: CoinageChainViewProtocol
+    ) async {
+        guard let block = await blockOf(blockHash, using: view) else {
+            return
+        }
 
-        await propose(entryId, Verdict(status: .pendingSuccess, successDetectedAt: block))
+        let outcome = await dispatchOutcome(blockHash: blockHash, entryId: entryId, using: view)
+
+        switch outcome {
+        case .present(true):
+            await propose(entryId, Verdict(status: .pendingSuccess, successDetectedAt: block))
+        case .present(false),
+             .absent,
+             .failedRead:
+            break
+        }
     }
 
-    func handleFinalized(blockHash: String, entryId: CoinageTxId) async {
-        switch await dispatchOutcome(blockHash: blockHash, entryId: entryId) {
+    func handleFinalized(blockHash: String, entryId: CoinageTxId, using view: CoinageChainViewProtocol) async {
+        switch await dispatchOutcome(blockHash: blockHash, entryId: entryId, using: view) {
         case .present(true):
-            let block = await blockOf(blockHash)
+            let block = await blockOf(blockHash, using: view)
             await propose(entryId, Verdict(status: .finalizedSuccess, successDetectedAt: block))
         case .present(false):
             await propose(entryId, Verdict(status: .failure, successDetectedAt: nil))
@@ -235,25 +272,28 @@ private extension CoinageTxTracker {
         guard let observed = try? await store.getStatus(id), observed.isLive else { return }
 
         do {
+            logger?.debug("Proposing \(verdict.status) for id: \(id)")
             try await store.updateTxStatus(for: id, expectedCurrentStatus: observed, verdict: verdict)
         } catch {
             logger?.error("Proposal write failed for \(id) to \(verdict.status): \(error)")
         }
     }
 
-    func dispatchOutcome(blockHash: String, entryId: CoinageTxId) async -> ReadResult<Bool> {
-        guard let entry = try? await store.getEntry(id: entryId),
-              let block = await blockOf(blockHash),
-              let view = try? await chainFactory.pin()
+    func dispatchOutcome(
+        blockHash: String,
+        entryId: CoinageTxId,
+        using view: CoinageChainViewProtocol
+    ) async -> ReadResult<Bool> {
+        guard
+            let entry = try? await store.getEntry(id: entryId),
+            let block = await blockOf(blockHash, using: view)
         else { return .failedRead }
 
         return await view.dispatchOutcome(txHash: entry.txHash, at: block)
     }
 
-    func blockOf(_ blockHash: String) async -> BlockRef? {
-        guard let hash = try? Data(hexString: blockHash),
-              let view = try? await chainFactory.pin()
-        else { return nil }
+    func blockOf(_ blockHash: String, using view: CoinageChainViewProtocol) async -> BlockRef? {
+        guard let hash = try? Data(hexString: blockHash) else { return nil }
         return await view.blockRef(forHash: hash).value
     }
 }

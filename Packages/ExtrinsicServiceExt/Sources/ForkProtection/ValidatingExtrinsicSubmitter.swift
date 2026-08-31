@@ -11,6 +11,10 @@ public final class ValidatingExtrinsicSubmitter: @unchecked Sendable {
     private let recovery: ExtrinsicSubmissionRecovering
     private let blockInfoProvider: BlockInfoProviding
     private let chainId: ChainId
+    /// How far the watch follows before treating a status as terminal. `.inBlock` completes on
+    /// inclusion; `.finalized` keeps forwarding `inBlock` and completes only on finality — required
+    /// by callers (e.g. coinage durability) that must observe the finalized outcome.
+    private let trackingTill: ExtrinsicTrackingTill
     private let logger: SDKLoggerProtocol?
 
     private let registry = WatchHandleRegistry()
@@ -21,6 +25,7 @@ public final class ValidatingExtrinsicSubmitter: @unchecked Sendable {
         recovery: ExtrinsicSubmissionRecovering,
         blockInfoProvider: BlockInfoProviding,
         chainId: ChainId,
+        trackingTill: ExtrinsicTrackingTill = .inBlock,
         logger: SDKLoggerProtocol?
     ) {
         self.base = base
@@ -28,6 +33,7 @@ public final class ValidatingExtrinsicSubmitter: @unchecked Sendable {
         self.recovery = recovery
         self.blockInfoProvider = blockInfoProvider
         self.chainId = chainId
+        self.trackingTill = trackingTill
         self.logger = logger
     }
 }
@@ -215,7 +221,9 @@ private extension ValidatingExtrinsicSubmitter {
         switch result {
         case let .success(model):
             let update = model.statusUpdate
-            if update.getInBlockOrFinalizedHash() != nil {
+            // In `.finalized` mode an `inBlock` update is not terminal: it is forwarded below and the
+            // watch keeps running until the block is finalized.
+            if update.getTerminalBlockHash(trackingTill: trackingTill) != nil {
                 return .terminal(result)
             }
 
