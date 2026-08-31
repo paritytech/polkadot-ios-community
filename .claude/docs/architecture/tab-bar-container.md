@@ -148,7 +148,18 @@ Panel state is now `TabBarBottomChromeController.openPanel: TabBarPanelKind?` (`
 
 Content ownership: `MainTabBarPresenter` pushes a configuration through `MainTabBarViewProtocol.showTabBarPanelContent(_:)`; the view controller builds the `DSTabBarTrailingSlot` (SF Symbol `point.3.connected.trianglepath.dotted`, label from `TabBarTrailingSlot`) and calls `chromeController.setTrailingPanel(slot:content:)`. No configuration means no trailing unit at all and the row reflows — same treatment the centre slot gets when `spaTabCount` crosses 0.
 
-**Placeholder state:** the shipped configuration is `TabBarPanelPlaceholderContentConfiguration` — an explicit placeholder. This is temporary and should be replaced with real content.
+**Shipped content — chain connection status.** The panel holds one row per `ChainConnectionTarget` (chat, bulletin, assethub): a state dot, the chain name, and a localized state title, rendered by `ChainConnectionStatusView` in `PolkadotUI`.
+
+`MainTabBarInteractor` owns two subscriptions per launch:
+
+- one `NetworkStatusObserver` per target (`statusStream(for:)` on the shared `NetworkStatusService`, which de-duplicates registry subscriptions internally — do not add a per-chain API);
+- `chainRegistry.chainsSubscribe` for the names. This one is load-bearing: the status stream applies `removeDuplicates()`, so a chain that reaches `.connected` before the registry loads emits exactly once and the row would keep its fallback title forever. `chainsUnsubscribe(self)` in `deinit` is required — that subscription is registry-held.
+
+All targets are seeded to `.connecting` and pushed once during `setup()`, so the first render carries three complete rows and the trailing button exists from launch instead of popping in.
+
+`NetworkStatus` stays app-side; `PolkadotUI` has its own `ChainConnectionState` and the presenter maps between them. Each update pushes a **fresh** configuration — a shared observable view model would mutate without calling `setTrailingPanel`, leaving the glass container's measured panel height stale.
+
+`waitingForNetwork` is global rather than per-chain, so a dropped device path takes all three rows offline together.
 
 ## SPA Hosting
 

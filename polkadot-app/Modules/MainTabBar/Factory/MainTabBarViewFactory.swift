@@ -43,8 +43,14 @@ enum MainTabBarViewFactory {
 
         let mnemonicBackupHelper = MnemonicBackupHelper()
         let browserCoordinator = createBrowserCoordinator(flowStateProvider: flowStateProvider)
+        let chainStatusProvider = ChainStatusProvider(
+            networkStatusService: serviceCoordinator.networkStatusService,
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            logger: Logger.shared
+        )
         let interactor = MainTabBarInteractor(
             serviceCoordinator: serviceCoordinator,
+            chainStatusProvider: chainStatusProvider,
             userNotificationService: userNotificationService,
             urlHandlingService: urlHandler,
             deferredLinkHandler: deepLinkHandling,

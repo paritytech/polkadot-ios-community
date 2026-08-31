@@ -32,6 +32,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didRemoveWidget(for extensionId: ChatExtension.Id)
     func didReceivePolkadotSignInRequest(with url: URL)
     func didReceiveSPATabs(_ tabs: [SPATab])
+    func didReceiveChainStatus(_ configuration: any HashableContentConfiguration)
 }
 
 @MainActor

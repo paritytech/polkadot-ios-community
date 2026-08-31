@@ -33,9 +33,6 @@ final class MainTabBarPresenter {
 extension MainTabBarPresenter: MainTabBarPresenterProtocol {
     func setup() {
         interactor.setup()
-        #if !FEATURE_PRODUCTS
-            view?.showTabBarPanelContent(SwiftUIContentConfiguration(view: TabBarPanelPlaceholderView()))
-        #endif
     }
 
     func configureViews() {
@@ -74,5 +71,11 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
     func didReceiveSPATabs(_ tabs: [SPATab]) {
         view?.showSPATabs(chipViewModelFactory.createViewModels(for: tabs))
+    }
+
+    func didReceiveChainStatus(_ configuration: any HashableContentConfiguration) {
+        #if !FEATURE_PRODUCTS
+            view?.showTabBarPanelContent(configuration)
+        #endif
     }
 }
