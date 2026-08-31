@@ -8,15 +8,6 @@ import os
 
 /// The durability subsystem's public face.
 public protocol CoinageTxServicing: Sendable {
-    /// Registers one transaction and starts tracking its extrinsic in the background, returning the
-    /// entry's id as soon as it is committed — so the inputs are claimed before this returns, but
-    /// the caller does not wait for inclusion. `groupId` labels the operation that registered it
-    /// (e.g. a transfer's message id), or `nil` when ungrouped. Status is resolved by the tracker
-    /// and the recovery pass; a caller that must await the outcome observes it via
-    /// ``subscribeTransactionStatus(_:)``.
-    @discardableResult
-    func submitTransaction(request: CoinageTxRequest, groupId: CoinageTxGroupId?) async throws -> CoinageTxId
-
     /// Registers several transactions atomically under one `groupId` — all commit or none do — then
     /// tracks each. Returns their ids in request order. A within-batch conflict rejects the whole
     /// batch and nothing is registered.
@@ -51,6 +42,25 @@ public protocol CoinageTxServicing: Sendable {
 
     /// Clears the reservations of payments that never became durable. Runs once, on launch.
     func releaseUncommittedHandoffs() async throws
+}
+
+public extension CoinageTxServicing {
+    /// Registers one transaction and starts tracking its extrinsic in the background, returning the
+    /// entry's id as soon as it is committed — so the inputs are claimed before this returns, but
+    /// the caller does not wait for inclusion. `groupId` labels the operation that registered it
+    /// (e.g. a transfer's message id), or `nil` when ungrouped. Status is resolved by the tracker
+    /// and the recovery pass; a caller that must await the outcome observes it via
+    /// ``subscribeTransactionStatus(_:)``.
+    ///
+    /// The one-request case of ``submitTransactions(_:groupId:)``.
+    @discardableResult
+    func submitTransaction(request: CoinageTxRequest, groupId: CoinageTxGroupId?) async throws -> CoinageTxId {
+        let ids = try await submitTransactions([request], groupId: groupId)
+        guard let id = ids.first else {
+            throw TransferStrategyError.submissionFailed(CancellationError())
+        }
+        return id
+    }
 }
 
 /// Owns the entry set and everything that reads or writes it.
@@ -93,29 +103,6 @@ public final class CoinageTxService: @unchecked Sendable {
 // MARK: - CoinageTxServicing
 
 extension CoinageTxService: CoinageTxServicing {
-    @discardableResult
-    public func submitTransaction(
-        request: CoinageTxRequest,
-        groupId: CoinageTxGroupId?
-    ) async throws -> CoinageTxId {
-        // The extrinsic is built and signed up-front, so its hash is known before registration and
-        // the entry carries it. Registration commits and takes ownership before anything is
-        // broadcast, so an extrinsic can never exist without an entry describing what it consumes.
-        // Tracking then runs in the background; a submission that never resolves is finished by the
-        // recovery pass at mortality.
-        let models = try await buildModels([request])
-        let registrations = try buildRegistrations([request], models: models, groupId: groupId)
-
-        let ids = try await registrar.register(registrations)
-        guard let id = ids.first, let model = models.first else {
-            throw TransferStrategyError.submissionFailed(CancellationError())
-        }
-
-        track(model, transactionId: id)
-
-        return id
-    }
-
     @discardableResult
     public func submitTransactions(
         _ requests: [CoinageTxRequest],

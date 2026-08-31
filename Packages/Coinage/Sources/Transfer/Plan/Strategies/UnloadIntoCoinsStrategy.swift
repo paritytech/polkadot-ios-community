@@ -19,7 +19,7 @@ struct UnloadIntoCoinsStrategy {
     private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let recyclerLoader: RecyclerReadinessLoading
-    private let durability: any CoinageTxServicing
+    private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockInfoProvider: any BlockInfoProviding
     private let currentDate: Date
@@ -31,7 +31,7 @@ struct UnloadIntoCoinsStrategy {
         minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         recyclerLoader: RecyclerReadinessLoading,
-        durability: any CoinageTxServicing,
+        txService: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockInfoProvider: any BlockInfoProviding,
         currentDate: Date,
@@ -42,7 +42,7 @@ struct UnloadIntoCoinsStrategy {
         self.minter = minter
         self.voucherKeyFactory = voucherKeyFactory
         self.recyclerLoader = recyclerLoader
-        self.durability = durability
+        self.txService = txService
         self.originFactory = originFactory
         self.blockInfoProvider = blockInfoProvider
         self.currentDate = currentDate
@@ -87,7 +87,7 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // tracked in the background. A within-batch conflict rejects the whole transfer, so no
         // group's vouchers are claimed without the others. The projection writes below follow.
         logger?.info("Submitting \(requests.count) unload extrinsics for \(allVouchers.count) vouchers")
-        try await durability.submitTransactions(
+        try await txService.submitTransactions(
             requests.map {
                 CoinageTxRequest(inputs: $0.inputs, outputs: $0.outputs, builder: $0.builder, origin: $0.origin)
             },
@@ -97,7 +97,7 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // Ready coins need no submission; every group's recipient coins leave to the peer. Change
         // coins stay ours. All pre-committed before the memo can leave.
         let handedOff = readyCoins + realizedGroups.flatMap(\.recipientCoins)
-        let handoffCommit = try await durability
+        let handoffCommit = try await txService
             .preCommitHandoff(handedOff.map { .coin($0.derivationIndex, $0.publicKey) })
 
         var memoEntries = readyCoins.map {

@@ -53,11 +53,6 @@ actor MockCoinageTxService: CoinageTxServicing {
     }
 
     @discardableResult
-    func submitTransaction(request: CoinageTxRequest, groupId _: CoinageTxGroupId?) async throws -> CoinageTxId {
-        try await recordSubmission(request)
-    }
-
-    @discardableResult
     func submitTransactions(
         _ requests: [CoinageTxRequest],
         groupId _: CoinageTxGroupId?

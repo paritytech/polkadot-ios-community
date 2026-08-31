@@ -279,8 +279,12 @@ private extension ValidatingExtrinsicSubmitter {
 
 // MARK: - Errors
 
-private struct PreSubmissionValidationFailedError: LocalizedError {
-    var errorDescription: String? { "Extrinsic failed pre-submission validation" }
+/// Raised when the submitter refuses to broadcast an extrinsic because it failed pre-submission
+/// validation — the bytes never reached the node. Public so a tracker can distinguish this
+/// never-broadcast failure from a post-broadcast pool error and decide a terminal outcome safely.
+public struct PreSubmissionValidationFailedError: LocalizedError {
+    public init() {}
+    public var errorDescription: String? { "Extrinsic failed pre-submission validation" }
 }
 
 private struct NoAvailableHandleError: LocalizedError {

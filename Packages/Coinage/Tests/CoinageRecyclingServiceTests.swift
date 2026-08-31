@@ -141,7 +141,7 @@ private extension CoinageRecyclingServiceTests {
             voucherMinter: StubVoucherMinter(error: minterError),
             coinKeypairFactory: StubCoinKeyFactory(),
             voucherKeypairFactory: StubVoucherKeyFactory(),
-            durability: durabilityService,
+            txService: durabilityService,
             originFactory: StubOriginFactory(),
             logger: StubLogger(),
             backgroundRecyclingInterval: backgroundRecyclingInterval,

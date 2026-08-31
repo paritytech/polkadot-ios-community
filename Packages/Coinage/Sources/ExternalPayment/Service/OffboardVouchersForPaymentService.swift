@@ -20,7 +20,7 @@ final class OffboardVouchersForPaymentService {
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
-    private let durability: any CoinageTxServicing
+    private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
     private let denominationContext: DenominationBreakdownContext
@@ -30,7 +30,7 @@ final class OffboardVouchersForPaymentService {
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
-        durability: any CoinageTxServicing,
+        txService: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
         denominationContext: DenominationBreakdownContext,
@@ -39,7 +39,7 @@ final class OffboardVouchersForPaymentService {
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
-        self.durability = durability
+        self.txService = txService
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
         self.denominationContext = denominationContext
@@ -138,12 +138,12 @@ private extension OffboardVouchersForPaymentService {
             throw OffboardVouchersForPaymentError.submissionFailed(errors)
         }
 
-        durability.startRecoveryPass()
+        txService.startRecoveryPass()
     }
 
     /// Awaits an entry's terminal status: returns on `finalizedSuccess`, throws on `failure`.
     func awaitOutcome(of id: CoinageTxId) async throws {
-        for try await status in durability.subscribeTransactionStatus(id) {
+        for try await status in txService.subscribeTransactionStatus(id) {
             switch status {
             case .finalizedSuccess:
                 return
@@ -254,7 +254,7 @@ private extension OffboardVouchersForPaymentService {
 
         let key = submission.details.group.key
 
-        let id = try await durability.submitTransaction(
+        let id = try await txService.submitTransaction(
             request: CoinageTxRequest(
                 inputs: submission.details.group.vouchers.map { .recyclerVoucher($0.derivationIndex, $0.publicKey) },
                 outputs: submission.details.surplusVouchers

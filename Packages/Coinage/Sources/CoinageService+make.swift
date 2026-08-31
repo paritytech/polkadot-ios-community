@@ -252,7 +252,7 @@ public extension CoinageService {
             voucherMinter: coinageMinter,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
-            durability: durabilityService,
+            txService: durabilityService,
             originFactory: originFactory,
             logger: logger,
             backgroundRecyclingInterval: backgroundRecyclingInterval,

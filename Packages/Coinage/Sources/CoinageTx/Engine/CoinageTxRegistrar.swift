@@ -64,12 +64,6 @@ public struct CoinageTxRegistrar {
         }
         return StoreHandoffCommit(assets: assets, store: store)
     }
-
-    /// Releases ownership of an entry that was registered but will never be submitted. One-shot,
-    /// like every release: `CoinageTrackingTxSet.release` reports whether it did anything.
-    public func abandon(_ id: CoinageTxId) {
-        watched.release(id)
-    }
 }
 
 /// Collects the ids `onCommit` mints so ownership can be handed back if the transaction rolls back.

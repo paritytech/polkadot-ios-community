@@ -20,7 +20,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
             voucherKeyFactory: factory.voucherKeyFactory,
             voucherMinter: factory.voucherMinter,
             recyclerLoader: factory.recyclerLoader,
-            durability: factory.durability,
+            txService: factory.durability,
             originFactory: factory.originFactory,
             blockNumberProvider: factory.blockNumberProvider,
             denominationContext: factory.context,

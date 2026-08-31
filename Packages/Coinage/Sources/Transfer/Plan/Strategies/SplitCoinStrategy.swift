@@ -21,7 +21,7 @@ struct SplitCoinStrategy {
     private let changeDenominations: [Denomination]
     private let minter: any CoinMinting
     private let coinKeyFactory: any CoinKeyDeriving
-    private let durability: any CoinageTxServicing
+    private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let logger: SDKLoggerProtocol?
 
@@ -32,7 +32,7 @@ struct SplitCoinStrategy {
         changeDenominations: [Denomination],
         minter: any CoinMinting,
         coinKeyFactory: any CoinKeyDeriving,
-        durability: any CoinageTxServicing,
+        txService: any CoinageTxServicing,
         originFactory: OriginCreating,
         logger: SDKLoggerProtocol?
     ) {
@@ -42,7 +42,7 @@ struct SplitCoinStrategy {
         self.changeDenominations = changeDenominations
         self.minter = minter
         self.coinKeyFactory = coinKeyFactory
-        self.durability = durability
+        self.txService = txService
         self.originFactory = originFactory
         self.logger = logger
     }
@@ -77,7 +77,7 @@ extension SplitCoinStrategy: TransferStrategy {
         // One fire-and-forget submit: registers (claiming the input) and broadcasts, returning once
         // the entry is committed. The projection writes below follow, explained by that entry.
         logger?.debug("Submitting split extrinsic for \(assets.outputCoins.count) coins")
-        try await durability.submitTransaction(
+        try await txService.submitTransaction(
             request: CoinageTxRequest(
                 inputs: assets.inputs,
                 outputs: assets.outputs,
@@ -87,7 +87,7 @@ extension SplitCoinStrategy: TransferStrategy {
             groupId: groupId
         )
 
-        let handoffCommit = try await durability
+        let handoffCommit = try await txService
             .preCommitHandoff(assets.handedOff.map { .coin($0.derivationIndex, $0.publicKey) })
 
         var memoEntries = wholeCoins.map {

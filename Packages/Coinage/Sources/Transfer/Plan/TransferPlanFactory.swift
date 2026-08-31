@@ -65,7 +65,7 @@ extension TransferPlanFactory: TransferPlanCreating {
                 changeDenominations: changeDenominations,
                 minter: minter,
                 coinKeyFactory: coinKeyFactory,
-                durability: durability,
+                txService: durability,
                 originFactory: originFactory,
                 logger: logger
             ))
@@ -77,7 +77,7 @@ extension TransferPlanFactory: TransferPlanCreating {
                 minter: minter,
                 voucherKeyFactory: voucherKeyFactory,
                 recyclerLoader: recyclerLoader,
-                durability: durability,
+                txService: durability,
                 originFactory: originFactory,
                 blockInfoProvider: blockInfoProvider,
                 currentDate: currentDate,

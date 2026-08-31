@@ -1,6 +1,7 @@
 import AsyncExtensions
 import Foundation
 @preconcurrency import ExtrinsicService
+import ExtrinsicServiceExt
 import SubstrateSdk
 @preconcurrency import SDKLogger
 import BackgroundExecution
@@ -78,7 +79,7 @@ private extension CoinageTxTracker {
     /// after it declined to resubmit.
     enum TrackEvent {
         case status(ExtrinsicStatusUpdate)
-        case submissionFailed
+        case submissionFailed(Error)
     }
 
     func runFollow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
@@ -127,8 +128,8 @@ private extension CoinageTxTracker {
                 switch result {
                 case let .success(status):
                     events.send(.status(status.statusUpdate))
-                case .failure:
-                    events.send(.submissionFailed)
+                case let .failure(error):
+                    events.send(.submissionFailed(error))
                     events.finish()
                 }
             }
@@ -170,13 +171,34 @@ private extension CoinageTxTracker {
     ) async -> Bool {
         logger?.debug("Handling event: \(event) transaction: \(id)")
 
-        guard case let .status(update) = event else {
-            // A pre-submission validation failure can never be included, so it is finalized-grade
-            // evidence of failure without waiting for finality.
-            await propose(id, Verdict(status: .failure, successDetectedAt: nil))
-            return true
+        switch event {
+        case let .submissionFailed(error):
+            return await handleSubmissionFailed(id, error: error)
+        case let .status(update):
+            return await handleStatus(update, transactionId: id, using: view)
         }
+    }
 
+    /// `.submissionFailed` covers two situations that differ only in whether the bytes reached the
+    /// node. A `PreSubmissionValidationFailedError` means the submitter refused to broadcast — the
+    /// extrinsic was never sent, so its inputs are untouched and a terminal `FAILURE` is justified
+    /// immediately. Any other error is a submission/pool failure raised *after* the
+    /// bytes may already have reached the node, where the extrinsic can still be included: a terminal
+    /// `FAILURE` must rest on finalized evidence (spec — Justified failure), so we propose nothing and
+    /// let the recovery pass decide from chain state.
+    func handleSubmissionFailed(_ id: CoinageTxId, error: Error) async -> Bool {
+        if error is PreSubmissionValidationFailedError {
+            await propose(id, Verdict(status: .failure, successDetectedAt: nil))
+        }
+        return true
+    }
+
+    /// Maps a chain status update onto a proposed verdict. Returns true when watching is done.
+    func handleStatus(
+        _ update: ExtrinsicStatusUpdate,
+        transactionId id: CoinageTxId,
+        using view: CoinageChainViewProtocol
+    ) async -> Bool {
         guard case let .onChain(remote) = update.extrinsicStatus else {
             // `.created` carries no chain information.
             return false
