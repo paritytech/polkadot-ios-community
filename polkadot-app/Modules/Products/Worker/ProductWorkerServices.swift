@@ -24,7 +24,7 @@ final class ProductWorkerServices {
         workerManager = manager
         let service = ProductWorkerOperationService(
             workerManager: manager,
-            store: FileProductOperationStore()
+            store: CoreDataProductOperationStore()
         )
         service.resetForNewSession()
         operations = service

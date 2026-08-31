@@ -1,13 +1,24 @@
 import Foundation
 import os
+import Operation_iOS
 import Products
 
 /// A persisted keep-alive operation opened by a product's worker.
-struct ProductOperationRecord: Codable, Sendable, Equatable {
+struct ProductOperationRecord: Sendable, Equatable {
     let productId: ProductId
     let id: UInt32
     let label: String?
     let startedAt: Date
+}
+
+extension ProductOperationRecord: Operation_iOS.Identifiable {
+    /// Unique per product's open operation, and the primary key the repository
+    /// stores and deletes by.
+    var identifier: String { Self.identifier(productId: productId, id: id) }
+
+    static func identifier(productId: ProductId, id: UInt32) -> String {
+        "\(productId)-\(id)"
+    }
 }
 
 /// Persistence for open worker operations. A later interface will read these.
