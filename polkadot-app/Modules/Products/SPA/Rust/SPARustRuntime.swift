@@ -69,7 +69,7 @@ extension SPARustRuntime: SPARuntimeProtocol {
             }
 
         try checkNotDisposed()
-        let bootstrapScript = try executionModel.startBridge()
+        let bootstrapScript = try await executionModel.startBridge()
         let scriptsFactory = SPARustRuntimeScriptsFactory(bootstrapScript: bootstrapScript)
 
         // Camera/mic media capture (getUserMedia) is answered query-only from

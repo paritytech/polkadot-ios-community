@@ -45,6 +45,18 @@ struct TrUAPIReviewPromptMapperTests {
     }
 
     @Test
+    func mapsProductSubtreeToOwnAccountAccess() {
+        let request = mapper.makePermissionRequest(
+            from: ProductSubtreeReview(productId: "caller.dot")
+        )
+
+        #expect(request == TrUAPIPermissionRequest(
+            productId: "caller.dot",
+            permissions: [.accountAccess(targetProductId: "caller.dot")]
+        ))
+    }
+
+    @Test
     func mapsAccountAliasToContextProductAccountAccess() {
         let request = mapper.makePermissionRequest(from: AccountAliasReview(
             callingProductId: "caller.dot",

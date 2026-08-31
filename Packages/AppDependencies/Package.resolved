@@ -1,5 +1,5 @@
 {
-  "originHash" : "6856da62b18191661034847e3a1ae439c836040dd4cb559b7f2376f6b67e5a07",
+  "originHash" : "4002ca3fc6c9abac2c51a3cf0273b23be86f0ac042b388227332b0a3e1cefc0d",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "revision" : "ab87331d70ede9dc5415a56eb3712058941babf9",
-        "version" : "1.12.0"
+        "revision" : "8a3e236b22e47c1dbcc90627f409721575e40270",
+        "version" : "1.13.0"
       }
     },
     {
@@ -161,6 +161,15 @@
       "state" : {
         "revision" : "724a52eea6329b7e12d3ad8300d76ca9f3895fcc",
         "version" : "5.3.1"
+      }
+    },
+    {
+      "identity" : "host-rust-core",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/paritytech/host-rust-core",
+      "state" : {
+        "revision" : "7e0284cef81c4ca025d613428d02defd0f80b863",
+        "version" : "0.12.0"
       }
     },
     {
@@ -330,8 +339,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "0bcd757122dccd6bbc88cf87a0af4aa7018bf4ab",
-        "version" : "5.10.0"
+        "revision" : "6d01f4e470e7bd811e79a18c2cb1b3f084c79b55",
+        "version" : "5.11.0"
       }
     },
     {
@@ -546,8 +555,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/verifiable-swift",
       "state" : {
-        "revision" : "0ea7ffc9a166e913f7699fd83a30d4c156721f2b",
-        "version" : "0.6.0"
+        "revision" : "14fbbb8196e4ac4da72338f7e11738bc02ac368b",
+        "version" : "0.8.0"
       }
     },
     {

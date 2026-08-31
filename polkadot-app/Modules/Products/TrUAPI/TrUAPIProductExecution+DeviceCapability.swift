@@ -14,7 +14,7 @@ extension TrUAPIProductExecutionProtocol {
                 case .camera: .camera
                 case .microphone: .microphone
                 }
-            let status = try self.permissionAuthorizationStatus(request: .device(request))
+            let status = try await self.permissionAuthorizationStatus(request: .device(request))
             return status == .authorized ? .allowed : .denied
         }
     }
