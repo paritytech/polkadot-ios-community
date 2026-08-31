@@ -2076,6 +2076,14 @@
   var FeatureV1_request = Feature;
   var FeatureV1_response = CallResult(bool, GenericError);
 
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/locale.js
+  var HostLocale = Struct({
+    languageTag: str
+  });
+  var LocaleSubscribeV1_start = _void;
+  var LocaleSubscribeV1_receive = HostLocale;
+  var LocaleSubscribeV1_interrupt = _void;
+
   // node_modules/@novasamatech/host-api/dist/protocol/v1/remotePermission.js
   var RemotePermission = Enum2({
     Remote: Vector(str),
@@ -2086,6 +2094,21 @@
   });
   var RemotePermissionV1_request = RemotePermission;
   var RemotePermissionV1_response = CallResult(bool, GenericError);
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/system.js
+  var HostPlatform = Status("Web", "Android", "Ios", "Desktop", "Cli", "Unknown");
+  var HostInfo = Struct({
+    platform: HostPlatform,
+    name: str,
+    version: str
+  });
+  var HostInfoV1_request = _void;
+  var HostInfoV1_response = CallResult(HostInfo, GenericError);
+  var ProductContext = Struct({
+    productId: str
+  });
+  var GetProductContextV1_request = _void;
+  var GetProductContextV1_response = CallResult(ProductContext, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/theme.js
   var ThemeName = Enum2({
@@ -2363,12 +2386,26 @@
     host_account_ring_vrf_sign: versionedRequest(indexer.request(), {
       v1: [AccountRingVrfSignV1_request, AccountRingVrfSignV1_response]
     }),
-    // truapi places localStorage.subscribe at start_id = 174, which the running
-    // index reaches naturally once every preceding method is in place.
+    // truapi jumps from the ring-VRF block (…172) straight to request_id 190,
+    // leaving request_ids 174-188 unassigned. The prefix skips that gap so
+    // `get_product_context` lands on its truapi request_id 190.
+    host_get_product_context: versionedRequest(indexer.request(16), {
+      v1: [GetProductContextV1_request, GetProductContextV1_response]
+    }),
+    // truapi request_id 192.
+    host_info: versionedRequest(indexer.request(), {
+      v1: [HostInfoV1_request, HostInfoV1_response]
+    }),
+    // truapi start_id 194.
+    host_locale_subscribe: versionedSubscription(indexer.subscription(), {
+      v1: [LocaleSubscribeV1_start, LocaleSubscribeV1_receive, LocaleSubscribeV1_interrupt]
+    }),
+    // Not in truapi — SDK-only additions from the 0.10.0 release. They sit after
+    // every truapi-defined method so truapi keeps sole ownership of ids 0-197 and
+    // future truapi methods slot in without colliding with these.
     host_local_storage_subscribe: versionedSubscription(indexer.subscription(), {
       v1: [StorageSubscribeV1_start, StorageSubscribeV1_receive, StorageSubscribeV1_interrupt]
     }),
-    // Worker background-operation keep-alive (truapi request_id 178 / 180).
     host_worker_begin_operation: versionedRequest(indexer.request(), {
       v1: [WorkerBeginOperationV1_request, WorkerBeginOperationV1_response]
     }),
@@ -4032,6 +4069,8 @@
       };
       return slot.update(slotHandler);
     }
+    const handleGetProductContextSlot = makeUnsupportedSlot("host_get_product_context");
+    const handleInfoSlot = makeUnsupportedSlot("host_info");
     const handleGetUserIdSlot = makeUnsupportedSlot("host_get_user_id");
     const handleRequestLoginSlot = makeUnsupportedSlot("host_request_login");
     const handleAccountGetSlot = makeUnsupportedSlot("host_account_get");
@@ -4076,6 +4115,7 @@
     const handleCoinPaymentCreateReceivableSlot = makeUnsupportedSlot("host_coin_payment_create_receivable");
     const handleCoinPaymentCreateChequeSlot = makeUnsupportedSlot("host_coin_payment_create_cheque");
     const handleThemeSubscribeSlot = makeInterruptSlot("host_theme_subscribe", () => enumValue("v1", void 0));
+    const handleLocaleSubscribeSlot = makeInterruptSlot("host_locale_subscribe", () => enumValue("v1", void 0));
     const handleLocalStorageSubscribeSlot = makeInterruptSlot("host_local_storage_subscribe", () => enumValue("v1", void 0));
     const handleAccountConnectionStatusSubscribeSlot = makeInterruptSlot("host_account_connection_status_subscribe", () => enumValue("v1", void 0));
     const handleChatListSubscribeSlot = makeInterruptSlot("host_chat_list_subscribe", () => enumValue("v1", void 0));
@@ -4120,6 +4160,9 @@
       handleLocalStorageClear(handler) {
         return handleV1Request(handleLocalStorageClearSlot, handler);
       },
+      handleLocaleSubscribe(handler) {
+        return handleV1Subscription(handleLocaleSubscribeSlot, handler);
+      },
       handleThemeSubscribe(handler) {
         return handleV1Subscription(handleThemeSubscribeSlot, handler);
       },
@@ -4131,6 +4174,12 @@
       },
       handleWorkerEndOperation(handler) {
         return handleV1Request(handleWorkerEndOperationSlot, handler);
+      },
+      handleGetProductContext(handler) {
+        return handleV1Request(handleGetProductContextSlot, handler);
+      },
+      handleInfo(handler) {
+        return handleV1Request(handleInfoSlot, handler);
       },
       handleGetUserId(handler) {
         return handleV1Request(handleGetUserIdSlot, handler);
@@ -4550,42 +4599,53 @@
   function isBytes(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
   }
+  var atitle = (title) => title ? `"${title}" ` : "";
   function anumber(n, title = "") {
-    if (typeof n !== "number") {
-      const prefix = title && `"${title}" `;
-      throw new TypeError(`${prefix}expected number, got ${typeof n}`);
-    }
-    if (!Number.isSafeInteger(n) || n < 0) {
-      const prefix = title && `"${title}" `;
-      throw new RangeError(`${prefix}expected integer >= 0, got ${n}`);
-    }
+    if (typeof n !== "number")
+      throw new TypeError(atitle(title) + "expected number, got " + typeof n);
+    if (!Number.isSafeInteger(n) || n < 0)
+      throw new RangeError(atitle(title) + "expected integer >= 0, got " + n);
+    return n;
   }
   function abytes(value, length, title = "") {
+    if (isBytes(value) && (length === void 0 || value.length === length))
+      return value;
+    if (length !== void 0)
+      anumber(length, "length");
     const bytes = isBytes(value);
-    const len = value?.length;
-    const needsLen = length !== void 0;
-    if (!bytes || needsLen && len !== length) {
-      const prefix = title && `"${title}" `;
-      const ofLen = needsLen ? ` of length ${length}` : "";
-      const got = bytes ? `length=${len}` : `type=${typeof value}`;
-      const message = prefix + "expected Uint8Array" + ofLen + ", got " + got;
-      if (!bytes)
-        throw new TypeError(message);
-      throw new RangeError(message);
-    }
-    return value;
+    const ofLen = length !== void 0 ? ` of length ${length}` : "";
+    const got = bytes ? `length=${value.length}` : `type=${typeof value}`;
+    const message = atitle(title) + "expected Uint8Array" + ofLen + ", got " + got;
+    if (!bytes)
+      throw new TypeError(message);
+    throw new RangeError(message);
   }
+  function copyBytes(bytes) {
+    return Uint8Array.from(abytes(bytes));
+  }
+  var aobject = (value, label) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new TypeError((label === "object" ? "" : `"${label}" `) + "expected object, got type=" + typeof value);
+  };
+  var aopts = (value, label) => {
+    aobject(value, label);
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null)
+      throw new TypeError(`"${label}" expected plain object`);
+    if (Object.hasOwn(value, "__proto__"))
+      throw new TypeError(`"${label}.__proto__" is not allowed`);
+  };
   function aexists(instance, checkFinished = true) {
     if (instance.destroyed)
-      throw new Error("Hash instance has been destroyed");
+      throw new Error("hash was destroyed");
     if (checkFinished && instance.finished)
-      throw new Error("Hash#digest() has already been called");
+      throw new Error("digest() was already called");
   }
   function aoutput(out, instance) {
-    abytes(out, void 0, "digestInto() output");
+    abytes(out, void 0, "output");
     const min = instance.outputLen;
-    if (out.length < min) {
-      throw new RangeError('"digestInto() output" expected to be of length >=' + min);
+    if (!(out.length >= min)) {
+      throw new RangeError('"output" expected length >= ' + min);
     }
   }
   function u322(arr) {
@@ -4608,7 +4668,17 @@
     return arr;
   }
   var swap32IfBE = isLE ? (u) => u : byteSwap32;
+  function checkOpts(defaults, opts, title = "opts") {
+    aopts(defaults, "defaults");
+    if (opts !== void 0)
+      aopts(opts, title);
+    const merged = Object.assign(/* @__PURE__ */ Object.create(null), defaults, opts);
+    return merged;
+  }
   function createHasher(hashCons, info = {}) {
+    if (typeof hashCons !== "function")
+      throw new TypeError('"hashCons" expected function, got type=' + typeof hashCons);
+    info = checkOpts({}, info, "info");
     const hashC = (msg, opts) => hashCons(opts).update(msg).digest();
     const tmp = hashCons(void 0);
     hashC.outputLen = tmp.outputLen;
@@ -4881,13 +4951,8 @@
   ]);
 
   // node_modules/@noble/hashes/_u64.js
-  var U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
-  var _32n = /* @__PURE__ */ BigInt(32);
-  function fromBig(n, le = false) {
-    if (le)
-      return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
-    return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
-  }
+  var fromNumH = (n) => n / 2 ** 32 | 0;
+  var fromNumL = (n) => n >>> 0;
   var rotrSH = (h, l, s) => h >>> s | l << 32 - s;
   var rotrSL = (h, l, s) => h << 32 - s | l >>> s;
   var rotrBH = (h, l, s) => h << 64 - s | l >>> s - 32;
@@ -4927,18 +4992,25 @@
     let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
     let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
     let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
-    let ll = add3L(Al, Bl, Xl);
+    const ll = add3L(Al, Bl, Xl);
     Ah = add3H(ll, Ah, Bh, Xh);
     Al = ll | 0;
-    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
-    ({ Dh, Dl } = { Dh: rotr32H(Dh, Dl), Dl: rotr32L(Dh, Dl) });
+    let xh = Dh ^ Ah, xl = Dl ^ Al;
+    Dh = rotr32H(xh, xl);
+    Dl = rotr32L(xh, xl);
     ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
-    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
-    ({ Bh, Bl } = { Bh: rotrSH(Bh, Bl, 24), Bl: rotrSL(Bh, Bl, 24) });
-    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
-    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
-    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
-    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+    xh = Bh ^ Ch;
+    xl = Bl ^ Cl;
+    Bh = rotrSH(xh, xl, 24);
+    Bl = rotrSL(xh, xl, 24);
+    BBUF[2 * a] = Al;
+    BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl;
+    BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl;
+    BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl;
+    BBUF[2 * d + 1] = Dh;
   }
   function G2b(a, b, c, d, msg, x) {
     const Xl = msg[x], Xh = msg[x + 1];
@@ -4946,23 +5018,30 @@
     let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
     let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
     let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
-    let ll = add3L(Al, Bl, Xl);
+    const ll = add3L(Al, Bl, Xl);
     Ah = add3H(ll, Ah, Bh, Xh);
     Al = ll | 0;
-    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
-    ({ Dh, Dl } = { Dh: rotrSH(Dh, Dl, 16), Dl: rotrSL(Dh, Dl, 16) });
+    let xh = Dh ^ Ah, xl = Dl ^ Al;
+    Dh = rotrSH(xh, xl, 16);
+    Dl = rotrSL(xh, xl, 16);
     ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
-    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
-    ({ Bh, Bl } = { Bh: rotrBH(Bh, Bl, 63), Bl: rotrBL(Bh, Bl, 63) });
-    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
-    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
-    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
-    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+    xh = Bh ^ Ch;
+    xl = Bl ^ Cl;
+    Bh = rotrBH(xh, xl, 63);
+    Bl = rotrBL(xh, xl, 63);
+    BBUF[2 * a] = Al;
+    BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl;
+    BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl;
+    BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl;
+    BBUF[2 * d + 1] = Dh;
   }
   function checkBlake2Opts(outputLen, opts = {}, keyLen, saltLen, persLen) {
     anumber(keyLen);
     if (outputLen <= 0 || outputLen > keyLen)
-      throw new Error("outputLen bigger than keyLen");
+      throw new Error('"dkLen" must be 1..' + keyLen + ", got " + outputLen);
     const { key, salt, personalization } = opts;
     if (key !== void 0 && (key.length < 1 || key.length > keyLen))
       throw new Error('"key" expected to be undefined or of length=1..' + keyLen);
@@ -5015,7 +5094,7 @@
           swap32IfBE(data32);
           continue;
         }
-        buffer.set(data.subarray(pos, pos + take), this.pos);
+        buffer.set(pos === 0 && take === len ? data : data.subarray(pos, pos + take), this.pos);
         this.pos += take;
         this.length += take;
         pos += take;
@@ -5025,16 +5104,16 @@
     digestInto(out) {
       aexists(this);
       aoutput(out, this);
+      if (out.byteOffset & 3)
+        throw new RangeError('"output" expected 4-byte aligned byteOffset, got ' + out.byteOffset);
       const { pos, buffer32 } = this;
       this.finished = true;
-      clean(this.buffer.subarray(pos));
+      this.buffer.fill(0, pos);
       swap32IfBE(buffer32);
       this.compress(buffer32, 0, true);
       swap32IfBE(buffer32);
-      if (out.byteOffset & 3)
-        throw new RangeError('"digestInto() output" expected 4-byte aligned byteOffset, got ' + out.byteOffset);
       const state = this.get();
-      const out32 = u322(out);
+      const out32 = out === this.buffer ? buffer32 : u322(out);
       const full = Math.floor(this.outputLen / 4);
       for (let i = 0; i < full; i++)
         out32[i] = swap8IfBE(state[i]);
@@ -5071,6 +5150,7 @@
   };
   var _BLAKE2b = class extends _BLAKE2 {
     constructor(opts = {}) {
+      opts = checkOpts({}, opts);
       const olen = opts.dkLen === void 0 ? 64 : opts.dkLen;
       super(128, olen);
       // Same IV words as SHA-512 / BLAKE2b, encoded as LE u32 low/high halves.
@@ -5100,7 +5180,7 @@
       this.v0l ^= this.outputLen | keyLength << 8 | 1 << 16 | 1 << 24;
       if (salt !== void 0) {
         abytes(salt, void 0, "salt");
-        const slt = u322(salt);
+        const slt = u322(copyBytes(salt));
         this.v4l ^= swap8IfBE(slt[0]);
         this.v4h ^= swap8IfBE(slt[1]);
         this.v5l ^= swap8IfBE(slt[2]);
@@ -5108,7 +5188,7 @@
       }
       if (personalization !== void 0) {
         abytes(personalization, void 0, "personalization");
-        const pers = u322(personalization);
+        const pers = u322(copyBytes(personalization));
         this.v6l ^= swap8IfBE(pers[0]);
         this.v6h ^= swap8IfBE(pers[1]);
         this.v7l ^= swap8IfBE(pers[2]);
@@ -5118,6 +5198,7 @@
         const tmp = new Uint8Array(this.blockLen);
         tmp.set(key);
         this.update(tmp);
+        clean(tmp);
       }
     }
     // prettier-ignore
@@ -5145,9 +5226,28 @@
       this.v7h = v7h | 0;
     }
     compress(msg, offset, isLast) {
-      this.get().forEach((v, i) => BBUF[i] = v);
+      const { v0l, v0h, v1l, v1h, v2l, v2h, v3l, v3h, v4l, v4h, v5l, v5h, v6l, v6h, v7l, v7h } = this;
+      {
+        BBUF[0] = v0l;
+        BBUF[1] = v0h;
+        BBUF[2] = v1l;
+        BBUF[3] = v1h;
+        BBUF[4] = v2l;
+        BBUF[5] = v2h;
+        BBUF[6] = v3l;
+        BBUF[7] = v3h;
+        BBUF[8] = v4l;
+        BBUF[9] = v4h;
+        BBUF[10] = v5l;
+        BBUF[11] = v5h;
+        BBUF[12] = v6l;
+        BBUF[13] = v6h;
+        BBUF[14] = v7l;
+        BBUF[15] = v7h;
+      }
       BBUF.set(B2B_IV, 16);
-      let { h, l } = fromBig(BigInt(this.length));
+      const l = fromNumL(this.length);
+      const h = fromNumH(this.length);
       BBUF[24] = B2B_IV[8] ^ l;
       BBUF[25] = B2B_IV[9] ^ h;
       if (isLast) {
@@ -6456,6 +6556,11 @@
       (result) => send({ name: { tag: "Custom", value: result.name }, variant: result.variant }),
       () => send({ name: { tag: "Default", value: void 0 }, variant: "Dark" })
     );
+  });
+  container.handleLocaleSubscribe((_params, send, _interrupt) => {
+    return subscribeNative("localeSubscribe", {}, (result) => {
+      send({ languageTag: result.languageTag });
+    });
   });
   container.handleRequestLogin((_params, { ok: ok2 }) => {
     return ok2("alreadyConnected");

@@ -42,6 +42,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
     private let resourceKeyManager: ProductResourceKeyManaging
     private let sponsorFactory: TransactionSponsorMaking
     private let themeManager: ThemeManagerProtocol
+    private let localeProvider: LocaleProviding
     private let hostProvider: ProductHostProviding
     private let workerOperations: ProductWorkerOperating
     private let operationQueue: OperationQueue
@@ -62,6 +63,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         permissionRepository: ProductPermissionRepositoryProtocol = ProductPermissionRepository(),
         osPermissionAsker: OSPermissionAsking = OSPermissionAsker(),
         themeManager: ThemeManagerProtocol = ThemeManager.shared,
+        localeProvider: LocaleProviding = SystemLocaleProvider.shared,
         hostProvider: ProductHostProviding,
         workerOperations: ProductWorkerOperating,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
@@ -80,6 +82,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
         self.permissionRepository = permissionRepository
         self.osPermissionAsker = osPermissionAsker
         self.themeManager = themeManager
+        self.localeProvider = localeProvider
         self.hostProvider = hostProvider
         self.workerOperations = workerOperations
         self.operationQueue = operationQueue
@@ -123,6 +126,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             resourceKeyManager: resourceKeyManager,
             sponsorFactory: sponsorFactory,
             themeManager: themeManager,
+            localeProvider: localeProvider,
             hostProvider: hostProvider,
             workerOperations: workerOperations,
             operationQueue: operationQueue,

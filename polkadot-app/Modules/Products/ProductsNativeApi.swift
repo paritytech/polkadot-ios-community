@@ -33,6 +33,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let resourceKeyManager: ProductResourceKeyManaging
     let sponsorFactory: TransactionSponsorMaking
     let themeManager: ThemeManagerProtocol
+    let localeProvider: LocaleProviding
     let productId: ProductId
     let hostProvider: ProductHostProviding
     let workerOperations: ProductWorkerOperating
@@ -73,6 +74,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         resourceKeyManager: ProductResourceKeyManaging,
         sponsorFactory: TransactionSponsorMaking,
         themeManager: ThemeManagerProtocol,
+        localeProvider: LocaleProviding,
         hostProvider: ProductHostProviding,
         workerOperations: ProductWorkerOperating,
         operationQueue: OperationQueue,
@@ -99,6 +101,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.resourceKeyManager = resourceKeyManager
         self.sponsorFactory = sponsorFactory
         self.themeManager = themeManager
+        self.localeProvider = localeProvider
         self.hostProvider = hostProvider
         self.workerOperations = workerOperations
         self.operationQueue = operationQueue

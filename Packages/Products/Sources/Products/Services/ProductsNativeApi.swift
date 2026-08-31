@@ -89,6 +89,10 @@ public protocol ProductsNativeApiProtocol: AnyObject {
 
     // Theme
     func subscribeTheme() async -> AnyAsyncSequence<ProductTheme>
+
+    /// Emits the language the host presents its interface in as a BCP 47 tag,
+    /// once on subscribe and again on every change.
+    func subscribeLocale() -> AnyAsyncSequence<String>
 }
 
 // MARK: - Account

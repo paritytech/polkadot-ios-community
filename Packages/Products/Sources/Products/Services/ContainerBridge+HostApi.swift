@@ -75,6 +75,7 @@ public extension ContainerBridge {
         registerDeriveEntropy(nativeApi: nativeApi)
         registerRequestResourceAllocation(nativeApi: nativeApi)
         registerThemeSubscribe(nativeApi: nativeApi)
+        registerLocaleSubscribe(nativeApi: nativeApi)
     }
 }
 
@@ -89,6 +90,20 @@ private extension ContainerBridge {
                         "name": .stringValue(theme.name),
                         "variant": .stringValue(theme.variant.rawValue)
                     ])
+                }
+                .eraseToAnyAsyncSequence()
+        }
+    }
+}
+
+// MARK: - Locale
+
+private extension ContainerBridge {
+    func registerLocaleSubscribe(nativeApi: ProductsNativeApiProtocol) {
+        registerSubscriptionHandler(method: "localeSubscribe") { _ in
+            nativeApi.subscribeLocale()
+                .map { tag in
+                    JSON.dictionaryValue(["languageTag": .stringValue(tag)])
                 }
                 .eraseToAnyAsyncSequence()
         }

@@ -501,6 +501,15 @@ container.handleThemeSubscribe((_params, send, _interrupt) => {
   );
 });
 
+// --- Locale ---
+
+// Native emits the host UI language as a BCP 47 tag, once on subscribe and on change.
+container.handleLocaleSubscribe((_params, send, _interrupt) => {
+  return subscribeNative('localeSubscribe', {}, (result: { languageTag: string }) => {
+    send({ languageTag: result.languageTag });
+  });
+});
+
 // --- Login ---
 
 container.handleRequestLogin((_params, { ok }) => {
