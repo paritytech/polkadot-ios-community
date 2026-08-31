@@ -20,22 +20,26 @@ final class ChainStatusProvider {
 
     private let networkStatusService: NetworkStatusProviding
     private let chainRegistry: ChainRegistryProtocol
+    private let latencyProvider: ChainLatencyProviding
     private let logger: LoggerProtocol
 
     private let rowsSubject: AsyncCurrentValueSubject<[ChainConnectionStatusViewModel]>
 
     private var statuses: [ChainConnectionTarget: NetworkStatus]
     private var names: [ChainConnectionTarget: String] = [:]
+    private var latencies: [ChainConnectionTarget: Duration] = [:]
     private var statusTasks: [Task<Void, Never>] = []
     private var isObserving = false
 
     init(
         networkStatusService: NetworkStatusProviding,
         chainRegistry: ChainRegistryProtocol,
+        latencyProvider: ChainLatencyProviding,
         logger: LoggerProtocol
     ) {
         self.networkStatusService = networkStatusService
         self.chainRegistry = chainRegistry
+        self.latencyProvider = latencyProvider
         self.logger = logger
 
         let seededStatuses = ChainConnectionTarget.allCases
@@ -43,7 +47,7 @@ final class ChainStatusProvider {
 
         statuses = seededStatuses
         rowsSubject = AsyncCurrentValueSubject(
-            Self.makeRows(statuses: seededStatuses, names: [:])
+            Self.makeRows(statuses: seededStatuses, names: [:], latencies: [:])
         )
     }
 
@@ -71,7 +75,7 @@ private extension ChainStatusProvider {
 
         statusTasks = ChainConnectionTarget.allCases.map { target in
             observeStatus(for: target)
-        }
+        } + [observeLatencies()]
 
         // Status updates are de-duplicated, so a chain that connects before the registry loads
         // never emits again — chain names have to come from their own subscription.
@@ -98,12 +102,42 @@ private extension ChainStatusProvider {
         }
     }
 
+    func observeLatencies() -> Task<Void, Never> {
+        Task { [weak self, latencyProvider, logger] in
+            do {
+                for try await latencies in latencyProvider.latencyStream() {
+                    self?.handleLatenciesUpdate(latencies)
+                }
+            } catch {
+                logger.error("Chain latency stream failed: \(error)")
+            }
+        }
+    }
+
     func handleStatusUpdate(_ status: NetworkStatus, for target: ChainConnectionTarget) {
-        guard statuses[target] != status else {
+        let previousStatus = statuses[target]
+
+        guard previousStatus != status else {
             return
         }
 
         statuses[target] = status
+
+        // Without this a drop-and-reconnect keeps captioning the row with its pre-drop latency.
+        if previousStatus == .connected {
+            latencies[target] = nil
+            latencyProvider.clearSamples(for: target)
+        }
+
+        emitRows()
+    }
+
+    func handleLatenciesUpdate(_ updatedLatencies: [ChainConnectionTarget: Duration]) {
+        guard updatedLatencies != latencies else {
+            return
+        }
+
+        latencies = updatedLatencies
         emitRows()
     }
 
@@ -122,12 +156,13 @@ private extension ChainStatusProvider {
     }
 
     func emitRows() {
-        rowsSubject.send(Self.makeRows(statuses: statuses, names: names))
+        rowsSubject.send(Self.makeRows(statuses: statuses, names: names, latencies: latencies))
     }
 
     static func makeRows(
         statuses: [ChainConnectionTarget: NetworkStatus],
-        names: [ChainConnectionTarget: String]
+        names: [ChainConnectionTarget: String],
+        latencies: [ChainConnectionTarget: Duration]
     ) -> [ChainConnectionStatusViewModel] {
         ChainConnectionTarget.allCases.map { target in
             let state = (statuses[target] ?? .connecting).connectionState
@@ -136,7 +171,8 @@ private extension ChainStatusProvider {
                 id: target.chainId,
                 title: names[target] ?? target.fallbackTitle,
                 state: state,
-                stateTitle: state.localizedTitle
+                stateTitle: state.localizedTitle,
+                latencyText: state.localizedLatency(latencies[target])
             )
         }
     }

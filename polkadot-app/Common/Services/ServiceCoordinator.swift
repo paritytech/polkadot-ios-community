@@ -412,9 +412,15 @@ extension ServiceCoordinator {
             pathMonitor: NetworkPathMonitor()
         )
 
+        let chainLatencyProvider = ChainLatencyProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            logger: logger
+        )
+
         let chainStatusProvider = ChainStatusProvider(
             networkStatusService: networkStatusService,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
+            latencyProvider: chainLatencyProvider,
             logger: logger
         )
 

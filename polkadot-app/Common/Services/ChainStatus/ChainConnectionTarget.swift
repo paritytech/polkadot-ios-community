@@ -55,4 +55,22 @@ extension ChainConnectionState {
             String(localized: .Common.chainConnectionStatusOffline)
         }
     }
+
+    func localizedLatency(_ latency: Duration?) -> String? {
+        guard self == .connected, let latency else {
+            return nil
+        }
+
+        return String(localized: .Common.chainConnectionStatusLatency(latency.roundedMilliseconds))
+    }
+}
+
+private extension Duration {
+    var roundedMilliseconds: Int {
+        let attosecondsPerMillisecond = 1e15
+        let milliseconds = Double(components.seconds) * 1_000
+            + Double(components.attoseconds) / attosecondsPerMillisecond
+
+        return Int(milliseconds.rounded())
+    }
 }
