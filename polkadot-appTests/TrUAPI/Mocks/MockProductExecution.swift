@@ -51,6 +51,7 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     ) throws {}
 
     func notifyThemeChanged(theme _: HostThemeSubscribeItem) {}
+    func notifyLocaleChanged(locale _: HostLocaleSubscribeItem) {}
     func notifyPreimageChanged(key _: Data, value _: Data?) {}
 
     func notifyChainResponse(connectionId: UInt32, json: String) {
