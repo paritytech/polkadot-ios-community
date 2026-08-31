@@ -103,11 +103,11 @@ extension CoinageTxService: CoinageTxServicing {
         // broadcast, so an extrinsic can never exist without an entry describing what it consumes.
         // Tracking then runs in the background; a submission that never resolves is finished by the
         // recovery pass at mortality.
-        let model = try await buildModel(request)
-        let registrations = try buildRegistrations([request], models: [model], groupId: groupId)
+        let models = try await buildModels([request])
+        let registrations = try buildRegistrations([request], models: models, groupId: groupId)
 
         let ids = try await registrar.register(registrations)
-        guard let id = ids.first else {
+        guard let id = ids.first, let model = models.first else {
             throw TransferStrategyError.submissionFailed(CancellationError())
         }
 
@@ -123,10 +123,7 @@ extension CoinageTxService: CoinageTxServicing {
     ) async throws -> [CoinageTxId] {
         // Build every extrinsic before registering any, so a build failure aborts before a single
         // extrinsic is broadcast. The batch then registers atomically; only then is each tracked.
-        var models: [ExtrinsicBuiltModel] = []
-        for request in requests {
-            try await models.append(buildModel(request))
-        }
+        let models = try await buildModels(requests)
         let registrations = try buildRegistrations(requests, models: models, groupId: groupId)
 
         let ids = try await registrar.register(registrations)
@@ -190,21 +187,55 @@ extension CoinageTxService: CoinageTxServicing {
 // MARK: - Submission
 
 private extension CoinageTxService {
-    /// Builds and signs the single extrinsic for a request, up-front, so its hash is known before
-    /// registration.
-    func buildModel(_ request: CoinageTxRequest) async throws -> ExtrinsicBuiltModel {
-        let indexedClosure: ExtrinsicBuilderIndexedClosure = { inner, _ in try request.builder(inner) }
-        let models = try await operationFactory.buildExtrinsics(
-            indexedClosure,
-            origin: request.origin,
-            payingIn: nil,
-            indexes: IndexSet(integer: 0)
-        ).asyncExecute()
+    /// Builds and signs every request's extrinsic up-front, so each hash is known before
+    /// registration. Requests sharing one signing `origin` are built in a single
+    /// `buildExtrinsics` call so their nonces are sequential — required for dependent transactions
+    /// where one spends another's output. Requests with distinct origins (e.g. per-recycler unload
+    /// tokens) are built independently, since each carries its own signer. Order is preserved so the
+    /// returned models align with `requests`.
+    func buildModels(_ requests: [CoinageTxRequest]) async throws -> [ExtrinsicBuiltModel] {
+        guard !requests.isEmpty else { return [] }
 
-        guard let model = models.first else {
-            throw TransferStrategyError.submissionFailed(CancellationError())
+        var models = [ExtrinsicBuiltModel?](repeating: nil, count: requests.count)
+        for group in groupBySharedOrigin(requests) {
+            let built = try await operationFactory.buildExtrinsics(
+                { builder, index in try requests[group[index]].builder(builder) },
+                origin: requests[group[0]].origin,
+                payingIn: nil,
+                indexes: IndexSet(0 ..< group.count)
+            ).asyncExecute()
+
+            guard built.count == group.count else {
+                throw TransferStrategyError.submissionFailed(CancellationError())
+            }
+            for (position, requestIndex) in group.enumerated() {
+                models[requestIndex] = built[position]
+            }
         }
-        return model
+
+        return try models.map { model in
+            guard let model else { throw TransferStrategyError.submissionFailed(CancellationError()) }
+            return model
+        }
+    }
+
+    /// Groups request indices by the identity of their signing `origin`, preserving first-seen and
+    /// within-group order. Origins are reference types (`ExtrinsicCompoundOrigin`), so same-instance
+    /// requests — a caller reusing one origin for a dependent batch — group together; distinct
+    /// instances stay separate and are built on their own.
+    func groupBySharedOrigin(_ requests: [CoinageTxRequest]) -> [[Int]] {
+        var groups: [[Int]] = []
+        var indexByOrigin: [ObjectIdentifier: Int] = [:]
+        for (index, request) in requests.enumerated() {
+            let key = ObjectIdentifier(request.origin as AnyObject)
+            if let groupIndex = indexByOrigin[key] {
+                groups[groupIndex].append(index)
+            } else {
+                indexByOrigin[key] = groups.count
+                groups.append([index])
+            }
+        }
+        return groups
     }
 
     /// Builds one registration per request. Both the checkpoint and the mortality window are read
