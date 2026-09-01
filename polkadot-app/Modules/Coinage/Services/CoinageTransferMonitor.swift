@@ -62,12 +62,17 @@ extension CoinageTransferMonitor: CoinageTransferMonitoring {
 
 private extension CoinageTransferMonitor {
     func subscribeIncomingMessages() {
+        logger.debug("Going to subscribe to incoming messages")
+
         incomingTransfersSubscription = Task { [weak self] in
             guard let self else { return }
             do {
                 let stream = messageProviderFactory.subscribeMessages(with: .incomingCoinageSendMessages())
                 for try await messages in stream {
                     try Task.checkCancellation()
+
+                    logger.debug("Found \(messages.count) incoming coinage messages")
+
                     for message in messages {
                         await startIncoming(for: message)
                     }
@@ -90,6 +95,9 @@ private extension CoinageTransferMonitor {
             do {
                 let context = try await coinageService.denominationContext()
                 let retryUntil = Date().addingTimeInterval(CoinageConstants.claimRetryWindow)
+
+                logger.debug("Starting processing incoming coinage message=\(messageId)")
+
                 let detections = coinageService.claimCoinsService.claim(
                     coinKeys: memo.entries,
                     groupId: messageId,
@@ -112,6 +120,8 @@ private extension CoinageTransferMonitor {
 
 private extension CoinageTransferMonitor {
     func subscribeOutgoingMessages() {
+        logger.debug("Going to subscribe to outgoing messages")
+
         outgoingTransfersSubscription = Task { [weak self] in
             guard let self else { return }
             do {
@@ -140,9 +150,18 @@ private extension CoinageTransferMonitor {
             do {
                 let context = try await coinageService.denominationContext()
                 let statuses = coinageService.transferStatusService.subscribeStatuses(coinKeys: memo.entries)
+
+                logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
+
                 for try await states in statuses {
+                    logger.debug("Got statuses for messageId=\(messageId) states=\(states.count)")
+
+                    let proposedStatus = states.outgoingStatus(context: context)
+
+                    logger.debug("Status=\(proposedStatus) message=\(messageId)")
+
                     await claimStatusStore.updateStatus(
-                        states.outgoingStatus(context: context),
+                        proposedStatus,
                         forMessageId: messageId
                     )
                     if !states.isEmpty, states.values.allSatisfy(\.status.isTerminal) { break }

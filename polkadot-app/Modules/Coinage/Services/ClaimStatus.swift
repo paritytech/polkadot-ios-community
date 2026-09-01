@@ -13,7 +13,9 @@ public enum ClaimStatus: Sendable, Equatable {
     case claiming
     /// Some coins received; the rest are being retried. Carries the amount claimed so far.
     case partiallyClaimed(claimed: Balance)
-    /// Outgoing transfer intermediate: coins appeared on-chain, awaiting recipient claim.
+    /// Outgoing transfer intermediate: coins appeared on-chain, awaiting recipient claim. Carries no
+    /// amount by design — like Android, the mid-flight sender bubble shows the full total, and only a
+    /// finished claim can be short (see ``finished``).
     case sent
     /// Operation completed. Carries the actual claimed amount in planks.
     case finished(claimedAmount: Balance)

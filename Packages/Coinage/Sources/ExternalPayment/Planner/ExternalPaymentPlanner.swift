@@ -88,7 +88,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
 
         // Coins not spendable yet but on their way — minting (will land) or aged past recycling
         // (will be recycled into fresh spendable coins). If they would cover the deficit, wait for
-        // them rather than declaring insufficient funds (Android's activeCoins vs availableCoins).
+        // them rather than declaring insufficient funds.
         let maturingCoins = trackedCoins
             .filter { $0.isMinting || $0.isAwaitingRecycling() }
             .map(\.coin)

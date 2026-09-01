@@ -165,8 +165,7 @@ extension CoinageBalanceService {
     }
 
     /// Buckets a full snapshot of tracked assets into spendable / degraded / locked. `static internal`
-    /// so the package balance test can exercise the pure logic directly (the Android
-    /// `RealTotalBalanceUseCase.calculateCoinageBalance` analogue).
+    /// so the package balance test can exercise the pure logic directly.
     static func calculateBalance(
         coins: [TrackedCoin],
         vouchers: [TrackedVoucher],

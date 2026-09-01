@@ -44,9 +44,7 @@ public final class CoinStateSyncService: BaseSyncService {
 
             let stream = databaseFactory.makeTrackedCoinSnapshotStream()
                 .map { (tracked: [TrackedCoin]) -> [Coin] in
-                    // Every coin still worth watching (see `isSyncable`): active coins to catch
-                    // landing, and any still-on-chain coin until it is seen to vanish.
-                    tracked.compactMap { $0.isSyncable ? $0.coin : nil }
+                    tracked.map(\.coin)
                 }
                 .removeDuplicates()
 

@@ -51,9 +51,6 @@ final class OffboardVouchersForPaymentService {
         self.logger = logger
     }
 
-    /// Registers the payment's group (validating `vouchers`) or re-joins the one a prior attempt
-    /// registered, then awaits the group's single verdict. On the re-join path `vouchers` is unused,
-    /// so a crash re-entry can await the true outcome without carrying the original plan.
     func execute(
         payment: ExternalPayment,
         vouchers: [Voucher]
@@ -69,7 +66,7 @@ final class OffboardVouchersForPaymentService {
 }
 
 /// The unload's single verdict, folded from its per-group entries. `partialSuccess` is not a
-/// failure — money did move, just not all of it (Android's `ExternalUnloadStatus`).
+/// failure — money did move, just not all of it.
 enum OffboardOutcome: Equatable {
     case success
     case partialSuccess(executed: Int, total: Int)
@@ -83,23 +80,13 @@ private extension OffboardVouchersForPaymentService {
         payment: ExternalPayment,
         vouchers: [Voucher]
     ) async throws -> OffboardOutcome {
-        // All groups register atomically under the payment id — all commit or none do — so the
-        // payment can never leave a half-registered group behind. Then fold the group's per-entry
-        // outcomes into one verdict: the state machine must not report the payment completed until
-        // the chain has.
         let groupId = groupId(for: payment)
 
         try await registerOrRejoinGroup(payment: payment, vouchers: vouchers, groupId: groupId)
 
-        // No recovery pass is triggered here: the durability service's finalized/best-head trigger
-        // runs passes continuously, so the minted surplus outputs are projected without a nudge —
-        // matching Android, which leaves recovery to its scheduler.
         return try await awaitGroupOutcome(groupId: groupId)
     }
 
-    /// The payment's own id, namespaced so it never collides with another operation's group (a
-    /// transfer keys its group by message id). Deterministic, so a crash re-entry finds the same
-    /// group — matching Android's `external-payment:<id>`.
     func groupId(for payment: ExternalPayment) -> CoinageTxGroupId {
         "external-payment:\(payment.id)"
     }
@@ -129,8 +116,6 @@ private extension OffboardVouchersForPaymentService {
         logger?.debug("Registered \(requests.count) offboard groups under \(groupId)")
     }
 
-    /// Folds the group's per-entry statuses into one verdict once every entry is decided
-    /// (Android's `toUnloadStatus`): all finalized ⇒ success, some ⇒ partial, none ⇒ failed.
     func awaitGroupOutcome(groupId: CoinageTxGroupId) async throws -> OffboardOutcome {
         for try await entries in txService.subscribeOperationGroupStatuses(groupId) {
             guard !entries.isEmpty, !entries.contains(where: \.status.isLive) else {
@@ -220,9 +205,6 @@ private extension OffboardVouchersForPaymentService {
 // MARK: - Per-Group Calculation
 
 private extension OffboardVouchersForPaymentService {
-    /// The whole surplus (total voucher value minus the payment) is hosted by a single group that
-    /// can carry it; every other group sends its full value to the destination. This mints change
-    /// once, in one call, rather than per group — Android's `resolveMixedSetup` / `buildGroups`.
     func buildGroupDetails(
         groups: [VoucherGroup],
         paymentAmount: Balance

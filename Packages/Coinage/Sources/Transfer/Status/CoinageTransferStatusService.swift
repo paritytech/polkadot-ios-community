@@ -4,7 +4,7 @@ import NovaCrypto
 import SDKLogger
 
 /// The Appendix-A derived payment status of coins we handed off, kept in step with the ledger and the
-/// chain. Ports Android's `RealCoinagePaymentStatusUseCase`.
+/// chain.
 ///
 /// Neither the status nor anything it rests on is stored: each value is read from the coin's minter
 /// status (durability) and its presence at the finalized head. A restart mid-payment needs nothing to
@@ -38,7 +38,7 @@ public final class CoinageTransferStatusService: CoinageTransferStatusServicing,
 
     public func subscribeStatuses(coinKeys: [Data]) -> AnyAsyncSequence<[PublicKey: CoinageTransferState]> {
         let requested = coinKeys.compactMap { try? snKeyFactory.createPublicKey(fromSecret: $0).rawData() }
-        // A filtered subscription to exactly these coins, not the whole set — matches Android's
+        // A filtered subscription to exactly these coins, not the whole set
         // `coinRepository.subscribeCoinsBy(accountIds)`.
         return databaseFactory.makeTrackedCoinSnapshotStream(publicKeys: requested)
             .map { [self] tracked -> [PublicKey: CoinageTransferState] in

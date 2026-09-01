@@ -34,7 +34,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
             //   plan-carried vouchers are irrelevant since the inputs are already claimed.
             // - nothing registered yet: we must register, so the plan must still be valid — every
             //   selected voucher still selectable. A stale or crash-lost plan re-plans instead of
-            //   failing, because the funds are still there (Android's EnsureVouchers path).
+            //   failing, because the funds are still there.
             if try await !service.hasPendingGroup(for: payment) {
                 guard !vouchers.isEmpty, try await allSelectable(vouchers, factory: factory) else {
                     return factory.makePlanState(payment: payment)

@@ -17,7 +17,7 @@ struct FakeBackgroundExecutor: BackgroundExecuting {
 ///
 /// The tracker treats a submission failure that is *not* a `PreSubmissionValidationFailedError` as
 /// "give up, let the pass decide" — it proposes no verdict and releases ownership. Emitting this after
-/// a submission's configured statuses reproduces the net effect of Android's empty status flow
+/// a submission's configured statuses reproduces the net effect of empty status flow
 /// (release, no verdict) while exercising the real async tracker, and without waiting out the
 /// 30-second silence timeout.
 struct HarnessSubmissionEnded: Error {}
@@ -83,7 +83,7 @@ struct HarnessSubscriptionLost: Error {}
 
 /// A fake ``ExtrinsicSubmitting`` that accepts a submission and hands back a subscription id, then
 /// *parks* the watch until ``releaseAll()`` flushes it — so an entry stays submission-owned exactly until
-/// the harness releases it, the way Android's status flow stays pending until `advanceUntilIdle`. On
+/// the harness releases it. On
 /// release it emits the submission's configured statuses (via ``streamFactory``) in order, then a
 /// non-pre-submission failure that the tracker treats as "give up, let the pass decide" unless a status
 /// already reached a terminal.
