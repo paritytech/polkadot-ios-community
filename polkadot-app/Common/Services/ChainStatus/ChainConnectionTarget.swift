@@ -1,7 +1,6 @@
 import Foundation
 import ChainRegistry
 import PolkadotUI
-import SubstrateSdk
 
 enum ChainConnectionTarget: CaseIterable {
     case chat
@@ -19,15 +18,16 @@ enum ChainConnectionTarget: CaseIterable {
         }
     }
 
-    /// Stands in until chain data loads; chain names come from the registry and are not localized.
-    var fallbackTitle: String {
+    /// Deliberately not the registry's chain name — those are long ("Polkadot People") and vary by
+    /// build arm, which reads badly under a 40pt ring. Not localized, as chain names never were.
+    var title: String {
         switch self {
         case .chat:
-            "Chat"
+            "Individuality"
         case .bulletin:
             "Bulletin"
         case .assethub:
-            "AssetHub"
+            "Asset Hub"
         }
     }
 }
@@ -55,31 +55,5 @@ extension ChainConnectionState {
         case .offline:
             String(localized: .Common.chainConnectionStatusOffline)
         }
-    }
-
-    func localizedLatency(_ latency: Duration?) -> String? {
-        guard self == .connected, let latency else {
-            return nil
-        }
-
-        return String(localized: .Common.chainConnectionStatusLatency(latency.roundedMilliseconds))
-    }
-
-    func localizedBlockNumber(_ blockNumber: BlockNumber?) -> String? {
-        guard self == .connected, let blockNumber else {
-            return nil
-        }
-
-        return String(localized: .Common.chainConnectionStatusBlockNumber(blockNumber.formatted()))
-    }
-}
-
-private extension Duration {
-    var roundedMilliseconds: Int {
-        let attosecondsPerMillisecond = 1e15
-        let milliseconds = Double(components.seconds) * 1_000
-            + Double(components.attoseconds) / attosecondsPerMillisecond
-
-        return Int(milliseconds.rounded())
     }
 }

@@ -20,12 +20,10 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
 protocol MainTabBarPresenterProtocol: AnyObject {
     func setup()
     func configureViews()
-    func didChangeContentPanelVisibility(_ isVisible: Bool)
 }
 
 protocol MainTabBarInteractorInputProtocol: AnyObject {
     func setup()
-    func setChainStatusActive(_ isActive: Bool)
 }
 
 @MainActor

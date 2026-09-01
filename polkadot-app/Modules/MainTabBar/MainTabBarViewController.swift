@@ -65,10 +65,6 @@ final class MainTabBarViewController: UIViewController {
             self?.chromeController.togglePanel(.content)
         }
 
-        chromeController.onPanelChanged = { [weak self] kind in
-            self?.presenter.didChangeContentPanelVisibility(kind == .content)
-        }
-
         chromeController.onChipTapped = { [weak self] id in
             guard let self, let tab = browserCoordinator.tabs.first(where: { $0.id == id }) else {
                 return

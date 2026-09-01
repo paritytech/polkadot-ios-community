@@ -425,7 +425,6 @@ extension ServiceCoordinator {
 
         let chainStatusProvider = ChainStatusProvider(
             networkStatusService: networkStatusService,
-            chainRegistry: ChainRegistryFacade.sharedRegistry,
             latencyProvider: chainLatencyProvider,
             blockProvider: chainBlockProvider,
             logger: logger

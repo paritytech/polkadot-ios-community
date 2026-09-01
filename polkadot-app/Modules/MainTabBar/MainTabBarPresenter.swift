@@ -39,12 +39,6 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
         view?.show(tabs: tabItems, selecting: .wallet)
         view?.setBadge(settingsBadge, for: .settings)
     }
-
-    func didChangeContentPanelVisibility(_ isVisible: Bool) {
-        #if !FEATURE_PRODUCTS
-            interactor.setChainStatusActive(isVisible)
-        #endif
-    }
 }
 
 extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {

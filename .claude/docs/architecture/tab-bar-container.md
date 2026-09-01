@@ -80,9 +80,9 @@ Split because they change at different rates — the nav controller is stable fo
 
 ## Top Status Strip
 
-A permanent 20pt strip at the top of `MainTabBarViewController` holds one `chart.bar.fill` SF Symbol per chain — `.system(size: 12, weight: .semibold)`, tinted by `row.state.statusColor` — for the same three `ChainConnectionTarget`s the bottom content panel lists (chat, bulletin, assethub). **State is carried by tint alone**; there is no dot and no visible chain name. Only `.connecting` animates: `.symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating, isActive: row.state == .connecting)`, so connected and offline render static. **The strip is informational only**: no tap handling, no fold, no hide, constant height, and it ships in both `FEATURE_PRODUCTS` arms.
+A permanent 20pt strip at the top of `MainTabBarViewController` holds one `ChainStatusRingView` per chain — the **same view the bottom content panel uses** — for the same three `ChainConnectionTarget`s (chat, bulletin, assethub). There is no visible chain name. **The strip is informational only**: no tap handling, no fold, no hide, constant height, and it ships in both `FEATURE_PRODUCTS` arms.
 
-The chain name and state survive only as the icon's accessibility label, built with **`Text(verbatim:)`** — a plain interpolated `Text` is treated as a localizable format string and string extraction registers a `"%@, %@"` entry in the package catalog.
+The chain name and state survive only as the ring's accessibility label, which the ring owns (see [Shipped content](#shipped-content--chain-connection-status)).
 
 `installStatusBar()` writes `additionalSafeAreaInsets.top = ChainConnectionStatusBarView.preferredHeight` on **the container itself**, once, in `viewDidLoad`. It is a constant and is never recomputed in `viewSafeAreaInsetsDidChange`. UIKit propagates the combined inset (system top + 20) down through each mounted nav controller to every screen it pushes, so **a pushed screen inherits the clearance with no bookkeeping**.
 
@@ -92,7 +92,11 @@ The chain name and state survive only as the icon's accessibility label, built w
 
 *Rationale:* the obvious alternative — pinning a dedicated content container view below the strip and mounting children into it — physically moves the child's frame out of the top safe area, so UIKit computes the child's `safeAreaInsets.top` as 0 and a `UINavigationBar` stops drawing its background at the container's top edge instead of extending to y=0. Applying the inset per tab controller from the chrome was also rejected: it needs the same "which controller is current" tracking the chrome already does for the bottom, in a second owner.
 
-**Content flow.** `MainTabBarPresenter.didReceiveChainStatus` pushes to two hosts. `view?.showChainStatus(rows)` is called *outside* the `#if !FEATURE_PRODUCTS`; the existing `showTabBarPanelContent` call stays inside it. The strip takes raw `[ChainConnectionStatusViewModel]`, not a `HashableContentConfiguration`, because its host is a `UIHostingController` rather than a `UIContentView` — exactly the case the provider's row-emitting contract anticipates, with the presenter wrapping at its own push site. The view controller assigns `statusBarHost.rootView`. No provider, service or interactor change; in the products arm `setChainStatusActive` is still never called, so latency and block sampling stay off — the strip shows state only. The colour mapping moved out of `ChainConnectionStatusRowView`'s private helper into a `ChainConnectionState.statusColor` extension in the new file, feeding both the strip's icon tint and the panel row's unchanged 8pt dot.
+**Content flow.** `MainTabBarPresenter.didReceiveChainStatus` pushes to two hosts. `view?.showChainStatus(rows)` is called *outside* the `#if !FEATURE_PRODUCTS`; the existing `showTabBarPanelContent` call stays inside it. The strip takes raw `[ChainConnectionStatusViewModel]`, not a `HashableContentConfiguration`, because its host is a `UIHostingController` rather than a `UIContentView` — exactly the case the provider's row-emitting contract anticipates, with the presenter wrapping at its own push site. The view controller assigns `statusBarHost.rootView`.
+
+**The strip forced sampling to go app-wide.** `ChainStatusProvider` used to gate its two sampling siblings behind a panel-visibility signal — `onPanelChanged` → `didChangeContentPanelVisibility` → `setChainStatusActive` → `setActive`. A permanent strip means there is no longer a moment when nobody is displaying latency or block freshness, so the gate had no state left to express and **the whole chain was deleted**: `startObservingIfNeeded` now calls `latencyProvider.setActive(true)` and `blockProvider.setActive(true)` once, and `ChainStatusProviding.setActive`, `MainTabBarInteractorInputProtocol.setChainStatusActive`, `MainTabBarPresenterProtocol.didChangeContentPanelVisibility` and the `onPanelChanged` assignment are all gone.
+
+*Cost, accepted deliberately:* a 30 s `system_health` probe per chain and three `subscribeNewHeads` subscriptions now run for the app's lifetime in **every** arm, where before they ran only while the peek panel was open. `ServiceCoordinator.throttle()` still does not reach them. This is what buys the strip a real ping colour instead of a permanently un-sampled grey dot.
 
 *Accepted:*
 
@@ -171,7 +175,26 @@ Panel state is now `TabBarBottomChromeController.openPanel: TabBarPanelKind?` (`
 
 Content ownership: `MainTabBarPresenter` pushes a configuration through `MainTabBarViewProtocol.showTabBarPanelContent(_:)`; the view controller builds the `DSTabBarTrailingSlot` (SF Symbol `point.3.connected.trianglepath.dotted`, label from `TabBarTrailingSlot`) and calls `chromeController.setTrailingPanel(slot:content:)`. No configuration means no trailing unit at all and the row reflows — same treatment the centre slot gets when `spaTabCount` crosses 0.
 
-**Shipped content — chain connection status.** The panel holds one row per `ChainConnectionTarget` (chat, bulletin, assethub): a state dot, the chain name, and a lowercase state caption — `connected · 84 ms`, `connecting`, `no network` — rendered by `ChainConnectionStatusView` in `PolkadotUI`.
+**Shipped content — chain connection status.** The panel holds one column per `ChainConnectionTarget` (chat, bulletin, assethub) in a single `HStack`, rendered by `ChainConnectionStatusView` in `PolkadotUI`: the chain name in `.caption12Regular()` / `.fgSecondary` above a 40pt `ChainStatusRingView`, each column `maxWidth: .infinity` so the three split the panel evenly. No numbers — the ring carries every measurement. The top strip hosts the same ring at its default size and **without a name** (see [Top Status Strip](#top-status-strip)), so this is the one place the ring is described. Each ring carries two facts:
+
+| element | carries | rendering |
+|---|---|---|
+| arc length | block freshness | `1 - min(age / 20s, 1)`, where `age` is measured from `ChainBlockInfo.receivedAt`; empty unless `.connected` |
+| centre dot | connection state, refined by ping | `.connected` → ≤150 ms `.fgPrimary`, ≤400 ms `.bgStatusWarning`, else `.bgStatusError`, `.fgTertiary` until the first probe lands; `.connecting` → `.fgTertiary` pulsing; `.offline` → `.bgStatusError` |
+
+**The arc is never coloured** — arc and track are `.fgPrimary` (the track at 0.2 opacity) in every state, so the ring is a neutral gauge whose length is the only thing it says and the dot is the only element that can carry a status colour. The pulse for `.connecting` is on the dot alone, so it reads as state rather than as the gauge moving.
+
+**A healthy chain is monochrome.** A connected chain on a fast link draws its dot `.fgPrimary` too, so the whole mark is one colour and **a status colour appears only when something is wrong** — amber for a slow link, red for a slow-to-the-point-of-broken one or an offline chain. Three rings at a glance answer "is anything wrong" before they answer "what".
+
+**One mark, two sizes.** `diameter` is a property (default 16) and stroke and dot derive from it — `diameter / 8` and `diameter * 0.375` — so the two hosts draw the same proportions rather than two tuned sets of constants. The strip takes the default because its 20pt band bounds it; the panel passes 40.
+
+**Two `Text` overloads, only one of which is a trap.** The visible name is `Text(row.title)` — the `StringProtocol` overload, which is not localized and registers nothing. The accessibility label is `Text(verbatim: "\(row.title), \(row.stateTitle)")`, where `verbatim:` is load-bearing: a plain interpolated literal resolves to the `LocalizedStringKey` overload and string extraction adds a `"%@, %@"` entry to the package catalog.
+
+The label lives on the **column**, with `.accessibilityElement(children: .ignore)` — the ring carries its own label for the nameless strip, and without the ignore VoiceOver would read the chain name twice here.
+
+*Accepted:* "connected but no block seen yet" is separated from "offline" by dot colour alone — both draw an empty ring. In the strip, which has no name, position remains the only cue for which chain is which.
+
+**The arc drains on a view-local tick.** Freshness changes with no new data, so `ChainStatusRingView` wraps its body in `TimelineView(.periodic(from: .now, by: 1))` and computes the fraction against the timeline's date. Pushing a row set every second through `AsyncCurrentValueSubject` → presenter → `UIHostingConfiguration` would reassign the UIKit configuration once a second to express the passage of time. Since the strip is permanent, this 1 Hz redraw is now permanent too — three small shape views, cheap next to the always-on probes and head subscriptions it accompanies. `ChainStatusRingDot` is a separate private view purely to own the pulse animation's `@State` — `ChainStatusRingView` must stay synthesized-`Hashable` for content reuse, which a `@State` property would break.
 
 Row composition lives in `ChainStatusProvider`, not in the module. `ServiceCoordinator.createDefault` builds one `ChainStatusProvider` and one `ChainLatencyProvider` and exposes the former on `ServiceCoordinatorProtocol.chainStatusProvider`; `MainTabBarViewFactory` injects it. One instance, app lifetime. The interactor keeps a single `chainStatusSubscription` forwarding `chainStatusProvider.statusStream()` to `presenter.didReceiveChainStatus(_:)`.
 
@@ -179,7 +202,9 @@ Row composition lives in `ChainStatusProvider`, not in the module. `ServiceCoord
 
 The provider consumes `networkStatusService.statusStream(for:)` directly, one call per chain against the shared singleton, and maps `NetworkStatus` → `ChainConnectionState` in `ChainConnectionTarget.swift`. `NetworkStatus` never crosses into `PolkadotUI`. Reaching `.connected` is debounced 300 ms (`withDebounce`). `waitingForNetwork` is global rather than per-chain, so a dropped device path takes all three rows offline together.
 
-`chainRegistry.chainsSubscribe` supplies the names and is load-bearing: the status stream applies `removeDuplicates()`, so a chain that reaches `.connected` before the registry loads emits exactly once and the row would keep its `fallbackTitle` forever. `chainsUnsubscribe(self)` in `deinit` is required — that subscription is registry-held.
+**Names are fixed labels, not registry names.** `ChainConnectionTarget.title` returns `Individuality` / `Bulletin` / `Asset Hub`. The registry's own names are long and vary by build arm — the chat target resolves to a People chain, so the registry would render "Paseo People" in nightly and "Polkadot People" in release — which reads badly as a caption under a 40pt ring. Not localized, as chain names never were.
+
+*This deleted a mechanism that used to be load-bearing.* The provider previously took a `ChainRegistryProtocol` purely to resolve names, and subscribed via `chainsSubscribe` because the status stream applies `removeDuplicates()`: a chain reaching `.connected` before the registry loaded would emit exactly once and keep its fallback title forever. Fixed labels make that race unreachable, so `chainsSubscribe`, `handleChainDataUpdate`, the `names` dictionary, the `chainsUnsubscribe(self)` in `deinit` and the registry dependency itself are all gone — `ChainStatusProvider` no longer touches `ChainRegistry` at all. Restoring registry names means restoring that subscription with it.
 
 Seeding is structural, not a step: `rowsSubject` is an `AsyncCurrentValueSubject` **constructed** holding a complete row set, so the first render carries three rows and the trailing button exists from launch, and no later edit can drop a seed-then-push call.
 
@@ -193,9 +218,9 @@ The provider emits `[ChainConnectionStatusViewModel]`, not a hosted configuratio
 - Reported value is the median of the last 3 samples, so one slow probe cannot move the row.
 - Samples are cleared when a chain leaves `.connected`, in `ChainStatusProvider.handleStatusUpdate` — the only place that knows both facts. Without it a drop-and-reconnect shows the pre-drop number for up to 30 s.
 
-`ChainConnectionStatusViewModel.latencyText` is a `String?`, already localized and formatted app-side — `PolkadotUI` has no number formatting and no locale story. The view renders it as a second caption with `.contentTransition(.numericText())` for the digit roll, plus an explicit `.animation(.default, value:)` because a UIKit configuration push carries no ambient `withAnimation`. Both captions share one `HStack(spacing: 4)` so the `·` reads as a separator rather than two unrelated labels.
+`ChainConnectionStatusViewModel.latency` is a raw `Duration?`, not a formatted string. The ring has to *compare* a latency against a threshold, which a localized string cannot do — so the app-side formatters and their two catalog keys were deleted when the text rows were. `Duration` and `Date` are stdlib/Foundation, so `PolkadotUI` still holds no app types, and the bucket thresholds live beside the ring because deciding what a number *means* is presentation, not composition.
 
-*Accepted:* the roll fires every 30 s while the panel is typically open for a few seconds, so most transitions happen unseen.
+*Accepted:* the 20 s freshness window is shorter than the 30 s probe interval, so a ring can drain and refill between two latency samples.
 
 ## SPA Hosting
 
