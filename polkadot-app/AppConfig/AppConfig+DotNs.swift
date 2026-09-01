@@ -21,10 +21,6 @@ extension AppConfig {
             AppConfigProvider.shared.getRemoteConfig()!.dotNsResolver!
         }
 
-        private static var dotNsProtocolRegistryAddress: String {
-            AppConfigProvider.shared.getRemoteConfig()!.dotNsProtocolRegistry!
-        }
-
         /// Optional by design: an absent key disables manifest resolution and leaves legacy names
         /// working, so a value that will not decode has to degrade the same way rather than take
         /// every launch down with the rest of the config.
@@ -43,12 +39,10 @@ extension AppConfig {
 
         static func config() throws -> DotNsConfig {
             let resolverAddress = try Self.dotNsResolverAddress.fromHex()
-            let protocolRegistryAddress = try Self.dotNsProtocolRegistryAddress.fromHex()
 
             return DotNsConfig(
                 contractsChainId: AppConfig.Chains.assethubChain,
                 resolverContractAddress: resolverAddress,
-                protocolRegistryContractAddress: protocolRegistryAddress,
                 nameRegistryContractAddress: Self.dotNsNameRegistryAddress,
                 ipfsGatewayBaseUrl: AppConfig.KnownIPFS.main
             )

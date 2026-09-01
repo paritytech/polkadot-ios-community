@@ -16,6 +16,7 @@ protocol TransferPlanCreating {
 }
 
 final class TransferPlanFactory {
+    private let instanceId: CoinageInstanceId
     private let minter: any CoinMinting
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let coinKeyFactory: any CoinKeyDeriving
@@ -26,6 +27,7 @@ final class TransferPlanFactory {
     private let logger: SDKLoggerProtocol?
 
     init(
+        instanceId: CoinageInstanceId,
         minter: any CoinMinting,
         voucherKeyFactory: any VoucherKeyDeriving,
         coinKeyFactory: any CoinKeyDeriving,
@@ -35,6 +37,7 @@ final class TransferPlanFactory {
         blockInfoProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
+        self.instanceId = instanceId
         self.minter = minter
         self.voucherKeyFactory = voucherKeyFactory
         self.coinKeyFactory = coinKeyFactory
@@ -72,6 +75,7 @@ extension TransferPlanFactory: TransferPlanCreating {
 
         case let .unloadIntoCoins(coins, perGroupAllocations):
             TransferPlan(strategy: UnloadIntoCoinsStrategy(
+                instanceId: instanceId,
                 readyCoins: coins,
                 perGroupAllocations: perGroupAllocations,
                 minter: minter,

@@ -18,6 +18,7 @@ public extension CoinageService {
     /// - Parameters:
     ///   - chainResource: Chain resource for RPC connections
     ///   - chain: The chain configuration
+    ///   - instanceId: Coinage pallet instance the app operates on (from remote config)
     ///   - databaseFactory: Factory for creating database repositories
     ///   - originFactory: Factory for creating extrinsic origins (app-side implementation)
     ///   - extrinsicMonitorFactory: Factory for extrinsic submission monitoring
@@ -30,6 +31,7 @@ public extension CoinageService {
     static func make(
         chainResource: ChainResourceProtocol,
         chain: ChainProtocol,
+        instanceId: CoinageInstanceId,
         databaseFactory: DatabaseDependencyFactoring,
         originFactory: OriginCreating,
         extrinsicMonitorFactory: ExtrinsicSubmitMonitorFactoryProtocol,
@@ -37,7 +39,7 @@ public extension CoinageService {
         extrinsicSubmitter: any ExtrinsicSubmitting,
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
-        durabilityStore: any CoinageTxRepositoryProtocol,
+        txStore: any CoinageTxRepositoryProtocol,
         schedulerFactory: CoinRecycleSchedulerMaking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
@@ -76,13 +78,26 @@ public extension CoinageService {
             voucherRepository: voucherRepository,
             keyFactory: voucherKeypairFactory
         )
+
         // One minter per Coinage instance wraps both allocators; every mint site goes through it.
         let coinageMinter = CoinageMinter(coinAllocator: coinAllocator, voucherAllocator: voucherAllocator)
 
         let coinService = CoinService(databaseFactory: databaseFactory)
-        let contextLoader = DenominationContextLoader(runtimeService: runtimeService)
+
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
+        let contextLoader = DenominationContextLoader(
+            instanceId: instanceId,
+            connection: connection,
+            storageRequestFactory: storageRequestFactory,
+            runtimeService: runtimeService
+        )
 
         let readinessLoader = RecyclerReadinessLoader(
+            instanceId: instanceId,
             connection: connection,
             runtimeCodingService: runtimeService,
             operationQueue: operationQueue
@@ -96,11 +111,6 @@ public extension CoinageService {
             chainId: chain.chainId
         )
 
-        let storageRequestFactory = StorageRequestFactory(
-            remoteFactory: StorageKeyFactory(),
-            operationManager: OperationManager(operationQueue: operationQueue)
-        )
-
         let coinOnChainQuery = CoinOnChainQueryService(
             connection: connection,
             runtimeService: runtimeService,
@@ -108,6 +118,7 @@ public extension CoinageService {
         )
 
         let voucherOnChainQuery = VoucherOnChainQueryService(
+            instanceId: instanceId,
             connection: connection,
             runtimeService: runtimeService,
             storageRequestFactory: storageRequestFactory,
@@ -131,14 +142,14 @@ public extension CoinageService {
         )
 
         let recoveryPass = RecoveryPass(
-            store: durabilityStore,
+            store: txStore,
             chainFactory: chainFactory,
             watched: watchedEntries,
             logger: logger
         )
 
         let registrar = CoinageTxRegistrar(
-            store: durabilityStore,
+            store: txStore,
             validator: CoinageTxRegistrationValidator(),
             watched: watchedEntries,
             logger: logger
@@ -146,15 +157,15 @@ public extension CoinageService {
 
         let submissionWatcher = CoinageTxTracker(
             submitter: extrinsicSubmitter,
-            store: durabilityStore,
+            store: txStore,
             chainFactory: chainFactory,
             watched: watchedEntries,
             backgroundExecutor: backgroundExecutor,
             logger: logger
         )
 
-        let durabilityService = CoinageTxService(
-            store: durabilityStore,
+        let txService = CoinageTxService(
+            store: txStore,
             registrar: registrar,
             watcher: submissionWatcher,
             pass: recoveryPass,
@@ -164,9 +175,10 @@ public extension CoinageService {
         )
 
         let voucherLoaderFactory = VoucherLoaderFactory(
+            instanceId: instanceId,
             minter: coinageMinter,
             keypairFactory: voucherKeypairFactory,
-            txService: durabilityService,
+            txService: txService,
             originCreating: originFactory,
             runtimeService: runtimeService,
             chain: chain,
@@ -178,10 +190,11 @@ public extension CoinageService {
         )
 
         let planFactory = TransferPlanFactory(
+            instanceId: instanceId,
             minter: coinageMinter,
             voucherKeyFactory: voucherKeypairFactory,
             coinKeyFactory: coinKeypairFactory,
-            durability: durabilityService,
+            durability: txService,
             originFactory: originFactory,
             recyclerLoader: readinessLoader,
             blockInfoProvider: blockNumberProvider,
@@ -217,12 +230,12 @@ public extension CoinageService {
         let claimSubmitter = CoinageClaimSubmitter(
             minter: coinageMinter,
             originFactory: originFactory,
-            txService: durabilityService,
+            txService: txService,
             logger: logger
         )
 
         let claimCoinsService = ClaimCoinsService(
-            txService: durabilityService,
+            txService: txService,
             coinOnChainQuery: coinOnChainQuery,
             claimSubmitter: claimSubmitter,
             snKeyFactory: SNKeyFactory(),
@@ -251,6 +264,7 @@ public extension CoinageService {
         )
 
         let voucherLocationService = VoucherLocationService(
+            instanceId: instanceId,
             voucherRepository: voucherLocationRepository,
             databaseFactory: databaseFactory,
             connection: connection,
@@ -264,7 +278,7 @@ public extension CoinageService {
             voucherMinter: coinageMinter,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
-            txService: durabilityService,
+            txService: txService,
             originFactory: originFactory,
             logger: logger,
             backgroundRecyclingInterval: backgroundRecyclingInterval,
@@ -272,6 +286,7 @@ public extension CoinageService {
         )
 
         let externalPaymentDependency = ExternalPaymentDependency(
+            instanceId: instanceId,
             coinService: coinService,
             voucherService: voucherService,
             recycler: recyclingService,
@@ -279,7 +294,7 @@ public extension CoinageService {
             voucherMinter: coinageMinter,
             recyclerLoader: readinessLoader,
             extrinsicMonitor: extrinsicMonitorFactory,
-            durability: durabilityService,
+            durability: txService,
             originFactory: originFactory,
             blockNumberProvider: blockNumberProvider
         )
@@ -304,7 +319,7 @@ public extension CoinageService {
             coinKeypairFactory: coinKeypairFactory,
             senderService: senderService,
             ongoingTransferService: recipientService,
-            durabilityService: durabilityService,
+            txService: txService,
             claimCoinsService: claimCoinsService,
             transferStatusService: transferStatusService,
             externalPaymentService: externalPaymentService,

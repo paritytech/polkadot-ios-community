@@ -19,6 +19,7 @@ import SubstrateSdkExt
 /// Groups with surplus use `unload_recycler_into_external_asset_and_loaded_coins`.
 /// Groups without surplus use `unload_recycler_into_external_asset`.
 final class OffboardVouchersForPaymentService {
+    private let instanceId: CoinageInstanceId
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
@@ -29,6 +30,7 @@ final class OffboardVouchersForPaymentService {
     private let logger: SDKLoggerProtocol?
 
     init(
+        instanceId: CoinageInstanceId,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -38,6 +40,7 @@ final class OffboardVouchersForPaymentService {
         denominationContext: DenominationBreakdownContext,
         logger: SDKLoggerProtocol? = nil
     ) {
+        self.instanceId = instanceId
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -333,6 +336,7 @@ private extension OffboardVouchersForPaymentService {
         submission: GroupSubmission
     ) -> CoinagePallet.Calls.UnloadRecyclerIntoExternalAsset {
         CoinagePallet.Calls.UnloadRecyclerIntoExternalAsset(
+            instanceId: instanceId,
             aliases: aliases,
             value: Int8(key.exponent),
             index: key.index,
@@ -354,6 +358,7 @@ private extension OffboardVouchersForPaymentService {
         }
 
         return CoinagePallet.Calls.UnloadRecyclerIntoExternalAssetAndLoadedCoins(
+            instanceId: instanceId,
             aliases: aliases,
             value: Int8(key.exponent),
             index: key.index,

@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/paritytech/host-rust-core",
       "state" : {
-        "revision" : "3f9ba7368f52fc3c9e8930803cb71ca46a9b1ae7",
-        "version" : "0.7.1"
+        "revision" : "7e0284cef81c4ca025d613428d02defd0f80b863",
+        "version" : "0.12.0"
       }
     },
     {

@@ -64,6 +64,10 @@ private extension TrUAPIConfirmationPresenter {
             await confirmPermission(
                 promptMapper.makePermissionRequest(from: accessReview)
             )
+        case let .productSubtree(subtreeReview):
+            await confirmPermission(
+                promptMapper.makePermissionRequest(from: subtreeReview)
+            )
         case let .accountAlias(aliasReview):
             await confirmPermission(
                 promptMapper.makePermissionRequest(from: aliasReview)

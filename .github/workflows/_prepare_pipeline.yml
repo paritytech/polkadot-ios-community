@@ -233,6 +233,8 @@ jobs:
           python3 "${SCRIPTS_DIR}/update_marketing_version.py" "${PBXPROJ_PATH}" "${NEW_VERSION}" --config-name "Release"
           echo "Updating MARKETING_VERSION in Nightly configuration..."
           python3 "${SCRIPTS_DIR}/update_marketing_version.py" "${PBXPROJ_PATH}" "${NEW_VERSION}" --config-name "Nightly"
+          echo "Updating MARKETING_VERSION in Safetynet configuration..."
+          python3 "${SCRIPTS_DIR}/update_marketing_version.py" "${PBXPROJ_PATH}" "${NEW_VERSION}" --config-name "Safetynet"
 
       - name: Commit changes and push branch
         if: steps.decide.outputs.should_release == 'true' && steps.decide.outputs.direct_build != 'true'

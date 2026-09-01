@@ -24,6 +24,7 @@ lane :base_build_app do |options|
   else
     plist_suffix_map = {
       "io.parity.polkadotapp" => "-Release",
+      "io.parity.polkadotapp.safety" => "-Safety",
       "io.parity.polkadotapp.develop" => "-Dev"
     }
 

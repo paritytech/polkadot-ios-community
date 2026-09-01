@@ -14,7 +14,7 @@ public protocol CoinageServicing: Actor {
     /// The underlying recipient service for direct use.
     nonisolated var ongoingTransferService: any OngoingTransferServicing { get }
 
-    nonisolated var durabilityService: any CoinageTxServicing { get }
+    nonisolated var txService: any CoinageTxServicing { get }
 
     /// Claims coins a peer handed us, driven off the durability group `groupId = messageId`.
     nonisolated var claimCoinsService: any ClaimCoinsServicing { get }
@@ -113,13 +113,13 @@ public actor CoinageService {
     // Transfers
     private let senderService: TransferSenderServicing
     public nonisolated let ongoingTransferService: any OngoingTransferServicing
-    public nonisolated let durabilityService: any CoinageTxServicing
+    public nonisolated let txService: any CoinageTxServicing
     public nonisolated let claimCoinsService: any ClaimCoinsServicing
     public nonisolated let transferStatusService: any CoinageTransferStatusServicing
 
     // Sync services
-    private let coinStateSyncService: CoinStateSyncService?
-    private let voucherLocationService: VoucherLocationService?
+    private let coinStateSyncService: CoinStateSyncService
+    private let voucherLocationService: VoucherLocationService
     private let recoveryService: any CoinageBackupRecoveryServicing
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
@@ -156,13 +156,13 @@ public actor CoinageService {
         coinKeypairFactory: any CoinKeyDeriving,
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
-        durabilityService: any CoinageTxServicing,
+        txService: any CoinageTxServicing,
         claimCoinsService: any ClaimCoinsServicing,
         transferStatusService: any CoinageTransferStatusServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
-        coinStateSyncService: CoinStateSyncService? = nil,
-        voucherLocationService: VoucherLocationService? = nil,
+        coinStateSyncService: CoinStateSyncService,
+        voucherLocationService: VoucherLocationService,
         recyclingService: any CoinageRecyclingServicing,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
@@ -182,7 +182,7 @@ public actor CoinageService {
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
-        self.durabilityService = durabilityService
+        self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
         self.logger = logger
@@ -253,13 +253,22 @@ extension CoinageService: CoinageServicing {
             contextSubject.send(.success(context))
 
             // Start sync services
-            coinStateSyncService?.setup()
-            voucherLocationService?.setup()
+            coinStateSyncService.setup()
+            voucherLocationService.setup()
             externalPaymentService.setup(with: context)
 
             subscribeForeground()
 
             Task { await recyclingService.scheduleRecycling() }
+
+            // Release provisional handoffs from payments whose keys never durably left, returning
+            // the coins. Best-effort: a cleanup failure must not hold startup.
+            try await txService.releaseUncommittedHandoffs()
+
+            // Not awaited: a single unresolvable entry must not hold startup
+            // for a mortality window.
+            txService.start()
+
         } catch {
             // Reset so a subsequent setup(with:) call triggers a fresh fetch
             contextSetupTask = nil

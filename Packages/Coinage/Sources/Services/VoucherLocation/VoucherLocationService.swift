@@ -25,6 +25,7 @@ import os
 /// 3. **Ring Readiness Monitoring**: For vouchers in a recycler with degraded privacy level, monitors the
 ///    ring size to update readiness state once the ring reaches minimum size.
 public final class VoucherLocationService: BaseSyncService {
+    private let instanceId: CoinageInstanceId
     private let voucherRepository: AnyDataProviderRepository<Voucher>
     private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
@@ -35,12 +36,14 @@ public final class VoucherLocationService: BaseSyncService {
     private var voucherStatusSubscriptionTask: Task<Void, Error>?
 
     public init(
+        instanceId: CoinageInstanceId,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
         logger: any SDKLoggerProtocol
     ) {
+        self.instanceId = instanceId
         self.voucherRepository = voucherRepository
         self.databaseFactory = databaseFactory
         self.connection = connection
@@ -111,7 +114,7 @@ extension VoucherLocationService {
 
         return pending.map { voucher in
             let publicKey = voucher.publicKey
-            let collectionId = RecyclerCollectionIdentifier.identifier(for: voucher.exponent)
+            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
 
             let mappingKey = SubscriptionKey.member(
                 derivationIndex: voucher.derivationIndex
@@ -141,7 +144,7 @@ extension VoucherLocationService {
                   let voucher = snapshot.pendingVouchers.first(where: { $0.derivationIndex == derivationIndex })
             else { continue }
 
-            let collectionId = RecyclerCollectionIdentifier.identifier(for: voucher.exponent)
+            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
             let mappingKey = SubscriptionKey.ringStatus(derivationIndex: derivationIndex).mappingKey
 
             let innerRequest = DoubleMapSubscriptionRequest(
@@ -162,7 +165,7 @@ extension VoucherLocationService {
         for voucher in snapshot.degradedVouchers {
             guard let recycler = voucher.recycler else { continue }
 
-            let collectionId = RecyclerCollectionIdentifier.identifier(for: voucher.exponent)
+            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
             let mappingKey = SubscriptionKey.ringStatus(derivationIndex: voucher.derivationIndex).mappingKey
 
             let innerRequest = DoubleMapSubscriptionRequest(

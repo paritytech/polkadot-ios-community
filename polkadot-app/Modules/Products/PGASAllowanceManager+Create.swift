@@ -28,14 +28,15 @@ extension PGASAllowanceManager {
             fullKeyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
         )
 
-        let pgasOriginFactory = PGasOriginFactory(
-            keyResolver: keyResolver,
-            chainRegistry: chainRegistry
-        )
-
         let storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
+        let pgasOriginFactory = PGasOriginFactory(
+            keyResolver: keyResolver,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
         )
 
         let extrinsicFacade = ExtrinsicSubmissionMonitorFacade(

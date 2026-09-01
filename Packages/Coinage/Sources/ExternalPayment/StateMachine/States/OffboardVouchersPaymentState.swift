@@ -17,6 +17,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
         with factory: ExternalPaymentStateFactory
     ) async -> AnyStateMachineState<ExternalPaymentStateFactory, ExternalPayment> {
         let service = OffboardVouchersForPaymentService(
+            instanceId: factory.instanceId,
             voucherKeyFactory: factory.voucherKeyFactory,
             voucherMinter: factory.voucherMinter,
             recyclerLoader: factory.recyclerLoader,

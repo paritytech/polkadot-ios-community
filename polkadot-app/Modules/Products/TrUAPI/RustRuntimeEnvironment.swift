@@ -27,11 +27,15 @@ struct RustRuntimeEnvironment {
         /// inject. Called from the runtime's `start`; opening the execution
         /// (``makeSPAExecution``/``makeChatExecution``) stays side-effect free.
         /// The local session is activated once on the shared runtime, not here.
-        func startBridge() throws -> String {
+        func startBridge() async throws -> String {
+            let webRtcAllowed = try await execution.permissionAuthorizationStatus(
+                request: .remote(RemotePermissionRequest(permission: .webRtc))
+            ) == .authorized
             let endpoint = try execution.startWsBridge(bindPort: 0)
             return LocalhostBridgeBootstrap.script(
                 port: endpoint.port,
-                token: endpoint.token
+                token: endpoint.token,
+                webRtcAllowed: webRtcAllowed
             )
         }
     }
@@ -41,14 +45,14 @@ struct RustRuntimeEnvironment {
     /// execution retains the bridge (callback retainer) and the bridge retains
     /// the pool, so holding `ExecutionModel` pins the whole chain.
     func makeSPAExecution(productId: ProductId, routers: ProductRoutersFacadeProtocol) throws -> ExecutionModel {
-        try makeExecution(productId: productId, routers: routers, kind: .spa)
+        try makeExecution(productId: productId, routers: routers, kind: .app)
     }
 
     /// Open a chat execution for `productId`. Mirrors ``makeSPAExecution``.
     /// TODO(chat PR): open with ``RustChatExecutionBridge`` and pass it as
     /// `chat:` to wire the native chat surface once the integration lands.
     func makeChatExecution(productId: ProductId, routers: ProductRoutersFacadeProtocol) throws -> ExecutionModel {
-        try makeExecution(productId: productId, routers: routers, kind: .chat)
+        try makeExecution(productId: productId, routers: routers, kind: .worker)
     }
 }
 
@@ -75,8 +79,8 @@ private extension RustRuntimeEnvironment {
 
         let execution = try runtime.openProductExecution(
             bridge: bridge,
-            chat: nil,
-            configuration: ProductExecutionConfig(productId: productId, executionKind: kind)
+            configuration: ProductExecutionConfig(productId: productId, executionKind: kind),
+            chat: nil
         )
 
         bridge.attach(execution)

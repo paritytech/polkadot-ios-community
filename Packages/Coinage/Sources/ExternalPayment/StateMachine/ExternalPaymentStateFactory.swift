@@ -10,6 +10,7 @@ import SubstrateOperation
 /// Passed to each state's ``StateMachineState/transit(with:)`` so states
 /// can create their successors without coupling to concrete types.
 final class ExternalPaymentStateFactory {
+    let instanceId: CoinageInstanceId
     let planner: ExternalPaymentPlanning
     let context: DenominationBreakdownContext
     let recycler: CoinageRecyclingServicing
@@ -23,6 +24,7 @@ final class ExternalPaymentStateFactory {
     let logger: SDKLoggerProtocol?
 
     init(
+        instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
         context: DenominationBreakdownContext,
         recycler: CoinageRecyclingServicing,
@@ -35,6 +37,7 @@ final class ExternalPaymentStateFactory {
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
+        self.instanceId = instanceId
         self.planner = planner
         self.context = context
         self.recycler = recycler

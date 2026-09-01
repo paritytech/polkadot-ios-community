@@ -794,6 +794,7 @@ extension TransferSenderServiceTests {
         let voucherKeyFactory = MockVoucherKeyFactory()
 
         let planFactory = TransferPlanFactory(
+            instanceId: 0,
             minter: mockMinter,
             voucherKeyFactory: voucherKeyFactory,
             coinKeyFactory: coinKeyFactory,

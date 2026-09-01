@@ -9,6 +9,7 @@ import KeyDerivation
 import Individuality
 import SDKLogger
 import SubstrateStorageQuery
+import SubstrateOperation
 import Products
 import ChainRegistry
 import StructuredConcurrency
@@ -42,7 +43,8 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
         let originFactory = AsResourcesOriginFactory(
             wallet: setupResult.wallet,
             keyResolver: keyResolver,
-            chainRegistry: chainRegistry
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
         )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
@@ -74,6 +76,13 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
             chainId: KnownChainId.previewNetPeople,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
+            resourcesParameters: CachedResourcesParametersProvider(
+                viewFunctionExecutor: ViewFunctionExecutor(
+                    chainRegistry: chainRegistry,
+                    operationQueue: operationQueue
+                ),
+                ttl: 0
+            ),
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,

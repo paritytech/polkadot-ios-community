@@ -164,13 +164,14 @@ private extension ServiceCoordinator {
 
         let schedulerFactory = CoinRecycleSchedulerFactory(logger: logger)
 
-        let durabilityStore = CoinageTxCoreDataRepository(
+        let coinageTxStore = CoinageTxCoreDataRepository(
             storageFacade: UserDataStorageFacade.shared
         )
 
         return CoinageService.make(
             chainResource: chainRegistry,
             chain: chain,
+            instanceId: AppConfig.Coinage.instanceId,
             databaseFactory: databaseFactory,
             originFactory: coinageOriginFactory,
             extrinsicMonitorFactory: monitorFactory,
@@ -178,7 +179,7 @@ private extension ServiceCoordinator {
             extrinsicSubmitter: extrinsicSubmitter,
             rootEntropyManager: RootEntropyManager.shared,
             keystore: Keychain(),
-            durabilityStore: durabilityStore,
+            txStore: coinageTxStore,
             schedulerFactory: schedulerFactory,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,

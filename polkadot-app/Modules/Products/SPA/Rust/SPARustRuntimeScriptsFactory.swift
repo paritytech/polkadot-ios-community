@@ -17,7 +17,8 @@ final class SPARustRuntimeScriptsFactory: SPAScriptsMaking {
 
         let container = try JSEngineScript(
             content: ContainerScriptBundle.load(),
-            insertionPoint: .atDocStart
+            insertionPoint: .atDocStart,
+            frameScope: .allFrames
         )
 
         return [bootstrap, container, .disableZoom]

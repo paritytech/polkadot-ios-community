@@ -177,6 +177,7 @@ private extension CoinageOriginFactory {
         let key = RecyclerKey(exponent: firstVoucher.exponent, index: recycler.index)
 
         return RecyclerProofParamsProvider(
+            instanceId: AppConfig.Coinage.instanceId,
             recyclerKey: key,
             proofParamsFetcher: proofParamsFetcher
         )

@@ -9,6 +9,7 @@ import KeyDerivation
 import Individuality
 import SDKLogger
 import SubstrateStorageQuery
+import SubstrateOperation
 import Products
 import ChainStore
 import ChainRegistry
@@ -26,6 +27,11 @@ final class BulletinSlotAllocatorTests: XCTestCase {
             logger: Logger.shared
         )
 
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
         let liteVrfManager = BandersnatchKeyManager.litePerson(for: "dot", entropyManager: setupResult.entropyManager)
         let fullVrfManager = BandersnatchKeyManager.fullPerson(for: "dot", entropyManager: setupResult.entropyManager)
 
@@ -37,7 +43,8 @@ final class BulletinSlotAllocatorTests: XCTestCase {
         let originFactory = AsResourcesOriginFactory(
             wallet: setupResult.wallet,
             keyResolver: keyResolver,
-            chainRegistry: chainRegistry
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
         )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
@@ -53,10 +60,7 @@ final class BulletinSlotAllocatorTests: XCTestCase {
         let chainTimeProvider = ChainTimeProvider(
             chainId: AppConfig.Chains.bulletInChain,
             chainRegistry: chainRegistry,
-            storageRequestFactory: StorageRequestFactory(
-                remoteFactory: StorageKeyFactory(),
-                operationManager: OperationManager(operationQueue: operationQueue)
-            )
+            storageRequestFactory: storageRequestFactory
         )
 
         let allocator: AllowanceSlotAllocating = BulletinSlotAllocator(
@@ -67,7 +71,14 @@ final class BulletinSlotAllocatorTests: XCTestCase {
                 chainRegistry: chainRegistry,
                 keyResolver: keyResolver,
                 operationQueue: operationQueue,
-                chainTimeProvider: chainTimeProvider
+                chainTimeProvider: chainTimeProvider,
+                resourcesParameters: CachedResourcesParametersProvider(
+                    viewFunctionExecutor: ViewFunctionExecutor(
+                        chainRegistry: chainRegistry,
+                        operationQueue: operationQueue
+                    ),
+                    ttl: 0
+                )
             ),
             originFactory: originFactory,
             submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory)
