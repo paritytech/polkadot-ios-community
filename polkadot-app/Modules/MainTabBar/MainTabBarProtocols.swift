@@ -13,6 +13,7 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
         _ configuration: (any HashableContentConfiguration)?,
         trailingTint: UIColor?
     )
+    func showChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor

@@ -26,6 +26,7 @@ The container mounts **either a tab or an SPA browser tab** — `TabBarContentSe
 | Centre slot view | `.../DSTabBar/DSTabBarCentreSlotView.swift`, `DSTabBarTabsGlyphView.swift` |
 | Tabs panel | `.../DSTabBar/DSTabBarTabsPanelView.swift`, `DSTabBarPanelLayout.swift`, `DSTabBarChipView.swift` |
 | Trailing slot and content panel | `.../DSTabBar/DSTabBarTrailingSlot.swift`, `DSTabBarContentPanelView.swift` |
+| Top status strip view | `Packages/PolkadotUI/Sources/Modules/MainTabBar/ChainConnectionStatusBarView.swift` |
 | Chrome glass surface | `Packages/PolkadotUI/Sources/Components/DSGlassBackground/` |
 | SPA tab store and controller pool | `polkadot-app/Modules/Browser/` |
 | SPA chip view models | `polkadot-app/Modules/MainTabBar/SPATabChipViewModel.swift` |
@@ -53,7 +54,7 @@ Nothing hides the bar programmatically — presented view controllers cover it s
 
 ## Safe Area
 
-Two insets stack at the bottom and go on **different** controllers so they compose instead of overwriting:
+Two insets stack at the bottom and go on **different** controllers so they compose instead of overwriting. They are unchanged by the top status strip and still go on the two child controllers below; **the top inset is the only inset the container writes on itself** — a constant, set once (see [Top Status Strip](#top-status-strip)).
 
 | Inset | Applied to |
 |---|---|
@@ -76,6 +77,28 @@ Split because they change at different rates — the nav controller is stable fo
 `viewSafeAreaInsetsDidChange()` and `TabBarContainer`'s `onContentInsetInvalidated` also use `applyLayout`, re-deriving from `container.selectedController` instead of reusing the chrome's last-applied targets — reusing them let a late `didShow` from a background tab pin insets to a controller no longer visible. Fold inputs are still set only by `apply`, unchecked against the selected tab; no known live path, since `ModuleNavigator` selects the tab before navigating.
 
 `updateLayout` no-ops while the chrome's view has no window — a `.fullScreen` presentation elsewhere detaches it, where `safeAreaInsets` reads zero and clearance would compute too large. Last-applied insets hold until reattachment fires `viewSafeAreaInsetsDidChange`.
+
+## Top Status Strip
+
+A permanent 20pt strip at the top of `MainTabBarViewController` holds one `chart.bar.fill` SF Symbol per chain — `.system(size: 12, weight: .semibold)`, tinted by `row.state.statusColor` — for the same three `ChainConnectionTarget`s the bottom content panel lists (chat, bulletin, assethub). **State is carried by tint alone**; there is no dot and no visible chain name. Only `.connecting` animates: `.symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating, isActive: row.state == .connecting)`, so connected and offline render static. **The strip is informational only**: no tap handling, no fold, no hide, constant height, and it ships in both `FEATURE_PRODUCTS` arms.
+
+The chain name and state survive only as the icon's accessibility label, built with **`Text(verbatim:)`** — a plain interpolated `Text` is treated as a localizable format string and string extraction registers a `"%@, %@"` entry in the package catalog.
+
+`installStatusBar()` writes `additionalSafeAreaInsets.top = ChainConnectionStatusBarView.preferredHeight` on **the container itself**, once, in `viewDidLoad`. It is a constant and is never recomputed in `viewSafeAreaInsetsDidChange`. UIKit propagates the combined inset (system top + 20) down through each mounted nav controller to every screen it pushes, so **a pushed screen inherits the clearance with no bookkeeping**.
+
+**There is one view, not two**: the `UIHostingController`'s, added straight to the container view with leading, trailing and **bottom pinned to `view.safeAreaLayoutGuide.snp.top`** — that guide already includes the 20pt once the inset is set, so the host occupies exactly the band the inset reserved. **No height constraint**; height comes from the SwiftUI view's own `.frame(height: Self.preferredHeight)` as intrinsic content size. The host's `backgroundColor` is `.clear` — **the strip paints no fill of its own**. What shows behind the system status bar and behind the icons is the container's own `.bgSurfaceMain`.
+
+**Install order in `viewDidLoad` is load-bearing.** `installStatusBar()` runs *before* `installChromeController()` so the bottom chrome stays topmost, and mounted tab children insert at subview index 0 so they stay behind the strip. `TabBarContainer` is unchanged — children still mount full-bleed into the container's own view.
+
+*Rationale:* the obvious alternative — pinning a dedicated content container view below the strip and mounting children into it — physically moves the child's frame out of the top safe area, so UIKit computes the child's `safeAreaInsets.top` as 0 and a `UINavigationBar` stops drawing its background at the container's top edge instead of extending to y=0. Applying the inset per tab controller from the chrome was also rejected: it needs the same "which controller is current" tracking the chrome already does for the bottom, in a second owner.
+
+**Content flow.** `MainTabBarPresenter.didReceiveChainStatus` pushes to two hosts. `view?.showChainStatus(rows)` is called *outside* the `#if !FEATURE_PRODUCTS`; the existing `showTabBarPanelContent` call stays inside it. The strip takes raw `[ChainConnectionStatusViewModel]`, not a `HashableContentConfiguration`, because its host is a `UIHostingController` rather than a `UIContentView` — exactly the case the provider's row-emitting contract anticipates, with the presenter wrapping at its own push site. The view controller assigns `statusBarHost.rootView`. No provider, service or interactor change; in the products arm `setChainStatusActive` is still never called, so latency and block sampling stay off — the strip shows state only. The colour mapping moved out of `ChainConnectionStatusRowView`'s private helper into a `ChainConnectionState.statusColor` extension in the new file, feeding both the strip's icon tint and the panel row's unchanged 8pt dot.
+
+*Accepted:*
+
+- A child that ignores its safe area and paints to y=0 (a chat background, an SPA web view) **shows through the strip**, behind the icons — mounted children sit at subview index 0, below the clear host, and nothing masks them.
+- `availablePanelHeight` in the chrome subtracts `view.safeAreaInsets.top`, which now includes the strip, so the tabs and content panels open 20pt shorter.
+- Nav bars shift down 20pt on every screen; their background still stretches to y=0, visible behind the strip's icons.
 
 ## Re-tap
 

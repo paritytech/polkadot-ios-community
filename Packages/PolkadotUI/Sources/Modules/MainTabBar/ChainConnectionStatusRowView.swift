@@ -7,7 +7,7 @@ struct ChainConnectionStatusRowView: View, Hashable {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Circle()
-                .fill(dotColor(for: row.state))
+                .fill(row.state.statusColor)
                 .frame(width: 8, height: 8)
                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] }
 
@@ -50,16 +50,5 @@ struct ChainConnectionStatusRowView: View, Hashable {
             }
         }
         .foregroundStyle(Color.fgSecondary)
-    }
-
-    private func dotColor(for state: ChainConnectionState) -> Color {
-        switch state {
-        case .connected:
-            .bgStatusSuccess
-        case .connecting:
-            .bgStatusWarning
-        case .offline:
-            .bgStatusError
-        }
     }
 }

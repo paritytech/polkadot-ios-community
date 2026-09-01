@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 import PolkadotUI
 import SnapKit
 import DesignSystem
@@ -12,6 +13,8 @@ final class MainTabBarViewController: UIViewController {
     let flowStateProvider: any SPAFlowStateProviding
 
     private let chromeController = TabBarBottomChromeController()
+
+    private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(rows: []))
 
     private lazy var container = TabBarContainer(hostController: self)
 
@@ -42,6 +45,8 @@ final class MainTabBarViewController: UIViewController {
         super.viewDidLoad()
 
         view.backgroundColor = .bgSurfaceMain
+
+        installStatusBar()
 
         installChromeController()
 
@@ -108,6 +113,20 @@ final class MainTabBarViewController: UIViewController {
 // MARK: - Private
 
 private extension MainTabBarViewController {
+    func installStatusBar() {
+        additionalSafeAreaInsets.top = ChainConnectionStatusBarView.preferredHeight
+
+        addChild(statusBarHost)
+        statusBarHost.view.backgroundColor = .clear
+        view.addSubview(statusBarHost.view)
+        statusBarHost.view.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(view.safeAreaLayoutGuide.snp.top)
+        }
+
+        statusBarHost.didMove(toParent: self)
+    }
+
     func installChromeController() {
         addChild(chromeController)
         view.addSubview(chromeController.view)
@@ -311,6 +330,10 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     ) {
         let slot = configuration == nil ? nil : TabBarTrailingSlotFactory.makeSlot(tintColor: trailingTint)
         chromeController.setTrailingPanel(slot: slot, content: configuration)
+    }
+
+    func showChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
+        statusBarHost.rootView = ChainConnectionStatusBarView(rows: rows)
     }
 }
 

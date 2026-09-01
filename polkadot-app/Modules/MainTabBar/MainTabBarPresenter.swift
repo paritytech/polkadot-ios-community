@@ -80,6 +80,8 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
     }
 
     func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
+        view?.showChainStatus(rows)
+
         #if !FEATURE_PRODUCTS
             view?.showTabBarPanelContent(
                 SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows: rows)),
