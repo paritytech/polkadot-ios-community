@@ -5,8 +5,8 @@ import Foundation
 /// Build-flavor deeplink schemes for tests that must hold under any configuration.
 enum DeeplinkTestSchemes {
     static let active = AppConfig.DeepLink.scheme
-    /// The inactive flavor of the CURRENT brand. Derived from knownSchemes so it stays
-    /// correct under any brand; a hardcoded fallback would silently leave a scheme that
-    /// knownSchemes does not contain, and DeeplinkSchemeNormalizer would pass it through.
-    static let other = AppConfig.DeepLink.knownSchemes.subtracting([active]).first!
+    /// A non-active flavor scheme of the CURRENT brand, synthesized from the brand base so
+    /// it stays correct under any brand and any set of build configurations. No real
+    /// configuration uses this suffix, so it can never collide with `active`.
+    static let other = AppConfig.Brand.deeplinkBase + "othertest"
 }

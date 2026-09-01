@@ -4,8 +4,11 @@ extension AppConfig {
     enum DeepLink {
         static var scheme: String { Brand.deeplinkScheme }
 
-        /// Schemes across all build flavors; the active one depends on the configuration.
-        static var knownSchemes: Set<String> { Brand.deeplinkSchemes }
+        /// Every build flavor's scheme is the brand base plus a per-configuration suffix, so
+        /// a prefix test recognises links minted by any flavor without enumerating them.
+        static func isKnownScheme(_ scheme: String) -> Bool {
+            scheme.lowercased().hasPrefix(Brand.deeplinkBase)
+        }
 
         static func chat(_ chatId: Chat.Id, force: Bool) -> URL {
             let idPart = "id=\(chatId.rawRepresentation)"
