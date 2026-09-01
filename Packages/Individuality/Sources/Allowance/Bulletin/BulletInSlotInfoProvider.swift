@@ -69,6 +69,7 @@ public final class BulletInSlotInfoProvider {
     let chainTimeProvider: ChainTimeProviding
 
     let storageRequestFactory: StorageRequestFactoryProtocol
+    let viewFunctionExecutor: ViewFunctionExecuting
 
     public init(
         bulletInChainId: ChainId,
@@ -94,6 +95,11 @@ public final class BulletInSlotInfoProvider {
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
         )
+
+        viewFunctionExecutor = ViewFunctionExecutor(
+            chainRegistry: chainRegistry,
+            operationQueue: operationQueue
+        )
     }
 }
 
@@ -115,7 +121,7 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
             )
         ).pickPersonOrigin()
 
-        let maxClaims = try await fetchMaxClaims(codingFactory: codingFactory)
+        let maxClaims = try await fetchMaxClaims()
 
         guard maxClaims > 0, periodDuration > 0 else {
             throw AllowanceSlotAssignmentError.noSlotsAvailable
@@ -236,13 +242,12 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
 }
 
 private extension BulletInSlotInfoProvider {
-    func fetchMaxClaims(codingFactory: RuntimeCoderFactoryProtocol) async throws -> UInt8 {
-        let operation = StorageConstantOperation<StringCodable<UInt8>>(
-            path: ResourcesPallet.Constants.longTermStorageClaimsPerPeriod(),
-            fallbackValue: .init(wrappedValue: 0)
+    func fetchMaxClaims() async throws -> UInt8 {
+        let value: StringCodable<UInt8> = try await viewFunctionExecutor.call(
+            viewFunction: ResourcesPallet.ViewFunction.longTermStorageClaimsPerPeriod(),
+            chainId: peopleChainId
         )
-        operation.codingFactory = codingFactory
-        return try await operation.asyncExecute().wrappedValue
+        return value.wrappedValue
     }
 
     func fetchPeriodDuration(codingFactory: RuntimeCoderFactoryProtocol) async throws -> UInt32 {

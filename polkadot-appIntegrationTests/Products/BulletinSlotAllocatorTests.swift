@@ -26,6 +26,11 @@ final class BulletinSlotAllocatorTests: XCTestCase {
             logger: Logger.shared
         )
 
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
         let liteVrfManager = BandersnatchKeyManager.litePerson(for: "dot", entropyManager: setupResult.entropyManager)
         let fullVrfManager = BandersnatchKeyManager.fullPerson(for: "dot", entropyManager: setupResult.entropyManager)
 
@@ -37,7 +42,8 @@ final class BulletinSlotAllocatorTests: XCTestCase {
         let originFactory = AsResourcesOriginFactory(
             wallet: setupResult.wallet,
             keyResolver: keyResolver,
-            chainRegistry: chainRegistry
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
         )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
@@ -53,10 +59,7 @@ final class BulletinSlotAllocatorTests: XCTestCase {
         let chainTimeProvider = ChainTimeProvider(
             chainId: AppConfig.Chains.bulletInChain,
             chainRegistry: chainRegistry,
-            storageRequestFactory: StorageRequestFactory(
-                remoteFactory: StorageKeyFactory(),
-                operationManager: OperationManager(operationQueue: operationQueue)
-            )
+            storageRequestFactory: storageRequestFactory
         )
 
         let allocator: AllowanceSlotAllocating = BulletinSlotAllocator(

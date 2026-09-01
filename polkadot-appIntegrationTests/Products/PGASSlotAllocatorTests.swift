@@ -38,7 +38,11 @@ final class PGASSlotAllocatorTests: XCTestCase {
             fullKeyManager: fullVrfManager
         )
 
-        let originFactory = PGasOriginFactory(keyResolver: keyResolver, chainRegistry: chainRegistry)
+        let originFactory = PGasOriginFactory(
+            keyResolver: keyResolver,
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
+        )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
             chainRegistry: chainRegistry,

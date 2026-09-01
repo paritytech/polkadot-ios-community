@@ -6,6 +6,7 @@ import Products
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
+import SubstrateOperation
 import ChainRegistry
 
 final class HostTransactionSponsorFactory: TransactionSponsorMaking {
@@ -104,6 +105,10 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainId: AppConfig.Chains.chatChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
+            viewFunctionExecutor: ViewFunctionExecutor(
+                chainRegistry: chainRegistry,
+                operationQueue: operationQueue
+            ),
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,

@@ -5,6 +5,7 @@ import KeyDerivation
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
+import SubstrateOperation
 import ChainRegistry
 import StructuredConcurrency
 import BackgroundExecution
@@ -80,6 +81,10 @@ extension SSStoreAllowanceManager {
             chainId: chatChain.chainId,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
+            viewFunctionExecutor: ViewFunctionExecutor(
+                chainRegistry: chainRegistry,
+                operationQueue: operationQueue
+            ),
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,
