@@ -19,10 +19,8 @@ jobs:
       release_branch: ${{ inputs.release_branch }}
       release_pr_number: ${{ inputs.release_pr_number }}
       build_configuration: "Nightly"
-      # Internal distribution only: no external group, no beta review. Nightly carries the
-      # production bundle id, so it lands in the production app's TestFlight.
-      distribute_to_external_group: false
-      external_group_name: ""
+      distribute_to_external_group: true
+      external_group_name: "Daily test builds"
       s3_static_subdir: "nightly"
     secrets: inherit
 
@@ -42,7 +40,6 @@ jobs:
       build_configuration: "Safetynet"
       distribute_to_external_group: false
       external_group_name: ""
-      # Its own static path: the release static object is the latest real Release build.
       s3_static_subdir: "safetynet"
     secrets: inherit
 
