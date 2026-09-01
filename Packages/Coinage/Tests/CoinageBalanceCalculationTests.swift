@@ -8,7 +8,7 @@ import Testing
 /// by hand, so every disposition (spendable / degraded / pending-locked / nowhere) is asserted
 /// directly against the calculation.
 ///
-/// Bucket mapping Android → iOS: `secured` → `spendable.fullPrivacy`, `degraded` →
+/// Bucket mapping: `secured` → `spendable.fullPrivacy`, `degraded` →
 /// `spendable.degraded`, `pending` → `locked`.
 @Suite("Coinage balance calculation")
 struct CoinageBalanceCalculationTests {

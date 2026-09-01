@@ -79,6 +79,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
         stateMachineFactory = ExternalPaymentStateMachineFactory(
             planner: planner,
             recycler: dependency.recycler,
+            voucherService: dependency.voucherService,
             voucherKeyFactory: dependency.voucherKeyFactory,
             voucherMinter: dependency.voucherMinter,
             recyclerLoader: dependency.recyclerLoader,
@@ -201,7 +202,8 @@ private extension ExternalPayment.Stage {
              .onboardCoins,
              .offboardVouchers:
             .processing
-        case .completed:
+        case .completed,
+             .partiallyCompleted:
             .completed
         case .failed:
             .failed(reason: failureReason ?? "Unknown")

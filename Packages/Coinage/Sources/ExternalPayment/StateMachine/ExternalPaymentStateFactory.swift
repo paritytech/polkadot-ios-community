@@ -13,6 +13,7 @@ final class ExternalPaymentStateFactory {
     let planner: ExternalPaymentPlanning
     let context: DenominationBreakdownContext
     let recycler: CoinageRecyclingServicing
+    let voucherService: VoucherServiceProtocol
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -25,6 +26,7 @@ final class ExternalPaymentStateFactory {
         planner: ExternalPaymentPlanning,
         context: DenominationBreakdownContext,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -36,6 +38,7 @@ final class ExternalPaymentStateFactory {
         self.planner = planner
         self.context = context
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -77,6 +80,10 @@ extension ExternalPaymentStateFactory {
         AnyStateMachineState(FailedPaymentState(payment: payment, reason: reason))
     }
 
+    func makePartiallyCompletedState(payment: ExternalPayment, reason: String) -> ErasedState {
+        AnyStateMachineState(PartiallyCompletedPaymentState(payment: payment, reason: reason))
+    }
+
     func makeRescheduledState(payment: ExternalPayment, until: Date) -> ErasedState {
         AnyStateMachineState(RescheduledPaymentState(payment: payment, until: until))
     }
@@ -91,16 +98,18 @@ extension ExternalPaymentStateFactory {
             // as actual spending have not been started yet we fallback to planing again
             makePlanState(payment: payment)
         case .offboardVouchers:
-            // we can't recover for now in cases when a user closed the app in the middle of the payment
-            // however recovery service should eventually do the recover job
-            // in result we can guarantee only partial payment here
-            makeFailedState(payment: payment, reason: "Partial")
+            // Re-enter offboarding with no plan-carried vouchers: the state re-joins the durability
+            // group this payment already registered (keyed by payment id) and awaits its real
+            // outcome, or re-plans if nothing was registered before the crash.
+            makeOffboardVouchersState(payment: payment, vouchers: [])
         case .completed:
             makeCompletedState(payment: payment)
         case .failed:
             makeFailedState(payment: payment, reason: payment.failureReason ?? "Unknown")
         case .rescheduled:
             makeRescheduledState(payment: payment, until: payment.readyAt)
+        case .partiallyCompleted:
+            makePartiallyCompletedState(payment: payment, reason: payment.failureReason ?? "Partial")
         }
     }
 }

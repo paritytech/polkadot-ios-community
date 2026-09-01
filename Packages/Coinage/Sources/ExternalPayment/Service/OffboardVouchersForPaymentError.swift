@@ -1,9 +1,10 @@
 import Foundation
+import SubstrateSdk
 
 enum OffboardVouchersForPaymentError: Error {
     case emptyVouchers
     case missingRecyclerInfo
     case unexpectedEmptyRevision(RecyclerKey)
-    case submissionFailed([Error])
-    case groupExecutionFailed(CoinageTxId)
+    case noSurplusHost(Balance)
+    case subscriptionEnded
 }

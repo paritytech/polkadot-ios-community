@@ -71,10 +71,8 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
         // Calculate deficit and check coins
         let deficit = amount - totalVoucherValue
 
-        let spendableCoins = try await coinService.fetchAllTrackedCoins()
-            .filter(\.isSelectable)
-            .map(\.coin)
-        let nonSpentCoins = spendableCoins
+        let trackedCoins = try await coinService.fetchAllTrackedCoins()
+        let spendableCoins = trackedCoins.filter(\.isSelectable).map(\.coin)
         let spendableTotal = totalValue(of: spendableCoins, context: context)
 
         if spendableTotal >= deficit {
@@ -88,12 +86,17 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
             return .loadCoins(selection)
         }
 
-        // Check if non-spent coins (available + recycling + pendingTransfer) would cover it
-        let nonSpentTotal = totalValue(of: nonSpentCoins, context: context)
-        if nonSpentTotal >= deficit {
+        // Coins not spendable yet but on their way — minting (will land) or aged past recycling
+        // (will be recycled into fresh spendable coins). If they would cover the deficit, wait for
+        // them rather than declaring insufficient funds (Android's activeCoins vs availableCoins).
+        let maturingCoins = trackedCoins
+            .filter { $0.isMinting || $0.isAwaitingRecycling() }
+            .map(\.coin)
+        let reachableTotal = spendableTotal + totalValue(of: maturingCoins, context: context)
+        if reachableTotal >= deficit {
             let selection = ExternalPaymentPreview.Selection(
                 vouchers: readyVouchers,
-                coins: nonSpentCoins,
+                coins: spendableCoins + maturingCoins,
                 fullAmount: amount,
                 nonDegradedAmount: fullPrivacyNonDegraded
             )

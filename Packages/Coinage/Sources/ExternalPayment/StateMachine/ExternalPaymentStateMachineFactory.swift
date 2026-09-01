@@ -12,6 +12,7 @@ import SubstrateOperation
 final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreating {
     private let planner: ExternalPaymentPlanning
     private let recycler: CoinageRecyclingServicing
+    private let voucherService: VoucherServiceProtocol
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
@@ -24,6 +25,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     init(
         planner: ExternalPaymentPlanning,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -35,6 +37,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     ) {
         self.planner = planner
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -71,6 +74,7 @@ private extension ExternalPaymentStateMachineFactory {
             planner: planner,
             context: context,
             recycler: recycler,
+            voucherService: voucherService,
             voucherKeyFactory: voucherKeyFactory,
             voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,

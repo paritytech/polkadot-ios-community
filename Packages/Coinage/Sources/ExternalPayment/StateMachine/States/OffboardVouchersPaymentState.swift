@@ -28,11 +28,36 @@ struct OffboardVouchersPaymentState: StateMachineState {
         )
 
         do {
-            try await service.execute(
+            // Before committing, pick the path:
+            // - a group is already registered (crash re-entry): re-join and await it; the
+            //   plan-carried vouchers are irrelevant since the inputs are already claimed.
+            // - nothing registered yet: we must register, so the plan must still be valid — every
+            //   selected voucher still selectable. A stale or crash-lost plan re-plans instead of
+            //   failing, because the funds are still there (Android's EnsureVouchers path).
+            if try await !service.hasPendingGroup(for: payment) {
+                guard !vouchers.isEmpty, try await allSelectable(vouchers, factory: factory) else {
+                    return factory.makePlanState(payment: payment)
+                }
+            }
+
+            let outcome = try await service.execute(
                 payment: payment,
                 vouchers: vouchers
             )
-            return factory.makeCompletedState(payment: payment)
+            switch outcome {
+            case .success:
+                return factory.makeCompletedState(payment: payment)
+            case let .partialSuccess(executed, total):
+                return factory.makePartiallyCompletedState(
+                    payment: payment,
+                    reason: "\(executed) of \(total) unload transactions executed"
+                )
+            case .failed:
+                return factory.makeFailedState(
+                    payment: payment,
+                    reason: "no unload transaction executed"
+                )
+            }
         } catch {
             return factory.makeFailedState(
                 payment: payment,
@@ -46,5 +71,19 @@ struct OffboardVouchersPaymentState: StateMachineState {
         currentPayment.stage = .offboardVouchers
         currentPayment.updatedAt = Date()
         return currentPayment
+    }
+
+    /// Whether every planned voucher is still selectable right now — the plan may have gone stale
+    /// (a voucher spent or recycled) since it was picked.
+    private func allSelectable(
+        _ vouchers: [Voucher],
+        factory: ExternalPaymentStateFactory
+    ) async throws -> Bool {
+        let selectable = try await Set(
+            factory.voucherService.fetchAllTracked()
+                .filter(\.isSelectable)
+                .map(\.voucher.derivationIndex)
+        )
+        return vouchers.allSatisfy { selectable.contains($0.derivationIndex) }
     }
 }
