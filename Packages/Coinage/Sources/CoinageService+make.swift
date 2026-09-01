@@ -171,7 +171,6 @@ public extension CoinageService {
             pass: recoveryPass,
             operationFactory: extrinsicOperationFactory,
             chainFactory: chainFactory,
-            backgroundExecutor: backgroundExecutor,
             logger: logger
         )
 
