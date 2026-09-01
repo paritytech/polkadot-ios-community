@@ -69,7 +69,7 @@ public final class BulletInSlotInfoProvider {
     let chainTimeProvider: ChainTimeProviding
 
     let storageRequestFactory: StorageRequestFactoryProtocol
-    let viewFunctionExecutor: ViewFunctionExecuting
+    let resourcesParameters: ResourcesParametersProviding
 
     public init(
         bulletInChainId: ChainId,
@@ -77,7 +77,8 @@ public final class BulletInSlotInfoProvider {
         chainRegistry: ChainResourceProtocol,
         keyResolver: BandersnatchKeyResolving,
         operationQueue: OperationQueue,
-        chainTimeProvider: ChainTimeProviding
+        chainTimeProvider: ChainTimeProviding,
+        resourcesParameters: ResourcesParametersProviding
     ) {
         self.bulletInChainId = bulletInChainId
         self.peopleChainId = peopleChainId
@@ -85,6 +86,7 @@ public final class BulletInSlotInfoProvider {
         self.keyResolver = keyResolver
         self.operationQueue = operationQueue
         self.chainTimeProvider = chainTimeProvider
+        self.resourcesParameters = resourcesParameters
         bulletInBlockProvider = BlockInfoProvider(
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
@@ -94,11 +96,6 @@ public final class BulletInSlotInfoProvider {
         storageRequestFactory = StorageRequestFactory(
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
-        )
-
-        viewFunctionExecutor = ViewFunctionExecutor(
-            chainRegistry: chainRegistry,
-            operationQueue: operationQueue
         )
     }
 }
@@ -243,11 +240,7 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
 
 private extension BulletInSlotInfoProvider {
     func fetchMaxClaims() async throws -> UInt8 {
-        let value: StringCodable<UInt8> = try await viewFunctionExecutor.call(
-            viewFunction: ResourcesPallet.ViewFunction.longTermStorageClaimsPerPeriod(),
-            chainId: peopleChainId
-        )
-        return value.wrappedValue
+        try await resourcesParameters.longTermStorageClaimsPerPeriod(chainId: peopleChainId)
     }
 
     func fetchPeriodDuration(codingFactory: RuntimeCoderFactoryProtocol) async throws -> UInt32 {

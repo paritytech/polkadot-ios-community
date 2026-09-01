@@ -50,7 +50,8 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainRegistry: chainRegistry,
             keyResolver: keyResolver,
             operationQueue: operationQueue,
-            chainTimeProvider: bulletInTimeProvider
+            chainTimeProvider: bulletInTimeProvider,
+            resourcesParameters: ResourcesParametersFacade.shared
         )
 
         return PreimageSubmitSponsor(
@@ -105,10 +106,7 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainId: AppConfig.Chains.chatChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
-            viewFunctionExecutor: ViewFunctionExecutor(
-                chainRegistry: chainRegistry,
-                operationQueue: operationQueue
-            ),
+            resourcesParameters: ResourcesParametersFacade.shared,
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,

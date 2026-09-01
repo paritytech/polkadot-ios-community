@@ -81,10 +81,7 @@ extension SSStoreAllowanceManager {
             chainId: chatChain.chainId,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
-            viewFunctionExecutor: ViewFunctionExecutor(
-                chainRegistry: chainRegistry,
-                operationQueue: operationQueue
-            ),
+            resourcesParameters: ResourcesParametersFacade.shared,
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,

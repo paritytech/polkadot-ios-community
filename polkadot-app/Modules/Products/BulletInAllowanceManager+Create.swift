@@ -67,7 +67,8 @@ extension BulletInAllowanceManager {
             chainRegistry: chainRegistry,
             keyResolver: keyResolver,
             operationQueue: operationQueue,
-            chainTimeProvider: chainTimeProvider
+            chainTimeProvider: chainTimeProvider,
+            resourcesParameters: ResourcesParametersFacade.shared
         )
 
         let allocator = BulletinSlotAllocator(

@@ -2,8 +2,6 @@ import Foundation
 import SubstrateSdk
 import Operation_iOS
 import SubstrateStorageQuery
-import SubstrateSdkExt
-import SubstrateOperation
 import KeyDerivation
 import FoundationExt
 import ChainStore
@@ -45,7 +43,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
     private let chainId: ChainId
     private let chainRegistry: ChainResourceProtocol
     private let storageRequestFactory: StorageRequestFactoryProtocol
-    private let viewFunctionExecutor: ViewFunctionExecuting
+    private let resourcesParameters: ResourcesParametersProviding
     private let chainTimeProvider: ChainTimeProviding
     private let originPersonProvider: OriginPersonProviding
     private let logger: SDKLoggerProtocol
@@ -55,7 +53,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         chainId: ChainId,
         chainRegistry: ChainResourceProtocol,
         storageRequestFactory: StorageRequestFactoryProtocol,
-        viewFunctionExecutor: ViewFunctionExecuting,
+        resourcesParameters: ResourcesParametersProviding,
         chainTimeProvider: ChainTimeProviding,
         originPersonProvider: OriginPersonProviding,
         accounting: StatementStoreSlotAccounting,
@@ -64,7 +62,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         self.chainId = chainId
         self.chainRegistry = chainRegistry
         self.storageRequestFactory = storageRequestFactory
-        self.viewFunctionExecutor = viewFunctionExecutor
+        self.resourcesParameters = resourcesParameters
         self.chainTimeProvider = chainTimeProvider
         self.originPersonProvider = originPersonProvider
         self.logger = logger
@@ -225,24 +223,11 @@ private extension StatementStoreSlotInfoProvider {
     }
 
     func fetchMaxSlots(origin: PersonOrigin) async throws -> UInt32 {
-        let viewFunction =
-            switch origin {
-            case .lite: ResourcesPallet.ViewFunction.liteStmtStoreSlotsPerPeriod
-            case .full: ResourcesPallet.ViewFunction.stmtStoreSlotsPerPeriod
-            }
-        let value: StringCodable<UInt32> = try await viewFunctionExecutor.call(
-            viewFunction: viewFunction(),
-            chainId: chainId
-        )
-        return value.wrappedValue
+        try await resourcesParameters.stmtStoreSlotsPerPeriod(chainId: chainId, origin: origin)
     }
 
     func fetchReplacementCooldown() async throws -> UInt32 {
-        let value: StringCodable<UInt32> = try await viewFunctionExecutor.call(
-            viewFunction: ResourcesPallet.ViewFunction.stmtStoreReplacementCooldown(),
-            chainId: chainId
-        )
-        return value.wrappedValue
+        try await resourcesParameters.stmtStoreReplacementCooldown(chainId: chainId)
     }
 
     func occupiedSlots(from state: SlotState) -> [SSSOccupiedSlot] {

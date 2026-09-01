@@ -76,9 +76,12 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
             chainId: KnownChainId.previewNetPeople,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
-            viewFunctionExecutor: ViewFunctionExecutor(
-                chainRegistry: chainRegistry,
-                operationQueue: operationQueue
+            resourcesParameters: CachedResourcesParametersProvider(
+                viewFunctionExecutor: ViewFunctionExecutor(
+                    chainRegistry: chainRegistry,
+                    operationQueue: operationQueue
+                ),
+                ttl: 0
             ),
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,

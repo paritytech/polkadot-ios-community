@@ -9,6 +9,7 @@ import KeyDerivation
 import Individuality
 import SDKLogger
 import SubstrateStorageQuery
+import SubstrateOperation
 import Products
 import ChainStore
 import ChainRegistry
@@ -70,7 +71,14 @@ final class BulletinSlotAllocatorTests: XCTestCase {
                 chainRegistry: chainRegistry,
                 keyResolver: keyResolver,
                 operationQueue: operationQueue,
-                chainTimeProvider: chainTimeProvider
+                chainTimeProvider: chainTimeProvider,
+                resourcesParameters: CachedResourcesParametersProvider(
+                    viewFunctionExecutor: ViewFunctionExecutor(
+                        chainRegistry: chainRegistry,
+                        operationQueue: operationQueue
+                    ),
+                    ttl: 0
+                )
             ),
             originFactory: originFactory,
             submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory)
