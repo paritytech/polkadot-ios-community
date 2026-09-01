@@ -26,6 +26,14 @@ extension TrackedCoin {
         state.isFree && !coin.isOnchain && state.minterStatus?.isLive == true
     }
 
+    /// Whether on-chain presence is still worth tracking. An active coin (neither handed off nor
+    /// consumed) is watched so its landing and later disappearance are seen; additionally any coin
+    /// still believed on chain stays watched until it is observed to vanish, driving `isOnchain` to
+    /// its terminal `false`. A handed-off/consumed coin already off chain is terminal and dropped.
+    var isSyncable: Bool {
+        (!state.handedOff && !state.isConsumed) || coin.isOnchain
+    }
+
     /// On chain and free, but aged at/past `recycleAtAge` — due for recycling, not spendable.
     func isAwaitingRecycling(for recycleAtAge: Int16 = CoinageConstants.recycleAtAge) -> Bool {
         guard let age = coin.age else { return false }

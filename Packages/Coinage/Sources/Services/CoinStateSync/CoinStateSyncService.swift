@@ -44,12 +44,11 @@ public final class CoinStateSyncService: BaseSyncService {
 
             let stream = databaseFactory.makeTrackedCoinSnapshotStream()
                 .map { (tracked: [TrackedCoin]) -> [Coin] in
-                    // Coins never seen on chain and not already consumed — the ones needing a sync.
-                    tracked.compactMap { tracked in
-                        guard !tracked.state.isConsumed, tracked.coin.age == nil else { return nil }
-                        return tracked.coin
-                    }
+                    // Every coin still worth watching (see `isSyncable`): active coins to catch
+                    // landing, and any still-on-chain coin until it is seen to vanish.
+                    tracked.compactMap { $0.isSyncable ? $0.coin : nil }
                 }
+                .removeDuplicates()
 
             for try await coins in stream {
                 guard !coins.isEmpty else {
@@ -130,6 +129,12 @@ extension CoinStateSyncService {
 
             if let onChainCoin {
                 // Present on chain -> record presence and sync age.
+                if Int16(onChainCoin.value) != coin.exponent {
+                    logger.error(
+                        "TrackingCoin: \(mappingKey) exponent \(coin.exponent) " +
+                            "doesn't match on chain exponent \(onChainCoin.value)"
+                    )
+                }
                 let onChainAge = onChainCoin.age
                 guard coin.age != onChainAge || !coin.isOnchain else { continue }
                 coinsToUpdate.append(coin.changing(age: onChainAge).changing(isOnchain: true))

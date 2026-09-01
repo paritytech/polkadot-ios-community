@@ -66,6 +66,13 @@ public final class VoucherLocationService: BaseSyncService {
                     let degraded = vouchers.filter { $0.remoteState.isInRecycler && $0.privacy == .degraded }
                     return (needsSync, degraded)
                 }
+                // Resubscribe only when the tracked key-set changes;
+                // non-key voucher edits keep the existing subscription, whose inner ring-status stream
+                // already surfaces readiness changes.
+                .removeDuplicates { previous, current in
+                    Set(previous.0.map(\.publicKey)) == Set(current.0.map(\.publicKey))
+                        && Set(previous.1.map(\.publicKey)) == Set(current.1.map(\.publicKey))
+                }
 
             for try await (vouchers, degradedVouchers) in stream {
                 guard !vouchers.isEmpty || !degradedVouchers.isEmpty else {
