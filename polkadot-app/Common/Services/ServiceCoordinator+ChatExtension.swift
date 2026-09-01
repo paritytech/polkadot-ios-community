@@ -19,7 +19,7 @@ extension ServiceCoordinator {
         claimStatusStore: ClaimStatusStore,
         audioSessionManager: AudioSessionManaging,
         spaFlowState: SPAFlowState
-    ) -> ChatExtensionsRegistering {
+    ) -> (registry: ChatExtensionsRegistering, workerFacade: ProductWorkerFacade) {
         let productRepositoryFactory = ProductRepositoryFactory()
 
         let productFileProvider = CompositeProductFileProvider(
@@ -28,24 +28,27 @@ extension ServiceCoordinator {
             contentHashCache: ContentHashCache.shared
         )
 
-        let workerFactory = DefaultProductWorkerFactory(
-            productResolver: spaFlowState.productResolver,
-            dotNsResolver: spaFlowState.dotNsResolver,
-            productFileProvider: productFileProvider,
-            chainRegistry: ChainRegistryFacade.sharedRegistry,
-            usernameStorage: UsernameStorage(),
-            hostProvider: spaFlowState.hostProvider,
-            accountManager: accountManager,
-            workerOperations: ProductWorkerServices.shared.operations
-        )
-        ProductWorkerServices.shared.configure(factory: workerFactory)
+        // The builder gets the operations service (the worker's own JS uses it),
+        // which lets the facade wire the factory into the manager in `init`.
+        let workerFacade = ProductWorkerFacade { workerOperations in
+            DefaultProductWorkerFactory(
+                productResolver: spaFlowState.productResolver,
+                dotNsResolver: spaFlowState.dotNsResolver,
+                productFileProvider: productFileProvider,
+                chainRegistry: ChainRegistryFacade.sharedRegistry,
+                usernameStorage: UsernameStorage(),
+                hostProvider: spaFlowState.hostProvider,
+                accountManager: accountManager,
+                workerOperations: workerOperations
+            )
+        }
 
         let botFactory = ProductBotFactory(
             productFileProvider: productFileProvider,
             chainRegistry: ChainRegistryFacade.sharedRegistry,
             hostProvider: spaFlowState.hostProvider,
             runtimeProvider: truapiRuntimeProvider,
-            workerManager: ProductWorkerServices.shared.manager
+            workerManager: workerFacade.manager
         )
 
         let productBotProvider = ProductBotProvider(
@@ -55,7 +58,7 @@ extension ServiceCoordinator {
             productResolver: spaFlowState.productResolver
         )
 
-        return MainActor.assumeIsolated {
+        let registry = MainActor.assumeIsolated {
             ChatExtensionsRegistry.createDefault(
                 syncStateStore: syncStore,
                 personDataStore: personDataStore,
@@ -66,5 +69,7 @@ extension ServiceCoordinator {
                 audioSessionManager: audioSessionManager
             )
         }
+
+        return (registry, workerFacade)
     }
 }

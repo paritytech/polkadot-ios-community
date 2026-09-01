@@ -101,7 +101,7 @@ private extension ProductBotFactory {
             logger: logger
         )
 
-        let routers = ProductRoutersFacade.chatExtension()
+        let routers = ProductRoutersFacade.worker()
         let executionModel = try rustEnvironment.makeChatExecution(
             productId: product.identifier,
             routers: routers

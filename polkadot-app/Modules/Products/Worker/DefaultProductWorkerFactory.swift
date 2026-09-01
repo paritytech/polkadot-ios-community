@@ -134,7 +134,7 @@ private extension DefaultProductWorkerFactory {
             workerOperations: workerOperations
         )
 
-        let routers = ProductRoutersFacade.chatExtension()
+        let routers = ProductRoutersFacade.worker()
         let api = nativeApiFactory.makeApi(productId: productId, routers: routers)
 
         guard let concrete = api as? ProductsNativeApi else {

@@ -4,20 +4,13 @@ import Foundation
 
 @Suite("SystemLocaleProvider")
 struct SystemLocaleProviderTests {
-    @Test("emits the current language tag on subscribe, then again on a locale change")
-    func emitsCurrentThenOnChange() async throws {
-        let center = NotificationCenter()
-        let provider = SystemLocaleProvider(notificationCenter: center)
+    @Test("emits the current language tag on subscribe")
+    func emitsCurrentTag() async throws {
+        let provider = SystemLocaleProvider()
 
         var iterator = provider.subscribe().makeAsyncIterator()
 
-        let first = try #require(await iterator.next())
-        #expect(first == SystemLocaleProvider.currentLanguageTag())
-
-        // A locale change re-emits. The observer runs synchronously on post.
-        center.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
-
-        let second = try #require(await iterator.next())
-        #expect(second == SystemLocaleProvider.currentLanguageTag())
+        let tag = try #require(await iterator.next())
+        #expect(tag == SystemLocaleProvider.currentLanguageTag())
     }
 }

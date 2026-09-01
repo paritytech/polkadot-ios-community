@@ -393,7 +393,7 @@ struct RustRuntimeBridgeTests {
 
     @Test func confirmationCancellationResolvesFalse() async {
         let presenter = TrUAPIConfirmationPresenter(
-            routerFacade: ProductRoutersFacade.chatExtension()
+            routerFacade: ProductRoutersFacade.worker()
         )
 
         let review = UserConfirmationReview.signRaw(

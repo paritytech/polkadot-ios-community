@@ -30,6 +30,10 @@ enum SPAViewFactory {
         configuration: SPAConfiguration,
         flowState: SPAFlowState
     ) -> SPAViewProtocol? {
+        guard let workerFacade: ProductWorkerFacade = RootDependencyLocator.getDependency() else {
+            return nil
+        }
+
         let routers = ProductRoutersFacade.spa()
         let dependencyLocator: TruApiDependenciesLocator = RootDependencyLocator.getDependency()
             ?? TruApiDependenciesLocator()
@@ -78,7 +82,7 @@ enum SPAViewFactory {
             sponsorFactory: sponsorFactory,
             substrateStorageFacade: SubstrateDataStorageFacade.shared,
             hostProvider: flowState.hostProvider,
-            workerOperations: ProductWorkerServices.shared.operations
+            workerOperations: workerFacade.operations
         )
 
         let nativeApi = nativeApiFactory.makeApi(
@@ -102,9 +106,8 @@ enum SPAViewFactory {
             logger: Logger.shared,
             productRepository: ProductRepositoryFactory().createRepository(),
             chatProviderFactory: ChatContactDataProviderFactory(),
-            workerLock: ProductWorkerServices.shared.manager.lock(
-                productId: configuration.page.host.toDotDomain()
-            )
+            workerManager: workerFacade.manager,
+            workerProductId: configuration.page.host.toDotDomain()
         )
 
         let presenter = SPAPresenter(

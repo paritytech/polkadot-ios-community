@@ -1,21 +1,22 @@
 import Foundation
 import Operation_iOS
+import AsyncExtensions
 import Products
 
 /// CoreData-backed persistence for open worker operations, in the shared
 /// `UserDataModel` store behind the `CDProductOperation` entity.
 ///
-/// Records are a process-lifetime keep-alive log: nothing keeps a worker alive
-/// across a relaunch, so `ProductWorkerOperationService.resetForNewSession`
-/// clears the table on launch. They are persisted so an interface can list open
-/// operations later.
+/// The persisted set is the source of truth for worker keep-alive:
+/// `ProductWorkerOperationService` subscribes to it and holds a worker lock per
+/// operation, so operations survive a relaunch and restore their workers.
 final class CoreDataProductOperationStore: ProductOperationStoring, @unchecked Sendable {
+    private let storageFacade: StorageFacadeProtocol
+    private let mapper = AnyCoreDataMapper(ProductOperationMapper())
     private let repository: AnyDataProviderRepository<ProductOperationRecord>
 
     init(storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared) {
-        repository = AnyDataProviderRepository(
-            storageFacade.createRepository(mapper: AnyCoreDataMapper(ProductOperationMapper()))
-        )
+        self.storageFacade = storageFacade
+        repository = AnyDataProviderRepository(storageFacade.createRepository(mapper: mapper))
     }
 
     func save(_ record: ProductOperationRecord) async throws {
@@ -33,5 +34,9 @@ final class CoreDataProductOperationStore: ProductOperationStoring, @unchecked S
 
     func clearAll() async throws {
         try await repository.deleteAllOperation().asyncExecute()
+    }
+
+    func subscribe() -> AnyAsyncSequence<[ProductOperationRecord]> {
+        storageFacade.subscribeSnapshot(mapper: mapper)
     }
 }

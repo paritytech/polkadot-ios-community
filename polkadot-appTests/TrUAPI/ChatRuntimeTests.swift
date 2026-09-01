@@ -48,13 +48,10 @@ private final class FakeWorkerManager: ProductWorkerManaging, @unchecked Sendabl
 
     var activeCount: Int { active.withLock { $0 } }
 
-    func lock(productId _: ProductId) -> ProductWorkerToken {
+    func acquire(productId _: ProductId) async -> ProductWorkerLease {
         active.withLock { $0 += 1 }
-        return ProductWorkerToken { [active] in active.withLock { $0 -= 1 } }
-    }
-
-    func acquire(productId: ProductId) async -> ProductWorkerLease {
-        ProductWorkerLease(token: lock(productId: productId), worker: worker)
+        let token = ProductWorkerToken { [active] in active.withLock { $0 -= 1 } }
+        return ProductWorkerLease(token: token, result: .success(worker))
     }
 }
 
@@ -66,7 +63,7 @@ private func makeRustRuntime(
     ChatRustRuntime(
         productUrl: URL(string: "product://test.dot/index.js")!,
         executionModel: makeExecutionModel(execution: execution, chainConnections: chainConnections),
-        routers: ProductRoutersFacade.chatExtension(),
+        routers: ProductRoutersFacade.worker(),
         engineFactory: { engine }
     )
 }
