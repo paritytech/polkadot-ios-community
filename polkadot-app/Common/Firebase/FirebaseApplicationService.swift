@@ -94,7 +94,6 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             ipfsGatewayUrl: url(for: .ipfsGatewayUrl),
             gameDashboardUrl: url(for: .gameDashboardUrl),
             dotNsResolver: dotNsResolverAddress(),
-            dotNsProtocolRegistry: dotNsProtocolRegistryAddress(),
             dotNsNameRegistry: dotNsNameRegistryAddress(),
             coinageInstanceId: coinageInstanceId()
         )
@@ -158,10 +157,6 @@ private extension FirebaseApplicationService {
 
     func dotNsResolverAddress() -> String? {
         dotNsConfigEntry("resolverContractAddress")
-    }
-
-    func dotNsProtocolRegistryAddress() -> String? {
-        dotNsConfigEntry("protocolRegistryAddress")
     }
 
     func dotNsNameRegistryAddress() -> String? {

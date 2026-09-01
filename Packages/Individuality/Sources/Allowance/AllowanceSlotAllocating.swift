@@ -9,5 +9,4 @@ public protocol AllowanceSlotAllocating {
 
 public enum AllowanceSlotAssignmentError: Error {
     case noSlotsAvailable
-    case missingSuffix
 }

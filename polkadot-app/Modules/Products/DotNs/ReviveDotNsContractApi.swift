@@ -148,28 +148,6 @@ extension ReviveDotNsContractApi: DotNsContractApiProtocol {
         return DotNsAbi.decodeText(output: outputBytes)
     }
 
-    func readTld() async throws -> String {
-        let config = try configProvider()
-        let callData = try DotNsAbi.encodeTld()
-        let outputBytes = try await callReviveContract(
-            contract: config.protocolRegistryContractAddress,
-            inputData: callData
-        )
-
-        guard !outputBytes.isEmpty, let decoded = DotNsAbi.decodeTld(output: outputBytes) else {
-            throw DotNsContractError.tldNotFound
-        }
-
-        // The contract returns the TLD dot-prefixed (".dot"); callers expect a bare single label.
-        let tld = String(decoded.trimmingPrefix("."))
-
-        guard !tld.isEmpty, !tld.contains(".") else {
-            throw DotNsContractError.tldNotFound
-        }
-
-        return tld
-    }
-
     func clearCache() {
         resolverCache.withLock { $0.removeAll() }
     }

@@ -4,7 +4,11 @@ import SubstrateStorageQuery
 import SubstrateSdkExt
 import StructuredConcurrency
 
-extension StorageRequestFactoryProtocol {
+public enum NetworkSuffixError: Error {
+    case missing
+}
+
+public extension StorageRequestFactoryProtocol {
     /// Reads the network suffix through the same connection and coding factory used for the
     /// surrounding storage reads, ensuring suffix and slot state remain on the same chain.
     func readNetworkSuffix(
@@ -20,7 +24,7 @@ extension StorageRequestFactoryProtocol {
         .asyncExecute()
 
         guard let suffix = response.value?.wrappedValue, !suffix.isEmpty else {
-            throw AllowanceSlotAssignmentError.missingSuffix
+            throw NetworkSuffixError.missing
         }
 
         return suffix
