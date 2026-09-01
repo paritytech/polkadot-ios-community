@@ -29,9 +29,11 @@ def read_versions(pbxproj_path, config_name=None):
     if config_name:
         # Read from specific configuration block by name
         # Pattern: <config_id> /* <config_name> */ = { ... };
-        # A configuration name appears once per target plus once at project level, and
-        # only the target blocks carry MARKETING_VERSION — so take the first block that
-        # declares one rather than the first block by name.
+        # A configuration name appears once per shippable target, once per test target and
+        # once at project level. Only the shippable targets take their bundle id from
+        # $(BUNDLE) (the xcconfig-driven identity), and only they carry the version we
+        # ship — test targets pin an unrelated MARKETING_VERSION. Select on that marker
+        # rather than on block order, which the pbxproj is free to change.
         config_pattern = (
             rf"\w{{24}}\s*/\*\s*{re.escape(config_name)}\s*\*/\s*=\s*\{{[^}}]*?\}}"
         )
@@ -39,9 +41,19 @@ def read_versions(pbxproj_path, config_name=None):
         if not blocks:
             raise ValueError(f"Configuration '{config_name}' not found")
 
-        search_text = next(
-            (block for block in blocks if "MARKETING_VERSION" in block), blocks[0]
-        )
+        shippable = [
+            block
+            for block in blocks
+            if 'PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)"' in block
+            and "MARKETING_VERSION" in block
+        ]
+        if not shippable:
+            raise ValueError(
+                f"Configuration '{config_name}' has no target block with both "
+                'PRODUCT_BUNDLE_IDENTIFIER = "$(BUNDLE)" and MARKETING_VERSION'
+            )
+
+        search_text = shippable[0]
     else:
         # Read from anywhere in the file (take first occurrence)
         search_text = content

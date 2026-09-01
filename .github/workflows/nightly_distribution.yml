@@ -41,6 +41,9 @@ jobs:
       distribute_to_external_group: false
       external_group_name: ""
       s3_static_subdir: "safetynet"
+      # Both legs build the same commit against the same test plan, so the Nightly leg
+      # owns the single Allure launch.
+      run_allure_tests: false
     secrets: inherit
 
   auto_merge:

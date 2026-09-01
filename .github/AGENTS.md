@@ -185,7 +185,7 @@ Signing notes:
 | Workflow | Versioned Path | Static Path |
 |----------|----------------|-------------|
 | Firebase (develop) | `/ios/develop/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/develop/polkadot-app{suffix}.ipa` |
-| TestFlight (release) | `/ios/releases/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/releases/polkadot-app{suffix}.ipa` |
+| TestFlight (release/nightly/safetynet) | `/ios/{subdir}/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/{subdir}/polkadot-app{suffix}.ipa` |
 | TestFlight (manual) | `/ios/releases-manual/polkadot-app-{version}-{build}.ipa` | `/ios/releases-manual/polkadot-app.ipa` |
 
 Suffix notes:

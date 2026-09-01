@@ -31,6 +31,11 @@ on:
       s3_static_subdir:
         required: true
         type: string
+      run_allure_tests:
+        description: "Trigger the Allure TestOps launch. One launch per run — a caller invoking this workflow twice must enable it on a single leg."
+        required: false
+        type: boolean
+        default: true
     outputs:
       build_number:
         value: ${{ jobs.prepare_build_metadata.outputs.build_number }}
@@ -286,7 +291,9 @@ jobs:
           s3_secret_key: ${{ secrets.SCW_SECRET_KEY }}
           s3_bucket: ${{ env.S3_BUCKET }}
           source_path: polkadot-app.ipa
-          destination_path: /ios/releases/polkadot-app-${{ needs.prepare_build_metadata.outputs.marketing_version }}-${{ needs.prepare_build_metadata.outputs.build_number }}${{ matrix.variant.s3_suffix }}.ipa
+          # Subdir keeps each configuration's archive in its own namespace: a nightly run
+          # writes two different apps, whose build numbers come from independent counters.
+          destination_path: /ios/${{ inputs.s3_static_subdir }}/polkadot-app-${{ needs.prepare_build_metadata.outputs.marketing_version }}-${{ needs.prepare_build_metadata.outputs.build_number }}${{ matrix.variant.s3_suffix }}.ipa
 
       - name: Upload to S3 (static path)
         uses: novasamatech/github-actions/s3-upload@v5
@@ -336,10 +343,14 @@ jobs:
         uses: actions/github-script@v8
         env:
           RELEASE_PR_NUMBER: ${{ inputs.release_pr_number }}
+          # Statuses are keyed by context, so each configuration needs its own — a nightly
+          # run builds two configurations against the same PR head SHA.
+          STATUS_CONTEXT: "Check and Build TestFlight (${{ inputs.build_configuration }})"
         with:
           github-token: ${{ github.token }}
           script: |
             const prNumber = parseInt(process.env.RELEASE_PR_NUMBER, 10);
+            const statusContext = process.env.STATUS_CONTEXT;
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -353,7 +364,7 @@ jobs:
                 repo: context.repo.repo,
                 sha: sha,
                 state: 'success',
-                context: 'Check and Build TestFlight',
+                context: statusContext,
                 description: 'Build uploaded to TestFlight successfully',
                 target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
               });
@@ -386,7 +397,9 @@ jobs:
     name: Trigger Allure TestOps
     runs-on: ubuntu-latest
     needs: check_default_build
-    if: ${{ !cancelled() && needs.check_default_build.outputs.succeeded == 'true' }}
+    if: >-
+      ${{ !cancelled() && inputs.run_allure_tests &&
+      needs.check_default_build.outputs.succeeded == 'true' }}
     steps:
       - name: Trigger Allure TestOps Job
         uses: novasamatech/github-actions/trigger-allure-testops@v5

@@ -7,11 +7,11 @@ inputs:
     required: false
     default: "polkadot-app.xcodeproj/project.pbxproj"
   config_name:
-    description: "Xcode configuration to read MARKETING_VERSION from (Release or Nightly)"
+    description: "Xcode configuration to read MARKETING_VERSION from (Release, Nightly or Safetynet)"
     required: false
     default: "Release"
   ios_bundle_id:
-    description: "Bundle id whose TestFlight build numbers are queried. Nightly and Release are separate App Store Connect records."
+    description: "Bundle id whose TestFlight build numbers are queried. Safetynet is a separate App Store Connect record; Release and Nightly share the production one."
     required: false
     default: "io.parity.polkadotapp"
   increment_step:
