@@ -99,7 +99,7 @@ private extension SPAJSEngine {
             let userScript = WKUserScript(
                 source: script.content,
                 injectionTime: script.insertionPoint.toWkInjectionTime,
-                forMainFrameOnly: true
+                forMainFrameOnly: script.frameScope == .mainFrameOnly
             )
             contentController.addUserScript(userScript)
         }
@@ -108,7 +108,7 @@ private extension SPAJSEngine {
             let userScript = WKUserScript(
                 source: script.content,
                 injectionTime: script.insertionPoint.toWkInjectionTime,
-                forMainFrameOnly: true
+                forMainFrameOnly: script.frameScope == .mainFrameOnly
             )
             contentController.addUserScript(userScript)
         }

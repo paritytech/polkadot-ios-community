@@ -407,6 +407,19 @@ struct RustRuntimeBridgeTests {
         #expect(!verdict)
     }
 
+    @Test func productSubtreeConfirmationWithoutPresentationDenies() async {
+        let presenter = TrUAPIConfirmationPresenter(
+            routerFacade: ProductRoutersFacade.worker()
+        )
+
+        let verdict = await presenter.confirm(
+            review: .productSubtree(ProductSubtreeReview(productId: "test.product")),
+            from: "test.product"
+        )
+
+        #expect(!verdict)
+    }
+
     // MARK: currentTheme
 
     @Test func currentThemeReturnsDark() throws {

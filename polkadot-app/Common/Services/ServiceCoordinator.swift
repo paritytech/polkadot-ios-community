@@ -192,7 +192,8 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             do {
                 try await coinageService.setup(with: asset)
             } catch {
-                assertionFailure(error.localizedDescription)
+                logger.error("Coinage service setup failed: \(error)")
+                return
             }
             // Recovering backup 1st
             await coinageBackupSyncService.setup()

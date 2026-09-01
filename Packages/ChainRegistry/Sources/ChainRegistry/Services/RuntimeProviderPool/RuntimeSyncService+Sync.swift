@@ -203,6 +203,7 @@ public extension RuntimeSyncService {
             if
                 let item = currentItem,
                 item.version == runtimeVersion.specVersion,
+                item.txVersion == runtimeVersion.transactionVersion,
                 !runtimeLocalMigrator.needsMigration(for: item) {
                 throw RuntimeSyncServiceError.skipMetadataUnchanged
             }
