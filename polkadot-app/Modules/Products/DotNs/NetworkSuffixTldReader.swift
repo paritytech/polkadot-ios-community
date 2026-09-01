@@ -2,7 +2,7 @@ import Foundation
 import Individuality
 import Products
 import ChainRegistry
-import SubstrateStorageQuery
+@preconcurrency import SubstrateStorageQuery
 import StructuredConcurrency
 
 /// Reads the TLD label from the `NetworkSuffix` pallet on the contracts chain, where the runtime
