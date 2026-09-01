@@ -20,7 +20,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
     private let origin: any ExtrinsicOriginDefining
     private let minter: any VoucherMinting
     private let keypairFactory: any VoucherKeyDeriving
-    private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
+    private let txService: any CoinageTxServicing
     private let runtimeService: RuntimeCodingServiceProtocol
     private let logger: (any SDKLoggerProtocol)?
 
@@ -29,7 +29,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
         origin: any ExtrinsicOriginDefining,
         minter: any VoucherMinting,
         keypairFactory: any VoucherKeyDeriving,
-        extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
+        txService: any CoinageTxServicing,
         runtimeService: RuntimeCodingServiceProtocol,
         logger: SDKLoggerProtocol?
     ) {
@@ -37,11 +37,15 @@ public final class VoucherLoader: VoucherLoaderProtocol {
         self.origin = origin
         self.minter = minter
         self.keypairFactory = keypairFactory
-        self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
+        self.txService = txService
         self.runtimeService = runtimeService
         self.logger = logger
     }
 
+    /// Registers the unpaid-load batches through the durability layer: an output-only entry per
+    /// batch (`load_recycler_with_external_asset_unpaid_batch` — inputs ∅, outputs 1..N vouchers,
+    /// per `durability.md`). Registration claims the minted vouchers durably and returns; the
+    /// tracker and recovery pass resolve the on-chain outcome, so this does not await inclusion.
     public func load(
         amount: BigUInt,
         breakdownContext: DenominationBreakdownContext
@@ -64,34 +68,23 @@ public final class VoucherLoader: VoucherLoaderProtocol {
             Array(pairs[$0 ..< min($0 + chunkSize, pairs.count)])
         }
 
-        let builder: ExtrinsicBuilderIndexedClosure = { builder, index in
-            let batchCall = CoinagePallet.Calls.LoadExternalAssetUnpaidBatch(items: chunks[index].map(\.1))
-            return try builder.adding(call: batchCall.callAsFunction())
+        let requests = chunks.map { chunk in
+            CoinageTxRequest(
+                inputs: [],
+                outputs: chunk.map { .recyclerVoucher($0.0.derivationIndex, $0.0.publicKey) },
+                builder: { builder in
+                    let batchCall = CoinagePallet.Calls.LoadExternalAssetUnpaidBatch(items: chunk.map(\.1))
+                    return try builder.adding(call: batchCall.callAsFunction())
+                },
+                origin: origin
+            )
         }
 
-        let retriableResult = try await extrinsicSubmitMonitor.submitAndMonitorWrapper(
-            extrinsicBuilderClosure: builder,
-            origin: origin,
-            indexes: IndexSet(0 ..< chunks.count),
-            params: .empty
-        ).asyncExecute()
+        _ = try await txService.submitTransactions(requests, groupId: nil)
 
-        return retriableResult.results.flatMap { indexedResult in
-            switch indexedResult.result {
-            case let .success(submission):
-                switch submission.status {
-                case .success:
-                    logger?.debug("Batch loaded \(chunks[indexedResult.index].count) vouchers: success")
-                    return chunks[indexedResult.index].map(\.0)
-                case let .failure(error):
-                    logger?.error("Batch \(indexedResult.index) failed on-chain: \(error)")
-                    return []
-                }
-            case let .failure(error):
-                logger?.error("Batch \(indexedResult.index) submission failed: \(error)")
-                return []
-            }
-        }
+        logger?.debug("Registered \(requests.count) unpaid-load batches for \(pairs.count) vouchers")
+
+        return pairs.map(\.0)
     }
 
     private func runtimeCalls(

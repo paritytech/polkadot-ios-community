@@ -79,19 +79,6 @@ public extension CoinageService {
         // One minter per Coinage instance wraps both allocators; every mint site goes through it.
         let coinageMinter = CoinageMinter(coinAllocator: coinAllocator, voucherAllocator: voucherAllocator)
 
-        let voucherLoaderFactory = VoucherLoaderFactory(
-            minter: coinageMinter,
-            keypairFactory: voucherKeypairFactory,
-            extrinsicSubmitMonitor: extrinsicMonitorFactory,
-            originCreating: originFactory,
-            runtimeService: runtimeService,
-            chain: chain,
-            logger: logger
-        )
-        let voucherService = VoucherService(
-            trackedVoucherRepository: trackedVoucherRepository,
-            voucherLoaderFactory: voucherLoaderFactory
-        )
         let coinService = CoinService(databaseFactory: databaseFactory)
         let contextLoader = DenominationContextLoader(runtimeService: runtimeService)
 
@@ -174,6 +161,20 @@ public extension CoinageService {
             operationFactory: extrinsicOperationFactory,
             chainFactory: chainFactory,
             logger: logger
+        )
+
+        let voucherLoaderFactory = VoucherLoaderFactory(
+            minter: coinageMinter,
+            keypairFactory: voucherKeypairFactory,
+            txService: durabilityService,
+            originCreating: originFactory,
+            runtimeService: runtimeService,
+            chain: chain,
+            logger: logger
+        )
+        let voucherService = VoucherService(
+            trackedVoucherRepository: trackedVoucherRepository,
+            voucherLoaderFactory: voucherLoaderFactory
         )
 
         let planFactory = TransferPlanFactory(

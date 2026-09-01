@@ -11,7 +11,7 @@ public protocol VoucherLoaderFactoryProtocol {
 final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     private let minter: any VoucherMinting
     private let keypairFactory: any VoucherKeyDeriving
-    private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
+    private let txService: any CoinageTxServicing
     private let originCreating: OriginCreating
     private let runtimeService: RuntimeCodingServiceProtocol
     private let chain: ChainProtocol
@@ -20,7 +20,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     init(
         minter: any VoucherMinting,
         keypairFactory: any VoucherKeyDeriving,
-        extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
+        txService: any CoinageTxServicing,
         originCreating: OriginCreating,
         runtimeService: RuntimeCodingServiceProtocol,
         chain: ChainProtocol,
@@ -28,7 +28,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     ) {
         self.minter = minter
         self.keypairFactory = keypairFactory
-        self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
+        self.txService = txService
         self.originCreating = originCreating
         self.runtimeService = runtimeService
         self.chain = chain
@@ -44,7 +44,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
             origin: origin,
             minter: minter,
             keypairFactory: keypairFactory,
-            extrinsicSubmitMonitor: extrinsicSubmitMonitor,
+            txService: txService,
             runtimeService: runtimeService,
             logger: logger
         )
