@@ -84,8 +84,9 @@ private extension PGASSlotInfoProvider {
         let maxClaims = try await fetchMaxClaims(origin: personOrigin, codingFactory: codingFactory)
         guard maxClaims > 0 else { throw AllowanceSlotAssignmentError.noSlotsAvailable }
 
-        let networkSuffix = try await codingFactory.readNetworkSuffix(
-            for: PGASPallet.Constants.suffix()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
         )
 
         let activeVrfManager = personOrigin.keyManager

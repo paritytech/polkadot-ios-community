@@ -59,10 +59,12 @@ extension PGasOriginFactory: PGasOriginCreating {
         let submissionRuntimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(
             for: submissionChainId
         )
+        let submissionConnection = try chainRegistry.getRpcConnectionOrError(for: submissionChainId)
         let submissionCodingFactory = try await submissionRuntimeProvider
             .fetchCoderFactoryOperation().asyncExecute()
-        let networkSuffix = try await submissionCodingFactory.readNetworkSuffix(
-            for: PGASPallet.Constants.suffix()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: submissionConnection,
+            codingFactory: submissionCodingFactory
         )
         let proofContext = try ProductContextSuffix
             .pgasClaim(day: day, slot: slotIndex)

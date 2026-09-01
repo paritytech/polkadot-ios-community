@@ -8,7 +8,6 @@ public extension ResourcesPallet {
         case longTermStorageClaimsPerPeriod
         case longTermStoragePeriodDuration
         case stmtStoreReplacementCooldown
-        case suffix
     }
 }
 
@@ -25,8 +24,6 @@ extension ResourcesPallet.Constants: ConstantPathConvertible {
             "LongTermStoragePeriodDuration"
         case .stmtStoreReplacementCooldown:
             "StmtStoreReplacementCooldown"
-        case .suffix:
-            "Suffix"
         }
     }
 

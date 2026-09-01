@@ -1,6 +1,7 @@
 import Foundation
 import ExtrinsicService
 import SubstrateSdk
+import SubstrateStorageQuery
 import KeyDerivation
 import ChainStore
 
@@ -24,15 +25,18 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
     private let wallet: WalletManaging
     private let keyResolver: BandersnatchKeyResolving
     private let chainRegistry: ChainResourceProtocol
+    private let storageRequestFactory: StorageRequestFactoryProtocol
 
     public init(
         wallet: WalletManaging,
         keyResolver: BandersnatchKeyResolving,
-        chainRegistry: ChainResourceProtocol
+        chainRegistry: ChainResourceProtocol,
+        storageRequestFactory: StorageRequestFactoryProtocol
     ) {
         self.wallet = wallet
         self.keyResolver = keyResolver
         self.chainRegistry = chainRegistry
+        self.storageRequestFactory = storageRequestFactory
     }
 
     public func createSSSOrigin(
@@ -46,9 +50,11 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
             chain: chain
         )
         let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
+        let connection = try chainRegistry.getRpcConnectionOrError(for: chain)
         let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
-        let networkSuffix = try await codingFactory.readNetworkSuffix(
-            for: ResourcesPallet.Constants.suffix()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
         )
         let proofContext = try ProductContextSuffix
             .statementStoreSlot(period: period, seq: seq)
@@ -77,9 +83,11 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
             chain: chain
         )
         let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
+        let connection = try chainRegistry.getRpcConnectionOrError(for: chain)
         let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
-        let networkSuffix = try await codingFactory.readNetworkSuffix(
-            for: ResourcesPallet.Constants.suffix()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
         )
         let proofContext = try ProductContextSuffix
             .longTermStorage(period: period, counter: counter)

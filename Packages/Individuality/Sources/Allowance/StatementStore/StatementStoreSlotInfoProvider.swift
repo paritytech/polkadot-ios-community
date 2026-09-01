@@ -199,8 +199,9 @@ private extension StatementStoreSlotInfoProvider {
         let maxSlots = try await fetchMaxSlots(origin: personOrigin, codingFactory: codingFactory)
         guard maxSlots > 0 else { return [] }
 
-        let networkSuffix = try await codingFactory.readNetworkSuffix(
-            for: ResourcesPallet.Constants.suffix()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
         )
 
         let activeVrfManager = personOrigin.keyManager

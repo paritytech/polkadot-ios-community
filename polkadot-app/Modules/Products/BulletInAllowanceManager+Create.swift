@@ -30,10 +30,16 @@ extension BulletInAllowanceManager {
             fullKeyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
         )
 
+        let storageRequestFactory = StorageRequestFactory(
+            remoteFactory: StorageKeyFactory(),
+            operationManager: OperationManager(operationQueue: operationQueue)
+        )
+
         let originFactory = AsResourcesOriginFactory(
             wallet: wallet,
             keyResolver: keyResolver,
-            chainRegistry: chainRegistry
+            chainRegistry: chainRegistry,
+            storageRequestFactory: storageRequestFactory
         )
 
         let extrinsicFacade = ExtrinsicSubmissionMonitorFacade(
@@ -48,11 +54,6 @@ extension BulletInAllowanceManager {
         else {
             return nil
         }
-
-        let storageRequestFactory = StorageRequestFactory(
-            remoteFactory: StorageKeyFactory(),
-            operationManager: OperationManager(operationQueue: operationQueue)
-        )
 
         let chainTimeProvider = ChainTimeProvider(
             chainId: AppConfig.Chains.bulletInChain,
