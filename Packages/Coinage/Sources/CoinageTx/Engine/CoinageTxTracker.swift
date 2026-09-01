@@ -85,11 +85,7 @@ private extension CoinageTxTracker {
     func runFollow(model: ExtrinsicBuiltModel, transactionId: CoinageTxId) async {
         do {
             try await backgroundExecutor.execute {
-                await markStallActivity("Coinage submission") {
-                    await markStallRegion("Track extrinsic") {
-                        await self.follow(model: model, transactionId: transactionId)
-                    }
-                }
+                await self.follow(model: model, transactionId: transactionId)
             }
         } catch {
             logger?.error("Submission watch failed for \(transactionId): \(error)")

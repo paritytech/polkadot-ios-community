@@ -5,7 +5,8 @@ import Testing
 /// Voucher evidence taken from the chain rather than from the locally cached row.
 ///
 /// A voucher's existence is its recycler membership; its consumption is the alias at the ring the
-/// membership names. Member is PRESENT whatever its ring position, a non-member is UNKNOWN (never absent), and a voucher
+/// membership names. Member is PRESENT whatever its ring position, a non-member is UNKNOWN (never absent), and a
+/// voucher
 /// that is present but whose alias cannot be located — Suspended, or a failed alias read — is present
 /// with alias UNKNOWN, which a two-valued flag could not express.
 @Suite("Voucher Presence")

@@ -1,4 +1,5 @@
 import AsyncExtensions
+import BackgroundExecution
 import Foundation
 import ExtrinsicService
 import SDKLogger
@@ -85,6 +86,7 @@ public final class CoinageTxService: @unchecked Sendable {
     private let pass: RecoveryPass
     private let operationFactory: any ExtrinsicOperationFactoryProtocol
     private let chainFactory: any CoinageChainViewFactoryProtocol
+    private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol?
 
     private let triggerTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
@@ -96,6 +98,7 @@ public final class CoinageTxService: @unchecked Sendable {
         pass: RecoveryPass,
         operationFactory: any ExtrinsicOperationFactoryProtocol,
         chainFactory: any CoinageChainViewFactoryProtocol,
+        backgroundExecutor: any BackgroundExecuting,
         logger: SDKLoggerProtocol?
     ) {
         self.store = store
@@ -104,6 +107,7 @@ public final class CoinageTxService: @unchecked Sendable {
         self.pass = pass
         self.operationFactory = operationFactory
         self.chainFactory = chainFactory
+        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
     }
 }
@@ -116,26 +120,12 @@ extension CoinageTxService: CoinageTxServicing {
         _ requests: [CoinageTxRequest],
         groupId: CoinageTxGroupId?
     ) async throws -> [CoinageTxId] {
-        // Build every extrinsic before registering any, so a build failure aborts before a single
-        // extrinsic is broadcast. The batch then registers atomically; only then is each tracked.
-
-        logger?.debug("Building requests: \(requests.count) groupId: \(String(describing: groupId))")
-
-        let models = try await buildModels(requests)
-
-        logger?.debug("Registering requests: \(requests.count) groupId: \(String(describing: groupId))")
-
-        let registrations = try buildRegistrations(requests, models: models, groupId: groupId)
-
-        let ids = try await registrar.register(registrations)
-
-        logger?.debug("Starting tracking requests")
-
-        for (id, model) in zip(ids, models) {
-            track(model, transactionId: id)
+        // Building and signing every extrinsic can take real time. Hold a background-task assertion
+        // across the whole build-and-register so a fold mid-submit does not abandon the operation
+        // before its inputs are durably claimed.
+        try await backgroundExecutor.execute { [self] in
+            try await performSubmit(requests, groupId: groupId)
         }
-
-        return ids
     }
 
     public func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
@@ -200,6 +190,31 @@ extension CoinageTxService: CoinageTxServicing {
 // MARK: - Submission
 
 private extension CoinageTxService {
+    /// Build every extrinsic before registering any, so a build failure aborts before a single
+    /// extrinsic is broadcast. The batch then registers atomically; only then is each tracked.
+    func performSubmit(
+        _ requests: [CoinageTxRequest],
+        groupId: CoinageTxGroupId?
+    ) async throws -> [CoinageTxId] {
+        logger?.debug("Building requests: \(requests.count) groupId: \(String(describing: groupId))")
+
+        let models = try await buildModels(requests)
+
+        logger?.debug("Registering requests: \(requests.count) groupId: \(String(describing: groupId))")
+
+        let registrations = try buildRegistrations(requests, models: models, groupId: groupId)
+
+        let ids = try await registrar.register(registrations)
+
+        logger?.debug("Starting tracking requests")
+
+        for (id, model) in zip(ids, models) {
+            track(model, transactionId: id)
+        }
+
+        return ids
+    }
+
     /// Builds and signs every request's extrinsic up-front, so each hash is known before
     /// registration. Requests sharing one signing `origin` are built in a single
     /// `buildExtrinsics` call so their nonces are sequential — required for dependent transactions
