@@ -8,20 +8,20 @@ protocol DeeplinkSchemeNormalizing {
 /// for one build flavor open in the other (e.g. a prod desktop pairing QR on a dev build).
 struct DeeplinkSchemeNormalizer: DeeplinkSchemeNormalizing {
     private let activeScheme: String
-    private let possibleInputSchemes: Set<String>
+    private let isKnownScheme: (String) -> Bool
 
     init(
         activeScheme: String = AppConfig.DeepLink.scheme,
-        possibleInputSchemes: Set<String> = AppConfig.DeepLink.knownSchemes
+        isKnownScheme: @escaping (String) -> Bool = AppConfig.DeepLink.isKnownScheme
     ) {
         self.activeScheme = activeScheme
-        self.possibleInputSchemes = possibleInputSchemes
+        self.isKnownScheme = isKnownScheme
     }
 
     func normalize(_ url: URL) -> URL {
         guard
             let scheme = url.scheme?.lowercased(),
-            possibleInputSchemes.contains(scheme),
+            isKnownScheme(scheme),
             scheme != activeScheme,
             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else {
