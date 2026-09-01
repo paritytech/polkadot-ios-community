@@ -43,6 +43,15 @@ public protocol CoinageTxRepositoryProtocol: Sendable {
     /// await a terminal outcome (offboarding an external payment) rather than fire-and-forget.
     func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus>
 
+    /// Every entry registered under `groupId`, ordered by `sequence`. The correlation key an
+    /// operation supplies (e.g. a transfer's message id) so its transactions can be found together.
+    func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry]
+
+    /// A stream of the entries registered under `groupId`: the current set, then every change,
+    /// ordered by `sequence`. For a claim that reports its group's progress until nothing in it is
+    /// live.
+    func subscribeOperationGroupStatuses(_ groupId: CoinageTxGroupId) -> AnyAsyncSequence<[CoinageTxEntry]>
+
     /// The entry that minted this asset, if any.
     func minter(of asset: OwnAsset) async throws -> CoinageTxEntry?
 

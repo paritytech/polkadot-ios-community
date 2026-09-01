@@ -121,6 +121,26 @@ extension CoinageTxCoreDataRepository {
         .eraseToAnyAsyncSequence()
     }
 
+    func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry] {
+        let groupRepository = storageFacade.createRepository(
+            filter: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.groupId), groupId),
+            sortDescriptors: [NSSortDescriptor(key: #keyPath(CDCoinageTxEntry.sequence), ascending: true)],
+            mapper: AnyCoreDataMapper(CoinageTxEntryMapper())
+        )
+        return try await AnyDataProviderRepository(groupRepository)
+            .fetchAllOperation(with: RepositoryFetchOptions())
+            .asyncExecute()
+            .sorted { $0.sequence < $1.sequence }
+    }
+
+    func subscribeOperationGroupStatuses(_ groupId: CoinageTxGroupId) -> AnyAsyncSequence<[CoinageTxEntry]> {
+        storageFacade.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(CoinageTxEntryMapper()),
+            filter: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.groupId), groupId),
+            transform: { $0.sorted { $0.sequence < $1.sequence } }
+        )
+    }
+
     func minter(of asset: OwnAsset) async throws -> CoinageTxEntry? {
         let key = asset.publicKey
         return try await getAllEntries().first { entry in

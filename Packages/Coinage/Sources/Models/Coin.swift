@@ -2,7 +2,7 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 
-public struct Coin: Equatable, CoinageDerivable, Sendable {
+public struct Coin: Hashable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
     public let derivationIndex: DerivationIndex
 

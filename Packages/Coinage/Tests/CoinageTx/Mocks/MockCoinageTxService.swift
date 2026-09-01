@@ -99,6 +99,16 @@ actor MockCoinageTxService: CoinageTxServicing {
         store.subscribeStatus(id: id)
     }
 
+    func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry] {
+        try await store.getOperationGroupStatuses(groupId)
+    }
+
+    nonisolated func subscribeOperationGroupStatuses(
+        _ groupId: CoinageTxGroupId
+    ) -> AnyAsyncSequence<[CoinageTxEntry]> {
+        store.subscribeOperationGroupStatuses(groupId)
+    }
+
     nonisolated func startRecoveryPass() {
         Task { [weak self] in
             await self?.incrementRecoveryPassCount()

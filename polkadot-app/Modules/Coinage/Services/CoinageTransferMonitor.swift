@@ -5,17 +5,14 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 
-/// Monitors coinage transfer lifecycle for both directions:
-/// - Incoming: claims transferred coins on behalf of the recipient
-/// - Outgoing: verifies destination coins appeared on-chain
-/// - Startup: restores persisted statuses from ``ClaimPlanCoreDataStore``
+/// Monitors coinage transfer lifecycle for both directions, driven entirely off the durability layer
+/// keyed by `groupId = messageId` — no bespoke claim-status persistence:
+/// - Incoming: claims transferred coins (with retry) via ``ClaimCoinsServicing``.
+/// - Outgoing: derives Appendix-A payment status via ``CoinageTransferStatusServicing``.
 protocol CoinageTransferMonitoring: AsyncApplicationServicing {}
 
 final class CoinageTransferMonitor {
     private let coinageService: any CoinageServicing
-    private let claimService: any TransferClaimServicing
-    private let sendVerifier: any TransferSendVerifying
-    private let planStore: any ClaimPlanStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
     private let claimStatusStore: ClaimStatusStore
     private let logger: LoggerProtocol
@@ -24,25 +21,18 @@ final class CoinageTransferMonitor {
     private var incomingTransfersSubscription: Task<Void, Never>?
     private var outgoingTransfersSubscription: Task<Void, Never>?
 
-    /// Per-message tasks keyed by messageId. Each task subscribes to on-chain state
-    /// and resolves independently, avoiding head-of-line blocking across messages.
+    /// Per-message tasks keyed by messageId. Each resolves independently, avoiding head-of-line
+    /// blocking across messages.
     private let taskRegistry = ActiveTaskRegistry()
-
-    /// Maximum finalized blocks to wait for coins to appear on-chain before marking as failed.
-    private static let sendVerifyBlockTimeout: UInt32 = 100
 
     init(
         coinageService: any CoinageServicing,
-        planStore: any ClaimPlanStoring,
         storageFacade: StorageFacadeProtocol,
         claimStatusStore: ClaimStatusStore,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.coinageService = coinageService
-        claimService = coinageService.ongoingTransferService
-        sendVerifier = coinageService.ongoingTransferService
-        self.planStore = planStore
         self.claimStatusStore = claimStatusStore
         self.logger = logger
 
@@ -57,7 +47,6 @@ final class CoinageTransferMonitor {
 
 extension CoinageTransferMonitor: CoinageTransferMonitoring {
     func setup() async {
-        restorePersistedStatuses()
         subscribeIncomingMessages()
         subscribeOutgoingMessages()
     }
@@ -69,297 +58,152 @@ extension CoinageTransferMonitor: CoinageTransferMonitoring {
     }
 }
 
-// MARK: - Status Restoration
+// MARK: - Incoming (claim)
 
 private extension CoinageTransferMonitor {
-    func restorePersistedStatuses() {
-        Task { [planStore, claimStatusStore, logger] in
-            let plans: [ClaimPlan]
-            do {
-                plans = try await planStore.loadAll()
-            } catch {
-                logger.error("Failed to load claim plans for status restoration: \(error)")
-                return
-            }
-
-            for plan in plans {
-                await claimStatusStore.updateStatus(plan.claimStatus, forMessageId: plan.messageId)
-            }
-
-            guard !plans.isEmpty else {
-                return
-            }
-            logger.debug("Restored \(plans.count) persisted claim statuses")
-        }
-    }
-}
-
-// MARK: - Claimed Amount Computation
-
-private extension CoinageTransferMonitor {
-    func computeClaimedAmount(from plan: ClaimPlan) async throws -> Balance {
-        let context = try await coinageService.denominationContext()
-
-        guard !plan.entries.isEmpty else {
-            return plan.totalValue
-        }
-
-        return plan.entries.reduce(BigUInt(0)) { sum, entry in
-            sum + context.valueInPlanks(for: entry.destinationCoin.exponent)
-        }
-    }
-}
-
-// MARK: - Incoming (Claim)
-
-private extension CoinageTransferMonitor {
-    // swiftlint:disable:next cyclomatic_complexity
     func subscribeIncomingMessages() {
-        incomingTransfersSubscription = Task { [weak self, claimStatusStore] in
+        incomingTransfersSubscription = Task { [weak self] in
             guard let self else { return }
-
             do {
                 let stream = messageProviderFactory.subscribeMessages(with: .incomingCoinageSendMessages())
-
                 for try await messages in stream {
                     try Task.checkCancellation()
-
                     for message in messages {
-                        guard
-                            case let .coinageSend(sendContent) = message.content
-                        else {
-                            continue
-                        }
-
-                        let messageId = message.messageId
-                        guard await taskRegistry.contains(messageId) == false else {
-                            continue
-                        }
-
-                        if case .finished = await claimStatusStore.status(forMessageId: messageId) {
-                            continue
-                        }
-
-                        let memo = sendContent.transferMemo
-
-                        // swiftlint:disable closure_parameter_position
-                        let task = Task { [
-                            taskRegistry,
-                            claimService,
-                            sendVerifier,
-                            planStore,
-                            claimStatusStore,
-                            logger
-                        ] in
-                            defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
-                            do {
-                                logger.debug("Receiving \(messageId) amount: \(memo.totalValue)")
-                                await claimStatusStore.updateStatus(.detecting, forMessageId: messageId)
-
-                                // Existing plan means some coins may already
-                                // be claimed (spent), so awaitSendOnChain would timeout waiting
-                                // for keys that will never reappear. Skip the await in that case —
-                                // claim() handles partially-spent memos gracefully.
-                                let existingPlan = await (try? planStore.plan(memo: memo))
-
-                                if let existingPlan {
-                                    guard existingPlan.status != .finished else {
-                                        return
-                                    }
-                                } else {
-                                    try await sendVerifier.awaitSendOnChain(
-                                        memo: memo,
-                                        blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
-                                    )
-                                }
-
-                                await claimStatusStore.updateStatus(.claiming, forMessageId: messageId)
-
-                                try await claimService.claim(memo: memo, messageId: messageId)
-
-                                // Compute claimed amount from plan entries + denomination context.
-                                // denominationContext() suspends until setup completes,
-                                // avoiding a race where context is nil mid-setup.
-                                let plan = await (try? planStore.plan(memo: memo))
-                                let claimedAmount: Balance =
-                                    if let plan {
-                                        try await self.computeClaimedAmount(from: plan)
-                                    } else {
-                                        memo.totalValue
-                                    }
-
-                                // Calculate claimed amount when all entries are claimed
-                                guard plan?.status == .finished else {
-                                    await claimStatusStore.updateStatus(.error, forMessageId: messageId)
-                                    return
-                                }
-                                try? await planStore.updateStatus(
-                                    .finished,
-                                    claimedAmount: claimedAmount,
-                                    forMemo: memo
-                                )
-
-                                await claimStatusStore.updateStatus(
-                                    .finished(claimedAmount: claimedAmount),
-                                    forMessageId: messageId
-                                )
-                                logger.debug(
-                                    "Successfully claimed coinage send content for \(messageId), " +
-                                        "amountPlanks=\(claimedAmount)"
-                                )
-                            } catch TransferRecipientError.alreadyClaiming {
-                                logger.debug("Memo already being claimed, skipping.")
-                            } catch {
-                                logger.error("Failed to claim coinage for \(messageId): \(error)")
-                                await claimStatusStore.updateStatus(.error, forMessageId: messageId)
-                            }
-                        }
-                        // swiftlint:enable closure_parameter_position
-
-                        await taskRegistry.register(task, forMessageId: messageId)
+                        await startIncoming(for: message)
                     }
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                logger.error("Coinage claim task failed: \(error)")
+                logger.error("Coinage claim subscription failed: \(error)")
             }
+        }
+    }
+
+    func startIncoming(for message: Chat.LocalMessage) async {
+        guard case let .coinageSend(content) = message.content else { return }
+        let messageId = message.messageId
+        guard await taskRegistry.contains(messageId) == false else { return }
+
+        let memo = content.transferMemo
+        let task = Task { [coinageService, claimStatusStore, taskRegistry, logger] in
+            defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
+            do {
+                let context = try await coinageService.denominationContext()
+                let retryUntil = Date().addingTimeInterval(CoinageConstants.claimRetryWindow)
+                let detections = coinageService.claimCoinsService.claim(
+                    coinKeys: memo.entries,
+                    groupId: messageId,
+                    retryUntil: retryUntil,
+                    context: context
+                )
+                for try await detection in detections {
+                    await claimStatusStore.updateStatus(detection.incomingStatus, forMessageId: messageId)
+                }
+            } catch {
+                logger.error("Failed to claim coinage for \(messageId): \(error)")
+                await claimStatusStore.updateStatus(.error, forMessageId: messageId)
+            }
+        }
+        await taskRegistry.register(task, forMessageId: messageId)
+    }
+}
+
+// MARK: - Outgoing (payment status)
+
+private extension CoinageTransferMonitor {
+    func subscribeOutgoingMessages() {
+        outgoingTransfersSubscription = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let stream = messageProviderFactory.subscribeMessages(with: .outgoingLocalDeviceCoinageSendMessages())
+                for try await messages in stream {
+                    try Task.checkCancellation()
+                    for message in messages {
+                        await startOutgoing(for: message)
+                    }
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                logger.error("Coinage send subscription failed: \(error)")
+            }
+        }
+    }
+
+    func startOutgoing(for message: Chat.LocalMessage) async {
+        guard case let .coinageSend(content) = message.content else { return }
+        let messageId = message.messageId
+        guard await taskRegistry.contains(messageId) == false else { return }
+
+        let memo = content.transferMemo
+        let task = Task { [coinageService, claimStatusStore, taskRegistry, logger] in
+            defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
+            do {
+                let context = try await coinageService.denominationContext()
+                let statuses = coinageService.transferStatusService.subscribeStatuses(coinKeys: memo.entries)
+                for try await states in statuses {
+                    await claimStatusStore.updateStatus(
+                        states.outgoingStatus(context: context),
+                        forMessageId: messageId
+                    )
+                    if !states.isEmpty, states.values.allSatisfy(\.status.isTerminal) { break }
+                }
+            } catch {
+                logger.error("Send status monitoring failed for \(messageId): \(error)")
+                await claimStatusStore.updateStatus(.error, forMessageId: messageId)
+            }
+        }
+        await taskRegistry.register(task, forMessageId: messageId)
+    }
+}
+
+// MARK: - Status mapping
+
+private extension CoinageTransferDetection {
+    /// Maps the received-claim detection onto the chat status. Partial claims surface via
+    /// `finished(claimedAmount:)` — the extension renders the shortfall against the message total.
+    var incomingStatus: ClaimStatus {
+        switch self {
+        case .detecting:
+            .detecting
+        case .claiming:
+            .claiming
+        case let .claimingRest(claimed):
+            .partiallyClaimed(claimed: claimed)
+        case let .claimed(amount, _):
+            .finished(claimedAmount: amount)
+        case let .claimedPartially(claimed):
+            .finished(claimedAmount: claimed)
+        case .notClaimed:
+            .error
         }
     }
 }
 
-// MARK: - Outgoing (Send Verification)
+private extension [PublicKey: CoinageTransferState] {
+    /// Aggregates per-coin Appendix-A statuses into one message-level status. Mirrors Android's
+    /// `toPaymentStatus`: any coin still to be taken keeps the message at `sent`/`detecting`; once
+    /// nothing is outstanding, the claimed value is final.
+    func outgoingStatus(context: DenominationBreakdownContext) -> ClaimStatus {
+        let states = Array(values)
+        guard !states.isEmpty else { return .detecting }
 
-private extension CoinageTransferMonitor {
-    // swiftlint:disable:next cyclomatic_complexity
-    func subscribeOutgoingMessages() {
-        outgoingTransfersSubscription = Task { [weak self, claimStatusStore] in
-            guard let self else { return }
+        let claimed = states.filter { if case .claimed = $0.status { true } else { false } }
+        let awaiting = states.filter { $0.status == .awaitingClaim }
+        let outstanding = states.filter { $0.status == .awaitingClaim || $0.status == .detecting }
 
-            do {
-                let stream = messageProviderFactory.subscribeMessages(
-                    with: .outgoingLocalDeviceCoinageSendMessages()
-                )
-
-                for try await messages in stream {
-                    try Task.checkCancellation()
-
-                    for message in messages {
-                        guard
-                            case let .coinageSend(sendContent) = message.content
-                        else {
-                            continue
-                        }
-
-                        let messageId = message.messageId
-                        guard await taskRegistry.contains(messageId) == false else {
-                            continue
-                        }
-
-                        if case .finished = await claimStatusStore.status(forMessageId: messageId) {
-                            continue
-                        }
-
-                        let memo = sendContent.transferMemo
-
-                        let task = Task { [taskRegistry, planStore, sendVerifier, claimStatusStore, logger] in
-                            defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
-
-                            do {
-                                let existingPlan = await (try? planStore.plan(memo: memo))
-
-                                if existingPlan?.status == .detected {
-                                    // Coins confirmed on-chain in a prior run; go straight to claim watch.
-                                    await claimStatusStore.updateStatus(.sent, forMessageId: messageId)
-                                    try await sendVerifier.awaitClaimOnChain(
-                                        memo: memo,
-                                        blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
-                                    )
-                                } else {
-                                    if existingPlan == nil {
-                                        let plan = try ClaimPlan(
-                                            memoKey: memo.identifier(),
-                                            messageId: messageId,
-                                            entries: [],
-                                            status: .processing,
-                                            totalValue: memo.totalValue
-                                        )
-                                        try? await planStore.save(plan: plan)
-                                    }
-
-                                    await claimStatusStore.updateStatus(.detecting, forMessageId: messageId)
-
-                                    // Tolerates a fast recipient claim: a send whose coins are already spent
-                                    // resolves as `.alreadyClaimed` instead of a false send-timeout.
-                                    // anchorBlock is nil — ClaimPlan has no submit-block anchor, so the
-                                    // historical probe is skipped (same coverage as the prior strict check).
-                                    let status = try await sendVerifier.awaitSendOrClaimed(
-                                        memo: memo,
-                                        anchorBlock: nil,
-                                        blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
-                                    )
-                                    switch status {
-                                    case .onChain:
-                                        try? await planStore.updateStatus(.detected, claimedAmount: nil, forMemo: memo)
-                                        await claimStatusStore.updateStatus(.sent, forMessageId: messageId)
-                                        try await sendVerifier.awaitClaimOnChain(
-                                            memo: memo,
-                                            blockTimeout: CoinageTransferMonitor.sendVerifyBlockTimeout
-                                        )
-                                    case .alreadyClaimed:
-                                        // Send confirmed and recipient already spent the coins — terminal.
-                                        break
-                                    }
-                                }
-
-                                try? await planStore.updateStatus(
-                                    .finished,
-                                    claimedAmount: memo.totalValue,
-                                    forMemo: memo
-                                )
-                                await claimStatusStore.updateStatus(
-                                    .finished(claimedAmount: memo.totalValue),
-                                    forMessageId: messageId
-                                )
-                                logger.debug(
-                                    "Send verified and claimed for message \(messageId), " +
-                                        "amountPlanks=\(memo.totalValue)"
-                                )
-                            } catch {
-                                try? await planStore.updateStatus(.error, claimedAmount: nil, forMemo: memo)
-                                await claimStatusStore.updateStatus(.error, forMessageId: messageId)
-                                logger.error("Send/claim verification failed for \(messageId): \(error)")
-                            }
-                        }
-                        await taskRegistry.register(task, forMessageId: messageId)
-                    }
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                logger.error("Send verification task failed: \(error)")
-            }
+        if !outstanding.isEmpty {
+            return awaiting.isEmpty && claimed.isEmpty ? .detecting : .sent
         }
+        guard !claimed.isEmpty else { return .error }
+
+        let amount = claimed.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.coin.exponent) }
+        return .finished(claimedAmount: amount)
     }
 }
 
 private extension Chat.LocalMessage.Content.Transfer {
     var transferMemo: TransferMemo {
         TransferMemo(entries: coinKeys, totalValue: totalValue)
-    }
-}
-
-private extension ClaimPlan {
-    var claimStatus: ClaimStatus {
-        switch status {
-        case .finished:
-            let amount = claimedAmount ?? totalValue
-            return .finished(claimedAmount: amount)
-        case .error:
-            return .error
-        case .processing:
-            return .detecting
-        case .detected:
-            return .sent
-        }
     }
 }
 

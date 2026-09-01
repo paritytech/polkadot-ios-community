@@ -31,6 +31,15 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
+    func makeCoinRepository(publicKeys: [PublicKey]) -> AnyDataProviderRepository<Coin> {
+        let repository = storageFacade.createRepository(
+            filter: NSPredicate(format: "%K IN %@", #keyPath(CDCoin.publicKey), publicKeys.map { $0.toHex() }),
+            sortDescriptors: [],
+            mapper: AnyCoreDataMapper(CoinMapper())
+        )
+        return AnyDataProviderRepository(repository)
+    }
+
     func makeTrackedCoinRepository() -> AnyDataProviderRepository<TrackedCoin> {
         let mapper = TrackedCoinMapper()
         let repository = storageFacade.createRepository(
@@ -74,6 +83,16 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
     func makeTrackedCoinSnapshotStream() -> AnyAsyncSequence<[TrackedCoin]> {
         storageFacade.databaseService.subscribeSnapshot(
             mapper: AnyCoreDataMapper(TrackedCoinMapper())
+        )
+    }
+
+    func makeTrackedCoinSnapshotStream(publicKeys: [PublicKey]) -> AnyAsyncSequence<[TrackedCoin]> {
+        guard !publicKeys.isEmpty else {
+            return AsyncStream<[TrackedCoin]> { $0.finish() }.eraseToAnyAsyncSequence()
+        }
+        return storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedCoinMapper()),
+            filter: NSPredicate(format: "%K IN %@", #keyPath(CDCoin.publicKey), publicKeys.map { $0.toHex() })
         )
     }
 

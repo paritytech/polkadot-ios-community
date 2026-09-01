@@ -16,6 +16,12 @@ public protocol CoinageServicing: Actor {
 
     nonisolated var durabilityService: any CoinageTxServicing { get }
 
+    /// Claims coins a peer handed us, driven off the durability group `groupId = messageId`.
+    nonisolated var claimCoinsService: any ClaimCoinsServicing { get }
+
+    /// The Appendix-A derived payment status of coins we handed off.
+    nonisolated var transferStatusService: any CoinageTransferStatusServicing { get }
+
     /// The external payment service — exposed for dependency registration.
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
     nonisolated var externalPaymentService: any ExternalPaymentServicing { get }
@@ -108,6 +114,8 @@ public actor CoinageService {
     private let senderService: TransferSenderServicing
     public nonisolated let ongoingTransferService: any OngoingTransferServicing
     public nonisolated let durabilityService: any CoinageTxServicing
+    public nonisolated let claimCoinsService: any ClaimCoinsServicing
+    public nonisolated let transferStatusService: any CoinageTransferStatusServicing
 
     // Sync services
     private let coinStateSyncService: CoinStateSyncService?
@@ -149,6 +157,8 @@ public actor CoinageService {
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
         durabilityService: any CoinageTxServicing,
+        claimCoinsService: any ClaimCoinsServicing,
+        transferStatusService: any CoinageTransferStatusServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
         coinStateSyncService: CoinStateSyncService? = nil,
@@ -173,6 +183,8 @@ public actor CoinageService {
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
         self.durabilityService = durabilityService
+        self.claimCoinsService = claimCoinsService
+        self.transferStatusService = transferStatusService
         self.logger = logger
     }
 }

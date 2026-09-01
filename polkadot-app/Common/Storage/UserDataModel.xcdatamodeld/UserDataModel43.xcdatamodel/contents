@@ -115,15 +115,6 @@
         <attribute name="messageId" attributeType="String"/>
         <relationship name="chat" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChat" inverseName="unreadMessages" inverseEntity="CDChat"/>
     </entity>
-    <entity name="CDClaimPlan" representedClassName="CDClaimPlan" syncable="YES" codeGenerationType="class">
-        <attribute name="claimedAmount" optional="YES" attributeType="String"/>
-        <attribute name="entriesData" optional="YES" attributeType="Binary"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="memoKey" attributeType="Binary"/>
-        <attribute name="messageId" attributeType="String"/>
-        <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="totalValue" optional="YES" attributeType="String"/>
-    </entity>
     <entity name="CDCoin" representedClassName="CDCoin" syncable="YES" codeGenerationType="class">
         <attribute name="age" optional="YES" attributeType="Integer 16" usesScalarValueType="NO"/>
         <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
@@ -162,6 +153,9 @@
         <attribute name="txHash" optional="YES" attributeType="String"/>
         <relationship name="inputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDCoinageTxInput" inverseName="entry" inverseEntity="CDCoinageTxInput"/>
         <relationship name="outputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDCoinageTxOutput" inverseName="entry" inverseEntity="CDCoinageTxOutput"/>
+        <fetchIndex name="byGroupId">
+            <fetchIndexElement property="groupId" type="Binary" order="ascending"/>
+        </fetchIndex>
     </entity>
     <entity name="CDCoinageTxInput" representedClassName="CDCoinageTxInput" syncable="YES" codeGenerationType="class">
         <attribute name="receivedPubKey" optional="YES" attributeType="String"/>

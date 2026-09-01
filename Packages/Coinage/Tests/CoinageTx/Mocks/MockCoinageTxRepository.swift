@@ -9,6 +9,7 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
     private var committedMarks: Set<OwnAsset> = []
     private var nextSequence: Int64 = 1
     private var statusObservers: [CoinageTxId: [AsyncStream<CoinageTxStatus>.Continuation]] = [:]
+    private var groupObservers: [CoinageTxGroupId: [AsyncStream<[CoinageTxEntry]>.Continuation]] = [:]
 
     var allEntries: [CoinageTxEntry] {
         sortedEntries
@@ -76,6 +77,7 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
 
         entries[entry.id] = entry.withSequence(nextSequence)
         nextSequence += 1
+        notifyGroupObservers()
     }
 
     /// Test-only convenience (the production protocol has only the compare-and-set `updateTxStatus`):
@@ -117,6 +119,19 @@ actor MockCoinageTxRepository: CoinageTxRepositoryProtocol {
 
     func getEntry(id: CoinageTxId) async throws -> CoinageTxEntry? {
         entries[id]
+    }
+
+    func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry] {
+        sortedEntries.filter { $0.groupId == groupId }
+    }
+
+    nonisolated func subscribeOperationGroupStatuses(
+        _ groupId: CoinageTxGroupId
+    ) -> AnyAsyncSequence<[CoinageTxEntry]> {
+        AsyncStream<[CoinageTxEntry]> { continuation in
+            Task { await self.attachGroup(continuation, to: groupId) }
+        }
+        .eraseToAnyAsyncSequence()
     }
 
     nonisolated func subscribeStatus(id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
@@ -177,11 +192,26 @@ private extension MockCoinageTxRepository {
         statusObservers[id, default: []].append(continuation)
     }
 
+    func attachGroup(_ continuation: AsyncStream<[CoinageTxEntry]>.Continuation, to groupId: CoinageTxGroupId) {
+        continuation.yield(sortedEntries.filter { $0.groupId == groupId })
+        groupObservers[groupId, default: []].append(continuation)
+    }
+
+    func notifyGroupObservers() {
+        for (groupId, observers) in groupObservers {
+            let snapshot = sortedEntries.filter { $0.groupId == groupId }
+            for observer in observers {
+                observer.yield(snapshot)
+            }
+        }
+    }
+
     func mutate(_ id: CoinageTxId, _ transform: (CoinageTxEntry) -> CoinageTxEntry) throws {
         guard let entry = entries[id] else {
             throw CoinageTxError.entryNotFound(id)
         }
         entries[id] = transform(entry)
+        notifyGroupObservers()
     }
 }
 

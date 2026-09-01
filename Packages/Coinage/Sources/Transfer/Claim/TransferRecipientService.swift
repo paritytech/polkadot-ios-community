@@ -4,12 +4,13 @@ import Foundation
 import NovaCrypto
 import SDKLogger
 import SubstrateSdk
+import SubstrateSdkExt
 import SubstrateOperation
 
-/// Claims transferred coins on behalf of the recipient.
+/// Detects coins for raw secret keys and recovers locally-spent coins. The chat claim path now lives
+/// in ``ClaimCoinsService`` (durability-driven); this service delegates to it for the actual
+/// claim and keeps the on-chain detection and spent-coin recovery that have no other home.
 public protocol TransferClaimServicing: Actor {
-    func claim(memo: TransferMemo, messageId: String) async throws
-
     /// Detects on-chain coins for the given sr25519 secret keys; when
     /// `transferCoins` is true, also claims them into the user's coin set.
     /// Returns the total detected value in planks (0 if none found).
@@ -73,18 +74,6 @@ public typealias OngoingTransferServicing = TransferClaimServicing & TransferSen
 
 public enum TransferRecipientError: Error {
     case coinNotFound
-    case alreadyClaiming
-}
-
-public struct ClaimReport {
-    public let claimed: [Coin]
-    public let alreadyTransferred: [Coin]
-    public let externallySpent: Int
-    public let failures: [(entryIndex: Int, error: Error)]
-
-    public var totalReceived: Int {
-        claimed.count + alreadyTransferred.count
-    }
 }
 
 actor TransferRecipientService {
@@ -97,12 +86,9 @@ actor TransferRecipientService {
     private let coinOnChainQuery: any CoinOnChainQuerying
     private let transferSubmitter: any CoinTransferSubmitting
     private let snKeyFactory: any SNKeyFactoryProtocol
-    private let planStore: any ClaimPlanStoring
+    private let claimCoinsService: any ClaimCoinsServicing
     private let blockNumberProvider: any BlockInfoProviding
     private let logger: SDKLoggerProtocol?
-
-    /// In-memory deduplication of in-flight memo claims.
-    private var claimingMemos: Set<Data> = []
 
     /// Shared finalized-head multicast.
     /// Started on first `awaitSendOnChain` caller, released on last.
@@ -116,7 +102,7 @@ actor TransferRecipientService {
         coinOnChainQuery: any CoinOnChainQuerying,
         transferSubmitter: any CoinTransferSubmitting,
         snKeyFactory: any SNKeyFactoryProtocol,
-        planStore: any ClaimPlanStoring,
+        claimCoinsService: any ClaimCoinsServicing,
         blockNumberProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
@@ -126,7 +112,7 @@ actor TransferRecipientService {
         self.coinOnChainQuery = coinOnChainQuery
         self.transferSubmitter = transferSubmitter
         self.snKeyFactory = snKeyFactory
-        self.planStore = planStore
+        self.claimCoinsService = claimCoinsService
         self.blockNumberProvider = blockNumberProvider
         self.logger = logger
     }
@@ -148,72 +134,14 @@ private extension AsyncSequence where Element: Sendable, AsyncIterator: Sendable
                 } catch {}
                 continuation.finish()
             }
-            // `onTermination` fires immediately when the consumer's task is cancelled (AsyncStream
-            // iterators are cancellation-aware), so the counter loop unblocks at once. The pump task,
-            // however, is suspended on the upstream multicast subject, which is NOT cancellation-aware:
-            // it only observes this `cancel()` on the next upstream element (or upstream finish).
-            // So the pump — and its consumer slot on the shared head subscription — may linger up to
-            // one block before tearing down. Bounded and self-healing; do not "fix" by awaiting it.
             continuation.onTermination = { _ in task.cancel() }
         }
     }
 }
 
+// MARK: - TransferClaimServicing
+
 extension TransferRecipientService: OngoingTransferServicing {
-    func claim(memo: TransferMemo, messageId: String) async throws {
-        logger?.debug("Claiming memo with \(memo.entries.count) entries")
-
-        let memoKey = try memo.identifier()
-
-        guard claimingMemos.insert(memoKey).inserted else {
-            logger?.error("Already claiming this memo")
-            throw TransferRecipientError.alreadyClaiming
-        }
-
-        defer { claimingMemos.remove(memoKey) }
-
-        // Check for an existing plan (recovery after crash)
-        let existingPlan = try? await planStore.plan(memo: memo)
-
-        let report: ClaimReport
-        if let existingPlan {
-            logger?.debug("Found existing plan for memo, reusing allocated coins")
-            report = await claimFromPlan(existingPlan, memo: memo)
-        } else {
-            report = await claimAll(memo: memo, messageId: messageId)
-        }
-
-        let coinsToSave = report.claimed + report.alreadyTransferred
-        if !coinsToSave.isEmpty {
-            try await coinService.save(coins: coinsToSave)
-            logger?.debug("Saved \(coinsToSave.count) claimed coins")
-        }
-
-        if !report.failures.isEmpty {
-            logger?.error("Claim had \(report.failures.count) failures")
-        }
-
-        let hasSuccess = !report.claimed.isEmpty || !report.alreadyTransferred.isEmpty
-
-        // Update plan status; keep for partial failure retry
-        if report.failures.isEmpty {
-            try? await planStore.updateStatus(.finished, forMemo: memo)
-        } else {
-            try? await planStore.updateStatus(.error, forMemo: memo)
-        }
-
-        guard hasSuccess else {
-            if let errorTuple = report.failures.first {
-                throw errorTuple.error
-            }
-            return
-        }
-
-        logger?.debug(
-            "Claim completed - claimed: \(report.claimed.count)/\(memo.entries.count), already transferred: \(report.alreadyTransferred.count)"
-        )
-    }
-
     func transferCoinsFromSecretKeys(
         secretKeys: [Data],
         transferCoins: Bool,
@@ -234,10 +162,18 @@ extension TransferRecipientService: OngoingTransferServicing {
 
         guard transferCoins, total > 0 else { return total }
 
-        let memo = TransferMemo(entries: secretKeys, totalValue: total)
-        // Deterministic per (keys, value) — retries dedup against any in-flight claim.
-        let messageId = try "w3s-coins-\(memo.identifier().toHex())"
-        try await claim(memo: memo, messageId: messageId)
+        // Content-addressed group so a retry after process death rejoins the claims already
+        // registered rather than submitting a second set.
+        let groupId = try "w3s-coins-\(TransferMemo(entries: secretKeys, totalValue: total).identifier().toHex())"
+        let retryUntil = Date().addingTimeInterval(CoinageConstants.secretKeyClaimTimeout)
+
+        for try await _ in claimCoinsService.claim(
+            coinKeys: secretKeys,
+            groupId: groupId,
+            retryUntil: retryUntil,
+            context: context
+        ) {}
+
         return total
     }
 
@@ -290,7 +226,11 @@ extension TransferRecipientService: OngoingTransferServicing {
         let transferredPlanks = claimed.reduce(.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
         return restoredPlanks + transferredPlanks
     }
+}
 
+// MARK: - Send verification
+
+extension TransferRecipientService {
     /// Derives sender public keys, then races a finalized-block counter against the coin subscription.
     ///
     /// All concurrent callers share one `subscribeFinalizedHeads()` WebSocket subscription
@@ -484,7 +424,7 @@ extension TransferRecipientService: OngoingTransferServicing {
     }
 }
 
-// MARK: - Claim Orchestration
+// MARK: - Spent-coin recovery helpers
 
 private extension TransferRecipientService {
     struct PreparedEntry {
@@ -497,166 +437,6 @@ private extension TransferRecipientService {
 
     typealias SenderKey = (index: Int, privateKey: Data, publicKey: Data)
     typealias EntryFailure = (entryIndex: Int, error: Error)
-
-    func claimAll(memo: TransferMemo, messageId: String) async -> ClaimReport {
-        var failures: [EntryFailure] = []
-
-        let senderKeys = deriveSenderKeys(from: memo, failures: &failures)
-
-        let sourceCoins: [OnChainCoin?]
-        do {
-            sourceCoins = try await coinOnChainQuery.fetchCoins(for: senderKeys.map(\.publicKey))
-        } catch {
-            return ClaimReport(
-                claimed: [],
-                alreadyTransferred: [],
-                externallySpent: 0,
-                failures: senderKeys.map { ($0.index, error) } + failures
-            )
-        }
-
-        let (prepared, externallySpent) = await allocateDestinations(
-            senderKeys: senderKeys,
-            sourceCoins: sourceCoins,
-            failures: &failures
-        )
-
-        guard !prepared.isEmpty else {
-            return ClaimReport(
-                claimed: [],
-                alreadyTransferred: [],
-                externallySpent: externallySpent,
-                failures: failures
-            )
-        }
-
-        // Persist claim plan before submitting extrinsics
-        let planEntries = prepared.map { entry in
-            ClaimPlanEntry(
-                entryIndex: entry.index,
-                destinationCoin: entry.destinationCoin
-            )
-        }
-        do {
-            let plan = try ClaimPlan(
-                memoKey: memo.identifier(),
-                messageId: messageId,
-                entries: planEntries,
-                totalValue: memo.totalValue
-            )
-            try await planStore.save(plan: plan)
-            logger?.debug("Persisted claim plan with \(planEntries.count) entries")
-        } catch {
-            logger?.error("Failed to persist claim plan: \(error)")
-        }
-
-        let (claimed, transferFailures) = await submitTransfers(prepared)
-        failures.append(contentsOf: transferFailures)
-
-        return ClaimReport(
-            claimed: claimed,
-            alreadyTransferred: [],
-            externallySpent: externallySpent,
-            failures: failures
-        )
-    }
-
-    /// Claims coins using pre-allocated destinations from an existing plan (avoids double allocation).
-    ///
-    /// Destination-first recovery: a transfer is "done" iff its destination coin exists on-chain,
-    /// regardless of the source. Entries with a landed destination are reported as already
-    /// transferred; the rest have their source coins fetched and are (re)submitted.
-    func claimFromPlan(_ plan: ClaimPlan, memo: TransferMemo) async -> ClaimReport {
-        let privateKeys = planPrivateKeys(plan: plan, memo: memo)
-
-        // Entries whose destination coin already exists were completed by a prior run.
-        let landedIndices = await landedDestinationIndices(plan.entries)
-        let remaining = plan.entries.filter { !landedIndices.contains($0.entryIndex) }
-
-        let (prepared, externallySpent) = await prepareTransfers(for: remaining, privateKeys: privateKeys)
-        let (claimed, failures) = await submitTransfers(prepared)
-
-        // A submit that fails but actually lands is not recovered here: its destination coin is not
-        // yet finalized at this point. The entry stays in `failures`, the plan retries, and the next
-        // run's `landedDestinationIndices` pass detects the now-finalized destination as completed.
-        let alreadyTransferred = plan.entries
-            .filter { landedIndices.contains($0.entryIndex) }
-            .map(\.destinationCoin)
-
-        return ClaimReport(
-            claimed: claimed,
-            alreadyTransferred: alreadyTransferred,
-            externallySpent: externallySpent,
-            failures: failures
-        )
-    }
-
-    /// Maps each in-bounds plan entry to its memo private key.
-    private func planPrivateKeys(plan: ClaimPlan, memo: TransferMemo) -> [Int: Data] {
-        var result: [Int: Data] = [:]
-        for entry in plan.entries where entry.entryIndex < memo.entries.count {
-            result[entry.entryIndex] = memo.entries[entry.entryIndex]
-        }
-        return result
-    }
-
-    /// Returns the entry indices whose destination coin already exists on-chain (transfer complete).
-    /// A single batch RPC; derivation failures are skipped (treated as not-yet-transferred).
-    private func landedDestinationIndices(_ entries: [ClaimPlanEntry]) async -> Set<Int> {
-        guard !entries.isEmpty else { return [] }
-
-        var derivable: [(index: Int, publicKey: Data)] = []
-        for entry in entries {
-            derivable.append((entry.entryIndex, entry.destinationCoin.publicKey))
-        }
-
-        guard !derivable.isEmpty else { return [] }
-
-        let coins = await (try? coinOnChainQuery.fetchCoins(for: derivable.map(\.publicKey))) ??
-            Array(repeating: nil, count: derivable.count)
-
-        var result: Set<Int> = []
-        for (item, coin) in zip(derivable, coins) where coin != nil {
-            result.insert(item.index)
-        }
-        return result
-    }
-
-    /// Fetches source coins for the given entries and builds submittable transfers.
-    /// Entries with no derivable key or no on-chain source are dropped and counted as
-    /// externally spent (source gone and destination absent ⇒ unrecoverable).
-    private func prepareTransfers(
-        for entries: [ClaimPlanEntry],
-        privateKeys: [Int: Data]
-    ) async -> (prepared: [PreparedEntry], externallySpent: Int) {
-        var info: [(index: Int, privateKey: Data, publicKey: Data, destination: Coin)] = []
-        for entry in entries {
-            guard let privateKey = privateKeys[entry.entryIndex],
-                  let publicKey = try? snKeyFactory.createPublicKey(fromSecret: privateKey).rawData() else {
-                continue
-            }
-            info.append((entry.entryIndex, privateKey, publicKey, entry.destinationCoin))
-        }
-
-        guard !info.isEmpty else { return ([], entries.count) }
-
-        let sourceCoins = await (try? coinOnChainQuery.fetchCoins(for: info.map(\.publicKey))) ??
-            Array(repeating: nil, count: info.count)
-
-        var prepared: [PreparedEntry] = []
-        for (item, source) in zip(info, sourceCoins) {
-            guard let source else { continue }
-            prepared.append(PreparedEntry(
-                index: item.index,
-                privateKey: item.privateKey,
-                senderPublicKey: item.publicKey,
-                sourceCoin: source,
-                destinationCoin: item.destination
-            ))
-        }
-
-        return (prepared, entries.count - prepared.count)
-    }
 
     /// Flips spent coins whose on-chain age has reached `coinMaxAge` back to `.available`
     /// locally and refreshes their stored age. Returns the total planks of restored coins.
@@ -700,19 +480,6 @@ private extension TransferRecipientService {
         }
 
         return (keys, sources)
-    }
-
-    func deriveSenderKeys(from memo: TransferMemo, failures: inout [EntryFailure]) -> [SenderKey] {
-        var senderKeys: [SenderKey] = []
-        for (index, privateKey) in memo.entries.enumerated() {
-            do {
-                let pubKey = try snKeyFactory.createPublicKey(fromSecret: privateKey).rawData()
-                senderKeys.append((index, privateKey, pubKey))
-            } catch {
-                failures.append((index, error))
-            }
-        }
-        return senderKeys
     }
 
     func allocateDestinations(
@@ -788,6 +555,7 @@ private extension String {
     /// Decodes a hex-encoded block number (e.g. a header's `number` field) into a decimal string.
     /// Falls back to the raw hex when the value is not valid hex or overflows `UInt32`.
     var hexBlockNumber: String {
-        BigUInt.fromHexString(self).flatMap { UInt32(exactly: $0) }.map(String.init) ?? self
+        guard let number = UInt32.fromHex(self) else { return self }
+        return String(number)
     }
 }

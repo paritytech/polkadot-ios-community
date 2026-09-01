@@ -126,3 +126,25 @@ public extension CoinageTxEntry {
         UInt64(finalizedNumber) > UInt64(checkpoint.number) + UInt64(mortality)
     }
 }
+
+extension [CoinageTxEntry] {
+    func receivedPublicKeys() -> Set<PublicKey> {
+        var keys: Set<PublicKey> = []
+        for entry in self {
+            for input in entry.inputs {
+                if case let .coin(.received(publicKey)) = input {
+                    keys.insert(publicKey)
+                }
+            }
+        }
+        return keys
+    }
+
+    func finalizedSuccess() -> [CoinageTxEntry] {
+        filter { $0.status == .finalizedSuccess }
+    }
+
+    func outputPublicKeys() -> Set<PublicKey> {
+        Set(flatMap { $0.outputs.map(\.publicKey) })
+    }
+}

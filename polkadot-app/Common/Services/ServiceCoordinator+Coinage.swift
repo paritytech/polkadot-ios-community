@@ -19,7 +19,6 @@ extension ServiceCoordinator {
 
     static func createCoinageServices() -> CoinageServices? {
         let databaseFactory = CoinageDatabaseDependencyFactory(storageFacade: UserDataStorageFacade.shared)
-        let claimPlanStore = ClaimPlanCoreDataStore(storageFacade: UserDataStorageFacade.shared)
         let claimStatusStore = ClaimStatusStore()
 
         let externalPaymentStore = ExternalPaymentCoreDataStore(
@@ -28,7 +27,6 @@ extension ServiceCoordinator {
 
         guard let coinageService = createCoinageService(
             databaseFactory: databaseFactory,
-            claimPlanStore: claimPlanStore,
             externalPaymentStore: externalPaymentStore
         ) else {
             return nil
@@ -38,7 +36,6 @@ extension ServiceCoordinator {
 
         let transferMonitor = CoinageTransferMonitor(
             coinageService: coinageService,
-            planStore: claimPlanStore,
             storageFacade: UserDataStorageFacade.shared,
             claimStatusStore: claimStatusStore
         )
@@ -61,12 +58,10 @@ extension ServiceCoordinator {
     static func makeBackgroundRecyclingService() -> (any CoinageRecyclingServicing)? {
         let storageFacade = UserDataStorageFacade.shared
         let databaseFactory = CoinageDatabaseDependencyFactory(storageFacade: storageFacade)
-        let claimPlanStore = ClaimPlanCoreDataStore(storageFacade: storageFacade)
         let externalPaymentStore = ExternalPaymentCoreDataStore(storageFacade: storageFacade)
 
         return createCoinageService(
             databaseFactory: databaseFactory,
-            claimPlanStore: claimPlanStore,
             externalPaymentStore: externalPaymentStore
         )?.recyclingService
     }
@@ -91,7 +86,6 @@ extension ServiceCoordinator {
 private extension ServiceCoordinator {
     static func createCoinageService(
         databaseFactory: DatabaseDependencyFactoring,
-        claimPlanStore: ClaimPlanCoreDataStore,
         externalPaymentStore: ExternalPaymentStoring
     ) -> CoinageService? {
         let logger = Logger.shared
@@ -184,7 +178,6 @@ private extension ServiceCoordinator {
             extrinsicSubmitter: extrinsicSubmitter,
             rootEntropyManager: RootEntropyManager.shared,
             keystore: Keychain(),
-            planStore: claimPlanStore,
             durabilityStore: durabilityStore,
             schedulerFactory: schedulerFactory,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),

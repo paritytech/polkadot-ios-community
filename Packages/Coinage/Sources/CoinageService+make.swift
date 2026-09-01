@@ -37,7 +37,6 @@ public extension CoinageService {
         extrinsicSubmitter: any ExtrinsicSubmitting,
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
-        planStore: any ClaimPlanStoring,
         durabilityStore: any CoinageTxRepositoryProtocol,
         schedulerFactory: CoinRecycleSchedulerMaking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
@@ -56,7 +55,6 @@ public extension CoinageService {
         }
 
         let coinRepository = databaseFactory.makeCoinRepository()
-        let trackedCoinRepository = databaseFactory.makeTrackedCoinRepository()
         let trackedVoucherRepository = databaseFactory.makeTrackedVoucherRepository()
         let voucherRepository = databaseFactory.makeVoucherRepository()
         let voucherLocationRepository = databaseFactory.makeVoucherLocationRepository()
@@ -94,10 +92,7 @@ public extension CoinageService {
             trackedVoucherRepository: trackedVoucherRepository,
             voucherLoaderFactory: voucherLoaderFactory
         )
-        let coinService = CoinService(
-            coinRepository: coinRepository,
-            trackedCoinRepository: trackedCoinRepository
-        )
+        let coinService = CoinService(databaseFactory: databaseFactory)
         let contextLoader = DenominationContextLoader(runtimeService: runtimeService)
 
         let readinessLoader = RecyclerReadinessLoader(
@@ -218,6 +213,22 @@ public extension CoinageService {
             extrinsicMonitor: extrinsicMonitorFactory
         )
 
+        let claimSubmitter = CoinageClaimSubmitter(
+            minter: coinageMinter,
+            originFactory: originFactory,
+            txService: durabilityService,
+            logger: logger
+        )
+
+        let claimCoinsService = ClaimCoinsService(
+            txService: durabilityService,
+            coinOnChainQuery: coinOnChainQuery,
+            claimSubmitter: claimSubmitter,
+            snKeyFactory: SNKeyFactory(),
+            coinService: coinService,
+            logger: logger
+        )
+
         let recipientService = TransferRecipientService(
             coinMinter: coinageMinter,
             coinKeyFactory: coinKeypairFactory,
@@ -225,7 +236,7 @@ public extension CoinageService {
             coinOnChainQuery: coinOnChainQuery,
             transferSubmitter: transferSubmitter,
             snKeyFactory: SNKeyFactory(),
-            planStore: planStore,
+            claimCoinsService: claimCoinsService,
             blockNumberProvider: blockNumberProvider,
             logger: logger
         )
@@ -278,6 +289,14 @@ public extension CoinageService {
             logger: logger
         )
 
+        let transferStatusService = CoinageTransferStatusService(
+            databaseFactory: databaseFactory,
+            chainViewFactory: chainFactory,
+            coinOnChainQuery: coinOnChainQuery,
+            snKeyFactory: SNKeyFactory(),
+            logger: logger
+        )
+
         let coinageService = CoinageService(
             coinService: coinService,
             voucherService: voucherService,
@@ -285,6 +304,8 @@ public extension CoinageService {
             senderService: senderService,
             ongoingTransferService: recipientService,
             durabilityService: durabilityService,
+            claimCoinsService: claimCoinsService,
+            transferStatusService: transferStatusService,
             externalPaymentService: externalPaymentService,
             contextLoader: contextLoader,
             coinStateSyncService: coinStateSyncService,

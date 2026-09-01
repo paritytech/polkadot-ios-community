@@ -22,6 +22,14 @@ public protocol CoinageTxServicing: Sendable {
     /// terminal outcome after a fire-and-forget ``submit(inputs:outputs:builder:origin:)``.
     func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus>
 
+    /// Every entry registered under `groupId`, in registration order — a snapshot read for seeding a
+    /// status before subscribing. Empty when the group has never been registered.
+    func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry]
+
+    /// A stream of the entries registered under `groupId`: the current set, then every change, in
+    /// registration order. Lets a claim watch its whole group settle by `groupId = messageId`.
+    func subscribeOperationGroupStatuses(_ groupId: CoinageTxGroupId) -> AnyAsyncSequence<[CoinageTxEntry]>
+
     /// Starts a recovery pass without waiting for it. Never awaited by startup: a single
     /// unresolvable entry must not hold the app for a mortality window.
     func startRecoveryPass()
@@ -132,6 +140,16 @@ extension CoinageTxService: CoinageTxServicing {
 
     public func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         store.subscribeStatus(id: id)
+    }
+
+    public func getOperationGroupStatuses(_ groupId: CoinageTxGroupId) async throws -> [CoinageTxEntry] {
+        try await store.getOperationGroupStatuses(groupId)
+    }
+
+    public func subscribeOperationGroupStatuses(
+        _ groupId: CoinageTxGroupId
+    ) -> AnyAsyncSequence<[CoinageTxEntry]> {
+        store.subscribeOperationGroupStatuses(groupId)
     }
 
     public func startRecoveryPass() {

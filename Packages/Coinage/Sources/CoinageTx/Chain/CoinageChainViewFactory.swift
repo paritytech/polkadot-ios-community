@@ -1,6 +1,7 @@
 import Foundation
 import Operation_iOS
 @preconcurrency import SubstrateSdk
+import SubstrateSdkExt
 @preconcurrency import ExtrinsicService
 import StructuredConcurrency
 import SubstrateOperation
@@ -137,7 +138,7 @@ extension CoinageChainViewFactory {
 
                         for try await head in heads {
                             guard !Task.isCancelled else { break }
-                            if let number = BlockNumber(head.number.withoutHexPrefix(), radix: 16) {
+                            if let number = UInt32.fromHex(head.number) {
                                 continuation.yield(number)
                             }
                         }
@@ -201,7 +202,7 @@ private final class BlockOutcomeReader: Sendable {
             parameters: [blockHash.toHex(includePrefix: true)]
         )
         guard let header = try? await operation.asyncExecute() else { return nil }
-        return BlockNumber(header.number.withoutHexPrefix(), radix: 16)
+        return UInt32.fromHex(header.number)
     }
 }
 
