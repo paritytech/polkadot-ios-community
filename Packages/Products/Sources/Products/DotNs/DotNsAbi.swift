@@ -38,15 +38,6 @@ public enum DotNsAbi {
         payable: false
     )
 
-    // tld() returns (string)
-    private static let tldFunction = ABI.Element.Function(
-        name: "tld",
-        inputs: [],
-        outputs: [.init(name: "", type: .string)],
-        constant: true,
-        payable: false
-    )
-
     public static func encodeResolver(node: Data) throws -> Data {
         try encode(resolverFunction, parameters: [node])
     }
@@ -87,17 +78,6 @@ public enum DotNsAbi {
 
     public static func decodeText(output: Data) -> String? {
         let element = ABI.Element.function(textFunction)
-        guard let decoded = element.decodeReturnData(output) else { return nil }
-        let result = decoded["0"] as? String
-        return result?.isEmpty == true ? nil : result
-    }
-
-    public static func encodeTld() throws -> Data {
-        try encode(tldFunction, parameters: [])
-    }
-
-    public static func decodeTld(output: Data) -> String? {
-        let element = ABI.Element.function(tldFunction)
         guard let decoded = element.decodeReturnData(output) else { return nil }
         let result = decoded["0"] as? String
         return result?.isEmpty == true ? nil : result

@@ -12,17 +12,25 @@ protocol DenominationContextLoaderProtocol {
 }
 
 final class DenominationContextLoader: DenominationContextLoaderProtocol {
+    private let instanceId: CoinageInstanceId
+    private let connection: any JSONRPCEngine
+    private let storageRequestFactory: any StorageRequestFactoryProtocol
     private let runtimeService: RuntimeCodingServiceProtocol
 
-    init(runtimeService: RuntimeCodingServiceProtocol) {
+    init(
+        instanceId: CoinageInstanceId,
+        connection: any JSONRPCEngine,
+        storageRequestFactory: any StorageRequestFactoryProtocol,
+        runtimeService: RuntimeCodingServiceProtocol
+    ) {
+        self.instanceId = instanceId
+        self.connection = connection
+        self.storageRequestFactory = storageRequestFactory
         self.runtimeService = runtimeService
     }
 
     func fetchContext(for asset: AssetProtocol) async throws -> DenominationBreakdownContext {
-        async let unit = runtimeService.fetchConstant(
-            path: CoinagePallet.Constants.assetUnit(),
-            type: BigUInt.self
-        )
+        async let unit = fetchAssetUnit()
 
         async let maxExponent = runtimeService.fetchConstant(
             path: CoinagePallet.Constants.maximumExponent(),
@@ -40,5 +48,28 @@ final class DenominationContextLoader: DenominationContextLoaderProtocol {
             maxExponent: maxExponent,
             minExponent: minExponent
         )
+    }
+}
+
+private extension DenominationContextLoader {
+    func fetchAssetUnit() async throws -> BigUInt {
+        let coderFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
+
+        let record: CoinagePallet.InstanceRecord? = try await storageRequestFactory.queryItems(
+            engine: connection,
+            keyParams: { [instanceId] in [StringCodable(wrappedValue: instanceId)] },
+            factory: { coderFactory },
+            storagePath: CoinagePallet.Storage.instances(),
+            at: nil
+        )
+        .asyncExecute()
+        .first?
+        .value
+
+        guard let record else {
+            throw CoinageError.notConfigured
+        }
+
+        return record.assetUnit
     }
 }

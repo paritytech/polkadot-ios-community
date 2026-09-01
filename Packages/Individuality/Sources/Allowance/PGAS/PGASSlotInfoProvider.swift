@@ -84,9 +84,16 @@ private extension PGASSlotInfoProvider {
         let maxClaims = try await fetchMaxClaims(origin: personOrigin, codingFactory: codingFactory)
         guard maxClaims > 0 else { throw AllowanceSlotAssignmentError.noSlotsAvailable }
 
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
+        )
+
         let activeVrfManager = personOrigin.keyManager
-        let aliases = try (0 ..< maxClaims).map { slotIndex in
-            let context = PGASSlotContextBuilder.context(day: day, slotIndex: slotIndex)
+        let aliases = try (0 ..< maxClaims).map { [networkSuffix] slotIndex in
+            let context = try ProductContextSuffix
+                .pgasClaim(day: day, slot: slotIndex)
+                .context(networkSuffix: networkSuffix)
             return try activeVrfManager.deriveAlias(for: context)
         }
 

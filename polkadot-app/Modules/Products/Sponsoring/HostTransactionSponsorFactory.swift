@@ -6,6 +6,7 @@ import Products
 import Operation_iOS
 import SubstrateSdk
 import SubstrateStorageQuery
+import SubstrateOperation
 import ChainRegistry
 
 final class HostTransactionSponsorFactory: TransactionSponsorMaking {
@@ -49,7 +50,8 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainRegistry: chainRegistry,
             keyResolver: keyResolver,
             operationQueue: operationQueue,
-            chainTimeProvider: bulletInTimeProvider
+            chainTimeProvider: bulletInTimeProvider,
+            resourcesParameters: ResourcesParametersFacade.shared
         )
 
         return PreimageSubmitSponsor(
@@ -104,6 +106,7 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainId: AppConfig.Chains.chatChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
+            resourcesParameters: ResourcesParametersFacade.shared,
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,
             accounting: accounting,

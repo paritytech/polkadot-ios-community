@@ -14,8 +14,8 @@ final class MockRemoteConfigManager: RemoteConfigManaging {
         ipfsGatewayUrl: nil,
         gameDashboardUrl: nil,
         dotNsResolver: nil,
-        dotNsProtocolRegistry: nil,
-        dotNsNameRegistry: nil
+        dotNsNameRegistry: nil,
+        coinageInstanceId: nil
     )
 
     func fetchRemoteConfigValues() {}

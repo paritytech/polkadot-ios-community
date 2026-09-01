@@ -14,6 +14,7 @@ import SubstrateOperation
 /// respects the `maxConsolidation` pallet constraint (throws if exceeded). All groups
 /// run concurrently — one task per `RecyclerKey`.
 struct UnloadIntoCoinsStrategy {
+    private let instanceId: CoinageInstanceId
     private let readyCoins: [Coin]
     private let perGroupCoins: [RecyclerGroupCoins]
     private let voucherKeyFactory: any VoucherKeyDeriving
@@ -28,6 +29,7 @@ struct UnloadIntoCoinsStrategy {
     private let logger: SDKLoggerProtocol?
 
     init(
+        instanceId: CoinageInstanceId,
         readyCoins: [Coin],
         perGroupCoins: [RecyclerGroupCoins],
         voucherKeyFactory: any VoucherKeyDeriving,
@@ -41,6 +43,7 @@ struct UnloadIntoCoinsStrategy {
         currentDate: Date,
         logger: SDKLoggerProtocol?
     ) {
+        self.instanceId = instanceId
         self.readyCoins = readyCoins
         self.perGroupCoins = perGroupCoins
         self.voucherKeyFactory = voucherKeyFactory
@@ -224,6 +227,7 @@ private extension UnloadIntoCoinsStrategy {
         }
 
         return CoinagePallet.Calls.UnloadRecyclerIntoCoins(
+            instanceId: instanceId,
             aliases: aliases,
             value: Int8(key.exponent),
             index: key.index,

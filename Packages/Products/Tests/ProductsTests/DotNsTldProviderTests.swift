@@ -4,18 +4,10 @@ import Testing
 
 // MARK: - Stubs
 
-private final class StubContractApi: DotNsContractApiProtocol {
+private final class StubTldReader: DotNsTldReading {
     var readTldCallCount = 0
     var readTldResult: Result<String, any Error> = .failure(DotNsContractError.tldNotFound)
     var yieldsBeforeReturning = false
-
-    func resolveContentHash(dotNsName _: String) async throws -> Data {
-        throw DotNsContractError.tldNotFound
-    }
-
-    func getMetadata(dotNsName _: String, key _: String) async throws -> String? {
-        throw DotNsContractError.tldNotFound
-    }
 
     func readTld() async throws -> String {
         readTldCallCount += 1
@@ -26,8 +18,6 @@ private final class StubContractApi: DotNsContractApiProtocol {
 
         return try readTldResult.get()
     }
-
-    func clearCache() {}
 }
 
 private final class StubDotNsTldStore: DotNsTldStoring {
@@ -52,17 +42,17 @@ private final class MutableClock {
 
 struct DotNsTldProviderTests {
     @Test func currentTldIsNilBeforeSuccessfulRead() {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .success("dot")
-        let provider = DotNsTldProvider(contractApi: stub)
+        let provider = DotNsTldProvider(reader: stub)
 
         #expect(provider.currentTld() == nil)
     }
 
     @Test func currentTldReturnsValueAfterSuccessfulResolve() async throws {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .success("dot")
-        let provider = DotNsTldProvider(contractApi: stub)
+        let provider = DotNsTldProvider(reader: stub)
 
         _ = try await provider.resolveTld()
 
@@ -70,9 +60,9 @@ struct DotNsTldProviderTests {
     }
 
     @Test func resolveTldDoesNotCallReadTldAgainAfterSuccess() async throws {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .success("dot")
-        let provider = DotNsTldProvider(contractApi: stub)
+        let provider = DotNsTldProvider(reader: stub)
 
         _ = try await provider.resolveTld()
         _ = provider.currentTld()
@@ -81,10 +71,10 @@ struct DotNsTldProviderTests {
     }
 
     @Test func multipleConcurrentResolveCallsResultInSingleRead() async throws {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .success("dot")
         stub.yieldsBeforeReturning = true
-        let provider = DotNsTldProvider(contractApi: stub)
+        let provider = DotNsTldProvider(reader: stub)
 
         async let first = provider.resolveTld()
         async let second = provider.resolveTld()
@@ -98,9 +88,9 @@ struct DotNsTldProviderTests {
     }
 
     @Test func failureLeavesCacheEmpty() async {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .failure(DotNsContractError.contentHashNotFound)
-        let provider = DotNsTldProvider(contractApi: stub)
+        let provider = DotNsTldProvider(reader: stub)
 
         await #expect(throws: DotNsContractError.self) {
             _ = try await provider.resolveTld()
@@ -110,11 +100,11 @@ struct DotNsTldProviderTests {
     }
 
     @Test func retryAfterBackoffSucceeds() async throws {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .failure(DotNsContractError.contentHashNotFound)
         let clock = MutableClock()
         let provider = DotNsTldProvider(
-            contractApi: stub,
+            reader: stub,
             now: { Date(timeIntervalSince1970: clock.seconds) }
         )
 
@@ -131,11 +121,11 @@ struct DotNsTldProviderTests {
     }
 
     @Test func noReadWhileInBackoffWindow() async {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .failure(DotNsContractError.contentHashNotFound)
         let clock = MutableClock()
         let provider = DotNsTldProvider(
-            contractApi: stub,
+            reader: stub,
             now: { Date(timeIntervalSince1970: clock.seconds) }
         )
 
@@ -152,19 +142,19 @@ struct DotNsTldProviderTests {
     }
 
     @Test func currentTldReturnsPersistedValueImmediately() {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         let store = StubDotNsTldStore()
         store.loadedTld = "dot"
-        let provider = DotNsTldProvider(contractApi: stub, store: store)
+        let provider = DotNsTldProvider(reader: stub, store: store)
 
         #expect(provider.currentTld() == "dot")
     }
 
     @Test func successfulResolvePersistsValue() async throws {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .success("dot")
         let store = StubDotNsTldStore()
-        let provider = DotNsTldProvider(contractApi: stub, store: store)
+        let provider = DotNsTldProvider(reader: stub, store: store)
 
         _ = try await provider.resolveTld()
 
@@ -172,11 +162,11 @@ struct DotNsTldProviderTests {
     }
 
     @Test func failedReadLeavesPersistedValueInCurrentTld() async {
-        let stub = StubContractApi()
+        let stub = StubTldReader()
         stub.readTldResult = .failure(DotNsContractError.contentHashNotFound)
         let store = StubDotNsTldStore()
         store.loadedTld = "dot"
-        let provider = DotNsTldProvider(contractApi: stub, store: store)
+        let provider = DotNsTldProvider(reader: stub, store: store)
 
         await #expect(throws: DotNsContractError.self) {
             _ = try await provider.resolveTld()
@@ -186,8 +176,8 @@ struct DotNsTldProviderTests {
     }
 
     @Test func noStoreNoSuccessfulReadReturnsNil() {
-        let stub = StubContractApi()
-        let provider = DotNsTldProvider(contractApi: stub, store: nil)
+        let stub = StubTldReader()
+        let provider = DotNsTldProvider(reader: stub, store: nil)
 
         #expect(provider.currentTld() == nil)
     }

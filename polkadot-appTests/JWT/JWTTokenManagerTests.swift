@@ -16,8 +16,8 @@ struct JWTTokenManagerTests {
                 ipfsGatewayUrl: nil,
                 gameDashboardUrl: nil,
                 dotNsResolver: nil,
-                dotNsProtocolRegistry: nil,
-                dotNsNameRegistry: nil
+                dotNsNameRegistry: nil,
+                coinageInstanceId: nil
             )
         )
     }

@@ -10,6 +10,7 @@ import SubstrateOperation
 /// Constructs the ``ExternalPaymentStateFactory`` with all dependencies,
 /// loads the initial state from the store, and returns a ready-to-run machine.
 final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreating {
+    private let instanceId: CoinageInstanceId
     private let planner: ExternalPaymentPlanning
     private let recycler: CoinageRecyclingServicing
     private let voucherKeyFactory: any VoucherKeyDeriving
@@ -24,6 +25,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let logger: SDKLoggerProtocol?
 
     init(
+        instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
         recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
@@ -37,6 +39,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         mortality: UInt32 = CoinageConstants.walMortality,
         logger: SDKLoggerProtocol? = nil
     ) {
+        self.instanceId = instanceId
         self.planner = planner
         self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
@@ -81,6 +84,7 @@ private extension ExternalPaymentStateMachineFactory {
         )
 
         return ExternalPaymentStateFactory(
+            instanceId: instanceId,
             planner: planner,
             context: context,
             recycler: recycler,
