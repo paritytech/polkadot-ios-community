@@ -90,7 +90,8 @@ final class RootInteractor {
         Task { [weak self, firebaseFacade, tldProvider] in
             async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                 AppConfig.Chains.usernameChain,
-                AppConfig.Chains.bulletInChain
+                AppConfig.Chains.bulletInChain,
+                AppConfig.Chains.assethubChain
             ])
             async let remoteConfig = try firebaseFacade.asyncWaitRemoteConfig()
             _ = try? await (chainsReady, remoteConfig)
