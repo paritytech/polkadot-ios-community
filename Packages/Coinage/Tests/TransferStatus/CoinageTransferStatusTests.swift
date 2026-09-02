@@ -2,9 +2,8 @@ import Foundation
 import Testing
 @testable import Coinage
 
-/// The Appendix-A derived payment-status ladder (`CoinageTransferStatusService.transferStatus`) — the
-/// iOS port of Android's `RealCoinagePaymentStatusUseCase` mapping. Pure logic: a handed-off coin's
-/// status is read from its minter status and its presence at the finalized head.
+/// The Appendix-A derived payment-status ladder (`CoinageTransferStatusService.transferStatus`).
+/// Pure logic: a handed-off coin's status is read from its minter status and its presence at the finalized head.
 @Suite("Coinage payment status (Appendix A)")
 struct CoinageTransferStatusTests {
     private let key = Data(repeating: 7, count: 32)
