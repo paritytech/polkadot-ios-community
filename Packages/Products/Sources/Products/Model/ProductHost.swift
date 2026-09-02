@@ -31,6 +31,18 @@ public struct ProductHost: Sendable {
 }
 
 extension ProductHost {
+    /// Inverse of ``toDotDomain()`` when the root is unknown: productIds are
+    /// always `name + separator + root` with a single root label.
+    static func name(fromDotDomain dotDomain: String) -> String? {
+        let components = dotDomain.components(separatedBy: ProductHost.separator)
+
+        guard components.count >= 2, !components.contains(where: \.isEmpty) else {
+            return nil
+        }
+
+        return components.dropLast().joined(separator: ProductHost.separator)
+    }
+
     static func parse(_ rawString: String, tld: String) -> ProductHost? {
         let parsedComponent = rawString.components(separatedBy: ProductHost.separator)
 

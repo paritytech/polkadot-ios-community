@@ -163,9 +163,24 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
     }
 }
 
+// MARK: - Storage value
+
+/// Value of `Coinage.RecyclersCoinToRecycler`: the instance the recycler belongs to and its denomination.
+private struct RecyclerAssignment: Decodable {
+    let instanceId: CoinageInstanceId
+    let exponent: Int16
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        instanceId = try container.decode(StringCodable<CoinageInstanceId>.self).wrappedValue
+        exponent = try container.decode(StringCodable<Int16>.self).wrappedValue
+    }
+}
+
 // MARK: - NMap key
 
 private struct RecyclerAliasStateKey: NMapKeyStorageKeyProtocol {
+    let instanceId: CoinageInstanceId
     let exponent: Int16
     let ringIndex: MembersPallet.RingIndex
     let publicKey: Data
@@ -173,10 +188,12 @@ private struct RecyclerAliasStateKey: NMapKeyStorageKeyProtocol {
     func appendSubkey(to encoder: any DynamicScaleEncoding, type: String, index: Int) throws {
         switch index {
         case 0:
-            try encoder.append(StringCodable(wrappedValue: exponent), ofType: type)
+            try encoder.append(StringCodable(wrappedValue: instanceId), ofType: type)
         case 1:
-            try encoder.append(StringCodable(wrappedValue: ringIndex), ofType: type)
+            try encoder.append(StringCodable(wrappedValue: exponent), ofType: type)
         case 2:
+            try encoder.append(StringCodable(wrappedValue: ringIndex), ofType: type)
+        case 3:
             try encoder.append(BytesCodable(wrappedValue: publicKey), ofType: type)
         default:
             break
@@ -193,7 +210,7 @@ private extension VoucherOnChainQueryService {
     ) async throws -> [Int16?] {
         let coderFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
 
-        let responses: [StringCodable<Int16>?] = try await storageRequestFactory.queryItems(
+        let responses: [RecyclerAssignment?] = try await storageRequestFactory.queryItems(
             engine: connection,
             keyParams: { publicKeys.map { BytesCodable(wrappedValue: $0) } },
             factory: { coderFactory },
@@ -203,7 +220,10 @@ private extension VoucherOnChainQueryService {
         .asyncExecute()
         .map(\.value)
 
-        return responses.map { $0?.wrappedValue }
+        return responses.map { assignment in
+            guard let assignment, assignment.instanceId == instanceId else { return nil }
+            return assignment.exponent
+        }
     }
 
     func fetchAliasStates(
@@ -216,7 +236,12 @@ private extension VoucherOnChainQueryService {
 
         let nMapKeys: [RecyclerAliasStateKey] = try keys.map {
             let alias = try aliasProvider($0.derivationIndex)
-            return RecyclerAliasStateKey(exponent: $0.exponent, ringIndex: $0.ringIndex, publicKey: alias)
+            return RecyclerAliasStateKey(
+                instanceId: instanceId,
+                exponent: $0.exponent,
+                ringIndex: $0.ringIndex,
+                publicKey: alias
+            )
         }
 
         return try await storageRequestFactory

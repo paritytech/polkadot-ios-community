@@ -39,6 +39,7 @@ env:
   PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp.safety"
   EXTENSION_PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp.safety.NotificationServiceExtension"
   CODE_SIGN_IDENTITY: "Apple Distribution"
+  EXPORT_METHOD: "app-store"
   RUN_IN_CI: true
   S3_BUCKET: s3://polkadot-app-artefacts
   S3_REGION: fr-par
