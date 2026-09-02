@@ -344,7 +344,7 @@ extension AssetDetailsInteractor.TopUpProductError: ErrorContentConvertible {
     func toErrorContent() -> ErrorContent {
         ErrorContent(
             title: String(localized: .Common.error),
-            message: String(localized: .Products.topUpResolveError)
+            message: String(localized: .Products.topUpErrorMessage)
         )
     }
 }

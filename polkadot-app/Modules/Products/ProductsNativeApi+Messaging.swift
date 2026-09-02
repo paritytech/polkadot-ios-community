@@ -6,8 +6,9 @@ import AsyncExtensions
 
 extension ProductsNativeApi {
     func sendMessage(_ message: ProductBotMessage, roomId: String?) async throws -> String {
-        guard let context else { throw ProductNativeApiError.messagesNotSupported }
-        guard let bot else { throw ProductNativeApiError.chatBotMissing }
+        let messaging = currentMessaging
+        guard let context = messaging?.context else { throw ProductNativeApiError.messagesNotSupported }
+        guard let bot = messaging?.bot else { throw ProductNativeApiError.chatBotMissing }
 
         let content = message.toChatMessageContent()
 
@@ -31,8 +32,9 @@ extension ProductsNativeApi {
     }
 
     func createRoom(_ request: CreateRoomRequest) async throws -> CreateRoomResult {
-        guard let context else { throw ProductNativeApiError.messagesNotSupported }
-        guard let bot else { throw ProductNativeApiError.chatBotMissing }
+        let messaging = currentMessaging
+        guard let context = messaging?.context else { throw ProductNativeApiError.messagesNotSupported }
+        guard let bot = messaging?.bot else { throw ProductNativeApiError.chatBotMissing }
 
         let status = try await context.createRoom(
             for: bot,
@@ -45,8 +47,9 @@ extension ProductsNativeApi {
     }
 
     func subscribeRooms() async throws -> AnyAsyncSequence<[RoomInfo]> {
-        guard let context else { throw ProductNativeApiError.messagesNotSupported }
-        guard let bot else { throw ProductNativeApiError.chatBotMissing }
+        let messaging = currentMessaging
+        guard let context = messaging?.context else { throw ProductNativeApiError.messagesNotSupported }
+        guard let bot = messaging?.bot else { throw ProductNativeApiError.chatBotMissing }
 
         return await context.subscribeRooms(for: bot)
     }

@@ -39,9 +39,9 @@ final class ProductRoutersFacade: ProductRoutersFacadeProtocol {
 // MARK: - Context compositions
 
 extension ProductRoutersFacade {
-    /// Chat-extension context: navigation opens the target product page in the
-    /// main tab bar (or an external URL), mirroring the SPA context.
-    static func chatExtension() -> ProductRoutersFacade {
+    /// Worker context: navigation opens the target product page in the main tab
+    /// bar (or an external URL), mirroring the SPA context.
+    static func worker() -> ProductRoutersFacade {
         make(navigationRouter: ProductsNavigationRouter())
     }
 
