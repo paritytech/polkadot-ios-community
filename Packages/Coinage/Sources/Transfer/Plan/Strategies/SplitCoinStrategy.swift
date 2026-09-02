@@ -93,12 +93,11 @@ extension SplitCoinStrategy: TransferStrategy {
         var memoEntries = wholeCoins.map {
             PlannedMemoEntry(
                 coinDerivationIndex: $0.derivationIndex,
-                valueExponent: $0.exponent,
-                source: .existingCoin(age: Int32($0.age ?? 0))
+                valueExponent: $0.exponent
             )
         }
         memoEntries += recipientCoins.map {
-            PlannedMemoEntry(coinDerivationIndex: $0.derivationIndex, valueExponent: $0.exponent, source: .fromSplit)
+            PlannedMemoEntry(coinDerivationIndex: $0.derivationIndex, valueExponent: $0.exponent)
         }
 
         return PreparedStrategy(memoEntries: memoEntries, handoffCommit: handoffCommit)

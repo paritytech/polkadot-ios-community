@@ -43,14 +43,9 @@ struct MemoBuilderTests {
 
     private func makeEntry(
         exponent: Int16,
-        derivationIndex: UInt64,
-        source: PlannedMemoEntry.Source = .existingCoin(age: 0)
+        derivationIndex: UInt64
     ) -> PlannedMemoEntry {
-        PlannedMemoEntry(
-            coinDerivationIndex: derivationIndex,
-            valueExponent: exponent,
-            source: source
-        )
+        PlannedMemoEntry(coinDerivationIndex: derivationIndex, valueExponent: exponent)
     }
 
     // MARK: - buildMemo Tests

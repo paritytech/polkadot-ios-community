@@ -219,7 +219,6 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         allowanceRenewalService.throttle()
 
         messageExpansionService.stop()
-        coinageService.txService.stop()
 
         Task {
             await deviceSyncService.throttle()

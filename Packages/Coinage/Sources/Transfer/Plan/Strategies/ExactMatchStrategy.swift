@@ -26,8 +26,7 @@ struct ExactMatchStrategy: TransferStrategy {
         let memoEntries = coins.map {
             PlannedMemoEntry(
                 coinDerivationIndex: $0.derivationIndex,
-                valueExponent: $0.exponent,
-                source: .existingCoin(age: Int32($0.age ?? 0))
+                valueExponent: $0.exponent
             )
         }
 

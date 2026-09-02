@@ -180,7 +180,6 @@ private final class RecyclingMockCoinService: CoinServiceProtocol, @unchecked Se
         self.trackedCoins = trackedCoins
     }
 
-    func fetchAllCoins() async throws -> [Coin] { trackedCoins.map(\.coin) }
     func fetchAllTrackedCoins() async throws -> [TrackedCoin] { trackedCoins }
     func fetchCoins(publicKeys: Set<PublicKey>) async throws -> Set<Coin> {
         Set(trackedCoins.map(\.coin).filter { publicKeys.contains($0.publicKey) })

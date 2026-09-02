@@ -67,7 +67,6 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
             throw TransferStrategyError.missingRecyclerInfo
         }
 
-        // Mint each group's outputs.
         var realizedGroups: [RecyclerGroupCoins] = []
         for allocation in perGroupAllocations {
             let recipientCoins = try await minter
@@ -86,9 +85,7 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         // failure aborts before a single extrinsic is broadcast.
         let requests = try await buildRequests(for: realizedGroups)
 
-        // Register all groups atomically under the transfer's groupId, then each broadcasts and is
-        // tracked in the background. A within-batch conflict rejects the whole transfer, so no
-        // group's vouchers are claimed without the others. The projection writes below follow.
+        // Register all groups atomically under the transfer's groupId
         logger?.info("Submitting \(requests.count) unload extrinsics for \(allVouchers.count) vouchers")
         try await txService.submitTransactions(
             requests.map {
@@ -106,14 +103,13 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
         var memoEntries = readyCoins.map {
             PlannedMemoEntry(
                 coinDerivationIndex: $0.derivationIndex,
-                valueExponent: $0.exponent,
-                source: .existingCoin(age: Int32($0.age ?? 0))
+                valueExponent: $0.exponent
             )
         }
         for group in realizedGroups {
             memoEntries += group.recipientCoins.map {
                 PlannedMemoEntry(
-                    coinDerivationIndex: $0.derivationIndex, valueExponent: $0.exponent, source: .fromUnload
+                    coinDerivationIndex: $0.derivationIndex, valueExponent: $0.exponent
                 )
             }
         }

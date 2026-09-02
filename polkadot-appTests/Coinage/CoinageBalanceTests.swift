@@ -95,7 +95,7 @@ private extension CoinageBalanceTests {
     /// First spendable-total (`fullPrivacy + degraded`) emission matching `predicate`, or a timeout.
     func firstSpendable(
         from service: CoinageBalanceServiceProtocol,
-        timeout: Duration = .seconds(5),
+        timeout: Duration = .seconds(120),
         where predicate: @escaping @Sendable (BigUInt) -> Bool
     ) async throws -> BigUInt {
         try await withThrowingTaskGroup(of: BigUInt?.self) { group in

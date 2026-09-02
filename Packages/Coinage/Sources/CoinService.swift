@@ -8,9 +8,6 @@ import StructuredConcurrency
 /// writes status. The only stored fact it persists beyond identity is `age` and `isOnchain`, both
 /// owned by chain sync, written through `save`.
 public protocol CoinServiceProtocol: Sendable {
-    /// Fetch all coins.
-    func fetchAllCoins() async throws -> [Coin]
-
     /// Fetch all coins paired with their derived durability overlay.
     func fetchAllTrackedCoins() async throws -> [TrackedCoin]
 
@@ -35,10 +32,6 @@ public final class CoinService: @unchecked Sendable {
 }
 
 extension CoinService: CoinServiceProtocol {
-    public func fetchAllCoins() async throws -> [Coin] {
-        try await coinRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
-    }
-
     public func fetchAllTrackedCoins() async throws -> [TrackedCoin] {
         try await trackedCoinRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
     }
