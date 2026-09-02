@@ -2,55 +2,38 @@ import Foundation
 import UIKit
 import Keystore_iOS
 import Products
-import StatementStore
-import KeyDerivation
 import ChainRegistry
 import BulletinChain
 
-/// Creates ``ProductBot`` instances for a given product,
-/// wiring up the script executor with the appropriate storage and engine.
+/// Creates ``ProductBot`` instances for a given product.
+///
+/// The native path is a thin adapter over the shared ``ProductWorkerManager`` —
+/// the worker itself is assembled by ``DefaultProductWorkerFactory``. The rust
+/// path still builds its own runtime off the shared TrUAPI runtime.
 final class ProductBotFactory {
     private let productFileProvider: ChatProductFileProviding
-    private let nativeScriptsFactory: ChatScriptsMaking
-    private let notificationService: UserNotificationServicing
     private let chainRegistry: ChainRegistryProtocol
-    private let usernameStorage: UsernameStoring
-    private let entropyManager: RootEntropyManaging
-    private let settingsManager: SettingsManagerProtocol
-    private let substrateStorageFacade: StorageFacadeProtocol
-    private let runtimeProvider: TrUAPIHostRuntimeProviding
-    private let logger: LoggerProtocol
-    private let accountManager: ProductsAccountManaging
     private let hostProvider: ProductHostProviding
-    private let vrfRepo: BandersnatchManagerRepositoryProtocol
+    private let settingsManager: SettingsManagerProtocol
+    private let runtimeProvider: TrUAPIHostRuntimeProviding
+    private let workerManager: ProductWorkerManaging
+    private let logger: LoggerProtocol
 
     init(
         productFileProvider: ChatProductFileProviding,
-        nativeScriptsFactory: ChatScriptsMaking = ChatNativeRuntimeScriptsFactory(),
         chainRegistry: ChainRegistryProtocol,
-        usernameStorage: UsernameStoring,
         hostProvider: ProductHostProviding,
-        notificationService: UserNotificationServicing = UserNotificationService.shared,
-        substrateStorageFacade: StorageFacadeProtocol = SubstrateDataStorageFacade.shared,
-        entropyManager: RootEntropyManaging = RootEntropyManager.shared,
-        settingsManager: SettingsManagerProtocol = SettingsManager.shared,
         runtimeProvider: TrUAPIHostRuntimeProviding,
-        accountManager: ProductsAccountManaging,
-        vrfRepo: BandersnatchManagerRepositoryProtocol = .shared,
+        workerManager: ProductWorkerManaging,
+        settingsManager: SettingsManagerProtocol = SettingsManager.shared,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.productFileProvider = productFileProvider
-        self.nativeScriptsFactory = nativeScriptsFactory
         self.chainRegistry = chainRegistry
-        self.usernameStorage = usernameStorage
         self.hostProvider = hostProvider
-        self.notificationService = notificationService
-        self.substrateStorageFacade = substrateStorageFacade
-        self.entropyManager = entropyManager
         self.settingsManager = settingsManager
         self.runtimeProvider = runtimeProvider
-        self.accountManager = accountManager
-        self.vrfRepo = vrfRepo
+        self.workerManager = workerManager
         self.logger = logger
     }
 
@@ -58,9 +41,8 @@ final class ProductBotFactory {
         guard let source = workerSource(for: resolved) else { return nil }
 
         let product = resolved.product
-        let rustRuntimeEnabled = settingsManager.value(for: .truApiRuntimeEnabled)
 
-        if rustRuntimeEnabled {
+        if settingsManager.value(for: .truApiRuntimeEnabled) {
             do {
                 let runtime = try createRustRuntime(product: product, source: source)
                 return ProductBot(product: product, runtime: runtime, logger: logger)
@@ -71,13 +53,8 @@ final class ProductBotFactory {
             }
         }
 
-        do {
-            let runtime = try createNativeRuntime(product: product, source: source)
-            return ProductBot(product: product, runtime: runtime, logger: logger)
-        } catch {
-            logger.error("Native runtime creation failed for \(product.identifier): \(error)")
-            return nil
-        }
+        let runtime = ManagedChatRuntime(productId: product.identifier, manager: workerManager)
+        return ProductBot(product: product, runtime: runtime, logger: logger)
     }
 }
 
@@ -103,65 +80,6 @@ private extension ProductBotFactory {
         }
     }
 
-    func createNativeRuntime(product: Product, source: ProductWorkerSource) throws -> ChatRuntimeProtocol {
-        let engineContext = try ChatProductEngineFactory.makeContext(
-            source: source,
-            productFileProvider: productFileProvider,
-            logger: logger
-        )
-
-        guard let truApiDependencies: TruApiDependenciesLocator = RootDependencyLocator
-            .getDependency() else {
-            throw ProductBotFactoryError.dependenciesUnavailable
-        }
-
-        let localStorage = ProductsLocalStorage(
-            productId: product.identifier,
-            settingsManager: settingsManager
-        )
-
-        let resourceKeyManager = ProductResourceKeyManager(
-            keychain: Keychain(),
-            userDefaults: SharedContainerGroup.userDefaults
-        )
-
-        let sponsorFactory = try HostTransactionSponsorFactory(
-            accountManager: accountManager,
-            resourceKeyManager: resourceKeyManager,
-            chainRegistry: chainRegistry,
-            keyResolver: vrfRepo.keyResolver(),
-            logger: logger
-        )
-
-        let nativeApiFactory = ProductsNativeApiFactory(
-            chainRegistry: chainRegistry,
-            usernameStorage: usernameStorage,
-            localStorage: localStorage,
-            notificationService: notificationService,
-            entropyManager: entropyManager,
-            dependencyLocator: truApiDependencies,
-            accountManager: accountManager,
-            resourceKeyManager: resourceKeyManager,
-            sponsorFactory: sponsorFactory,
-            substrateStorageFacade: substrateStorageFacade,
-            hostProvider: hostProvider
-        )
-
-        let scriptExecutor = ProductsScriptExecutor(
-            productUrl: engineContext.productUrl,
-            scriptsFactory: nativeScriptsFactory,
-            engineFactory: engineContext.engineFactory,
-            logger: logger
-        )
-
-        return ChatNativeRuntime(
-            productId: product.identifier,
-            scriptExecutor: scriptExecutor,
-            nativeApiFactory: nativeApiFactory,
-            routers: ProductRoutersFacade.chatExtension()
-        )
-    }
-
     /// Builds one rust chat runtime (product execution + localhost ws-bridge)
     /// off the shared runtime. The local session lives on the shared runtime;
     /// a transient provider failure only fails this create.
@@ -183,7 +101,7 @@ private extension ProductBotFactory {
             logger: logger
         )
 
-        let routers = ProductRoutersFacade.chatExtension()
+        let routers = ProductRoutersFacade.worker()
         let executionModel = try rustEnvironment.makeChatExecution(
             productId: product.identifier,
             routers: routers

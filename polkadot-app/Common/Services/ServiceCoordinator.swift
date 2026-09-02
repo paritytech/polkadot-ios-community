@@ -48,6 +48,9 @@ final class ServiceCoordinator {
     let polkadotHandshakeService: PolkadotHandshakeServicing
     let signInHostCoordinator: MessageExchangeSignInHostCoordinating
     let chatExtensionsRegistry: ChatExtensionsRegistering
+    /// Held so the product-worker ref counter and its operations stay alive while
+    /// the main tab bar is, rather than living in a process-wide singleton.
+    let productWorkerFacade: ProductWorkerFacade
     let callCoordinator: CallCoordinating
     let chatRequestCoordinator: ChatRequestCoordinatorServicing
     let attachmentUploadService: AttachmentUploadingServicing
@@ -88,6 +91,7 @@ final class ServiceCoordinator {
         polkadotHandshakeService: PolkadotHandshakeServicing,
         signInHostCoordinator: MessageExchangeSignInHostCoordinating,
         chatExtensionsRegistry: ChatExtensionsRegistering,
+        productWorkerFacade: ProductWorkerFacade,
         callCoordinator: CallCoordinating,
         chatRequestCoordinator: ChatRequestCoordinatorServicing,
         attachmentUploadService: AttachmentUploadingServicing,
@@ -121,6 +125,7 @@ final class ServiceCoordinator {
         self.polkadotHandshakeService = polkadotHandshakeService
         self.signInHostCoordinator = signInHostCoordinator
         self.chatExtensionsRegistry = chatExtensionsRegistry
+        self.productWorkerFacade = productWorkerFacade
         self.callCoordinator = callCoordinator
         self.chatRequestCoordinator = chatRequestCoordinator
         self.attachmentUploadService = attachmentUploadService
@@ -159,6 +164,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         #endif
 
         chatCoordinator.setup()
+        productWorkerFacade.setup()
         chatExtensionsRegistry.discover()
         chatRequestCoordinator.setup()
         fiatOnrampTrackingService.setup()
@@ -353,7 +359,7 @@ extension ServiceCoordinator {
         truApiDependencies.setDependency(paymentsSupport)
         RootDependencyLocator.setDependency(truApiDependencies)
 
-        let chatExtensionsRegistry = createChatExtensionsRegistry(
+        let (chatExtensionsRegistry, productWorkerFacade) = createChatExtensionsRegistry(
             accountManager: accountManager,
             truapiRuntimeProvider: truapiRuntimeProvider,
             syncStore: syncServiceResult.syncStore,
@@ -364,6 +370,9 @@ extension ServiceCoordinator {
             audioSessionManager: audioSessionManager,
             spaFlowState: spaFlowState
         )
+        // Registered so the SPA screen, opened outside this assembly, resolves the
+        // same facade.
+        RootDependencyLocator.setDependency(productWorkerFacade)
 
         let fiatOnrampConfiguration = MeldFiatOnrampConfiguration.prod
         let fiatOnrampStorage = FiatOnrampStorage()
@@ -414,6 +423,7 @@ extension ServiceCoordinator {
             ),
             signInHostCoordinator: signInHostCoordinator,
             chatExtensionsRegistry: chatExtensionsRegistry,
+            productWorkerFacade: productWorkerFacade,
             callCoordinator: callCoordinator,
             chatRequestCoordinator: chatRequestCoordinator,
             attachmentUploadService: attachmentUploadService,
