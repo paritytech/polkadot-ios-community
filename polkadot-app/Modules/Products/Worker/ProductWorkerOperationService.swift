@@ -5,7 +5,7 @@ import AsyncExtensions
 import Products
 
 /// A persisted keep-alive operation opened by a product's worker.
-struct ProductOperationRecord: Sendable, Equatable {
+struct ProductOperationRecord: Equatable {
     let productId: ProductId
     let id: UInt32
     let label: String?

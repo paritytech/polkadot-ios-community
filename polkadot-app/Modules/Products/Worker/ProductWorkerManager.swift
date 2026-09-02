@@ -18,7 +18,7 @@ protocol ProductWorkerFactory: Sendable {
 /// worker survives while the token is held; the result carries the running
 /// worker for a consumer that drives it (chat) or the error for a caller that
 /// wants to surface it.
-struct ProductWorkerLease: Sendable {
+struct ProductWorkerLease {
     let token: ProductWorkerToken
     let result: Result<ProductWorkerRunning, Error>
 
