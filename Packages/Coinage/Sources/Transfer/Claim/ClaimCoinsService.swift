@@ -111,7 +111,7 @@ private extension ClaimCoinsService {
         logger?.debug("Will start claiming coins with group=\(groupId)")
 
         while !Task.isCancelled {
-            logger?.debug("Awaiting settles coins with group=\(groupId)")
+            logger?.debug("Awaiting settles coins=\(coins.count) with group=\(groupId)")
 
             settled = await awaitKnownOperationsSettled(
                 groupId: groupId, coins: coins, context: context, report: report
@@ -126,7 +126,7 @@ private extension ClaimCoinsService {
 
             let claimable = await awaitOnChainWithTimeout(onChain, unclaimed: unclaimed)
 
-            logger?.debug("Claimable \(unclaimed.count) coins for group=\(groupId)")
+            logger?.debug("Claimable \(claimable.count) coins for group=\(groupId)")
 
             if !claimable.isEmpty {
                 logger?.debug("Claiming coins for group=\(groupId)")
