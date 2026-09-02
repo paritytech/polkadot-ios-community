@@ -19,9 +19,6 @@ public protocol DotNsContractApiProtocol: Sendable {
     /// Fetch a metadata entry (e.g. "url", "description") for a .dot domain.
     func getMetadata(dotNsName: String, key: String) async throws -> String?
 
-    /// Reads the network's TLD label from the protocol registry, without the leading dot.
-    func readTld() async throws -> String
-
     /// Drops whatever the api memoised about names, so a re-read reflects the registry again.
     func clearCache()
 }

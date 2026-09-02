@@ -62,7 +62,7 @@ actor ChatRustRuntime: ChatRuntimeProtocol {
         let jsEngine = try await bootEngine()
 
         try checkNotDisposed()
-        let bootstrapScript = try executionModel.startBridge()
+        let bootstrapScript = try await executionModel.startBridge()
         let scriptsFactory = ChatRustRuntimeScriptsFactory(bootstrapScript: bootstrapScript)
 
         // Factory order is load-bearing: the bootstrap publishes

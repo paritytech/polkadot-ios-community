@@ -3,6 +3,7 @@ import ExtrinsicService
 import Foundation
 import KeyDerivation
 import SubstrateSdk
+import SubstrateStorageQuery
 import SubstrateStorageSubscription
 import StructuredConcurrency
 import SubstrateSdkExt
@@ -27,13 +28,16 @@ public final class PGasOriginFactory {
 
     private let keyResolver: BandersnatchKeyResolving
     private let chainRegistry: ChainResourceProtocol
+    private let storageRequestFactory: StorageRequestFactoryProtocol
 
     public init(
         keyResolver: BandersnatchKeyResolving,
-        chainRegistry: ChainResourceProtocol
+        chainRegistry: ChainResourceProtocol,
+        storageRequestFactory: StorageRequestFactoryProtocol
     ) {
         self.keyResolver = keyResolver
         self.chainRegistry = chainRegistry
+        self.storageRequestFactory = storageRequestFactory
     }
 }
 
@@ -52,7 +56,19 @@ extension PGasOriginFactory: PGasOriginCreating {
             chain: peopleChainId
         )
 
-        let proofContext = PGASSlotContextBuilder.context(day: day, slotIndex: slotIndex)
+        let submissionRuntimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(
+            for: submissionChainId
+        )
+        let submissionConnection = try chainRegistry.getRpcConnectionOrError(for: submissionChainId)
+        let submissionCodingFactory = try await submissionRuntimeProvider
+            .fetchCoderFactoryOperation().asyncExecute()
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: submissionConnection,
+            codingFactory: submissionCodingFactory
+        )
+        let proofContext = try ProductContextSuffix
+            .pgasClaim(day: day, slot: slotIndex)
+            .context(networkSuffix: networkSuffix)
 
         let revision = try await fetchRevision(
             for: personDeps.origin,
@@ -127,6 +143,24 @@ private extension PGasOriginFactory {
         return revisionValue ?? 0
     }
 
+    func fetchCurrentGeneration(
+        connection: JSONRPCEngine,
+        runtimeService: RuntimeCodingServiceProtocol
+    ) async throws -> MembersSubscriberPallet.Generation {
+        let codingFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
+        let generationPath = MembersSubscriberPallet.Storage.currentGeneration()
+        let response: StorageResponse<StringCodable<MembersSubscriberPallet.Generation>> =
+            try await storageRequestFactory
+                .queryItem(
+                    engine: connection,
+                    factory: { codingFactory },
+                    storagePath: generationPath
+                )
+                .asyncExecute()
+
+        return response.value?.wrappedValue ?? 0
+    }
+
     func awaitRingRevision(
         submissionChainId: ChainId,
         collectionId: Data,
@@ -136,14 +170,18 @@ private extension PGasOriginFactory {
         let connection = try chainRegistry.getRpcConnectionOrError(for: submissionChainId)
         let runtimeService = try chainRegistry.getRuntimeCodingServiceOrError(for: submissionChainId)
 
-        let request = DoubleMapSubscriptionRequest(
+        let generation = try await fetchCurrentGeneration(connection: connection, runtimeService: runtimeService)
+
+        let request = NMapSubscriptionRequest(
             storagePath: MembersSubscriberPallet.Storage.ringRoots(),
             localKey: "",
             keyParamClosure: {
-                (BytesCodable(wrappedValue: collectionId), StringCodable(wrappedValue: ringIndex))
-            },
-            param1Encoder: nil,
-            param2Encoder: nil
+                MembersSubscriberPallet.RingRootsKey(
+                    generation: generation,
+                    collectionId: collectionId,
+                    ringIndex: ringIndex
+                )
+            }
         )
 
         let batchRequest = BatchStorageSubscriptionRequest(

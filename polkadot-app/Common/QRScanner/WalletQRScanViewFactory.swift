@@ -17,7 +17,8 @@ enum WalletQRScanViewFactory {
             errorDisplayFactory: QRScannerErrorDisplayFactory(),
             delegate: delegate,
             dsfinvkParser: W3sDsfinvkReceiptParser(),
-            acceptedURLSchemes: acceptedDeeplinkSchemes(),
+            // Allowlist confines the scanner to our own deeplinks; rejects tel:/sms:/etc.
+            isAcceptedScheme: AppConfig.DeepLink.isKnownScheme,
             qrScanService: qrService,
             qrExtractionService: qrExtractor
         )
@@ -27,10 +28,5 @@ enum WalletQRScanViewFactory {
         presenter.view = view
 
         return view
-    }
-
-    // Allowlist confines the scanner to our own deeplinks; rejects tel:/sms:/etc.
-    private static func acceptedDeeplinkSchemes() -> Set<String> {
-        AppConfig.DeepLink.knownSchemes
     }
 }

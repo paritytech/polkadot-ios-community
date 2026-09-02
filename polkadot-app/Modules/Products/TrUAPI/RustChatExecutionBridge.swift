@@ -15,11 +15,7 @@ final class RustChatExecutionBridge: RustProductExecutionBridge, ChatHostBridge,
         throw notImplemented(#function)
     }
 
-    func postTextMessage(roomId _: String, text _: String) throws -> String {
-        throw notImplemented(#function)
-    }
-
-    func postCustomMessage(roomId _: String, messageType _: String, payload _: Data) throws -> String {
+    func postMessage(roomId _: String, content _: ChatMessageContent) throws -> String {
         throw notImplemented(#function)
     }
 

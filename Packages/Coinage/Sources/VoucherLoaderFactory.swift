@@ -9,6 +9,7 @@ public protocol VoucherLoaderFactoryProtocol {
 }
 
 final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
+    private let instanceId: CoinageInstanceId
     private let allocator: any VoucherAllocating
     private let keypairFactory: any VoucherKeyDeriving
     private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
@@ -18,6 +19,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     private let logger: (any SDKLoggerProtocol)?
 
     init(
+        instanceId: CoinageInstanceId,
         allocator: any VoucherAllocating,
         keypairFactory: any VoucherKeyDeriving,
         extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
@@ -26,6 +28,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
         chain: ChainProtocol,
         logger: (any SDKLoggerProtocol)?
     ) {
+        self.instanceId = instanceId
         self.allocator = allocator
         self.keypairFactory = keypairFactory
         self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
@@ -40,6 +43,7 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
         let origin = try originCreating.createInfallibleUnpaidSignedOrigin(for: externalAssetHolder)
 
         return VoucherLoader(
+            instanceId: instanceId,
             accountId: account.accountId,
             origin: origin,
             allocator: allocator,

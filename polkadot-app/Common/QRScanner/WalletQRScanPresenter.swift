@@ -5,7 +5,7 @@ final class WalletQRScanPresenter: QRScannerPresenter {
 
     weak var delegate: WalletQRScanDelegate?
     private let dsfinvkParser: W3sDsfinvkReceiptParsing
-    private let acceptedURLSchemes: Set<String>
+    private let isAcceptedScheme: (String) -> Bool
     private var lastHandledCode: String?
     private var lastDetectionDate: Date?
 
@@ -17,14 +17,14 @@ final class WalletQRScanPresenter: QRScannerPresenter {
         errorDisplayFactory: QRScannerErrorDisplayFactoryProtocol,
         delegate: WalletQRScanDelegate,
         dsfinvkParser: W3sDsfinvkReceiptParsing,
-        acceptedURLSchemes: Set<String>,
+        isAcceptedScheme: @escaping (String) -> Bool,
         qrScanService: QRCaptureServiceProtocol,
         qrExtractionService: QRExtractionServiceProtocol,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.delegate = delegate
         self.dsfinvkParser = dsfinvkParser
-        self.acceptedURLSchemes = acceptedURLSchemes
+        self.isAcceptedScheme = isAcceptedScheme
         self.matcher = matcher
 
         super.init(
@@ -65,7 +65,7 @@ final class WalletQRScanPresenter: QRScannerPresenter {
 
         if let url = URL(string: code),
            let scheme = url.scheme?.lowercased(),
-           acceptedURLSchemes.contains(scheme) {
+           isAcceptedScheme(scheme) {
             delegate?.walletQRScanDidReceiveURL(url)
             return
         }

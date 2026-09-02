@@ -40,7 +40,7 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
 
     func permissionAuthorizationStatus(
         request: PermissionAuthorizationRequest
-    ) throws -> PermissionAuthorizationStatus {
+    ) async throws -> PermissionAuthorizationStatus {
         permissionRequests.append(request)
         return permissionStatus
     }
@@ -51,6 +51,7 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     ) throws {}
 
     func notifyThemeChanged(theme _: HostThemeSubscribeItem) {}
+    func notifyLocaleChanged(locale _: HostLocaleSubscribeItem) {}
     func notifyPreimageChanged(key _: Data, value _: Data?) {}
 
     func notifyChainResponse(connectionId: UInt32, json: String) {
@@ -62,4 +63,8 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     }
 
     func notifyChatRoomsChanged(rooms _: [ChatRoom]) {}
+
+    func sessionChatIdentityKey() throws -> Data? {
+        nil
+    }
 }

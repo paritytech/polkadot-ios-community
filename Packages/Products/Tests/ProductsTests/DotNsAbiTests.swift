@@ -56,19 +56,6 @@ struct DotNsAbiTests {
         #expect(result == nil)
     }
 
-    @Test func encodeTldProducesCorrectSelector() throws {
-        let encoded = try DotNsAbi.encodeTld()
-
-        // tld() selector computed from Web3Core ABI encoding
-        #expect(encoded.prefix(4).toHex() == "2d551432")
-    }
-
-    @Test func encodeTldIsExactlyFourBytes() throws {
-        let encoded = try DotNsAbi.encodeTld()
-
-        #expect(encoded.count == 4)
-    }
-
     @Test func decodeResolverRoundTrips() throws {
         let address = Data(repeating: 0xAB, count: 20)
         let abiEncoded = try #require(abiEncodeAddress(address))
@@ -86,19 +73,6 @@ struct DotNsAbiTests {
 
     @Test func decodeResolverReturnsNilForEmptyOutput() {
         #expect(DotNsAbi.decodeResolver(output: Data()) == nil)
-    }
-
-    @Test func decodeTldRoundTrips() throws {
-        let originalTld = "dot"
-        let abiEncoded = try #require(abiEncodeString(originalTld))
-
-        let decoded = DotNsAbi.decodeTld(output: abiEncoded)
-        #expect(decoded == originalTld)
-    }
-
-    @Test func decodeTldReturnsNilForEmptyOutput() {
-        let result = DotNsAbi.decodeTld(output: Data())
-        #expect(result == nil)
     }
 }
 
