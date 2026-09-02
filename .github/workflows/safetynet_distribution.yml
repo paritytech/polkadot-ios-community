@@ -1,17 +1,24 @@
 name: Safetynet Distribution
 
-# On-demand Safetynet build from an arbitrary branch.
+# On-demand Safetynet build from an arbitrary branch, distributed via Firebase App
+# Distribution.
 #
 # Safetynet is what Release ships — release feature set — running against the nightly
 # environment, under its own bundle id so it installs alongside the real app. See
 # Configs/base.safetynet.xcconfig.
 #
-# The nightly pipeline already builds Safetynet as a leg of nightly_distribution.yml;
-# this workflow exists for ad-hoc builds outside that pipeline. It deliberately does not
-# reuse _build_distribute.yml: that workflow's security gate fails any workflow_dispatch
-# not triggered by github-actions[bot], which is exactly the human-triggered case here.
-# The scope is correspondingly narrower — one variant, no release PR, no Allure launch,
-# no release notification.
+# The nightly pipeline already builds Safetynet as a leg of nightly_distribution.yml,
+# and that leg ships to TestFlight with app-store signing; this workflow exists for
+# ad-hoc builds outside that pipeline and deliberately signs ad-hoc instead, because an
+# app-store-signed IPA cannot be installed from a Firebase App Distribution link. Both
+# profile types are generated for the safety bundle ids — see the `adhoc` and `appstore`
+# lists in fastlane/lanes/lane_signing.rb.
+#
+# It also does not reuse _build_distribute.yml: that workflow's security gate fails any
+# workflow_dispatch not triggered by github-actions[bot], which is exactly the
+# human-triggered case here. The scope is correspondingly narrower — one variant, no
+# release PR, no Allure launch, no release notification, and no unit test run (matching
+# firebase_debug_distribution.yml, the other Firebase path).
 
 concurrency:
   group: ${{ github.workflow }}-${{ inputs.source_branch }}
@@ -25,25 +32,24 @@ on:
         required: false
         type: string
         default: develop
-      increment_step:
-        description: "Build number increment step (1 if empty)"
+      firebase_groups:
+        description: "Firebase App Distribution tester groups (comma separated)"
         required: false
         type: string
-        default: ""
+        default: "polkadotapp-ios"
 
 env:
   # Safetynet ships as a separate app (`.safety` suffix), so it has its own App Store
   # Connect record, Match profiles and Firebase app.
   IOS_BUNDLE_ID: "io.parity.polkadotapp.safety"
   IOS_EXTENSION_BUNDLE_ID: "io.parity.polkadotapp.safety.NotificationServiceExtension"
-  PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp.safety"
-  EXTENSION_PROVISIONING_PROFILE_SPECIFIER: "match AppStore io.parity.polkadotapp.safety.NotificationServiceExtension"
+  PROVISIONING_PROFILE_SPECIFIER: "match AdHoc io.parity.polkadotapp.safety"
+  EXTENSION_PROVISIONING_PROFILE_SPECIFIER: "match AdHoc io.parity.polkadotapp.safety.NotificationServiceExtension"
   CODE_SIGN_IDENTITY: "Apple Distribution"
-  EXPORT_METHOD: "app-store"
+  EXPORT_METHOD: "ad-hoc"
   RUN_IN_CI: true
   S3_BUCKET: s3://polkadot-app-artefacts
   S3_REGION: fr-par
-  SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
   build_safetynet:
@@ -63,41 +69,50 @@ jobs:
           match_auth_required: "true"
           match_repository_pat: ${{ secrets.FASTLANE_RO_PAT }}
 
+      # Firebase distribution never touches App Store Connect, so the build number is
+      # derived from the run counter rather than the latest TestFlight build — same
+      # scheme as firebase_debug_distribution.yml. The marketing version still comes
+      # from the Safetynet configuration, which _prepare_pipeline.yml keeps in step
+      # with Release and Nightly.
       - name: Read version and build number
         id: build_version
-        uses: ./.github/actions/read-build-version
-        with:
-          increment_step: ${{ inputs.increment_step }}
-          ios_bundle_id: ${{ env.IOS_BUNDLE_ID }}
-          config_name: "Safetynet"
-          asc_key_id: ${{ secrets.ASC_KEY_ID }}
-          asc_issuer_id: ${{ secrets.ASC_ISSUER_ID }}
-          asc_key_base64: ${{ secrets.ASC_KEY_BASE64 }}
+        env:
+          PBXPROJ_PATH: polkadot-app.xcodeproj/project.pbxproj
+        run: |
+          set -euo pipefail
 
-      - name: Distribute TestFlight build
-        uses: ./.github/actions/distribute-testflight
+          BUILD_NUMBER=$((10100 + ${{ github.run_number }}))
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+
+          python3 .github/scripts/read_versions.py "${PBXPROJ_PATH}" \
+            --config-name "Safetynet" \
+            --output-format env | grep "marketing_version=" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Google services
+        uses: ./.github/actions/configure-google-services
         with:
-          ios_bundle_id: ${{ env.IOS_BUNDLE_ID }}
-          ios_extension_bundle_id: ${{ env.IOS_EXTENSION_BUNDLE_ID }}
-          provisioning_profile_specifier: ${{ env.PROVISIONING_PROFILE_SPECIFIER }}
-          extension_provisioning_profile_specifier: ${{ env.EXTENSION_PROVISIONING_PROFILE_SPECIFIER }}
-          code_sign_identity: ${{ env.CODE_SIGN_IDENTITY }}
-          run_in_ci: ${{ env.RUN_IN_CI }}
-          perform_checkout: "false"
-          release_notes: "Safetynet build from ${{ inputs.source_branch }}."
-          distribute_to_external_group: false
-          external_group_name: ""
-          build_number: ${{ steps.build_version.outputs.build_number }}
-          build_configuration: "Safetynet"
-          asc_key_id: ${{ secrets.ASC_KEY_ID }}
-          asc_issuer_id: ${{ secrets.ASC_ISSUER_ID }}
-          asc_key_base64: ${{ secrets.ASC_KEY_BASE64 }}
-          keychain_password: ${{ secrets.KEYCHAIN_PASSWORD }}
-          match_password: ${{ secrets.MATCH_PASSWORD }}
-          google_service_info_dev_base64: ${{ secrets.GOOGLE_SERVICE_INFO_DEV_BASE64 }}
-          google_service_info_release_base64: ${{ secrets.GOOGLE_SERVICE_INFO_SAFETY_BASE64 }}
+          google_service_info_base64: ${{ secrets.GOOGLE_SERVICE_INFO_SAFETY_BASE64 }}
+          expected_bundle_id: ${{ env.IOS_BUNDLE_ID }}
+
+      - name: Configure secrets
+        uses: ./.github/actions/configure-secrets
+        with:
           sentry_dsn: ${{ secrets.SENTRY_DSN }}
           meld_basic_auth_token: ${{ secrets.MELD_BASIC_AUTH_TOKEN }}
+
+      - name: Distribute to Firebase
+        env:
+          BUILD_NUMBER: ${{ steps.build_version.outputs.build_number }}
+          FASTLANE_CONFIGURATION: "Safetynet"
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID_SAFETY }}
+          FIREBASE_GROUPS: ${{ inputs.firebase_groups }}
+          CREDENTIAL_FILE_CONTENT: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          FL_RELEASE_NOTES: "Safetynet build from ${{ inputs.source_branch }}."
+        run: |
+          set -euo pipefail
+          bundle exec fastlane distribute_app_to_firebase release_notes:"$FL_RELEASE_NOTES"
 
       - name: Upload to S3
         uses: novasamatech/github-actions/s3-upload@v5

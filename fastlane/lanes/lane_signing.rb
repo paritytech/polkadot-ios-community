@@ -70,7 +70,9 @@ lane :update_signing_data do
       ],
       "adhoc" => [
         "io.parity.polkadotapp.develop",
-        "io.parity.polkadotapp.develop.NotificationServiceExtension"
+        "io.parity.polkadotapp.develop.NotificationServiceExtension",
+        "io.parity.polkadotapp.safety",
+        "io.parity.polkadotapp.safety.NotificationServiceExtension"
       ],
       "appstore" => [
         "io.parity.polkadotapp",
