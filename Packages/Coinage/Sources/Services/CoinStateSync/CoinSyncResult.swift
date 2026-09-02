@@ -26,6 +26,7 @@ struct CoinSyncResult: BatchStorageSubscriptionResult {
 extension CoinSyncResult {
     /// Representation of the Coin struct stored on-chain in CoinagePallet.
     struct OnChainCoin: Codable {
+        @StringCodable var instanceId: UInt32
         @StringCodable var value: Int8
         @StringCodable var age: Int16
     }

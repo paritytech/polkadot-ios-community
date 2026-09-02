@@ -27,8 +27,8 @@ Application secrets come from GitHub Actions repository secrets and are passed o
 | `nightly_prepare.yml` | `workflow_dispatch` or weekday schedule at `16:00 UTC` | Prepare a nightly branch/PR (no version bump), trigger nightly distribution; skips when no changes vs `main` |
 | `release_prepare.yml` | `workflow_dispatch` | Prepare a release branch/PR (optional version bump), trigger release distribution; `source_ref: main` dispatches a direct build with no branch/PR (`no-bump` only) |
 | `_prepare_pipeline.yml` | `workflow_call` (reusable) | Shared prepare logic: bump, branch/PR creation, no-changes decision, distribution trigger |
-| `nightly_distribution.yml` | bot `workflow_dispatch` | Nightly TestFlight build, external group distribution, auto-merge PR, Matrix notification |
-| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, S3 upload |
+| `nightly_distribution.yml` | bot `workflow_dispatch` | Nightly **and** Safetynet TestFlight builds from one branch/PR, internal TestFlight distribution, auto-merge PR once both succeed, combined Matrix notification |
+| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, internal TestFlight distribution, S3 upload, Matrix notification |
 | `_build_distribute.yml` | `workflow_call` (reusable) | Shared build/distribute: metadata, matrix build, TestFlight upload, S3, PR comment, result check |
 | `release_branch_lifecycle.yml` | `pull_request.closed` to `main` (`release/*`) | Backport PR on merge; delete branch on close without merge (shared by both flows) |
 | `testflight_distribution.yml` | `workflow_dispatch` | Ad-hoc TestFlight distribution for allowlisted actors |
@@ -98,7 +98,8 @@ Mapping to real workflow keys:
 
 Rules:
 - Only one variant may upload to the external distribution service
-- Extra Swift flags are injected into xcconfig via `add_swift_flags.py`
+- Extra Swift flags are injected into xcconfig via `add_swift_flags.py`, into the leaf
+  config named after `build_configuration`
 - Both variants are uploaded to S3
 - `no-auth` artifacts use the `-no-auth` suffix in artifact/S3 names
 - Release TestFlight flow explicitly shares one build number across both variants via the `prepare_build_metadata` job
@@ -153,7 +154,19 @@ Fastlane configuration selection:
 | Environment | Bundle ID | Extension Bundle ID | Signing |
 |-------------|-----------|---------------------|---------|
 | Development | `io.parity.polkadotapp.develop` | `io.parity.polkadotapp.develop.NotificationServiceExtension` | `match Development` or `match AdHoc` depending on workflow |
+| Safetynet | `io.parity.polkadotapp.safety` | `io.parity.polkadotapp.safety.NotificationServiceExtension` | `match AppStore` |
 | Production | `io.parity.polkadotapp` | `io.parity.polkadotapp.NotificationServiceExtension` | `match AppStore` |
+
+`Safetynet` compiles the Release feature set with the environment flags
+`-DNIGHTLY -DTESTNET_FEATURE`, so it is what Release ships, run against the nightly chains —
+under its own identity so it installs next to the production app. `nightly_distribution.yml`
+builds it alongside `Nightly`.
+
+Safetynet is a **separate app**, not a variant of production: its own App Store Connect
+record, TestFlight build-number sequence, Match profiles and Firebase app. `_build_distribute.yml`
+derives all four identifiers from `inputs.build_configuration`; `read-build-version` is passed the
+matching `ios_bundle_id` so the two streams never share a build counter. Nightly carries the
+production identity and differs from Release only in flags and app icon.
 
 Signing notes:
 - `pr.yml` uses `development`
@@ -172,7 +185,7 @@ Signing notes:
 | Workflow | Versioned Path | Static Path |
 |----------|----------------|-------------|
 | Firebase (develop) | `/ios/develop/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/develop/polkadot-app{suffix}.ipa` |
-| TestFlight (release) | `/ios/releases/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/releases/polkadot-app{suffix}.ipa` |
+| TestFlight (release/nightly/safetynet) | `/ios/{subdir}/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/{subdir}/polkadot-app{suffix}.ipa` |
 | TestFlight (manual) | `/ios/releases-manual/polkadot-app-{version}-{build}.ipa` | `/ios/releases-manual/polkadot-app.ipa` |
 
 Suffix notes:
@@ -200,6 +213,9 @@ Suffix notes:
 
 2. nightly_distribution.yml / release_distribution.yml
    └── uses _build_distribute.yml
+       (nightly calls it twice — Nightly and Safetynet from the same branch/PR;
+        the configuration is in the job name so each leg's check_default_build
+        resolves its own result)
        ├── prepare_build_metadata
        │     ├── Verify bot-driven trigger / bot-authored PR
        │     ├── Read release notes + increment_step from PR body
@@ -218,8 +234,10 @@ Suffix notes:
        └── send_failure_notification (Telegram, on failure)
 
 3. Caller-specific jobs (gated on succeeded)
-   ├── [nightly] auto_merge PR + delete branch
-   └── [nightly] send Matrix release notification
+   ├── [nightly] auto_merge PR + delete branch (needs BOTH legs green)
+   └── send Matrix release notification
+         ├── [nightly] one combined message covering both legs, all four links
+         └── [release] its own message, release links only
 
 4. release_branch_lifecycle.yml (on release/* PR closed to main)
    ├── merged -> create backport PR: release branch -> source_ref
@@ -268,6 +286,7 @@ Suffix notes:
 | `CREDENTIAL_FILE_CONTENT` | GitHub Actions repository secret -> Firebase workflow | Firebase service-account JSON for App Distribution |
 | `GOOGLE_SERVICE_INFO_DEV_BASE64` | GitHub Actions repository secret -> DevCI build/test setup steps | Base64-encoded development `GoogleService-Info.plist` for `io.parity.polkadotapp.develop` |
 | `GOOGLE_SERVICE_INFO_RELEASE_BASE64` | GitHub Actions repository secret -> Release/Nightly build setup steps | Base64-encoded production `GoogleService-Info.plist` for `io.parity.polkadotapp` |
+| `GOOGLE_SERVICE_INFO_SAFETY_BASE64` | GitHub Actions repository secret -> Safetynet build setup steps | Base64-encoded `GoogleService-Info.plist` for `io.parity.polkadotapp.safety` |
 | `FASTLANE_RO_PAT` | GitHub Actions repository secret -> `install/` | Read-only fine-grained PAT for Match in PR, Firebase, and TestFlight builds |
 | `FASTLANE_RW_PAT` | GitHub Actions repository secret -> `install/` | Read/write fine-grained PAT used only by signing-data refresh |
 | `MATCH_GIT_BASIC_AUTHORIZATION` | Generated by `install/` | Base64 Basic authorization derived from the selected Match repository PAT |

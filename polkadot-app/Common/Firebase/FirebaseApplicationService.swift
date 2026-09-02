@@ -105,8 +105,8 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             ipfsGatewayUrl: url(for: .ipfsGatewayUrl),
             gameDashboardUrl: url(for: .gameDashboardUrl),
             dotNsResolver: dotNsResolverAddress(),
-            dotNsProtocolRegistry: dotNsProtocolRegistryAddress(),
-            dotNsNameRegistry: dotNsNameRegistryAddress()
+            dotNsNameRegistry: dotNsNameRegistryAddress(),
+            coinageInstanceId: coinageInstanceId()
         )
     }
 
@@ -170,14 +170,15 @@ private extension FirebaseApplicationService {
         dotNsConfigEntry("resolverContractAddress")
     }
 
-    func dotNsProtocolRegistryAddress() -> String? {
-        dotNsConfigEntry("protocolRegistryAddress")
-    }
-
     func dotNsNameRegistryAddress() -> String? {
         // Empty counts as absent: payloads published before manifest support carry no name
         // registry, and an empty address would read as a configured one.
         dotNsConfigEntry("registryContractAddress", treatingEmptyAsMissing: true)
+    }
+
+    func coinageInstanceId() -> UInt32? {
+        guard let value = nonEmptyString(for: .coinageInstanceId) else { return nil }
+        return UInt32(value)
     }
 
     func asyncWaitForRemoteConfigValues<T: Decodable>(for key: String) -> CompoundOperationWrapper<T> {
@@ -244,4 +245,5 @@ private extension String {
     static let ipfsGatewayUrl = "ipfs_gateway_url"
     static let gameDashboardUrl = "game_dashboard_url"
     static let dotNsResolver = "dot_ns_config"
+    static let coinageInstanceId = "coinage_instance_id"
 }

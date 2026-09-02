@@ -53,3 +53,4 @@ Transfer plans determine how coins are spent:
 | Transfer planning       | `Packages/Coinage/`           | New transfer strategies          |
 | Coinage UI              | `Modules/Coinage/`            | Coinage screen changes           |
 | Backup sync             | ServiceCoordinator             | Backup/restore flow changes      |
+| Instance ID config      | `AppConfig.Coinage.instanceId` | Remote config schema or app instance strategy changes |

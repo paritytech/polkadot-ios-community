@@ -10,6 +10,7 @@ import SubstrateOperation
 
 /// Dependencies needed to construct the external payment processing pipeline.
 struct ExternalPaymentDependency {
+    let instanceId: CoinageInstanceId
     let coinService: CoinServiceProtocol
     let voucherService: VoucherServiceProtocol
     let recycler: CoinageRecyclingServicing
@@ -22,6 +23,7 @@ struct ExternalPaymentDependency {
     let blockNumberProvider: BlockInfoProviding
 
     init(
+        instanceId: CoinageInstanceId,
         coinService: CoinServiceProtocol,
         voucherService: VoucherServiceProtocol,
         recycler: CoinageRecyclingServicing,
@@ -33,6 +35,7 @@ struct ExternalPaymentDependency {
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding
     ) {
+        self.instanceId = instanceId
         self.coinService = coinService
         self.voucherService = voucherService
         self.recycler = recycler
@@ -77,6 +80,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
         )
 
         stateMachineFactory = ExternalPaymentStateMachineFactory(
+            instanceId: dependency.instanceId,
             planner: planner,
             recycler: dependency.recycler,
             voucherKeyFactory: dependency.voucherKeyFactory,

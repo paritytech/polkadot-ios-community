@@ -43,6 +43,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
     private let chainId: ChainId
     private let chainRegistry: ChainResourceProtocol
     private let storageRequestFactory: StorageRequestFactoryProtocol
+    private let resourcesParameters: ResourcesParametersProviding
     private let chainTimeProvider: ChainTimeProviding
     private let originPersonProvider: OriginPersonProviding
     private let logger: SDKLoggerProtocol
@@ -52,6 +53,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         chainId: ChainId,
         chainRegistry: ChainResourceProtocol,
         storageRequestFactory: StorageRequestFactoryProtocol,
+        resourcesParameters: ResourcesParametersProviding,
         chainTimeProvider: ChainTimeProviding,
         originPersonProvider: OriginPersonProviding,
         accounting: StatementStoreSlotAccounting,
@@ -60,6 +62,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         self.chainId = chainId
         self.chainRegistry = chainRegistry
         self.storageRequestFactory = storageRequestFactory
+        self.resourcesParameters = resourcesParameters
         self.chainTimeProvider = chainTimeProvider
         self.originPersonProvider = originPersonProvider
         self.logger = logger
@@ -103,7 +106,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
             )
         }
 
-        let cooldown = try await fetchReplacementCooldown(codingFactory: state.codingFactory)
+        let cooldown = try await fetchReplacementCooldown()
 
         let oldest = try await evictionPicker.pickCandidate(
             from: occupiedSlots(from: state),
@@ -133,7 +136,6 @@ private extension StatementStoreSlotInfoProvider {
     struct SlotState {
         let originEntries: [OriginEntries]
         let period: UInt32
-        let codingFactory: RuntimeCoderFactoryProtocol
         let nowSeconds: UInt64
     }
 
@@ -141,14 +143,11 @@ private extension StatementStoreSlotInfoProvider {
         let nowSeconds = try await chainTimeProvider.nowSeconds()
         let period = UInt32(TimeInterval(nowSeconds) / .secondsInDay)
 
-        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chainId)
-        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
         let originEntries = try await fetchAllowanceEntries(period: period)
 
         return SlotState(
             originEntries: originEntries,
             period: period,
-            codingFactory: codingFactory,
             nowSeconds: nowSeconds
         )
     }
@@ -196,12 +195,19 @@ private extension StatementStoreSlotInfoProvider {
         codingFactory: RuntimeCoderFactoryProtocol
     ) async throws -> AllowanceEntries {
         let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)
-        let maxSlots = try await fetchMaxSlots(origin: personOrigin, codingFactory: codingFactory)
+        let maxSlots = try await fetchMaxSlots(origin: personOrigin)
         guard maxSlots > 0 else { return [] }
 
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: connection,
+            codingFactory: codingFactory
+        )
+
         let activeVrfManager = personOrigin.keyManager
-        let aliases = try (0 ..< maxSlots).map { seq in
-            let context = SSSSlotContextBuilder.context(period: period, seq: seq)
+        let aliases = try (0 ..< maxSlots).map { [networkSuffix] seq in
+            let context = try ProductContextSuffix
+                .statementStoreSlot(period: period, seq: seq)
+                .context(networkSuffix: networkSuffix)
             return try activeVrfManager.deriveAlias(for: context)
         }
 
@@ -216,32 +222,12 @@ private extension StatementStoreSlotInfoProvider {
         .asyncExecute()
     }
 
-    func fetchMaxSlots(
-        origin: PersonOrigin,
-        codingFactory: RuntimeCoderFactoryProtocol
-    ) async throws -> UInt32 {
-        let path =
-            switch origin {
-            case .lite: ResourcesPallet.Constants.liteStmtStoreSlotsPerPeriod()
-            case .full: ResourcesPallet.Constants.stmtStoreSlotsPerPeriod()
-            }
-        let operation = StorageConstantOperation<StringCodable<UInt32>>(
-            path: path,
-            fallbackValue: .init(wrappedValue: 0)
-        )
-        operation.codingFactory = codingFactory
-        return try await operation.asyncExecute().wrappedValue
+    func fetchMaxSlots(origin: PersonOrigin) async throws -> UInt32 {
+        try await resourcesParameters.stmtStoreSlotsPerPeriod(chainId: chainId, origin: origin)
     }
 
-    func fetchReplacementCooldown(
-        codingFactory: RuntimeCoderFactoryProtocol
-    ) async throws -> UInt32 {
-        let operation = StorageConstantOperation<StringCodable<UInt32>>(
-            path: ResourcesPallet.Constants.stmtStoreReplacementCooldown(),
-            fallbackValue: .init(wrappedValue: 0)
-        )
-        operation.codingFactory = codingFactory
-        return try await operation.asyncExecute().wrappedValue
+    func fetchReplacementCooldown() async throws -> UInt32 {
+        try await resourcesParameters.stmtStoreReplacementCooldown(chainId: chainId)
     }
 
     func occupiedSlots(from state: SlotState) -> [SSSOccupiedSlot] {

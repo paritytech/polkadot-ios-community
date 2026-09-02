@@ -39,6 +39,7 @@ extension VoucherOnChainQuerying {
 
 /// Default implementation that queries the Recyclers and Members pallet storage via RPC.
 final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Sendable {
+    private let instanceId: CoinageInstanceId
     private let connection: any JSONRPCEngine
     private let runtimeService: any RuntimeCodingServiceProtocol
     private let storageRequestFactory: any StorageRequestFactoryProtocol
@@ -46,12 +47,14 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
     private let aliasProvider: (UInt32) throws -> Data
 
     init(
+        instanceId: CoinageInstanceId,
         connection: any JSONRPCEngine,
         runtimeService: any RuntimeCodingServiceProtocol,
         storageRequestFactory: any StorageRequestFactoryProtocol,
         publicKeyProvider: @escaping (UInt32) throws -> Data,
         aliasProvider: @escaping (UInt32) throws -> Data
     ) {
+        self.instanceId = instanceId
         self.connection = connection
         self.runtimeService = runtimeService
         self.storageRequestFactory = storageRequestFactory
@@ -198,8 +201,8 @@ private extension VoucherOnChainQueryService {
 
         return try await storageRequestFactory.queryItems(
             engine: connection,
-            keyParams1: {
-                keys.map { RecyclerCollectionIdentifier.identifier(for: $0.exponent) }
+            keyParams1: { [instanceId] in
+                keys.map { RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: $0.exponent) }
             },
             keyParams2: {
                 keys.map { BytesCodable(wrappedValue: $0.publicKey) }

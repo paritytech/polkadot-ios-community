@@ -12,6 +12,7 @@ struct BrandConfigTests {
             AppConfig.Brand.displayName,
             AppConfig.Brand.appGroup,
             AppConfig.Brand.deeplinkScheme,
+            AppConfig.Brand.deeplinkBase,
             AppConfig.Brand.shareRoot,
             AppConfig.Brand.cashSymbol,
             AppConfig.Brand.fiatSymbol,
@@ -23,8 +24,6 @@ struct BrandConfigTests {
         for value in values {
             #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
-
-        #expect(!AppConfig.Brand.deeplinkSchemes.isEmpty)
     }
 
     @Test("Deeplink scheme agrees with the registered URL type")
@@ -37,15 +36,18 @@ struct BrandConfigTests {
         #expect(schemes.contains(AppConfig.DeepLink.scheme))
     }
 
-    @Test("knownSchemes carries both flavors of the current brand")
-    func knownSchemesParsedCorrectly() {
-        let schemes = AppConfig.DeepLink.knownSchemes
+    @Test("isKnownScheme accepts every brand flavor and rejects foreign schemes")
+    func knownSchemeMatching() {
+        #expect(AppConfig.DeepLink.isKnownScheme(AppConfig.DeepLink.scheme))
+        #expect(AppConfig.DeepLink.isKnownScheme(DeeplinkTestSchemes.other))
+        #expect(AppConfig.DeepLink.isKnownScheme(AppConfig.Brand.deeplinkBase))
+        #expect(!AppConfig.DeepLink.isKnownScheme("tel"))
+        #expect(!AppConfig.DeepLink.isKnownScheme("https"))
+    }
 
-        #expect(schemes.count == 2)
-        #expect(schemes.contains(AppConfig.DeepLink.scheme))
-        #expect(schemes.allSatisfy { !$0.isEmpty })
-        // A space would mean the array key regressed to a split-on-space string.
-        #expect(schemes.allSatisfy { !$0.contains(" ") })
+    @Test("Active scheme is the brand base plus its configuration suffix")
+    func activeSchemeDerivesFromBase() {
+        #expect(AppConfig.DeepLink.scheme.hasPrefix(AppConfig.Brand.deeplinkBase))
     }
 
     @Test("App group and bundle identifier came from one expansion")

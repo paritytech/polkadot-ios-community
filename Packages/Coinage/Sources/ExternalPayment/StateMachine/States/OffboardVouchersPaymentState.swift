@@ -22,6 +22,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
         )
 
         let service = OffboardVouchersForPaymentService(
+            instanceId: factory.instanceId,
             voucherKeyFactory: factory.voucherKeyFactory,
             voucherAllocator: factory.voucherAllocator,
             recyclerLoader: factory.recyclerLoader,

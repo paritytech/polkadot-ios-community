@@ -7,6 +7,11 @@ public protocol DotNsTldStoring: Sendable {
     func saveTld(_ tld: String)
 }
 
+/// Single chain read of the network's TLD label, without the leading dot.
+public protocol DotNsTldReading: Sendable {
+    func readTld() async throws -> String
+}
+
 public protocol DotNsTldProviding: Sendable {
     /// Cached TLD label without the leading dot, or nil until a chain read has succeeded.
     /// Kicks a background refresh when nil and the backoff window has elapsed.
@@ -21,7 +26,7 @@ public protocol DotNsTldProviding: Sendable {
 }
 
 public final class DotNsTldProvider: DotNsTldProviding {
-    private let contractApi: DotNsContractApiProtocol
+    private let reader: DotNsTldReading
     private let now: @Sendable () -> Date
     private let store: DotNsTldStoring?
     private let persistedTld: String?
@@ -39,11 +44,11 @@ public final class DotNsTldProvider: DotNsTldProviding {
     }
 
     public init(
-        contractApi: DotNsContractApiProtocol,
+        reader: DotNsTldReading,
         store: DotNsTldStoring? = nil,
         now: @Sendable @escaping () -> Date = { Date() }
     ) {
-        self.contractApi = contractApi
+        self.reader = reader
         self.store = store
         persistedTld = store?.loadTld()
         self.now = now
@@ -87,7 +92,7 @@ private extension DotNsTldProvider {
 
     func performRead() async throws -> String {
         do {
-            let tld = try await contractApi.readTld()
+            let tld = try await reader.readTld()
             finish(.success(tld))
             store?.saveTld(tld)
             return tld

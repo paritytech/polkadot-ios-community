@@ -3,12 +3,12 @@
 # Each line is a file pattern followed by one or more owners.
 
 # Workflows and GitHub Actions configuration
-/.github/ @kogeler
+/.github/ @ERussel @sergkononenko
 
 # Fastlane and Ruby dependencies
-/fastlane/ @kogeler
-/Gemfile @kogeler
-/Gemfile.lock @kogeler
+/fastlane/ @ERussel @sergkononenko
+/Gemfile @ERussel @sergkononenko
+/Gemfile.lock @ERussel @sergkononenko
 
 # Brand identity. A one-token edit here changes the App Group, the keychain access
 # group and the claimed applinks: domains of every signed build.

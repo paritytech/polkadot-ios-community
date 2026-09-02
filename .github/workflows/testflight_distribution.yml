@@ -41,6 +41,7 @@ jobs:
         id: read_marketing_version
         uses: ./.github/actions/read-build-version
         with:
+          ios_bundle_id: ${{ env.IOS_BUNDLE_ID }}
           asc_key_id: ${{ secrets.ASC_KEY_ID }}
           asc_issuer_id: ${{ secrets.ASC_ISSUER_ID }}
           asc_key_base64: ${{ secrets.ASC_KEY_BASE64 }}

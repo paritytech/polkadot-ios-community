@@ -16,6 +16,7 @@ public protocol VoucherLoaderProtocol {
 }
 
 public final class VoucherLoader: VoucherLoaderProtocol {
+    private let instanceId: CoinageInstanceId
     private let accountId: AccountId
     private let origin: any ExtrinsicOriginDefining
     private let allocator: any VoucherAllocating
@@ -25,6 +26,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
     private let logger: (any SDKLoggerProtocol)?
 
     init(
+        instanceId: CoinageInstanceId,
         accountId: AccountId,
         origin: any ExtrinsicOriginDefining,
         allocator: any VoucherAllocating,
@@ -33,6 +35,7 @@ public final class VoucherLoader: VoucherLoaderProtocol {
         runtimeService: RuntimeCodingServiceProtocol,
         logger: SDKLoggerProtocol?
     ) {
+        self.instanceId = instanceId
         self.accountId = accountId
         self.origin = origin
         self.allocator = allocator
@@ -64,8 +67,11 @@ public final class VoucherLoader: VoucherLoaderProtocol {
             Array(pairs[$0 ..< min($0 + chunkSize, pairs.count)])
         }
 
-        let builder: ExtrinsicBuilderIndexedClosure = { builder, index in
-            let batchCall = CoinagePallet.Calls.LoadExternalAssetUnpaidBatch(items: chunks[index].map(\.1))
+        let builder: ExtrinsicBuilderIndexedClosure = { [instanceId] builder, index in
+            let batchCall = CoinagePallet.Calls.LoadExternalAssetUnpaidBatch(
+                instanceId: instanceId,
+                items: chunks[index].map(\.1)
+            )
             return try builder.adding(call: batchCall.callAsFunction())
         }
 

@@ -69,6 +69,7 @@ public final class BulletInSlotInfoProvider {
     let chainTimeProvider: ChainTimeProviding
 
     let storageRequestFactory: StorageRequestFactoryProtocol
+    let resourcesParameters: ResourcesParametersProviding
 
     public init(
         bulletInChainId: ChainId,
@@ -76,7 +77,8 @@ public final class BulletInSlotInfoProvider {
         chainRegistry: ChainResourceProtocol,
         keyResolver: BandersnatchKeyResolving,
         operationQueue: OperationQueue,
-        chainTimeProvider: ChainTimeProviding
+        chainTimeProvider: ChainTimeProviding,
+        resourcesParameters: ResourcesParametersProviding
     ) {
         self.bulletInChainId = bulletInChainId
         self.peopleChainId = peopleChainId
@@ -84,6 +86,7 @@ public final class BulletInSlotInfoProvider {
         self.keyResolver = keyResolver
         self.operationQueue = operationQueue
         self.chainTimeProvider = chainTimeProvider
+        self.resourcesParameters = resourcesParameters
         bulletInBlockProvider = BlockInfoProvider(
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
@@ -115,7 +118,7 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
             )
         ).pickPersonOrigin()
 
-        let maxClaims = try await fetchMaxClaims(codingFactory: codingFactory)
+        let maxClaims = try await fetchMaxClaims()
 
         guard maxClaims > 0, periodDuration > 0 else {
             throw AllowanceSlotAssignmentError.noSlotsAvailable
@@ -124,8 +127,15 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
         let nowSeconds = try await chainTimeProvider.nowSeconds()
         let period = UInt32(TimeInterval(nowSeconds) / TimeInterval(periodDuration))
 
-        let aliases = try (0 ..< maxClaims).map { counter -> Data in
-            let context = BulletinSlotContextBuilder.context(period: period, counter: counter)
+        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
+            connection: peopleConnection,
+            codingFactory: codingFactory
+        )
+
+        let aliases = try (0 ..< maxClaims).map { [networkSuffix] counter -> Data in
+            let context = try ProductContextSuffix
+                .longTermStorage(period: period, counter: counter)
+                .context(networkSuffix: networkSuffix)
             return try personOrigin.keyManager.deriveAlias(for: context)
         }
 
@@ -229,13 +239,8 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
 }
 
 private extension BulletInSlotInfoProvider {
-    func fetchMaxClaims(codingFactory: RuntimeCoderFactoryProtocol) async throws -> UInt8 {
-        let operation = StorageConstantOperation<StringCodable<UInt8>>(
-            path: ResourcesPallet.Constants.longTermStorageClaimsPerPeriod(),
-            fallbackValue: .init(wrappedValue: 0)
-        )
-        operation.codingFactory = codingFactory
-        return try await operation.asyncExecute().wrappedValue
+    func fetchMaxClaims() async throws -> UInt8 {
+        try await resourcesParameters.longTermStorageClaimsPerPeriod(chainId: peopleChainId)
     }
 
     func fetchPeriodDuration(codingFactory: RuntimeCoderFactoryProtocol) async throws -> UInt32 {

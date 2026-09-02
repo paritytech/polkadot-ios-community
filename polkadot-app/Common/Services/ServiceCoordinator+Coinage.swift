@@ -161,6 +161,7 @@ private extension ServiceCoordinator {
         return CoinageService.make(
             chainResource: chainRegistry,
             chain: chain,
+            instanceId: AppConfig.Coinage.instanceId,
             databaseFactory: databaseFactory,
             originFactory: coinageOriginFactory,
             extrinsicMonitorFactory: monitorFactory,
