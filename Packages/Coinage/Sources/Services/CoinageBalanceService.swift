@@ -180,27 +180,30 @@ extension CoinageBalanceService {
         var degradedVouchersPlanks = BigUInt(0)
         var nextUnlock: Date?
 
-        for tracked in vouchers {
+        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
+        // admits. A voucher it rejects (reserved by a live entry, or dead/orphan) is counted nowhere.
+        for tracked in vouchers where tracked.isBalanceCounted {
             let voucher = tracked.voucher
             let amount = context.valueInPlanks(for: voucher.exponent)
 
-            if tracked.isSelectable {
-                // In the recycler on chain — spendable; on-chain presence is authoritative even if a
-                // local minting entry is still live. Split by effective privacy.
-                if voucher.isReadyToUseSecured(at: now) {
-                    fullPrivacyVouchersPlanks += amount
-                } else {
-                    degradedVouchersPlanks += amount
-                    // Track when this voucher becomes full-privacy due to readyAt passing
-                    if voucher.readyAt > now, voucher.privacy == .full {
-                        nextUnlock = min(nextUnlock ?? voucher.readyAt, voucher.readyAt)
-                    }
-                }
-            } else if tracked.isOnboarding || tracked.isMinting {
-                // Not usable yet but expected to arrive: locked until it lands in the recycler.
+            guard tracked.isSelectable else {
+                // Onboarding or minting: not usable yet but expected to arrive — locked until it
+                // lands in the recycler.
                 lockedVouchersPlanks += amount
+                continue
             }
-            // Otherwise (reserved by a live entry, or a dead/orphan voucher): counted nowhere.
+
+            // In the recycler on chain — spendable; on-chain presence is authoritative even if a
+            // local minting entry is still live. Split by effective privacy.
+            if voucher.isReadyToUseSecured(at: now) {
+                fullPrivacyVouchersPlanks += amount
+            } else {
+                degradedVouchersPlanks += amount
+                // Track when this voucher becomes full-privacy due to readyAt passing
+                if voucher.readyAt > now, voucher.privacy == .full {
+                    nextUnlock = min(nextUnlock ?? voucher.readyAt, voucher.readyAt)
+                }
+            }
         }
 
         let lockedPlanks = lockedVouchersPlanks + coinPlanks.expiringSoon + coinPlanks.pending
@@ -231,7 +234,9 @@ extension CoinageBalanceService {
         var pending = BigUInt(0)
         var expiringSoon = BigUInt(0)
 
-        for tracked in coins {
+        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
+        // admits. A coin it rejects (handed off, consumed, reserved, or vanished) is counted nowhere.
+        for tracked in coins where tracked.isBalanceCounted {
             let amount = context.valueInPlanks(for: tracked.coin.exponent)
 
             if tracked.isSelectable {
@@ -239,6 +244,7 @@ extension CoinageBalanceService {
             } else if tracked.isMinting {
                 pending += amount
             } else if tracked.isAwaitingRecycling() {
+                // On chain, free, aged out. Guaranteed to hold here given the `isBalanceCounted` gate.
                 expiringSoon += amount
             }
         }

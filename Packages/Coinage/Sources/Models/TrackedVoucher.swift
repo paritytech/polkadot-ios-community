@@ -30,6 +30,15 @@ extension TrackedVoucher {
     var isMinting: Bool {
         state.isFree && voucher.remoteState == .unlocated && state.minterStatus?.isLive == true
     }
+
+    /// Whether this voucher contributes to the displayed balance — selectable (spendable/degraded),
+    /// onboarding, or minting (locked). Reserved-by-a-live-entry or orphaned vouchers contribute
+    /// nowhere. The single inclusion rule shared by the balance and the voucher count/list, so a
+    /// voucher absent from the balance is absent from both. Mirrors
+    /// `CoinageBalanceService.calculateBalance`.
+    public var isBalanceCounted: Bool {
+        isSelectable || isOnboarding || isMinting
+    }
 }
 
 extension TrackedVoucher: Operation_iOS.Identifiable {

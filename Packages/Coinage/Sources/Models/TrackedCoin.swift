@@ -26,6 +26,14 @@ extension TrackedCoin {
         state.isFree && !coin.isOnchain && state.minterStatus?.isLive == true
     }
 
+    /// Whether this coin contributes to the displayed balance — spendable, minting (pending), or
+    /// awaiting recycling (expiring). Handed-off, consumed, reserved, or vanished coins contribute
+    /// nowhere. The single inclusion rule shared by the balance and the coin count/list, so a coin
+    /// absent from the balance is absent from both. Mirrors `CoinageBalanceService.calculateBalance`.
+    public var isBalanceCounted: Bool {
+        isSelectable || isMinting || isAwaitingRecycling()
+    }
+
     /// Whether on-chain presence is still worth tracking. An active coin (neither handed off nor
     /// consumed) is watched so its landing and later disappearance are seen; additionally any coin
     /// still believed on chain stays watched until it is observed to vanish, driving `isOnchain` to

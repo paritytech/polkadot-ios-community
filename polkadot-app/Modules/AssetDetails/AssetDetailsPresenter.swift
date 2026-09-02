@@ -302,9 +302,13 @@ private extension AssetDetailsPresenter {
             dateFormatter.dateStyle = .short
             dateFormatter.timeStyle = .short
 
-            let coinDetails = coins
+            // Only assets that make up the balance are counted and listed — the same inclusion rule
+            // the balance uses (`TrackedCoin/TrackedVoucher.isBalanceCounted`).
+            let countedCoins = coins.filter(\.isBalanceCounted)
+            let countedVouchers = vouchers.filter(\.isBalanceCounted)
+
+            let coinDetails = countedCoins
                 .sorted { $0.coin.derivationIndex < $1.coin.derivationIndex }
-                .filter { !$0.state.handedOff && !$0.state.isConsumed && !$0.state.isMintingFailed }
                 .map { tracked in
                     let coin = tracked.coin
                     let state = tracked.state
@@ -326,9 +330,8 @@ private extension AssetDetailsPresenter {
                     )
                 }
 
-            let voucherDetails = vouchers
+            let voucherDetails = countedVouchers
                 .sorted { $0.voucher.derivationIndex < $1.voucher.derivationIndex }
-                .filter { !$0.state.handedOff && !$0.state.isConsumed && !$0.state.isMintingFailed }
                 .map { tracked in
                     let voucher = tracked.voucher
                     let stateString: String =
@@ -354,8 +357,8 @@ private extension AssetDetailsPresenter {
                 totalBalance: formatted(from: balance),
                 spendableBalance: formatted(from: spendable),
                 pendingBalance: formatted(from: lockedAmount),
-                coinCount: coins.filter(\.state.isFree).count,
-                voucherCount: vouchers.count,
+                coinCount: countedCoins.count,
+                voucherCount: countedVouchers.count,
                 coinDetails: coinDetails,
                 voucherDetails: voucherDetails
             )
