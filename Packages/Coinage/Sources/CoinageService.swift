@@ -385,7 +385,7 @@ extension CoinageService: CoinageServicing {
 
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {
         let spentCoins = try await coinService.fetchAllTrackedCoins()
-            .filter(\.state.isConsumed)
+            .filter(\.isRecoverable)
             .map(\.coin)
         guard !spentCoins.isEmpty else { return .zero }
         let context = try await denominationContext()

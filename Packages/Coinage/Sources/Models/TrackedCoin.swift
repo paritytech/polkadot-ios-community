@@ -48,6 +48,10 @@ extension TrackedCoin {
 
         return state.isFree && coin.isOnchain && age >= recycleAtAge
     }
+    
+    var isRecoverable: Bool {
+        state.handedOff && !state.isConsumed
+    }
 }
 
 extension TrackedCoin: Operation_iOS.Identifiable {
