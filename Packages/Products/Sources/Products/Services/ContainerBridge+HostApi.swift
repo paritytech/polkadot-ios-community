@@ -51,6 +51,9 @@ public extension ContainerBridge {
         registerLocalStorageRead(nativeApi: nativeApi)
         registerLocalStorageWrite(nativeApi: nativeApi)
         registerLocalStorageClear(nativeApi: nativeApi)
+        registerLocalStorageSubscribe(nativeApi: nativeApi)
+        registerWorkerBeginOperation(nativeApi: nativeApi)
+        registerWorkerEndOperation(nativeApi: nativeApi)
         registerNavigateTo(nativeApi: nativeApi)
         registerAllowNetworkAccess(nativeApi: nativeApi)
         registerAllowWebRtcAccess(nativeApi: nativeApi)
@@ -72,6 +75,7 @@ public extension ContainerBridge {
         registerDeriveEntropy(nativeApi: nativeApi)
         registerRequestResourceAllocation(nativeApi: nativeApi)
         registerThemeSubscribe(nativeApi: nativeApi)
+        registerLocaleSubscribe(nativeApi: nativeApi)
     }
 }
 
@@ -86,6 +90,20 @@ private extension ContainerBridge {
                         "name": .stringValue(theme.name),
                         "variant": .stringValue(theme.variant.rawValue)
                     ])
+                }
+                .eraseToAnyAsyncSequence()
+        }
+    }
+}
+
+// MARK: - Locale
+
+private extension ContainerBridge {
+    func registerLocaleSubscribe(nativeApi: ProductsNativeApiProtocol) {
+        registerSubscriptionHandler(method: "localeSubscribe") { _ in
+            nativeApi.subscribeLocale()
+                .map { tag in
+                    JSON.dictionaryValue(["languageTag": .stringValue(tag)])
                 }
                 .eraseToAnyAsyncSequence()
         }
@@ -395,6 +413,39 @@ private extension ContainerBridge {
         registerRequestHandler(method: "localStorageClear") { params in
             let key = try params.mapOrMissing(for: "key") { $0.stringValue }
             try await nativeApi.localStorageClear(key: key)
+            return JSON.dictionaryValue([:])
+        }
+    }
+
+    func registerLocalStorageSubscribe(nativeApi: ProductsNativeApiProtocol) {
+        registerSubscriptionHandler(method: "localStorageSubscribe") { params in
+            let key = try params.mapOrMissing(for: "key") { $0.stringValue }
+            return nativeApi.subscribeLocalStorage(key: key)
+                .map { value -> JSON in
+                    JSON.dictionaryValue(["value": value.map(JSON.stringValue) ?? JSON.null])
+                }
+                .eraseToAnyAsyncSequence()
+        }
+    }
+}
+
+// MARK: - Worker Operations
+
+private extension ContainerBridge {
+    func registerWorkerBeginOperation(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "workerBeginOperation") { params in
+            let label = params["label"]?.stringValue
+            let id = try await nativeApi.workerBeginOperation(label: label)
+            return JSON.dictionaryValue(["id": .unsignedIntValue(UInt64(id))])
+        }
+    }
+
+    func registerWorkerEndOperation(nativeApi: ProductsNativeApiProtocol) {
+        registerRequestHandler(method: "workerEndOperation") { params in
+            let id = try params.mapOrMissing(for: "id") {
+                $0.unsignedIntValue.flatMap { UInt32(exactly: $0) }
+            }
+            try await nativeApi.workerEndOperation(id: id)
             return JSON.dictionaryValue([:])
         }
     }

@@ -17,12 +17,6 @@
     <entity name="CDBannedPlayer" representedClassName="CDBannedPlayer" syncable="YES" codeGenerationType="class">
         <attribute name="accountId" optional="YES" attributeType="String"/>
     </entity>
-    <entity name="CDChainAccount" representedClassName="CDChainAccount" syncable="YES" codeGenerationType="class">
-        <attribute name="accountId" attributeType="String"/>
-        <attribute name="chainId" attributeType="String"/>
-        <attribute name="cryptoType" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="publicKey" attributeType="Binary"/>
-    </entity>
     <entity name="CDChat" representedClassName="CDChat" syncable="YES" codeGenerationType="class">
         <attribute name="chatType" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="chatTypeContext" optional="YES" attributeType="String"/>
@@ -121,22 +115,6 @@
         <attribute name="messageId" attributeType="String"/>
         <relationship name="chat" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChat" inverseName="unreadMessages" inverseEntity="CDChat"/>
     </entity>
-    <entity name="CDClaimPlan" representedClassName="CDClaimPlan" syncable="YES" codeGenerationType="class">
-        <attribute name="claimedAmount" optional="YES" attributeType="String"/>
-        <attribute name="entriesData" optional="YES" attributeType="Binary"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="memoKey" attributeType="Binary"/>
-        <attribute name="messageId" attributeType="String"/>
-        <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="totalValue" optional="YES" attributeType="String"/>
-    </entity>
-    <entity name="CDCoin" representedClassName="CDCoin" syncable="YES" codeGenerationType="class">
-        <attribute name="age" optional="YES" attributeType="Integer 16" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="derivationIndex" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
-    </entity>
     <entity name="CDContactDevice" representedClassName="CDContactDevice" syncable="YES" codeGenerationType="class">
         <attribute name="encryptionPublicKey" attributeType="Binary"/>
         <attribute name="statementAccountId" attributeType="Binary"/>
@@ -166,10 +144,6 @@
         <attribute name="previewImageData" optional="YES" attributeType="Binary"/>
         <attribute name="voteCounter" optional="YES" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="voteUpdateDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
-    </entity>
-    <entity name="CDKeystoreIntegrity" representedClassName="CDKeystoreIntegrity" syncable="YES" codeGenerationType="class">
-        <attribute name="integrityKey" attributeType="Binary"/>
-        <attribute name="keyTag" attributeType="String"/>
     </entity>
     <entity name="CDLocalDevice" representedClassName="CDLocalDevice" syncable="YES" codeGenerationType="class">
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
@@ -273,36 +247,70 @@
     <entity name="CDSSOHandledRequest" representedClassName="CDSSOHandledRequest" syncable="YES" codeGenerationType="class">
         <attribute name="identifier" attributeType="String"/>
     </entity>
-    <entity name="CDTransferWALEntry" representedClassName="CDTransferWALEntry" syncable="YES" codeGenerationType="class">
-        <attribute name="checkpointBlockHash" optional="YES" attributeType="Binary"/>
-        <attribute name="checkpointBlockNumber" attributeType="Integer 32" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="expectedCoinIndices" optional="YES" attributeType="String"/>
-        <attribute name="expectedVoucherIndices" optional="YES" attributeType="String"/>
-        <attribute name="extrinsicHash" optional="YES" attributeType="String"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="inputCoinIds" optional="YES" attributeType="String"/>
-        <attribute name="inputVoucherIds" optional="YES" attributeType="String"/>
-        <attribute name="mortality" attributeType="Integer 32" defaultValueString="2400" usesScalarValueType="YES"/>
-        <attribute name="operationType" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-    </entity>
-    <entity name="CDVoucher" representedClassName="CDVoucher" syncable="YES" codeGenerationType="class">
-        <attribute name="allocatedAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="localState" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="privacy" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="recyclerIndex" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="recyclerRevision" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
-        <attribute name="state" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
-    </entity>
     <entity name="CDProductOperation" representedClassName="CDProductOperation" syncable="YES" codeGenerationType="class">
         <attribute name="identifier" attributeType="String"/>
         <attribute name="label" optional="YES" attributeType="String"/>
         <attribute name="operationId" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="productId" attributeType="String"/>
         <attribute name="startedAt" attributeType="Date" usesScalarValueType="NO"/>
+    </entity>
+    <entity name="CDCoin" representedClassName="CDCoin" syncable="YES" codeGenerationType="class">
+        <attribute name="age" optional="YES" attributeType="Integer 16" usesScalarValueType="NO"/>
+        <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="handoffMark" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="isOnchain" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
+        <attribute name="publicKey" optional="YES" attributeType="String"/>
+        <relationship name="coinageTxInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDCoinageTxInput" inverseName="coin" inverseEntity="CDCoinageTxInput"/>
+        <relationship name="coinageTxOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoinageTxOutput" inverseName="coin" inverseEntity="CDCoinageTxOutput"/>
+        <fetchIndex name="byCoinPublicKey">
+            <fetchIndexElement property="publicKey" type="Binary" order="ascending"/>
+        </fetchIndex>
+    </entity>
+    <entity name="CDVoucher" representedClassName="CDVoucher" syncable="YES" codeGenerationType="class">
+        <attribute name="allocatedAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="onChainState" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
+        <attribute name="privacy" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="publicKey" optional="YES" attributeType="String"/>
+        <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="recyclerIndex" optional="YES" attributeType="Integer 64" defaultValueString="-1" usesScalarValueType="YES"/>
+        <relationship name="coinageTxInputs" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDCoinageTxInput" inverseName="voucher" inverseEntity="CDCoinageTxInput"/>
+        <relationship name="coinageTxOutput" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoinageTxOutput" inverseName="voucher" inverseEntity="CDCoinageTxOutput"/>
+        <fetchIndex name="byVoucherPublicKey">
+            <fetchIndexElement property="publicKey" type="Binary" order="ascending"/>
+        </fetchIndex>
+    </entity>
+    <entity name="CDCoinageTxEntry" representedClassName="CDCoinageTxEntry" syncable="YES" codeGenerationType="class">
+        <attribute name="checkpointHash" optional="YES" attributeType="String"/>
+        <attribute name="checkpointNumber" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+        <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="groupId" optional="YES" attributeType="String"/>
+        <attribute name="identifier" attributeType="String"/>
+        <attribute name="mortality" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sequence" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="successHash" optional="YES" attributeType="String"/>
+        <attribute name="successNumber" optional="YES" attributeType="Integer 64" usesScalarValueType="NO"/>
+        <attribute name="txHash" optional="YES" attributeType="String"/>
+        <relationship name="inputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDCoinageTxInput" inverseName="entry" inverseEntity="CDCoinageTxInput"/>
+        <relationship name="outputs" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDCoinageTxOutput" inverseName="entry" inverseEntity="CDCoinageTxOutput"/>
+        <fetchIndex name="byGroupId">
+            <fetchIndexElement property="groupId" type="Binary" order="ascending"/>
+        </fetchIndex>
+    </entity>
+    <entity name="CDCoinageTxInput" representedClassName="CDCoinageTxInput" syncable="YES" codeGenerationType="class">
+        <attribute name="receivedPubKey" optional="YES" attributeType="String"/>
+        <relationship name="coin" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoin" inverseName="coinageTxInputs" inverseEntity="CDCoin"/>
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoinageTxEntry" inverseName="inputs" inverseEntity="CDCoinageTxEntry"/>
+        <relationship name="voucher" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDVoucher" inverseName="coinageTxInputs" inverseEntity="CDVoucher"/>
+    </entity>
+    <entity name="CDCoinageTxOutput" representedClassName="CDCoinageTxOutput" syncable="YES" codeGenerationType="class">
+        <relationship name="coin" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoin" inverseName="coinageTxOutput" inverseEntity="CDCoin"/>
+        <relationship name="entry" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDCoinageTxEntry" inverseName="outputs" inverseEntity="CDCoinageTxEntry"/>
+        <relationship name="voucher" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDVoucher" inverseName="coinageTxOutput" inverseEntity="CDVoucher"/>
     </entity>
 </model>

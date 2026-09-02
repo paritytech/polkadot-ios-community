@@ -11,7 +11,8 @@ extension CoreDataMapperTests {
     struct VoucherLocationMapperTests {
         private let facade = UserDataStorageTestFacade()
         private var fullRepo: AnyDataProviderRepository<Voucher> { facade.makeRepo(mapper: VoucherMapper()) }
-        private var locationRepo: AnyDataProviderRepository<Voucher> { facade.makeRepo(mapper: VoucherLocationMapper())
+        private var locationRepo: AnyDataProviderRepository<VoucherLocationUpdate> {
+            facade.makeRepo(mapper: VoucherLocationMapper())
         }
 
         @Test("updates remoteState only, preserves other fields")
@@ -27,7 +28,12 @@ extension CoreDataMapperTests {
             )
             try await fullRepo.saveOperation({ [original] }, { [] }).asyncExecute()
 
-            let updated = original.adjusting(state: .inRecycler(.init(index: 3)))
+            let updated = VoucherLocationUpdate(
+                derivationIndex: 100,
+                remoteState: .inRecycler(.init(index: 3)),
+                privacy: original.privacy
+            )
+
             try await locationRepo.saveOperation({ [updated] }, { [] }).asyncExecute()
 
             let result = try #require(
@@ -44,20 +50,16 @@ extension CoreDataMapperTests {
             #expect(result.readyAt == now.addingTimeInterval(2_400))
         }
 
-        @Test("throws noExistingRequest when entity does not exist")
+        @Test("throws missingVoucher when entity does not exist")
         func throwsForNewEntity() async throws {
-            let now = Date(timeIntervalSinceReferenceDate: 3_000_000)
-            let voucher = Voucher(
-                exponent: 13,
+            let update = VoucherLocationUpdate(
                 derivationIndex: 999,
-                allocatedAt: now,
-                readyAt: now.addingTimeInterval(1_000),
                 remoteState: .onboarding,
-                publicKey: Data(repeating: 0x13, count: 32)
+                privacy: .full
             )
 
-            await #expect(throws: VoucherLocationMapper.MappingError.noExistingRequest) {
-                try await locationRepo.saveOperation({ [voucher] }, { [] }).asyncExecute()
+            await #expect(throws: VoucherLocationMapper.MappingError.missingVoucher) {
+                try await locationRepo.saveOperation({ [update] }, { [] }).asyncExecute()
             }
         }
     }

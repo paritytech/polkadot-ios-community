@@ -17,7 +17,7 @@ public final class CoinageTrackingTxSet: Sendable {
 
     /// Takes ownership of an entry.
     public func take(_ id: CoinageTxId) {
-        lock.withLock { watched in
+        _ = lock.withLock { watched in
             watched.insert(id)
         }
     }

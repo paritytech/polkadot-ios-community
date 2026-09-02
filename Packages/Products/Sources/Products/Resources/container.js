@@ -39,6 +39,15 @@
   function createRequestId() {
     return nanoid(8);
   }
+  function extractErrorMessage(err2) {
+    if (err2 instanceof Error) {
+      return err2.message;
+    }
+    if (err2) {
+      return err2.toString();
+    }
+    return "Unknown error occurred.";
+  }
 
   // node_modules/neverthrow/dist/index.es.js
   var defaultErrorConfig = {
@@ -863,7 +872,12 @@
       const padded = new Uint8Array(size);
       padded.set(value);
       return padded;
-    }, (value) => value);
+    }, (value) => {
+      if (value.length !== size) {
+        throw new Error(`Bytes(${size}): decoded ${value.length} bytes, expected ${size}`);
+      }
+      return value;
+    });
     return Object.assign(codec, { size });
   }
 
@@ -1046,6 +1060,51 @@
     return fromHex2(hex);
   }
 
+  // node_modules/@novasamatech/host-api/dist/protocol/callError.js
+  var versioned = (domain) => Enum2({ v1: domain }, [0]);
+  var CallError = (domain) => Enum2({
+    Domain: domain,
+    Denied: _void,
+    Unsupported: _void,
+    MalformedFrame: Struct({ reason: str }),
+    HostFailure: Struct({ reason: str })
+  }, [0, 1, 2, 3, 4]);
+  var CALL_ERROR_FAILURE = Symbol("callErrorFailure");
+  var isCallErrorFailure = (value) => CALL_ERROR_FAILURE in value;
+  var CallResult = (ok2, domainErr) => {
+    const wire = Result2(ok2, CallError(versioned(domainErr)));
+    return enhanceCodec(wire, (value) => {
+      if (CALL_ERROR_FAILURE in value) {
+        return { success: false, value: value[CALL_ERROR_FAILURE] };
+      }
+      if (value.success)
+        return { success: true, value: value.value };
+      return { success: false, value: { tag: "Domain", value: { tag: "v1", value: value.value } } };
+    }, (decoded) => {
+      if (decoded.success)
+        return { success: true, value: decoded.value };
+      const callError = decoded.value;
+      if (callError.tag === "Domain") {
+        return { success: false, value: callError.value.value };
+      }
+      return { [CALL_ERROR_FAILURE]: callError };
+    });
+  };
+  var interruptError = (domainErr) => {
+    const wire = CallError(versioned(domainErr));
+    return enhanceCodec(wire, (value) => {
+      if (typeof value === "object" && value !== null && CALL_ERROR_FAILURE in value) {
+        const failure = value[CALL_ERROR_FAILURE];
+        return { tag: failure.tag, value: "value" in failure ? failure.value : void 0 };
+      }
+      return { tag: "Domain", value: { tag: "v1", value } };
+    }, (decoded) => {
+      if (decoded.tag === "Domain")
+        return decoded.value.value;
+      return { [CALL_ERROR_FAILURE]: decoded };
+    });
+  };
+
   // node_modules/@novasamatech/host-api/dist/protocol/commonCodecs.js
   var GenesisHash = Hex(32);
   var GenericErr = Struct({
@@ -1064,6 +1123,8 @@
   });
   var ProductAccountId = Tuple(DotNsIdentifier, DerivationIndex);
   var RingVrgAlias = Bytes2();
+  var RingVrfKeyHandle = ProductAccountId;
+  var RingVrfPublicKey = Bytes2(32);
   var ProductId = DotNsIdentifier;
   var ProductProofContextSuffix = DerivationIndex;
   var ProductProofContext = Tuple(ProductId, ProductProofContextSuffix);
@@ -1095,6 +1156,12 @@
     chainId: GenesisHash,
     junctions: Vector(RingLocationJunction)
   });
+  var RingVrfKeyDisclosure = Status("Anonymized", "PublicKey");
+  var RegisteredRingVrfKey = Struct({
+    handle: RingVrfKeyHandle,
+    rings: Vector(RingLocation),
+    publicKey: Option(RingVrfPublicKey)
+  });
   var VrfTranscriptItem = Struct({
     label: Bytes2(),
     value: Bytes2()
@@ -1112,14 +1179,37 @@
   var CreateProofErr = ErrEnum("CreateProofErr", {
     RingNotFound: [_void, "CreateProof: ring not found"],
     NotMember: [_void, "CreateProof: selected member key is not a member of the ring"],
+    KeyNotRegistered: [_void, "CreateProof: key handle has no registry entry"],
+    KeyNotInRing: [_void, "CreateProof: key handle is registered, but not for the requested ring"],
+    NotAllowlisted: [_void, "CreateProof: key handle is foreign and its owner has not allowlisted the caller"],
     Rejected: [_void, "CreateProof: rejected"],
     Unknown: [GenericErr, "CreateProof: unknown error"]
   });
   var GetAliasErr = ErrEnum("GetAliasErr", {
     RingNotFound: [_void, "GetAlias: ring not found"],
     NotMember: [_void, "GetAlias: selected member key is not a member of the ring"],
+    KeyNotRegistered: [_void, "GetAlias: key handle has no registry entry"],
+    KeyNotInRing: [_void, "GetAlias: key handle is registered, but not for the requested ring"],
     Rejected: [_void, "GetAlias: rejected"],
     Unknown: [GenericErr, "GetAlias: unknown error"]
+  });
+  var RegisterRingVrfKeyErr = ErrEnum("RegisterRingVrfKeyErr", {
+    NotConnected: [_void, "RegisterRingVrfKey: not connected"],
+    RingNotFound: [_void, "RegisterRingVrfKey: ring not found"],
+    Rejected: [_void, "RegisterRingVrfKey: rejected"],
+    Unknown: [GenericErr, "RegisterRingVrfKey: unknown error"]
+  });
+  var ListRingVrfKeysErr = ErrEnum("ListRingVrfKeysErr", {
+    NotConnected: [_void, "ListRingVrfKeys: not connected"],
+    Rejected: [_void, "ListRingVrfKeys: owner is not the calling product and the caller has no grant for it"],
+    Unknown: [GenericErr, "ListRingVrfKeys: unknown error"]
+  });
+  var RingVrfSignErr = ErrEnum("RingVrfSignErr", {
+    NotConnected: [_void, "RingVrfSign: not connected"],
+    KeyNotRegistered: [_void, "RingVrfSign: key handle has no registry entry"],
+    NotAllowlisted: [_void, "RingVrfSign: key handle is foreign and its owner has not allowlisted the caller"],
+    Rejected: [_void, "RingVrfSign: rejected"],
+    Unknown: [GenericErr, "RingVrfSign: unknown error"]
   });
   var GetUserIdErr = ErrEnum("GetUserIdErr", {
     PermissionDenied: [_void, "GetUserId: permission denied"],
@@ -1136,27 +1226,184 @@
   var AccountConnectionStatusV1_receive = AccountConnectionStatus;
   var AccountConnectionStatusV1_interrupt = _void;
   var GetUserIdV1_request = _void;
-  var GetUserIdV1_response = Result2(UserIdentity, GetUserIdErr);
+  var GetUserIdV1_response = CallResult(UserIdentity, GetUserIdErr);
   var AccountGetV1_request = ProductAccountId;
-  var AccountGetV1_response = Result2(ProductAccount, RequestCredentialsErr);
-  var AccountGetAliasV1_request = Tuple(ProductProofContext, RingLocation);
-  var AccountGetAliasV1_response = Result2(ContextualAlias, GetAliasErr);
-  var AccountCreateProofV1_request = Tuple(ProductProofContext, RingLocation, Bytes2());
-  var AccountCreateProofV1_response = Result2(RingVrfProof, CreateProofErr);
+  var AccountGetV1_response = CallResult(ProductAccount, RequestCredentialsErr);
+  var AccountGetAliasV1_request = Tuple(RingVrfKeyHandle, ProductProofContext, RingLocation);
+  var AccountGetAliasV1_response = CallResult(ContextualAlias, GetAliasErr);
+  var AccountCreateProofV1_request = Tuple(RingVrfKeyHandle, ProductProofContext, RingLocation, Bytes2());
+  var AccountCreateProofV1_response = CallResult(RingVrfProof, CreateProofErr);
+  var AccountRegisterRingVrfKeyV1_request = Tuple(DerivationIndex, RingLocation);
+  var AccountRegisterRingVrfKeyV1_response = CallResult(RingVrfPublicKey, RegisterRingVrfKeyErr);
+  var AccountListRingVrfKeysV1_request = Tuple(ProductId, RingVrfKeyDisclosure);
+  var AccountListRingVrfKeysV1_response = CallResult(Vector(RegisteredRingVrfKey), ListRingVrfKeysErr);
+  var AccountRingVrfSignV1_request = Tuple(RingVrfKeyHandle, Bytes2());
+  var AccountRingVrfSignV1_response = CallResult(Bytes2(), RingVrfSignErr);
   var AccountSignVrfV1_request = Struct({
     account: ProductAccountId,
     transcriptLabel: Bytes2(),
     items: Vector(VrfTranscriptItem)
   });
-  var AccountSignVrfV1_response = Result2(VrfSignature, SignVrfErr);
+  var AccountSignVrfV1_response = CallResult(VrfSignature, SignVrfErr);
   var GetLegacyAccountsV1_request = _void;
-  var GetLegacyAccountsV1_response = Result2(Vector(LegacyAccount), RequestCredentialsErr);
+  var GetLegacyAccountsV1_response = CallResult(Vector(LegacyAccount), RequestCredentialsErr);
   var LoginResult = Status("success", "alreadyConnected", "rejected");
   var LoginErr = ErrEnum("LoginErr", {
     Unknown: [GenericErr, "Login: unknown error"]
   });
   var RequestLoginV1_request = Option(str);
-  var RequestLoginV1_response = Result2(LoginResult, LoginErr);
+  var RequestLoginV1_response = CallResult(LoginResult, LoginErr);
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/chainInteraction.js
+  var BlockHash = Hex();
+  var OperationId = str;
+  var RuntimeApi = Tuple(str, u32);
+  var RuntimeSpec = Struct({
+    specName: str,
+    implName: str,
+    specVersion: u32,
+    implVersion: u32,
+    transactionVersion: Option(u32),
+    apis: Vector(RuntimeApi)
+  });
+  var RuntimeType = Enum2({
+    Valid: RuntimeSpec,
+    Invalid: Struct({ error: str })
+  });
+  var StorageQueryType = Status("Value", "Hash", "ClosestDescendantMerkleValue", "DescendantsValues", "DescendantsHashes");
+  var StorageQueryItem = Struct({
+    key: Hex(),
+    queryType: StorageQueryType
+  });
+  var StorageResultItem = Struct({
+    key: Hex(),
+    value: Nullable(Hex()),
+    hash: Nullable(Hex()),
+    closestDescendantMerkleValue: Nullable(Hex())
+  });
+  var OperationStartedResult = Enum2({
+    Started: Struct({ operationId: OperationId }),
+    LimitReached: _void
+  });
+  var ChainHeadFollowV1_start = Struct({
+    genesisHash: Hex(),
+    withRuntime: bool
+  });
+  var ChainHeadEvent = Enum2({
+    Initialized: Struct({
+      finalizedBlockHashes: Vector(BlockHash),
+      finalizedBlockRuntime: Option(RuntimeType)
+    }),
+    NewBlock: Struct({
+      blockHash: BlockHash,
+      parentBlockHash: BlockHash,
+      newRuntime: Option(RuntimeType)
+    }),
+    BestBlockChanged: Struct({
+      bestBlockHash: BlockHash
+    }),
+    Finalized: Struct({
+      finalizedBlockHashes: Vector(BlockHash),
+      prunedBlockHashes: Vector(BlockHash)
+    }),
+    OperationBodyDone: Struct({
+      operationId: OperationId,
+      value: Vector(Hex())
+    }),
+    OperationCallDone: Struct({
+      operationId: OperationId,
+      output: Hex()
+    }),
+    OperationStorageItems: Struct({
+      operationId: OperationId,
+      items: Vector(StorageResultItem)
+    }),
+    OperationStorageDone: Struct({
+      operationId: OperationId
+    }),
+    OperationWaitingForContinue: Struct({
+      operationId: OperationId
+    }),
+    OperationInaccessible: Struct({
+      operationId: OperationId
+    }),
+    OperationError: Struct({
+      operationId: OperationId,
+      error: str
+    }),
+    Stop: _void
+  });
+  var ChainHeadFollowV1_receive = ChainHeadEvent;
+  var ChainHeadFollowV1_interrupt = _void;
+  var ChainHeadHeaderV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    hash: BlockHash
+  });
+  var ChainHeadHeaderV1_response = CallResult(Nullable(Hex()), GenericError);
+  var ChainHeadBodyV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    hash: BlockHash
+  });
+  var ChainHeadBodyV1_response = CallResult(OperationStartedResult, GenericError);
+  var ChainHeadStorageV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    hash: BlockHash,
+    items: Vector(StorageQueryItem),
+    childTrie: Nullable(Hex())
+  });
+  var ChainHeadStorageV1_response = CallResult(OperationStartedResult, GenericError);
+  var ChainHeadCallV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    hash: BlockHash,
+    function: str,
+    callParameters: Hex()
+  });
+  var ChainHeadCallV1_response = CallResult(OperationStartedResult, GenericError);
+  var ChainHeadUnpinV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    hashes: Vector(BlockHash)
+  });
+  var ChainHeadUnpinV1_response = CallResult(_void, GenericError);
+  var ChainHeadContinueV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    operationId: OperationId
+  });
+  var ChainHeadContinueV1_response = CallResult(_void, GenericError);
+  var ChainHeadStopOperationV1_request = Struct({
+    genesisHash: Hex(),
+    followSubscriptionId: str,
+    operationId: OperationId
+  });
+  var ChainHeadStopOperationV1_response = CallResult(_void, GenericError);
+  var ChainIdentifier = Status("Relay", "AssetHub", "People", "Bulletin");
+  var ChainInfoErr = ErrEnum("ChainInfoErr", {
+    NotSupported: [_void, "ChainInfo: the host does not serve the requested chain"],
+    Unknown: [GenericErr, "ChainInfo: unknown error"]
+  });
+  var ChainInfoV1_request = Struct({ chain: ChainIdentifier });
+  var ChainInfoV1_response = CallResult(Struct({ network: str, chain: ChainIdentifier, genesisHash: Hex(32) }), ChainInfoErr);
+  var ChainSpecGenesisHashV1_request = Hex();
+  var ChainSpecGenesisHashV1_response = CallResult(Hex(), GenericError);
+  var ChainSpecChainNameV1_request = Hex();
+  var ChainSpecChainNameV1_response = CallResult(str, GenericError);
+  var ChainSpecPropertiesV1_request = Hex();
+  var ChainSpecPropertiesV1_response = CallResult(str, GenericError);
+  var TransactionBroadcastV1_request = Struct({
+    genesisHash: Hex(),
+    transaction: Hex()
+  });
+  var TransactionBroadcastV1_response = CallResult(Nullable(str), GenericError);
+  var TransactionStopV1_request = Struct({
+    genesisHash: Hex(),
+    operationId: str
+  });
+  var TransactionStopV1_response = CallResult(_void, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/customRenderer.js
   var Size = compact;
@@ -1257,7 +1504,7 @@
     status: ChatRoomRegistrationStatus
   });
   var ChatCreateRoomV1_request = ChatRoomRequest;
-  var ChatCreateRoomV1_response = Result2(ChatRoomRegistrationResult, ChatRoomRegistrationErr);
+  var ChatCreateRoomV1_response = CallResult(ChatRoomRegistrationResult, ChatRoomRegistrationErr);
   var ChatBotRegistrationErr = ErrEnum("ChatBotRegistrationErr", {
     PermissionDenied: [_void, "Permission denied"],
     Unknown: [GenericErr, "Unknown error while chat registration"]
@@ -1273,7 +1520,7 @@
     status: ChatBotRegistrationStatus
   });
   var ChatRegisterBotV1_request = ChatBotRequest;
-  var ChatRegisterBotV1_response = Result2(ChatBotRegistrationResult, ChatBotRegistrationErr);
+  var ChatRegisterBotV1_response = CallResult(ChatBotRegistrationResult, ChatBotRegistrationErr);
   var ChatRoomParticipation = Status("RoomHost", "Bot");
   var ChatRoom = Struct({
     roomId: str,
@@ -1334,7 +1581,7 @@
     roomId: str,
     payload: ChatMessageContent
   });
-  var ChatPostMessageV1_response = Result2(ChatPostMessageResult, ChatMessagePostingErr);
+  var ChatPostMessageV1_response = CallResult(ChatPostMessageResult, ChatMessagePostingErr);
   var ActionTrigger = Struct({
     messageId: str,
     actionId: str,
@@ -1360,6 +1607,93 @@
   var ChatCustomMessageRenderingV1_start = Struct({ messageId: str, messageType: str, payload: Bytes2() });
   var ChatCustomMessageRenderingV1_receive = CustomRendererNode;
   var ChatCustomMessageRenderingV1_interrupt = _void;
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/coinPayment.js
+  var CoinPaymentPurseId = u32;
+  var CoinPaymentBalance = u32;
+  var CoinPaymentTimestamp = u64;
+  var CoinPaymentProductId = str;
+  var CoinPaymentReceivable = Hex(32);
+  var CoinPaymentMerkleRoot = Hex(32);
+  var CoinPaymentTransactionHash = Hex(32);
+  var CoinPaymentCoinagePubKey = Hex(32);
+  var CoinPaymentPurseInfo = Struct({
+    name: str,
+    created: CoinPaymentTimestamp,
+    creator: CoinPaymentProductId,
+    balance: CoinPaymentBalance
+  });
+  var CoinPaymentCheque = Struct({
+    id: CoinPaymentReceivable,
+    amount: CoinPaymentBalance,
+    encryptedSecrets: Hex()
+  });
+  var CoinPaymentErrorValue = Status("BalanceLow", "Denied", "BadCoins", "SnipedCoins", "PurseNotFound", "ReceivableNotFound", "UnsupportedChannel", "UserAgentCapabilityUnavailable", "Internal");
+  var CoinPaymentErr = ErrEnum("CoinPaymentErr", {
+    BalanceLow: [_void, "coin payment: source purse has too little balance"],
+    Denied: [_void, "coin payment: user agent denied the operation"],
+    BadCoins: [_void, "coin payment: coin secrets do not control valid coins"],
+    SnipedCoins: [_void, "coin payment: coin secrets were claimed elsewhere"],
+    PurseNotFound: [_void, "coin payment: purse not found"],
+    ReceivableNotFound: [_void, "coin payment: receivable not found"],
+    UnsupportedChannel: [_void, "coin payment: transmission channel not supported"],
+    UserAgentCapabilityUnavailable: [_void, "coin payment: user agent capability unavailable"],
+    Internal: [_void, "coin payment: internal error"]
+  });
+  var CoinPaymentClearingReference = Struct({
+    root: CoinPaymentMerkleRoot,
+    leaves: Vector(Tuple(CoinPaymentCoinagePubKey, CoinPaymentTransactionHash))
+  });
+  var CoinPaymentStatus = Enum2({
+    Clearing: Struct({ clearing: CoinPaymentBalance, cleared: CoinPaymentBalance }),
+    Failed: Struct({
+      error: CoinPaymentErrorValue,
+      cleared: CoinPaymentBalance,
+      reference: CoinPaymentClearingReference
+    }),
+    Done: Struct({ cleared: CoinPaymentBalance, reference: CoinPaymentClearingReference })
+  });
+  var CoinPaymentTransmissionChannel = Enum2({
+    Standard: Struct({ sssTopic: Hex(32) })
+  });
+  var CoinPaymentListenForItem = Enum2({
+    Channel: CoinPaymentTransmissionChannel,
+    Cheque: CoinPaymentCheque
+  });
+  var CoinPaymentCreatePurseV1_request = Struct({ name: str });
+  var CoinPaymentCreatePurseV1_response = CallResult(Struct({ purse: CoinPaymentPurseId }), CoinPaymentErr);
+  var CoinPaymentQueryPurseV1_request = Struct({ purse: CoinPaymentPurseId });
+  var CoinPaymentQueryPurseV1_response = CallResult(Struct({ info: CoinPaymentPurseInfo }), CoinPaymentErr);
+  var CoinPaymentRebalancePurseV1_start = Struct({
+    from: CoinPaymentPurseId,
+    to: CoinPaymentPurseId,
+    amount: CoinPaymentBalance
+  });
+  var CoinPaymentRebalancePurseV1_receive = CoinPaymentStatus;
+  var CoinPaymentRebalancePurseV1_interrupt = CoinPaymentErr;
+  var CoinPaymentDeletePurseV1_start = Struct({
+    target: CoinPaymentPurseId,
+    drainInto: CoinPaymentPurseId
+  });
+  var CoinPaymentDeletePurseV1_receive = CoinPaymentStatus;
+  var CoinPaymentDeletePurseV1_interrupt = CoinPaymentErr;
+  var CoinPaymentCreateReceivableV1_request = Struct({ into: CoinPaymentPurseId });
+  var CoinPaymentCreateReceivableV1_response = CallResult(Struct({ receivable: CoinPaymentReceivable }), CoinPaymentErr);
+  var CoinPaymentCreateChequeV1_request = Struct({
+    from: CoinPaymentPurseId,
+    to: CoinPaymentReceivable,
+    amount: CoinPaymentBalance
+  });
+  var CoinPaymentCreateChequeV1_response = CallResult(Struct({ cheque: CoinPaymentCheque }), CoinPaymentErr);
+  var CoinPaymentDepositV1_start = Struct({ cheque: CoinPaymentCheque });
+  var CoinPaymentDepositV1_receive = CoinPaymentStatus;
+  var CoinPaymentDepositV1_interrupt = CoinPaymentErr;
+  var CoinPaymentRefundV1_start = Struct({ receivable: CoinPaymentReceivable });
+  var CoinPaymentRefundV1_receive = CoinPaymentStatus;
+  var CoinPaymentRefundV1_interrupt = CoinPaymentErr;
+  var CoinPaymentListenForPaymentV1_start = Struct({ receivable: CoinPaymentReceivable });
+  var CoinPaymentListenForPaymentV1_receive = CoinPaymentListenForItem;
+  var CoinPaymentListenForPaymentV1_interrupt = CoinPaymentErr;
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/createTransaction.js
   var CreateTransactionErr = ErrEnum("CreateTransactionErr", {
@@ -1416,9 +1750,9 @@
   var ProductAccountTransaction = GenericTxPayloadV1(ProductAccountId);
   var LegacyTransaction = GenericTxPayloadV1(AccountId);
   var CreateTransactionV1_request = ProductAccountTransaction;
-  var CreateTransactionV1_response = Result2(Bytes2(), CreateTransactionErr);
+  var CreateTransactionV1_response = CallResult(Bytes2(), CreateTransactionErr);
   var CreateTransactionWithLegacyAccountV1_request = LegacyTransaction;
-  var CreateTransactionWithLegacyAccountV1_response = Result2(Bytes2(), CreateTransactionErr);
+  var CreateTransactionWithLegacyAccountV1_response = CallResult(Bytes2(), CreateTransactionErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/deriveEntropy.js
   var DeriveEntropyErr = ErrEnum("DeriveEntropyErr", {
@@ -1426,7 +1760,7 @@
   });
   var Entropy = Bytes2(32);
   var DeriveEntropyV1_request = Bytes2();
-  var DeriveEntropyV1_response = Result2(Entropy, DeriveEntropyErr);
+  var DeriveEntropyV1_response = CallResult(Entropy, DeriveEntropyErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/handshake.js
   var HandshakeErr = ErrEnum("HandshakeErr", {
@@ -1435,7 +1769,7 @@
     Unknown: [GenericErr, "Handshake: unknown error"]
   });
   var HandshakeV1_request = u8;
-  var HandshakeV1_response = Result2(_void, HandshakeErr);
+  var HandshakeV1_response = CallResult(_void, HandshakeErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/localStorage.js
   var StorageErr = ErrEnum("StorageErr", {
@@ -1445,11 +1779,14 @@
   var StorageKey = str;
   var StorageValue = Bytes2();
   var StorageReadV1_request = StorageKey;
-  var StorageReadV1_response = Result2(Option(StorageValue), StorageErr);
+  var StorageReadV1_response = CallResult(Option(StorageValue), StorageErr);
   var StorageWriteV1_request = Tuple(StorageKey, StorageValue);
-  var StorageWriteV1_response = Result2(_void, StorageErr);
+  var StorageWriteV1_response = CallResult(_void, StorageErr);
   var StorageClearV1_request = StorageKey;
-  var StorageClearV1_response = Result2(_void, StorageErr);
+  var StorageClearV1_response = CallResult(_void, StorageErr);
+  var StorageSubscribeV1_start = Struct({ key: StorageKey });
+  var StorageSubscribeV1_receive = Struct({ value: Option(StorageValue) });
+  var StorageSubscribeV1_interrupt = _void;
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/navigation.js
   var NavigateToErr = ErrEnum("NavigateToErr", {
@@ -1457,7 +1794,7 @@
     Unknown: [GenericErr, "Unknown error"]
   });
   var NavigateToV1_request = str;
-  var NavigateToV1_response = Result2(_void, NavigateToErr);
+  var NavigateToV1_response = CallResult(_void, NavigateToErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/notification.js
   var NotificationId = u32;
@@ -1471,14 +1808,14 @@
     Unknown: [GenericErr, "Unknown error"]
   });
   var PushNotificationV1_request = PushNotification;
-  var PushNotificationV1_response = Result2(NotificationId, PushNotificationError2);
+  var PushNotificationV1_response = CallResult(NotificationId, PushNotificationError2);
   var PushNotificationCancelV1_request = NotificationId;
-  var PushNotificationCancelV1_response = Result2(_void, GenericError);
+  var PushNotificationCancelV1_response = CallResult(_void, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/payments.js
   var Sr25519SecretKey = Bytes2(64);
   var PaymentId = str;
-  var CoinPaymentPurseId = u32;
+  var CoinPaymentPurseId2 = u32;
   var PaymentTopUpSource = Enum2({
     // Account of the calling product, addressed by the RFC-0022 selector.
     ProductAccount: DerivationIndex,
@@ -1519,22 +1856,22 @@
     Unknown: [GenericErr, "unknown error"]
   });
   var PaymentBalanceSubscribeV1_start = Struct({
-    purse: Option(CoinPaymentPurseId)
+    purse: Option(CoinPaymentPurseId2)
   });
   var PaymentBalanceSubscribeV1_receive = PaymentBalance;
   var PaymentBalanceSubscribeV1_interrupt = PaymentBalanceErr;
   var PaymentTopUpV1_request = Struct({
-    into: Option(CoinPaymentPurseId),
+    into: Option(CoinPaymentPurseId2),
     amount: u128,
     source: PaymentTopUpSource
   });
-  var PaymentTopUpV1_response = Result2(_void, PaymentTopUpErr);
+  var PaymentTopUpV1_response = CallResult(_void, PaymentTopUpErr);
   var PaymentRequestV1_request = Struct({
-    from: Option(CoinPaymentPurseId),
+    from: Option(CoinPaymentPurseId2),
     amount: u128,
     destination: Bytes2(32)
   });
-  var PaymentRequestV1_response = Result2(PaymentReceipt, PaymentRequestErr);
+  var PaymentRequestV1_response = CallResult(PaymentReceipt, PaymentRequestErr);
   var PaymentStatusSubscribeV1_start = PaymentId;
   var PaymentStatusSubscribeV1_receive = PaymentStatus;
   var PaymentStatusSubscribeV1_interrupt = PaymentStatusErr;
@@ -1549,7 +1886,7 @@
     Unknown: [GenericErr, "Unknown error"]
   });
   var PreimageSubmitV1_request = PreimageValue;
-  var PreimageSubmitV1_response = Result2(PreimageKey, PreimageSubmitErr);
+  var PreimageSubmitV1_response = CallResult(PreimageKey, PreimageSubmitErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/resourceAllocation.js
   var AllocatableResource = Enum2({
@@ -1568,7 +1905,7 @@
     Unknown: [GenericErr, "ResourceAllocation: unknown error"]
   });
   var RequestResourceAllocationV1_request = Vector(AllocatableResource);
-  var RequestResourceAllocationV1_response = Result2(Vector(AllocationOutcome), ResourceAllocationErr);
+  var RequestResourceAllocationV1_response = CallResult(Vector(AllocationOutcome), ResourceAllocationErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/sign.js
   var SigningErr = ErrEnum("SigningErr", {
@@ -1594,9 +1931,9 @@
     payload: RawPayload
   });
   var SignRawV1_request = SigningRawPayload;
-  var SignRawV1_response = Result2(SigningResult, SigningErr);
+  var SignRawV1_response = CallResult(SigningResult, SigningErr);
   var SignRawWithLegacyAccountV1_request = SigningRawPayloadWithoutAccount;
-  var SignRawWithLegacyAccountV1_response = Result2(SigningResult, SigningErr);
+  var SignRawWithLegacyAccountV1_response = CallResult(SigningResult, SigningErr);
   var SigningPayloadPayload = Struct({
     blockHash: Hex(),
     blockNumber: Hex(),
@@ -1623,9 +1960,9 @@
     payload: SigningPayloadPayload
   });
   var SignPayloadV1_request = SigningPayload;
-  var SignPayloadV1_response = Result2(SigningResult, SigningErr);
+  var SignPayloadV1_response = CallResult(SigningResult, SigningErr);
   var SignPayloadWithLegacyAccountV1_request = SigningPayloadWithoutAccount;
-  var SignPayloadWithLegacyAccountV1_response = Result2(SigningResult, SigningErr);
+  var SignPayloadWithLegacyAccountV1_response = CallResult(SigningResult, SigningErr);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/statementStore.js
   var Topic = Bytes2(32);
@@ -1687,11 +2024,22 @@
     Unknown: [GenericErr, "StatementProof: unknown error"]
   });
   var StatementStoreCreateProofV1_request = Tuple(ProductAccountId, Statement);
-  var StatementStoreCreateProofV1_response = Result2(StatementProof, StatementProofErr);
+  var StatementStoreCreateProofV1_response = CallResult(StatementProof, StatementProofErr);
   var StatementStoreCreateProofAuthorizedV1_request = Statement;
-  var StatementStoreCreateProofAuthorizedV1_response = Result2(StatementProof, StatementProofErr);
+  var StatementStoreCreateProofAuthorizedV1_response = CallResult(StatementProof, StatementProofErr);
   var StatementStoreSubmitV1_request = SignedStatement;
-  var StatementStoreSubmitV1_response = Result2(_void, GenericError);
+  var StatementStoreSubmitV1_response = CallResult(_void, GenericError);
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/worker.js
+  var WorkerErr = ErrEnum("WorkerErr", {
+    TooManyOpen: [_void, "Too many open operations"],
+    Unknown: [GenericErr, "Unknown worker operation error"]
+  });
+  var OperationId2 = u32;
+  var WorkerBeginOperationV1_request = Struct({ label: Option(str) });
+  var WorkerBeginOperationV1_response = CallResult(Struct({ id: OperationId2 }), WorkerErr);
+  var WorkerEndOperationV1_request = Struct({ id: OperationId2 });
+  var WorkerEndOperationV1_response = CallResult(_void, WorkerErr);
 
   // node_modules/nanoevents/index.js
   var createNanoEvents = () => ({
@@ -1716,161 +2064,25 @@
   var HANDSHAKE_INTERVAL = 50;
   var HANDSHAKE_TIMEOUT = 1e4;
 
-  // node_modules/@novasamatech/host-api/dist/protocol/v1/chainInteraction.js
-  var BlockHash = Hex();
-  var OperationId = str;
-  var RuntimeApi = Tuple(str, u32);
-  var RuntimeSpec = Struct({
-    specName: str,
-    implName: str,
-    specVersion: u32,
-    implVersion: u32,
-    transactionVersion: Option(u32),
-    apis: Vector(RuntimeApi)
-  });
-  var RuntimeType = Enum2({
-    Valid: RuntimeSpec,
-    Invalid: Struct({ error: str })
-  });
-  var StorageQueryType = Status("Value", "Hash", "ClosestDescendantMerkleValue", "DescendantsValues", "DescendantsHashes");
-  var StorageQueryItem = Struct({
-    key: Hex(),
-    queryType: StorageQueryType
-  });
-  var StorageResultItem = Struct({
-    key: Hex(),
-    value: Nullable(Hex()),
-    hash: Nullable(Hex()),
-    closestDescendantMerkleValue: Nullable(Hex())
-  });
-  var OperationStartedResult = Enum2({
-    Started: Struct({ operationId: OperationId }),
-    LimitReached: _void
-  });
-  var ChainHeadFollowV1_start = Struct({
-    genesisHash: Hex(),
-    withRuntime: bool
-  });
-  var ChainHeadEvent = Enum2({
-    Initialized: Struct({
-      finalizedBlockHashes: Vector(BlockHash),
-      finalizedBlockRuntime: Option(RuntimeType)
-    }),
-    NewBlock: Struct({
-      blockHash: BlockHash,
-      parentBlockHash: BlockHash,
-      newRuntime: Option(RuntimeType)
-    }),
-    BestBlockChanged: Struct({
-      bestBlockHash: BlockHash
-    }),
-    Finalized: Struct({
-      finalizedBlockHashes: Vector(BlockHash),
-      prunedBlockHashes: Vector(BlockHash)
-    }),
-    OperationBodyDone: Struct({
-      operationId: OperationId,
-      value: Vector(Hex())
-    }),
-    OperationCallDone: Struct({
-      operationId: OperationId,
-      output: Hex()
-    }),
-    OperationStorageItems: Struct({
-      operationId: OperationId,
-      items: Vector(StorageResultItem)
-    }),
-    OperationStorageDone: Struct({
-      operationId: OperationId
-    }),
-    OperationWaitingForContinue: Struct({
-      operationId: OperationId
-    }),
-    OperationInaccessible: Struct({
-      operationId: OperationId
-    }),
-    OperationError: Struct({
-      operationId: OperationId,
-      error: str
-    }),
-    Stop: _void
-  });
-  var ChainHeadFollowV1_receive = ChainHeadEvent;
-  var ChainHeadFollowV1_interrupt = _void;
-  var ChainHeadHeaderV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    hash: BlockHash
-  });
-  var ChainHeadHeaderV1_response = Result2(Nullable(Hex()), GenericError);
-  var ChainHeadBodyV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    hash: BlockHash
-  });
-  var ChainHeadBodyV1_response = Result2(OperationStartedResult, GenericError);
-  var ChainHeadStorageV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    hash: BlockHash,
-    items: Vector(StorageQueryItem),
-    childTrie: Nullable(Hex())
-  });
-  var ChainHeadStorageV1_response = Result2(OperationStartedResult, GenericError);
-  var ChainHeadCallV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    hash: BlockHash,
-    function: str,
-    callParameters: Hex()
-  });
-  var ChainHeadCallV1_response = Result2(OperationStartedResult, GenericError);
-  var ChainHeadUnpinV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    hashes: Vector(BlockHash)
-  });
-  var ChainHeadUnpinV1_response = Result2(_void, GenericError);
-  var ChainHeadContinueV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    operationId: OperationId
-  });
-  var ChainHeadContinueV1_response = Result2(_void, GenericError);
-  var ChainHeadStopOperationV1_request = Struct({
-    genesisHash: Hex(),
-    followSubscriptionId: str,
-    operationId: OperationId
-  });
-  var ChainHeadStopOperationV1_response = Result2(_void, GenericError);
-  var ChainSpecGenesisHashV1_request = Hex();
-  var ChainSpecGenesisHashV1_response = Result2(Hex(), GenericError);
-  var ChainSpecChainNameV1_request = Hex();
-  var ChainSpecChainNameV1_response = Result2(str, GenericError);
-  var ChainSpecPropertiesV1_request = Hex();
-  var ChainSpecPropertiesV1_response = Result2(str, GenericError);
-  var TransactionBroadcastV1_request = Struct({
-    genesisHash: Hex(),
-    transaction: Hex()
-  });
-  var TransactionBroadcastV1_response = Result2(Nullable(str), GenericError);
-  var TransactionStopV1_request = Struct({
-    genesisHash: Hex(),
-    operationId: str
-  });
-  var TransactionStopV1_response = Result2(_void, GenericError);
-
   // node_modules/@novasamatech/host-api/dist/protocol/v1/devicePermission.js
   var DevicePermission = Status("Notifications", "Camera", "Microphone", "Bluetooth", "NFC", "Location", "Clipboard", "OpenUrl", "Biometrics");
   var DevicePermissionV1_request = DevicePermission;
-  var DevicePermissionV1_response = Result2(bool, GenericError);
+  var DevicePermissionV1_response = CallResult(bool, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/feature.js
   var Feature = Enum2({
     Chain: Hex()
   });
   var FeatureV1_request = Feature;
-  var FeatureV1_response = Result2(bool, GenericError);
+  var FeatureV1_response = CallResult(bool, GenericError);
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/locale.js
+  var HostLocale = Struct({
+    languageTag: str
+  });
+  var LocaleSubscribeV1_start = _void;
+  var LocaleSubscribeV1_receive = HostLocale;
+  var LocaleSubscribeV1_interrupt = _void;
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/remotePermission.js
   var RemotePermission = Enum2({
@@ -1881,7 +2093,22 @@
     StatementSubmit: _void
   });
   var RemotePermissionV1_request = RemotePermission;
-  var RemotePermissionV1_response = Result2(bool, GenericError);
+  var RemotePermissionV1_response = CallResult(bool, GenericError);
+
+  // node_modules/@novasamatech/host-api/dist/protocol/v1/system.js
+  var HostPlatform = Status("Web", "Android", "Ios", "Desktop", "Cli", "Unknown");
+  var HostInfo = Struct({
+    platform: HostPlatform,
+    name: str,
+    version: str
+  });
+  var HostInfoV1_request = _void;
+  var HostInfoV1_response = CallResult(HostInfo, GenericError);
+  var ProductContext = Struct({
+    productId: str
+  });
+  var GetProductContextV1_request = _void;
+  var GetProductContextV1_response = CallResult(ProductContext, GenericError);
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/theme.js
   var ThemeName = Enum2({
@@ -1909,13 +2136,17 @@
       response: enumFromArg(values, 1)
     };
   };
+  var wrapInterrupts = (values) => Object.fromEntries(Object.entries(values).map(([key, [start, receive, interrupt]]) => [
+    key,
+    [start, receive, interrupt === _void ? interrupt : interruptError(interrupt)]
+  ]));
   var versionedSubscription = (index, values) => {
     return {
       method: "subscribe",
       index,
       start: enumFromArg(values, 0),
       receive: enumFromArg(values, 1),
-      interrupt: enumFromArg(values, 2)
+      interrupt: enumFromArg(wrapInterrupts(values), 2)
     };
   };
   function createIndexer() {
@@ -2101,11 +2332,85 @@
     host_push_notification_cancel: versionedRequest(indexer.request(), {
       v1: [PushNotificationCancelV1_request, PushNotificationCancelV1_response]
     }),
-    // Prefix 28 skips indices 136-163, reserved upstream by the truapi coin-payment
-    // methods this SDK does not implement, so `sign_vrf` lands on its specified
-    // `request_id = 164` (RFC-0023).
-    host_account_sign_vrf: versionedRequest(indexer.request(28), {
+    // RFC 0017 CoinPayment — ids 136-163. Kept in wire order and directly before
+    // `sign_vrf` so the running index fills 136-163 and `sign_vrf` lands on its
+    // specified `request_id = 164` (RFC-0023) without a skip.
+    host_coin_payment_create_purse: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreatePurseV1_request, CoinPaymentCreatePurseV1_response]
+    }),
+    host_coin_payment_query_purse: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentQueryPurseV1_request, CoinPaymentQueryPurseV1_response]
+    }),
+    host_coin_payment_rebalance_purse: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentRebalancePurseV1_start, CoinPaymentRebalancePurseV1_receive, CoinPaymentRebalancePurseV1_interrupt]
+    }),
+    host_coin_payment_delete_purse: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentDeletePurseV1_start, CoinPaymentDeletePurseV1_receive, CoinPaymentDeletePurseV1_interrupt]
+    }),
+    host_coin_payment_create_receivable: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreateReceivableV1_request, CoinPaymentCreateReceivableV1_response]
+    }),
+    host_coin_payment_create_cheque: versionedRequest(indexer.request(), {
+      v1: [CoinPaymentCreateChequeV1_request, CoinPaymentCreateChequeV1_response]
+    }),
+    host_coin_payment_deposit: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentDepositV1_start, CoinPaymentDepositV1_receive, CoinPaymentDepositV1_interrupt]
+    }),
+    host_coin_payment_refund: versionedSubscription(indexer.subscription(), {
+      v1: [CoinPaymentRefundV1_start, CoinPaymentRefundV1_receive, CoinPaymentRefundV1_interrupt]
+    }),
+    host_coin_payment_listen_for_payment: versionedSubscription(indexer.subscription(), {
+      v1: [
+        CoinPaymentListenForPaymentV1_start,
+        CoinPaymentListenForPaymentV1_receive,
+        CoinPaymentListenForPaymentV1_interrupt
+      ]
+    }),
+    host_account_sign_vrf: versionedRequest(indexer.request(), {
       v1: [AccountSignVrfV1_request, AccountSignVrfV1_response]
+    }),
+    // Resolves a logical chain role (relay, asset hub, ...) to its network and
+    // genesis hash. truapi places it at `request_id = 166`, between `sign_vrf`
+    // and the ring-VRF block, so it must keep this position to hold that id.
+    remote_chain_get_chain_info: versionedRequest(indexer.request(), {
+      v1: [ChainInfoV1_request, ChainInfoV1_response]
+    }),
+    // RFC-0024 — explicit ring VRF key management. `create_proof` / `get_alias`
+    // changed shape in place instead, since a key handle is now mandatory there.
+    host_account_register_ring_vrf_key: versionedRequest(indexer.request(), {
+      v1: [AccountRegisterRingVrfKeyV1_request, AccountRegisterRingVrfKeyV1_response]
+    }),
+    host_account_list_ring_vrf_keys: versionedRequest(indexer.request(), {
+      v1: [AccountListRingVrfKeysV1_request, AccountListRingVrfKeysV1_response]
+    }),
+    host_account_ring_vrf_sign: versionedRequest(indexer.request(), {
+      v1: [AccountRingVrfSignV1_request, AccountRingVrfSignV1_response]
+    }),
+    // truapi jumps from the ring-VRF block (…172) straight to request_id 190,
+    // leaving request_ids 174-188 unassigned. The prefix skips that gap so
+    // `get_product_context` lands on its truapi request_id 190.
+    host_get_product_context: versionedRequest(indexer.request(16), {
+      v1: [GetProductContextV1_request, GetProductContextV1_response]
+    }),
+    // truapi request_id 192.
+    host_info: versionedRequest(indexer.request(), {
+      v1: [HostInfoV1_request, HostInfoV1_response]
+    }),
+    // truapi start_id 194.
+    host_locale_subscribe: versionedSubscription(indexer.subscription(), {
+      v1: [LocaleSubscribeV1_start, LocaleSubscribeV1_receive, LocaleSubscribeV1_interrupt]
+    }),
+    // Not in truapi — SDK-only additions from the 0.10.0 release. They sit after
+    // every truapi-defined method so truapi keeps sole ownership of ids 0-197 and
+    // future truapi methods slot in without colliding with these.
+    host_local_storage_subscribe: versionedSubscription(indexer.subscription(), {
+      v1: [StorageSubscribeV1_start, StorageSubscribeV1_receive, StorageSubscribeV1_interrupt]
+    }),
+    host_worker_begin_operation: versionedRequest(indexer.request(), {
+      v1: [WorkerBeginOperationV1_request, WorkerBeginOperationV1_response]
+    }),
+    host_worker_end_operation: versionedRequest(indexer.request(), {
+      v1: [WorkerEndOperationV1_request, WorkerEndOperationV1_response]
     })
   };
 
@@ -2326,6 +2631,11 @@
             transport.postMessage(requestId, responseMessage);
           }, (error) => {
             provider.logger.error(`handleRequest: handler for "${method}" rejected`, error);
+            const failure = enumValue("v1", {
+              [CALL_ERROR_FAILURE]: { tag: "HostFailure", value: { reason: extractErrorMessage(error) } }
+            });
+            const responseMessage = enumValue(responseAction, failure);
+            transport.postMessage(requestId, responseMessage);
           });
         });
       },
@@ -2368,7 +2678,11 @@
               const subscription2 = activeSubscriptions.get(subscriptionKey);
               if (subscription2) {
                 for (const listener2 of subscription2.listeners) {
-                  listener2.call(data.value);
+                  try {
+                    listener2.call(data.value);
+                  } catch (e) {
+                    provider.logger.error(`subscription "${method}" listener threw`, e);
+                  }
                 }
               }
             }
@@ -2742,7 +3056,7 @@
     }
   };
   __publicField5(_CallError, "errorName", "CallError");
-  var CallError = _CallError;
+  var CallError2 = _CallError;
 
   // node_modules/@polkadot-api/substrate-client/dist/internal-utils/noop.js
   var noop3 = () => {
@@ -3267,7 +3581,7 @@
       if (!x)
         throw new BlockHashNotFoundError(hash);
       if (!x.success)
-        throw new CallError(x.error);
+        throw new CallError2(x.error);
       return x.value;
     });
     const finalizedHeight = fnCreator("finalizedHeight")(identity());
@@ -3592,8 +3906,22 @@
   }
 
   // node_modules/@novasamatech/host-container/dist/createContainer.js
-  var UNSUPPORTED_MESSAGE_FORMAT_ERROR = "Unsupported message format";
-  var NOT_IMPLEMENTED = "Not implemented";
+  var MALFORMED_FRAME_REASON = "request did not decode to a supported version";
+  var UNSUPPORTED = enumValue("v1", {
+    [CALL_ERROR_FAILURE]: { tag: "Unsupported" }
+  });
+  var MALFORMED_FRAME = enumValue("v1", {
+    [CALL_ERROR_FAILURE]: {
+      tag: "MalformedFrame",
+      value: { reason: MALFORMED_FRAME_REASON }
+    }
+  });
+  function unsupportedResponse() {
+    return UNSUPPORTED;
+  }
+  function malformedFrameResponse() {
+    return MALFORMED_FRAME;
+  }
   function guardVersion(value, tag, error) {
     if (!value) {
       return err(error);
@@ -3649,8 +3977,8 @@
         };
       };
     }
-    function makeNotImplementedSlot(method, makeError) {
-      const handler = async () => enumValue("v1", resultErr(makeError()));
+    function makeUnsupportedSlot(method) {
+      const handler = async () => unsupportedResponse();
       return makeRequestSlot(method, handler);
     }
     function makeInterruptSlot(method, makeDefaultInterrupt) {
@@ -3663,12 +3991,15 @@
       return { update, makeDefaultInterrupt };
     }
     function makePermissionGatedRequestSlot(method, permissionVariant, makeError) {
-      const defaultHandler = async () => enumValue("v1", resultErr(makeError()));
+      const defaultHandler = async () => unsupportedResponse();
       let current = defaultHandler;
       let version = 0;
       transport.handleRequest(method, async (params) => {
+        if (current === defaultHandler) {
+          return unsupportedResponse();
+        }
         const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue(permissionVariant, void 0)));
-        const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+        const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
           return enumValue("v1", resultErr(makeError()));
         }
@@ -3689,12 +4020,15 @@
       };
     }
     function makeDevicePermissionGatedRequestSlot(method, permissionVariant, makeError) {
-      const defaultHandler = async () => enumValue("v1", resultErr(makeError()));
+      const defaultHandler = async () => unsupportedResponse();
       let current = defaultHandler;
       let version = 0;
       transport.handleRequest(method, async (params) => {
+        if (current === defaultHandler) {
+          return unsupportedResponse();
+        }
         const permissionResponse = await handleDevicePermissionSlot.call(enumValue("v1", permissionVariant));
-        const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+        const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
         if (!permissionGranted) {
           return enumValue("v1", resultErr(makeError()));
         }
@@ -3714,12 +4048,16 @@
         call: (...args) => current(...args)
       };
     }
-    function handleV1Request(slot, makeError, handler) {
+    function handleV1Request(slot, handler) {
       init();
       const version = "v1";
       return slot.update(async (params) => {
-        const error = makeError();
-        return guardVersion(params, version, error).asyncMap(async (p) => await handler(p, { ok: okAsync, err: errAsync })).andThen((r) => r.map((v) => enumValue(version, resultOk(v)))).orElse((r) => ok(enumValue(version, resultErr(r)))).unwrapOr(enumValue(version, resultErr(error)));
+        const parsed = guardVersion(params, version, null);
+        if (parsed.isErr()) {
+          return malformedFrameResponse();
+        }
+        const result = await handler(parsed.value, { ok: okAsync, err: errAsync });
+        return result.match((v) => enumValue(version, resultOk(v)), (e) => enumValue(version, resultErr(e)));
       });
     }
     function handleV1Subscription(slot, handler) {
@@ -3731,134 +4069,183 @@
       };
       return slot.update(slotHandler);
     }
-    const handleGetUserIdSlot = makeNotImplementedSlot("host_get_user_id", () => new GetUserIdErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleRequestLoginSlot = makeNotImplementedSlot("host_request_login", () => new LoginErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountGetSlot = makeNotImplementedSlot("host_account_get", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountGetAliasSlot = makeNotImplementedSlot("host_account_get_alias", () => new GetAliasErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleGetLegacyAccountsSlot = makeNotImplementedSlot("host_get_legacy_accounts", () => new RequestCredentialsErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountCreateProofSlot = makeNotImplementedSlot("host_account_create_proof", () => new CreateProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleAccountSignVrfSlot = makeNotImplementedSlot("host_account_sign_vrf", () => new SignVrfErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleDeriveEntropySlot = makeNotImplementedSlot("host_derive_entropy", () => new DeriveEntropyErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageReadSlot = makeNotImplementedSlot("host_local_storage_read", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageWriteSlot = makeNotImplementedSlot("host_local_storage_write", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleLocalStorageClearSlot = makeNotImplementedSlot("host_local_storage_clear", () => new StorageErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignRawSlot = makeNotImplementedSlot("host_sign_raw", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignPayloadSlot = makeNotImplementedSlot("host_sign_payload", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignRawWithLegacyAccountSlot = makeNotImplementedSlot("host_sign_raw_with_legacy_account", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleSignPayloadWithLegacyAccountSlot = makeNotImplementedSlot("host_sign_payload_with_legacy_account", () => new SigningErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleCreateTransactionSlot = makeNotImplementedSlot("host_create_transaction", () => new CreateTransactionErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleCreateTransactionWithLegacyAccountSlot = makeNotImplementedSlot("host_create_transaction_with_legacy_account", () => new CreateTransactionErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleFeatureSupportedSlot = makeNotImplementedSlot("host_feature_supported", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleDevicePermissionSlot = makeNotImplementedSlot("host_device_permission", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleRemotePermissionSlot = makeNotImplementedSlot("remote_permission", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handlePushNotificationSlot = makeDevicePermissionGatedRequestSlot("host_push_notification", "Notifications", () => new PushNotificationError2.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePushNotificationCancelSlot = makeDevicePermissionGatedRequestSlot("host_push_notification_cancel", "Notifications", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleNavigateToSlot = makeNotImplementedSlot("host_navigate_to", () => new NavigateToErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatCreateRoomSlot = makeNotImplementedSlot("host_chat_create_room", () => new ChatRoomRegistrationErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatBotRegistrationSlot = makeNotImplementedSlot("host_chat_register_bot", () => new ChatBotRegistrationErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleChatPostMessageSlot = makeNotImplementedSlot("host_chat_post_message", () => new ChatMessagePostingErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreSubmitSlot = makePermissionGatedRequestSlot("remote_statement_store_submit", "StatementSubmit", () => new GenericError({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreCreateProofSlot = makeNotImplementedSlot("remote_statement_store_create_proof", () => new StatementProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleStatementStoreCreateProofAuthorizedSlot = makeNotImplementedSlot("remote_statement_store_create_proof_authorized", () => new StatementProofErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePreimageSubmitSlot = makePermissionGatedRequestSlot("remote_preimage_submit", "PreimageSubmit", () => new PreimageSubmitErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePaymentTopUpSlot = makeNotImplementedSlot("host_payment_top_up", () => new PaymentTopUpErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handlePaymentRequestSlot = makeNotImplementedSlot("host_payment_request", () => new PaymentRequestErr.Unknown({ reason: NOT_IMPLEMENTED }));
-    const handleRequestResourceAllocationSlot = makeNotImplementedSlot("host_request_resource_allocation", () => new ResourceAllocationErr.Unknown({ reason: NOT_IMPLEMENTED }));
+    const handleGetProductContextSlot = makeUnsupportedSlot("host_get_product_context");
+    const handleInfoSlot = makeUnsupportedSlot("host_info");
+    const handleGetUserIdSlot = makeUnsupportedSlot("host_get_user_id");
+    const handleRequestLoginSlot = makeUnsupportedSlot("host_request_login");
+    const handleAccountGetSlot = makeUnsupportedSlot("host_account_get");
+    const handleAccountGetAliasSlot = makeUnsupportedSlot("host_account_get_alias");
+    const handleGetLegacyAccountsSlot = makeUnsupportedSlot("host_get_legacy_accounts");
+    const handleAccountCreateProofSlot = makeUnsupportedSlot("host_account_create_proof");
+    const handleAccountSignVrfSlot = makeUnsupportedSlot("host_account_sign_vrf");
+    const handleAccountRegisterRingVrfKeySlot = makeUnsupportedSlot("host_account_register_ring_vrf_key");
+    const handleAccountListRingVrfKeysSlot = makeUnsupportedSlot("host_account_list_ring_vrf_keys");
+    const handleAccountRingVrfSignSlot = makeUnsupportedSlot("host_account_ring_vrf_sign");
+    const handleChainGetChainInfoSlot = makeUnsupportedSlot("remote_chain_get_chain_info");
+    const handleDeriveEntropySlot = makeUnsupportedSlot("host_derive_entropy");
+    const handleLocalStorageReadSlot = makeUnsupportedSlot("host_local_storage_read");
+    const handleLocalStorageWriteSlot = makeUnsupportedSlot("host_local_storage_write");
+    const handleLocalStorageClearSlot = makeUnsupportedSlot("host_local_storage_clear");
+    const handleWorkerBeginOperationSlot = makeUnsupportedSlot("host_worker_begin_operation");
+    const handleWorkerEndOperationSlot = makeUnsupportedSlot("host_worker_end_operation");
+    const handleSignRawSlot = makeUnsupportedSlot("host_sign_raw");
+    const handleSignPayloadSlot = makeUnsupportedSlot("host_sign_payload");
+    const handleSignRawWithLegacyAccountSlot = makeUnsupportedSlot("host_sign_raw_with_legacy_account");
+    const handleSignPayloadWithLegacyAccountSlot = makeUnsupportedSlot("host_sign_payload_with_legacy_account");
+    const handleCreateTransactionSlot = makeUnsupportedSlot("host_create_transaction");
+    const handleCreateTransactionWithLegacyAccountSlot = makeUnsupportedSlot("host_create_transaction_with_legacy_account");
+    const handleFeatureSupportedSlot = makeUnsupportedSlot("host_feature_supported");
+    const handleDevicePermissionSlot = makeUnsupportedSlot("host_device_permission");
+    const handleRemotePermissionSlot = makeUnsupportedSlot("remote_permission");
+    const handlePushNotificationSlot = makeDevicePermissionGatedRequestSlot("host_push_notification", "Notifications", () => new PushNotificationError2.Unknown({ reason: "Notifications permission denied" }));
+    const handlePushNotificationCancelSlot = makeDevicePermissionGatedRequestSlot("host_push_notification_cancel", "Notifications", () => new GenericError({ reason: "Notifications permission denied" }));
+    const handleNavigateToSlot = makeUnsupportedSlot("host_navigate_to");
+    const handleChatCreateRoomSlot = makeUnsupportedSlot("host_chat_create_room");
+    const handleChatBotRegistrationSlot = makeUnsupportedSlot("host_chat_register_bot");
+    const handleChatPostMessageSlot = makeUnsupportedSlot("host_chat_post_message");
+    const handleStatementStoreSubmitSlot = makePermissionGatedRequestSlot("remote_statement_store_submit", "StatementSubmit", () => new GenericError({ reason: "StatementSubmit permission denied" }));
+    const handleStatementStoreCreateProofSlot = makeUnsupportedSlot("remote_statement_store_create_proof");
+    const handleStatementStoreCreateProofAuthorizedSlot = makeUnsupportedSlot("remote_statement_store_create_proof_authorized");
+    const handlePreimageSubmitSlot = makePermissionGatedRequestSlot("remote_preimage_submit", "PreimageSubmit", () => new PreimageSubmitErr.Unknown({ reason: "PreimageSubmit permission denied" }));
+    const handlePaymentTopUpSlot = makeUnsupportedSlot("host_payment_top_up");
+    const handlePaymentRequestSlot = makeUnsupportedSlot("host_payment_request");
+    const handleRequestResourceAllocationSlot = makeUnsupportedSlot("host_request_resource_allocation");
+    const handleCoinPaymentCreatePurseSlot = makeUnsupportedSlot("host_coin_payment_create_purse");
+    const handleCoinPaymentQueryPurseSlot = makeUnsupportedSlot("host_coin_payment_query_purse");
+    const handleCoinPaymentCreateReceivableSlot = makeUnsupportedSlot("host_coin_payment_create_receivable");
+    const handleCoinPaymentCreateChequeSlot = makeUnsupportedSlot("host_coin_payment_create_cheque");
     const handleThemeSubscribeSlot = makeInterruptSlot("host_theme_subscribe", () => enumValue("v1", void 0));
+    const handleLocaleSubscribeSlot = makeInterruptSlot("host_locale_subscribe", () => enumValue("v1", void 0));
+    const handleLocalStorageSubscribeSlot = makeInterruptSlot("host_local_storage_subscribe", () => enumValue("v1", void 0));
     const handleAccountConnectionStatusSubscribeSlot = makeInterruptSlot("host_account_connection_status_subscribe", () => enumValue("v1", void 0));
     const handleChatListSubscribeSlot = makeInterruptSlot("host_chat_list_subscribe", () => enumValue("v1", void 0));
     const handleChatActionSubscribeSlot = makeInterruptSlot("host_chat_action_subscribe", () => enumValue("v1", void 0));
     const handleStatementStoreSubscribeSlot = makeInterruptSlot("remote_statement_store_subscribe", () => enumValue("v1", void 0));
     const handlePreimageLookupSubscribeSlot = makeInterruptSlot("remote_preimage_lookup_subscribe", () => enumValue("v1", void 0));
-    const handlePaymentBalanceSubscribeSlot = makeInterruptSlot("host_payment_balance_subscribe", () => enumValue("v1", new PaymentBalanceErr.Unknown({ reason: NOT_IMPLEMENTED })));
-    const handlePaymentStatusSubscribeSlot = makeInterruptSlot("host_payment_status_subscribe", () => enumValue("v1", new PaymentStatusErr.Unknown({ reason: NOT_IMPLEMENTED })));
+    const handlePaymentBalanceSubscribeSlot = makeInterruptSlot("host_payment_balance_subscribe", () => enumValue("v1", new PaymentBalanceErr.Unknown({ reason: "Not implemented" })));
+    const handlePaymentStatusSubscribeSlot = makeInterruptSlot("host_payment_status_subscribe", () => enumValue("v1", new PaymentStatusErr.Unknown({ reason: "Not implemented" })));
+    const handleCoinPaymentRebalancePurseSlot = makeInterruptSlot("host_coin_payment_rebalance_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentDeletePurseSlot = makeInterruptSlot("host_coin_payment_delete_purse", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentDepositSlot = makeInterruptSlot("host_coin_payment_deposit", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentRefundSlot = makeInterruptSlot("host_coin_payment_refund", () => enumValue("v1", new CoinPaymentErr.Internal()));
+    const handleCoinPaymentListenForPaymentSlot = makeInterruptSlot("host_coin_payment_listen_for_payment", () => enumValue("v1", new CoinPaymentErr.Internal()));
     return {
       handleFeatureSupported(handler) {
-        return handleV1Request(handleFeatureSupportedSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleFeatureSupportedSlot, handler);
       },
       handleDevicePermission(handler) {
-        return handleV1Request(handleDevicePermissionSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleDevicePermissionSlot, handler);
       },
       handlePermission(handler) {
-        return handleV1Request(handleRemotePermissionSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRemotePermissionSlot, handler);
       },
       handlePushNotification(handler) {
-        return handleV1Request(handlePushNotificationSlot, () => new PushNotificationError2.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePushNotificationSlot, handler);
       },
       handlePushNotificationCancel(handler) {
-        return handleV1Request(handlePushNotificationCancelSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePushNotificationCancelSlot, handler);
       },
       handleNavigateTo(handler) {
-        return handleV1Request(handleNavigateToSlot, () => new NavigateToErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleNavigateToSlot, handler);
       },
       handleDeriveEntropy(handler) {
-        return handleV1Request(handleDeriveEntropySlot, () => new DeriveEntropyErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleDeriveEntropySlot, handler);
       },
       handleLocalStorageRead(handler) {
-        return handleV1Request(handleLocalStorageReadSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageReadSlot, handler);
       },
       handleLocalStorageWrite(handler) {
-        return handleV1Request(handleLocalStorageWriteSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageWriteSlot, handler);
       },
       handleLocalStorageClear(handler) {
-        return handleV1Request(handleLocalStorageClearSlot, () => new StorageErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleLocalStorageClearSlot, handler);
+      },
+      handleLocaleSubscribe(handler) {
+        return handleV1Subscription(handleLocaleSubscribeSlot, handler);
       },
       handleThemeSubscribe(handler) {
         return handleV1Subscription(handleThemeSubscribeSlot, handler);
       },
+      handleLocalStorageSubscribe(handler) {
+        return handleV1Subscription(handleLocalStorageSubscribeSlot, handler);
+      },
+      handleWorkerBeginOperation(handler) {
+        return handleV1Request(handleWorkerBeginOperationSlot, handler);
+      },
+      handleWorkerEndOperation(handler) {
+        return handleV1Request(handleWorkerEndOperationSlot, handler);
+      },
+      handleGetProductContext(handler) {
+        return handleV1Request(handleGetProductContextSlot, handler);
+      },
+      handleInfo(handler) {
+        return handleV1Request(handleInfoSlot, handler);
+      },
       handleGetUserId(handler) {
-        return handleV1Request(handleGetUserIdSlot, () => new GetUserIdErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleGetUserIdSlot, handler);
       },
       handleRequestLogin(handler) {
-        return handleV1Request(handleRequestLoginSlot, () => new LoginErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRequestLoginSlot, handler);
       },
       handleAccountConnectionStatusSubscribe(handler) {
         return handleV1Subscription(handleAccountConnectionStatusSubscribeSlot, handler);
       },
       handleAccountGet(handler) {
-        return handleV1Request(handleAccountGetSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountGetSlot, handler);
       },
       handleAccountGetAlias(handler) {
-        return handleV1Request(handleAccountGetAliasSlot, () => new GetAliasErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountGetAliasSlot, handler);
       },
       handleAccountCreateProof(handler) {
-        return handleV1Request(handleAccountCreateProofSlot, () => new CreateProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountCreateProofSlot, handler);
       },
       handleAccountSignVrf(handler) {
-        return handleV1Request(handleAccountSignVrfSlot, () => new SignVrfErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleAccountSignVrfSlot, handler);
+      },
+      handleAccountRegisterRingVrfKey(handler) {
+        return handleV1Request(handleAccountRegisterRingVrfKeySlot, handler);
+      },
+      handleAccountListRingVrfKeys(handler) {
+        return handleV1Request(handleAccountListRingVrfKeysSlot, handler);
+      },
+      handleAccountRingVrfSign(handler) {
+        return handleV1Request(handleAccountRingVrfSignSlot, handler);
+      },
+      handleChainGetChainInfo(handler) {
+        return handleV1Request(handleChainGetChainInfoSlot, handler);
       },
       handleGetLegacyAccounts(handler) {
-        return handleV1Request(handleGetLegacyAccountsSlot, () => new RequestCredentialsErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleGetLegacyAccountsSlot, handler);
       },
       handleCreateTransaction(handler) {
-        return handleV1Request(handleCreateTransactionSlot, () => new CreateTransactionErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleCreateTransactionSlot, handler);
       },
       handleCreateTransactionWithLegacyAccount(handler) {
-        return handleV1Request(handleCreateTransactionWithLegacyAccountSlot, () => new CreateTransactionErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleCreateTransactionWithLegacyAccountSlot, handler);
       },
       handleSignRaw(handler) {
-        return handleV1Request(handleSignRawSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignRawSlot, handler);
       },
       handleSignPayload(handler) {
-        return handleV1Request(handleSignPayloadSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignPayloadSlot, handler);
       },
       handleSignRawWithLegacyAccount(handler) {
-        return handleV1Request(handleSignRawWithLegacyAccountSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignRawWithLegacyAccountSlot, handler);
       },
       handleSignPayloadWithLegacyAccount(handler) {
-        return handleV1Request(handleSignPayloadWithLegacyAccountSlot, () => new SigningErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleSignPayloadWithLegacyAccountSlot, handler);
       },
       handleChatCreateRoom(handler) {
-        return handleV1Request(handleChatCreateRoomSlot, () => new ChatRoomRegistrationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatCreateRoomSlot, handler);
       },
       handleChatBotRegistration(handler) {
-        return handleV1Request(handleChatBotRegistrationSlot, () => new ChatBotRegistrationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatBotRegistrationSlot, handler);
       },
       handleChatListSubscribe(handler) {
         return handleV1Subscription(handleChatListSubscribeSlot, handler);
       },
       handleChatPostMessage(handler) {
-        return handleV1Request(handleChatPostMessageSlot, () => new ChatMessagePostingErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleChatPostMessageSlot, handler);
       },
       handleChatActionSubscribe(handler) {
         return handleV1Subscription(handleChatActionSubscribeSlot, handler);
@@ -3875,34 +4262,61 @@
         return handleV1Subscription(handleStatementStoreSubscribeSlot, handler);
       },
       handleStatementStoreCreateProof(handler) {
-        return handleV1Request(handleStatementStoreCreateProofSlot, () => new StatementProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreCreateProofSlot, handler);
       },
       handleStatementStoreCreateProofAuthorized(handler) {
-        return handleV1Request(handleStatementStoreCreateProofAuthorizedSlot, () => new StatementProofErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreCreateProofAuthorizedSlot, handler);
       },
       handleStatementStoreSubmit(handler) {
-        return handleV1Request(handleStatementStoreSubmitSlot, () => new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleStatementStoreSubmitSlot, handler);
       },
       handlePreimageLookupSubscribe(handler) {
         return handleV1Subscription(handlePreimageLookupSubscribeSlot, handler);
       },
       handlePreimageSubmit(handler) {
-        return handleV1Request(handlePreimageSubmitSlot, () => new PreimageSubmitErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePreimageSubmitSlot, handler);
       },
       handlePaymentBalanceSubscribe(handler) {
         return handleV1Subscription(handlePaymentBalanceSubscribeSlot, handler);
       },
       handlePaymentTopUp(handler) {
-        return handleV1Request(handlePaymentTopUpSlot, () => new PaymentTopUpErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePaymentTopUpSlot, handler);
       },
       handlePaymentRequest(handler) {
-        return handleV1Request(handlePaymentRequestSlot, () => new PaymentRequestErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handlePaymentRequestSlot, handler);
       },
       handlePaymentStatusSubscribe(handler) {
         return handleV1Subscription(handlePaymentStatusSubscribeSlot, handler);
       },
+      handleCoinPaymentCreatePurse(handler) {
+        return handleV1Request(handleCoinPaymentCreatePurseSlot, handler);
+      },
+      handleCoinPaymentQueryPurse(handler) {
+        return handleV1Request(handleCoinPaymentQueryPurseSlot, handler);
+      },
+      handleCoinPaymentRebalancePurse(handler) {
+        return handleV1Subscription(handleCoinPaymentRebalancePurseSlot, handler);
+      },
+      handleCoinPaymentDeletePurse(handler) {
+        return handleV1Subscription(handleCoinPaymentDeletePurseSlot, handler);
+      },
+      handleCoinPaymentCreateReceivable(handler) {
+        return handleV1Request(handleCoinPaymentCreateReceivableSlot, handler);
+      },
+      handleCoinPaymentCreateCheque(handler) {
+        return handleV1Request(handleCoinPaymentCreateChequeSlot, handler);
+      },
+      handleCoinPaymentDeposit(handler) {
+        return handleV1Subscription(handleCoinPaymentDepositSlot, handler);
+      },
+      handleCoinPaymentRefund(handler) {
+        return handleV1Subscription(handleCoinPaymentRefundSlot, handler);
+      },
+      handleCoinPaymentListenForPayment(handler) {
+        return handleV1Subscription(handleCoinPaymentListenForPaymentSlot, handler);
+      },
       handleRequestResourceAllocation(handler) {
-        return handleV1Request(handleRequestResourceAllocationSlot, () => new ResourceAllocationErr.Unknown({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR }), handler);
+        return handleV1Request(handleRequestResourceAllocationSlot, handler);
       },
       // chain interaction
       handleChainConnection(factory) {
@@ -3934,7 +4348,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_header", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -3949,7 +4363,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_body", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -3964,7 +4378,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_storage", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hash, items, childTrie } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -3987,7 +4401,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_call", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const params = message.value;
           if (!manager.hasActiveFollow(params.genesisHash)) {
@@ -4006,7 +4420,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_unpin", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, hashes } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4021,7 +4435,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_continue", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4036,7 +4450,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_head_stop_operation", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!manager.hasActiveFollow(genesisHash)) {
@@ -4051,7 +4465,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_genesis_hash", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4069,7 +4483,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_chain_name", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4087,7 +4501,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_spec_properties", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const genesisHash = message.value;
           const entry = manager.getOrCreateChain(genesisHash);
@@ -4105,11 +4519,11 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_transaction_broadcast", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, transaction: transaction2 } = message.value;
           const permissionResponse = await handleRemotePermissionSlot.call(enumValue("v1", enumValue("ChainSubmit", void 0)));
-          const permissionGranted = isEnumVariant(permissionResponse, "v1") && permissionResponse.value.success === true && permissionResponse.value.value === true;
+          const permissionGranted = isEnumVariant(permissionResponse, "v1") && !isCallErrorFailure(permissionResponse.value) && permissionResponse.value.success === true && permissionResponse.value.value === true;
           if (!permissionGranted) {
             return enumValue("v1", resultErr(new GenericError({ reason: "Permission denied" })));
           }
@@ -4134,7 +4548,7 @@
         }));
         cleanups.push(transport.handleRequest("remote_chain_transaction_stop", async (message) => {
           if (!isEnumVariant(message, "v1")) {
-            return enumValue("v1", resultErr(new GenericError({ reason: UNSUPPORTED_MESSAGE_FORMAT_ERROR })));
+            return MALFORMED_FRAME;
           }
           const { genesisHash, operationId } = message.value;
           if (!liveBroadcasts.delete(`${genesisHash}:${operationId}`)) {
@@ -4185,42 +4599,53 @@
   function isBytes(a) {
     return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array" && "BYTES_PER_ELEMENT" in a && a.BYTES_PER_ELEMENT === 1;
   }
+  var atitle = (title) => title ? `"${title}" ` : "";
   function anumber(n, title = "") {
-    if (typeof n !== "number") {
-      const prefix = title && `"${title}" `;
-      throw new TypeError(`${prefix}expected number, got ${typeof n}`);
-    }
-    if (!Number.isSafeInteger(n) || n < 0) {
-      const prefix = title && `"${title}" `;
-      throw new RangeError(`${prefix}expected integer >= 0, got ${n}`);
-    }
+    if (typeof n !== "number")
+      throw new TypeError(atitle(title) + "expected number, got " + typeof n);
+    if (!Number.isSafeInteger(n) || n < 0)
+      throw new RangeError(atitle(title) + "expected integer >= 0, got " + n);
+    return n;
   }
   function abytes(value, length, title = "") {
+    if (isBytes(value) && (length === void 0 || value.length === length))
+      return value;
+    if (length !== void 0)
+      anumber(length, "length");
     const bytes = isBytes(value);
-    const len = value?.length;
-    const needsLen = length !== void 0;
-    if (!bytes || needsLen && len !== length) {
-      const prefix = title && `"${title}" `;
-      const ofLen = needsLen ? ` of length ${length}` : "";
-      const got = bytes ? `length=${len}` : `type=${typeof value}`;
-      const message = prefix + "expected Uint8Array" + ofLen + ", got " + got;
-      if (!bytes)
-        throw new TypeError(message);
-      throw new RangeError(message);
-    }
-    return value;
+    const ofLen = length !== void 0 ? ` of length ${length}` : "";
+    const got = bytes ? `length=${value.length}` : `type=${typeof value}`;
+    const message = atitle(title) + "expected Uint8Array" + ofLen + ", got " + got;
+    if (!bytes)
+      throw new TypeError(message);
+    throw new RangeError(message);
   }
+  function copyBytes(bytes) {
+    return Uint8Array.from(abytes(bytes));
+  }
+  var aobject = (value, label) => {
+    if (value === null || typeof value !== "object" || Array.isArray(value))
+      throw new TypeError((label === "object" ? "" : `"${label}" `) + "expected object, got type=" + typeof value);
+  };
+  var aopts = (value, label) => {
+    aobject(value, label);
+    const proto = Object.getPrototypeOf(value);
+    if (proto !== Object.prototype && proto !== null)
+      throw new TypeError(`"${label}" expected plain object`);
+    if (Object.hasOwn(value, "__proto__"))
+      throw new TypeError(`"${label}.__proto__" is not allowed`);
+  };
   function aexists(instance, checkFinished = true) {
     if (instance.destroyed)
-      throw new Error("Hash instance has been destroyed");
+      throw new Error("hash was destroyed");
     if (checkFinished && instance.finished)
-      throw new Error("Hash#digest() has already been called");
+      throw new Error("digest() was already called");
   }
   function aoutput(out, instance) {
-    abytes(out, void 0, "digestInto() output");
+    abytes(out, void 0, "output");
     const min = instance.outputLen;
-    if (out.length < min) {
-      throw new RangeError('"digestInto() output" expected to be of length >=' + min);
+    if (!(out.length >= min)) {
+      throw new RangeError('"output" expected length >= ' + min);
     }
   }
   function u322(arr) {
@@ -4243,7 +4668,17 @@
     return arr;
   }
   var swap32IfBE = isLE ? (u) => u : byteSwap32;
+  function checkOpts(defaults, opts, title = "opts") {
+    aopts(defaults, "defaults");
+    if (opts !== void 0)
+      aopts(opts, title);
+    const merged = Object.assign(/* @__PURE__ */ Object.create(null), defaults, opts);
+    return merged;
+  }
   function createHasher(hashCons, info = {}) {
+    if (typeof hashCons !== "function")
+      throw new TypeError('"hashCons" expected function, got type=' + typeof hashCons);
+    info = checkOpts({}, info, "info");
     const hashC = (msg, opts) => hashCons(opts).update(msg).digest();
     const tmp = hashCons(void 0);
     hashC.outputLen = tmp.outputLen;
@@ -4516,13 +4951,8 @@
   ]);
 
   // node_modules/@noble/hashes/_u64.js
-  var U32_MASK64 = /* @__PURE__ */ BigInt(2 ** 32 - 1);
-  var _32n = /* @__PURE__ */ BigInt(32);
-  function fromBig(n, le = false) {
-    if (le)
-      return { h: Number(n & U32_MASK64), l: Number(n >> _32n & U32_MASK64) };
-    return { h: Number(n >> _32n & U32_MASK64) | 0, l: Number(n & U32_MASK64) | 0 };
-  }
+  var fromNumH = (n) => n / 2 ** 32 | 0;
+  var fromNumL = (n) => n >>> 0;
   var rotrSH = (h, l, s) => h >>> s | l << 32 - s;
   var rotrSL = (h, l, s) => h << 32 - s | l >>> s;
   var rotrBH = (h, l, s) => h << 64 - s | l >>> s - 32;
@@ -4562,18 +4992,25 @@
     let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
     let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
     let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
-    let ll = add3L(Al, Bl, Xl);
+    const ll = add3L(Al, Bl, Xl);
     Ah = add3H(ll, Ah, Bh, Xh);
     Al = ll | 0;
-    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
-    ({ Dh, Dl } = { Dh: rotr32H(Dh, Dl), Dl: rotr32L(Dh, Dl) });
+    let xh = Dh ^ Ah, xl = Dl ^ Al;
+    Dh = rotr32H(xh, xl);
+    Dl = rotr32L(xh, xl);
     ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
-    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
-    ({ Bh, Bl } = { Bh: rotrSH(Bh, Bl, 24), Bl: rotrSL(Bh, Bl, 24) });
-    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
-    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
-    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
-    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+    xh = Bh ^ Ch;
+    xl = Bl ^ Cl;
+    Bh = rotrSH(xh, xl, 24);
+    Bl = rotrSL(xh, xl, 24);
+    BBUF[2 * a] = Al;
+    BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl;
+    BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl;
+    BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl;
+    BBUF[2 * d + 1] = Dh;
   }
   function G2b(a, b, c, d, msg, x) {
     const Xl = msg[x], Xh = msg[x + 1];
@@ -4581,23 +5018,30 @@
     let Bl = BBUF[2 * b], Bh = BBUF[2 * b + 1];
     let Cl = BBUF[2 * c], Ch = BBUF[2 * c + 1];
     let Dl = BBUF[2 * d], Dh = BBUF[2 * d + 1];
-    let ll = add3L(Al, Bl, Xl);
+    const ll = add3L(Al, Bl, Xl);
     Ah = add3H(ll, Ah, Bh, Xh);
     Al = ll | 0;
-    ({ Dh, Dl } = { Dh: Dh ^ Ah, Dl: Dl ^ Al });
-    ({ Dh, Dl } = { Dh: rotrSH(Dh, Dl, 16), Dl: rotrSL(Dh, Dl, 16) });
+    let xh = Dh ^ Ah, xl = Dl ^ Al;
+    Dh = rotrSH(xh, xl, 16);
+    Dl = rotrSL(xh, xl, 16);
     ({ h: Ch, l: Cl } = add(Ch, Cl, Dh, Dl));
-    ({ Bh, Bl } = { Bh: Bh ^ Ch, Bl: Bl ^ Cl });
-    ({ Bh, Bl } = { Bh: rotrBH(Bh, Bl, 63), Bl: rotrBL(Bh, Bl, 63) });
-    BBUF[2 * a] = Al, BBUF[2 * a + 1] = Ah;
-    BBUF[2 * b] = Bl, BBUF[2 * b + 1] = Bh;
-    BBUF[2 * c] = Cl, BBUF[2 * c + 1] = Ch;
-    BBUF[2 * d] = Dl, BBUF[2 * d + 1] = Dh;
+    xh = Bh ^ Ch;
+    xl = Bl ^ Cl;
+    Bh = rotrBH(xh, xl, 63);
+    Bl = rotrBL(xh, xl, 63);
+    BBUF[2 * a] = Al;
+    BBUF[2 * a + 1] = Ah;
+    BBUF[2 * b] = Bl;
+    BBUF[2 * b + 1] = Bh;
+    BBUF[2 * c] = Cl;
+    BBUF[2 * c + 1] = Ch;
+    BBUF[2 * d] = Dl;
+    BBUF[2 * d + 1] = Dh;
   }
   function checkBlake2Opts(outputLen, opts = {}, keyLen, saltLen, persLen) {
     anumber(keyLen);
     if (outputLen <= 0 || outputLen > keyLen)
-      throw new Error("outputLen bigger than keyLen");
+      throw new Error('"dkLen" must be 1..' + keyLen + ", got " + outputLen);
     const { key, salt, personalization } = opts;
     if (key !== void 0 && (key.length < 1 || key.length > keyLen))
       throw new Error('"key" expected to be undefined or of length=1..' + keyLen);
@@ -4650,7 +5094,7 @@
           swap32IfBE(data32);
           continue;
         }
-        buffer.set(data.subarray(pos, pos + take), this.pos);
+        buffer.set(pos === 0 && take === len ? data : data.subarray(pos, pos + take), this.pos);
         this.pos += take;
         this.length += take;
         pos += take;
@@ -4660,16 +5104,16 @@
     digestInto(out) {
       aexists(this);
       aoutput(out, this);
+      if (out.byteOffset & 3)
+        throw new RangeError('"output" expected 4-byte aligned byteOffset, got ' + out.byteOffset);
       const { pos, buffer32 } = this;
       this.finished = true;
-      clean(this.buffer.subarray(pos));
+      this.buffer.fill(0, pos);
       swap32IfBE(buffer32);
       this.compress(buffer32, 0, true);
       swap32IfBE(buffer32);
-      if (out.byteOffset & 3)
-        throw new RangeError('"digestInto() output" expected 4-byte aligned byteOffset, got ' + out.byteOffset);
       const state = this.get();
-      const out32 = u322(out);
+      const out32 = out === this.buffer ? buffer32 : u322(out);
       const full = Math.floor(this.outputLen / 4);
       for (let i = 0; i < full; i++)
         out32[i] = swap8IfBE(state[i]);
@@ -4706,6 +5150,7 @@
   };
   var _BLAKE2b = class extends _BLAKE2 {
     constructor(opts = {}) {
+      opts = checkOpts({}, opts);
       const olen = opts.dkLen === void 0 ? 64 : opts.dkLen;
       super(128, olen);
       // Same IV words as SHA-512 / BLAKE2b, encoded as LE u32 low/high halves.
@@ -4735,7 +5180,7 @@
       this.v0l ^= this.outputLen | keyLength << 8 | 1 << 16 | 1 << 24;
       if (salt !== void 0) {
         abytes(salt, void 0, "salt");
-        const slt = u322(salt);
+        const slt = u322(copyBytes(salt));
         this.v4l ^= swap8IfBE(slt[0]);
         this.v4h ^= swap8IfBE(slt[1]);
         this.v5l ^= swap8IfBE(slt[2]);
@@ -4743,7 +5188,7 @@
       }
       if (personalization !== void 0) {
         abytes(personalization, void 0, "personalization");
-        const pers = u322(personalization);
+        const pers = u322(copyBytes(personalization));
         this.v6l ^= swap8IfBE(pers[0]);
         this.v6h ^= swap8IfBE(pers[1]);
         this.v7l ^= swap8IfBE(pers[2]);
@@ -4753,6 +5198,7 @@
         const tmp = new Uint8Array(this.blockLen);
         tmp.set(key);
         this.update(tmp);
+        clean(tmp);
       }
     }
     // prettier-ignore
@@ -4780,9 +5226,28 @@
       this.v7h = v7h | 0;
     }
     compress(msg, offset, isLast) {
-      this.get().forEach((v, i) => BBUF[i] = v);
+      const { v0l, v0h, v1l, v1h, v2l, v2h, v3l, v3h, v4l, v4h, v5l, v5h, v6l, v6h, v7l, v7h } = this;
+      {
+        BBUF[0] = v0l;
+        BBUF[1] = v0h;
+        BBUF[2] = v1l;
+        BBUF[3] = v1h;
+        BBUF[4] = v2l;
+        BBUF[5] = v2h;
+        BBUF[6] = v3l;
+        BBUF[7] = v3h;
+        BBUF[8] = v4l;
+        BBUF[9] = v4h;
+        BBUF[10] = v5l;
+        BBUF[11] = v5h;
+        BBUF[12] = v6l;
+        BBUF[13] = v6h;
+        BBUF[14] = v7l;
+        BBUF[15] = v7h;
+      }
       BBUF.set(B2B_IV, 16);
-      let { h, l } = fromBig(BigInt(this.length));
+      const l = fromNumL(this.length);
+      const h = fromNumH(this.length);
       BBUF[24] = B2B_IV[8] ^ l;
       BBUF[25] = B2B_IV[9] ^ h;
       if (isLast) {
@@ -6092,6 +6557,11 @@
       () => send({ name: { tag: "Default", value: void 0 }, variant: "Dark" })
     );
   });
+  container.handleLocaleSubscribe((_params, send, _interrupt) => {
+    return subscribeNative("localeSubscribe", {}, (result) => {
+      send({ languageTag: result.languageTag });
+    });
+  });
   container.handleRequestLogin((_params, { ok: ok2 }) => {
     return ok2("alreadyConnected");
   });
@@ -6347,6 +6817,27 @@
       () => ok2(void 0),
       (e) => err2(new StorageErr.Unknown({ reason: String(e) }))
     );
+  });
+  container.handleLocalStorageSubscribe(({ key }, send, _interrupt) => {
+    return subscribeNative("localStorageSubscribe", { key }, (result) => {
+      send({ value: result.value != null ? fromHex3(result.value) : void 0 });
+    });
+  });
+  container.handleWorkerBeginOperation(async ({ label }, { ok: ok2, err: err2 }) => {
+    try {
+      const result = await callNative("workerBeginOperation", { label: label ?? void 0 });
+      return ok2({ id: result.id });
+    } catch (e) {
+      return err2(new WorkerErr.Unknown({ reason: String(e) }));
+    }
+  });
+  container.handleWorkerEndOperation(async ({ id: id2 }, { ok: ok2, err: err2 }) => {
+    try {
+      await callNative("workerEndOperation", { id: id2 });
+      return ok2(void 0);
+    } catch (e) {
+      return err2(new WorkerErr.Unknown({ reason: String(e) }));
+    }
   });
   container.handleNavigateTo((destination, { ok: ok2, err: err2 }) => {
     return callNative("navigateTo", { destination }).then(

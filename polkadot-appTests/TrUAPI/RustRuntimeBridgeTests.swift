@@ -393,7 +393,7 @@ struct RustRuntimeBridgeTests {
 
     @Test func confirmationCancellationResolvesFalse() async {
         let presenter = TrUAPIConfirmationPresenter(
-            routerFacade: ProductRoutersFacade.chatExtension()
+            routerFacade: ProductRoutersFacade.worker()
         )
 
         let review = UserConfirmationReview.signRaw(
@@ -409,7 +409,7 @@ struct RustRuntimeBridgeTests {
 
     @Test func productSubtreeConfirmationWithoutPresentationDenies() async {
         let presenter = TrUAPIConfirmationPresenter(
-            routerFacade: ProductRoutersFacade.chatExtension()
+            routerFacade: ProductRoutersFacade.worker()
         )
 
         let verdict = await presenter.confirm(

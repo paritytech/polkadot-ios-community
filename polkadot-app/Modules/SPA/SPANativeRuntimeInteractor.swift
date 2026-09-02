@@ -16,6 +16,12 @@ final class SPANativeRuntimeInteractor {
     private let logger: LoggerProtocol
     private let productRepository: AnyDataProviderRepository<Product>
     private let chatProviderFactory: ChatContactDataProviderMaking
+    /// Keeps the product's worker alive while the screen is open: acquired in
+    /// `setup`, released on deinit.
+    private let workerManager: ProductWorkerManaging
+    private let workerProductId: ProductId
+    private var workerToken: ProductWorkerToken?
+    private var workerTask: Task<Void, Never>?
 
     private var containerBridge: ContainerBridge?
     private var jsEngine: JSEngineProtocol?
@@ -36,7 +42,9 @@ final class SPANativeRuntimeInteractor {
         configuration: SPAConfiguration,
         logger: LoggerProtocol,
         productRepository: AnyDataProviderRepository<Product>,
-        chatProviderFactory: ChatContactDataProviderMaking
+        chatProviderFactory: ChatContactDataProviderMaking,
+        workerManager: ProductWorkerManaging,
+        workerProductId: ProductId
     ) {
         self.nativeApi = nativeApi
         self.scriptsFactory = scriptsFactory
@@ -47,12 +55,16 @@ final class SPANativeRuntimeInteractor {
         self.logger = logger
         self.productRepository = productRepository
         self.chatProviderFactory = chatProviderFactory
+        self.workerManager = workerManager
+        self.workerProductId = workerProductId
     }
 
     deinit {
         setupTask?.cancel()
         openChatTask?.cancel()
         progressTask?.cancel()
+        workerTask?.cancel()
+        workerToken?.unlock()
 
         engineMonitor?.stop()
 
@@ -66,6 +78,7 @@ final class SPANativeRuntimeInteractor {
 extension SPANativeRuntimeInteractor: SPAInteractorInputProtocol {
     func setup(engine: JSEngineProtocol) {
         jsEngine = engine
+        acquireWorker()
         setupTask = Task { [weak self] in
             await self?.performSetup(engine: engine)
         }
@@ -115,6 +128,21 @@ extension SPANativeRuntimeInteractor: SPAInteractorInputProtocol {
 }
 
 private extension SPANativeRuntimeInteractor {
+    /// Holds the worker for the screen's lifetime. Acquire waits for the boot, so
+    /// if the screen is torn down first the token is released instead of leaked.
+    func acquireWorker() {
+        workerTask = Task { [weak self, workerManager, workerProductId] in
+            let lease = await workerManager.acquire(productId: workerProductId)
+
+            guard let self, !Task.isCancelled else {
+                lease.token.unlock()
+                return
+            }
+
+            workerToken = lease.token
+        }
+    }
+
     func enableProduct() async throws -> ChatExtension.Id {
         let product = Product(
             id: configuration.page.host.toDotDomain(),
