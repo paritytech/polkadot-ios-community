@@ -304,6 +304,7 @@ private extension AssetDetailsPresenter {
 
             let coinDetails = coins
                 .sorted { $0.coin.derivationIndex < $1.coin.derivationIndex }
+                .filter { !$0.state.handedOff && !$0.state.isConsumed && !$0.state.isMintingFailed }
                 .map { tracked in
                     let coin = tracked.coin
                     let state = tracked.state
@@ -327,6 +328,7 @@ private extension AssetDetailsPresenter {
 
             let voucherDetails = vouchers
                 .sorted { $0.voucher.derivationIndex < $1.voucher.derivationIndex }
+                .filter { !$0.state.handedOff && !$0.state.isConsumed && !$0.state.isMintingFailed }
                 .map { tracked in
                     let voucher = tracked.voucher
                     let stateString: String =
