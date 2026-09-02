@@ -154,7 +154,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Unsupported message content. Please, update the app"
+            "value" : "New message"
           }
         }
       }
