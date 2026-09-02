@@ -1,897 +1,1366 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "allowance.prompt.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ Requests Resource Allocation"
+  "sourceLanguage": "en",
+  "strings": {
+    "allowance.prompt.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ Requests Resource Allocation"
           }
-        }
-      }
-    },
-    "allowance.resource.autoSigning" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Auto-signing"
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ solicita asignación de recursos"
           }
         }
       }
     },
-    "allowance.resource.bulletIn" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bulletin"
+    "allowance.resource.autoSigning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-signing"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firma automática"
+          }
         }
       }
     },
-    "allowance.resource.smartContract" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Smart Contract"
+    "allowance.resource.bulletIn": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulletin"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulletin"
           }
         }
       }
     },
-    "allowance.resource.statementStore" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Statement Store"
+    "allowance.resource.smartContract": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smart Contract"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contrato inteligente"
+          }
         }
       }
     },
-    "app.permission.account.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Account access"
+    "allowance.resource.statementStore": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement Store"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement Store"
           }
         }
       }
     },
-    "app.permission.balance.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Balance"
+    "app.permission.account.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account access"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso a la cuenta"
+          }
         }
       }
     },
-    "app.permission.capability.biometrics" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biometrics"
+    "app.permission.balance.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saldo"
+          }
         }
       }
     },
-    "app.permission.capability.bluetooth" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bluetooth"
+    "app.permission.capability.biometrics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrics"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datos biométricos"
           }
         }
       }
     },
-    "app.permission.capability.camera" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera"
+    "app.permission.capability.bluetooth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth"
+          }
         }
       }
     },
-    "app.permission.capability.clipboard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clipboard"
+    "app.permission.capability.camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámara"
           }
         }
       }
     },
-    "app.permission.capability.location" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Location"
+    "app.permission.capability.clipboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipboard"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portapapeles"
+          }
         }
       }
     },
-    "app.permission.capability.microphone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone"
+    "app.permission.capability.location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ubicación"
+          }
         }
       }
     },
-    "app.permission.capability.nfc" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "NFC"
+    "app.permission.capability.microphone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Micrófono"
           }
         }
       }
     },
-    "app.permission.capability.notifications" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
+    "app.permission.capability.nfc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFC"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFC"
+          }
         }
       }
     },
-    "app.permission.capability.openUrl" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "External links"
+    "app.permission.capability.notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notificaciones"
           }
         }
       }
     },
-    "app.permission.chainSubmit.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chain transactions"
+    "app.permission.capability.openUrl": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "External links"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enlaces externos"
+          }
         }
       }
     },
-    "app.permission.network.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Network access"
+    "app.permission.chainSubmit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chain transactions"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transacciones en la cadena"
+          }
         }
       }
     },
-    "app.permission.preimageSubmit.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preimage submission"
+    "app.permission.network.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network access"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso a la red"
           }
         }
       }
     },
-    "app.permission.statementSubmit.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Statement submission"
+    "app.permission.preimageSubmit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preimage submission"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envío de preimagen"
+          }
         }
       }
     },
-    "app.permission.userIdentity.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "User identity"
+    "app.permission.statementSubmit.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement submission"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envío de statements"
           }
         }
       }
     },
-    "app.permission.webRtc.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WebRTC"
+    "app.permission.userIdentity.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User identity"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Identidad del usuario"
+          }
         }
       }
     },
-    "createProof.body.context" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Context: %1$(context)@"
+    "app.permission.webRtc.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WebRTC"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WebRTC"
+          }
         }
       }
     },
-    "createProof.body.message" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Message: %1$(message)@"
+    "createProof.body.context": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Context: %1$(context)@"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contexto: %1$(context)@"
           }
         }
       }
     },
-    "createProof.body.onBehalfOf" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "On behalf of: %1$(targetProductId)@"
+    "createProof.body.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message: %1$(message)@"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje: %1$(message)@"
+          }
         }
       }
     },
-    "createProof.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ wants to execute anonymous action on behalf of %2$(targetProductId)@"
+    "createProof.body.onBehalfOf": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On behalf of: %1$(targetProductId)@"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En nombre de: %1$(targetProductId)@"
           }
         }
       }
     },
-    "createProof.title.unknownCaller" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A connected app requests a personhood proof"
+    "createProof.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ wants to execute anonymous action on behalf of %2$(targetProductId)@"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ quiere ejecutar una acción anónima en nombre de %2$(targetProductId)@"
+          }
         }
       }
     },
-    "paymentRequest.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Product %1$(productId)@ requests payment"
+    "createProof.title.unknownCaller": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A connected app requests a personhood proof"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app conectada solicita una prueba de persona real"
+          }
         }
       }
     },
-    "permission.action.allowAlways" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow Always"
+    "paymentRequest.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Product %1$(productId)@ requests payment"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El producto %1$(productId)@ solicita un pago"
           }
         }
       }
     },
-    "permission.action.allowOnce" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Allow Once"
+    "permission.action.allowAlways": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Always"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir siempre"
+          }
         }
       }
     },
-    "permission.action.deny" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Don't Allow"
+    "permission.action.allowOnce": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow Once"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permitir una vez"
           }
         }
       }
     },
-    "permission.body.accountAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Account access is required to interact with %1$(targetProductId)@."
+    "permission.action.deny": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Don't Allow"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No permitir"
+          }
         }
       }
     },
-    "permission.body.balanceAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Access to your balance information."
+    "permission.body.accountAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account access is required to interact with %1$(targetProductId)@."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a la cuenta para interactuar con %1$(targetProductId)@."
+          }
         }
       }
     },
-    "permission.body.chainSubmit" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chain submission access is required to broadcast transactions."
+    "permission.body.balanceAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access to your balance information."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso a la información de tu saldo."
           }
         }
       }
     },
-    "permission.body.manageInSettingsHint" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You can manage this later in Settings."
+    "permission.body.chainSubmit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chain submission access is required to broadcast transactions."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso de envío a la cadena para transmitir transacciones."
+          }
         }
       }
     },
-    "permission.body.networkAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Network access is required to connect to %1$(domain)@."
+    "permission.body.manageInSettingsHint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can manage this later in Settings."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puedes administrar esto más tarde en Configuración."
+          }
         }
       }
     },
-    "permission.body.preimageSubmit" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preimage submission access is required to submit preimage data."
+    "permission.body.networkAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network access is required to connect to %1$(domain)@."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a la red para conectarse a %1$(domain)@."
           }
         }
       }
     },
-    "permission.body.statementSubmit" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Statement submission access is required to publish statements."
+    "permission.body.preimageSubmit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preimage submission access is required to submit preimage data."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso de envío de preimagen para enviar datos de preimagen."
+          }
         }
       }
     },
-    "permission.body.userIdentityAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Access to your primary username is required for identification."
+    "permission.body.statementSubmit": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement submission access is required to publish statements."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso de envío de statements para publicarlos."
+          }
         }
       }
     },
-    "permission.body.webRtc" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "WebRTC access is required for peer-to-peer communication."
+    "permission.body.userIdentityAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access to your primary username is required for identification."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a tu nombre de usuario principal para identificarte."
           }
         }
       }
     },
-    "permission.capability.biometrics" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biometrics"
+    "permission.body.webRtc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WebRTC access is required for peer-to-peer communication."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a WebRTC para la comunicación entre pares."
+          }
         }
       }
     },
-    "permission.capability.bluetooth" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bluetooth"
+    "permission.capability.biometrics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometrics"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "los datos biométricos"
           }
         }
       }
     },
-    "permission.capability.camera" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the camera"
+    "permission.capability.bluetooth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth"
+          }
         }
       }
     },
-    "permission.capability.clipboard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the clipboard"
+    "permission.capability.camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the camera"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la cámara"
+          }
         }
       }
     },
-    "permission.capability.description.biometrics" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Biometric access is required for authentication."
+    "permission.capability.clipboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the clipboard"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el portapapeles"
           }
         }
       }
     },
-    "permission.capability.description.bluetooth" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bluetooth access is required to connect to nearby devices."
+    "permission.capability.description.biometrics": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biometric access is required for authentication."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso biométrico para la autenticación."
+          }
         }
       }
     },
-    "permission.capability.description.camera" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camera access is required to take photos."
+    "permission.capability.description.bluetooth": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth access is required to connect to nearby devices."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a Bluetooth para conectarse a dispositivos cercanos."
           }
         }
       }
     },
-    "permission.capability.description.clipboard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Clipboard access is required to read copied content."
+    "permission.capability.description.camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera access is required to take photos."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a la cámara para tomar fotos."
+          }
         }
       }
     },
-    "permission.capability.description.location" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Location access is required to determine your position."
+    "permission.capability.description.clipboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clipboard access is required to read copied content."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso al portapapeles para leer el contenido copiado."
+          }
         }
       }
     },
-    "permission.capability.description.microphone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone access is required to record audio."
+    "permission.capability.description.location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location access is required to determine your position."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a la ubicación para determinar tu posición."
           }
         }
       }
     },
-    "permission.capability.description.nfc" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "NFC access is required to read tags."
+    "permission.capability.description.microphone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Microphone access is required to record audio."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso al micrófono para grabar audio."
+          }
         }
       }
     },
-    "permission.capability.description.notifications" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notification access is required to send alerts."
+    "permission.capability.description.nfc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFC access is required to read tags."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a NFC para leer etiquetas."
           }
         }
       }
     },
-    "permission.capability.description.openUrl" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "URL opening access is required to open links in the system browser."
+    "permission.capability.description.notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification access is required to send alerts."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso a las notificaciones para enviar alertas."
+          }
         }
       }
     },
-    "permission.capability.location" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Location"
+    "permission.capability.description.openUrl": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL opening access is required to open links in the system browser."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se requiere acceso para abrir enlaces en el navegador del sistema."
+          }
         }
       }
     },
-    "permission.capability.microphone" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "the microphone"
+    "permission.capability.location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tu ubicación"
           }
         }
       }
     },
-    "permission.capability.nfc" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "NFC"
+    "permission.capability.microphone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "the microphone"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el micrófono"
+          }
         }
       }
     },
-    "permission.capability.notifications" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
+    "permission.capability.nfc": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFC"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NFC"
           }
         }
       }
     },
-    "permission.capability.openUrl" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open URLs"
+    "permission.capability.notifications": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "las notificaciones"
+          }
         }
       }
     },
-    "permission.title.accountAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ would like to access account data"
+    "permission.capability.openUrl": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open URLs"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "los enlaces externos"
+          }
         }
       }
     },
-    "permission.title.deviceCapability" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ would like to access %2$(capability)@"
+    "permission.title.accountAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ would like to access account data"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ quiere acceder a los datos de tu cuenta"
           }
         }
       }
     },
-    "permission.title.networkAccess" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ would like to access the network"
+    "permission.title.deviceCapability": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ would like to access %2$(capability)@"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ quiere acceder a %2$(capability)@"
+          }
         }
       }
     },
-    "permission.title.remote" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ requests permission"
+    "permission.title.networkAccess": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ would like to access the network"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ quiere acceder a la red"
           }
         }
       }
     },
-    "product.browser.accessibility.minimize" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Minimize"
+    "permission.title.remote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ requests permission"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ solicita permiso"
+          }
         }
       }
     },
-    "product.browser.accessibility.more" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "More"
+    "product.browser.accessibility.minimize": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimize"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Minimizar"
+          }
         }
       }
     },
-    "product.tabs.accessibility.openApps" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open apps, %lld"
+    "product.browser.accessibility.more": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más"
           }
         }
       }
     },
-    "product.tabs.accessibility.scanner" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "QR scanner"
+    "product.tabs.accessibility.openApps": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open apps, %lld"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps abiertas, %lld"
+          }
         }
       }
     },
-    "product.tabs.notAvailable" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not available"
+    "product.tabs.accessibility.scanner": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "QR scanner"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escáner de QR"
           }
         }
       }
     },
-    "signVrf.body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that %2$(productId)@ can verify. It cannot move your assets or grant spending permission."
+    "product.tabs.notAvailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not available"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No disponible"
+          }
         }
       }
     },
-    "signVrf.body.unknownCaller" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that the requesting app can verify. It cannot move your assets or grant spending permission."
+    "signVrf.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that %2$(productId)@ can verify. It cannot move your assets or grant spending permission."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto generará aleatoriedad criptográfica con el propósito de %1$(transcriptLabel)@ que %2$(productId)@ puede verificar. No puede mover tus activos ni otorgar permiso de gasto."
+          }
         }
       }
     },
-    "signVrf.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ is requesting verifiable randomness"
+    "signVrf.body.unknownCaller": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will generate cryptographic randomness for %1$(transcriptLabel)@ purpose that the requesting app can verify. It cannot move your assets or grant spending permission."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto generará aleatoriedad criptográfica con el propósito de %1$(transcriptLabel)@ que la app solicitante puede verificar. No puede mover tus activos ni otorgar permiso de gasto."
           }
         }
       }
     },
-    "signVrf.title.unknownCaller" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A connected app is requesting verifiable randomness"
+    "signVrf.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ is requesting verifiable randomness"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ solicita aleatoriedad verificable"
+          }
         }
       }
     },
-    "statementSign.body" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$(productId)@ wants to sign statement for later submission."
+    "signVrf.title.unknownCaller": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A connected app is requesting verifiable randomness"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una app conectada solicita aleatoriedad verificable"
           }
         }
       }
     },
-    "statementSign.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Statement Signature"
+    "statementSign.body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ wants to sign statement for later submission."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$(productId)@ quiere firmar un statement para enviarlo después."
+          }
         }
       }
     },
-    "topUp.amountDetectionFailedWarning" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not verify the amount on-chain. Proceed only if you trust the sender."
+    "statementSign.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statement Signature"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firma de statement"
+          }
         }
       }
     },
-    "topUp.amountMismatchWarning" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The detected amount differs from the amount stated by the product."
+    "topUp.amountDetectionFailedWarning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not verify the amount on-chain. Proceed only if you trust the sender."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo verificar el monto en la cadena. Continúa solo si confías en quien envía."
           }
         }
       }
     },
-    "topUp.claim" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accept Funds"
+    "topUp.amountMismatchWarning": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The detected amount differs from the amount stated by the product."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El monto detectado difiere del monto indicado por el producto."
+          }
         }
       }
     },
-    "topUp.errorMessage" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to move coins into the user's coin set"
+    "topUp.claim": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accept Funds"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar fondos"
+          }
         }
       }
     },
-    "topUp.errorTitle" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to Accept Funds from %1$(product)@"
+    "topUp.errorMessage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to move coins into the user's coin set"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron mover las monedas al conjunto de monedas del usuario"
           }
         }
       }
     },
-    "topUp.mismatchTitle" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Accepted funds from %1$(product)@"
+    "topUp.errorTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to Accept Funds from %1$(product)@"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron aceptar los fondos de %1$(product)@"
+          }
         }
       }
     },
-    "topUp.resolve.error" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Can not resolve Topup"
+    "topUp.mismatchTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accepted funds from %1$(product)@"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fondos aceptados de %1$(product)@"
+          }
         }
       }
     },
-    "topUp.title" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Top up from %1$(productId)@"
+    "topUp.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top up from %1$(productId)@"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recarga desde %1$(productId)@"
           }
         }
       }
     }
   },
-  "version" : "1.1"
+  "version": "1.1"
 }
