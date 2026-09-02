@@ -17,7 +17,7 @@ public struct Voucher: Equatable, CoinageDerivable {
 
     public var recycler: Recycler? { remoteState.recycler }
 
-    public enum OnChainState: Equatable {
+    public enum OnChainState: Equatable, Sendable {
         case unlocated
         case onboarding
         case inRecycler(Recycler)
@@ -39,7 +39,7 @@ public struct Voucher: Equatable, CoinageDerivable {
         }
     }
 
-    public struct Recycler: Equatable {
+    public struct Recycler: Equatable, Sendable {
         public let index: UInt32
 
         public init(index: UInt32) {
