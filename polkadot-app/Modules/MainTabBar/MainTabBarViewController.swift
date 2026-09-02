@@ -380,7 +380,10 @@ private extension MainTabBarViewController {
                 return
             }
 
-            view.controller.modalPresentationStyle = .fullScreen
+            view.controller.modalPresentationStyle = .pageSheet
+            view.controller.sheetPresentationController?.detents = [
+                .custom { $0.maximumDetentValue * 0.92 }
+            ]
 
             let host = UIWindow.keyWindow?.topmostViewController ?? self
             host.present(view.controller, animated: true)

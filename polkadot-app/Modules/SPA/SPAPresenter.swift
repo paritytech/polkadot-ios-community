@@ -1,6 +1,7 @@
 import Foundation
 import Products
 import UIKit
+import UIKitExt
 
 final class SPAPresenter {
     weak var view: SPAViewProtocol?
@@ -69,12 +70,14 @@ extension SPAPresenter: SPAPresenterProtocol {
     }
 
     func didTapClose() {
-        #if FEATURE_PRODUCTS
-            guard let browserTabId = configuration.browserTabId else { return }
-            wireframe.close(tabId: browserTabId)
-        #else
-            wireframe.dismissProduct(from: view)
-        #endif
+        guard let browserTabId = configuration.browserTabId else { return }
+
+        wireframe.close(tabId: browserTabId)
+    }
+
+    func didTapRetry() {
+        view?.showLoading()
+        interactor.retry()
     }
 
     func hasChatEntry() -> Bool {
@@ -118,13 +121,12 @@ extension SPAPresenter: SPAInteractorOutputProtocol {
         view?.updateLoadProgress(progress)
     }
 
-    func didFail(error _: Error) {
-        view?.hideLoading()
-        wireframe.presentRequestStatus(on: view) { [weak self] in
-            Task { @MainActor in
-                self?.view?.showLoading()
-                self?.interactor.retry()
-            }
-        }
+    func didFail(error: Error) {
+        let content = wireframe.errorContent(from: error) ?? ErrorContent(
+            title: String(localized: .Common.error),
+            message: String(localized: .Common.errorMessage)
+        )
+
+        view?.showLoadFailure(content)
     }
 }

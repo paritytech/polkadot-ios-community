@@ -9,6 +9,7 @@ protocol SPAViewProtocol: ControllerBackedProtocol {
     func reload()
     func showLoading()
     func hideLoading()
+    func showLoadFailure(_ content: ErrorContent)
     func updateLoadProgress(_ progress: DotNsLoadProgress)
 }
 
@@ -18,6 +19,7 @@ protocol SPAPresenterProtocol: AnyObject {
     func didTapMoreButton()
     func didTapMinimize()
     func didTapClose()
+    func didTapRetry()
     func didInterceptNavigation(to url: URL)
     func didUpdateWebViewTitle(_ title: String)
     func hasChatEntry() -> Bool
@@ -42,7 +44,7 @@ protocol SPAInteractorOutputProtocol: AnyObject {
 }
 
 @MainActor
-protocol SPAWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryable {
+protocol SPAWireframeProtocol: AlertPresentable, ErrorPresentable {
     func showProductSPA(from view: ControllerBackedProtocol?, productHost: ProductHost)
     func showMoreActions(
         from view: ControllerBackedProtocol?,
@@ -58,8 +60,4 @@ protocol SPAWireframeProtocol: AlertPresentable, ErrorPresentable, CommonRetryab
 
     func minimize()
     func close(tabId: UUID)
-
-    #if !FEATURE_PRODUCTS
-        func dismissProduct(from view: ControllerBackedProtocol?)
-    #endif
 }

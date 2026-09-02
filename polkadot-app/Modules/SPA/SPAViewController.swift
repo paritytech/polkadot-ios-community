@@ -1,6 +1,9 @@
+import DesignSystem
 import FoundationExt
+import PolkadotUI
 import Products
 import UIKit
+import UIKitExt
 import WebKit
 
 final class SPAViewController: UIViewController, ViewHolder {
@@ -15,7 +18,12 @@ final class SPAViewController: UIViewController, ViewHolder {
 
     private var titleObservation: NSKeyValueObservation?
     private var didSetupWebViewLayout = false
-    private var chromeCollapser: BrowserChromeCollapser?
+    private var loadFailure: ErrorContent?
+    private var loadingStartedAt: Date?
+    private var pendingFailureTask: Task<Void, Never>?
+    #if FEATURE_PRODUCTS
+        private var chromeCollapser: BrowserChromeCollapser?
+    #endif
 
     init(
         presenter: SPAPresenterProtocol,
@@ -57,10 +65,12 @@ final class SPAViewController: UIViewController, ViewHolder {
         setupTitleObservation()
         setupJSEngine()
 
-        if configuration.isBrowserTab {
-            setupBrowserTabActions()
-            setupChromeCollapse()
-        }
+        #if FEATURE_PRODUCTS
+            if configuration.isBrowserTab {
+                setupBrowserTabActions()
+                setupChromeCollapse()
+            }
+        #endif
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -69,14 +79,43 @@ final class SPAViewController: UIViewController, ViewHolder {
         setupWebViewLayout()
     }
 
+    override func updateContentUnavailableConfiguration(
+        using _: UIContentUnavailableConfigurationState
+    ) {
+        guard let loadFailure else {
+            contentUnavailableConfiguration = nil
+            return
+        }
+
+        contentUnavailableConfiguration = UIContentUnavailableConfiguration.titleSubtitle(
+            with: loadFailure.title,
+            subtitle: loadFailure.message,
+            actionTitle: String(localized: .Common.retry)
+        ) { [weak self] in
+            self?.presenter.didTapRetry()
+        }
+    }
+
     deinit {
         titleObservation?.invalidate()
+        pendingFailureTask?.cancel()
     }
 }
 
 // MARK: - Private
 
 private extension SPAViewController {
+    enum Constants {
+        static let minimumLoadingDuration: TimeInterval = 0.5
+    }
+
+    func display(loadFailure content: ErrorContent) {
+        rootView.activityIndicatorView.stopAnimating()
+
+        loadFailure = content
+        setNeedsUpdateContentUnavailableConfiguration()
+    }
+
     func setupJSEngine() {
         let navigationHandler: SPANavigationDecisionHandling =
             switch configuration.contentSource {
@@ -141,10 +180,6 @@ private extension SPAViewController {
 
         if configuration.isBrowserTab {
             rootView.setupBrowserTabLayout()
-
-            #if !FEATURE_PRODUCTS
-                additionalSafeAreaInsets.top = rootView.topChromeHeight
-            #endif
         } else if configuration.isRootScreen {
             rootView.setupRootLayout()
         } else {
@@ -152,76 +187,81 @@ private extension SPAViewController {
         }
     }
 
-    func setupBrowserTabActions() {
-        rootView.minimizeButton.addTarget(self, action: #selector(onMinimizeTapped), for: .touchUpInside)
-        rootView.moreButton.showsMenuAsPrimaryAction = true
-        rootView.moreButton.menu = UIMenu(children: [
-            UIDeferredMenuElement.uncached { [weak self] completion in
-                completion(self?.makeMoreMenuElements() ?? [])
+    #if FEATURE_PRODUCTS
+        func setupBrowserTabActions() {
+            rootView.minimizeButton.addTarget(self, action: #selector(onMinimizeTapped), for: .touchUpInside)
+            rootView.moreButton.showsMenuAsPrimaryAction = true
+            rootView.moreButton.menu = UIMenu(children: [
+                UIDeferredMenuElement.uncached { [weak self] completion in
+                    completion(self?.makeMoreMenuElements() ?? [])
+                }
+            ])
+        }
+
+        func makeMoreMenuElements() -> [UIMenuElement] {
+            var elements: [UIMenuElement] = []
+
+            if presenter.hasChatEntry() {
+                elements.append(UIAction(
+                    title: String(localized: .spaActionOpenChat),
+                    image: UIImage(systemName: "bubble.left")
+                ) { [weak self] _ in
+                    self?.presenter.didTapOpenChat()
+                })
             }
-        ])
-    }
 
-    func makeMoreMenuElements() -> [UIMenuElement] {
-        var elements: [UIMenuElement] = []
-
-        if presenter.hasChatEntry() {
             elements.append(UIAction(
-                title: String(localized: .spaActionOpenChat),
-                image: UIImage(systemName: "bubble.left")
+                title: String(localized: .spaActionRefresh),
+                image: UIImage(systemName: "arrow.clockwise")
             ) { [weak self] _ in
-                self?.presenter.didTapOpenChat()
+                self?.reload()
             })
+
+            elements.append(UIAction(
+                title: String(localized: .spaActionShare),
+                image: UIImage(systemName: "square.and.arrow.up")
+            ) { [weak self] _ in
+                self?.presenter.didTapShare()
+            })
+
+            elements.append(UIAction(
+                title: String(localized: .Common.close),
+                image: UIImage(systemName: "xmark"),
+                attributes: .destructive
+            ) { [weak self] _ in
+                self?.presenter.didTapClose()
+            })
+
+            return elements
         }
 
-        elements.append(UIAction(
-            title: String(localized: .spaActionRefresh),
-            image: UIImage(systemName: "arrow.clockwise")
-        ) { [weak self] _ in
-            self?.reload()
-        })
-
-        elements.append(UIAction(
-            title: String(localized: .spaActionShare),
-            image: UIImage(systemName: "square.and.arrow.up")
-        ) { [weak self] _ in
-            self?.presenter.didTapShare()
-        })
-
-        elements.append(UIAction(
-            title: String(localized: .Common.close),
-            image: UIImage(systemName: "xmark"),
-            attributes: .destructive
-        ) { [weak self] _ in
-            self?.presenter.didTapClose()
-        })
-
-        return elements
-    }
-
-    func setupChromeCollapse() {
-        let collapser = BrowserChromeCollapser(topPanelHeight: rootView.topChromeHeight)
-        chromeCollapser = collapser
-        rootView.webView.scrollView.delegate = self
-    }
-
-    func feedChromeCollapse(_ scrollView: UIScrollView) {
-        guard let collapser = chromeCollapser else { return }
-
-        let sample = BrowserChromeScrollSample(
-            offsetToTopEdge: max(0, scrollView.bounds.minY),
-            isInteracting: scrollView.isDragging || scrollView.isDecelerating
-        )
-
-        if let update = collapser.update(with: sample) {
-            rootView.applyChromeCollapse(update.fraction, animated: update.animated)
+        func setupChromeCollapse() {
+            let collapser = BrowserChromeCollapser(topPanelHeight: rootView.topChromeHeight)
+            chromeCollapser = collapser
+            rootView.webView.scrollView.delegate = self
         }
-    }
+
+        func feedChromeCollapse(_ scrollView: UIScrollView) {
+            guard let collapser = chromeCollapser else { return }
+
+            let sample = BrowserChromeScrollSample(
+                offsetToTopEdge: max(0, scrollView.bounds.minY),
+                isInteracting: scrollView.isDragging || scrollView.isDecelerating
+            )
+
+            if let update = collapser.update(with: sample) {
+                rootView.applyChromeCollapse(update.fraction, animated: update.animated)
+            }
+        }
+    #endif
 
     func resetChromeCollapse() {
-        guard configuration.isBrowserTab, chromeCollapser != nil else { return }
-        chromeCollapser?.reset()
-        rootView.applyChromeCollapse(0, animated: false)
+        #if FEATURE_PRODUCTS
+            guard let chromeCollapser else { return }
+
+            chromeCollapser.reset()
+            rootView.applyChromeCollapse(0, animated: false)
+        #endif
     }
 
     // MARK: - Actions
@@ -249,13 +289,11 @@ private extension SPAViewController {
         }
     }
 
-    @objc func onMinimizeTapped() {
-        #if FEATURE_PRODUCTS
+    #if FEATURE_PRODUCTS
+        @objc func onMinimizeTapped() {
             presenter.didTapMinimize()
-        #else
-            presenter.didTapClose()
-        #endif
-    }
+        }
+    #endif
 }
 
 // MARK: - SPAViewProtocol
@@ -285,10 +323,33 @@ extension SPAViewController: SPAViewProtocol {
 
     func showLoading() {
         rootView.activityIndicatorView.startAnimating()
+
+        pendingFailureTask?.cancel()
+        pendingFailureTask = nil
+        loadingStartedAt = .now
+
+        guard loadFailure != nil else { return }
+
+        loadFailure = nil
+        setNeedsUpdateContentUnavailableConfiguration()
     }
 
     func hideLoading() {
         rootView.activityIndicatorView.stopAnimating()
+    }
+
+    /// A failure arriving right after a retry would swap the error state out and back in the same
+    /// beat, so the loading state is held for a minimum time before the error replaces it.
+    func showLoadFailure(_ content: ErrorContent) {
+        let elapsed = Date.now.timeIntervalSince(loadingStartedAt ?? .distantPast)
+
+        pendingFailureTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, Constants.minimumLoadingDuration - elapsed)))
+
+            guard !Task.isCancelled else { return }
+
+            self?.display(loadFailure: content)
+        }
     }
 
     // Resolving: 0-10%
@@ -321,18 +382,20 @@ extension SPAViewController: RootScreen {}
 
 // MARK: - UIScrollViewDelegate
 
-extension SPAViewController: UIScrollViewDelegate {
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        feedChromeCollapse(scrollView)
-    }
+#if FEATURE_PRODUCTS
+    extension SPAViewController: UIScrollViewDelegate {
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            feedChromeCollapse(scrollView)
+        }
 
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
+        func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+            if !decelerate {
+                feedChromeCollapse(scrollView)
+            }
+        }
+
+        func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
             feedChromeCollapse(scrollView)
         }
     }
-
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        feedChromeCollapse(scrollView)
-    }
-}
+#endif
