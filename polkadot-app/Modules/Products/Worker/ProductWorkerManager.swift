@@ -87,6 +87,8 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
     }
 
     func acquire(productId: ProductId) async -> ProductWorkerLease {
+        logger.debug("Acquiring worker for product \(productId)...")
+
         let token = retain(productId: productId)
 
         // Wait for the boot triggered by (or preceding) this acquire. The token
@@ -95,6 +97,9 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
         await lifecycle?.value
 
         let result = state.withLock { $0[productId]?.result }
+
+        logger.debug("Acquired worker for product \(productId)")
+
         return ProductWorkerLease(
             token: token,
             result: result ?? .failure(ProductWorkerManagerError.startProducedNoResult)
@@ -144,6 +149,7 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
             let result: Result<ProductWorkerRunning, Error>
             do {
                 result = try await .success(factory.startWorker(productId: productId))
+                logger.debug("Worker started for \(productId)")
             } catch {
                 logger.error("Worker start failed for \(productId): \(error)")
                 result = .failure(error)
@@ -179,6 +185,8 @@ final class ProductWorkerManager: ProductWorkerManaging, @unchecked Sendable {
                 return worker
             }
             await worker?.dispose()
+
+            logger.debug("Worker disposed for \(productId)")
         }
     }
 }

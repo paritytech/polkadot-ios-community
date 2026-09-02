@@ -46,6 +46,8 @@ final class ProductWorkerOperationReconciler: @unchecked Sendable {
 private extension ProductWorkerOperationReconciler {
     func run() async {
         do {
+            logger.debug("Starting operations reconciler")
+
             for try await records in store.subscribe() {
                 await reconcile(records)
             }
