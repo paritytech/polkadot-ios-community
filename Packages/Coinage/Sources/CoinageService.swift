@@ -261,12 +261,8 @@ extension CoinageService: CoinageServicing {
 
             Task { await recyclingService.scheduleRecycling() }
 
-            // Release provisional handoffs from payments whose keys never durably left, returning
-            // the coins. Best-effort: a cleanup failure must not hold startup.
             try await txService.releaseUncommittedHandoffs()
 
-            // Not awaited: a single unresolvable entry must not hold startup
-            // for a mortality window.
             txService.start()
 
         } catch {
