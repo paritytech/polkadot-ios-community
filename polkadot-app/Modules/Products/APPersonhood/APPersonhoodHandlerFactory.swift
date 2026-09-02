@@ -72,7 +72,7 @@ extension APPersonhoodHandlerFactory: APPersonhoodHandlerMaking {
             depsResolver: makeDepsResolver(),
             accountAccessHandler: AccountAccessPermissionHandler(
                 repository: permissionRepository,
-                requester: ProductPermissionRequester(router: routers.productsRouter)
+                requester: ProductPermissionRequesterFactory.create(router: routers.productsRouter)
             ),
             logger: logger
         )
