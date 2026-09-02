@@ -50,6 +50,15 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
+    func makeCoinPresenceRepository() -> AnyDataProviderRepository<CoinPresenceUpdate> {
+        let repository = storageFacade.createRepository(
+            filter: nil,
+            sortDescriptors: [],
+            mapper: AnyCoreDataMapper(CoinPresenceMapper())
+        )
+        return AnyDataProviderRepository(repository)
+    }
+
     func makeVoucherRepository() -> AnyDataProviderRepository<Voucher> {
         let mapper = VoucherMapper()
         let repository = storageFacade.createRepository(
@@ -70,12 +79,11 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher> {
-        let mapper = VoucherLocationMapper()
+    func makeVoucherLocationRepository() -> AnyDataProviderRepository<VoucherLocationUpdate> {
         let repository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
-            mapper: AnyCoreDataMapper(mapper)
+            mapper: AnyCoreDataMapper(VoucherLocationMapper())
         )
         return AnyDataProviderRepository(repository)
     }

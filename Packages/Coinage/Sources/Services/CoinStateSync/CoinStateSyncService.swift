@@ -120,7 +120,7 @@ extension CoinStateSyncService {
             coinMap[coin.publicKey.toHex()] = coin
         }
 
-        var coinsToUpdate: [Coin] = []
+        var updates: [CoinPresenceUpdate] = []
 
         for (mappingKey, onChainCoin) in result.updates {
             guard let coin = coinMap[mappingKey] else { continue }
@@ -135,16 +135,28 @@ extension CoinStateSyncService {
                 }
                 let onChainAge = onChainCoin.age
                 guard coin.age != onChainAge || !coin.isOnchain else { continue }
-                coinsToUpdate.append(coin.changing(age: onChainAge).changing(isOnchain: true))
+                updates.append(CoinPresenceUpdate(
+                    derivationIndex: coin.derivationIndex,
+                    age: onChainAge,
+                    isOnchain: true
+                ))
             } else {
-                // Seen before and now absent -> a peer claimed it; derived as spent.
+                // Seen before and now absent -> a peer claimed it; derived as spent. Age is kept.
                 guard coin.age != nil, coin.isOnchain else { continue }
-                coinsToUpdate.append(coin.changing(isOnchain: false))
+                updates.append(CoinPresenceUpdate(
+                    derivationIndex: coin.derivationIndex,
+                    age: coin.age,
+                    isOnchain: false
+                ))
             }
         }
 
-        guard !coinsToUpdate.isEmpty else { return }
-        try await coinService.save(coins: coinsToUpdate)
-        logger.debug("Updated \(coinsToUpdate.count) coins via sync subscription")
+        guard !updates.isEmpty else { return }
+        // A dedicated write-only mapper touches only age + isOnchain, so a concurrent change to any
+        // other coin field is not clobbered by this presence write.
+        try await databaseFactory.makeCoinPresenceRepository()
+            .saveOperation({ updates }, { [] })
+            .asyncExecute()
+        logger.debug("Updated \(updates.count) coins via sync subscription")
     }
 }

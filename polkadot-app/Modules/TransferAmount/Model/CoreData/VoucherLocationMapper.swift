@@ -3,25 +3,24 @@ import CoreData
 import Coinage
 import Operation_iOS
 
-/// Populates Voucher pending and recycler info only
+/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `privacy`) onto an
+/// existing `CDVoucher`, leaving every other column untouched. Write-only: it never reads back.
 final class VoucherLocationMapper {
     enum MappingError: Error {
-        case noExistingRequest
+        case missingVoucher
     }
 
     var entityIdentifierFieldName: String {
         #keyPath(CoreDataEntity.identifier)
     }
 
-    typealias DataProviderModel = Voucher
+    typealias DataProviderModel = VoucherLocationUpdate
     typealias CoreDataEntity = CDVoucher
-
-    private lazy var baseMapper = VoucherMapper()
 }
 
 extension VoucherLocationMapper: CoreDataMapperProtocol {
-    func transform(entity: CoreDataEntity) throws -> DataProviderModel {
-        try baseMapper.transform(entity: entity)
+    func transform(entity _: CoreDataEntity) throws -> DataProviderModel {
+        throw CoreDataMapperError.unsupported
     }
 
     func populate(
@@ -30,9 +29,15 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         guard entity.identifier != nil else {
-            throw MappingError.noExistingRequest
+            throw MappingError.missingVoucher
         }
-        entity.recyclerIndex = model.recycler.flatMap { Int64($0.index) } ?? -1
+
+        entity.recyclerIndex =
+            switch model.remoteState {
+            case let .inRecycler(recycler): Int64(recycler.index)
+            case .unlocated,
+                 .onboarding: -1
+            }
 
         entity.onChainState =
             switch model.remoteState {

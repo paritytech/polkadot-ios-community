@@ -8,9 +8,14 @@ public protocol DatabaseDependencyFactoring: Sendable {
     /// A coin repository scoped to the given public keys — a filtered query rather than the whole set.
     func makeCoinRepository(publicKeys: [PublicKey]) -> AnyDataProviderRepository<Coin>
     func makeTrackedCoinRepository() -> AnyDataProviderRepository<TrackedCoin>
+    /// A write-only repository for chain-sync presence updates (`age`, `isOnchain`), backed by a
+    /// mapper that touches only those fields — see ``CoinPresenceUpdate``.
+    func makeCoinPresenceRepository() -> AnyDataProviderRepository<CoinPresenceUpdate>
     func makeVoucherRepository() -> AnyDataProviderRepository<Voucher>
     func makeTrackedVoucherRepository() -> AnyDataProviderRepository<TrackedVoucher>
-    func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher>
+    /// A write-only repository for location-sync updates (`remoteState`, `privacy`), backed by a
+    /// mapper that touches only those fields — see ``VoucherLocationUpdate``.
+    func makeVoucherLocationRepository() -> AnyDataProviderRepository<VoucherLocationUpdate>
 
     /// A stream of full ``TrackedCoin`` snapshots — the current set, then a fresh snapshot on every
     /// CoreData save. Re-emits when an entry's status change touches a coin's relations, so the

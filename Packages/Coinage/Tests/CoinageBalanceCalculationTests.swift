@@ -3,7 +3,8 @@ import Foundation
 import Testing
 @testable import Coinage
 
-/// Pure bucketing logic for `CoinageBalanceService.calculateBalance`. No CoreData: tracked assets and their durability overlay are built
+/// Pure bucketing logic for `CoinageBalanceService.calculateBalance`. No CoreData: tracked assets and their durability
+/// overlay are built
 /// by hand, so every disposition (spendable / degraded / pending-locked / nowhere) is asserted
 /// directly against the calculation.
 ///

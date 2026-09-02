@@ -59,7 +59,6 @@ public extension CoinageService {
         let coinRepository = databaseFactory.makeCoinRepository()
         let trackedVoucherRepository = databaseFactory.makeTrackedVoucherRepository()
         let voucherRepository = databaseFactory.makeVoucherRepository()
-        let voucherLocationRepository = databaseFactory.makeVoucherLocationRepository()
 
         let voucherIndexstore = VoucherIndexstore(storage: keystore)
         let coinsIndexstore = CoinIndexstore(storage: keystore)
@@ -265,7 +264,7 @@ public extension CoinageService {
 
         let voucherLocationService = VoucherLocationService(
             instanceId: instanceId,
-            voucherRepository: voucherLocationRepository,
+            voucherRepository: voucherRepository,
             databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,

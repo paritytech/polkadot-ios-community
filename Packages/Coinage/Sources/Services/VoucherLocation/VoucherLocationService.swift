@@ -275,8 +275,18 @@ extension VoucherLocationService {
         applyRingStatusUpdates(result.ringStatusUpdates, snapshot: snapshot, voucherMap: voucherMap, into: &updates)
 
         guard !updates.isEmpty else { return }
-        let vouchersToSave = Array(updates.values)
-        try await voucherRepository.saveOperation({ vouchersToSave }, { [] }).asyncExecute()
+        // A dedicated write-only mapper touches only remoteState + privacy, so a concurrent change
+        // to any other voucher field is not clobbered by this location write.
+        let locationUpdates = updates.values.map {
+            VoucherLocationUpdate(
+                derivationIndex: $0.derivationIndex,
+                remoteState: $0.remoteState,
+                privacy: $0.privacy
+            )
+        }
+        try await databaseFactory.makeVoucherLocationRepository()
+            .saveOperation({ locationUpdates }, { [] })
+            .asyncExecute()
         logger.debug("Updated \(updates.count) vouchers via subscription")
     }
 
