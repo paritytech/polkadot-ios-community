@@ -52,6 +52,8 @@ public protocol BulletInSlotInfoProviding {
         currentAllowance: BulletInAllowanceInfo?,
         timeout: Duration
     ) async throws
+    func canAccountPromote(for accountId: AccountId) async throws -> Bool
+    func waitPromotable(for accountId: AccountId, timeout: Duration) async throws
 }
 
 enum BulletInSlotInfoProviderError: Error {
@@ -70,6 +72,7 @@ public final class BulletInSlotInfoProvider {
 
     let storageRequestFactory: StorageRequestFactoryProtocol
     let resourcesParameters: ResourcesParametersProviding
+    let hopRuntimeApi: HopRuntimeApiProtocol
 
     public init(
         bulletInChainId: ChainId,
@@ -97,6 +100,8 @@ public final class BulletInSlotInfoProvider {
             remoteFactory: StorageKeyFactory(),
             operationManager: OperationManager(operationQueue: operationQueue)
         )
+
+        hopRuntimeApi = HopRuntimeApi(chainRegistry: chainRegistry, operationQueue: operationQueue)
     }
 }
 
@@ -228,6 +233,36 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
                     if
                         let authorization = result.value,
                         authorization.extent.remainedTransactions > currentRemainedTransactions {
+                        return
+                    }
+                }
+            }
+        } catch is TimeoutError {
+            throw BulletInSlotInfoProviderError.authorizationWaitTimeout
+        }
+    }
+
+    public func canAccountPromote(for accountId: AccountId) async throws -> Bool {
+        try await hopRuntimeApi.canAccountPromote(
+            chainId: bulletInChainId,
+            account: accountId
+        )
+    }
+
+    /// Re-evaluates `can_account_promote` immediately and then on each new bulletin head until it returns
+    /// `true` or [timeout] elapses. The head stream is only a wakeup, so this does not depend on the stored
+    /// authorization extent layout.
+    public func waitPromotable(for accountId: AccountId, timeout: Duration) async throws {
+        let newHeads = bulletInBlockProvider.subscribeNewHeads()
+
+        do {
+            try await withTimeout(timeout) { [self] in
+                if try await canAccountPromote(for: accountId) {
+                    return
+                }
+
+                for try await _ in newHeads {
+                    if try await canAccountPromote(for: accountId) {
                         return
                     }
                 }
