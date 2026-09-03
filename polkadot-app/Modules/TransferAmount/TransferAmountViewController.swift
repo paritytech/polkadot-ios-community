@@ -161,7 +161,8 @@ private extension ClaimStatus {
         switch self {
         case .detecting:
             String(localized: .transferStatusSending)
-        case .claiming:
+        case .claiming,
+             .partiallyClaimed:
             String(localized: .transferStatusClaiming)
         case .sent:
             String(localized: .transferStatusSent)

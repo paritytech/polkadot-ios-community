@@ -5,8 +5,8 @@ import Foundation
 /// In-memory store for claim/send operation statuses, backed by ``AsyncCurrentValueSubject``.
 ///
 /// Provides observable streams per message ID so chat extensions can react to status changes
-/// in real-time. Statuses are populated on startup from ``ClaimPlanCoreDataStore`` and updated
-/// as claim/send operations progress.
+/// in real-time. Statuses are derived live by ``CoinageTransferMonitor`` from the durability layer
+/// (`groupId = messageId`) — nothing is persisted here.
 actor ClaimStatusStore: ClaimStatusPublishing {
     private var statuses: [String: ClaimStatus] = [:]
     private var subjects: [String: AsyncCurrentValueSubject<ClaimStatus>] = [:]
@@ -60,6 +60,7 @@ extension ClaimStatus {
              .error: true
         case .detecting,
              .claiming,
+             .partiallyClaimed,
              .sent: false
         }
     }

@@ -51,28 +51,25 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     }
 
     private nonisolated let denominationContext: DenominationBreakdownContext
-    private nonisolated let voucherProvider: StreamableProvider<Voucher>
-    private nonisolated let coinProvider: StreamableProvider<Coin>
+    private nonisolated let databaseFactory: any DatabaseDependencyFactoring
     private nonisolated let logger: SDKLoggerProtocol?
 
     private var balanceSubscriptionTask: Task<Void, Never>?
     private var unlockTimerTask: Task<Void, Never>?
 
-    private var latestCoins: [String: Coin] = [:]
-    private var latestVouchers: [String: Voucher] = [:]
+    private var latestCoins: [TrackedCoin] = []
+    private var latestVouchers: [TrackedVoucher] = []
 
     private nonisolated let spendableBalanceSubject: AsyncCurrentValueSubject<CoinageSpendableBalanceModel>
     private nonisolated let lockedBalanceSubject: AsyncCurrentValueSubject<CoinageBalance>
 
     init(
         denominationContext: DenominationBreakdownContext,
-        voucherProvider: StreamableProvider<Voucher>,
-        coinProvider: StreamableProvider<Coin>,
+        databaseFactory: any DatabaseDependencyFactoring,
         logger: SDKLoggerProtocol?
     ) {
         self.denominationContext = denominationContext
-        self.voucherProvider = voucherProvider
-        self.coinProvider = coinProvider
+        self.databaseFactory = databaseFactory
         self.logger = logger
 
         let zeroBalance = CoinageBalance(planks: 0, context: denominationContext)
@@ -110,20 +107,12 @@ extension CoinageBalanceService {
             guard let self else { return }
             do {
                 logger?.debug("Balance subscription started")
-                // Providers produce changes
-                // and we need to collect them to have full info
-                let coinsStream = coinProvider.asyncStream()
-                    .scan([String: Coin]()) { dict, changes in
-                        changes.mergeToDict(dict)
-                    }
-
-                let vouchersStream = voucherProvider.asyncStream()
-                    .scan([String: Voucher]()) { dict, changes in
-                        changes.mergeToDict(dict)
-                    }
-
+                // Each element is a full snapshot of the tracked set, re-emitted on every save that
+                // touches a coin/voucher or its durability entry — no manual change-merge needed.
+                let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
+                let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
                 for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
-                    await updateBalances(coins: coins, vouchers: vouchers)
+                    await updateBalancesAsync(coins: coins, vouchers: vouchers)
                 }
             } catch {
                 logger?.error("Balance subscription failed: \(error)")
@@ -131,12 +120,7 @@ extension CoinageBalanceService {
         }
     }
 
-    private func cancelTasks() {
-        balanceSubscriptionTask?.cancel()
-        unlockTimerTask?.cancel()
-    }
-
-    private func updateBalances(coins: [String: Coin]?, vouchers: [String: Voucher]?) {
+    private func updateBalancesAsync(coins: [TrackedCoin]?, vouchers: [TrackedVoucher]?) async {
         if let coins { latestCoins = coins }
         if let vouchers { latestVouchers = vouchers }
 
@@ -144,7 +128,9 @@ extension CoinageBalanceService {
         let currentVouchers = latestVouchers
         logger?.debug("Did receive coins: \(currentCoins.count) vouchers: \(currentVouchers.count)")
 
-        let (spendableBalance, lockedBalance, nextUnlock) = calculateBalance(
+        // Each tracked asset already carries its durability overlay (`CoinageAssetState`), derived
+        // at fetch time — no separate batched durability read is needed here.
+        let (spendableBalance, lockedBalance, nextUnlock) = Self.calculateBalance(
             coins: currentCoins,
             vouchers: currentVouchers,
             context: denominationContext
@@ -154,6 +140,11 @@ extension CoinageBalanceService {
         lockedBalanceSubject.send(lockedBalance)
 
         scheduleUnlockTimer(for: nextUnlock)
+    }
+
+    private func cancelTasks() {
+        balanceSubscriptionTask?.cancel()
+        unlockTimerTask?.cancel()
     }
 
     private func scheduleUnlockTimer(for nextUnlock: Date?) {
@@ -169,33 +160,42 @@ extension CoinageBalanceService {
             try? await Task.sleep(for: .seconds(interval + 0.1))
 
             guard !Task.isCancelled, let self else { return }
-            await updateBalances(coins: nil, vouchers: nil)
+            await updateBalancesAsync(coins: nil, vouchers: nil)
         }
     }
 
-    private nonisolated func calculateBalance(
-        coins: [String: Coin],
-        vouchers: [String: Voucher],
+    /// Buckets a full snapshot of tracked assets into spendable / degraded / locked. `static internal`
+    /// so the package balance test can exercise the pure logic directly.
+    static func calculateBalance(
+        coins: [TrackedCoin],
+        vouchers: [TrackedVoucher],
         context: DenominationBreakdownContext
     ) -> (spendable: CoinageSpendableBalanceModel, locked: CoinageBalance, nextUnlock: Date?) {
         let now = Date.now
 
-        let coinPlanks = splitCoinPlanks(coins: coins.values, context: context)
+        let coinPlanks = splitCoinPlanks(coins: coins, context: context)
 
         var lockedVouchersPlanks = BigUInt(0)
         var fullPrivacyVouchersPlanks = BigUInt(0)
         var degradedVouchersPlanks = BigUInt(0)
         var nextUnlock: Date?
 
-        for voucher in vouchers.values where voucher.localState == .available {
+        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
+        // admits. A voucher it rejects (reserved by a live entry, or dead/orphan) is counted nowhere.
+        for tracked in vouchers where tracked.isBalanceCounted {
+            let voucher = tracked.voucher
             let amount = context.valueInPlanks(for: voucher.exponent)
 
-            guard case .inRecycler = voucher.remoteState else {
+            guard tracked.isSelectable else {
+                // Onboarding or minting: not usable yet but expected to arrive — locked until it
+                // lands in the recycler.
                 lockedVouchersPlanks += amount
                 continue
             }
 
-            if voucher.effectivePrivacy(at: now) == .full {
+            // In the recycler on chain — spendable; on-chain presence is authoritative even if a
+            // local minting entry is still live. Split by effective privacy.
+            if voucher.isReadyToUseSecured(at: now) {
                 fullPrivacyVouchersPlanks += amount
             } else {
                 degradedVouchersPlanks += amount
@@ -206,7 +206,7 @@ extension CoinageBalanceService {
             }
         }
 
-        let lockedPlanks = lockedVouchersPlanks + coinPlanks.recycling + coinPlanks.expiringSoon
+        let lockedPlanks = lockedVouchersPlanks + coinPlanks.expiringSoon + coinPlanks.pending
 
         return (
             spendable: CoinageSpendableBalanceModel(
@@ -218,33 +218,37 @@ extension CoinageBalanceService {
         )
     }
 
-    /// Buckets available coins by spend-readiness:
-    /// - `spendable`: available coins under `coinMaxAge`
-    /// - `expiringSoon`: available but past `coinMaxAge` — pending recycling, not safe to spend
-    /// - `recycling`: already locked by an in-flight recycling extrinsic
-    private nonisolated func splitCoinPlanks(
-        coins: some Collection<Coin>,
+    /// Buckets coins by the durability overlay carried on each `TrackedCoin`. Every disposition is a
+    /// named predicate; a coin matching none (not free, or dead/vanished) is counted nowhere.
+    ///
+    /// | Predicate | Bucket |
+    /// |---|---|
+    /// | ``TrackedCoin/isSelectable`` — free, on chain, age-valid | spendable |
+    /// | ``TrackedCoin/isMinting`` — not on chain yet, minter still live | pending (locked) |
+    /// | ``TrackedCoin/isAwaitingRecycling`` — on chain, free, aged out | expiringSoon (locked) |
+    private static func splitCoinPlanks(
+        coins: some Collection<TrackedCoin>,
         context: DenominationBreakdownContext
-    ) -> (spendable: BigUInt, expiringSoon: BigUInt, recycling: BigUInt) {
+    ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt) {
         var spendable = BigUInt(0)
+        var pending = BigUInt(0)
         var expiringSoon = BigUInt(0)
-        var recycling = BigUInt(0)
 
-        for coin in coins {
-            let amount = context.valueInPlanks(for: coin.exponent)
-            switch coin.state {
-            case .available where coin.isExpiringSoon:
-                expiringSoon += amount
-            case .available:
+        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
+        // admits. A coin it rejects (handed off, consumed, reserved, or vanished) is counted nowhere.
+        for tracked in coins where tracked.isBalanceCounted {
+            let amount = context.valueInPlanks(for: tracked.coin.exponent)
+
+            if tracked.isSelectable {
                 spendable += amount
-            case .recycling:
-                recycling += amount
-            case .spent,
-                 .pendingTransfer:
-                break
+            } else if tracked.isMinting {
+                pending += amount
+            } else if tracked.isAwaitingRecycling() {
+                // On chain, free, aged out. Guaranteed to hold here given the `isBalanceCounted` gate.
+                expiringSoon += amount
             }
         }
 
-        return (spendable, expiringSoon, recycling)
+        return (spendable, pending, expiringSoon)
     }
 }

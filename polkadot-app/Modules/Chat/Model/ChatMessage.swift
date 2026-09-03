@@ -736,6 +736,7 @@ extension Chat.LocalMessage.Content {
             case error = 2
             case sent = 3
             case claiming = 4
+            case partiallyClaimed = 5
         }
 
         let totalValue: Balance

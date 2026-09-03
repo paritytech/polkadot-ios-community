@@ -11,8 +11,7 @@ import KeyDerivation
 /// A service that monitors local coins and synchronizes their on-chain state.
 public final class CoinStateSyncService: BaseSyncService {
     private let coinService: CoinServiceProtocol
-    private let coinProvider: StreamableProvider<Coin>
-    private let coinKeyDeriver: any CoinKeyDeriving
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
 
@@ -21,17 +20,15 @@ public final class CoinStateSyncService: BaseSyncService {
 
     public init(
         coinService: CoinServiceProtocol,
-        coinProvider: StreamableProvider<Coin>,
+        databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
-        entropyManager: any RootEntropyManaging,
         logger: any SDKLoggerProtocol
     ) {
         self.coinService = coinService
-        self.coinProvider = coinProvider
+        self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
-        coinKeyDeriver = CoinKeypairFactory(entropyManager: entropyManager)
         super.init(logger: logger)
     }
 
@@ -45,12 +42,11 @@ public final class CoinStateSyncService: BaseSyncService {
         localCoinsMonitoringTask = Task { [weak self] in
             guard let self else { return }
 
-            let stream = coinProvider.asyncStream()
-                .scan([String: Coin]()) { dict, changes in
-                    changes.mergeToDict(dict)
+            let stream = databaseFactory.makeTrackedCoinSnapshotStream()
+                .map { (tracked: [TrackedCoin]) -> [Coin] in
+                    tracked.map(\.coin)
                 }
-                .map(\.values)
-                .map { $0.filter { $0.state != .spent && $0.age == nil } }
+                .removeDuplicates()
 
             for try await coins in stream {
                 guard !coins.isEmpty else {
@@ -82,8 +78,8 @@ extension CoinStateSyncService {
     private func performSync(_ coins: [Coin]) async throws {
         syncTask?.cancel()
 
-        let requests: [BatchStorageSubscriptionRequest] = try coins.map { coin in
-            let publicKey = try self.coinKeyDeriver.derivePublicKey(for: coin)
+        let requests: [BatchStorageSubscriptionRequest] = coins.map { coin in
+            let publicKey = coin.publicKey
             let mappingKey = publicKey.toHex()
             let storagePath = CoinagePallet.Storage.coinsByOwner
             let innerRequest = MapSubscriptionRequest(
@@ -115,37 +111,52 @@ extension CoinStateSyncService {
     }
 
     private func handleSubscriptionUpdate(_ result: CoinSyncResult) async throws {
-        let availableCoins = try await coinService.fetchAllCoins()
+        let availableCoins = try await coinService.fetchAllTrackedCoins()
         guard !availableCoins.isEmpty else { return }
 
         var coinMap: [String: Coin] = [:]
-        for coin in availableCoins where coin.state != .spent {
-            guard let pubKey = try? coinKeyDeriver.derivePublicKey(for: coin) else {
-                continue
-            }
-            coinMap[pubKey.toHex()] = coin
+        for tracked in availableCoins where !tracked.state.isConsumed {
+            let coin = tracked.coin
+            coinMap[coin.publicKey.toHex()] = coin
         }
 
-        var coinsToUpdate: [Coin] = []
+        var updates: [CoinPresenceUpdate] = []
 
         for (mappingKey, onChainCoin) in result.updates {
             guard let coin = coinMap[mappingKey] else { continue }
 
             if let onChainCoin {
-                // Present on chain -> Update local age
+                // Present on chain -> record presence and sync age.
+                if Int16(onChainCoin.value) != coin.exponent {
+                    logger.error(
+                        "TrackingCoin: \(mappingKey) exponent \(coin.exponent) " +
+                            "doesn't match on chain exponent \(onChainCoin.value)"
+                    )
+                }
                 let onChainAge = onChainCoin.age
-                guard coin.age != onChainAge else { continue }
-                coinsToUpdate.append(coin.changing(age: onChainAge))
+                guard coin.age != onChainAge || !coin.isOnchain else { continue }
+                updates.append(CoinPresenceUpdate(
+                    derivationIndex: coin.derivationIndex,
+                    age: onChainAge,
+                    isOnchain: true
+                ))
             } else {
-                // Not present on chain
-                guard coin.age != nil else { continue }
-                // Local has age + not present on chain -> Mark coin as SPENT
-                coinsToUpdate.append(coin.changing(state: .spent))
+                // Seen before and now absent -> a peer claimed it; derived as spent. Age is kept.
+                guard coin.age != nil, coin.isOnchain else { continue }
+                updates.append(CoinPresenceUpdate(
+                    derivationIndex: coin.derivationIndex,
+                    age: coin.age,
+                    isOnchain: false
+                ))
             }
         }
 
-        guard !coinsToUpdate.isEmpty else { return }
-        try await coinService.save(coins: coinsToUpdate)
-        logger.debug("Updated \(coinsToUpdate.count) coins via sync subscription")
+        guard !updates.isEmpty else { return }
+        // A dedicated write-only mapper touches only age + isOnchain, so a concurrent change to any
+        // other coin field is not clobbered by this presence write.
+        try await databaseFactory.makeCoinPresenceRepository()
+            .saveOperation({ updates }, { [] })
+            .asyncExecute()
+        logger.debug("Updated \(updates.count) coins via sync subscription")
     }
 }

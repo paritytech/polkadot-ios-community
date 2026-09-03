@@ -1,5 +1,5 @@
 {
-  "originHash" : "5f22b54829849d3cfe34ba84e784006e22b53e32ca278906d6cca5bff892cdbb",
+  "originHash" : "31f144be2eed4870a9c4d64faffda00943f93f68ef0374e622af04e712c315ab",
   "pins" : [
     {
       "identity" : "asyncextensions",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "branch" : "feature/submission-strategy",
-        "revision" : "a7939e956a1c4411940260c9b33c3d8946318580"
+        "revision" : "8a3e236b22e47c1dbcc90627f409721575e40270",
+        "version" : "1.13.0"
       }
     },
     {
@@ -159,8 +159,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "d6e5b33c02d90d3874e2227d6db51cecf83c7b21",
-        "version" : "5.9.3"
+        "revision" : "6d01f4e470e7bd811e79a18c2cb1b3f084c79b55",
+        "version" : "5.11.0"
       }
     },
     {

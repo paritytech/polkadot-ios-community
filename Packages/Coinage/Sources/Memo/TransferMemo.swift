@@ -25,9 +25,8 @@ public struct TransferMemo: Equatable, ScaleCodable {
 }
 
 public extension TransferMemo {
-    func identifier() -> Data {
+    func identifier() throws -> Data {
         let valueData = totalValue.serialize()
-        let retVal = try? entries.reduce(valueData) { try $0.blake2b32WithKey($1) }
-        return retVal ?? valueData
+        return try entries.reduce(valueData) { try $0.blake2b32WithKey($1) }
     }
 }

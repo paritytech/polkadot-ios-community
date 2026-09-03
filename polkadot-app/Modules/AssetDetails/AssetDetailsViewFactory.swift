@@ -32,8 +32,7 @@ enum AssetDetailsViewFactory {
             coinageService: context.coinageService,
             coinageBackupSyncService: context.coinageBackupSyncService,
             balanceSyncStateStorage: context.balanceSyncStateStorage,
-            coinProvider: databaseFactory.makeCoinProvider(),
-            voucherProvider: databaseFactory.makeVoucherProvider(),
+            databaseFactory: databaseFactory,
             voucherRepository: databaseFactory.makeVoucherRepository(),
             backgroundExecutor: ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry),
             hostProvider: context.flowState.hostProvider

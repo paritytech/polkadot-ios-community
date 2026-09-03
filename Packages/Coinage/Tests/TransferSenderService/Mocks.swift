@@ -13,86 +13,6 @@ import BackgroundExecution
 @testable import Coinage
 
 extension TransferSenderServiceTests {
-    final class MockCoinService: CoinServiceProtocol, @unchecked Sendable {
-        private let mutex = NSLock()
-        private var _savedCoins: [Coin] = []
-        private var _markedSpentIds: [String] = []
-        private var _markedRecyclingIds: [String] = []
-        private var _markedAvailableIds: [String] = []
-
-        var savedCoins: [Coin] {
-            mutex.withLock { _savedCoins }
-        }
-
-        var markedSpentIds: [String] {
-            mutex.withLock { _markedSpentIds }
-        }
-
-        var markedRecyclingIds: [String] {
-            mutex.withLock { _markedRecyclingIds }
-        }
-
-        var markedAvailableIds: [String] {
-            mutex.withLock { _markedAvailableIds }
-        }
-
-        func fetchAllCoins() async throws -> [Coin] { [] }
-
-        func save(coins: [Coin]) async throws {
-            mutex.withLock { _savedCoins.append(contentsOf: coins) }
-        }
-
-        func markSpent(coinIds: [String]) async throws {
-            mutex.withLock { _markedSpentIds.append(contentsOf: coinIds) }
-        }
-
-        func markRecycling(coinIds: [String]) async throws {
-            mutex.withLock { _markedRecyclingIds.append(contentsOf: coinIds) }
-        }
-
-        func markAvailable(coinIds: [String]) async throws {
-            mutex.withLock { _markedAvailableIds.append(contentsOf: coinIds) }
-        }
-
-        func markPendingTransfer(coinIds _: [String]) async throws {}
-    }
-
-    final class MockVoucherService: VoucherServiceProtocol, @unchecked Sendable {
-        private let mutex = NSLock()
-        private var _deletedIdentifiers: [String] = []
-        private var _markedAvailableIds: [String] = []
-
-        var deletedIdentifiers: [String] {
-            mutex.withLock { _deletedIdentifiers }
-        }
-
-        func load(
-            amount _: BigUInt,
-            externalAssetHolder _: any WalletManaging,
-            breakdownContext _: DenominationBreakdownContext
-        ) async throws {}
-
-        func fetchAll() async throws -> [Voucher] { [] }
-
-        func fetchAvailableInRecycler() async throws -> [Coinage.Voucher] {
-            []
-        }
-
-        func markPendingOnboarding(identifiers _: [String]) async throws {}
-
-        func save(vouchers _: [Voucher]) async throws {}
-
-        func markPendingTransfer(identifiers _: [String]) async throws {}
-
-        func delete(identifiers: [String]) async throws {
-            mutex.withLock { _deletedIdentifiers.append(contentsOf: identifiers) }
-        }
-
-        func markAvailable(identifiers: [String]) async throws {
-            mutex.withLock { _markedAvailableIds.append(contentsOf: identifiers) }
-        }
-    }
-
     final class MockMemoBuilder: MemoBuilding {
         func buildMemo(
             from entries: [PlannedMemoEntry],
@@ -105,49 +25,58 @@ extension TransferSenderServiceTests {
         }
     }
 
-    /// Mock coin allocator that returns coins with sequential derivation indices
-    actor MockCoinAllocator: CoinAllocating {
-        private var nextIndex: UInt32 = 100
+    /// Mock coin allocator that returns coins with sequential derivation indices and records every
+    /// coin it mints, so tests can assert on the outputs the strategies persist.
+    actor MockCoinAllocator: CoinAllocating, CoinMinting {
+        private var nextIndex: UInt64 = 100
+        private(set) var mintedCoins: [Coin] = []
 
         func allocate(exponent: Int16) async throws -> Coin {
             let index = nextIndex
             nextIndex += 1
-            return Coin(exponent: exponent, derivationIndex: index, age: nil)
+            let coin = Coin(
+                exponent: exponent,
+                derivationIndex: index,
+                age: nil,
+                publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+            )
+            mintedCoins.append(coin)
+            return coin
+        }
+
+        func mintCoin(exponent: Int16) async throws -> Coin {
+            try await allocate(exponent: exponent)
         }
     }
 
     final class MockCoinKeyFactory: CoinKeyDeriving {
-        typealias Model = Coin
-
-        func derivePublicKey(for _: Coin) throws -> Data {
+        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
             Data(repeating: 0, count: 32)
         }
 
-        func derivePrivateKey(for _: Coin) throws -> Data {
+        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
             Data(repeating: 0, count: 64)
         }
     }
 
     final class MockVoucherKeyFactory: VoucherKeyDeriving {
-        typealias Model = Voucher
-
-        func derivePublicKey(for _: Voucher) throws -> Data {
+        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
             Data(repeating: 0, count: 32)
         }
 
-        func derivePrivateKey(for _: Voucher) throws -> Data {
+        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
             Data(repeating: 0, count: 64)
         }
 
-        func createKeyManager(for model: Voucher) throws -> any BandersnatchKeyManaging {
-            MockBandersnatchKeyManager(derivationIndex: model.derivationIndex)
+        func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging {
+            MockBandersnatchKeyManager(derivationIndex: index)
         }
     }
 
     final class MockBandersnatchKeyManager: BandersnatchKeyManaging {
-        let derivationIndex: UInt32
+        let derivationIndex: UInt64
 
-        init(derivationIndex: UInt32) {
+        init(derivationIndex: UInt64) {
             self.derivationIndex = derivationIndex
         }
 
@@ -248,6 +177,12 @@ extension TransferSenderServiceTests {
 
     /// Mock origin factory that returns mock origins
     final class MockOriginFactory: OriginCreating {
+        let errorToThrow: Error?
+
+        init(errorToThrow: Error? = nil) {
+            self.errorToThrow = errorToThrow
+        }
+
         func createAsCoinOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
             MockExtrinsicOrigin()
         }
@@ -261,7 +196,10 @@ extension TransferSenderServiceTests {
             currentDate _: Date,
             blockHash _: SubstrateSdk.BlockHashData?
         ) async throws -> [ExtrinsicOriginDefining] {
-            voucherGroups.map { _ in MockExtrinsicOrigin() }
+            if let error = errorToThrow {
+                throw error
+            }
+            return voucherGroups.map { _ in MockExtrinsicOrigin() }
         }
     }
 
@@ -281,50 +219,6 @@ extension TransferSenderServiceTests {
                 )
             }
             return CompoundOperationWrapper(targetOperation: operation)
-        }
-    }
-
-    /// Mock transfer WAL store
-    actor MockTransferWALStore: TransferWALStoring {
-        func save(_: TransferWALEntry) async throws {}
-
-        func update(id _: UUID, checkpointBlock _: Coinage.CheckpointBlock) async throws {}
-
-        func fetchAll() async throws -> [TransferWALEntry] { [] }
-
-        func save(contentsOf _: [TransferWALEntry]) async throws {}
-
-        func delete(id _: UUID) async throws {}
-    }
-
-    /// Mock extrinsic submission coordinator
-    final class MockExtrinsicSubmissionCoordinator: ExtrinsicSubmissionCoordinating {
-        var result: ExtrinsicMonitorSubmission
-        var error: Error?
-
-        init() {
-            result = ExtrinsicMonitorSubmission(
-                extrinsicSubmittedModel: ExtrinsicSubmittedModel(
-                    txHash: "0x" + String(repeating: "0", count: 64),
-                    sender: .none
-                ),
-                status: .success(.init(
-                    extrinsicHash: "0x" + String(repeating: "0", count: 64),
-                    blockHash: "0x" + String(repeating: "1", count: 64),
-                    blockNumber: 1,
-                    extrinsicIndex: 0,
-                    interestedEvents: []
-                ))
-            )
-        }
-
-        func submit(
-            walEntryId _: UUID,
-            builder _: @escaping ExtrinsicBuilderClosure,
-            origin _: any ExtrinsicOriginDefining
-        ) async throws -> ExtrinsicMonitorSubmission {
-            if let error { throw error }
-            return result
         }
     }
 

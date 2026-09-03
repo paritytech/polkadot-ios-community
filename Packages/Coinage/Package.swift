@@ -60,7 +60,8 @@ let package = Package(
         .package(path: "../Individuality"),
         .package(path: "../StateMachine"),
         .package(path: "../SubstrateOperation"),
-        .package(path: "../BackgroundExecution")
+        .package(path: "../BackgroundExecution"),
+        .package(path: "../ExtrinsicServiceExt")
     ],
     targets: [
         .target(
@@ -86,12 +87,13 @@ let package = Package(
                 "Individuality",
                 "StateMachine",
                 "SubstrateOperation",
-                "BackgroundExecution"
+                "BackgroundExecution",
+                "ExtrinsicServiceExt"
             ],
         ),
         .testTarget(
             name: "CoinageTests",
-            dependencies: ["Coinage", "BackgroundExecution"],
+            dependencies: ["Coinage", "BackgroundExecution", "ExtrinsicServiceExt"],
             path: "Tests"
         )
     ]

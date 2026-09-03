@@ -40,6 +40,8 @@ extension Chat.LocalMessage.Content.Transfer.Status {
             .sent
         case .claiming:
             .claiming
+        case .partiallyClaimed:
+            .partiallyClaimed
         case .finished:
             .finished
         case .error:

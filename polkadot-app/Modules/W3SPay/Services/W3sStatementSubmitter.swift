@@ -54,7 +54,7 @@ final class W3sStatementSubmitter {
 extension W3sStatementSubmitter: TransferSubmitting {
     var isFailureFatal: Bool { true }
 
-    func sendTransfer(_ memo: TransferMemo, to _: AccountId) async throws {
+    func sendTransfer(_ memo: TransferMemo, to _: AccountId, messageId _: Chat.MessageId) async throws {
         // Save pending record immediately for crash-resilience and recovery UX.
         // Memo entries retained so payment can be revoked later. History is
         // auxiliary — a persistence failure must not abort the payment.

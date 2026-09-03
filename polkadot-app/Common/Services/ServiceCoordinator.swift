@@ -201,7 +201,6 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             await coinageTransferMonitor.setup()
             await w3sPaymentTracking.setup()
             await depositService.setup()
-            await coinageService.transferRecoveryService.recover()
         }
     }
 

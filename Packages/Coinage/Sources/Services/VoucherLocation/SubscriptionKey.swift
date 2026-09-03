@@ -1,8 +1,8 @@
 import Foundation
 
 enum SubscriptionKey: Hashable {
-    case member(derivationIndex: UInt32)
-    case ringStatus(derivationIndex: UInt32)
+    case member(derivationIndex: DerivationIndex)
+    case ringStatus(derivationIndex: DerivationIndex)
 
     static let separator = ":"
 
@@ -14,10 +14,10 @@ enum SubscriptionKey: Hashable {
 
         switch type {
         case "m":
-            guard let index = UInt32(components[1]) else { return nil }
+            guard let index = DerivationIndex(components[1]) else { return nil }
             self = .member(derivationIndex: index)
         case "rs":
-            guard components.count == 2, let index = UInt32(components[1]) else { return nil }
+            guard components.count == 2, let index = DerivationIndex(components[1]) else { return nil }
             self = .ringStatus(derivationIndex: index)
         default:
             return nil

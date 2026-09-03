@@ -2,9 +2,10 @@ import Foundation
 import SubstrateSdk
 
 extension Chat.LocalMessage {
-    static func newMessage(to chatId: Chat.Id, content: Content) -> Chat.LocalMessage {
+    static func newMessage(to chatId: Chat.Id, content: Content, messageId: Chat.MessageId = UUID().uuidString) -> Chat
+        .LocalMessage {
         Chat.LocalMessage(
-            messageId: UUID().uuidString,
+            messageId: messageId,
             chatId: chatId,
             origin: .user,
             creationSource: .localDevice,

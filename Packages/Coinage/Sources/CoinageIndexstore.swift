@@ -3,46 +3,41 @@ import Keystore_iOS
 import SubstrateSdk
 
 protocol CoinageIndexstoreProtocol {
-    func getNextIndex() throws -> UInt32
-    func getCurrentIndex() throws -> UInt32?
-    func setCurrentIndex(_ index: UInt32) throws
+    func getNextIndex() throws -> DerivationIndex
+    func getCurrentIndex() throws -> DerivationIndex?
+    func setCurrentIndex(_ index: DerivationIndex) throws
 
     var storageKey: String { get }
     var storage: KeystoreProtocol { get }
 }
 
+/// The index is persisted SCALE-encoded as `UInt64`.
 extension CoinageIndexstoreProtocol {
-    func getNextIndex() throws -> UInt32 {
-        let exists = try storage.checkKey(for: storageKey)
-        guard exists else {
-            try storage.saveKey(UInt32(0).scaleEncoded(), with: storageKey)
+    func getNextIndex() throws -> DerivationIndex {
+        guard let current = try getCurrentIndex() else {
+            try setCurrentIndex(0)
             return 0
         }
 
-        let data = try storage.fetchKey(for: storageKey)
-        let decoder = try ScaleDecoder(data: data)
-        var index = try UInt32(scaleDecoder: decoder)
-        index += 1
-        try storage.saveKey(index.scaleEncoded(), with: storageKey)
-
-        return index
+        let next = current + 1
+        try setCurrentIndex(next)
+        return next
     }
 
-    func getCurrentIndex() throws -> UInt32? {
+    func getCurrentIndex() throws -> DerivationIndex? {
         guard try storage.checkKey(for: storageKey) else { return nil }
         let data = try storage.fetchKey(for: storageKey)
-        let decoder = try ScaleDecoder(data: data)
-        return try UInt32(scaleDecoder: decoder)
+        return try DerivationIndex(scaleDecoder: ScaleDecoder(data: data))
     }
 
-    func setCurrentIndex(_ index: UInt32) throws {
+    func setCurrentIndex(_ index: DerivationIndex) throws {
         try storage.saveKey(index.scaleEncoded(), with: storageKey)
     }
 }
 
 final class CoinIndexstore: CoinageIndexstoreProtocol {
     let storage: KeystoreProtocol
-    let storageKey = "coin-index"
+    let storageKey = "coin-index-store"
 
     init(storage: KeystoreProtocol) {
         self.storage = storage
@@ -51,7 +46,7 @@ final class CoinIndexstore: CoinageIndexstoreProtocol {
 
 final class VoucherIndexstore: CoinageIndexstoreProtocol {
     let storage: KeystoreProtocol
-    let storageKey = "voucher-index"
+    let storageKey = "voucher-index-store"
 
     init(storage: KeystoreProtocol) {
         self.storage = storage

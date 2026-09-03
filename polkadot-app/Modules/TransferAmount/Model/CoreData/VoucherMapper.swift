@@ -2,6 +2,7 @@ import Foundation
 import CoreData
 import Coinage
 import Operation_iOS
+import SubstrateSdk
 
 final class VoucherMapper {
     var entityIdentifierFieldName: String {
@@ -36,31 +37,28 @@ extension VoucherMapper: CoreDataMapperProtocol {
             }
 
         let state: Voucher.OnChainState =
-            if entity.state == 1 {
+            if entity.onChainState == 1 {
                 .onboarding
-            } else if entity.state == 2, let recycler {
+            } else if entity.onChainState == 2, let recycler {
                 .inRecycler(recycler)
             } else {
                 .unlocated
             }
 
-        let localState: Voucher.State =
-            switch entity.localState {
-            case 1: .pendingTransfer
-            case 2: .pendingOnboarding
-            default: .available
-            }
-
         let privacy: VoucherPrivacyLevel = entity.privacy == 1 ? .full : .degraded
 
-        return Voucher(
+        guard let publicKeyHex = entity.publicKey else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDVoucher.publicKey))
+        }
+
+        return try Voucher(
             exponent: entity.exponent,
-            derivationIndex: UInt32(entity.derivationIndex),
+            derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            localState: localState,
-            privacy: privacy
+            privacy: privacy,
+            publicKey: Data(hexString: publicKeyHex)
         )
     }
 
@@ -70,24 +68,18 @@ extension VoucherMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
-        entity.derivationIndex = Int64(model.derivationIndex)
+        entity.derivationIndex = model.derivationIndex.toCoreData()
         entity.exponent = model.exponent
         entity.readyAt = model.readyAt
         entity.allocatedAt = model.allocatedAt
         entity.recyclerIndex = model.recycler.flatMap { Int64($0.index) } ?? -1
+        entity.publicKey = model.publicKey.toHex()
 
-        entity.state =
+        entity.onChainState =
             switch model.remoteState {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
-            }
-
-        entity.localState =
-            switch model.localState {
-            case .available: 0
-            case .pendingTransfer: 1
-            case .pendingOnboarding: 2
             }
 
         entity.privacy =

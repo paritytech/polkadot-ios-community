@@ -2,7 +2,10 @@ import Foundation
 import CoreData
 import Coinage
 import Operation_iOS
+import SubstrateSdk
 
+/// Maps a `CDCoin` to the raw ``Coin`` — every stored field, no derived status. The durability
+/// overlay is added separately by ``TrackedCoinMapper``.
 final class CoinMapper {
     var entityIdentifierFieldName: String {
         #keyPath(CoreDataEntity.identifier)
@@ -14,21 +17,21 @@ final class CoinMapper {
 
 extension CoinMapper: CoreDataMapperProtocol {
     func transform(entity: CoreDataEntity) throws -> DataProviderModel {
-        let state: Coin.State =
-            switch entity.state {
-            case 1: .available
-            case 2: .recycling
-            case 3: .pendingTransfer
-            default: .spent
-            }
+        guard let handoffMark = CoinHandoffMark(rawValue: entity.handoffMark) else {
+            throw CoreDataMapperError.unexpected(#keyPath(CDCoin.handoffMark))
+        }
 
-        let age = entity.age >= 0 ? entity.age : nil
+        guard let publicKeyHex = entity.publicKey else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.publicKey))
+        }
 
-        return Coin(
+        return try Coin(
             exponent: entity.exponent,
-            derivationIndex: UInt32(bitPattern: entity.derivationIndex),
-            age: age,
-            state: state
+            derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
+            age: entity.age?.int16Value,
+            isOnchain: entity.isOnchain,
+            handoffMark: handoffMark,
+            publicKey: Data(hexString: publicKeyHex)
         )
     }
 
@@ -38,15 +41,11 @@ extension CoinMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
-        entity.derivationIndex = Int32(bitPattern: model.derivationIndex)
+        entity.derivationIndex = model.derivationIndex.toCoreData()
         entity.exponent = model.exponent
-        entity.age = model.age ?? -1
-        entity.state =
-            switch model.state {
-            case .spent: 0
-            case .available: 1
-            case .recycling: 2
-            case .pendingTransfer: 3
-            }
+        entity.age = model.age.map { NSNumber(value: $0) }
+        entity.isOnchain = model.isOnchain
+        entity.handoffMark = model.handoffMark.rawValue
+        entity.publicKey = model.publicKey.toHex()
     }
 }

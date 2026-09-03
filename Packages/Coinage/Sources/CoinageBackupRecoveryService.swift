@@ -154,12 +154,12 @@ private extension CoinageBackupRecoveryService {
         return ScanResult(items: result, horizon: batchStart - 1)
     }
 
-    func deriveCoinKeys(in range: ClosedRange<Int>) async -> [(index: UInt32, publicKey: Data)] {
+    func deriveCoinKeys(in range: ClosedRange<Int>) async -> [(index: DerivationIndex, publicKey: Data)] {
         await withCheckedContinuation { continuation in
             let keys = range.compactMap { index in
                 do {
-                    let key = try coinKeypairFactory.derivePublicKey(placeholderIndex: UInt32(index))
-                    return (UInt32(index), key)
+                    let key = try coinKeypairFactory.derivePublicKey(index: DerivationIndex(index))
+                    return (DerivationIndex(index), key)
                 } catch {
                     logger?.error("Failed to derive coin key at index \(index): \(error)")
                     return nil
@@ -169,7 +169,7 @@ private extension CoinageBackupRecoveryService {
         }
     }
 
-    func queryCoinBatch(indexedKeys: [(index: UInt32, publicKey: Data)]) async throws -> [Coin] {
+    func queryCoinBatch(indexedKeys: [(index: DerivationIndex, publicKey: Data)]) async throws -> [Coin] {
         guard !indexedKeys.isEmpty else { return [] }
         let results = try await coinOnChainQuery.fetchCoins(for: indexedKeys.map(\.publicKey))
         return results.enumerated().compactMap { i, onChainCoin -> Coin? in
@@ -177,7 +177,8 @@ private extension CoinageBackupRecoveryService {
             return Coin(
                 exponent: Int16(onChainCoin.value),
                 derivationIndex: indexedKeys[i].index,
-                age: onChainCoin.age
+                age: onChainCoin.age,
+                publicKey: indexedKeys[i].publicKey
             )
         }
     }
@@ -198,7 +199,7 @@ private extension CoinageBackupRecoveryService {
 
         for batchStart in stride(from: start, through: end, by: Config.batchSize) {
             let batchEnd = min(batchStart + Config.batchSize - 1, end)
-            let indices = (batchStart ... batchEnd).map { UInt32($0) }
+            let indices = (batchStart ... batchEnd).map { DerivationIndex($0) }
             let vouchers = try await queryVoucherBatch(indices: indices)
             result.append(contentsOf: vouchers)
         }
@@ -215,7 +216,7 @@ private extension CoinageBackupRecoveryService {
 
         while emptyBatches < Config.gapLimit {
             let batchEnd = batchStart + Config.batchSize - 1
-            let indices = (batchStart ... batchEnd).map { UInt32($0) }
+            let indices = (batchStart ... batchEnd).map { DerivationIndex($0) }
             let vouchers = try await queryVoucherBatch(indices: indices)
 
             if vouchers.isEmpty {
@@ -231,18 +232,21 @@ private extension CoinageBackupRecoveryService {
         return ScanResult(items: result, horizon: batchStart - 1)
     }
 
-    func queryVoucherBatch(indices: [UInt32]) async throws -> [Voucher] {
+    func queryVoucherBatch(indices: [DerivationIndex]) async throws -> [Voucher] {
         guard !indices.isEmpty else { return [] }
         let results = try await voucherOnChainQuery.fetchVouchers(for: indices)
         return zip(indices, results).compactMap { index, info -> Voucher? in
-            guard let info else { return nil }
+            // Only vouchers placed in a ring: the query now also reports Onboarding/Suspended members,
+            // which backup recovery has never scanned, so it keeps to ring-placed ones as before.
+            guard let info, info.ringPosition.ringIndex != nil else { return nil }
             let state: Voucher.OnChainState = info.isUnloaded ? .unlocated : info.ringPosition.onchainState
             return Voucher(
                 exponent: info.exponent,
                 derivationIndex: index,
                 allocatedAt: .now,
                 readyAt: .distantPast,
-                remoteState: state
+                remoteState: state,
+                publicKey: info.publicKey
             )
         }
     }

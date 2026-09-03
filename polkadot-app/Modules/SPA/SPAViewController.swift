@@ -1,6 +1,9 @@
+import DesignSystem
 import FoundationExt
+import PolkadotUI
 import Products
 import UIKit
+import UIKitExt
 import WebKit
 
 final class SPAViewController: UIViewController, ViewHolder {
@@ -15,6 +18,9 @@ final class SPAViewController: UIViewController, ViewHolder {
 
     private var titleObservation: NSKeyValueObservation?
     private var didSetupWebViewLayout = false
+    private var loadFailure: ErrorContent?
+    private var loadingStartedAt: Date?
+    private var pendingFailureTask: Task<Void, Never>?
     private var chromeCollapser: BrowserChromeCollapser?
 
     init(
@@ -69,14 +75,43 @@ final class SPAViewController: UIViewController, ViewHolder {
         setupWebViewLayout()
     }
 
+    override func updateContentUnavailableConfiguration(
+        using _: UIContentUnavailableConfigurationState
+    ) {
+        guard let loadFailure else {
+            contentUnavailableConfiguration = nil
+            return
+        }
+
+        contentUnavailableConfiguration = UIContentUnavailableConfiguration.titleSubtitle(
+            with: loadFailure.title,
+            subtitle: loadFailure.message,
+            actionTitle: String(localized: .Common.retry)
+        ) { [weak self] in
+            self?.presenter.didTapRetry()
+        }
+    }
+
     deinit {
         titleObservation?.invalidate()
+        pendingFailureTask?.cancel()
     }
 }
 
 // MARK: - Private
 
 private extension SPAViewController {
+    enum Constants {
+        static let minimumLoadingDuration: TimeInterval = 0.5
+    }
+
+    func display(loadFailure content: ErrorContent) {
+        rootView.activityIndicatorView.stopAnimating()
+
+        loadFailure = content
+        setNeedsUpdateContentUnavailableConfiguration()
+    }
+
     func setupJSEngine() {
         let navigationHandler: SPANavigationDecisionHandling =
             switch configuration.contentSource {
@@ -141,10 +176,6 @@ private extension SPAViewController {
 
         if configuration.isBrowserTab {
             rootView.setupBrowserTabLayout()
-
-            #if !FEATURE_PRODUCTS
-                additionalSafeAreaInsets.top = rootView.topChromeHeight
-            #endif
         } else if configuration.isRootScreen {
             rootView.setupRootLayout()
         } else {
@@ -219,8 +250,9 @@ private extension SPAViewController {
     }
 
     func resetChromeCollapse() {
-        guard configuration.isBrowserTab, chromeCollapser != nil else { return }
-        chromeCollapser?.reset()
+        guard let chromeCollapser else { return }
+
+        chromeCollapser.reset()
         rootView.applyChromeCollapse(0, animated: false)
     }
 
@@ -250,11 +282,7 @@ private extension SPAViewController {
     }
 
     @objc func onMinimizeTapped() {
-        #if FEATURE_PRODUCTS
-            presenter.didTapMinimize()
-        #else
-            presenter.didTapClose()
-        #endif
+        presenter.didTapMinimize()
     }
 }
 
@@ -285,10 +313,33 @@ extension SPAViewController: SPAViewProtocol {
 
     func showLoading() {
         rootView.activityIndicatorView.startAnimating()
+
+        pendingFailureTask?.cancel()
+        pendingFailureTask = nil
+        loadingStartedAt = .now
+
+        guard loadFailure != nil else { return }
+
+        loadFailure = nil
+        setNeedsUpdateContentUnavailableConfiguration()
     }
 
     func hideLoading() {
         rootView.activityIndicatorView.stopAnimating()
+    }
+
+    /// A failure arriving right after a retry would swap the error state out and back in the same
+    /// beat, so the loading state is held for a minimum time before the error replaces it.
+    func showLoadFailure(_ content: ErrorContent) {
+        let elapsed = Date.now.timeIntervalSince(loadingStartedAt ?? .distantPast)
+
+        pendingFailureTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, Constants.minimumLoadingDuration - elapsed)))
+
+            guard !Task.isCancelled else { return }
+
+            self?.display(loadFailure: content)
+        }
     }
 
     // Resolving: 0-10%

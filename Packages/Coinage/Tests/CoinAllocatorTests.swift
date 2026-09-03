@@ -3,6 +3,7 @@ import Foundation
 import SubstrateSdk
 import NovaCrypto
 import Keystore_iOS
+import Operation_iOS
 @testable import Coinage
 
 struct CoinAllocatorTests {
@@ -16,13 +17,20 @@ struct CoinAllocatorTests {
 
         self.keychain = keychain
         self.store = store
-        allocator = CoinAllocator(storage: store)
+        allocator = CoinAllocator(
+            storage: store,
+            coinRepository: AnyDataProviderRepository(StubRepository<Coin>()),
+            keyFactory: CoinKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
+                repeating: 0x01,
+                count: 32
+            )))
+        )
     }
 
     @Test("Successfully allocates a coin")
     func allocateCoin() async throws {
-        let expectedIndex: UInt32 = 42
-        let seedIndex: UInt32 = 41
+        let expectedIndex: UInt64 = 42
+        let seedIndex: UInt64 = 41
         try keychain.saveKey(seedIndex.scaleEncoded(), with: store.storageKey)
 
         let exponent: Int16 = 5
@@ -32,7 +40,6 @@ struct CoinAllocatorTests {
         #expect(coin.derivationIndex == expectedIndex)
         #expect(coin.exponent == exponent)
         #expect(coin.age == nil)
-        #expect(coin.state == .available)
     }
 
     @Test("Propagates errors from storage")

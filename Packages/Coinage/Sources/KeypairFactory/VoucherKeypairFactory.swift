@@ -3,19 +3,14 @@ import SubstrateSdk
 import NovaCrypto
 
 public protocol VoucherKeyDeriving: CoinageKeypairFactory where Model == Voucher {
-    /// Creates a key manager for a specific voucher to perform Bandersnatch operations (proofs, signing, aliases).
-    func createKeyManager(for model: Model) throws -> any BandersnatchKeyManaging
+    /// Creates a key manager for a voucher index to perform Bandersnatch operations (proofs, signing, aliases).
+    func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging
 }
 
-extension VoucherKeyDeriving {
-    func derivePublicKey(placeholderIndex index: UInt32) throws -> PublicKey {
-        let placeholder = Voucher(
-            exponent: 0,
-            derivationIndex: UInt32(index),
-            allocatedAt: .now,
-            readyAt: .distantPast
-        )
-        return try derivePublicKey(for: placeholder)
+public extension VoucherKeyDeriving {
+    /// Convenience over ``createKeyManager(index:)`` for a model whose index it reads.
+    func createKeyManager(for model: Model) throws -> any BandersnatchKeyManaging {
+        try createKeyManager(index: model.derivationIndex)
     }
 }
 
@@ -28,16 +23,15 @@ public final class VoucherKeypairFactory: BaseKeypairFactory<Voucher> {
         super.init(basePath: "//pps//ring-vrf", entropyManager: entropyManager)
     }
 
-    override public func derivePublicKey(for model: Voucher) throws -> PublicKey {
-        try createKeyManager(for: model).getMemberKey()
+    override public func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
+        try createKeyManager(index: index).getMemberKey()
     }
 }
 
 extension VoucherKeypairFactory: VoucherKeyDeriving {
-    public func createKeyManager(for model: Voucher) throws -> any BandersnatchKeyManaging {
-        let path = derivationPath(for: model)
-        return BandersnatchKeyManager(
-            entropyDeriver: VoucherEntropyDeriving(path: path),
+    public func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging {
+        BandersnatchKeyManager(
+            entropyDeriver: VoucherEntropyDeriving(path: derivationPath(index: index)),
             entropyManager: entropyManager
         )
     }

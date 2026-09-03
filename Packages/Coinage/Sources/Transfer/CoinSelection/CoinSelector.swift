@@ -4,8 +4,8 @@ import BigInt
 /// Consolidates all parameters for coin selection.
 struct SelectCoinsInput {
     let amount: BigUInt
-    let coins: [Coin]
-    let vouchers: [Voucher]
+    let coins: [TrackedCoin]
+    let vouchers: [TrackedVoucher]
     let breakdownContext: DenominationBreakdownContext
     let maxVouchersPerGroup: Int
 }
@@ -36,9 +36,11 @@ extension CoinSelector: CoinSelecting {
             throw CoinSelectionError.zeroAmount
         }
 
-        let availableCoins = input.coins.filter { $0.state == .available && !$0.isExpiringSoon }
+        // Consume the durability overlay here: past this point strategies work on raw assets.
+        let availableCoins = input.coins.filter(\.isSelectable).map(\.coin)
+        let availableVouchers = input.vouchers.filter(\.isSelectable).map(\.voucher)
 
-        guard !availableCoins.isEmpty || !input.vouchers.isEmpty else {
+        guard !availableCoins.isEmpty || !availableVouchers.isEmpty else {
             throw CoinSelectionError.emptyWallet
         }
 
@@ -59,7 +61,7 @@ extension CoinSelector: CoinSelecting {
             return splitResult
         }
 
-        let fullPrivacyVouchers = input.vouchers.filter { $0.privacy == .full }
+        let fullPrivacyVouchers = availableVouchers.filter { $0.privacy == .full }
 
         // Strategy 3a: Unload with full privacy (ready vouchers only)
         if let fullPrivacy = try tryUnloadIntoCoins(
@@ -72,7 +74,7 @@ extension CoinSelector: CoinSelecting {
             return fullPrivacy
         }
 
-        let allVouchers = input.vouchers
+        let allVouchers = availableVouchers
 
         // Strategy 3b: Unload with degraded privacy fallback
         if allVouchers.count > fullPrivacyVouchers.count {
@@ -88,7 +90,7 @@ extension CoinSelector: CoinSelecting {
         }
 
         // If we have vouchers but none are ready, and they could cover the amount
-        if !input.vouchers.isEmpty, fullPrivacyVouchers.isEmpty {
+        if !availableVouchers.isEmpty, fullPrivacyVouchers.isEmpty {
             throw CoinSelectionError.noReadyVouchers
         }
 

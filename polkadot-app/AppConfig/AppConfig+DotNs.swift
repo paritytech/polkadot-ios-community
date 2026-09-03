@@ -33,7 +33,10 @@ extension AppConfig {
         }
 
         static let dotNsBrowse = "browse"
-        static let dotNsGetSome = "getcash"
+        static var dotNsGetSome: String {
+            AppConfigProvider.shared.getRemoteConfig()!.fundingDomain!
+        }
+
         static let dotNsGameWebview = "game-webview"
         static let dotNsCollectibles = "collectibles-webview"
 

@@ -95,6 +95,12 @@ final class CoinageTransferExtension: ChatExtending, @unchecked Sendable {
                         displayValue = totalValue
                         transferStatus = isIncoming ? .claiming : .processing
                         originalTotal = nil
+                    case let .partiallyClaimed(claimed):
+                        // Show what has arrived so far under a "partially claimed" subtitle — no
+                        // strikethrough (that path is reserved for the final shortfall).
+                        displayValue = claimed
+                        transferStatus = isIncoming ? .partiallyClaimed : .sent
+                        originalTotal = nil
                     case .sent:
                         displayValue = totalValue
                         transferStatus = isIncoming ? .processing : .sent

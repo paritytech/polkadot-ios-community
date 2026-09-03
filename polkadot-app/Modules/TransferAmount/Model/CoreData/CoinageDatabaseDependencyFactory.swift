@@ -1,7 +1,9 @@
+import AsyncExtensions
 import Foundation
 import Operation_iOS
 import Coinage
 @preconcurrency import SDKLogger
+import StructuredConcurrency
 
 // @unchecked: dependencies are effectively immutable + thread-safe; protocols not yet Sendable-annotated
 struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked Sendable {
@@ -29,12 +31,30 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeCoinStateRepository() -> AnyDataProviderRepository<Coin> {
-        let mapper = CoinStateMapper()
+    func makeCoinRepository(publicKeys: [PublicKey]) -> AnyDataProviderRepository<Coin> {
+        let repository = storageFacade.createRepository(
+            filter: NSPredicate(format: "%K IN %@", #keyPath(CDCoin.publicKey), publicKeys.map { $0.toHex() }),
+            sortDescriptors: [],
+            mapper: AnyCoreDataMapper(CoinMapper())
+        )
+        return AnyDataProviderRepository(repository)
+    }
+
+    func makeTrackedCoinRepository() -> AnyDataProviderRepository<TrackedCoin> {
+        let mapper = TrackedCoinMapper()
         let repository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
             mapper: AnyCoreDataMapper(mapper)
+        )
+        return AnyDataProviderRepository(repository)
+    }
+
+    func makeCoinPresenceRepository() -> AnyDataProviderRepository<CoinPresenceUpdate> {
+        let repository = storageFacade.createRepository(
+            filter: nil,
+            sortDescriptors: [],
+            mapper: AnyCoreDataMapper(CoinPresenceMapper())
         )
         return AnyDataProviderRepository(repository)
     }
@@ -49,8 +69,8 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeVoucherLocationRepository() -> AnyDataProviderRepository<Voucher> {
-        let mapper = VoucherLocationMapper()
+    func makeTrackedVoucherRepository() -> AnyDataProviderRepository<TrackedVoucher> {
+        let mapper = TrackedVoucherMapper()
         let repository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
@@ -59,65 +79,34 @@ struct CoinageDatabaseDependencyFactory: DatabaseDependencyFactoring, @unchecked
         return AnyDataProviderRepository(repository)
     }
 
-    func makeCoinProvider() -> StreamableProvider<Coin> {
-        let mapper = AnyCoreDataMapper(CoinMapper())
-
+    func makeVoucherLocationRepository() -> AnyDataProviderRepository<VoucherLocationUpdate> {
         let repository = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
-            mapper: mapper
+            mapper: AnyCoreDataMapper(VoucherLocationMapper())
         )
+        return AnyDataProviderRepository(repository)
+    }
 
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
-        }
-
-        let source = AnyStreamableSource(EmptyStreamableSource<Coin>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
+    func makeTrackedCoinSnapshotStream() -> AnyAsyncSequence<[TrackedCoin]> {
+        storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedCoinMapper())
         )
     }
 
-    func makeVoucherProvider() -> StreamableProvider<Voucher> {
-        let mapper = AnyCoreDataMapper(VoucherMapper())
-
-        let repository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: mapper
-        )
-
-        let repositoryObservable = CoreDataContextObservable(
-            service: storageFacade.databaseService,
-            mapper: mapper,
-            predicate: { _ in true }
-        )
-
-        repositoryObservable.start { [logger] error in
-            if let error {
-                logger.error("Did receive error: \(error)")
-            }
+    func makeTrackedCoinSnapshotStream(publicKeys: [PublicKey]) -> AnyAsyncSequence<[TrackedCoin]> {
+        guard !publicKeys.isEmpty else {
+            return AsyncStream<[TrackedCoin]> { $0.finish() }.eraseToAnyAsyncSequence()
         }
+        return storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedCoinMapper()),
+            filter: NSPredicate(format: "%K IN %@", #keyPath(CDCoin.publicKey), publicKeys.map { $0.toHex() })
+        )
+    }
 
-        let source = AnyStreamableSource(EmptyStreamableSource<Voucher>())
-
-        return StreamableProvider(
-            source: source,
-            repository: AnyDataProviderRepository(repository),
-            observable: AnyDataProviderRepositoryObservable(repositoryObservable),
-            operationManager: OperationManager(operationQueue: operationQueue)
+    func makeTrackedVoucherSnapshotStream() -> AnyAsyncSequence<[TrackedVoucher]> {
+        storageFacade.databaseService.subscribeSnapshot(
+            mapper: AnyCoreDataMapper(TrackedVoucherMapper())
         )
     }
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "4002ca3fc6c9abac2c51a3cf0273b23be86f0ac042b388227332b0a3e1cefc0d",
+  "originHash" : "36c6f4947fed921c107fd06bcb3834742037939ee140da6739985bd6e88fca7d",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,8 +87,12 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
+<<<<<<< HEAD
+        "revision" : "69cd603a942983b18be61e268fe4d0080dd94b88"
+=======
         "revision" : "8a3e236b22e47c1dbcc90627f409721575e40270",
         "version" : "1.13.0"
+>>>>>>> develop
       }
     },
     {
@@ -168,8 +172,13 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/paritytech/host-rust-core",
       "state" : {
+<<<<<<< HEAD
+        "revision" : "3f9ba7368f52fc3c9e8930803cb71ca46a9b1ae7",
+        "version" : "0.7.1"
+=======
         "revision" : "7e0284cef81c4ca025d613428d02defd0f80b863",
         "version" : "0.12.0"
+>>>>>>> develop
       }
     },
     {

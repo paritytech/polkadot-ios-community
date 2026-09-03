@@ -13,6 +13,13 @@ protocol ExtrinsicServiceCreating: ExtrinsicServiceFactoryProtocol {
         chain: ChainProtocol,
         submitter: ExtrinsicSubmitting?
     ) throws -> ExtrinsicServiceProtocol
+
+    func createOperationFactory(chain: ChainProtocol) throws -> ExtrinsicOperationFactoryProtocol
+
+    func makeForkProtectedSubmitter(
+        chain: ChainProtocol,
+        trackingTill: ExtrinsicTrackingTill
+    ) throws -> ExtrinsicSubmitting
 }
 
 final class ExtrinsicServiceFactory {
@@ -139,7 +146,7 @@ extension ExtrinsicServiceFactory: ExtrinsicServiceCreating {
     }
 }
 
-private extension ExtrinsicServiceFactory {
+extension ExtrinsicServiceFactory {
     /// Resolves the concrete version for the configured format (default V5). The V5 extension version
     /// is sourced per-chain from remote config (default 0); the format is never flipped to V4 unless
     /// the caller pinned it.
@@ -147,7 +154,10 @@ private extension ExtrinsicServiceFactory {
         extensionVersionProvider.getExtensionVersion(for: extrinsicVersion, chainId: chain.chainId)
     }
 
-    func makeForkProtectedSubmitter(chain: ChainProtocol) throws -> ExtrinsicSubmitting {
+    func makeForkProtectedSubmitter(
+        chain: ChainProtocol,
+        trackingTill: ExtrinsicTrackingTill = .inBlock
+    ) throws -> ExtrinsicSubmitting {
         let base = try DefaultExtrinsicSubmitter(
             operationFactory: createOperationFactory(chain: chain),
             operationQueue: operationQueue,
@@ -160,6 +170,7 @@ private extension ExtrinsicServiceFactory {
             chainRegistry: chainRegistry,
             operationQueue: operationQueue,
             maxAttempts: 10,
+            trackingTill: trackingTill,
             logger: logger
         )
     }
