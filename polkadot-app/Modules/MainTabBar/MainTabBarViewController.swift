@@ -384,6 +384,7 @@ private extension MainTabBarViewController {
             view.controller.sheetPresentationController?.detents = [
                 .custom { $0.maximumDetentValue * 0.92 }
             ]
+            view.controller.sheetPresentationController?.prefersGrabberVisible = true
 
             let host = UIWindow.keyWindow?.topmostViewController ?? self
             host.present(view.controller, animated: true)
