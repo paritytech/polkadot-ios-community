@@ -89,10 +89,12 @@ extension ProductsNativeApi {
             context.setContinuation(continuation)
 
             switch contextSource {
-            case .wallet:
-                Task { @MainActor [productsRouter, coinageService] in
-                    productsRouter.showTopUpRequest(
+            case let .wallet(wallet):
+                Task { [coinageService] in
+                    await self.runWalletTopUp(
                         context: context,
+                        wallet: wallet,
+                        amount: amount,
                         coinageService: coinageService
                     )
                 }
@@ -169,6 +171,49 @@ private extension ProductsNativeApi {
 // MARK: - Top-Up Helpers
 
 private extension ProductsNativeApi {
+    func claimWalletTopUp(
+        wallet: any WalletManaging,
+        amount: Balance,
+        coinageService: any CoinageServicing
+    ) async throws {
+        let loaded = try await coinageService.loadVouchers(
+            amount: amount,
+            externalAssetHolder: wallet
+        )
+
+        if loaded < amount {
+            throw PaymentTopUpError.partialPayment(amount: loaded)
+        }
+    }
+
+    func runWalletTopUp(
+        context: TopUpRequestContext,
+        wallet: any WalletManaging,
+        amount: Balance,
+        coinageService: any CoinageServicing
+    ) async {
+        do {
+            try await claimWalletTopUp(
+                wallet: wallet,
+                amount: amount,
+                coinageService: coinageService
+            )
+            context.deliverClaimed()
+        } catch let PaymentTopUpError.partialPayment(loaded) {
+            await productsRouter.showTopUpMismatch(
+                context: context,
+                claimedAmount: loaded,
+                requestedAmount: amount
+            )
+        } catch {
+            logger.error("Wallet topup claim failed: \(error)")
+            await productsRouter.showTopUpError(
+                context: context,
+                error: error
+            )
+        }
+    }
+
     func claimCoinsTopUp(
         secretKeys: [Data],
         amount: Balance,
