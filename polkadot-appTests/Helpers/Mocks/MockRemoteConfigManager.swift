@@ -15,7 +15,8 @@ final class MockRemoteConfigManager: RemoteConfigManaging {
         gameDashboardUrl: nil,
         dotNsResolver: nil,
         dotNsNameRegistry: nil,
-        coinageInstanceId: nil
+        coinageInstanceId: nil,
+        fundingDomain: nil
     )
 
     func fetchRemoteConfigValues() {}
