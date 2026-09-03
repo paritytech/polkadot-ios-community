@@ -5,6 +5,7 @@ import KeyDerivation
 import Products
 import SubstrateSdk
 import AsyncExtensions
+import StructuredConcurrency
 
 enum PaymentTopUpError: Error, LocalizedError {
     case coinsNotOnChain
@@ -85,27 +86,29 @@ extension ProductsNativeApi {
             source: contextSource
         )
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            context.setContinuation(continuation)
+        try await markStallActivity("Topup") {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                context.setContinuation(continuation)
 
-            switch contextSource {
-            case let .wallet(wallet):
-                Task { [coinageService] in
-                    await self.runWalletTopUp(
-                        context: context,
-                        wallet: wallet,
-                        amount: amount,
-                        coinageService: coinageService
-                    )
-                }
-            case let .coins(secretKeys):
-                Task { [coinageService] in
-                    await self.runCoinsTopUp(
-                        context: context,
-                        secretKeys: secretKeys,
-                        amount: amount,
-                        coinageService: coinageService
-                    )
+                switch contextSource {
+                case let .wallet(wallet):
+                    Task { [coinageService] in
+                        await self.runWalletTopUp(
+                            context: context,
+                            wallet: wallet,
+                            amount: amount,
+                            coinageService: coinageService
+                        )
+                    }
+                case let .coins(secretKeys):
+                    Task { [coinageService] in
+                        await self.runCoinsTopUp(
+                            context: context,
+                            secretKeys: secretKeys,
+                            amount: amount,
+                            coinageService: coinageService
+                        )
+                    }
                 }
             }
         }
