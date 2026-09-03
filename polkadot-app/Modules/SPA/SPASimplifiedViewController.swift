@@ -6,8 +6,10 @@ import UIKit
 import UIKitExt
 import WebKit
 
-final class SPAViewController: UIViewController, ViewHolder {
-    typealias RootViewType = SPAViewLayout
+/// Builds without the browse tab still reach the SPA through debug settings and deeplinks, so this
+/// controller ships without the browser chrome: no top pills, no collapse, no minimize.
+final class SPASimplifiedViewController: UIViewController, ViewHolder {
+    typealias RootViewType = SPASimplifiedViewLayout
 
     let presenter: SPAPresenterProtocol
     let configuration: SPAConfiguration
@@ -21,7 +23,6 @@ final class SPAViewController: UIViewController, ViewHolder {
     private var loadFailure: ErrorContent?
     private var loadingStartedAt: Date?
     private var pendingFailureTask: Task<Void, Never>?
-    private var chromeCollapser: BrowserChromeCollapser?
 
     init(
         presenter: SPAPresenterProtocol,
@@ -53,7 +54,7 @@ final class SPAViewController: UIViewController, ViewHolder {
             schemeHandlerProxy,
             forURLScheme: ProductScriptSchemeHandler.scheme
         )
-        view = SPAViewLayout(webViewConfiguration: webViewConfiguration)
+        view = SPASimplifiedViewLayout(webViewConfiguration: webViewConfiguration)
     }
 
     override func viewDidLoad() {
@@ -62,11 +63,6 @@ final class SPAViewController: UIViewController, ViewHolder {
         setupNavigationBar()
         setupTitleObservation()
         setupJSEngine()
-
-        if configuration.isBrowserTab {
-            setupBrowserTabActions()
-            setupChromeCollapse()
-        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -100,7 +96,7 @@ final class SPAViewController: UIViewController, ViewHolder {
 
 // MARK: - Private
 
-private extension SPAViewController {
+private extension SPASimplifiedViewController {
     enum Constants {
         static let minimumLoadingDuration: TimeInterval = 0.5
     }
@@ -183,79 +179,6 @@ private extension SPAViewController {
         }
     }
 
-    func setupBrowserTabActions() {
-        rootView.minimizeButton.addTarget(self, action: #selector(onMinimizeTapped), for: .touchUpInside)
-        rootView.moreButton.showsMenuAsPrimaryAction = true
-        rootView.moreButton.menu = UIMenu(children: [
-            UIDeferredMenuElement.uncached { [weak self] completion in
-                completion(self?.makeMoreMenuElements() ?? [])
-            }
-        ])
-    }
-
-    func makeMoreMenuElements() -> [UIMenuElement] {
-        var elements: [UIMenuElement] = []
-
-        if presenter.hasChatEntry() {
-            elements.append(UIAction(
-                title: String(localized: .spaActionOpenChat),
-                image: UIImage(systemName: "bubble.left")
-            ) { [weak self] _ in
-                self?.presenter.didTapOpenChat()
-            })
-        }
-
-        elements.append(UIAction(
-            title: String(localized: .spaActionRefresh),
-            image: UIImage(systemName: "arrow.clockwise")
-        ) { [weak self] _ in
-            self?.reload()
-        })
-
-        elements.append(UIAction(
-            title: String(localized: .spaActionShare),
-            image: UIImage(systemName: "square.and.arrow.up")
-        ) { [weak self] _ in
-            self?.presenter.didTapShare()
-        })
-
-        elements.append(UIAction(
-            title: String(localized: .Common.close),
-            image: UIImage(systemName: "xmark"),
-            attributes: .destructive
-        ) { [weak self] _ in
-            self?.presenter.didTapClose()
-        })
-
-        return elements
-    }
-
-    func setupChromeCollapse() {
-        let collapser = BrowserChromeCollapser(topPanelHeight: rootView.topChromeHeight)
-        chromeCollapser = collapser
-        rootView.webView.scrollView.delegate = self
-    }
-
-    func feedChromeCollapse(_ scrollView: UIScrollView) {
-        guard let collapser = chromeCollapser else { return }
-
-        let sample = BrowserChromeScrollSample(
-            offsetToTopEdge: max(0, scrollView.bounds.minY),
-            isInteracting: scrollView.isDragging || scrollView.isDecelerating
-        )
-
-        if let update = collapser.update(with: sample) {
-            rootView.applyChromeCollapse(update.fraction, animated: update.animated)
-        }
-    }
-
-    func resetChromeCollapse() {
-        guard let chromeCollapser else { return }
-
-        chromeCollapser.reset()
-        rootView.applyChromeCollapse(0, animated: false)
-    }
-
     // MARK: - Actions
 
     @objc func onMoreTapped() {
@@ -280,17 +203,12 @@ private extension SPAViewController {
             closure()
         }
     }
-
-    @objc func onMinimizeTapped() {
-        presenter.didTapMinimize()
-    }
 }
 
 // MARK: - SPAViewProtocol
 
-extension SPAViewController: SPAViewProtocol {
+extension SPASimplifiedViewController: SPAViewProtocol {
     func navigate(to url: URL) {
-        resetChromeCollapse()
         rootView.webView.load(URLRequest(url: url))
     }
 
@@ -307,7 +225,6 @@ extension SPAViewController: SPAViewProtocol {
     }
 
     func reload() {
-        resetChromeCollapse()
         rootView.webView.reload()
     }
 
@@ -368,22 +285,4 @@ extension SPAViewController: SPAViewProtocol {
 
 // MARK: - RootScreen
 
-extension SPAViewController: RootScreen {}
-
-// MARK: - UIScrollViewDelegate
-
-extension SPAViewController: UIScrollViewDelegate {
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        feedChromeCollapse(scrollView)
-    }
-
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        if !decelerate {
-            feedChromeCollapse(scrollView)
-        }
-    }
-
-    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        feedChromeCollapse(scrollView)
-    }
-}
+extension SPASimplifiedViewController: RootScreen {}

@@ -18,19 +18,17 @@ final class SPAViewLayout: UIView {
     }()
 
     // Top pills exist only where products live on as tabs; elsewhere the sheet itself dismisses them.
-    #if FEATURE_PRODUCTS
-        let moreButton = SPAViewLayout.makeIconButton(systemName: "ellipsis")
-        let minimizeButton = SPAViewLayout.makeIconButton(systemName: "chevron.down")
+    let moreButton = SPAViewLayout.makeIconButton(systemName: "ellipsis")
+    let minimizeButton = SPAViewLayout.makeIconButton(systemName: "chevron.down")
 
-        let minimizeContainer = UIView()
-        let moreContainer = UIView()
+    let minimizeContainer = UIView()
+    let moreContainer = UIView()
 
-        var topChromeHeight: CGFloat { Constants.topEdgeGap * 2 + Constants.topPillSize }
+    var topChromeHeight: CGFloat { Constants.topEdgeGap * 2 + Constants.topPillSize }
 
-        private var isBrowserToolbarLayout = false
-        private var collapseFraction: CGFloat = 0
-        private var isSettling = false
-    #endif
+    private var isBrowserToolbarLayout = false
+    private var collapseFraction: CGFloat = 0
+    private var isSettling = false
 
     init(webViewConfiguration: WKWebViewConfiguration) {
         webView = WKWebView(frame: .zero, configuration: webViewConfiguration)
@@ -55,14 +53,12 @@ final class SPAViewLayout: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    #if FEATURE_PRODUCTS
-        override func layoutSubviews() {
-            super.layoutSubviews()
+    override func layoutSubviews() {
+        super.layoutSubviews()
 
-            guard isBrowserToolbarLayout, !isSettling else { return }
-            layoutWebViewFrame()
-        }
-    #endif
+        guard isBrowserToolbarLayout, !isSettling else { return }
+        layoutWebViewFrame()
+    }
 
     func setupRootLayout() {
         addSubview(webView)
@@ -90,18 +86,11 @@ final class SPAViewLayout: UIView {
     func setupBrowserTabLayout() {
         addSubview(webView)
 
-        #if FEATURE_PRODUCTS
-            // The pills float above the web view, so its frame follows the chrome collapse.
-            isBrowserToolbarLayout = true
-            webView.scrollView.contentInsetAdjustmentBehavior = .never
-            setupTopPills()
-            setupAccessibility()
-        #else
-            webView.snp.makeConstraints { make in
-                make.edges.equalToSuperview()
-            }
-            webView.scrollView.contentInsetAdjustmentBehavior = .automatic
-        #endif
+        // The pills float above the web view, so its frame follows the chrome collapse.
+        isBrowserToolbarLayout = true
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        setupTopPills()
+        setupAccessibility()
 
         setupActivityIndicatorLayout()
         setupLoadProgressLayout()
@@ -109,51 +98,47 @@ final class SPAViewLayout: UIView {
         setNeedsLayout()
     }
 
-    #if FEATURE_PRODUCTS
-        func applyChromeCollapse(_ fraction: CGFloat, animated: Bool) {
-            collapseFraction = fraction
+    func applyChromeCollapse(_ fraction: CGFloat, animated: Bool) {
+        collapseFraction = fraction
 
-            let apply = { [self] in
-                let sideScale = max(0.001, 1.0 - fraction)
-                let sideTransform = CGAffineTransform(scaleX: sideScale, y: sideScale)
-                minimizeContainer.transform = sideTransform
-                minimizeContainer.alpha = 1.0 - fraction
-                moreContainer.transform = sideTransform
-                moreContainer.alpha = 1.0 - fraction
+        let apply = { [self] in
+            let sideScale = max(0.001, 1.0 - fraction)
+            let sideTransform = CGAffineTransform(scaleX: sideScale, y: sideScale)
+            minimizeContainer.transform = sideTransform
+            minimizeContainer.alpha = 1.0 - fraction
+            moreContainer.transform = sideTransform
+            moreContainer.alpha = 1.0 - fraction
 
-                layoutWebViewFrame()
-            }
-
-            if animated {
-                isSettling = true
-                UIView.animate(
-                    withDuration: Constants.settleDuration,
-                    delay: 0,
-                    options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction],
-                    animations: apply
-                ) { [weak self] _ in
-                    self?.isSettling = false
-                    self?.setNeedsLayout()
-                }
-            } else {
-                apply()
-            }
+            layoutWebViewFrame()
         }
-    #endif
+
+        if animated {
+            isSettling = true
+            UIView.animate(
+                withDuration: Constants.settleDuration,
+                delay: 0,
+                options: [.curveEaseInOut, .beginFromCurrentState, .allowUserInteraction],
+                animations: apply
+            ) { [weak self] _ in
+                self?.isSettling = false
+                self?.setNeedsLayout()
+            }
+        } else {
+            apply()
+        }
+    }
 }
 
 // MARK: - Private
 
 private extension SPAViewLayout {
-    #if FEATURE_PRODUCTS
-        func layoutWebViewFrame() {
-            let expandedTop = safeAreaInsets.top + topChromeHeight
-            let collapsedTop = safeAreaInsets.top + Constants.collapsedTopHeight
-            let top = expandedTop + (collapsedTop - expandedTop) * collapseFraction
+    func layoutWebViewFrame() {
+        let expandedTop = safeAreaInsets.top + topChromeHeight
+        let collapsedTop = safeAreaInsets.top + Constants.collapsedTopHeight
+        let top = expandedTop + (collapsedTop - expandedTop) * collapseFraction
 
-            webView.frame = CGRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - top))
-        }
-    #endif
+        webView.frame = CGRect(x: 0, y: top, width: bounds.width, height: max(0, bounds.height - top))
+    }
 
     func setupActivityIndicatorLayout() {
         addSubview(activityIndicatorView)
@@ -170,57 +155,53 @@ private extension SPAViewLayout {
         }
     }
 
-    #if FEATURE_PRODUCTS
-        func setupTopPills() {
-            setupTopPill(minimizeContainer, hosting: minimizeButton)
-            setupTopPill(moreContainer, hosting: moreButton)
+    func setupTopPills() {
+        setupTopPill(minimizeContainer, hosting: minimizeButton)
+        setupTopPill(moreContainer, hosting: moreButton)
 
-            minimizeContainer.snp.makeConstraints { make in
-                make.leading.equalTo(safeAreaLayoutGuide).offset(Constants.topSideInset)
-                make.top.equalTo(safeAreaLayoutGuide.snp.top).offset(Constants.topEdgeGap)
-                make.size.equalTo(Constants.topPillSize)
-            }
-
-            moreContainer.snp.makeConstraints { make in
-                make.trailing.equalTo(safeAreaLayoutGuide).offset(-Constants.topSideInset)
-                make.centerY.equalTo(minimizeContainer)
-                make.size.equalTo(Constants.topPillSize)
-            }
+        minimizeContainer.snp.makeConstraints { make in
+            make.leading.equalTo(safeAreaLayoutGuide).offset(Constants.topSideInset)
+            make.top.equalTo(safeAreaLayoutGuide.snp.top).offset(Constants.topEdgeGap)
+            make.size.equalTo(Constants.topPillSize)
         }
 
-        func setupTopPill(_ container: UIView, hosting button: UIButton) {
-            addSubview(container)
-            let background = DarkGlassPanelView(cornerRadius: Constants.topPillSize / 2)
-            container.addSubview(background)
-            background.snp.makeConstraints { make in make.edges.equalToSuperview() }
-            container.addSubview(button)
-            button.snp.makeConstraints { make in make.edges.equalToSuperview() }
+        moreContainer.snp.makeConstraints { make in
+            make.trailing.equalTo(safeAreaLayoutGuide).offset(-Constants.topSideInset)
+            make.centerY.equalTo(minimizeContainer)
+            make.size.equalTo(Constants.topPillSize)
         }
+    }
 
-        func setupAccessibility() {
-            moreButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMore)
-            minimizeButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMinimize)
-        }
+    func setupTopPill(_ container: UIView, hosting button: UIButton) {
+        addSubview(container)
+        let background = DarkGlassPanelView(cornerRadius: Constants.topPillSize / 2)
+        container.addSubview(background)
+        background.snp.makeConstraints { make in make.edges.equalToSuperview() }
+        container.addSubview(button)
+        button.snp.makeConstraints { make in make.edges.equalToSuperview() }
+    }
 
-        static func makeIconButton(systemName: String) -> UIButton {
-            let button = UIButton(type: .system)
-            button.setImage(UIImage(systemName: systemName), for: .normal)
-            button.tintColor = .fgStaticWhite
-            return button
-        }
-    #endif
+    func setupAccessibility() {
+        moreButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMore)
+        minimizeButton.accessibilityLabel = String(localized: .Products.productBrowserAccessibilityMinimize)
+    }
+
+    static func makeIconButton(systemName: String) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: systemName), for: .normal)
+        button.tintColor = .fgStaticWhite
+        return button
+    }
 }
 
 // MARK: - Constants
 
 private extension SPAViewLayout {
-    #if FEATURE_PRODUCTS
-        enum Constants {
-            static let topPillSize: CGFloat = 44.0
-            static let topSideInset: CGFloat = DSSpacings.mediumIncreased
-            static let topEdgeGap: CGFloat = DSSpacings.small
-            static let collapsedTopHeight: CGFloat = 0.0
-            static let settleDuration: TimeInterval = 0.25
-        }
-    #endif
+    enum Constants {
+        static let topPillSize: CGFloat = 44.0
+        static let topSideInset: CGFloat = DSSpacings.mediumIncreased
+        static let topEdgeGap: CGFloat = DSSpacings.small
+        static let collapsedTopHeight: CGFloat = 0.0
+        static let settleDuration: TimeInterval = 0.25
+    }
 }
