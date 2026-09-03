@@ -17,7 +17,8 @@ struct JWTTokenManagerTests {
                 gameDashboardUrl: nil,
                 dotNsResolver: nil,
                 dotNsNameRegistry: nil,
-                coinageInstanceId: nil
+                coinageInstanceId: nil,
+                fundingDomain: nil
             )
         )
     }
