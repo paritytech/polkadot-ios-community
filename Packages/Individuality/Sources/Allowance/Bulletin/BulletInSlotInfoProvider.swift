@@ -53,7 +53,7 @@ public protocol BulletInSlotInfoProviding {
         timeout: Duration
     ) async throws
     func canAccountPromote(for accountId: AccountId) async throws -> Bool
-    func waitPromotable(for accountId: AccountId, timeout: Duration) async throws
+    func waitSubmittable(for accountId: AccountId, timeout: Duration) async throws
 }
 
 enum BulletInSlotInfoProviderError: Error {
@@ -249,10 +249,10 @@ extension BulletInSlotInfoProvider: BulletInSlotInfoProviding {
         )
     }
 
-    /// Re-evaluates `can_account_promote` immediately and then on each new bulletin head until it returns
+    /// Re-evaluates `can_account_promote` immediately and then on each new Bulletin head until it returns
     /// `true` or [timeout] elapses. The head stream is only a wakeup, so this does not depend on the stored
     /// authorization extent layout.
-    public func waitPromotable(for accountId: AccountId, timeout: Duration) async throws {
+    public func waitSubmittable(for accountId: AccountId, timeout: Duration) async throws {
         let newHeads = bulletInBlockProvider.subscribeNewHeads()
 
         do {

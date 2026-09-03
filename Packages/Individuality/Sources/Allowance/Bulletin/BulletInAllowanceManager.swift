@@ -10,7 +10,7 @@ public final class BulletInAllowanceManager {
     private let allocator: AllowanceSlotAllocating
     private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol
-    private let claimCoordinator = PromotionClaimCoordinator()
+    private let claimCoordinator = ClaimCoordinator()
 
     public init(
         infoProvider: BulletInSlotInfoProviding,
@@ -57,10 +57,10 @@ extension BulletInAllowanceManager: AllowanceManaging {
         }
     }
 
-    /// Gates on `HopRuntimeApi.can_account_promote` instead of the stored allowance extent: HOP promotion
+    /// Gates on `HopRuntimeApi.can_account_promote` instead of the stored allowance extent: HOP
     /// requires an unexpired authorization; the remaining extent is not checked. Products keep using
     /// [allocate], which reads the extent to honour capacity.
-    public func ensurePromotable(
+    public func ensureCanSubmit(
         accountId: AccountId,
         priority: AllowanceRecord.Priority
     ) async throws {
@@ -73,30 +73,30 @@ extension BulletInAllowanceManager: AllowanceManaging {
             logger
         ] in
             try await backgroundExecutor.execute {
-                try await markStallActivity("Ensuring Bulletin promotion allowance") {
-                    let promotable = try await markStallRegion("Check promotion eligibility") {
+                try await markStallActivity("Ensuring Bulletin allowance") {
+                    let submittable = try await markStallRegion("Check submit eligibility") {
                         try await infoProvider.canAccountPromote(for: accountId)
                     }
 
-                    guard !promotable else {
-                        logger.debug("HOP promotion: can_account_promote=true, skipping claim")
+                    guard !submittable else {
+                        logger.debug("HOP: can_account_promote=true, skipping claim")
                         return
                     }
 
-                    logger.debug("HOP promotion: can_account_promote=false, claiming long-term storage slot")
+                    logger.debug("HOP: can_account_promote=false, claiming long-term storage slot")
                     try await allocator.assignSlot(accountId: accountId, priority: priority)
 
-                    try await infoProvider.waitPromotable(for: accountId, timeout: Self.timeout)
-                    logger.debug("HOP promotion: authorization active on bulletin after claim")
+                    try await infoProvider.waitSubmittable(for: accountId, timeout: Self.timeout)
+                    logger.debug("HOP: authorization active on Bulletin after claim")
                 }
             }
         }
     }
 }
 
-/// Serializes the promotion check-and-claim per account so concurrent uploads coalesce onto one
+/// Serializes the submit check-and-claim per account so concurrent uploads coalesce onto one
 /// in-flight operation instead of each submitting a redundant `claim_long_term_storage`.
-private actor PromotionClaimCoordinator {
+private actor ClaimCoordinator {
     private var inFlight: [AccountId: Task<Void, Error>] = [:]
 
     func coalesce(
