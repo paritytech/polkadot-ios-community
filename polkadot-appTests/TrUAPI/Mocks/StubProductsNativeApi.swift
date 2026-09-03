@@ -43,6 +43,9 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
     func localStorageRead(key _: String) async throws -> String? { fatalError() }
     func localStorageWrite(key _: String, value _: String) async throws { fatalError() }
     func localStorageClear(key _: String) async throws { fatalError() }
+    func subscribeLocalStorage(key _: String) -> AnyAsyncSequence<String?> { fatalError() }
+    func workerBeginOperation(label _: String?) async throws -> UInt32 { fatalError() }
+    func workerEndOperation(id _: UInt32) async throws { fatalError() }
     func navigateTo(destination _: String) async throws { fatalError() }
     func allowNetworkAccess(url _: String) async throws -> Bool { fatalError() }
     func allowWebRtcAccess() async throws -> Bool { fatalError() }
@@ -84,4 +87,5 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
 
     func getUserId() async throws -> GetUserIdResult { fatalError() }
     func subscribeTheme() async -> AnyAsyncSequence<ProductTheme> { fatalError() }
+    func subscribeLocale() -> AnyAsyncSequence<String> { fatalError() }
 }

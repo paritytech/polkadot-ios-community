@@ -1,17 +1,58 @@
 import Foundation
+import os
 import Testing
 import Products
+import UIKitExt
 @testable import polkadot_app
 
 // MARK: - Helpers
 
-private func makeNativeRuntime(executor: ProductsScriptExecutorProtocol) -> ChatNativeRuntime {
-    ChatNativeRuntime(
-        productId: "test.dot",
-        scriptExecutor: executor,
-        nativeApiFactory: MockNativeApiFactory(),
-        routers: ProductRoutersFacade.chatExtension()
-    )
+private final class FakeChatWorker: ProductChatWorking, @unchecked Sendable {
+    struct Calls {
+        var botStarted = 0
+        var bound = 0
+        var unbound = 0
+        var lastUserMessage: (text: String, roomId: String?)?
+        var disposed = 0
+    }
+
+    let calls = OSAllocatedUnfairLock(initialState: Calls())
+
+    func dispose() async { calls.withLock { $0.disposed += 1 } }
+    func bindMessaging(_: ProductsNativeApi.MessagingSupport) { calls.withLock { $0.bound += 1 } }
+    func unbindMessaging() { calls.withLock { $0.unbound += 1 } }
+    func onBotStarted() async throws { calls.withLock { $0.botStarted += 1 } }
+
+    func onUserMessage(text: String, roomId: String?) async throws {
+        calls.withLock { $0.lastUserMessage = (text, roomId) }
+    }
+
+    func renderMessage(
+        messageId _: String,
+        messageType _: String,
+        messageData _: Data
+    ) async -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+
+    func dispatchEvent(roomId _: String?, messageId _: String, actionId _: String, payload _: String?) async {}
+
+    @MainActor func attach(presentationView _: ControllerBackedProtocol) {}
+}
+
+private final class FakeWorkerManager: ProductWorkerManaging, @unchecked Sendable {
+    private let active = OSAllocatedUnfairLock(initialState: 0)
+    private let worker: ProductChatWorking
+
+    init(worker: ProductChatWorking) { self.worker = worker }
+
+    var activeCount: Int { active.withLock { $0 } }
+
+    func acquire(productId _: ProductId) async -> ProductWorkerLease {
+        active.withLock { $0 += 1 }
+        let token = ProductWorkerToken { [active] in active.withLock { $0 -= 1 } }
+        return ProductWorkerLease(token: token, result: .success(worker))
+    }
 }
 
 private func makeRustRuntime(
@@ -22,7 +63,7 @@ private func makeRustRuntime(
     ChatRustRuntime(
         productUrl: URL(string: "product://test.dot/index.js")!,
         executionModel: makeExecutionModel(execution: execution, chainConnections: chainConnections),
-        routers: ProductRoutersFacade.chatExtension(),
+        routers: ProductRoutersFacade.worker(),
         engineFactory: { engine }
     )
 }
@@ -30,32 +71,41 @@ private func makeRustRuntime(
 // MARK: - Tests
 
 struct ChatRuntimeTests {
-    @Test func nativeRuntimeStartInitializesAndStartsBot() async throws {
-        let executor = MockScriptExecutor()
-        let runtime = makeNativeRuntime(executor: executor)
+    @Test func nativeRuntimeStartBindsMessagingAndStartsBot() async throws {
+        let worker = FakeChatWorker()
+        let manager = FakeWorkerManager(worker: worker)
+        let runtime = ManagedChatRuntime(productId: "test.dot", manager: manager)
 
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
-        #expect(executor.calls == [.initializeBot, .onBotStarted])
+        #expect(worker.calls.withLock { $0.bound } == 1)
+        #expect(worker.calls.withLock { $0.botStarted } == 1)
+        #expect(manager.activeCount == 1)
     }
 
     @Test func nativeRuntimeForwardsUserMessage() async throws {
-        let executor = MockScriptExecutor()
-        let runtime = makeNativeRuntime(executor: executor)
+        let worker = FakeChatWorker()
+        let manager = FakeWorkerManager(worker: worker)
+        let runtime = ManagedChatRuntime(productId: "test.dot", manager: manager)
 
         try await runtime.onUserMessage(text: "hi", roomId: "r1")
 
-        #expect(executor.lastUserMessage?.text == "hi")
-        #expect(executor.lastUserMessage?.roomId == "r1")
+        #expect(worker.calls.withLock { $0.lastUserMessage?.text } == "hi")
+        #expect(worker.calls.withLock { $0.lastUserMessage?.roomId } == "r1")
     }
 
-    @Test func nativeRuntimeDisposeDelegates() async {
-        let executor = MockScriptExecutor()
-        let runtime = makeNativeRuntime(executor: executor)
+    @Test func nativeRuntimeDisposeUnbindsAndReleasesLock() async throws {
+        let worker = FakeChatWorker()
+        let manager = FakeWorkerManager(worker: worker)
+        let runtime = ManagedChatRuntime(productId: "test.dot", manager: manager)
+
+        try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
+        #expect(manager.activeCount == 1)
 
         await runtime.dispose()
 
-        #expect(executor.calls.contains(.dispose))
+        #expect(worker.calls.withLock { $0.unbound } == 1)
+        #expect(manager.activeCount == 0)
     }
 
     @Test func rustRuntimeDisposeTearsDownExecutionOnce() async {
