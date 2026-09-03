@@ -7,20 +7,6 @@ import UIKitExt
 /// Presents the top-up request sheets. Resolves the bridge continuation with a
 /// failure when no view is attached so JS never hangs.
 extension ProductsRouting {
-    func showTopUpRequest(context: TopUpRequestContext, coinageService: any CoinageServicing) {
-        guard let view = TopUpRequestViewFactory.createView(
-            context: context,
-            coinageService: coinageService
-        ) else {
-            context.deliverFailed(TopUpRequestRouterError.presentationFailed)
-            return
-        }
-
-        if !present(view: view) {
-            context.deliverFailed(TopUpRequestRouterError.presentationFailed)
-        }
-    }
-
     func showTopUpError(context: TopUpRequestContext, error: Error) {
         let view = TopUpRequestViewFactory.createErrorView(context: context, error: error)
 
