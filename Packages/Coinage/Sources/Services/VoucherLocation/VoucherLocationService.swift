@@ -306,7 +306,9 @@ extension VoucherLocationService {
                let ringIndex = ringPosition.ringIndex,
                let ringStatus = snapshot.accumulatedRingStatuses[derivationIndex],
                ringStatus.includesKey(from: ringPosition) {
-                let newState = Voucher.OnChainState.inRecycler(Voucher.Recycler(index: ringIndex))
+                let newState = Voucher.OnChainState.inRecycler(
+                    Voucher.Recycler(index: ringIndex, membersCount: UInt32(ringStatus.included))
+                )
                 if voucher.remoteState != newState {
                     voucher = voucher.adjusting(state: newState)
                     didChange = true
@@ -351,7 +353,9 @@ extension VoucherLocationService {
             if let ringPosition = snapshot.accumulatedRingPositions[derivationIndex],
                let ringIndex = ringPosition.ringIndex,
                ringStatus.includesKey(from: ringPosition) {
-                let newState = Voucher.OnChainState.inRecycler(Voucher.Recycler(index: ringIndex))
+                let newState = Voucher.OnChainState.inRecycler(
+                    Voucher.Recycler(index: ringIndex, membersCount: UInt32(ringStatus.included))
+                )
                 if voucher.remoteState != newState {
                     voucher = voucher.adjusting(state: newState)
                     didChange = true

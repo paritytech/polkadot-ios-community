@@ -31,14 +31,3 @@ public struct RecyclingParams: Equatable {
         self.allowsConfirmedSpend = allowsConfirmedSpend
     }
 }
-
-extension BigRational {
-    /// A whole, i.e. 100%.
-    static var full: BigRational { .percent(of: 100) }
-
-    /// Cross-multiplied comparison so fractions with different denominators order correctly without
-    /// a lossy decimal conversion.
-    func isLess(than other: BigRational) -> Bool {
-        numerator * other.denominator < other.numerator * denominator
-    }
-}

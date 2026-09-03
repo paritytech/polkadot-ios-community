@@ -1,5 +1,7 @@
 import Foundation
 import Operation_iOS
+import BigInt
+import SubstrateSdk
 
 /// A ``Coin`` paired with the durability overlay (``CoinageAssetState``) that determines its
 /// balance and selection disposition. Assembled on read; never persisted as-is.
@@ -57,5 +59,19 @@ extension TrackedCoin {
 extension TrackedCoin: Operation_iOS.Identifiable {
     public var identifier: String {
         coin.identifier
+    }
+}
+
+public extension [TrackedCoin] {
+    /// Summed plank value of these coins in the given denomination context.
+    func totalPlanks(in context: DenominationBreakdownContext) -> Balance {
+        reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.coin.exponent) }
+    }
+}
+
+public extension [TrackedVoucher] {
+    /// Summed plank value of these vouchers in the given denomination context.
+    func totalPlanks(in context: DenominationBreakdownContext) -> Balance {
+        reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.voucher.exponent) }
     }
 }

@@ -128,7 +128,7 @@ public extension MembersPallet {
             }
         }
 
-        var includedRingPosition: UInt32? {
+        public var includedRingPosition: UInt32? {
             switch self {
             case .onboarding,
                  .suspended:

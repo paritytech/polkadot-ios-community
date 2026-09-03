@@ -27,61 +27,59 @@ public struct VoucherBuckets: Equatable {
     public var all: [TrackedVoucher] { usable + gainingPrivacy + minting }
 }
 
-/// Partitions free coins into settled (gate-eligible) and still-arriving. An on-chain coin whose age
-/// is not yet observed lands in ``CoinBuckets/minting``, never ``CoinBuckets/minted``.
-public func preClassifyCoins(_ coins: [TrackedCoin]) -> CoinBuckets {
-    var minted: [TrackedCoin] = []
-    var minting: [TrackedCoin] = []
+public protocol CoinageAssetsPreClassificating {
+    func preClassifyCoins(_ coins: [TrackedCoin]) -> CoinBuckets
 
-    for tracked in coins where tracked.state.isFree {
-        if tracked.coin.isOnchain, tracked.coin.hasEverBeenOnChain {
-            minted.append(tracked)
-        } else if tracked.coin.isOnchain || tracked.isMinting {
-            // On chain but age not yet observed, or not on chain yet but minting — still arriving.
-            minting.append(tracked)
-        }
-    }
-
-    return CoinBuckets(minted: minted, minting: minting)
+    func preClassifyVouchers(
+        _ vouchers: [TrackedVoucher],
+        strategy: CoinRecyclingStrategyProtocol,
+        context: VoucherUsabilityContext
+    ) -> VoucherBuckets
 }
 
-/// Partitions free vouchers into usable / gaining-privacy / minting. Usability is decided by the
-/// strategy, which is why the strategy is a parameter — balance calls this with a bare
-/// ``ParametricRecyclingStrategy`` (no quota read needed for the voucher arm).
-public func preClassifyVouchers(
-    _ vouchers: [TrackedVoucher],
-    strategy: CoinRecyclingStrategyProtocol,
-    context: VoucherUsabilityContext
-) -> VoucherBuckets {
-    var usable: [TrackedVoucher] = []
-    var gainingPrivacy: [TrackedVoucher] = []
-    var minting: [TrackedVoucher] = []
+public class CoinageAssetPreClassificator: CoinageAssetsPreClassificating {
+    /// Partitions free coins into settled (gate-eligible) and still-arriving. An on-chain coin whose age
+    /// is not yet observed lands in ``CoinBuckets/minting``, never ``CoinBuckets/minted``.
+    public func preClassifyCoins(_ coins: [TrackedCoin]) -> CoinBuckets {
+        var minted: [TrackedCoin] = []
+        var minting: [TrackedCoin] = []
 
-    for tracked in vouchers where tracked.state.isFree {
-        if tracked.voucher.isInRecycler {
-            if strategy.isVoucherUsable(tracked.voucher, context: context) {
-                usable.append(tracked)
-            } else {
-                gainingPrivacy.append(tracked)
+        for tracked in coins where tracked.state.isFree {
+            if tracked.coin.isOnchain, tracked.coin.hasEverBeenOnChain {
+                minted.append(tracked)
+            } else if tracked.coin.isOnchain || tracked.isMinting {
+                // On chain but age not yet observed, or not on chain yet but minting — still arriving.
+                minting.append(tracked)
             }
-        } else if tracked.isOnboarding || tracked.isMinting {
-            minting.append(tracked)
         }
+
+        return CoinBuckets(minted: minted, minting: minting)
     }
 
-    return VoucherBuckets(usable: usable, gainingPrivacy: gainingPrivacy, minting: minting)
-}
+    /// Partitions free vouchers into usable / gaining-privacy / minting. Usability is decided by the
+    /// strategy, which is why the strategy is a parameter — balance calls this with a bare
+    /// ``ParametricRecyclingStrategy`` (no quota read needed for the voucher arm).
+    public func preClassifyVouchers(
+        _ vouchers: [TrackedVoucher],
+        strategy: CoinRecyclingStrategyProtocol,
+        context: VoucherUsabilityContext
+    ) -> VoucherBuckets {
+        var usable: [TrackedVoucher] = []
+        var gainingPrivacy: [TrackedVoucher] = []
+        var minting: [TrackedVoucher] = []
 
-public extension [TrackedCoin] {
-    /// Summed plank value of these coins in the given denomination context.
-    func totalPlanks(in context: DenominationBreakdownContext) -> Balance {
-        reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.coin.exponent) }
-    }
-}
+        for tracked in vouchers where tracked.state.isFree {
+            if tracked.voucher.isInRecycler {
+                if strategy.isVoucherUsable(tracked.voucher, context: context) {
+                    usable.append(tracked)
+                } else {
+                    gainingPrivacy.append(tracked)
+                }
+            } else if tracked.isOnboarding || tracked.isMinting {
+                minting.append(tracked)
+            }
+        }
 
-public extension [TrackedVoucher] {
-    /// Summed plank value of these vouchers in the given denomination context.
-    func totalPlanks(in context: DenominationBreakdownContext) -> Balance {
-        reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.voucher.exponent) }
+        return VoucherBuckets(usable: usable, gainingPrivacy: gainingPrivacy, minting: minting)
     }
 }

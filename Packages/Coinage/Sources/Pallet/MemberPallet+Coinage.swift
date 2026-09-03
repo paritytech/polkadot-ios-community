@@ -7,6 +7,7 @@ extension MembersPallet.RingPosition {
             return .onboarding
         }
 
-        return .inRecycler(Voucher.Recycler(index: ringIndex))
+        // TODO: Find consumers and rewrite that logic to provide proper members count
+        return .inRecycler(Voucher.Recycler(index: ringIndex, membersCount: 0))
     }
 }

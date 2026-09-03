@@ -11,10 +11,6 @@ public struct Voucher: Equatable, CoinageDerivable {
     public let remoteState: OnChainState
     public let privacy: VoucherPrivacyLevel
 
-    /// Provable anonymity-set size of the ring this voucher sits in — `RingStatus.included`, the keys
-    /// actually baked into the ring root. `nil` until resolved; only meaningful while in a recycler.
-    public let recyclerMembers: Int?
-
     /// On-chain public key (member key) derived from `derivationIndex`, cached so the durability
     /// layer never re-derives it on the fly.
     public let publicKey: PublicKey
@@ -45,9 +41,11 @@ public struct Voucher: Equatable, CoinageDerivable {
 
     public struct Recycler: Equatable, Sendable {
         public let index: UInt32
+        public let membersCount: UInt32
 
-        public init(index: UInt32) {
+        public init(index: UInt32, membersCount: UInt32) {
             self.index = index
+            self.membersCount = membersCount
         }
     }
 
@@ -58,7 +56,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         readyAt: Date,
         remoteState: OnChainState = .unlocated,
         privacy: VoucherPrivacyLevel = .degraded,
-        recyclerMembers: Int? = nil,
         publicKey: PublicKey
     ) {
         self.exponent = exponent
@@ -67,7 +64,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         self.readyAt = readyAt
         self.remoteState = remoteState
         self.privacy = privacy
-        self.recyclerMembers = recyclerMembers
         self.publicKey = publicKey
     }
 
@@ -79,7 +75,6 @@ public struct Voucher: Equatable, CoinageDerivable {
             readyAt: readyAt,
             remoteState: state,
             privacy: privacy,
-            recyclerMembers: recyclerMembers,
             publicKey: publicKey
         )
     }
@@ -92,20 +87,6 @@ public struct Voucher: Equatable, CoinageDerivable {
             readyAt: readyAt,
             remoteState: remoteState,
             privacy: state,
-            recyclerMembers: recyclerMembers,
-            publicKey: publicKey
-        )
-    }
-
-    public func changing(recyclerMembers: Int?) -> Voucher {
-        Voucher(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            allocatedAt: allocatedAt,
-            readyAt: readyAt,
-            remoteState: remoteState,
-            privacy: privacy,
-            recyclerMembers: recyclerMembers,
             publicKey: publicKey
         )
     }

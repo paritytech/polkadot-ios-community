@@ -12,9 +12,7 @@ public struct VoucherUsabilityContext: Equatable {
         self.now = now
     }
 
-    /// An unresolved capacity reads as "never full", so only the unload delay can make such a
-    /// voucher usable — the strategy keeps waiting rather than overriding on a transient miss.
-    public func capacity(for exponent: Int16) -> Int {
-        ringCapacities[exponent] ?? .max
+    public func capacity(for exponent: Int16) -> Int? {
+        ringCapacities[exponent]
     }
 }

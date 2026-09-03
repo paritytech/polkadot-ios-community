@@ -39,6 +39,13 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
                  .onboarding: -1
             }
 
+        entity.recyclerMembers =
+            switch model.remoteState {
+            case let .inRecycler(recycler): Int64(recycler.membersCount)
+            case .unlocated,
+                 .onboarding: 0
+            }
+
         entity.onChainState =
             switch model.remoteState {
             case .unlocated: 0

@@ -93,4 +93,8 @@ public extension Coin {
         guard let age else { return false }
         return age < CoinageConstants.recycleAtAge
     }
+
+    var ageOrDefault: Int16 {
+        age ?? -1
+    }
 }
