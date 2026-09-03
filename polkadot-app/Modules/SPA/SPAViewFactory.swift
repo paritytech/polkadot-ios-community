@@ -116,11 +116,10 @@ enum SPAViewFactory {
             configuration: configuration,
             hostProvider: flowState.hostProvider
         )
-        let view = SPAViewController(
+        let view = createViewController(
             presenter: presenter,
             configuration: configuration,
             schemeHandlerProxy: schemeHandlerProxy,
-            logger: Logger.shared,
             hostProvider: flowState.hostProvider
         )
 
@@ -130,7 +129,7 @@ enum SPAViewFactory {
         routers.setPresentationView(view)
 
         if !configuration.isRootScreen {
-            view.hidesBottomBarWhenPushed = true
+            view.controller.hidesBottomBarWhenPushed = true
         }
 
         return view
@@ -221,11 +220,10 @@ extension SPAViewFactory {
             hostProvider: flowState.hostProvider
         )
 
-        let view = SPAViewController(
+        let view = createViewController(
             presenter: presenter,
             configuration: configuration,
             schemeHandlerProxy: schemeHandlerProxy,
-            logger: Logger.shared,
             hostProvider: flowState.hostProvider
         )
 
@@ -234,9 +232,41 @@ extension SPAViewFactory {
         runtimeFactory.setPresentationView(view)
 
         if !configuration.isRootScreen {
-            view.hidesBottomBarWhenPushed = true
+            view.controller.hidesBottomBarWhenPushed = true
         }
 
         return view
+    }
+}
+
+// MARK: - Private
+
+private extension SPAViewFactory {
+    /// The browser chrome — floating pills, chrome collapse, minimize — only makes sense where
+    /// products live on as tabs, so builds without the browse tab get the simplified screen.
+    @MainActor
+    static func createViewController(
+        presenter: SPAPresenterProtocol,
+        configuration: SPAConfiguration,
+        schemeHandlerProxy: SchemeHandlerProxy,
+        hostProvider: ProductHostProviding
+    ) -> SPAViewProtocol {
+        #if FEATURE_PRODUCTS
+            return SPAViewController(
+                presenter: presenter,
+                configuration: configuration,
+                schemeHandlerProxy: schemeHandlerProxy,
+                logger: Logger.shared,
+                hostProvider: hostProvider
+            )
+        #else
+            return SPASimplifiedViewController(
+                presenter: presenter,
+                configuration: configuration,
+                schemeHandlerProxy: schemeHandlerProxy,
+                logger: Logger.shared,
+                hostProvider: hostProvider
+            )
+        #endif
     }
 }

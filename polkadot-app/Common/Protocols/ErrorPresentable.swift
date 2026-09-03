@@ -22,7 +22,7 @@ extension ErrorPresentable {
             return contentConvertibleError.toErrorContent()
         }
 
-        if (error as NSError).domain == NSURLErrorDomain {
+        if error.isConnectionError {
             let title = String(localized: .Common.errorUrlDomain)
             let message = String(localized: .Common.errorMessage)
 
