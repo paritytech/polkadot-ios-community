@@ -13,44 +13,41 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let instanceId: CoinageInstanceId
     private let planner: ExternalPaymentPlanning
     private let recycler: CoinageRecyclingServicing
+    private let voucherService: VoucherServiceProtocol
     private let voucherKeyFactory: any VoucherKeyDeriving
-    private let voucherAllocator: any VoucherAllocating
+    private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    private let walStore: TransferWALStoring
+    private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
     private let blockNumberProvider: BlockInfoProviding
-    private let voucherService: VoucherServiceProtocol
-    private let mortality: UInt32
     private let logger: SDKLoggerProtocol?
 
     init(
         instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
-        voucherAllocator: any VoucherAllocating,
+        voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        walStore: TransferWALStoring,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding,
-        voucherService: VoucherServiceProtocol,
-        mortality: UInt32 = CoinageConstants.walMortality,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.instanceId = instanceId
         self.planner = planner
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
-        self.voucherAllocator = voucherAllocator
+        self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
-        self.voucherService = voucherService
-        self.mortality = mortality
         self.logger = logger
     }
 
@@ -76,27 +73,18 @@ private extension ExternalPaymentStateMachineFactory {
     func makeStateFactory(
         context: DenominationBreakdownContext
     ) -> ExternalPaymentStateFactory {
-        let coordinator = ExtrinsicSubmissionCoordinator(
-            monitor: extrinsicMonitor,
-            walStore: walStore,
-            blockNumberProvider: blockNumberProvider,
-            logger: logger
-        )
-
-        return ExternalPaymentStateFactory(
+        ExternalPaymentStateFactory(
             instanceId: instanceId,
             planner: planner,
             context: context,
             recycler: recycler,
+            voucherService: voucherService,
             voucherKeyFactory: voucherKeyFactory,
-            voucherAllocator: voucherAllocator,
+            voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,
-            coordinator: coordinator,
-            walStore: walStore,
+            durability: durability,
             originFactory: originFactory,
             blockNumberProvider: blockNumberProvider,
-            voucherService: voucherService,
-            mortality: mortality,
             logger: logger
         )
     }

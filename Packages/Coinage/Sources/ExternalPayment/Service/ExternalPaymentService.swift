@@ -15,10 +15,10 @@ struct ExternalPaymentDependency {
     let voucherService: VoucherServiceProtocol
     let recycler: CoinageRecyclingServicing
     let voucherKeyFactory: any VoucherKeyDeriving
-    let voucherAllocator: any VoucherAllocating
+    let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
     let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
-    let walStore: TransferWALStoring
+    let durability: any CoinageTxServicing
     let originFactory: OriginCreating
     let blockNumberProvider: BlockInfoProviding
 
@@ -28,10 +28,10 @@ struct ExternalPaymentDependency {
         voucherService: VoucherServiceProtocol,
         recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
-        voucherAllocator: any VoucherAllocating,
+        voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
-        walStore: TransferWALStoring,
+        durability: any CoinageTxServicing,
         originFactory: OriginCreating,
         blockNumberProvider: BlockInfoProviding
     ) {
@@ -40,10 +40,10 @@ struct ExternalPaymentDependency {
         self.voucherService = voucherService
         self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
-        self.voucherAllocator = voucherAllocator
+        self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
-        self.walStore = walStore
+        self.durability = durability
         self.originFactory = originFactory
         self.blockNumberProvider = blockNumberProvider
     }
@@ -83,14 +83,14 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             instanceId: dependency.instanceId,
             planner: planner,
             recycler: dependency.recycler,
+            voucherService: dependency.voucherService,
             voucherKeyFactory: dependency.voucherKeyFactory,
-            voucherAllocator: dependency.voucherAllocator,
+            voucherMinter: dependency.voucherMinter,
             recyclerLoader: dependency.recyclerLoader,
             extrinsicMonitor: dependency.extrinsicMonitor,
-            walStore: dependency.walStore,
+            durability: dependency.durability,
             originFactory: dependency.originFactory,
             blockNumberProvider: dependency.blockNumberProvider,
-            voucherService: dependency.voucherService,
             logger: logger
         )
     }
@@ -206,7 +206,8 @@ private extension ExternalPayment.Stage {
              .onboardCoins,
              .offboardVouchers:
             .processing
-        case .completed:
+        case .completed,
+             .partiallyCompleted:
             .completed
         case .failed:
             .failed(reason: failureReason ?? "Unknown")

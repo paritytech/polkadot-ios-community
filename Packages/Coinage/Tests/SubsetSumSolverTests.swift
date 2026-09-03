@@ -23,12 +23,31 @@ struct SubsetSumSolverTests {
     private func makeCoin(
         exponent: Int16,
         age: Int16? = nil,
-        derivationIndex: UInt32 = 0
+        derivationIndex: UInt64 = 0
     ) -> Coin {
-        Coin(exponent: exponent, derivationIndex: derivationIndex, age: age, state: .available)
+        Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
+        )
     }
 
     // MARK: - Edge Cases
+
+    @Test("takes 1")
+    func select1() {
+        let coins = [2, 4, 5, 6, 7, 8].map { makeCoin(exponent: $0) }
+
+        let result = SubsetSumSolver.findExactMatch(
+            target: planks(1.00),
+            from: coins,
+            breakdownContext: testContext
+        )
+
+        #expect(result != nil)
+        #expect(result?.count == 3)
+    }
 
     @Test("Returns empty array for zero target")
     func zeroTargetReturnsEmpty() {
@@ -315,7 +334,7 @@ struct SubsetSumSolverTests {
         var coins: [Coin] = []
         for i in 0 ..< 50 {
             let exponent = exponents[i % exponents.count]
-            coins.append(makeCoin(exponent: exponent, derivationIndex: UInt32(i + 1)))
+            coins.append(makeCoin(exponent: exponent, derivationIndex: UInt64(i + 1)))
         }
 
         struct TimedOut: Error {}

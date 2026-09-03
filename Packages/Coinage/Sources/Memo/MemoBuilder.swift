@@ -37,15 +37,9 @@ extension MemoBuilder: MemoBuilding {
         var totalValue = BigUInt(0)
 
         for entry in entries {
-            let coin = Coin(
-                exponent: entry.valueExponent,
-                derivationIndex: entry.coinDerivationIndex,
-                age: nil
-            )
-
             let privateKey: Data
             do {
-                privateKey = try privateKeyDeriver.derivePrivateKey(for: coin)
+                privateKey = try privateKeyDeriver.derivePrivateKey(index: entry.coinDerivationIndex)
             } catch {
                 throw MemoBuilderError.keyDerivationFailed(error)
             }

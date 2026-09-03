@@ -13,7 +13,7 @@ final class MortalEraOperationFactory {
     }
 
     static let fallbackMaxHashCount: BlockNumber = 250
-    static let mortalPeriod: UInt64 = 30 * 60 * 1_000
+    static let mortalPeriod: UInt64 = 2 * 60 * 1_000 // 2 minutes
 
     private let blockTimeOperationFactory: BlockTimeOperationFactory
 

@@ -10,9 +10,9 @@ public protocol VoucherLoaderFactoryProtocol {
 
 final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
     private let instanceId: CoinageInstanceId
-    private let allocator: any VoucherAllocating
+    private let minter: any VoucherMinting
     private let keypairFactory: any VoucherKeyDeriving
-    private let extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol
+    private let txService: any CoinageTxServicing
     private let originCreating: OriginCreating
     private let runtimeService: RuntimeCodingServiceProtocol
     private let chain: ChainProtocol
@@ -20,18 +20,18 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
 
     init(
         instanceId: CoinageInstanceId,
-        allocator: any VoucherAllocating,
+        minter: any VoucherMinting,
         keypairFactory: any VoucherKeyDeriving,
-        extrinsicSubmitMonitor: any ExtrinsicSubmitMonitorFactoryProtocol,
+        txService: any CoinageTxServicing,
         originCreating: OriginCreating,
         runtimeService: RuntimeCodingServiceProtocol,
         chain: ChainProtocol,
         logger: (any SDKLoggerProtocol)?
     ) {
         self.instanceId = instanceId
-        self.allocator = allocator
+        self.minter = minter
         self.keypairFactory = keypairFactory
-        self.extrinsicSubmitMonitor = extrinsicSubmitMonitor
+        self.txService = txService
         self.originCreating = originCreating
         self.runtimeService = runtimeService
         self.chain = chain
@@ -46,9 +46,9 @@ final class VoucherLoaderFactory: VoucherLoaderFactoryProtocol {
             instanceId: instanceId,
             accountId: account.accountId,
             origin: origin,
-            allocator: allocator,
+            minter: minter,
             keypairFactory: keypairFactory,
-            extrinsicSubmitMonitor: extrinsicSubmitMonitor,
+            txService: txService,
             runtimeService: runtimeService,
             logger: logger
         )

@@ -74,6 +74,22 @@ When an endpoint is called in rapid succession (e.g., per-peer connection), add 
 
 ## Key Rules
 
+0. **Check `StructuredConcurrency` and `AsyncExtensions` before writing any custom concurrency
+   primitive.** Before hand-rolling a channel, buffer, multicast/broadcast, actor-based feed,
+   debounce/throttle, retry, or coalescing task, search these two packages (and `AsyncAlgorithms`)
+   first — the primitive almost always already exists:
+   - `AsyncBufferedChannel` (AsyncExtensions) — a hot, buffered, **consume-once** channel whose
+     buffer and lifetime are independent of any consumer, so a consumer cancelled by `withTimeout`
+     does **not** terminate it. This is the Swift equivalent of Kotlin's `produceIn` /
+     `ReceiveChannel`; reach for it instead of a bespoke actor + continuation feed.
+   - `AsyncPassthroughSubject` / `AsyncCurrentValueSubject` (AsyncExtensions) — reactive subjects.
+   - `AsyncBroadcast`, `CoalescingTask`, `withRetry`, `withTimeout` (StructuredConcurrency).
+   - `debounce` / `throttle` / `merge` / `combineLatest` / `AsyncChannel` (AsyncAlgorithms).
+
+   Only introduce a new primitive if none fits, and then add it to `StructuredConcurrency` rather
+   than inline in a feature. (Lesson: a bespoke `OnChainCoinFeed` actor was replaced by
+   `AsyncBufferedChannel`, which it had been re-implementing.)
+
 1. **Use existing `withRetry` from StructuredConcurrency** — don't implement custom retry with manual delays
 2. **Use `AsyncPassthroughSubject` or `AsyncStream.makeStream`** — never use `var continuation: AsyncStream.Continuation!` with a separate init
 3. **Scope `@MainActor` narrowly** — don't mark an entire Task as `@MainActor`. Keep background work off the main thread, and only `await` the `@MainActor`-bound presenter call:

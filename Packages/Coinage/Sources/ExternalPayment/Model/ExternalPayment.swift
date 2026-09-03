@@ -11,12 +11,14 @@ public struct ExternalPayment: Equatable {
         case completed = 3
         case failed = 4
         case rescheduled = 5
+        case partiallyCompleted = 6
 
         public var isTerminal: Bool {
             switch self {
             case .completed,
                  .failed,
-                 .rescheduled:
+                 .rescheduled,
+                 .partiallyCompleted:
                 true
             case .plan,
                  .onboardCoins,

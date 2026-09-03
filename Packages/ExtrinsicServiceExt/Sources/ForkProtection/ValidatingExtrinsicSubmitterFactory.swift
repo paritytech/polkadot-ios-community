@@ -12,6 +12,7 @@ public enum ValidatingExtrinsicSubmitterFactory {
         chainRegistry: ChainResourceProtocol,
         operationQueue: OperationQueue,
         maxAttempts: Int? = nil,
+        trackingTill: ExtrinsicTrackingTill = .inBlock,
         logger: SDKLoggerProtocol? = nil
     ) -> ValidatingExtrinsicSubmitter {
         let validationApi = TaggedTransactionQueueApi(
@@ -39,6 +40,7 @@ public enum ValidatingExtrinsicSubmitterFactory {
             recovery: recovery,
             blockInfoProvider: blockInfoProvider,
             chainId: chainId,
+            trackingTill: trackingTill,
             logger: logger
         )
     }

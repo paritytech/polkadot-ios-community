@@ -4,6 +4,7 @@ enum UserStorageVersion: String, CaseIterable {
     case version41 = "UserDataModel41"
     case version42 = "UserDataModel42"
     case version43 = "UserDataModel43"
+    case version44 = "UserDataModel44"
 
     func nextVersion() -> UserStorageVersion? {
         switch self {
@@ -12,6 +13,8 @@ enum UserStorageVersion: String, CaseIterable {
         case .version42:
             .version43
         case .version43:
+            .version44
+        case .version44:
             nil
         }
     }

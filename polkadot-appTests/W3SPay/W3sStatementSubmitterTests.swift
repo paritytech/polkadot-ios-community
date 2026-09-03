@@ -42,7 +42,7 @@ struct W3sStatementSubmitterTests {
 
         // Submit path throws (buildEnvelope fails on the invalid key).
         await #expect(throws: Error.self) {
-            try await submitter.sendTransfer(memo, to: Data())
+            try await submitter.sendTransfer(memo, to: Data(), messageId: UUID().uuidString)
         }
 
         // The pending record is saved exactly once before the failure.

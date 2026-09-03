@@ -47,34 +47,20 @@ struct VoucherKeypairFactoryTests {
         factory = VoucherKeypairFactory(entropyManager: mockEntropyManager)
     }
 
-    @Test("Successfully creates public key when entropy and valid model are present")
+    @Test("Successfully creates public key when entropy is present")
     func derivePublicKeySuccess() throws {
         let validEntropy = Data(repeating: 0x01, count: 32)
         try mockEntropyManager.createRootEntropy(validEntropy)
 
-        let voucher = Voucher(
-            exponent: 0,
-            derivationIndex: 1,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
-        let publicKey = try factory.derivePublicKey(for: voucher)
+        let publicKey = try factory.derivePublicKey(index: 1)
 
         #expect(!publicKey.isEmpty)
     }
 
     @Test("Throws error when entropy is missing")
     func derivePublicKeyMissingEntropy() throws {
-        let voucher = Voucher(
-            exponent: 0,
-            derivationIndex: 1,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
         #expect(throws: RootEntropyManagerError.noEntropyFound) {
-            try factory.derivePublicKey(for: voucher)
+            try factory.derivePublicKey(index: 1)
         }
     }
 
@@ -86,21 +72,8 @@ struct VoucherKeypairFactoryTests {
         let manager2 = MockEntropyManager(entropy: entropy)
         let factory2 = VoucherKeypairFactory(entropyManager: manager2)
 
-        let voucher1 = Voucher(
-            exponent: 0,
-            derivationIndex: 10,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-        let voucher2 = Voucher(
-            exponent: 0,
-            derivationIndex: 10,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
-        let key1 = try factory.derivePublicKey(for: voucher1)
-        let key2 = try factory2.derivePublicKey(for: voucher2)
+        let key1 = try factory.derivePublicKey(index: 10)
+        let key2 = try factory2.derivePublicKey(index: 10)
 
         #expect(key1 == key2)
     }
@@ -110,48 +83,20 @@ struct VoucherKeypairFactoryTests {
         let entropy = Data(repeating: 0xAB, count: 32)
         try mockEntropyManager.createRootEntropy(entropy)
 
-        let voucher1 = Voucher(
-            exponent: 0,
-            derivationIndex: 1,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-        let voucher2 = Voucher(
-            exponent: 0,
-            derivationIndex: 2,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
-        let key1 = try factory.derivePublicKey(for: voucher1)
-        let key2 = try factory.derivePublicKey(for: voucher2)
+        let key1 = try factory.derivePublicKey(index: 1)
+        let key2 = try factory.derivePublicKey(index: 2)
 
         #expect(key1 != key2)
     }
 
     @Test("Successfully creates a key manager")
     func createKeyManagerSuccess() throws {
-        let voucher = Voucher(
-            exponent: 0,
-            derivationIndex: 5,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
-        let manager: BandersnatchKeyManaging? = try factory.createKeyManager(for: voucher)
+        let manager: BandersnatchKeyManaging? = try factory.createKeyManager(index: 5)
         #expect(manager != nil)
     }
 
     @Test("Base derivation path is correct")
     func derivationPathCorrectness() {
-        let voucher = Voucher(
-            exponent: 0,
-            derivationIndex: 123,
-            allocatedAt: Date(),
-            readyAt: Date()
-        )
-
-        let path = factory.derivationPath(for: voucher)
-        #expect(path == "//pps//ring-vrf//123")
+        #expect(factory.derivationPath(index: 123) == "//pps//ring-vrf//123")
     }
 }

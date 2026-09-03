@@ -34,6 +34,8 @@ public extension ChatTransferMessageConfiguration {
         case processing
         case sent
         case claiming
+        /// Some coins received, the rest still being claimed (a retry is in flight).
+        case partiallyClaimed
         case finished
         case error
     }
@@ -245,11 +247,13 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         switch self {
         case .incoming(.processing),
              .incoming(.sent),
-             .incoming(.claiming):
+             .incoming(.claiming),
+             .incoming(.partiallyClaimed):
             UIImage(resource: .iconTransferIn)
         case .outgoing(.processing),
              .outgoing(.sent),
-             .outgoing(.claiming):
+             .outgoing(.claiming),
+             .outgoing(.partiallyClaimed):
             UIImage(resource: .iconTransferOut)
         case .incoming(.finished),
              .outgoing(.finished):
@@ -291,6 +295,8 @@ private extension ChatTransferMessageConfiguration.State {
             String(localized: .transferStatusDetecting)
         case .claiming:
             String(localized: .transferStatusClaiming)
+        case .partiallyClaimed:
+            String(localized: .transferStatusPartiallyClaimed)
         case .finished:
             String(localized: .transferStatusFinished)
         case .error:
@@ -306,6 +312,8 @@ private extension ChatTransferMessageConfiguration.State {
             String(localized: .transferStatusSent)
         case .claiming:
             String(localized: .transferStatusClaiming)
+        case .partiallyClaimed:
+            String(localized: .transferStatusPartiallyClaimed)
         case .finished:
             String(localized: .transferStatusFinished)
         case .error:

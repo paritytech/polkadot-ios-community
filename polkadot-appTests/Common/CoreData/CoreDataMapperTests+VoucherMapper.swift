@@ -13,9 +13,8 @@ extension CoreDataMapperTests {
         private var repo: AnyDataProviderRepository<Voucher> { facade.makeRepo(mapper: VoucherMapper()) }
 
         private func makeVoucher(
-            derivationIndex: UInt32 = 50,
-            remoteState: Voucher.OnChainState = .unlocated,
-            localState: Voucher.State = .available
+            derivationIndex: UInt64 = 50,
+            remoteState: Voucher.OnChainState = .unlocated
         ) -> Voucher {
             let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
             return Voucher(
@@ -24,7 +23,7 @@ extension CoreDataMapperTests {
                 allocatedAt: now,
                 readyAt: now.addingTimeInterval(3_600),
                 remoteState: remoteState,
-                localState: localState
+                publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
             )
         }
 
@@ -41,7 +40,6 @@ extension CoreDataMapperTests {
             #expect(result.allocatedAt == original.allocatedAt)
             #expect(result.readyAt == original.readyAt)
             #expect(result.remoteState == .unlocated)
-            #expect(result.localState == .available)
         }
 
         @Test("remoteState .onboarding round-trips")
@@ -68,17 +66,6 @@ extension CoreDataMapperTests {
                 return
             }
             #expect(recycler.index == 7)
-        }
-
-        @Test("localState .pendingTransfer round-trips")
-        func pendingTransferLocalState() async throws {
-            let original = makeVoucher(derivationIndex: 53, localState: .pendingTransfer)
-            try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
-
-            let result = try #require(
-                try await repo.fetchOperation(by: { original.identifier }, options: .init()).asyncExecute()
-            )
-            #expect(result.localState == .pendingTransfer)
         }
     }
 }

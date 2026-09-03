@@ -32,6 +32,18 @@ PR pipeline (`.github/workflows/pr.yml`):
 
 ## Test Patterns
 
+### Prefer real implementations
+
+**Always try to use the real implementation in tests; create as few stubs/mocks as
+possible.** Reach for a test double only when the real type is genuinely impractical in
+a unit test — it needs the network, real wall-clock time, a live chain, or key material
+you cannot supply. A real type that only needs cheap in-memory inputs should be used
+as-is — e.g. a real `CoinKeypairFactory(entropyManager: MockEntropyManager(entropy:))`
+over a stubbed `CoinKeyDeriving`, `InMemoryKeychain`/in-memory storage facades over
+faked stores, an injected fixed `Date` over a mocked clock. Fewer doubles means more
+real code paths under test. When you must fake, fake the lowest-level injectable seam
+and run the real production types above it (see below).
+
 ### Mocks
 
 Reusable test doubles are shared, one type per file, never private per-suite:

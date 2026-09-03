@@ -2,8 +2,6 @@ import Foundation
 import BigInt
 import SubstrateSdk
 import SDKLogger
-import BackgroundExecution
-import StructuredConcurrency
 
 /// Protocol for a coin unload to complete transfer.
 protocol TransferSenderServicing: Actor {
@@ -19,27 +17,34 @@ protocol TransferSenderServicing: Actor {
     /// - Throws: CoinSelectionError on failure
     func previewStrategy(
         amount: BigUInt,
-        availableCoins: [Coin],
-        availableVouchers: [Voucher],
+        availableCoins: [TrackedCoin],
+        availableVouchers: [TrackedVoucher],
         breakdownContext: DenominationBreakdownContext
     ) async throws -> CoinSelectionResult
 
     /// Execute a transfer from a pre-computed coin selection result, skipping coin selection.
+    /// Returns the memo plus the provisional handoff to commit once the memo is durable.
+    /// `groupId` labels the transaction(s) this transfer registers (the message id), or `nil`.
     func execute(
         result: CoinSelectionResult,
         currentDate: Date,
         breakdownContext: DenominationBreakdownContext,
-        context: TransferContext
-    ) async throws -> TransferMemo
+        groupId: CoinageTxGroupId?
+    ) async throws -> PreparedTransfer
 }
 
 extension TransferSenderServicing {
     func execute(
         result: CoinSelectionResult,
         breakdownContext: DenominationBreakdownContext,
-        context: TransferContext
-    ) async throws -> TransferMemo {
-        try await execute(result: result, currentDate: .now, breakdownContext: breakdownContext, context: context)
+        groupId: CoinageTxGroupId?
+    ) async throws -> PreparedTransfer {
+        try await execute(
+            result: result,
+            currentDate: .now,
+            breakdownContext: breakdownContext,
+            groupId: groupId
+        )
     }
 }
 
@@ -56,7 +61,6 @@ actor TransferSenderService {
     private let planFactory: TransferPlanCreating
     private let memoBuilder: MemoBuilding
     private let recyclerLoader: RecyclerReadinessLoading
-    private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol?
 
     private var cachedMaxVouchers: Int?
@@ -66,14 +70,12 @@ actor TransferSenderService {
         planFactory: TransferPlanCreating,
         memoBuilder: MemoBuilding,
         recyclerLoader: RecyclerReadinessLoading,
-        backgroundExecutor: any BackgroundExecuting,
         logger: SDKLoggerProtocol?
     ) {
         self.coinSelector = coinSelector
         self.planFactory = planFactory
         self.memoBuilder = memoBuilder
         self.recyclerLoader = recyclerLoader
-        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
     }
 }
@@ -94,8 +96,8 @@ extension TransferSenderService: TransferSenderServicing {
         result: CoinSelectionResult,
         currentDate: Date,
         breakdownContext: DenominationBreakdownContext,
-        context: TransferContext
-    ) async throws -> TransferMemo {
+        groupId: CoinageTxGroupId?
+    ) async throws -> PreparedTransfer {
         let plan: TransferPlan
         do {
             plan = try await planFactory.createPlan(for: result, currentDate: currentDate)
@@ -104,39 +106,34 @@ extension TransferSenderService: TransferSenderServicing {
             throw TransferSenderServiceError.planCreationFailed(error)
         }
 
+        // Mint outputs (persisted by the allocator), fire the background-tracked submission, and
+        // pre-commit the handoff — everything that must land before the memo (the keys) can leave.
+        // A failure leaves registered entries and a provisional handoff, both resolved by the
+        // recovery pass / relaunch.
+        let prepared: PreparedStrategy
+        do {
+            prepared = try await plan.strategy.prepare(groupId: groupId)
+        } catch {
+            logger?.error("Strategy preparation failed: \(error)")
+            throw TransferSenderServiceError.strategyFailed(error)
+        }
+
+        // Memo is built from what `prepare` just minted.
         let memo: TransferMemo
         do {
-            memo = try memoBuilder.buildMemo(from: plan.plannedMemoEntries, breakdownContext: breakdownContext)
+            memo = try memoBuilder.buildMemo(from: prepared.memoEntries, breakdownContext: breakdownContext)
         } catch {
             logger?.error("Memo building failed: \(error)")
             throw TransferSenderServiceError.memoBuildingFailed(error)
         }
 
-        try await context.reserve(coins: result.inputCoins, vouchers: result.inputVouchers)
-
-        Task { [strategy = plan.strategy, backgroundExecutor, logger] in
-            do {
-                try await backgroundExecutor.execute {
-                    try await markStallActivity("Send transfer") {
-                        try await markStallRegion("Execute transfer") {
-                            try await strategy.run(context: context)
-                        }
-                    }
-                }
-                logger?.debug("Strategy execution completed")
-            } catch {
-                logger?.error("Strategy execution failed: \(error)")
-                await context.revert()
-            }
-        }
-
-        return memo
+        return PreparedTransfer(memo: memo, handoffCommit: prepared.handoffCommit)
     }
 
     func previewStrategy(
         amount: BigUInt,
-        availableCoins: [Coin],
-        availableVouchers: [Voucher],
+        availableCoins: [TrackedCoin],
+        availableVouchers: [TrackedVoucher],
         breakdownContext: DenominationBreakdownContext
     ) async throws -> CoinSelectionResult {
         let maxVouchers = try await maxVouchersPerGroup()

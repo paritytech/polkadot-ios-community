@@ -81,6 +81,10 @@ xcuserdata
 # MCP config (may embed an org-specific Sentry org/project; keep local)
 .mcp.json
 
+# Lavish tool for planing with AI
+
+.lavish/
+
 # Secrets
 polkadot-app/env-vars.sh
 polkadot-app/GoogleService-Info.plist

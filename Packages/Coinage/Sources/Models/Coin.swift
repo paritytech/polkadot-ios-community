@@ -2,43 +2,38 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 
-public struct Coin: Equatable, CoinageDerivable, Sendable {
+public struct Coin: Hashable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
-    public let derivationIndex: UInt32
-    public let age: Int16? // nil = unknown, 0 = fresh from unload/split
+    public let derivationIndex: DerivationIndex
 
-    public var state: State = .available
+    /// On-chain age. `nil` means the coin was never seen on chain; `0` is fresh from unload/split.
+    public let age: Int16?
 
-    public enum State: Equatable, Sendable {
-        case spent
-        case available
-        case recycling
-        case pendingTransfer
+    /// On-chain presence, written only by chain sync. Combined with `age`, `age != nil ∧ ¬isOnchain`
+    /// means the coin was seen on chain and has since vanished.
+    public var isOnchain: Bool = false
 
-        var isAvailableOrRecycling: Bool {
-            self == .available || self == .recycling
-        }
-    }
+    /// Whether the coin has been handed off to a peer, and how far along.
+    public var handoffMark: CoinHandoffMark = .none
+
+    /// On-chain public key (account id) derived from `derivationIndex`, cached so the durability
+    /// layer never re-derives it on the fly.
+    public let publicKey: PublicKey
 
     public init(
         exponent: Int16,
-        derivationIndex: UInt32,
+        derivationIndex: DerivationIndex,
         age: Int16?,
-        state: State = .available
+        isOnchain: Bool = false,
+        handoffMark: CoinHandoffMark = .none,
+        publicKey: PublicKey
     ) {
         self.exponent = exponent
         self.derivationIndex = derivationIndex
         self.age = age
-        self.state = state
-    }
-
-    public func changing(state: State) -> Coin {
-        Coin(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            age: age,
-            state: state
-        )
+        self.isOnchain = isOnchain
+        self.handoffMark = handoffMark
+        self.publicKey = publicKey
     }
 
     public func changing(age: Int16) -> Coin {
@@ -46,22 +41,56 @@ public struct Coin: Equatable, CoinageDerivable, Sendable {
             exponent: exponent,
             derivationIndex: derivationIndex,
             age: age,
-            state: state
+            isOnchain: isOnchain,
+            handoffMark: handoffMark,
+            publicKey: publicKey
+        )
+    }
+
+    public func changing(isOnchain: Bool) -> Coin {
+        Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            isOnchain: isOnchain,
+            handoffMark: handoffMark,
+            publicKey: publicKey
+        )
+    }
+
+    public func changing(handoffMark: CoinHandoffMark) -> Coin {
+        Coin(
+            exponent: exponent,
+            derivationIndex: derivationIndex,
+            age: age,
+            isOnchain: isOnchain,
+            handoffMark: handoffMark,
+            publicKey: publicKey
         )
     }
 }
 
 extension Coin: Operation_iOS.Identifiable {
     public var identifier: String {
-        "\(derivationIndex)"
+        Self.identifier(for: derivationIndex)
     }
 }
 
 public extension Coin {
+    /// The storage identifier for a coin at `derivationIndex`. Single source of truth so no
+    /// call site hand-writes the string form.
+    static func identifier(for derivationIndex: DerivationIndex) -> String {
+        "\(derivationIndex)"
+    }
+
+    var hasEverBeenOnChain: Bool {
+        age != nil
+    }
+
     /// Coins past `coinMaxAge` are due for imminent recycling and must not be
     /// picked for new transfers — the chain may invalidate them before inclusion.
-    var isExpiringSoon: Bool {
+    var isAgeValidToSpend: Bool {
         guard let age else { return false }
-        return age >= CoinageConstants.recycleAtAge
+        return age < CoinageConstants.recycleAtAge
     }
 }

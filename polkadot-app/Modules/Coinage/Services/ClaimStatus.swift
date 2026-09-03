@@ -4,14 +4,18 @@ import SubstrateSdk
 
 /// Rich lifecycle status for UI publishing via ``ClaimStatusPublishing``.
 ///
-/// Unlike ``ClaimPlan/Status`` (a simple raw-Int enum for CoreData persistence),
-/// this enum carries associated data and supports fine-grained UI states.
+/// An ephemeral in-memory projection of the durability-derived transfer status — carries associated
+/// data and supports fine-grained UI states. Nothing here is persisted.
 public enum ClaimStatus: Sendable, Equatable {
     /// Waiting for coins to appear on-chain (subscription active).
     case detecting
     /// Claim extrinsic submitted, waiting for confirmation.
     case claiming
-    /// Outgoing transfer intermediate: coins appeared on-chain, awaiting recipient claim.
+    /// Some coins received; the rest are being retried. Carries the amount claimed so far.
+    case partiallyClaimed(claimed: Balance)
+    /// Outgoing transfer intermediate: coins appeared on-chain, awaiting recipient claim. Carries no
+    /// amount by design — like Android, the mid-flight sender bubble shows the full total, and only a
+    /// finished claim can be short (see ``finished``).
     case sent
     /// Operation completed. Carries the actual claimed amount in planks.
     case finished(claimedAmount: Balance)

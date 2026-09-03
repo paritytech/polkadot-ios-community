@@ -27,10 +27,9 @@ import os
 public final class VoucherLocationService: BaseSyncService {
     private let instanceId: CoinageInstanceId
     private let voucherRepository: AnyDataProviderRepository<Voucher>
-    private let voucherProvider: StreamableProvider<Voucher>
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
-    private let keypairFactory: any VoucherKeyDeriving
     private let stateLock = OSAllocatedUnfairLock(initialState: SyncStateData())
 
     private var localVouchersMonitoringTask: Task<Void, Error>?
@@ -39,18 +38,16 @@ public final class VoucherLocationService: BaseSyncService {
     public init(
         instanceId: CoinageInstanceId,
         voucherRepository: AnyDataProviderRepository<Voucher>,
-        voucherProvider: StreamableProvider<Voucher>,
+        databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
-        entropyManager: any RootEntropyManaging,
         logger: any SDKLoggerProtocol
     ) {
         self.instanceId = instanceId
         self.voucherRepository = voucherRepository
-        self.voucherProvider = voucherProvider
+        self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
-        keypairFactory = VoucherKeypairFactory(entropyManager: entropyManager)
         super.init(logger: logger)
     }
 
@@ -65,15 +62,19 @@ public final class VoucherLocationService: BaseSyncService {
         localVouchersMonitoringTask = Task { [weak self] in
             guard let self else { return }
 
-            let stream = voucherProvider.asyncStream()
-                .scan([String: Voucher]()) { dict, changes in
-                    changes.mergeToDict(dict)
-                }
-                .map(\.values)
+            let stream = databaseFactory.makeTrackedVoucherSnapshotStream()
+                .map { $0.map(\.voucher) }
                 .map { vouchers -> ([Voucher], [Voucher]) in
                     let needsSync = vouchers.filter { !$0.remoteState.isInRecycler }
                     let degraded = vouchers.filter { $0.remoteState.isInRecycler && $0.privacy == .degraded }
                     return (needsSync, degraded)
+                }
+                // Resubscribe only when the tracked key-set changes;
+                // non-key voucher edits keep the existing subscription, whose inner ring-status stream
+                // already surfaces readiness changes.
+                .removeDuplicates { previous, current in
+                    Set(previous.0.map(\.publicKey)) == Set(current.0.map(\.publicKey))
+                        && Set(previous.1.map(\.publicKey)) == Set(current.1.map(\.publicKey))
                 }
 
             for try await (vouchers, degradedVouchers) in stream {
@@ -111,8 +112,8 @@ extension VoucherLocationService {
             return []
         }
 
-        return try pending.map { voucher in
-            let publicKey = try keypairFactory.derivePublicKey(for: voucher)
+        return pending.map { voucher in
+            let publicKey = voucher.publicKey
             let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
 
             let mappingKey = SubscriptionKey.member(
@@ -274,17 +275,27 @@ extension VoucherLocationService {
         applyRingStatusUpdates(result.ringStatusUpdates, snapshot: snapshot, voucherMap: voucherMap, into: &updates)
 
         guard !updates.isEmpty else { return }
-        let vouchersToSave = Array(updates.values)
-        try await voucherRepository.saveOperation({ vouchersToSave }, { [] }).asyncExecute()
+        // A dedicated write-only mapper touches only remoteState + privacy, so a concurrent change
+        // to any other voucher field is not clobbered by this location write.
+        let locationUpdates = updates.values.map {
+            VoucherLocationUpdate(
+                derivationIndex: $0.derivationIndex,
+                remoteState: $0.remoteState,
+                privacy: $0.privacy
+            )
+        }
+        try await databaseFactory.makeVoucherLocationRepository()
+            .saveOperation({ locationUpdates }, { [] })
+            .asyncExecute()
         logger.debug("Updated \(updates.count) vouchers via subscription")
     }
 
     private func ringPositionUpdates(
         from memberUpdates: [MemberStatusResult.MemberUpdate],
         snapshot: SyncSnapshot,
-        voucherMap: [UInt32: Voucher]
-    ) -> [UInt32: Voucher] {
-        var updates: [UInt32: Voucher] = [:]
+        voucherMap: [DerivationIndex: Voucher]
+    ) -> [DerivationIndex: Voucher] {
+        var updates: [DerivationIndex: Voucher] = [:]
 
         for update in memberUpdates {
             let derivationIndex = update.derivationIndex
@@ -328,8 +339,8 @@ extension VoucherLocationService {
     private func applyRingStatusUpdates(
         _ ringStatusUpdates: [MemberStatusResult.RingStatusUpdate],
         snapshot: SyncSnapshot,
-        voucherMap: [UInt32: Voucher],
-        into updates: inout [UInt32: Voucher]
+        voucherMap: [DerivationIndex: Voucher],
+        into updates: inout [DerivationIndex: Voucher]
     ) {
         for update in ringStatusUpdates {
             let derivationIndex = update.derivationIndex
@@ -373,18 +384,18 @@ extension VoucherLocationService {
         var degradedVouchers: [Voucher] = []
         // Tracks which derivation indices have an active ringKeysStatus subscription in the current batch.
         // Compared against discovered ring positions after each emission to detect when resubscription is needed.
-        var subscribedDerivationIndices: Set<UInt32> = []
+        var subscribedDerivationIndices: Set<DerivationIndex> = []
         // Persisted across partial emissions — Substrate subscriptions may deliver position and status in separate
         // batches.
         // Keyed by derivation index
-        var accumulatedRingPositions: [UInt32: MembersPallet.RingPosition] = [:]
-        var accumulatedRingStatuses: [UInt32: MembersPallet.RingKeysStatus] = [:]
+        var accumulatedRingPositions: [DerivationIndex: MembersPallet.RingPosition] = [:]
+        var accumulatedRingStatuses: [DerivationIndex: MembersPallet.RingKeysStatus] = [:]
     }
 
     private struct SyncSnapshot {
         let pendingVouchers: [Voucher]
         let degradedVouchers: [Voucher]
-        let accumulatedRingPositions: [UInt32: MembersPallet.RingPosition]
-        let accumulatedRingStatuses: [UInt32: MembersPallet.RingKeysStatus]
+        let accumulatedRingPositions: [DerivationIndex: MembersPallet.RingPosition]
+        let accumulatedRingStatuses: [DerivationIndex: MembersPallet.RingKeysStatus]
     }
 }

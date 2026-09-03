@@ -14,7 +14,13 @@ public protocol CoinageServicing: Actor {
     /// The underlying recipient service for direct use.
     nonisolated var ongoingTransferService: any OngoingTransferServicing { get }
 
-    nonisolated var transferRecoveryService: any TransferRecoveryServicing { get }
+    nonisolated var txService: any CoinageTxServicing { get }
+
+    /// Claims coins a peer handed us, driven off the durability group `groupId = messageId`.
+    nonisolated var claimCoinsService: any ClaimCoinsServicing { get }
+
+    /// The Appendix-A derived payment status of coins we handed off.
+    nonisolated var transferStatusService: any CoinageTransferStatusServicing { get }
 
     /// The external payment service — exposed for dependency registration.
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
@@ -64,7 +70,9 @@ public protocol CoinageServicing: Actor {
     func previewTransfer(for amount: BigUInt) async throws -> TransferPreview
 
     /// Execute a transfer from a pre-computed coin selection result, skipping coin selection.
-    func executeTransfer(result: CoinSelectionResult) async throws -> TransferMemo
+    /// Returns the memo plus the provisional handoff to commit once the memo is durable.
+    /// `groupId` labels the registered transaction(s) — the transfer's message id, or `nil`.
+    func executeTransfer(result: CoinSelectionResult, groupId: CoinageTxGroupId?) async throws -> PreparedTransfer
 
     /// Scans the chain for coins and vouchers belonging to the user.
     /// Runs coin and voucher recovery concurrently.
@@ -105,11 +113,13 @@ public actor CoinageService {
     // Transfers
     private let senderService: TransferSenderServicing
     public nonisolated let ongoingTransferService: any OngoingTransferServicing
-    public nonisolated let transferRecoveryService: any TransferRecoveryServicing
+    public nonisolated let txService: any CoinageTxServicing
+    public nonisolated let claimCoinsService: any ClaimCoinsServicing
+    public nonisolated let transferStatusService: any CoinageTransferStatusServicing
 
     // Sync services
-    private let coinStateSyncService: CoinStateSyncService?
-    private let voucherLocationService: VoucherLocationService?
+    private let coinStateSyncService: CoinStateSyncService
+    private let voucherLocationService: VoucherLocationService
     private let recoveryService: any CoinageBackupRecoveryServicing
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
@@ -118,9 +128,8 @@ public actor CoinageService {
 
     private let contextLoader: DenominationContextLoaderProtocol
 
-    // Balance observation
-    private let coinProvider: StreamableProvider<Coin>
-    private let voucherProvider: StreamableProvider<Voucher>
+    // Balance observation — the factory builds the tracked-asset snapshot streams on demand
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let logger: SDKLoggerProtocol?
 
     // App State
@@ -147,15 +156,16 @@ public actor CoinageService {
         coinKeypairFactory: any CoinKeyDeriving,
         senderService: TransferSenderServicing,
         ongoingTransferService: any OngoingTransferServicing,
-        transferRecoveryService: any TransferRecoveryServicing,
+        txService: any CoinageTxServicing,
+        claimCoinsService: any ClaimCoinsServicing,
+        transferStatusService: any CoinageTransferStatusServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
-        coinStateSyncService: CoinStateSyncService? = nil,
-        voucherLocationService: VoucherLocationService? = nil,
+        coinStateSyncService: CoinStateSyncService,
+        voucherLocationService: VoucherLocationService,
         recyclingService: any CoinageRecyclingServicing,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
-        coinProvider: StreamableProvider<Coin>,
-        voucherProvider: StreamableProvider<Voucher>,
+        databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -170,10 +180,11 @@ public actor CoinageService {
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
         self.applicationStateStreamFactory = applicationStateStreamFactory
-        self.coinProvider = coinProvider
-        self.voucherProvider = voucherProvider
+        self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
-        self.transferRecoveryService = transferRecoveryService
+        self.txService = txService
+        self.claimCoinsService = claimCoinsService
+        self.transferStatusService = transferStatusService
         self.logger = logger
     }
 }
@@ -242,13 +253,18 @@ extension CoinageService: CoinageServicing {
             contextSubject.send(.success(context))
 
             // Start sync services
-            coinStateSyncService?.setup()
-            voucherLocationService?.setup()
+            coinStateSyncService.setup()
+            voucherLocationService.setup()
             externalPaymentService.setup(with: context)
 
             subscribeForeground()
 
             Task { await recyclingService.scheduleRecycling() }
+
+            try await txService.releaseUncommittedHandoffs()
+
+            txService.start()
+
         } catch {
             // Reset so a subsequent setup(with:) call triggers a fresh fetch
             contextSetupTask = nil
@@ -277,8 +293,8 @@ extension CoinageService: CoinageServicing {
             throw CoinageError.notConfigured
         }
 
-        let coins = try await coinService.fetchAllCoins()
-        let vouchers = try await voucherService.fetchAvailableInRecycler()
+        let coins = try await coinService.fetchAllTrackedCoins()
+        let vouchers = try await voucherService.fetchAllTracked()
 
         let result = try await senderService.previewStrategy(
             amount: amount,
@@ -297,18 +313,19 @@ extension CoinageService: CoinageServicing {
         return TransferPreview(selectionResult: result, fullAmount: amount, nonDegradedAmount: nonDegradedAmount)
     }
 
-    public func executeTransfer(result: CoinSelectionResult) async throws -> TransferMemo {
+    public func executeTransfer(
+        result: CoinSelectionResult,
+        groupId: CoinageTxGroupId?
+    ) async throws -> PreparedTransfer {
         guard let denominationContext = breakdownContext else {
             throw CoinageError.notConfigured
         }
-
-        let transferContext = TransferContext(coinService: coinService, voucherService: voucherService)
 
         do {
             return try await senderService.execute(
                 result: result,
                 breakdownContext: denominationContext,
-                context: transferContext
+                groupId: groupId
             )
         } catch {
             throw CoinageError.transferFailed(underlying: error)
@@ -341,8 +358,7 @@ extension CoinageService: CoinageServicing {
         }
         let service = CoinageBalanceService(
             denominationContext: context,
-            voucherProvider: voucherProvider,
-            coinProvider: coinProvider,
+            databaseFactory: databaseFactory,
             logger: logger
         )
         service.start()
@@ -368,7 +384,9 @@ extension CoinageService: CoinageServicing {
     }
 
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {
-        let spentCoins = try await coinService.fetchAllCoins().filter { $0.state == .spent }
+        let spentCoins = try await coinService.fetchAllTrackedCoins()
+            .filter(\.isRecoverable)
+            .map(\.coin)
         guard !spentCoins.isEmpty else { return .zero }
         let context = try await denominationContext()
         return try await ongoingTransferService.recoverSpentCoins(

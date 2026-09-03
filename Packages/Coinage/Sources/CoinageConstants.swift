@@ -4,6 +4,14 @@ public enum CoinageConstants {
     /// Interval at which the background recycling task is scheduled (24 hours).
     public static let backgroundRecyclingInterval: TimeInterval = 24 * 60 * 60
 
+    /// How long a received transfer's coins are still worth trying to claim (6 hours). Bounds the
+    /// claim retry loop; measured from when the message is first seen.
+    public static let claimRetryWindow: TimeInterval = 6 * 60 * 60
+
+    /// How long a claim from raw secret keys (top-up / recovery) keeps retrying before giving up.
+    /// Shorter than ``claimRetryWindow`` — these callers await the outcome inline.
+    public static let secretKeyClaimTimeout: TimeInterval = 60
+
     /// Coin age threshold at which coin is still operatable
     public static let coinMaxAge: Int16 = 16
 
@@ -18,7 +26,4 @@ public enum CoinageConstants {
 
     /// Maximum random wait time before a voucher becomes ready (6 hours).
     static let maxVoucherWaitTime: TimeInterval = 6 * 60 * 60
-
-    /// Blocks to wait before a WAL entry can be reverted (≈ 5 minutes at 6s blocks).
-    static let walMortality: UInt32 = 300
 }
