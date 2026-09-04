@@ -81,6 +81,10 @@ extension SPARustRuntimeInteractor: SPAInteractorInputProtocol {
                     return
                 }
 
+                #if IOS_PASEO_E2E && targetEnvironment(simulator)
+                    self?.logger.debug("[e2e] SPA(rust): product enabled, waiting chat for \(extensionId)")
+                #endif
+
                 if let chatId = try await self?.waitProductChat(for: extensionId) {
                     self?.presenter?.didPrepareChat(chatId: chatId)
                 }

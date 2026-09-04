@@ -15,6 +15,14 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     var permissionStatus: PermissionAuthorizationStatus = .notDetermined
     private(set) var permissionRequests: [PermissionAuthorizationRequest] = []
 
+    private(set) var publishedChatActions: [HostChatActionSubscribeItem] = []
+    private(set) var renderCustomMessageCallCount = 0
+    /// Errors thrown by successive `renderCustomMessage` calls, consumed in order;
+    /// once empty the call succeeds. Lets tests drive the startup retry loop.
+    var renderCustomMessageErrors: [Error] = []
+    /// Nodes the render stream yields before finishing.
+    var renderCustomMessageNodes: [CustomRendererNode] = []
+
     func startWsBridge(bindPort _: UInt16) throws -> WsBridgeEndpoint {
         startWsBridgeCallCount += 1
         return WsBridgeEndpoint(port: 0, token: "test")
@@ -28,14 +36,25 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
         closeCallCount += 1
     }
 
-    func publishChatAction(_: HostChatActionSubscribeItem) throws {}
+    func publishChatAction(_ item: HostChatActionSubscribeItem) throws {
+        publishedChatActions.append(item)
+    }
 
     func renderCustomMessage(
         messageId _: String,
         messageType _: String,
         payload _: Data
     ) throws -> AsyncThrowingStream<CustomRendererNode, Error> {
-        AsyncThrowingStream { $0.finish() }
+        renderCustomMessageCallCount += 1
+        if !renderCustomMessageErrors.isEmpty {
+            throw renderCustomMessageErrors.removeFirst()
+        }
+
+        let nodes = renderCustomMessageNodes
+        return AsyncThrowingStream { continuation in
+            nodes.forEach { continuation.yield($0) }
+            continuation.finish()
+        }
     }
 
     func permissionAuthorizationStatus(

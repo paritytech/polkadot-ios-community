@@ -8,6 +8,15 @@ final class SPAWireframe: SPAWireframeProtocol, ChatNavigating {
         from view: ControllerBackedProtocol?,
         chatId: Chat.Id
     ) {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            // Dismiss-then-navigate races the launcher's polling; go straight to the chat.
+            if ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_OPEN_CHAT"] == "1" {
+                view?.controller.navigationController?.popToRootViewController(animated: false)
+                ModuleNavigator().openChat(chatId)
+                return
+            }
+        #endif
+
         if let presentingController = view?.controller.navigationController?.presentingViewController {
             presentingController.dismiss(animated: true)
         } else {

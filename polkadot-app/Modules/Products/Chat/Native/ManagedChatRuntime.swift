@@ -51,16 +51,30 @@ final class ManagedChatRuntime: ChatRuntimeProtocol, @unchecked Sendable {
         messageId: String,
         messageType: String,
         messageData: Data
-    ) async -> AsyncThrowingStream<String, Error> {
+    ) async -> AsyncThrowingStream<ChatRendererOutput, Error> {
         guard let worker = await ensureWorker() else {
             return AsyncThrowingStream { $0.finish(throwing: ManagedChatRuntimeError.workerUnavailable(productId)) }
         }
 
-        return await worker.renderMessage(
+        let hexStream = await worker.renderMessage(
             messageId: messageId,
             messageType: messageType,
             messageData: messageData
         )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await hexString in hexStream {
+                        continuation.yield(.scaleEncoded(hexString))
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     func dispatchEvent(roomId: String?, messageId: String, actionId: String, payload: String?) async {

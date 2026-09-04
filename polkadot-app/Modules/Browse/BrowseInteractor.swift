@@ -20,6 +20,16 @@ final class BrowseInteractor: BrowseInteractorInputProtocol {
             guard let self else { return }
 
             do {
+                #if IOS_PASEO_E2E && targetEnvironment(simulator)
+                    // The launcher names the product to open. Resolved here rather than in the
+                    // wireframe: `host(rawString:)` is synchronous and returns nil until the TLD
+                    // provider is warm, which silently fell back to the default browse host.
+                    if let raw = ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_PRODUCT_HOST"] {
+                        await notify(host: try await hostProvider.resolveHost(rawString: raw))
+                        return
+                    }
+                #endif
+
                 let host = try await hostProvider.resolveHost(label: AppConfig.DotNs.dotNsBrowse)
                 await notify(host: host)
             } catch {

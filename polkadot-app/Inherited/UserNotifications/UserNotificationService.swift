@@ -169,11 +169,24 @@ private extension UserNotificationService {
 
 extension UserNotificationService: UserNotificationServicing {
     func notificationAccessStatus() async -> NotificationAccessStatus {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            guard !SPAConfiguration.isSimulatorBrowseRequested else {
+                return .allowed
+            }
+        #endif
+
         let notificationSettings = await center.notificationSettings()
         return NotificationAccessStatus(status: notificationSettings.authorizationStatus)
     }
 
     func requestNotificationsAuthorization(completion: ((Bool) -> Void)?) {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            guard !SPAConfiguration.isSimulatorBrowseRequested else {
+                completion?(true)
+                return
+            }
+        #endif
+
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
             guard let completion else {
                 return

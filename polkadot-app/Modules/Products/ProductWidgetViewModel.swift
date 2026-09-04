@@ -35,12 +35,18 @@ final class ProductWidgetViewModel: WidgetNodeProviding {
             )
 
             do {
-                for try await hexString in stream {
+                for try await output in stream {
                     guard !Task.isCancelled else { return }
 
-                    let widget = try ScaleWidget.decode(from: hexString)
-                    let resolved = widget.toWidgetNode(resolver: self.tokenResolver)
+                    let resolved: CustomMessageWidgetNode? = switch output {
+                    case let .scaleEncoded(hexString):
+                        try ScaleWidget.decode(from: hexString)
+                            .toWidgetNode(resolver: self.tokenResolver)
+                    case let .native(node):
+                        node.toWidgetNode(resolver: self.tokenResolver)
+                    }
                     await MainActor.run { self.node = resolved }
+                    Self.writeSimulatorRendererMarkerIfNeeded()
                 }
             } catch {
                 guard !Task.isCancelled else { return }
@@ -51,5 +57,32 @@ final class ProductWidgetViewModel: WidgetNodeProviding {
 
     deinit {
         renderTask?.cancel()
+    }
+
+    #if IOS_PASEO_E2E && targetEnvironment(simulator)
+        private static let e2eMarkersEnabled =
+            ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_RUNTIME_MARKERS"] == "1"
+    #endif
+
+    /// Signals the truapi E2E launcher that a custom-rendered widget reached the UI.
+    private static func writeSimulatorRendererMarkerIfNeeded() {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            guard e2eMarkersEnabled else { return }
+
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("truapi-e2e", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                try Data().write(
+                    to: directory.appendingPathComponent("custom-renderer-update"),
+                    options: .atomic
+                )
+            } catch {
+                // The E2E harness reports the missing marker.
+            }
+        #endif
     }
 }
