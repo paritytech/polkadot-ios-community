@@ -110,10 +110,10 @@ private extension ServiceCoordinator {
             executor: ViewFunctionExecutor(
                 chainRegistry: chainRegistry,
                 operationQueue: operationQueue
-            )
+            ),
+            chainId: coinageChainId
         )
         let unloadTokenResolver = UnloadTokenResolver(
-            chainId: coinageChainId,
             runtimeCodingService: runtimeProvider,
             viewFunctionFetcher: viewFunctionFetcher,
             consumedTokenChecker: consumedTokenChecker

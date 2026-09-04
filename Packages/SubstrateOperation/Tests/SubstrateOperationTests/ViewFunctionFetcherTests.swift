@@ -9,10 +9,10 @@ struct ViewFunctionFetcherTests {
     @Test("Repeated fetch of the same key within TTL calls the executor once")
     func cachesResultWithinTtl() async throws {
         let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy)
+        let fetcher = ViewFunctionFetcher(executor: spy, chainId: Self.chain)
 
-        let first: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
-        let second: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
+        let first: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
+        let second: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
 
         #expect(first == 1)
         #expect(second == 1)
@@ -23,15 +23,15 @@ struct ViewFunctionFetcherTests {
     func refetchesAfterTtlExpires() async throws {
         let clock = MutableClock(now: Date(timeIntervalSince1970: 0))
         let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy, ttl: 100, dateProvider: clock)
+        let fetcher = ViewFunctionFetcher(executor: spy, chainId: Self.chain, ttl: 100, dateProvider: clock)
 
-        let first: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
+        let first: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
 
         clock.set(Date(timeIntervalSince1970: 50))
-        let withinWindow: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
+        let withinWindow: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
 
         clock.set(Date(timeIntervalSince1970: 150))
-        let afterExpiry: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
+        let afterExpiry: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
 
         #expect(first == 1)
         #expect(withinWindow == 1)
@@ -42,22 +42,10 @@ struct ViewFunctionFetcherTests {
     @Test("Different function names are cached independently")
     func cachesPerFunction() async throws {
         let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy)
+        let fetcher = ViewFunctionFetcher(executor: spy, chainId: Self.chain)
 
-        let a: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
-        let b: UInt32 = try await fetcher.fetch(viewFunction: Self.functionB, chainId: Self.chain)
-
-        #expect(a != b)
-        #expect(spy.callCount == 2)
-    }
-
-    @Test("The same function on different chains is cached independently")
-    func cachesPerChain() async throws {
-        let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy)
-
-        let a: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: "chain-a")
-        let b: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, chainId: "chain-b")
+        let a: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA)
+        let b: UInt32 = try await fetcher.fetch(viewFunction: Self.functionB)
 
         #expect(a != b)
         #expect(spy.callCount == 2)
@@ -66,18 +54,10 @@ struct ViewFunctionFetcherTests {
     @Test("The same function with different args is cached independently")
     func cachesPerArgs() async throws {
         let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy)
+        let fetcher = ViewFunctionFetcher(executor: spy, chainId: Self.chain)
 
-        let a: UInt32 = try await fetcher.fetch(
-            viewFunction: Self.functionA,
-            chainId: Self.chain,
-            args: [RawArg(0x01)]
-        )
-        let b: UInt32 = try await fetcher.fetch(
-            viewFunction: Self.functionA,
-            chainId: Self.chain,
-            args: [RawArg(0x02)]
-        )
+        let a: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, args: [RawArg(0x01)])
+        let b: UInt32 = try await fetcher.fetch(viewFunction: Self.functionA, args: [RawArg(0x02)])
 
         #expect(a != b)
         #expect(spy.callCount == 2)
@@ -86,10 +66,10 @@ struct ViewFunctionFetcherTests {
     @Test("Concurrent identical fetches invoke the executor once")
     func coalescesConcurrentIdenticalFetches() async throws {
         let spy = SpyViewFunctionExecutor()
-        let fetcher = ViewFunctionFetcher(executor: spy)
+        let fetcher = ViewFunctionFetcher(executor: spy, chainId: Self.chain)
 
-        async let first: UInt32 = fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
-        async let second: UInt32 = fetcher.fetch(viewFunction: Self.functionA, chainId: Self.chain)
+        async let first: UInt32 = fetcher.fetch(viewFunction: Self.functionA)
+        async let second: UInt32 = fetcher.fetch(viewFunction: Self.functionA)
 
         let results = try await [first, second]
 
