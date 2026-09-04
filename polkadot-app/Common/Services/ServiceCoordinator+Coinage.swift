@@ -168,7 +168,7 @@ private extension ServiceCoordinator {
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
-            recyclingStrategySettings: CoinageRecyclingStrategyStore(),
+            recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,
             logger: logger
         )

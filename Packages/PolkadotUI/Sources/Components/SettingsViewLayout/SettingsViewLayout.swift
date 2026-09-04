@@ -35,11 +35,13 @@ public extension SettingsViewLayout {
     struct Section: Identifiable {
         public let id: String
         public let header: String?
+        public let leadingContent: AnyView?
         public let items: [DSMenuListItem]
 
-        public init(id: String, header: String?, items: [DSMenuListItem]) {
+        public init(id: String, header: String?, leadingContent: AnyView? = nil, items: [DSMenuListItem]) {
             self.id = id
             self.header = header
+            self.leadingContent = leadingContent
             self.items = items
         }
     }
@@ -51,24 +53,36 @@ private extension SettingsViewLayout {
             if let header = section.header {
                 DSCaption(header)
             }
-            itemsStack(section.items)
+            groupedItems(section)
         }
     }
 
-    func itemsStack(_ items: [DSMenuListItem]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                item.dsMenuListItemPosition(position(at: index, count: items.count))
+    func groupedItems(_ section: Section) -> some View {
+        let hasLeading = section.leadingContent != nil
+        let count = section.items.count
+        return VStack(spacing: 0) {
+            if let leadingContent = section.leadingContent {
+                leadingContent
+                    .dsMenuListCellSurface(
+                        position: count == 0 ? .standalone : .first,
+                        showsDivider: count > 0
+                    )
+            }
+            ForEach(Array(section.items.enumerated()), id: \.element.id) { index, item in
+                item.dsMenuListItemPosition(position(at: index, count: count, hasLeading: hasLeading))
             }
         }
     }
 
-    func position(at index: Int, count: Int) -> DSMenuListItemPosition {
+    func position(at index: Int, count: Int, hasLeading: Bool) -> DSMenuListItemPosition {
+        if hasLeading {
+            return index == count - 1 ? .last : .middle
+        }
         switch (index, count) {
-        case (_, 1): .standalone
-        case (0, _): .first
-        case let (last, count) where last == count - 1: .last
-        default: .middle
+        case (_, 1): return .standalone
+        case (0, _): return .first
+        case let (last, count) where last == count - 1: return .last
+        default: return .middle
         }
     }
 

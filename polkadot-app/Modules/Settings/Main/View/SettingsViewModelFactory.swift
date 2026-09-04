@@ -30,6 +30,7 @@ final class SettingsViewModelFactory: SettingsViewModelMaking {
                 return SettingsViewLayout.Section(
                     id: section.rawValue,
                     header: section.header,
+                    leadingContent: section == .security ? AnyView(PaymentPrivacyModeCard()) : nil,
                     items: cells.map { cellType in
                         makeItem(
                             cellType: cellType,

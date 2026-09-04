@@ -8,6 +8,10 @@ import AsyncExtensions
 /// to the legacy hardcoded behaviour, so an upgrade changes what buckets are *called* without changing
 /// what is spendable.
 final class CoinageRecyclingStrategyStore: CoinageRecyclingStrategyProviding {
+    /// Shared instance so the Settings chooser and the running evaluator observe the same change
+    /// subject — a strategy change made in Settings re-gates the wallet immediately.
+    static let shared = CoinageRecyclingStrategyStore()
+
     private let settingsManager: SettingsManagerProtocol
     private let subject: AsyncCurrentValueSubject<RecyclingStrategyType>
 
