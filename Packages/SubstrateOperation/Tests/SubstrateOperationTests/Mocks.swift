@@ -1,5 +1,6 @@
 import Foundation
 import FoundationExt
+import os
 import SubstrateSdk
 
 @testable import SubstrateOperation
@@ -14,32 +15,26 @@ struct RawArg: ScaleEncodable {
     }
 }
 
-final class MutableClock: DateProviding, @unchecked Sendable {
-    private let lock = NSLock()
-    private var current: Date
+final class MutableClock: DateProviding, Sendable {
+    private let state: OSAllocatedUnfairLock<Date>
 
-    init(now: Date) { current = now }
+    init(now: Date) {
+        state = OSAllocatedUnfairLock(initialState: now)
+    }
 
     func set(_ date: Date) {
-        lock.lock(); defer { lock.unlock() }
-        current = date
+        state.withLock { $0 = date }
     }
 
     func read() async -> Date {
-        snapshot()
-    }
-
-    private func snapshot() -> Date {
-        lock.lock(); defer { lock.unlock() }
-        return current
+        state.withLock { $0 }
     }
 }
 
 /// Records how often the executor is hit and returns a distinct value per call by default, so a
 /// cache hit (no new call) is observable as an unchanged value and call count.
-final class SpyViewFunctionExecutor: ViewFunctionExecuting, @unchecked Sendable {
-    private let lock = NSLock()
-    private var count = 0
+final class SpyViewFunctionExecutor: ViewFunctionExecuting, Sendable {
+    private let count = OSAllocatedUnfairLock(initialState: 0)
 
     /// The value returned for the Nth call (1-based). Distinct per call by default. The caller owns
     /// the concrete type here — it must match the `T` the fetch is decoded into.
@@ -50,8 +45,7 @@ final class SpyViewFunctionExecutor: ViewFunctionExecuting, @unchecked Sendable 
     }
 
     var callCount: Int {
-        lock.lock(); defer { lock.unlock() }
-        return count
+        count.withLock { $0 }
     }
 
     func call<T: Decodable>(
@@ -59,18 +53,15 @@ final class SpyViewFunctionExecutor: ViewFunctionExecuting, @unchecked Sendable 
         chainId _: ChainId,
         args _: [ScaleEncodable]
     ) async throws -> T {
-        let index = recordCall()
+        let index = count.withLock {
+            $0 += 1
+            return $0
+        }
 
         guard let typed = valueForCall(index) as? T else {
             throw SpyError.typeMismatch
         }
         return typed
-    }
-
-    private func recordCall() -> Int {
-        lock.lock(); defer { lock.unlock() }
-        count += 1
-        return count
     }
 }
 
