@@ -69,23 +69,11 @@ struct DSTabBarRow {
     let width: CGFloat
     let itemCount: Int
     let isCentreExpanded: Bool
-    let hasTrailingSlot: Bool
 }
 
 extension DSTabBarRow {
     var centreIndex: Int? {
         itemCount == 0 ? nil : itemCount / 2
-    }
-
-    var trailingSlotFrame: CGRect? {
-        guard hasTrailingSlot else {
-            return nil
-        }
-        return unitFrame(atUnitIndex: unitCount - 1, span: 1)
-    }
-
-    var draggableWidth: CGFloat {
-        trailingSlotFrame?.minX ?? width
     }
 
     func itemFrame(at index: Int) -> CGRect {
@@ -116,7 +104,7 @@ extension DSTabBarRow {
 
 private extension DSTabBarRow {
     var unitCount: Int {
-        itemCount + (isCentreExpanded ? 1 : 0) + (hasTrailingSlot ? 1 : 0)
+        itemCount + (isCentreExpanded ? 1 : 0)
     }
 
     var unitWidth: CGFloat {

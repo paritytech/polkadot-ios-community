@@ -75,25 +75,5 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
     func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
         view?.showChainStatus(rows)
-
-        #if !FEATURE_PRODUCTS
-            view?.showTabBarPanelContent(
-                SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows: rows)),
-                trailingTint: trailingTint(for: rows)
-            )
-        #endif
-    }
-}
-
-private extension MainTabBarPresenter {
-    /// Worst state across the chains, so a single failing chain is visible without opening the panel.
-    func trailingTint(for rows: [ChainConnectionStatusViewModel]) -> UIColor {
-        if rows.contains(where: { $0.state == .offline }) {
-            .bgStatusError
-        } else if rows.contains(where: { $0.state == .connecting }) {
-            .bgStatusWarning
-        } else {
-            .bgStatusSuccess
-        }
     }
 }

@@ -43,7 +43,6 @@ final class TabBarBottomChromeController: UIViewController {
     var onCentreHalfTapped: ((DSTabBarCentreSlot.Half) -> Void)?
     var onChipTapped: ((UUID) -> Void)?
     var onChipCloseRequested: ((UUID) -> Void)?
-    var onTrailingSlotTapped: (() -> Void)?
     var onPanelChanged: ((TabBarPanelKind?) -> Void)?
 
     private var occupiedHeight: CGFloat {
@@ -170,22 +169,8 @@ final class TabBarBottomChromeController: UIViewController {
         setPanel(openPanel == kind ? nil : kind, animated: true)
     }
 
-    func setTrailingPanel(slot: DSTabBarTrailingSlot?, content: (any HashableContentConfiguration)?) {
-        barView.setTrailingSlot(slot)
-        contentPanelView.setConfiguration(content)
-
-        guard openPanel == .content else {
-            return
-        }
-
-        guard slot != nil else {
-            setPanel(nil, animated: true)
-            return
-        }
-
-        let animator = makePanelAnimator()
-        updateGlassContainerHeight(animator: animator)
-        animator.startAnimation()
+    func setContentPanel(_ configuration: (any HashableContentConfiguration)?) {
+        contentPanelView.setConfiguration(configuration)
     }
 
     func apply(
@@ -490,10 +475,6 @@ private extension TabBarBottomChromeController {
 
         barView.onCentreHalfTapped = { [weak self] half in
             self?.onCentreHalfTapped?(half)
-        }
-
-        barView.onTrailingSlotTapped = { [weak self] in
-            self?.onTrailingSlotTapped?()
         }
     }
 

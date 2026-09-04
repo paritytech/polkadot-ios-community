@@ -78,6 +78,39 @@
         }
       }
     },
+    "chainConnectionStatusConnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "connected"
+          }
+        }
+      }
+    },
+    "chainConnectionStatusConnecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "connecting"
+          }
+        }
+      }
+    },
+    "chainConnectionStatusOffline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no network"
+          }
+        }
+      }
+    },
     "clear" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -199,17 +232,6 @@
         }
       }
     },
-    "error.mail.not.available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Email account is not available."
-          }
-        }
-      }
-    },
     "error.mail.app.not.available" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -217,6 +239,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mail app is not available."
+          }
+        }
+      }
+    },
+    "error.mail.not.available" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Email account is not available."
           }
         }
       }
@@ -492,50 +525,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Update"
-          }
-        }
-      }
-    },
-    "tabBarPanelAccessibility" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "More"
-          }
-        }
-      }
-    },
-    "chainConnectionStatusConnected" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "connected"
-          }
-        }
-      }
-    },
-    "chainConnectionStatusConnecting" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "connecting"
-          }
-        }
-      }
-    },
-    "chainConnectionStatusOffline" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "no network"
           }
         }
       }

@@ -61,10 +61,6 @@ final class MainTabBarViewController: UIViewController {
             chromeController.togglePanel(.spaTabs)
         }
 
-        chromeController.onTrailingSlotTapped = { [weak self] in
-            self?.chromeController.togglePanel(.content)
-        }
-
         chromeController.onChipTapped = { [weak self] id in
             guard let self, let tab = browserCoordinator.tabs.first(where: { $0.id == id }) else {
                 return
@@ -320,12 +316,8 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         applyChips()
     }
 
-    func showTabBarPanelContent(
-        _ configuration: (any HashableContentConfiguration)?,
-        trailingTint: UIColor?
-    ) {
-        let slot = configuration == nil ? nil : TabBarTrailingSlotFactory.makeSlot(tintColor: trailingTint)
-        chromeController.setTrailingPanel(slot: slot, content: configuration)
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?) {
+        chromeController.setContentPanel(configuration)
     }
 
     func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {
