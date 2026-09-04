@@ -3,9 +3,16 @@ import Foundation_iOS
 import Operation_iOS
 import SubstrateSdk
 import SDKLogger
+import AsyncExtensions
 
 public typealias StatementHandlingStatus = Bool
 public typealias StatementHandlingClosure = (Statement) -> StatementHandlingStatus
+
+public enum StatementSubscriptionState: Hashable {
+    case idle
+    case active
+    case failed
+}
 
 public protocol StatementSubscribing {
     func start(handler: @escaping StatementHandlingClosure)
@@ -15,6 +22,7 @@ public protocol StatementSubscribing {
         completion: ((StatementSubscriptionError?) -> Void)?
     )
     func resetSeenHashes()
+    var stateStream: AnyAsyncSequence<StatementSubscriptionState> { get }
 }
 
 // Mutable state is confined to workQueue. The conformance is unchecked because
@@ -28,6 +36,7 @@ public final class StatementSubscription: @unchecked Sendable {
 
     private var subscriptionTask: Task<Void, Never>?
     private var seenHashes = Set<Data>()
+    private let stateSubject = AsyncCurrentValueSubject<StatementSubscriptionState>(.idle)
 
     public init(
         connection: StatementStoreFetching,
@@ -41,6 +50,10 @@ public final class StatementSubscription: @unchecked Sendable {
         self.proofVerifier = proofVerifier
         self.workQueue = workQueue
         self.logger = logger
+    }
+
+    public var stateStream: AnyAsyncSequence<StatementSubscriptionState> {
+        stateSubject.eraseToAnyAsyncSequence()
     }
 
     deinit {
@@ -95,20 +108,31 @@ extension StatementSubscription: StatementSubscribing {
 
 private extension StatementSubscription {
     func performSubscription(handler: @escaping StatementHandlingClosure) {
-        subscriptionTask = Task { [connection, topicFilter, logger, weak self] in
+        subscriptionTask = Task { [connection, topicFilter, logger, stateSubject, weak self] in
             do {
                 let stream = try connection.subscribeStatements(with: topicFilter)
+
+                guard !Task.isCancelled else { return }
+
+                stateSubject.send(.active)
 
                 for try await page in stream {
                     guard let self else { return }
                     _ = await handleDataOnWorkQueue(page.statements, with: handler)
                 }
+
+                // A stream that ends without throwing has stopped delivering — the silent death
+                // this state exists to surface. Cancellation is a normal stop and is not a failure.
+                guard !Task.isCancelled else { return }
+
+                stateSubject.send(.failed)
             } catch {
                 guard !Task.isCancelled else {
                     return
                 }
 
                 logger?.error("Subscription failed: \(error)")
+                stateSubject.send(.failed)
             }
         }
     }
@@ -116,6 +140,7 @@ private extension StatementSubscription {
     func performStop() {
         subscriptionTask?.cancel()
         subscriptionTask = nil
+        stateSubject.send(.idle)
     }
 
     func handleDataOnWorkQueue(

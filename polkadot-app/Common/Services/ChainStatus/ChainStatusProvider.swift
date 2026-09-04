@@ -20,6 +20,7 @@ final class ChainStatusProvider {
     private let networkStatusService: NetworkStatusProviding
     private let latencyProvider: ChainLatencyProviding
     private let blockProvider: ChainBlockProviding
+    private let statementTracker: StatementDeliveryTracking
     private let logger: LoggerProtocol
 
     private let rowsSubject: AsyncCurrentValueSubject<[ChainConnectionStatusViewModel]>
@@ -28,6 +29,7 @@ final class ChainStatusProvider {
     private var latencies: [ChainConnectionTarget: Duration] = [:]
     private var blocks: [ChainConnectionTarget: ChainBlockInfo] = [:]
     private var connectedSince: [ChainConnectionTarget: Date] = [:]
+    private var statementState: StatementDeliveryState = .noSubscriptions
     private var statusTasks: [Task<Void, Never>] = []
     private var isObserving = false
 
@@ -35,11 +37,13 @@ final class ChainStatusProvider {
         networkStatusService: NetworkStatusProviding,
         latencyProvider: ChainLatencyProviding,
         blockProvider: ChainBlockProviding,
+        statementTracker: StatementDeliveryTracking,
         logger: LoggerProtocol
     ) {
         self.networkStatusService = networkStatusService
         self.latencyProvider = latencyProvider
         self.blockProvider = blockProvider
+        self.statementTracker = statementTracker
         self.logger = logger
 
         let seededStatuses = ChainConnectionTarget.allCases
@@ -51,7 +55,8 @@ final class ChainStatusProvider {
                 statuses: seededStatuses,
                 latencies: [:],
                 blocks: [:],
-                connectedSince: [:]
+                connectedSince: [:],
+                statementState: .noSubscriptions
             )
         )
     }
@@ -84,7 +89,7 @@ private extension ChainStatusProvider {
 
         statusTasks = ChainConnectionTarget.allCases.map { target in
             observeStatus(for: target)
-        } + [observeLatencies(), observeBlocks()]
+        } + [observeLatencies(), observeBlocks(), observeStatementState()]
     }
 
     func observeStatus(for target: ChainConnectionTarget) -> Task<Void, Never> {
@@ -123,6 +128,18 @@ private extension ChainStatusProvider {
                 }
             } catch {
                 logger.error("Chain block stream failed: \(error)")
+            }
+        }
+    }
+
+    func observeStatementState() -> Task<Void, Never> {
+        Task { [weak self, statementTracker, logger] in
+            do {
+                for try await state in statementTracker.stateStream() {
+                    self?.handleStatementStateUpdate(state)
+                }
+            } catch {
+                logger.error("Statement delivery state stream failed: \(error)")
             }
         }
     }
@@ -168,13 +185,23 @@ private extension ChainStatusProvider {
         emitRows()
     }
 
+    func handleStatementStateUpdate(_ state: StatementDeliveryState) {
+        guard state != statementState else {
+            return
+        }
+
+        statementState = state
+        emitRows()
+    }
+
     func emitRows() {
         rowsSubject.send(
             Self.makeRows(
                 statuses: statuses,
                 latencies: latencies,
                 blocks: blocks,
-                connectedSince: connectedSince
+                connectedSince: connectedSince,
+                statementState: statementState
             )
         )
     }
@@ -183,18 +210,13 @@ private extension ChainStatusProvider {
         statuses: [ChainConnectionTarget: NetworkStatus],
         latencies: [ChainConnectionTarget: Duration],
         blocks: [ChainConnectionTarget: ChainBlockInfo],
-        connectedSince: [ChainConnectionTarget: Date]
+        connectedSince: [ChainConnectionTarget: Date],
+        statementState: StatementDeliveryState
     ) -> [ChainConnectionStatusViewModel] {
-        ChainConnectionTarget.allCases.map { target in
+        let targetRows = ChainConnectionTarget.allCases.map { target in
             let state = (statuses[target] ?? .connecting).connectionState
             let block = state == .connected ? blocks[target] : nil
-
-            // Finality lag = best - finalized block count. The two subscriptions are independent,
-            // so a stale cached best height can lag finalized and produce a negative delta; clamp
-            // guards against this transient cache inconsistency.
-            let finalityLag = block.flatMap { info in
-                info.finalizedNumber.map { max(Int(info.number) - Int($0), 0) }
-            }
+            let finalityLag = computeFinalityLag(from: block)
 
             return ChainConnectionStatusViewModel(
                 id: target.chainId,
@@ -209,5 +231,43 @@ private extension ChainStatusProvider {
                 icon: target.statusIcon
             )
         }
+
+        let statementStoreRow = makeStatementStoreRow(
+            state: statementState.connectionState,
+            blocks: blocks,
+            latencies: latencies,
+            connectedSince: connectedSince
+        )
+
+        return targetRows + [statementStoreRow]
+    }
+
+    private static func computeFinalityLag(from block: ChainBlockInfo?) -> Int? {
+        block.flatMap { info in
+            info.finalizedNumber.map { max(Int(info.number) - Int($0), 0) }
+        }
+    }
+
+    private static func makeStatementStoreRow(
+        state: ChainConnectionState,
+        blocks: [ChainConnectionTarget: ChainBlockInfo],
+        latencies: [ChainConnectionTarget: Duration],
+        connectedSince: [ChainConnectionTarget: Date]
+    ) -> ChainConnectionStatusViewModel {
+        let block = state == .connected ? blocks[.chat] : nil
+        let finalityLag = computeFinalityLag(from: block)
+
+        return ChainConnectionStatusViewModel(
+            id: "statement-store",
+            title: "Statement Store",
+            state: state,
+            stateTitle: state.localizedTitle,
+            latency: state == .connected ? latencies[.chat] : nil,
+            lastBlockDate: block?.receivedAt,
+            finalityLag: finalityLag,
+            connectedSince: connectedSince[.chat],
+            thresholds: ChainConnectionTarget.chat.healthThresholds,
+            icon: .statementStore
+        )
     }
 }

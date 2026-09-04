@@ -27,6 +27,7 @@ final class ChatDiscoveryService {
     private let statementStoreConnection: StatementStoreConnecting
     private let settings: ChatDiscoverySettingsStoring
     private let chatRequestFactory: ChatRequestFactoryProtocol
+    private let statementTracker: StatementDeliveryTracking
     private let logger: SDKLoggerProtocol
 
     private let pollDispatchQueue = DispatchQueue(label: "io.discovery.chat.poll.queue")
@@ -41,12 +42,14 @@ final class ChatDiscoveryService {
         settings: ChatDiscoverySettingsStoring,
         statementStoreConnection: StatementStoreConnecting,
         chatRequestFactory: ChatRequestFactoryProtocol,
+        statementTracker: StatementDeliveryTracking,
         logger: SDKLoggerProtocol
     ) {
         self.signManager = signManager
         self.settings = settings
         self.statementStoreConnection = statementStoreConnection
         self.chatRequestFactory = chatRequestFactory
+        self.statementTracker = statementTracker
         self.logger = logger
     }
 }
@@ -92,6 +95,9 @@ private extension ChatDiscoveryService {
 
                 self?.logger.debug("Completed task")
             } catch {
+                if !Task.isCancelled {
+                    await self?.statementTracker.report(.failed)
+                }
                 self?.logger.error("Discovery task failed: \(error)")
             }
         }
@@ -191,15 +197,19 @@ private extension ChatDiscoveryService {
         onRequest: @escaping (ChatRequest.ValidatedRemoteModel) -> Void
     ) async {
         var currentDayPoller: StatementSubscription?
+        var currentPollerObservation: Task<Void, Never>?
 
         while true {
+            currentPollerObservation?.cancel()
             currentDayPoller?.stop()
 
             guard !Task.isCancelled else {
+                await statementTracker.report(.noSubscriptions)
                 return
             }
 
             guard let pagination = ChatRequest.paginationDay(from: Date()) else {
+                await statementTracker.report(.failed)
                 return
             }
 
@@ -223,6 +233,8 @@ private extension ChatDiscoveryService {
                     return true
                 }
 
+                currentPollerObservation = makePollerObservation(currentDayPoller)
+
                 if pagination.remainedTillNext > 0 {
                     let delay = UInt64(TimeInterval(NSEC_PER_SEC) * pagination.remainedTillNext)
 
@@ -230,8 +242,34 @@ private extension ChatDiscoveryService {
                     try await Task.sleep(nanoseconds: delay)
                 }
             } catch {
+                currentPollerObservation?.cancel()
+                if Task.isCancelled {
+                    await statementTracker.report(.noSubscriptions)
+                } else {
+                    await statementTracker.report(.failed)
+                }
                 logger.error("Unexpected poller failure: \(error)")
                 return
+            }
+        }
+    }
+
+    private func makePollerObservation(_ poller: StatementSubscription?) -> Task<Void, Never> {
+        Task { [weak self] in
+            guard let poller else { return }
+            do {
+                for try await state in poller.stateStream {
+                    switch state {
+                    case .active:
+                        await self?.statementTracker.report(.active)
+                    case .failed:
+                        await self?.statementTracker.report(.failed)
+                    case .idle:
+                        break
+                    }
+                }
+            } catch {
+                // Stream ended
             }
         }
     }
