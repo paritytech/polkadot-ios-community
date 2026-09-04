@@ -1,5 +1,6 @@
 import Foundation
 import SubstrateSdk
+import Individuality
 
 /// Remaining free-unload tokens this period, together with the period allowance so callers can
 /// express a reserve as a fraction of the limit rather than a fixed count.
@@ -27,8 +28,7 @@ public protocol UnloadQuotaTracking: Sendable {
 public actor UnloadQuotaTracker: UnloadQuotaTracking {
     private let runtimeCodingService: RuntimeCodingServiceProtocol
     private let consumedTokenChecker: any ConsumedTokenChecking
-    private let aliasProvider: any AliasProviding
-    private let currentDate: @Sendable () -> Date
+    private let personOriginProvider: any OriginPersonProviding
 
     private struct Cache {
         let period: UInt32
@@ -44,13 +44,11 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
     public init(
         runtimeCodingService: RuntimeCodingServiceProtocol,
         consumedTokenChecker: any ConsumedTokenChecking,
-        aliasProvider: any AliasProviding,
-        currentDate: @escaping @Sendable () -> Date = { Date() }
+        personOriginProvider: any OriginPersonProviding
     ) {
         self.runtimeCodingService = runtimeCodingService
         self.consumedTokenChecker = consumedTokenChecker
-        self.aliasProvider = aliasProvider
-        self.currentDate = currentDate
+        self.personOriginProvider = personOriginProvider
     }
 
     public func remainingQuota() async throws -> UnloadQuota {
@@ -64,7 +62,7 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
         )
 
         let periods = UnloadTokenPeriodCalculator.validPeriods(
-            currentDate: currentDate(),
+            currentDate: Date(),
             periodDuration: periodDuration
         )
         let currentPeriod = periods.last ?? 0
@@ -99,6 +97,9 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
 private extension UnloadQuotaTracker {
     func walk(periods: [UInt32], maxCounter: UInt32) async throws -> UnloadQuota {
         guard maxCounter > 0 else { return UnloadQuota(remaining: 0, limit: 0) }
+
+        let pickedPerson = try await personOriginProvider.pickPersonOrigin()
+        let aliasProvider = pickedPerson.makeAliasProvider()
 
         var remaining = 0
         for period in periods {

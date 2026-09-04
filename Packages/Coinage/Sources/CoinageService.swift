@@ -123,6 +123,13 @@ public actor CoinageService {
     private let recoveryService: any CoinageBackupRecoveryServicing
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
+    // Recycling strategy evaluation — the evaluator is built lazily once the context resolves.
+    private nonisolated let recyclingStrategySettings: any CoinageRecyclingStrategyProviding
+    private let recyclingStrategyResolver: any RecyclingStrategyProviding
+    private let ringCapacityProvider: any RingCapacityProviding
+    private let preClassificator: any CoinageAssetsPreClassificating
+    private let quotaTracker: any UnloadQuotaTracking
+
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
@@ -134,7 +141,7 @@ public actor CoinageService {
 
     // App State
     private let applicationStateStreamFactory: ApplicationStateStreamFactory
-    private var appStateTask: Task<Void, Never>?
+    private var recyclingEvaluator: CoinRecyclingEvaluator?
 
     private var breakdownContext: DenominationBreakdownContext?
     private var cachedBalanceService: CoinageBalanceServiceProtocol?
@@ -164,6 +171,11 @@ public actor CoinageService {
         coinStateSyncService: CoinStateSyncService,
         voucherLocationService: VoucherLocationService,
         recyclingService: any CoinageRecyclingServicing,
+        recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
+        recyclingStrategyResolver: any RecyclingStrategyProviding,
+        ringCapacityProvider: any RingCapacityProviding,
+        preClassificator: any CoinageAssetsPreClassificating,
+        quotaTracker: any UnloadQuotaTracking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
@@ -179,6 +191,11 @@ public actor CoinageService {
         self.coinStateSyncService = coinStateSyncService
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
+        self.recyclingStrategySettings = recyclingStrategySettings
+        self.recyclingStrategyResolver = recyclingStrategyResolver
+        self.ringCapacityProvider = ringCapacityProvider
+        self.preClassificator = preClassificator
+        self.quotaTracker = quotaTracker
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
@@ -257,9 +274,7 @@ extension CoinageService: CoinageServicing {
             voucherLocationService.setup()
             externalPaymentService.setup(with: context)
 
-            subscribeForeground()
-
-            Task { await recyclingService.scheduleRecycling() }
+            ensureRecyclingEvaluator(context: context)
 
             try await txService.releaseUncommittedHandoffs()
 
@@ -433,19 +448,31 @@ private extension CoinageService {
     }
 }
 
-// MARK: - Foreground Subscription
+// MARK: - Recycling Evaluation
 
 private extension CoinageService {
-    func subscribeForeground() {
-        guard appStateTask == nil else { return }
-
-        let recyclingService = recyclingService
-        let foregroundEvents = applicationStateStreamFactory.stream(for: .willEnterForeground)
-
-        appStateTask = Task { [recyclingService] in
-            for await _ in foregroundEvents {
-                await recyclingService.recycleOldCoins()
-            }
+    /// Lazily builds and starts the verdict-driven recycling evaluator — the single foreground trigger
+    /// for recycling, replacing the age-based schedule and the foreground catch-up. Shared with the
+    /// balance service, which consumes its verdicts. Built here because it needs the resolved context.
+    @discardableResult
+    func ensureRecyclingEvaluator(context: DenominationBreakdownContext) -> CoinRecyclingEvaluator {
+        if let recyclingEvaluator {
+            return recyclingEvaluator
         }
+
+        let evaluator = CoinRecyclingEvaluator(
+            databaseFactory: databaseFactory,
+            settings: recyclingStrategySettings,
+            strategyProvider: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator,
+            recyclingService: recyclingService,
+            quotaTracker: quotaTracker,
+            denominationContext: context,
+            logger: logger
+        )
+        evaluator.start()
+        recyclingEvaluator = evaluator
+        return evaluator
     }
 }

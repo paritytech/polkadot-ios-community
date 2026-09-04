@@ -1,6 +1,7 @@
 import Foundation
 import KeyDerivation
 import SubstrateSdk
+import Individuality
 
 /// Abstracts alias derivation for coinage operations.
 public protocol AliasProviding: AnyObject {
@@ -20,5 +21,16 @@ public final class RingMemberAliasProvider: AliasProviding {
 
     public func deriveAlias(for context: Data) throws -> Data {
         try keyManager.deriveAlias(for: context)
+    }
+}
+
+public extension PersonOrigin {
+    func makeAliasProvider() -> AliasProviding {
+        switch self {
+        case let .lite(_, keyManager):
+            RingMemberAliasProvider(keyManager: keyManager)
+        case let .full(_, keyManager):
+            RingMemberAliasProvider(keyManager: keyManager)
+        }
     }
 }

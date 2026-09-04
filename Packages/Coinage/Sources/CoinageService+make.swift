@@ -11,6 +11,7 @@ import SubstrateStorageQuery
 import SubstrateOperation
 import FoundationExt
 import BackgroundExecution
+import Individuality
 
 public extension CoinageService {
     /// Creates a CoinageService instance.
@@ -45,6 +46,8 @@ public extension CoinageService {
         externalPaymentStore: ExternalPaymentStoring,
         backgroundRecyclingInterval: TimeInterval = CoinageConstants.backgroundRecyclingInterval,
         backgroundExecutor: any BackgroundExecuting,
+        recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
+        personOriginProvider: any OriginPersonProviding,
         logger: SDKLoggerProtocol
     ) -> CoinageService {
         let operationQueue = OperationQueue()
@@ -284,6 +287,27 @@ public extension CoinageService {
             recycleAtAge: CoinageConstants.recycleAtAge
         )
 
+        // Recycling strategy evaluation collaborators. The evaluator itself is built lazily once the
+        // denomination context resolves (see `CoinageService.setup`).
+        let consumedTokenChecker = ConsumedTokenChecker(
+            operationQueue: operationQueue,
+            connection: connection,
+            runtimeCodingService: runtimeService
+        )
+        let quotaTracker = UnloadQuotaTracker(
+            runtimeCodingService: runtimeService,
+            consumedTokenChecker: consumedTokenChecker,
+            personOriginProvider: personOriginProvider
+        )
+        let ringCapacityProvider = RingCapacityProvider(
+            instanceId: instanceId,
+            operationQueue: operationQueue,
+            connection: connection,
+            runtimeCodingService: runtimeService
+        )
+        let recyclingStrategyResolver = RecyclingStrategyProvider(quotaTracker: quotaTracker)
+        let preClassificator = CoinageAssetPreClassificator()
+
         let externalPaymentDependency = ExternalPaymentDependency(
             instanceId: instanceId,
             coinService: coinService,
@@ -326,6 +350,11 @@ public extension CoinageService {
             coinStateSyncService: coinStateSyncService,
             voucherLocationService: voucherLocationService,
             recyclingService: recyclingService,
+            recyclingStrategySettings: recyclingStrategySettings,
+            recyclingStrategyResolver: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator,
+            quotaTracker: quotaTracker,
             applicationStateStreamFactory: applicationStateStreamFactory,
             databaseFactory: databaseFactory,
             recoveryService: recoveryService,
