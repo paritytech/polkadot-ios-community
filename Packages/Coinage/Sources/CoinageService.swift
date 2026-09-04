@@ -371,9 +371,15 @@ extension CoinageService: CoinageServicing {
         if let service = cachedBalanceService {
             return service
         }
+        let evaluator = ensureRecyclingEvaluator(context: context)
         let service = CoinageBalanceService(
             denominationContext: context,
             databaseFactory: databaseFactory,
+            verdicts: evaluator.verdicts,
+            settings: recyclingStrategySettings,
+            strategyResolver: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator,
             logger: logger
         )
         service.start()
