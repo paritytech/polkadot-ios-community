@@ -35,7 +35,7 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
     }
 
     func configureViews() {
-        view?.show(tabs: tabItems, selecting: .wallet)
+        view?.show(tabs: tabItems, selecting: initialTab)
         view?.setBadge(settingsBadge, for: .settings)
     }
 }
@@ -70,5 +70,15 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
     func didReceiveSPATabs(_ tabs: [SPATab]) {
         view?.showSPATabs(chipViewModelFactory.createViewModels(for: tabs))
+    }
+}
+
+private extension MainTabBarPresenter {
+    var initialTab: TabBarItem {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            SPAConfiguration.isSimulatorBrowseRequested ? .browse : .wallet
+        #else
+            .wallet
+        #endif
     }
 }

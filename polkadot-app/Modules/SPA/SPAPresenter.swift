@@ -27,6 +27,13 @@ extension SPAPresenter: SPAPresenterProtocol {
     func setup(engine: JSEngineProtocol) {
         view?.showLoading()
         interactor.setup(engine: engine)
+
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            if ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_OPEN_CHAT"] == "1" {
+                Logger.shared.debug("[e2e] SPA setup: requesting chat open")
+                interactor.openChat()
+            }
+        #endif
     }
 
     func didTapMoreButton() {
@@ -114,6 +121,9 @@ extension SPAPresenter: SPAInteractorOutputProtocol {
     }
 
     func didPrepareChat(chatId: Chat.Id) {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            Logger.shared.debug("[e2e] SPA prepared chat: \(chatId)")
+        #endif
         wireframe.openChat(from: view, chatId: chatId)
     }
 

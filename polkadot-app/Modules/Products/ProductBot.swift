@@ -51,9 +51,10 @@ final class ProductBot: ChatExtensionBot {
     ) async -> ChatExtension.ProcessingResult {
         do {
             try await runtime.onUserMessage(text: text, roomId: message.chatId.roomId)
-        } catch let error as ChatRustRuntime.ChatSeamError {
-            // Known not-wired seam in rust mode — expected, not an error.
-            logger.debug("User message not forwarded: \(error)")
+        } catch ChatRustRuntime.ChatSeamError.notStarted {
+            // Driven before `start` opened the execution — an ordering issue, not
+            // a product failure.
+            logger.debug("User message not forwarded: the runtime has not started")
         } catch {
             logger.error("Failed to forward user message to script: \(error)")
         }
@@ -97,6 +98,18 @@ extension ProductBot: ChatExtensionBotProtocol {
 
             do {
                 try await runtime.start(messagingSupport: .init(bot: self, context: context))
+
+                #if IOS_PASEO_E2E && targetEnvironment(simulator)
+                    // Drives the first user message for `make ios-chat-run`. The core
+                    // buffers host actions until the product subscribes, so no wait.
+                    let environment = ProcessInfo.processInfo.environment
+                    if let message = environment["TRUAPI_IOS_E2E_CHAT_MESSAGE"],
+                       let roomId = environment["TRUAPI_IOS_E2E_CHAT_ROOM_ID"] {
+                        logger.debug("[e2e] posting trigger \(message) to room \(roomId)")
+                        try await runtime.onUserMessage(text: message, roomId: roomId)
+                    }
+                #endif
+
                 logger.debug("Initialized and started bot: \(product.name)")
             } catch is CancellationError {
                 logger.debug("Start superseded by dispose for product bot: \(product.name)")

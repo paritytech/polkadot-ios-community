@@ -3,6 +3,11 @@ import DesignSystem
 import StructuredConcurrency
 import UIKit
 
+#if IOS_PASEO_E2E && targetEnvironment(simulator)
+    import KeyDerivation
+    import Keystore_iOS
+#endif
+
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
 
@@ -27,6 +32,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         else {
             return
         }
+
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            if SPAConfiguration.isSimulatorBrowseRequested {
+                prepareTrUAPISimulatorE2EUser()
+            }
+        #endif
 
         initializeApp(windowScene)
         handleContexts(with: options.urlContexts)
@@ -103,6 +114,26 @@ extension SceneDelegate {
         func restartScene() {
             guard let window else { return }
             attachRootPresenter(to: window)
+        }
+    }
+#endif
+
+#if IOS_PASEO_E2E && targetEnvironment(simulator)
+    private extension SceneDelegate {
+        /// Puts a fresh simulator into the state `make ios-chat-run` expects:
+        /// the rust runtime on, and an identity so onboarding does not block it.
+        func prepareTrUAPISimulatorE2EUser() {
+            ThemeSelectionStorage().setSelected()
+            SettingsManager.shared.set(value: true, for: .truApiRuntimeEnabled)
+
+            if (try? RootEntropyManager.shared.hasRootEntropy()) != true {
+                try? RootEntropyManager.shared.createRootEntropy(Data(repeating: 0x42, count: 16))
+            }
+
+            let usernameStorage = UsernameStorage()
+            if usernameStorage.username == nil {
+                usernameStorage.username = Username(value: "truapi-e2e")
+            }
         }
     }
 #endif
