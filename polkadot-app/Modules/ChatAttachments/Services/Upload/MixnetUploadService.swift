@@ -105,7 +105,7 @@ private extension MixnetUploadService {
                         let proofWallet = try await senderProvider.getWallet(for: uploadData.chatId)
 
                         let accountId = try proofWallet.getRawPublicKey()
-                        try await allowanceManager.allocate(accountId: accountId, policy: .ignore, priority: .normal)
+                        try await allowanceManager.ensureCanSubmit(accountId: accountId, priority: .normal)
 
                         let sender = try proofWallet.getMultiSigner()
                         let proofProvider = SenderProofProvider(sender: sender) { data in
