@@ -16,6 +16,7 @@ import SubstrateSdk
 class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
     struct Dependencies {
         let productId: ProductId
+        let executionKind: ProductExecutionKind
         let permissionGuard: ProductPermissionGuarding
         let notificationScheduler: ProductNotificationScheduling
         let navigationRouter: ProductsNavigationRouting
@@ -49,6 +50,47 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
 
     func onCoreLog(marker: String, detail: String) {
         dependencies.logger.debug("[truapi:\(marker)] \(detail)")
+        writeSimulatorConnectionMarkerIfNeeded(marker: marker)
+    }
+
+    #if IOS_PASEO_E2E && targetEnvironment(simulator)
+        /// `ProcessInfo.environment` rebuilds the whole dictionary on every read, so
+        /// the harness switch is resolved once.
+        private static let e2eMarkersEnabled =
+            ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_RUNTIME_MARKERS"] == "1"
+    #endif
+
+    /// Drop a file the truapi E2E launcher polls for, so it knows the product
+    /// actually reached the core over the ws-bridge.
+    private func writeSimulatorConnectionMarkerIfNeeded(marker: String) {
+        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+            guard marker == "truapi.ws_bridge.connection_open", Self.e2eMarkersEnabled else {
+                return
+            }
+
+            // The harness still spells the worker kind "chat" in its file name.
+            let kind = switch dependencies.executionKind {
+            case .app: "spa"
+            case .widget: "widget"
+            case .worker: "chat"
+            }
+            let safeProductId = dependencies.productId.replacingOccurrences(of: "/", with: "_")
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("truapi-e2e", isDirectory: true)
+
+            do {
+                try FileManager.default.createDirectory(
+                    at: directory,
+                    withIntermediateDirectories: true
+                )
+                try Data().write(
+                    to: directory.appendingPathComponent("connected-\(kind)-\(safeProductId)"),
+                    options: .atomic
+                )
+            } catch {
+                dependencies.logger.warning("Failed to write TrUAPI E2E marker: \(error)")
+            }
+        #endif
     }
 
     func navigateTo(url: String) async throws {
