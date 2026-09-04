@@ -1,5 +1,8 @@
 --swiftversion 5.10
 
+# excludes
+  --exclude **/checkouts
+
 # format options
   --allman false
   --indent 4

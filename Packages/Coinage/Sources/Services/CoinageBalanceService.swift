@@ -224,7 +224,7 @@ extension CoinageBalanceService {
     /// | Predicate | Bucket |
     /// |---|---|
     /// | ``TrackedCoin/isSelectable`` — free, on chain, age-valid | spendable |
-    /// | ``TrackedCoin/isMinting`` — not on chain yet, minter still live | pending (locked) |
+    /// | ``TrackedCoin/isMinting`` — not on chain yet, minter can still arrive | pending (locked) |
     /// | ``TrackedCoin/isAwaitingRecycling`` — on chain, free, aged out | expiringSoon (locked) |
     private static func splitCoinPlanks(
         coins: some Collection<TrackedCoin>,

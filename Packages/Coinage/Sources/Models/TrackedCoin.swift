@@ -20,10 +20,12 @@ extension TrackedCoin {
         state.isFree && coin.isOnchain && coin.isAgeValidToSpend
     }
 
-    /// Not on chain yet, but expected to arrive: the entry minting it has not resolved. Keeps a
+    /// Not on chain yet, but nothing has proven the entry minting it never ran. Keeps a
     /// freshly-split change coin visible instead of vanishing for a whole mortality window.
+    /// Finality is the strongest case for counting it, not the cue to stop: at that point only
+    /// the presence the chain reports is behind.
     var isMinting: Bool {
-        state.isFree && !coin.isOnchain && state.minterStatus?.isLive == true
+        state.isFree && !coin.isOnchain && state.minterStatus?.canArrive == true
     }
 
     /// Whether this coin contributes to the displayed balance — spendable, minting (pending), or

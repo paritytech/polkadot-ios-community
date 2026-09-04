@@ -20,7 +20,8 @@ let package = Package(
         .package(path: "../XcmDefinition"),
         .package(path: "../ChainStore"),
         .package(path: "../StructuredConcurrency"),
-        .package(path: "../SubstrateSdkExt")
+        .package(path: "../SubstrateSdkExt"),
+        .package(path: "../FoundationExt")
     ],
     targets: [
         .target(
@@ -32,7 +33,16 @@ let package = Package(
                 "XcmDefinition",
                 "ChainStore",
                 "StructuredConcurrency",
-                "SubstrateSdkExt"
+                "SubstrateSdkExt",
+                "FoundationExt"
+            ]
+        ),
+        .testTarget(
+            name: "SubstrateOperationTests",
+            dependencies: [
+                "SubstrateOperation",
+                "FoundationExt",
+                .product(name: "SubstrateSdk", package: "substrate-sdk-ios")
             ]
         )
     ]
