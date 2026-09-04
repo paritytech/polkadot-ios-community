@@ -69,21 +69,16 @@ struct CoinageBalanceCalculationTests {
         )
     }
 
-    @Test("Coin absent from chain is pending while the transaction minting it is live")
-    func coinAbsentPendingMinterIsPending() {
+    /// A coin absent from chain is pending for every minter status that can still arrive, and counts
+    /// nowhere only once its mint provably failed. Covers the laggy-subscription regression: a
+    /// `finalizedSuccess` (or `pendingSuccess`) mint whose on-chain presence has not caught up must
+    /// stay pending rather than vanish — only `failure` drops it.
+    @Test("Coin absent from chain is pending for every minter status but failure", arguments: CoinageTxStatus.allCases)
+    func coinAbsentIsPendingUnlessMintFailed(status: CoinageTxStatus) {
         expect(
-            coins: [tracked(coin(age: nil, onChain: false, exponent: 1), state: minter(.pending))],
+            coins: [tracked(coin(age: nil, onChain: false, exponent: 1), state: minter(status))],
             vouchers: [],
-            fullPrivacy: 0, degraded: 0, locked: planks(1)
-        )
-    }
-
-    @Test("Coin absent from chain counts nowhere once the transaction minting it failed")
-    func coinAbsentFailedMinterNowhere() {
-        expect(
-            coins: [tracked(coin(age: nil, onChain: false, exponent: 1), state: minter(.failure))],
-            vouchers: [],
-            fullPrivacy: 0, degraded: 0, locked: 0
+            fullPrivacy: 0, degraded: 0, locked: status == .failure ? 0 : planks(1)
         )
     }
 
@@ -159,21 +154,18 @@ struct CoinageBalanceCalculationTests {
         )
     }
 
-    @Test("Voucher with unknown location is pending while the transaction minting it is live")
-    func voucherUnknownPendingMinter() {
+    /// The voucher counterpart of the coin gap: an unlocated voucher is pending for every minter
+    /// status that can still arrive, and counts nowhere only once its mint provably failed — so a
+    /// `finalizedSuccess` mint whose location has not synced stays pending instead of dropping.
+    @Test(
+        "Voucher with unknown location is pending for every minter status but failure",
+        arguments: CoinageTxStatus.allCases
+    )
+    func voucherUnknownIsPendingUnlessMintFailed(status: CoinageTxStatus) {
         expect(
             coins: [],
-            vouchers: [tracked(voucher(exponent: 1, state: .unlocated), state: minter(.pending))],
-            fullPrivacy: 0, degraded: 0, locked: planks(1)
-        )
-    }
-
-    @Test("Voucher with unknown location counts nowhere once the transaction minting it failed")
-    func voucherUnknownFailedMinter() {
-        expect(
-            coins: [],
-            vouchers: [tracked(voucher(exponent: 1, state: .unlocated), state: minter(.failure))],
-            fullPrivacy: 0, degraded: 0, locked: 0
+            vouchers: [tracked(voucher(exponent: 1, state: .unlocated), state: minter(status))],
+            fullPrivacy: 0, degraded: 0, locked: status == .failure ? 0 : planks(1)
         )
     }
 
