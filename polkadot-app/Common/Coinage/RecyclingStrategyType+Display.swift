@@ -1,7 +1,10 @@
 import SwiftUI
+import DesignSystem
 import Coinage
 
-/// Presentation for the payment-privacy modes. Copy is hardcoded pending the stage-2 localization pass.
+/// Presentation for the payment-privacy modes. Colours map to semantic design-system tokens
+/// (warning / success / amethyst) rather than raw values. Copy is hardcoded pending the stage-2
+/// localization pass.
 extension RecyclingStrategyType {
     var displayTitle: String {
         switch self {
@@ -22,16 +25,26 @@ extension RecyclingStrategyType {
     var displayIconName: String {
         switch self {
         case .minPrivacy: "bolt.fill"
-        case .balanced: "checkmark.shield.fill"
-        case .maxPrivacy: "lock.shield.fill"
+        case .balanced: "shield.fill"
+        case .maxPrivacy: "eye.slash.fill"
         }
     }
 
-    var displayColor: Color {
+    /// The vivid hue: knob icon, gradient stop, marker and selected-label colour.
+    var displayAccentColor: Color {
         switch self {
-        case .minPrivacy: .orange
-        case .balanced: .green
-        case .maxPrivacy: .purple
+        case .minPrivacy: .fgWarning
+        case .balanced: .fgSuccess
+        case .maxPrivacy: .avatarFgAmethyst
+        }
+    }
+
+    /// The muted knob fill, paired with ``displayAccentColor`` for the icon on top.
+    var displayFillColor: Color {
+        switch self {
+        case .minPrivacy: .bgStatusWarning
+        case .balanced: .bgStatusSuccess
+        case .maxPrivacy: .avatarBgAmethyst
         }
     }
 }

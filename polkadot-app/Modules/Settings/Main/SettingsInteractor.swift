@@ -1,6 +1,7 @@
 import UIKit
 import Foundation_iOS
 import EventCenter
+import Coinage
 
 final class SettingsInteractor {
     weak var presenter: SettingsInteractorOutputProtocol?
@@ -12,8 +13,10 @@ final class SettingsInteractor {
     private let notificationCenter: NotificationCenter
     private let eventCenter: EventCenterProtocol
     private let chatContactDataProviderFactory: ChatContactDataProviderMaking
+    private let recyclingStrategyProvider: any CoinageRecyclingStrategyProviding
     private var availabilityObserver: NSObjectProtocol?
     private var blockedContactsTask: Task<Void, Never>?
+    private var privacyStrategyTask: Task<Void, Never>?
 
     init(
         logger: LoggerProtocol,
@@ -22,7 +25,8 @@ final class SettingsInteractor {
         selectedCurrencyManager: SelectedCurrencyManaging = SelectedCurrencyManager.shared,
         notificationCenter: NotificationCenter = .default,
         eventCenter: EventCenterProtocol = EventCenter.shared,
-        chatContactDataProviderFactory: ChatContactDataProviderMaking = ChatContactDataProviderFactory()
+        chatContactDataProviderFactory: ChatContactDataProviderMaking = ChatContactDataProviderFactory(),
+        recyclingStrategyProvider: any CoinageRecyclingStrategyProviding = CoinageRecyclingStrategyStore.shared
     ) {
         self.logger = logger
         self.mnemonicBackupHelper = mnemonicBackupHelper
@@ -31,6 +35,7 @@ final class SettingsInteractor {
         self.notificationCenter = notificationCenter
         self.eventCenter = eventCenter
         self.chatContactDataProviderFactory = chatContactDataProviderFactory
+        self.recyclingStrategyProvider = recyclingStrategyProvider
     }
 
     deinit {
@@ -38,6 +43,7 @@ final class SettingsInteractor {
             notificationCenter.removeObserver(availabilityObserver)
         }
         blockedContactsTask?.cancel()
+        privacyStrategyTask?.cancel()
     }
 }
 
@@ -109,18 +115,35 @@ private extension SettingsInteractor {
             }
         }
     }
+
+    func subscribeToPrivacyStrategy() {
+        privacyStrategyTask = Task { [weak self, recyclingStrategyProvider, logger] in
+            do {
+                for try await strategy in recyclingStrategyProvider.strategyStream() {
+                    await self?.presenter?.didReceivePrivacyStrategy(strategy)
+                }
+            } catch {
+                logger.error("Privacy strategy subscription error: \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - SettingsInteractorInputProtocol
 
 extension SettingsInteractor: SettingsInteractorInputProtocol {
     func setup() {
+        subscribeToPrivacyStrategy()
         configureAppVersion()
         subscribeToAvailabilityChanges()
         subscribeToBackupStatusChanges()
         provideBackupAttention()
         provideSelectedCurrency()
         subscribeToBlockedContacts()
+    }
+
+    func savePrivacyStrategy(_ strategy: RecyclingStrategyType) {
+        recyclingStrategyProvider.save(strategy: strategy)
     }
 
     func openMailApp() {
