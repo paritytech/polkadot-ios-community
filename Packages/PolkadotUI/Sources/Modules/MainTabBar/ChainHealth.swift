@@ -39,8 +39,8 @@ public struct ChainHealthThresholds: Hashable {
     }
 }
 
-enum ChainHealth {
-    static func score(for viewModel: ChainConnectionStatusViewModel, at date: Date) -> Double {
+public enum ChainHealth {
+    public static func score(for viewModel: ChainConnectionStatusViewModel, at date: Date) -> Double {
         guard viewModel.state == .connected else {
             return 0
         }

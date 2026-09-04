@@ -25,6 +25,7 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let connectedSince: Date?
     public let thresholds: ChainHealthThresholds
     public let icon: ChainStatusIcon
+    public let health: Double
 
     public init(
         id: String,
@@ -36,7 +37,8 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         finalityLag: Int?,
         connectedSince: Date?,
         thresholds: ChainHealthThresholds,
-        icon: ChainStatusIcon
+        icon: ChainStatusIcon,
+        health: Double = 0
     ) {
         self.id = id
         self.title = title
@@ -48,5 +50,22 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         self.connectedSince = connectedSince
         self.thresholds = thresholds
         self.icon = icon
+        self.health = health
+    }
+
+    public func withHealth(_ health: Double) -> ChainConnectionStatusViewModel {
+        ChainConnectionStatusViewModel(
+            id: id,
+            title: title,
+            state: state,
+            stateTitle: stateTitle,
+            latency: latency,
+            lastBlockDate: lastBlockDate,
+            finalityLag: finalityLag,
+            connectedSince: connectedSince,
+            thresholds: thresholds,
+            icon: icon,
+            health: health
+        )
     }
 }

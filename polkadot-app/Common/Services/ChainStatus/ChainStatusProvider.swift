@@ -3,6 +3,34 @@ import AsyncExtensions
 import PolkadotUI
 import StructuredConcurrency
 
+/// Rolling window of the most recent health scores for a single row. Median rather than
+/// mean so one bad sample cannot move the ring.
+struct ChainHealthWindow {
+    static let capacity = 10
+
+    private var samples: [Double] = []
+
+    var median: Double? {
+        guard !samples.isEmpty else {
+            return nil
+        }
+
+        return samples.sorted()[samples.count / 2]
+    }
+
+    mutating func record(_ sample: Double) {
+        samples.append(sample)
+
+        if samples.count > Self.capacity {
+            samples.removeFirst(samples.count - Self.capacity)
+        }
+    }
+
+    mutating func clear() {
+        samples.removeAll()
+    }
+}
+
 @MainActor
 protocol ChainStatusProviding: AnyObject {
     func statusStream() -> AnyAsyncSequence<[ChainConnectionStatusViewModel]>
@@ -31,7 +59,10 @@ final class ChainStatusProvider {
     private var connectedSince: [ChainConnectionTarget: Date] = [:]
     private var statementState: StatementDeliveryState = .noSubscriptions
     private var statusTasks: [Task<Void, Never>] = []
+    private var healthWindows: [String: ChainHealthWindow] = [:]
+    private var tickTask: Task<Void, Never>?
     private var isObserving = false
+    private var lastEmittedRows: [ChainConnectionStatusViewModel] = []
 
     init(
         networkStatusService: NetworkStatusProviding,
@@ -63,6 +94,7 @@ final class ChainStatusProvider {
 
     deinit {
         statusTasks.forEach { $0.cancel() }
+        tickTask?.cancel()
     }
 }
 
@@ -90,6 +122,14 @@ private extension ChainStatusProvider {
         statusTasks = ChainConnectionTarget.allCases.map { target in
             observeStatus(for: target)
         } + [observeLatencies(), observeBlocks(), observeStatementState()]
+
+        tickTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.emitRows()
+
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 
     func observeStatus(for target: ChainConnectionTarget) -> Task<Void, Never> {
@@ -162,6 +202,7 @@ private extension ChainStatusProvider {
             latencyProvider.clearSamples(for: target)
             // Without this a drop-and-reconnect keeps captioning the row with its pre-drop data.
             blockProvider.clear(for: target)
+            healthWindows[target.chainId]?.clear()
         }
 
         emitRows()
@@ -195,15 +236,33 @@ private extension ChainStatusProvider {
     }
 
     func emitRows() {
-        rowsSubject.send(
-            Self.makeRows(
-                statuses: statuses,
-                latencies: latencies,
-                blocks: blocks,
-                connectedSince: connectedSince,
-                statementState: statementState
-            )
+        let rawRows = Self.makeRows(
+            statuses: statuses,
+            latencies: latencies,
+            blocks: blocks,
+            connectedSince: connectedSince,
+            statementState: statementState
         )
+        let now = Date()
+
+        let scoredRows = scoreRows(rawRows, at: now)
+
+        guard scoredRows != lastEmittedRows else { return }
+
+        lastEmittedRows = scoredRows
+        rowsSubject.send(scoredRows)
+    }
+
+    private func scoreRows(_ rows: [ChainConnectionStatusViewModel], at date: Date)
+        -> [ChainConnectionStatusViewModel] {
+        rows.map { row in
+            let rawScore = ChainHealth.score(for: row, at: date)
+            healthWindows[row.id, default: ChainHealthWindow()].record(rawScore)
+            let smoothed = healthWindows[row.id]?.median ?? rawScore
+
+            // Quantised so float noise does not push a new row set every tick.
+            return row.withHealth((smoothed * 100).rounded() / 100)
+        }
     }
 
     static func makeRows(

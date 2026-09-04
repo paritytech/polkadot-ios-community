@@ -12,41 +12,36 @@ struct ChainStatusRingView: View, Hashable {
     var diameter: CGFloat = 16
 
     var body: some View {
-        // The arc drains with no new data arriving, so the tick has to come from the view —
-        // expressing the passage of time as a per-second row push would reassign the UIKit
-        // configuration once a second for a value the view can compute itself.
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let health = ChainHealth.score(for: viewModel, at: context.date)
-            let arcColor = ChainStatusRingStyle.arcColor(for: health)
-            let isFilled = ChainStatusRingStyle.isFilled(for: health)
+        let health = viewModel.health
+        let arcColor = ChainStatusRingStyle.arcColor(for: health)
+        let isFilled = ChainStatusRingStyle.isFilled(for: health)
 
-            ZStack {
-                Circle()
-                    .fill(arcColor)
-                    .opacity(isFilled ? 1 : 0)
-                    .animation(healthAnimation, value: health)
+        ZStack {
+            Circle()
+                .fill(arcColor)
+                .opacity(isFilled ? 1 : 0)
+                .animation(healthAnimation, value: health)
 
-                Circle()
-                    .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
+            Circle()
+                .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
 
-                Circle()
-                    .trim(from: 1 - health, to: 1)
-                    .stroke(
-                        arcColor,
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(-90))
-                    .animation(healthAnimation, value: health)
-
-                ChainStatusRingDot(
-                    icon: viewModel.icon,
-                    color: isFilled ? .bgSurfaceMain : dotColor,
-                    diameter: dotDiameter,
-                    isPulsing: viewModel.state == .connecting
+            Circle()
+                .trim(from: 1 - health, to: 1)
+                .stroke(
+                    arcColor,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
-            }
-            .frame(width: diameter, height: diameter)
+                .rotationEffect(.degrees(-90))
+                .animation(healthAnimation, value: health)
+
+            ChainStatusIconView(
+                icon: viewModel.icon,
+                color: isFilled ? .bgSurfaceMain : dotColor,
+                diameter: dotDiameter,
+                isPulsing: viewModel.state == .connecting
+            )
         }
+        .frame(width: diameter, height: diameter)
         .accessibilityElement(children: .ignore)
         // A plain interpolated Text("...") would be treated as a localizable format string and
         // register a "%@, %@" entry in the package catalog; verbatim avoids localization.
@@ -75,7 +70,7 @@ private extension ChainStatusRingView {
 
 /// Owns the repeating animation's `@State` so `ChainStatusRingView` keeps the synthesized
 /// `Hashable` conformance that content reuse depends on.
-private struct ChainStatusRingDot: View {
+private struct ChainStatusIconView: View {
     let icon: ChainStatusIcon
     let color: Color
     let diameter: CGFloat
