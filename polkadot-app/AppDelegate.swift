@@ -32,8 +32,6 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             PersonSelfIncludeBackgroundTaskRegistrator.shared.registerBackgroundTask()
         #endif
 
-        CoinageRecyclingTaskRegistrator.shared.registerBackgroundTask()
-
         UserNotificationService.shared.startGatheringNotifications()
 
         PushKitService.shared.register(for: [.voIP])

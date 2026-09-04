@@ -41,10 +41,8 @@ public extension CoinageService {
         rootEntropyManager: RootEntropyManaging,
         keystore: KeystoreProtocol,
         txStore: any CoinageTxRepositoryProtocol,
-        schedulerFactory: CoinRecycleSchedulerMaking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
-        backgroundRecyclingInterval: TimeInterval = CoinageConstants.backgroundRecyclingInterval,
         backgroundExecutor: any BackgroundExecuting,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
         personOriginProvider: any OriginPersonProviding,
@@ -275,16 +273,12 @@ public extension CoinageService {
         )
 
         let recyclingService = CoinageRecyclingService(
-            schedulerFactory: schedulerFactory,
-            coinService: coinService,
             voucherMinter: coinageMinter,
             coinKeypairFactory: coinKeypairFactory,
             voucherKeypairFactory: voucherKeypairFactory,
             txService: txService,
             originFactory: originFactory,
-            logger: logger,
-            backgroundRecyclingInterval: backgroundRecyclingInterval,
-            recycleAtAge: CoinageConstants.recycleAtAge
+            logger: logger
         )
 
         // Recycling strategy evaluation collaborators. The evaluator itself is built lazily once the
