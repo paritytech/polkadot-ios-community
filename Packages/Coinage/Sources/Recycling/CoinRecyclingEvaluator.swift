@@ -31,7 +31,6 @@ public actor CoinRecyclingEvaluator {
 
     private var assetsTask: Task<Void, Never>?
     private var strategyTask: Task<Void, Never>?
-    private var timerTask: Task<Void, Never>?
 
     private static let evaluationInterval: Duration = .seconds(5)
 
@@ -77,13 +76,22 @@ private extension CoinRecyclingEvaluator {
         let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
         let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
 
-        // Throttle sits on the raw asset inputs, before any work: the voucher pass, capacity lookup,
-        // quota read and gating walk must not run on every ledger write.
+        // A leading tick (immediate) followed by a periodic one, folded into the throttled asset path.
+        // The tick is load-bearing twice: it arms balanced's delay exit without an external event, and
+        // it re-emits every interval as the retry path now that the worker is gone.
+        let leadingTick: AsyncSyncSequence<[Void]> = [()].async
+        let tick = chain(
+            leadingTick,
+            AsyncTimerSequence(interval: Self.evaluationInterval, clock: ContinuousClock()).map { _ in () }
+        )
+
+        // Assets + tick are throttled: the voucher pass, capacity lookup, quota read and gating walk
+        // run at most once per interval however bursty the ledger writes are.
         assetsTask = Task { [weak self] in
-            let combined = combineLatest(coinsStream, vouchersStream)
-                ._throttle(for: Self.evaluationInterval, latest: true)
+            let data = combineLatest(coinsStream, vouchersStream)
+            let throttled = combineLatest(data, tick)._throttle(for: Self.evaluationInterval, latest: true)
             do {
-                for try await (coins, vouchers) in combined {
+                for try await ((coins, vouchers), _) in throttled {
                     await self?.updateAssets(coins: coins, vouchers: vouchers)
                 }
             } catch {
@@ -91,6 +99,8 @@ private extension CoinRecyclingEvaluator {
             }
         }
 
+        // Strategy changes re-judge immediately, outside the throttle: flipping the privacy switch must
+        // re-evaluate the whole active set now, not up to an interval later.
         strategyTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -101,21 +111,11 @@ private extension CoinRecyclingEvaluator {
                 logger?.error("Recycling evaluator strategy stream failed: \(error)")
             }
         }
-
-        // Re-emits every interval even when nothing else changes: arms balanced's delay exit and is
-        // the retry path now that the background worker is gone.
-        timerTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: Self.evaluationInterval)
-                await self?.evaluateAndRecycle()
-            }
-        }
     }
 
     func cancelTasks() {
         assetsTask?.cancel()
         strategyTask?.cancel()
-        timerTask?.cancel()
     }
 
     func updateAssets(coins: [TrackedCoin], vouchers: [TrackedVoucher]) async {
