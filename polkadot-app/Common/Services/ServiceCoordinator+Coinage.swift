@@ -106,8 +106,16 @@ private extension ServiceCoordinator {
             connection: connection,
             runtimeCodingService: runtimeProvider
         )
+        let viewFunctionFetcher = ViewFunctionFetcher(
+            executor: ViewFunctionExecutor(
+                chainRegistry: chainRegistry,
+                operationQueue: operationQueue
+            )
+        )
         let unloadTokenResolver = UnloadTokenResolver(
+            chainId: coinageChainId,
             runtimeCodingService: runtimeProvider,
+            viewFunctionFetcher: viewFunctionFetcher,
             consumedTokenChecker: consumedTokenChecker
         )
 

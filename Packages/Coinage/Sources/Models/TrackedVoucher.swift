@@ -25,10 +25,11 @@ extension TrackedVoucher {
         state.isFree && voucher.remoteState == .onboarding
     }
 
-    /// Nowhere on chain yet, but expected to arrive: the entry minting it has not resolved. The
-    /// counterpart of ``TrackedCoin/isMinting``.
+    /// Nowhere on chain yet, but nothing has proven the entry minting it never ran. The
+    /// counterpart of ``TrackedCoin/isMinting``. Finality still counts: the mint is then most
+    /// certainly done, and only the location the chain reports is behind.
     var isMinting: Bool {
-        state.isFree && voucher.remoteState == .unlocated && state.minterStatus?.isLive == true
+        state.isFree && voucher.remoteState == .unlocated && state.minterStatus?.canArrive == true
     }
 
     /// Whether this voucher contributes to the displayed balance — selectable (spendable/degraded),

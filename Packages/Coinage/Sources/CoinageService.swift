@@ -41,11 +41,13 @@ public protocol CoinageServicing: Actor {
     ///   - amount: The fiat amount to load into vouchers
     ///   - externalAssetHolder: Wallet whose origin signs the on-chain extrinsic and whose
     ///     external asset is being onboarded into vouchers
+    /// - Returns: The total value actually loaded, in planks.
     /// - Throws: CoinageError on failure
+    @discardableResult
     func loadVouchers(
         amount: BigUInt,
         externalAssetHolder: any WalletManaging
-    ) async throws
+    ) async throws -> BigUInt
 
     /// Provides a service to stream total and locked balance updates.
     /// Suspends and waits if the service has not been configured with an asset yet.
@@ -355,16 +357,19 @@ extension CoinageService: CoinageServicing {
 
     // MARK: Vouchers
 
+    @discardableResult
     public func loadVouchers(
         amount: BigUInt,
         externalAssetHolder: any WalletManaging
-    ) async throws {
+    ) async throws -> BigUInt {
         try await markStallRegion("Loading vouchers") {
-            try await voucherService.load(
+            let context = try await requireContext()
+            let vouchers = try await voucherService.load(
                 amount: amount,
                 externalAssetHolder: externalAssetHolder,
-                breakdownContext: requireContext()
+                breakdownContext: context
             )
+            return vouchers.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
         }
     }
 

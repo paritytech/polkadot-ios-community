@@ -1089,6 +1089,72 @@
         }
       }
     },
+    "product.load.damaged.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Its content is damaged or not supported by this version of the app."
+          }
+        }
+      }
+    },
+    "product.load.damaged.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App couldn't be opened"
+          }
+        }
+      }
+    },
+    "product.load.notFound.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This name isn't registered on chain, or its content is no longer available."
+          }
+        }
+      }
+    },
+    "product.load.notFound.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App not found"
+          }
+        }
+      }
+    },
+    "product.load.unreachable.message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check your internet connection and try again."
+          }
+        }
+      }
+    },
+    "product.load.unreachable.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't reach the app"
+          }
+        }
+      }
+    },
     "product.tabs.accessibility.openApps": {
       "extractionState": "manual",
       "localizations": {
@@ -1242,23 +1308,6 @@
         }
       }
     },
-    "topUp.amountDetectionFailedWarning": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not verify the amount on-chain. Proceed only if you trust the sender."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo verificar el monto en la cadena. Continúa solo si confías en quien envía."
-          }
-        }
-      }
-    },
     "topUp.amountMismatchWarning": {
       "extractionState": "manual",
       "localizations": {
@@ -1272,23 +1321,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "El monto detectado difiere del monto indicado por el producto."
-          }
-        }
-      }
-    },
-    "topUp.claim": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Accept Funds"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aceptar fondos"
           }
         }
       }
@@ -1340,23 +1372,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fondos aceptados de %1$(product)@"
-          }
-        }
-      }
-    },
-    "topUp.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top up from %1$(productId)@"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recarga desde %1$(productId)@"
           }
         }
       }

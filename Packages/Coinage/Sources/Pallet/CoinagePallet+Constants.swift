@@ -10,10 +10,7 @@ extension CoinagePallet {
         case maximumExponent
         case minimumExponent
         case unloadTokenTimePeriod
-        case unloadTokenPerPeriodForPeople
-        case unloadTokenPerPeriodForLitePeople
         case maxBatchUnpaidLoad
-        case maxFreeUnloadTokensPerTimePeriod
     }
 }
 
@@ -26,14 +23,8 @@ extension CoinagePallet.Constants: ConstantPathConvertible {
             "MaximumExponent"
         case .minimumExponent:
             "MinimumExponent"
-        case .maxFreeUnloadTokensPerTimePeriod:
-            "MaxFreeUnloadTokensPerTimePeriod"
         case .unloadTokenTimePeriod:
             "UnloadTokenTimePeriodPeopleLitePeople"
-        case .unloadTokenPerPeriodForPeople:
-            "UnloadTokenAllowancePerTimePeriodForPeople"
-        case .unloadTokenPerPeriodForLitePeople:
-            "UnloadTokenAllowancePerTimePeriodForLitePeople"
         case .maxBatchUnpaidLoad:
             "MaxBatchUnpaidLoad"
         }
