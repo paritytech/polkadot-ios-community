@@ -62,6 +62,12 @@ public actor CoinRecyclingEvaluator {
         verdictsSubject.compactMap { $0 }.eraseToAnyAsyncSequence()
     }
 
+    /// The latest verdicts, or nil before the first evaluation. Read synchronously by selection so a
+    /// transfer draws only on coins the current strategy leaves spendable.
+    public nonisolated func currentVerdicts() -> RecyclingVerdicts? {
+        verdictsSubject.value
+    }
+
     public nonisolated func start() {
         Task { [weak self] in await self?.run() }
     }

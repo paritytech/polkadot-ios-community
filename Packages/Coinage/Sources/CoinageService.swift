@@ -311,10 +311,16 @@ extension CoinageService: CoinageServicing {
         let coins = try await coinService.fetchAllTrackedCoins()
         let vouchers = try await voucherService.fetchAllTracked()
 
+        let (availableCoins, availableVouchers) = await selectableAssets(
+            coins: coins,
+            vouchers: vouchers,
+            scope: .spendable
+        )
+
         let result = try await senderService.previewStrategy(
             amount: amount,
-            availableCoins: coins,
-            availableVouchers: vouchers,
+            availableCoins: availableCoins,
+            availableVouchers: availableVouchers,
             breakdownContext: denominationContext
         )
 
@@ -480,5 +486,40 @@ private extension CoinageService {
         evaluator.start()
         recyclingEvaluator = evaluator
         return evaluator
+    }
+
+    /// Narrows the wallet to the assets a spend may draw on for `scope`, applying the current verdicts
+    /// and voucher usability. Before the first verdict lands it returns the raw sets, letting the
+    /// downstream `CoinSelector` apply its own free/on-chain filter.
+    func selectableAssets(
+        coins: [TrackedCoin],
+        vouchers: [TrackedVoucher],
+        scope: SpendScope
+    ) async -> (coins: [TrackedCoin], vouchers: [TrackedVoucher]) {
+        guard let verdicts = recyclingEvaluator?.currentVerdicts() else {
+            return (coins, vouchers)
+        }
+
+        let voucherStrategy = recyclingStrategyResolver.voucherStrategy(for: recyclingStrategySettings.strategy)
+        let capacities = await (try? ringCapacityProvider.capacities(
+            for: Set(vouchers.map(\.voucher.exponent))
+        )) ?? [:]
+        let usability = VoucherUsabilityContext(ringCapacities: capacities, now: Date())
+
+        let selector = CoinageAssetSelector(preClassificator: preClassificator)
+        return (
+            coins: selector.selectableCoins(
+                coins,
+                verdicts: verdicts,
+                allowsConfirmedSpend: voucherStrategy.allowsConfirmedSpend(),
+                scope: scope
+            ),
+            vouchers: selector.selectableVouchers(
+                vouchers,
+                strategy: voucherStrategy,
+                context: usability,
+                scope: scope
+            )
+        )
     }
 }

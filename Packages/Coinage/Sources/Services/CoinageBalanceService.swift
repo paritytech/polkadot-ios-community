@@ -250,7 +250,7 @@ private extension CoinageBalanceService {
 
         scheduleUnlockTimer(for: nextUnlock(among: voucherBuckets.gainingPrivacy, now: now))
     }
-    
+
     func getCapacities(for exponents: Set<Int16>) async -> [Int16: Int] {
         do {
             return try await ringCapacityProvider.capacities(for: exponents)
