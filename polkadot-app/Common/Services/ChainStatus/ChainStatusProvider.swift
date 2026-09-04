@@ -198,7 +198,8 @@ private extension ChainStatusProvider {
                 lastBlockDate: block?.receivedAt,
                 finalizedAdvancedAt: block?.finalizedAdvancedAt,
                 connectedSince: connectedSince[target],
-                thresholds: target.healthThresholds
+                thresholds: target.healthThresholds,
+                icon: target.statusIcon
             )
         }
     }

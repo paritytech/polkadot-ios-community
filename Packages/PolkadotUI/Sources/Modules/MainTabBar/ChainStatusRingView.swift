@@ -2,7 +2,8 @@ import SwiftUI
 import DesignSystem
 
 /// Per-chain status indicator. The arc length carries health (block age, finality stall, and ping
-/// combined worst-of) and is colored by health score; the centre dot reflects connection state only.
+/// combined worst-of) and is colored by health score; the centre icon identifies the chain and is
+/// tinted by connection state, inverting against the disc once a fully healthy ring fills in.
 struct ChainStatusRingView: View, Hashable {
     let viewModel: ChainConnectionStatusViewModel
 
@@ -16,23 +17,30 @@ struct ChainStatusRingView: View, Hashable {
         // configuration once a second for a value the view can compute itself.
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let health = ChainHealth.score(for: viewModel, at: context.date)
-            let arcColor = ChainHealth.arcColor(for: health)
+            let arcColor = ChainStatusRingStyle.arcColor(for: health)
+            let isFilled = ChainStatusRingStyle.isFilled(for: health)
 
             ZStack {
+                Circle()
+                    .fill(arcColor)
+                    .opacity(isFilled ? 1 : 0)
+                    .animation(healthAnimation, value: health)
+
                 Circle()
                     .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
 
                 Circle()
-                    .trim(from: 0, to: health)
+                    .trim(from: 1 - health, to: 1)
                     .stroke(
                         arcColor,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.3), value: health)
+                    .animation(healthAnimation, value: health)
 
                 ChainStatusRingDot(
-                    color: dotColor,
+                    icon: viewModel.icon,
+                    color: isFilled ? .bgSurfaceMain : dotColor,
                     diameter: dotDiameter,
                     isPulsing: viewModel.state == .connecting
                 )
@@ -47,9 +55,11 @@ struct ChainStatusRingView: View, Hashable {
 }
 
 private extension ChainStatusRingView {
+    var healthAnimation: Animation { .easeOut(duration: 0.3) }
+
     var lineWidth: CGFloat { diameter / 8 }
 
-    var dotDiameter: CGFloat { diameter * 0.375 }
+    var dotDiameter: CGFloat { diameter * 0.625 }
 
     var dotColor: Color {
         switch viewModel.state {
@@ -66,6 +76,7 @@ private extension ChainStatusRingView {
 /// Owns the repeating animation's `@State` so `ChainStatusRingView` keeps the synthesized
 /// `Hashable` conformance that content reuse depends on.
 private struct ChainStatusRingDot: View {
+    let icon: ChainStatusIcon
     let color: Color
     let diameter: CGFloat
     let isPulsing: Bool
@@ -73,8 +84,10 @@ private struct ChainStatusRingDot: View {
     @State private var isDimmed = false
 
     var body: some View {
-        Circle()
-            .fill(color)
+        Image(icon.imageResource)
+            .resizable()
+            .scaledToFit()
+            .foregroundStyle(color)
             .frame(width: diameter, height: diameter)
             .opacity(isDimmed ? 0.3 : 1)
             .animation(pulseAnimation, value: isDimmed)
@@ -89,14 +102,15 @@ private struct ChainStatusRingDot: View {
     }
 }
 
-private extension ChainHealth {
-    static func arcColor(for health: Double) -> Color {
-        if health > 0.6 {
-            .fgPrimary
-        } else if health > 0.3 {
-            .bgStatusWarning
-        } else {
-            .bgStatusError
+private extension ChainStatusIcon {
+    var imageResource: ImageResource {
+        switch self {
+        case .people:
+            .statusIconPeople
+        case .bulletin:
+            .statusIconBulletin
+        case .assetHub:
+            .statusIconAssethub
         }
     }
 }

@@ -1,6 +1,4 @@
 import Foundation
-import SwiftUI
-import DesignSystem
 
 public struct ChainHealthBounds: Hashable {
     public let healthy: Duration
@@ -39,7 +37,6 @@ enum ChainHealth {
 
         let thresholds = viewModel.thresholds
 
-        // Compute the three health terms.
         let blockAgeTerm = elapsedScore(since: viewModel.lastBlockDate, at: date, bounds: thresholds.blockAge)
         let finalityStallTerm = elapsedScore(
             since: viewModel.finalizedAdvancedAt,

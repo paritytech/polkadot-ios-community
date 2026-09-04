@@ -42,7 +42,7 @@ enum ChainConnectionTarget: CaseIterable {
     }
 
     private var finalityStallBounds: ChainHealthBounds {
-        // The score measures time since the finalized head last advanced, sawtoohing from 0 up to
+        // The score measures time since the finalized head last advanced, sawtoothing from 0 up to
         // roughly the finality interval (measured 2026-09-04: .chat 6s, .assethub 6s, .bulletin 10s).
         // The healthy bound must sit clear of the normal peak or a healthy chain clips into amber
         // on every cycle; 2.5x leaves room for one slow round. The zero bound at 10x marks a genuine
@@ -66,6 +66,17 @@ enum ChainConnectionTarget: CaseIterable {
             ping: ChainHealthBounds(healthy: .milliseconds(150), zero: .milliseconds(1_000)),
             missingTermGrace: .seconds(45)
         )
+    }
+
+    var statusIcon: ChainStatusIcon {
+        switch self {
+        case .chat:
+            .people
+        case .bulletin:
+            .bulletin
+        case .assethub:
+            .assetHub
+        }
     }
 }
 

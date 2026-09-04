@@ -159,7 +159,8 @@ private extension ChainHealthTests {
             lastBlockDate: lastBlockDate,
             finalizedAdvancedAt: finalizedAdvancedAt,
             connectedSince: connectedSince,
-            thresholds: thresholds
+            thresholds: thresholds,
+            icon: .people
         )
     }
 }

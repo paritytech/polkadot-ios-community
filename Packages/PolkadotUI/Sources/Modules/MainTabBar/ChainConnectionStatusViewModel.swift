@@ -7,6 +7,12 @@ public enum ChainConnectionState: Hashable {
     case offline
 }
 
+public enum ChainStatusIcon: Hashable {
+    case people
+    case bulletin
+    case assetHub
+}
+
 public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let id: String
     public let title: String
@@ -17,6 +23,7 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let finalizedAdvancedAt: Date?
     public let connectedSince: Date?
     public let thresholds: ChainHealthThresholds
+    public let icon: ChainStatusIcon
 
     public init(
         id: String,
@@ -27,7 +34,8 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         lastBlockDate: Date?,
         finalizedAdvancedAt: Date?,
         connectedSince: Date?,
-        thresholds: ChainHealthThresholds
+        thresholds: ChainHealthThresholds,
+        icon: ChainStatusIcon
     ) {
         self.id = id
         self.title = title
@@ -38,5 +46,6 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         self.finalizedAdvancedAt = finalizedAdvancedAt
         self.connectedSince = connectedSince
         self.thresholds = thresholds
+        self.icon = icon
     }
 }
