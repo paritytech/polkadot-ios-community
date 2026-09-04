@@ -1,4 +1,5 @@
 import UIKit
+import DesignSystem
 
 public final class DSTabBarView: UIView {
     private var itemsStorage: [DSTabBarItem] = []
@@ -59,6 +60,13 @@ public final class DSTabBarView: UIView {
     }
 
     public var onCentreHalfTapped: ((DSTabBarCentreSlot.Half) -> Void)?
+
+    public var isTrailingPanelOpen: Bool = false {
+        didSet {
+            guard isTrailingPanelOpen != oldValue else { return }
+            rebuildAccessibilityElements()
+        }
+    }
 
     private let content = UIView()
     private let lens = DSTabBarSelectionLens()
@@ -285,8 +293,7 @@ private extension DSTabBarView {
             guard !isFolded else {
                 return
             }
-            let locationX = recognizer.location(in: lens).x
-            let index = resolvedItemIndex(atX: locationX)
+            let index = resolvedItemIndex(atX: recognizer.location(in: lens).x)
             let pill = pillFrame(forItemAt: index)
             dragState = (startX: pill.minX, currentX: pill.minX, index: index)
             updateLens(animated: true)
@@ -358,12 +365,14 @@ private extension DSTabBarView {
     }
 
     func rebuildAccessibilityElements() {
-        accessibilityElements = items.enumerated().flatMap { index, item -> [Any] in
+        let elements: [Any] = items.enumerated().flatMap { index, item -> [Any] in
             if index == row.centreIndex, spaTabCount > 0 {
                 return centreSlotView.accessibilityElements ?? []
             }
             return [itemAccessibilityElement(for: item, at: index)]
         }
+
+        accessibilityElements = elements
     }
 
     func itemAccessibilityElement(for item: DSTabBarItem, at index: Int) -> UIAccessibilityElement {

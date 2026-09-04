@@ -3,11 +3,13 @@ import Combine
 import Foundation
 import PushKit
 import EventCenter
+import PolkadotUI
 
 final class MainTabBarInteractor {
     weak var presenter: MainTabBarInteractorOutputProtocol?
 
     private let serviceCoordinator: ServiceCoordinatorProtocol
+    private let chainStatusProvider: ChainStatusProviding
 
     private let userNotificationService: UserNotificationServicing
     private let mnemonicBackupHelper: MnemonicBackupHelperProtocol
@@ -21,9 +23,11 @@ final class MainTabBarInteractor {
 
     private var availabilityObserver: NSObjectProtocol?
     private var extensionWidgetSubscription: Task<Void, Never>?
+    private var chainStatusSubscription: Task<Void, Never>?
 
     init(
         serviceCoordinator: ServiceCoordinatorProtocol,
+        chainStatusProvider: ChainStatusProviding,
         userNotificationService: UserNotificationServicing,
         urlHandlingService: URLHandlingServiceProtocol,
         deferredLinkHandler: DeferredLinkHandling,
@@ -35,6 +39,7 @@ final class MainTabBarInteractor {
         extensionWidgetStreamProvider: ChatExtensionWidgetStreaming? = nil
     ) {
         self.serviceCoordinator = serviceCoordinator
+        self.chainStatusProvider = chainStatusProvider
         self.userNotificationService = userNotificationService
         self.mnemonicBackupHelper = mnemonicBackupHelper
         self.notificationCenter = notificationCenter
@@ -53,6 +58,7 @@ final class MainTabBarInteractor {
         unsubscribeFromExtensionWidgets()
         serviceCoordinator.throttle()
         removeBackupObservers()
+        chainStatusSubscription?.cancel()
     }
 }
 
@@ -66,10 +72,25 @@ extension MainTabBarInteractor: MainTabBarInteractorInputProtocol {
         evaluateBackupRequirement()
         deferredLinkHandler.register(urlHandlingService)
         subscribeToSPATabs()
+        subscribeToChainStatus()
     }
 }
 
 private extension MainTabBarInteractor {
+    func subscribeToChainStatus() {
+        chainStatusSubscription = Task { [weak self, chainStatusProvider, logger] in
+            do {
+                let statusStream = await chainStatusProvider.statusStream()
+
+                for try await rows in statusStream {
+                    await self?.handleChainStatusUpdate(rows)
+                }
+            } catch {
+                logger.error("Chain status stream failed: \(error)")
+            }
+        }
+    }
+
     func requestNotificationsAuthorization() {
         userNotificationService.requestNotificationsAuthorization(completion: nil)
     }
@@ -169,6 +190,10 @@ private extension MainTabBarInteractor {
 
     func requestPolkadotSignIn(with url: URL) {
         presenter?.didReceivePolkadotSignInRequest(with: url)
+    }
+
+    func handleChainStatusUpdate(_ rows: [ChainConnectionStatusViewModel]) {
+        presenter?.didReceiveChainStatus(rows)
     }
 }
 

@@ -77,12 +77,7 @@ extension DSTabBarRow {
     }
 
     func itemFrame(at index: Int) -> CGRect {
-        CGRect(
-            x: DSTabBarMetrics.rowPadding + CGFloat(unitIndex(forItemAt: index)) * unitStride,
-            y: 0,
-            width: unitWidth + CGFloat(unitSpan(forItemAt: index) - 1) * unitStride,
-            height: DSTabBarMetrics.itemHeight
-        )
+        unitFrame(atUnitIndex: unitIndex(forItemAt: index), span: unitSpan(forItemAt: index))
     }
 
     func pillFrame(at index: Int) -> CGRect {
@@ -134,5 +129,14 @@ private extension DSTabBarRow {
             return index
         }
         return index + 1
+    }
+
+    func unitFrame(atUnitIndex unitIndex: Int, span: Int) -> CGRect {
+        CGRect(
+            x: DSTabBarMetrics.rowPadding + CGFloat(unitIndex) * unitStride,
+            y: 0,
+            width: unitWidth + CGFloat(span - 1) * unitStride,
+            height: DSTabBarMetrics.itemHeight
+        )
     }
 }

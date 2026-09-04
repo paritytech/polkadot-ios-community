@@ -1,4 +1,4 @@
-import Foundation
+import UIKit
 import PolkadotUI
 
 @MainActor
@@ -8,7 +8,8 @@ final class MainTabBarPresenter {
     let interactor: MainTabBarInteractorInputProtocol
 
     // `.scan` must stay the centre slot: DSTabBarRow derives it as `itemCount / 2`, which holds
-    // for both arms here (index 2 of 5, index 2 of 4).
+    // for both arms (index 2 of 5, index 2 of 4). The trailing slot in the non-products arm
+    // balances `.scan` optically even when there are only four tabs.
     #if FEATURE_PRODUCTS
         let tabItems: [TabBarItem] = [.chat, .wallet, .scan, .browse, .settings]
     #else
@@ -70,5 +71,9 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
     func didReceiveSPATabs(_ tabs: [SPATab]) {
         view?.showSPATabs(chipViewModelFactory.createViewModels(for: tabs))
+    }
+
+    func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
+        view?.showChainStatus(rows)
     }
 }

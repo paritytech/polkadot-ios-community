@@ -36,6 +36,7 @@ protocol ServiceCoordinatorProtocol: ApplicationServiceProtocol {
     var allowanceManagerFacade: AllowanceManagerFacade { get }
     var turnService: TURNCredentialsProviding { get }
     var networkStatusService: NetworkStatusProviding { get }
+    var chainStatusProvider: ChainStatusProviding { get }
     var truapiRuntimeProvider: TrUAPIHostRuntimeProviding { get }
 }
 
@@ -71,6 +72,7 @@ final class ServiceCoordinator {
     let turnService: TURNCredentialsProviding
     let deviceSyncService: DeviceSyncServicing
     let networkStatusService: NetworkStatusProviding
+    let chainStatusProvider: ChainStatusProviding
     let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
     let tldProvider: DotNsTldProviding
     let logger: LoggerProtocol
@@ -113,6 +115,7 @@ final class ServiceCoordinator {
         turnService: TURNCredentialsProviding,
         deviceSyncService: DeviceSyncServicing,
         networkStatusService: NetworkStatusProviding,
+        chainStatusProvider: ChainStatusProviding,
         truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
         tldProvider: DotNsTldProviding,
         logger: LoggerProtocol
@@ -145,6 +148,7 @@ final class ServiceCoordinator {
         self.allowanceRenewalService = allowanceRenewalService
         self.deviceSyncService = deviceSyncService
         self.networkStatusService = networkStatusService
+        self.chainStatusProvider = chainStatusProvider
         self.truapiRuntimeProvider = truapiRuntimeProvider
         self.tldProvider = tldProvider
         self.logger = logger
@@ -234,6 +238,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
 
 extension ServiceCoordinator {
     // swiftlint:disable:next function_body_length
+    @MainActor
     static func createDefault(spaFlowState: SPAFlowState) -> ServiceCoordinatorProtocol? {
         let walletRepo: WalletManagerRepositoryProtocol = .shared
 
@@ -348,7 +353,8 @@ extension ServiceCoordinator {
             return nil
         }
 
-        let chatRequestCoordinator = createChatRequestCoordinator()
+        let statementDeliveryTracker = StatementDeliveryTracker()
+        let chatRequestCoordinator = createChatRequestCoordinator(statementTracker: statementDeliveryTracker)
         let audioSessionManager = AudioSessionManager()
 
         let paymentsSupport = PaymentsSupport(coinageService: coinageServices.coinageService)
@@ -407,6 +413,25 @@ extension ServiceCoordinator {
             pathMonitor: NetworkPathMonitor()
         )
 
+        let chainLatencyProvider = ChainLatencyProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            logger: logger
+        )
+
+        let chainBlockProvider = ChainBlockProvider(
+            chainRegistry: ChainRegistryFacade.sharedRegistry,
+            operationQueue: OperationManagerFacade.sharedDefaultQueue,
+            logger: logger
+        )
+
+        let chainStatusProvider = ChainStatusProvider(
+            networkStatusService: networkStatusService,
+            latencyProvider: chainLatencyProvider,
+            blockProvider: chainBlockProvider,
+            statementTracker: statementDeliveryTracker,
+            logger: logger
+        )
+
         return ServiceCoordinator(
             chatCoordinator: chatCoordinator,
             depositService: depositService,
@@ -444,6 +469,7 @@ extension ServiceCoordinator {
             turnService: turnService,
             deviceSyncService: deviceSyncService,
             networkStatusService: networkStatusService,
+            chainStatusProvider: chainStatusProvider,
             truapiRuntimeProvider: truapiRuntimeProvider,
             tldProvider: DotNsTldProviderFacade.shared,
             logger: logger
@@ -490,7 +516,9 @@ private extension ServiceCoordinator {
 }
 
 private extension ServiceCoordinator {
-    static func createChatRequestCoordinator() -> ChatRequestCoordinatorServicing {
+    static func createChatRequestCoordinator(
+        statementTracker: StatementDeliveryTracking
+    ) -> ChatRequestCoordinatorServicing {
         let storageFacade = UserDataStorageFacade.shared
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
         let logger = Logger.shared
@@ -513,7 +541,8 @@ private extension ServiceCoordinator {
                         remoteAccountOperation(chatChainId: AppConfig.Chains.usernameChain)
                     ],
                     logger: Logger.shared
-                )
+                ),
+                statementTracker: statementTracker
             ),
             logger: Logger.shared
         )

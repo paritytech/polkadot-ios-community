@@ -9,6 +9,8 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
     func select(tab: TabBarItem)
     func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?)
+    func showChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor
@@ -31,6 +33,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didRemoveWidget(for extensionId: ChatExtension.Id)
     func didReceivePolkadotSignInRequest(with url: URL)
     func didReceiveSPATabs(_ tabs: [SPATab])
+    func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor

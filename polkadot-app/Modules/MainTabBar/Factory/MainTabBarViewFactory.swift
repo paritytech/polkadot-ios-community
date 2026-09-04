@@ -45,6 +45,7 @@ enum MainTabBarViewFactory {
         let browserCoordinator = createBrowserCoordinator(flowStateProvider: flowStateProvider)
         let interactor = MainTabBarInteractor(
             serviceCoordinator: serviceCoordinator,
+            chainStatusProvider: serviceCoordinator.chainStatusProvider,
             userNotificationService: userNotificationService,
             urlHandlingService: urlHandler,
             deferredLinkHandler: deepLinkHandling,
