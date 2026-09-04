@@ -77,6 +77,7 @@ Services are set up on app launch via ServiceCoordinator, throttled when backgro
 8. **Collapse single-purpose factories into services** — when a factory just wraps a network fetch and the service just calls it through, merge them
 9. **Inject logger through init** — not via `Logger.shared` singleton inside methods
 10. **Store StorageFacade reference for lazy repositories** — when a service may need different repository types at different times, store the facade and create repositories on demand rather than eagerly in init
+11. **Prefer a protocol over a closure for injected dependencies** — model a collaborator as a named protocol with an implementation (e.g. `DateProviding` / `NowDateProvider`) rather than passing a bare `() -> T` closure. The protocol names the role, is discoverable and reusable, gives mocks a clear conformance point, and can grow additional methods without changing every call site. Reserve closures for genuinely one-off, single-call callbacks.
 
 ## App Initialization Flow
 
