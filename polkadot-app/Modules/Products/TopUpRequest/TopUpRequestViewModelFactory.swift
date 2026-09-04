@@ -4,13 +4,9 @@ import SubstrateSdk
 import ChainRegistry
 
 protocol TopUpRequestViewModelMaking {
-    func formatTitle(productId: ProductId) -> String
-    func formatAmount(_ balance: Balance) -> String
     func formatAmountValue(_ balance: Balance) -> String
     func tokenSymbol() -> String
-    func claimButtonTitle() -> String
     func amountMismatchWarning() -> String
-    func amountDetectionFailedWarning() -> String
     func amountMismatchTitle(productId: ProductId) -> String
 }
 
@@ -28,20 +24,6 @@ final class TopUpRequestViewModelFactory {
 }
 
 extension TopUpRequestViewModelFactory: TopUpRequestViewModelMaking {
-    func formatTitle(productId: ProductId) -> String {
-        String(localized: .Products.topUpTitle(productId: productId))
-    }
-
-    func formatAmount(_ balance: Balance) -> String {
-        let decimalAmount = balance.decimal(assetInfo: chainAsset.asset.digitalDollarDisplayInfo)
-
-        let formatter = formatterFactory
-            .createTokenFormatter(for: chainAsset.asset.digitalDollarDisplayInfo)
-            .value(for: .current)
-
-        return formatter.stringFromDecimal(decimalAmount) ?? ""
-    }
-
     func formatAmountValue(_ balance: Balance) -> String {
         let decimalAmount = balance.decimal(assetInfo: chainAsset.asset.digitalDollarDisplayInfo)
 
@@ -56,19 +38,11 @@ extension TopUpRequestViewModelFactory: TopUpRequestViewModelMaking {
         chainAsset.asset.digitalDollarDisplayInfo.symbol
     }
 
-    func claimButtonTitle() -> String {
-        String(localized: .Products.topUpClaim)
-    }
-
     func amountMismatchTitle(productId: ProductId) -> String {
         String(localized: .Products.topUpMismatchTitle(product: productId))
     }
 
     func amountMismatchWarning() -> String {
         String(localized: .Products.topUpAmountMismatchWarning)
-    }
-
-    func amountDetectionFailedWarning() -> String {
-        String(localized: .Products.topUpAmountDetectionFailedWarning)
     }
 }

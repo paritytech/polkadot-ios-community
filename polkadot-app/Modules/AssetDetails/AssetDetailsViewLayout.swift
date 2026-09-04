@@ -60,6 +60,15 @@ struct AssetDetailsView: View {
                 actions()
             }
             #if TESTNET_FEATURE
+                HStack {
+                    VStack { Divider().background(Color.fgPrimary) }
+                    Text(verbatim: "Debug features")
+                        .typography(.labelMedium)
+                        .foregroundStyle(Color.fgPrimary)
+                    VStack { Divider().background(Color.fgPrimary) }
+                }
+
+                testnetTopUpButton()
                 if let breakdown = viewModel.coinageBreakdown,
                    viewModel.balanceCardModel != nil {
                     CoinageBalanceBreakdownView(
@@ -100,10 +109,6 @@ struct AssetDetailsView: View {
 
                 topUpButton()
             }
-
-            #if TESTNET_FEATURE
-                testnetTopUpButton()
-            #endif
         }
     }
 
