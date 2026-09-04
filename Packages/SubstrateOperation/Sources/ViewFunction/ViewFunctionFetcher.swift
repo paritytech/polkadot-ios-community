@@ -2,23 +2,21 @@ import Foundation
 import FoundationExt
 import SubstrateSdk
 
-/// Caches view-function results in memory for `ttl` seconds so a burst of reads costs one
-/// `state_call` per distinct (chain, function, args) instead of one per read. Concurrent reads of
-/// the same key are coalesced onto a single in-flight call.
+/// Caches view-function results for a single chain in memory for `ttl` seconds so a burst of reads
+/// costs one `state_call` per distinct (function, args) instead of one per read. Concurrent reads
+/// of the same key are coalesced onto a single in-flight call.
 public protocol ViewFunctionFetching: Sendable {
     func fetch<T: Decodable>(
         viewFunction: ViewFunctionCodingPath,
-        chainId: ChainId,
         args: [ScaleEncodable]
     ) async throws -> T
 }
 
 public extension ViewFunctionFetching {
     func fetch<T: Decodable>(
-        viewFunction: ViewFunctionCodingPath,
-        chainId: ChainId
+        viewFunction: ViewFunctionCodingPath
     ) async throws -> T {
-        try await fetch(viewFunction: viewFunction, chainId: chainId, args: [])
+        try await fetch(viewFunction: viewFunction, args: [])
     }
 }
 
@@ -30,7 +28,6 @@ public actor ViewFunctionFetcher {
     public static let defaultTtl: TimeInterval = 300
 
     private struct CacheKey: Hashable {
-        let chainId: ChainId
         let moduleName: String
         let functionName: String
         let argsKey: Data
@@ -42,6 +39,7 @@ public actor ViewFunctionFetcher {
     }
 
     private let executor: ViewFunctionExecuting
+    private let chainId: ChainId
     private let ttl: TimeInterval
     private let dateProvider: DateProviding
 
@@ -50,10 +48,12 @@ public actor ViewFunctionFetcher {
 
     public init(
         executor: ViewFunctionExecuting,
+        chainId: ChainId,
         ttl: TimeInterval = defaultTtl,
         dateProvider: DateProviding = NowDateProvider()
     ) {
         self.executor = executor
+        self.chainId = chainId
         self.ttl = ttl
         self.dateProvider = dateProvider
     }
@@ -62,10 +62,9 @@ public actor ViewFunctionFetcher {
 extension ViewFunctionFetcher: ViewFunctionFetching {
     public func fetch<T: Decodable>(
         viewFunction: ViewFunctionCodingPath,
-        chainId: ChainId,
         args: [ScaleEncodable]
     ) async throws -> T {
-        let key = try makeKey(viewFunction: viewFunction, chainId: chainId, args: args)
+        let key = try makeKey(viewFunction: viewFunction, args: args)
 
         let now = await dateProvider.read()
         if let cached = cache[key], now.timeIntervalSince(cached.storedAt) < ttl {
@@ -76,7 +75,7 @@ extension ViewFunctionFetcher: ViewFunctionFetching {
             return try await cast(existing.value)
         }
 
-        let task = Task { [executor] () -> Any in
+        let task = Task { [executor, chainId] () -> Any in
             let value: T = try await executor.call(viewFunction: viewFunction, chainId: chainId, args: args)
             return value
         }
@@ -93,14 +92,12 @@ extension ViewFunctionFetcher: ViewFunctionFetching {
 extension ViewFunctionFetcher {
     private func makeKey(
         viewFunction: ViewFunctionCodingPath,
-        chainId: ChainId,
         args: [ScaleEncodable]
     ) throws -> CacheKey {
         let encoder = ScaleEncoder()
         try args.forEach { try $0.encode(scaleEncoder: encoder) }
 
         return CacheKey(
-            chainId: chainId,
             moduleName: viewFunction.moduleName,
             functionName: viewFunction.functionName,
             argsKey: encoder.encode()

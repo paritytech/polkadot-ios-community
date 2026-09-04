@@ -44,18 +44,15 @@ public protocol UnloadTokenResolving {
 }
 
 public final class UnloadTokenResolver {
-    private let chainId: ChainId
     private let runtimeCodingService: RuntimeCodingServiceProtocol
     private let viewFunctionFetcher: ViewFunctionFetching
     private let consumedTokenChecker: any ConsumedTokenChecking
 
     public init(
-        chainId: ChainId,
         runtimeCodingService: RuntimeCodingServiceProtocol,
         viewFunctionFetcher: ViewFunctionFetching,
         consumedTokenChecker: any ConsumedTokenChecking
     ) {
-        self.chainId = chainId
         self.runtimeCodingService = runtimeCodingService
         self.viewFunctionFetcher = viewFunctionFetcher
         self.consumedTokenChecker = consumedTokenChecker
@@ -80,8 +77,7 @@ extension UnloadTokenResolver: UnloadTokenResolving {
         // this is the upper bound
         // TODO: take person allowance into account
         let maxFreeTokens: StringCodable<UInt32> = try await viewFunctionFetcher.fetch(
-            viewFunction: CoinagePallet.ViewFunction.maxFreeUnloadTokensPerTimePeriod(),
-            chainId: chainId
+            viewFunction: CoinagePallet.ViewFunction.maxFreeUnloadTokensPerTimePeriod()
         )
         let maxCounter = maxFreeTokens.wrappedValue
 
