@@ -14,7 +14,7 @@ final class MainTabBarViewController: UIViewController {
 
     private let chromeController = TabBarBottomChromeController()
 
-    private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(rows: []))
+    private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(models: []))
 
     private lazy var container = TabBarContainer(hostController: self)
 
@@ -328,8 +328,8 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         chromeController.setTrailingPanel(slot: slot, content: configuration)
     }
 
-    func showChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
-        statusBarHost.rootView = ChainConnectionStatusBarView(rows: rows)
+    func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {
+        statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
     }
 }
 

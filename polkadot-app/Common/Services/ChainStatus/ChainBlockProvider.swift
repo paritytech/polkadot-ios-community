@@ -9,12 +9,14 @@ import SubstrateSdk
 struct ChainBlockInfo: Equatable {
     let number: BlockNumber
     let receivedAt: Date
+    let finalizedAdvancedAt: Date?
 }
 
 @MainActor
 protocol ChainBlockProviding: AnyObject {
     func blockStream() -> AnyAsyncSequence<[ChainConnectionTarget: ChainBlockInfo]>
     func setActive(_ isActive: Bool)
+    func clear(for target: ChainConnectionTarget)
 }
 
 /// Per-chain best block height, subscribed only while a host asks for it.
@@ -29,7 +31,10 @@ final class ChainBlockProvider {
     private let logger: LoggerProtocol
 
     private var blocks: [ChainConnectionTarget: ChainBlockInfo] = [:]
+    private var finalizedNumbers: [ChainConnectionTarget: BlockNumber] = [:]
     private var subscriptionTasks: [Task<Void, Never>] = []
+    private var headsStreamYielded: Set<ChainConnectionTarget> = []
+    private var finalizedStreamYielded: Set<ChainConnectionTarget> = []
     private var isActive = false
 
     init(
@@ -67,57 +72,150 @@ extension ChainBlockProvider: ChainBlockProviding {
         self.isActive = isActive
 
         guard isActive else {
-            // Values are kept so reopening shows the last known heights instead of blanking;
-            // stale entries are dropped by status transitions, not by deactivation.
             subscriptionTasks.forEach { $0.cancel() }
             subscriptionTasks = []
+            // Values are kept so reopening the panel shows last known heights.
             return
         }
 
         subscriptionTasks = blockProviders.flatMap { target, provider in
-            [fetchCurrent(for: target, using: provider), observeHeads(for: target, using: provider)]
+            [
+                fetchInitial(for: target, kind: .best) { try await provider.fetchCurrent() },
+                observeHeads(for: target, kind: .best) { provider.subscribeNewHeads() },
+                fetchInitial(for: target, kind: .finalized) { try await provider.fetchFinalized() },
+                observeHeads(for: target, kind: .finalized) { provider.subscribeFinalizedHeads() }
+            ]
         }
+    }
+
+    func clear(for target: ChainConnectionTarget) {
+        blocks[target] = nil
+        finalizedNumbers[target] = nil
+        blocksSubject.send(blocks)
     }
 }
 
 private extension ChainBlockProvider {
+    /// Best heads and finalized heads follow the same fetch-then-stream shape but land in
+    /// different state, so the kind selects both the log wording and the recording path.
+    enum BlockKind {
+        case best
+        case finalized
+
+        var title: String {
+            switch self {
+            case .best:
+                "best block"
+            case .finalized:
+                "finalized block"
+            }
+        }
+    }
+
     /// Heights would otherwise stay blank for up to a full block time after activation.
-    func fetchCurrent(
+    func fetchInitial(
         for target: ChainConnectionTarget,
-        using provider: BlockInfoProviding
+        kind: BlockKind,
+        fetch: @escaping () async throws -> BlockNumber
     ) -> Task<Void, Never> {
         Task { [weak self, logger] in
             do {
-                let number = try await provider.fetchCurrent()
-                self?.record(number, for: target)
+                let number = try await fetch()
+                self?.record(number, for: target, kind: kind, isFromFetch: true)
             } catch {
-                logger.error("Block number fetch failed for \(target.chainId): \(error)")
+                logger.error("Fetch \(kind.title) failed for \(target.chainId): \(error)")
             }
         }
     }
 
     func observeHeads(
         for target: ChainConnectionTarget,
-        using provider: BlockInfoProviding
+        kind: BlockKind,
+        headers: @escaping () -> AnyAsyncSequence<Block.Header>
     ) -> Task<Void, Never> {
         Task { [weak self, logger] in
             do {
-                for try await header in provider.subscribeNewHeads() {
+                for try await header in headers() {
                     guard let number = BigUInt.fromHexString(header.number) else {
-                        logger.warning("Unparsable block number for \(target.chainId): \(header.number)")
+                        logger.warning("Unparsable \(kind.title) number for \(target.chainId): \(header.number)")
                         continue
                     }
 
-                    self?.record(BlockNumber(number), for: target)
+                    self?.record(BlockNumber(number), for: target, kind: kind)
                 }
             } catch {
-                logger.error("New heads stream failed for \(target.chainId): \(error)")
+                logger.error("Stream of \(kind.title) failed for \(target.chainId): \(error)")
             }
         }
     }
 
-    func record(_ number: BlockNumber, for target: ChainConnectionTarget) {
-        blocks[target] = ChainBlockInfo(number: number, receivedAt: Date())
+    func record(
+        _ number: BlockNumber,
+        for target: ChainConnectionTarget,
+        kind: BlockKind,
+        isFromFetch: Bool = false
+    ) {
+        switch kind {
+        case .best:
+            recordBest(number, for: target, isFromFetch: isFromFetch)
+        case .finalized:
+            recordFinalized(number, for: target, isFromFetch: isFromFetch)
+        }
+    }
+
+    func recordBest(
+        _ number: BlockNumber,
+        for target: ChainConnectionTarget,
+        isFromFetch: Bool
+    ) {
+        // A one-shot fetch may land after the stream already yielded a newer head; drop it.
+        guard !isFromFetch || !headsStreamYielded.contains(target) else {
+            return
+        }
+
+        if !isFromFetch {
+            headsStreamYielded.insert(target)
+        }
+
+        let currentBlock = blocks[target]
+        blocks[target] = ChainBlockInfo(
+            number: number,
+            receivedAt: Date(),
+            finalizedAdvancedAt: currentBlock?.finalizedAdvancedAt
+        )
+        blocksSubject.send(blocks)
+    }
+
+    func recordFinalized(
+        _ number: BlockNumber,
+        for target: ChainConnectionTarget,
+        isFromFetch: Bool
+    ) {
+        guard !isFromFetch || !finalizedStreamYielded.contains(target) else {
+            return
+        }
+
+        let previousNumber = finalizedNumbers[target]
+
+        guard number > previousNumber ?? 0 else {
+            return
+        }
+
+        if !isFromFetch {
+            finalizedStreamYielded.insert(target)
+        }
+
+        finalizedNumbers[target] = number
+
+        guard let currentBlock = blocks[target] else {
+            return
+        }
+
+        blocks[target] = ChainBlockInfo(
+            number: currentBlock.number,
+            receivedAt: currentBlock.receivedAt,
+            finalizedAdvancedAt: Date()
+        )
         blocksSubject.send(blocks)
     }
 }

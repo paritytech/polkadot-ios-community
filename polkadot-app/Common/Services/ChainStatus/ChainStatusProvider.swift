@@ -27,6 +27,7 @@ final class ChainStatusProvider {
     private var statuses: [ChainConnectionTarget: NetworkStatus]
     private var latencies: [ChainConnectionTarget: Duration] = [:]
     private var blocks: [ChainConnectionTarget: ChainBlockInfo] = [:]
+    private var connectedSince: [ChainConnectionTarget: Date] = [:]
     private var statusTasks: [Task<Void, Never>] = []
     private var isObserving = false
 
@@ -46,7 +47,12 @@ final class ChainStatusProvider {
 
         statuses = seededStatuses
         rowsSubject = AsyncCurrentValueSubject(
-            Self.makeRows(statuses: seededStatuses, latencies: [:], blocks: [:])
+            Self.makeRows(
+                statuses: seededStatuses,
+                latencies: [:],
+                blocks: [:],
+                connectedSince: [:]
+            )
         )
     }
 
@@ -71,9 +77,8 @@ private extension ChainStatusProvider {
 
         isObserving = true
 
-        // Sampling runs for the app's lifetime rather than while a panel is open: the top status
-        // strip is permanent, so there is no longer a moment when nobody is displaying latency
-        // or block freshness.
+        // Sampling runs for the app's lifetime because the top status strip is permanent.
+        // A host closing its subscription does not pause sampling.
         latencyProvider.setActive(true)
         blockProvider.setActive(true)
 
@@ -131,11 +136,15 @@ private extension ChainStatusProvider {
 
         statuses[target] = status
 
-        // Without this a drop-and-reconnect keeps captioning the row with its pre-drop data.
-        if previousStatus == .connected {
+        if status == .connected {
+            connectedSince[target] = Date()
+        } else {
+            connectedSince[target] = nil
             latencies[target] = nil
-            latencyProvider.clearSamples(for: target)
             blocks[target] = nil
+            latencyProvider.clearSamples(for: target)
+            // Without this a drop-and-reconnect keeps captioning the row with its pre-drop data.
+            blockProvider.clear(for: target)
         }
 
         emitRows()
@@ -161,14 +170,20 @@ private extension ChainStatusProvider {
 
     func emitRows() {
         rowsSubject.send(
-            Self.makeRows(statuses: statuses, latencies: latencies, blocks: blocks)
+            Self.makeRows(
+                statuses: statuses,
+                latencies: latencies,
+                blocks: blocks,
+                connectedSince: connectedSince
+            )
         )
     }
 
     static func makeRows(
         statuses: [ChainConnectionTarget: NetworkStatus],
         latencies: [ChainConnectionTarget: Duration],
-        blocks: [ChainConnectionTarget: ChainBlockInfo]
+        blocks: [ChainConnectionTarget: ChainBlockInfo],
+        connectedSince: [ChainConnectionTarget: Date]
     ) -> [ChainConnectionStatusViewModel] {
         ChainConnectionTarget.allCases.map { target in
             let state = (statuses[target] ?? .connecting).connectionState
@@ -180,7 +195,10 @@ private extension ChainStatusProvider {
                 state: state,
                 stateTitle: state.localizedTitle,
                 latency: state == .connected ? latencies[target] : nil,
-                lastBlockDate: block?.receivedAt
+                lastBlockDate: block?.receivedAt,
+                finalizedAdvancedAt: block?.finalizedAdvancedAt,
+                connectedSince: connectedSince[target],
+                thresholds: target.healthThresholds
             )
         }
     }

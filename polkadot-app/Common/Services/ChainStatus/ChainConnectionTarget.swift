@@ -30,6 +30,43 @@ enum ChainConnectionTarget: CaseIterable {
             "Asset Hub"
         }
     }
+
+    var expectedBlockTime: Duration {
+        switch self {
+        case .chat,
+             .assethub:
+            .seconds(2)
+        case .bulletin:
+            .seconds(6)
+        }
+    }
+
+    private var finalityStallBounds: ChainHealthBounds {
+        // The score measures time since the finalized head last advanced, sawtoohing from 0 up to
+        // roughly the finality interval (measured 2026-09-04: .chat 6s, .assethub 6s, .bulletin 10s).
+        // The healthy bound must sit clear of the normal peak or a healthy chain clips into amber
+        // on every cycle; 2.5x leaves room for one slow round. The zero bound at 10x marks a genuine
+        // stall rather than a hiccup.
+        switch self {
+        case .chat,
+             .assethub:
+            ChainHealthBounds(healthy: .seconds(15), zero: .seconds(60))
+        case .bulletin:
+            ChainHealthBounds(healthy: .seconds(25), zero: .seconds(100))
+        }
+    }
+
+    var healthThresholds: ChainHealthThresholds {
+        ChainHealthThresholds(
+            blockAge: ChainHealthBounds(
+                healthy: expectedBlockTime * 2,
+                zero: expectedBlockTime * 10
+            ),
+            finalityStall: finalityStallBounds,
+            ping: ChainHealthBounds(healthy: .milliseconds(150), zero: .milliseconds(1_000)),
+            missingTermGrace: .seconds(45)
+        )
+    }
 }
 
 extension NetworkStatus {

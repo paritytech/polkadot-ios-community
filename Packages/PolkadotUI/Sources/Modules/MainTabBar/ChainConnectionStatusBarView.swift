@@ -3,17 +3,17 @@ import SwiftUI
 public struct ChainConnectionStatusBarView: View, Hashable {
     public static let preferredHeight: CGFloat = 20
 
-    public let rows: [ChainConnectionStatusViewModel]
+    public let models: [ChainConnectionStatusViewModel]
 
-    public init(rows: [ChainConnectionStatusViewModel]) {
-        self.rows = rows
+    public init(models: [ChainConnectionStatusViewModel]) {
+        self.models = models
     }
 
     public var body: some View {
         HStack(spacing: 6) {
             Spacer(minLength: 0)
-            ForEach(rows) { row in
-                ChainStatusRingView(row: row)
+            ForEach(models) { viewModel in
+                ChainStatusRingView(viewModel: viewModel)
             }
         }
         .safeAreaPadding(.horizontal, 6)

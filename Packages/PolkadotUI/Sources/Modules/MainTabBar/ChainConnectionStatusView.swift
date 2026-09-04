@@ -14,6 +14,9 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let stateTitle: String
     public let latency: Duration?
     public let lastBlockDate: Date?
+    public let finalizedAdvancedAt: Date?
+    public let connectedSince: Date?
+    public let thresholds: ChainHealthThresholds
 
     public init(
         id: String,
@@ -21,7 +24,10 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         state: ChainConnectionState,
         stateTitle: String,
         latency: Duration?,
-        lastBlockDate: Date?
+        lastBlockDate: Date?,
+        finalizedAdvancedAt: Date?,
+        connectedSince: Date?,
+        thresholds: ChainHealthThresholds
     ) {
         self.id = id
         self.title = title
@@ -29,6 +35,9 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         self.stateTitle = stateTitle
         self.latency = latency
         self.lastBlockDate = lastBlockDate
+        self.finalizedAdvancedAt = finalizedAdvancedAt
+        self.connectedSince = connectedSince
+        self.thresholds = thresholds
     }
 }
 
@@ -60,7 +69,7 @@ public struct ChainConnectionStatusView: View, Hashable {
                 .foregroundStyle(Color.fgSecondary)
                 .lineLimit(2)
 
-            ChainStatusRingView(row: row, diameter: Self.ringDiameter)
+            ChainStatusRingView(viewModel: row, diameter: Self.ringDiameter)
         }
         .frame(maxWidth: .infinity)
         // The name is visible now, so the ring's own label would make VoiceOver say it twice.

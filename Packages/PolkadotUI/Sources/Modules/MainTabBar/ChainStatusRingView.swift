@@ -1,15 +1,10 @@
 import SwiftUI
 import DesignSystem
 
-/// Per-chain status indicator. The arc length carries block freshness and is always drawn in
-/// `.fgPrimary`; the centre dot is the only coloured element, carrying connection state refined
-/// by ping while connected.
+/// Per-chain status indicator. The arc length carries health (block age, finality stall, and ping
+/// combined worst-of) and is colored by health score; the centre dot reflects connection state only.
 struct ChainStatusRingView: View, Hashable {
-    private static let freshnessWindow: TimeInterval = 20
-    private static let fastLatency: Duration = .milliseconds(150)
-    private static let mediumLatency: Duration = .milliseconds(400)
-
-    let row: ChainConnectionStatusViewModel
+    let viewModel: ChainConnectionStatusViewModel
 
     /// Stroke and dot scale with this, so the two hosts stay visually the same mark at
     /// different sizes — the strip is bound by its 20pt band, the panel is not.
@@ -20,33 +15,34 @@ struct ChainStatusRingView: View, Hashable {
         // expressing the passage of time as a per-second row push would reassign the UIKit
         // configuration once a second for a value the view can compute itself.
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let fraction = freshness(at: context.date)
+            let health = ChainHealth.score(for: viewModel, at: context.date)
+            let arcColor = ChainHealth.arcColor(for: health)
 
             ZStack {
                 Circle()
                     .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
 
                 Circle()
-                    .trim(from: 0, to: fraction)
+                    .trim(from: 0, to: health)
                     .stroke(
-                        Color.fgPrimary,
+                        arcColor,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.3), value: fraction)
+                    .animation(.easeOut(duration: 0.3), value: health)
 
                 ChainStatusRingDot(
                     color: dotColor,
                     diameter: dotDiameter,
-                    isPulsing: row.state == .connecting
+                    isPulsing: viewModel.state == .connecting
                 )
             }
             .frame(width: diameter, height: diameter)
         }
         .accessibilityElement(children: .ignore)
-        // A plain interpolated Text is treated as a localizable format string, which registers
-        // a "%@, %@" entry in the package catalog.
-        .accessibilityLabel(Text(verbatim: "\(row.title), \(row.stateTitle)"))
+        // A plain interpolated Text("...") would be treated as a localizable format string and
+        // register a "%@, %@" entry in the package catalog; verbatim avoids localization.
+        .accessibilityLabel(Text(verbatim: "\(viewModel.title), \(viewModel.stateTitle)"))
     }
 }
 
@@ -56,39 +52,14 @@ private extension ChainStatusRingView {
     var dotDiameter: CGFloat { diameter * 0.375 }
 
     var dotColor: Color {
-        switch row.state {
+        switch viewModel.state {
         case .connected:
-            connectedDotColor
+            .fgPrimary
         case .connecting:
             .fgTertiary
         case .offline:
             .bgStatusError
         }
-    }
-
-    /// Grey until the first probe lands — an unsampled chain is not a slow one.
-    var connectedDotColor: Color {
-        guard let latency = row.latency else {
-            return .fgTertiary
-        }
-
-        if latency <= Self.fastLatency {
-            return .fgPrimary
-        } else if latency <= Self.mediumLatency {
-            return .bgStatusWarning
-        } else {
-            return .bgStatusError
-        }
-    }
-
-    func freshness(at date: Date) -> Double {
-        guard row.state == .connected, let lastBlockDate = row.lastBlockDate else {
-            return 0
-        }
-
-        let age = date.timeIntervalSince(lastBlockDate)
-
-        return 1 - min(max(age / Self.freshnessWindow, 0), 1)
     }
 }
 
@@ -115,5 +86,17 @@ private struct ChainStatusRingDot: View {
         isPulsing
             ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
             : .easeInOut(duration: 0.2)
+    }
+}
+
+private extension ChainHealth {
+    static func arcColor(for health: Double) -> Color {
+        if health > 0.6 {
+            .fgPrimary
+        } else if health > 0.3 {
+            .bgStatusWarning
+        } else {
+            .bgStatusError
+        }
     }
 }
