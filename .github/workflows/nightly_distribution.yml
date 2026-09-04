@@ -38,8 +38,8 @@ jobs:
       release_branch: ${{ inputs.release_branch }}
       release_pr_number: ${{ inputs.release_pr_number }}
       build_configuration: "Safetynet"
-      distribute_to_external_group: false
-      external_group_name: ""
+      distribute_to_external_group: true
+      external_group_name: "Daily test builds"
       s3_static_subdir: "safetynet"
       # Both legs build the same commit against the same test plan, so the Nightly leg
       # owns the single Allure launch.
