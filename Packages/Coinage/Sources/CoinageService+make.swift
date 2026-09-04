@@ -46,6 +46,7 @@ public extension CoinageService {
         backgroundExecutor: any BackgroundExecuting,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
         personOriginProvider: any OriginPersonProviding,
+        viewFunctionFetcher: any ViewFunctionFetching,
         logger: SDKLoggerProtocol
     ) -> CoinageService {
         let operationQueue = OperationQueue()
@@ -291,7 +292,8 @@ public extension CoinageService {
         let quotaTracker = UnloadQuotaTracker(
             runtimeCodingService: runtimeService,
             consumedTokenChecker: consumedTokenChecker,
-            personOriginProvider: personOriginProvider
+            personOriginProvider: personOriginProvider,
+            viewFunctionFetcher: viewFunctionFetcher
         )
         let ringCapacityProvider = RingCapacityProvider(
             instanceId: instanceId,

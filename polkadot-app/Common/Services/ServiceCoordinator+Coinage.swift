@@ -178,6 +178,7 @@ private extension ServiceCoordinator {
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
             recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,
+            viewFunctionFetcher: viewFunctionFetcher,
             logger: logger
         )
     }

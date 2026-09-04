@@ -1,6 +1,7 @@
 import Foundation
 import SubstrateSdk
 import Individuality
+import SubstrateOperation
 
 /// Remaining free-unload tokens this period, together with the period allowance so callers can
 /// express a reserve as a fraction of the limit rather than a fixed count.
@@ -29,6 +30,7 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
     private let runtimeCodingService: RuntimeCodingServiceProtocol
     private let consumedTokenChecker: any ConsumedTokenChecking
     private let personOriginProvider: any OriginPersonProviding
+    private let viewFunctionFetcher: any ViewFunctionFetching
 
     private struct Cache {
         let period: UInt32
@@ -44,11 +46,13 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
     public init(
         runtimeCodingService: RuntimeCodingServiceProtocol,
         consumedTokenChecker: any ConsumedTokenChecking,
-        personOriginProvider: any OriginPersonProviding
+        personOriginProvider: any OriginPersonProviding,
+        viewFunctionFetcher: any ViewFunctionFetching
     ) {
         self.runtimeCodingService = runtimeCodingService
         self.consumedTokenChecker = consumedTokenChecker
         self.personOriginProvider = personOriginProvider
+        self.viewFunctionFetcher = viewFunctionFetcher
     }
 
     public func remainingQuota() async throws -> UnloadQuota {
@@ -56,10 +60,12 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
             path: CoinagePallet.Constants.unloadTokenTimePeriod(),
             type: UInt64.self
         )
-        let maxCounter: UInt32 = try await runtimeCodingService.fetchConstant(
-            path: CoinagePallet.Constants.maxFreeUnloadTokensPerTimePeriod(),
-            type: UInt32.self
+
+        let wrappedMaxCounter: StringCodable<UInt32> = try await viewFunctionFetcher.fetch(
+            viewFunction: CoinagePallet.ViewFunction.maxFreeUnloadTokensPerTimePeriod()
         )
+
+        let maxCounter = wrappedMaxCounter.wrappedValue
 
         let periods = UnloadTokenPeriodCalculator.validPeriods(
             currentDate: Date(),
