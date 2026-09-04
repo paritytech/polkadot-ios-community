@@ -189,6 +189,13 @@ private extension ChainStatusProvider {
             let state = (statuses[target] ?? .connecting).connectionState
             let block = state == .connected ? blocks[target] : nil
 
+            // Finality lag = best - finalized block count. The two subscriptions are independent,
+            // so a stale cached best height can lag finalized and produce a negative delta; clamp
+            // guards against this transient cache inconsistency.
+            let finalityLag = block.flatMap { info in
+                info.finalizedNumber.map { max(Int(info.number) - Int($0), 0) }
+            }
+
             return ChainConnectionStatusViewModel(
                 id: target.chainId,
                 title: target.title,
@@ -196,7 +203,7 @@ private extension ChainStatusProvider {
                 stateTitle: state.localizedTitle,
                 latency: state == .connected ? latencies[target] : nil,
                 lastBlockDate: block?.receivedAt,
-                finalizedAdvancedAt: block?.finalizedAdvancedAt,
+                finalityLag: finalityLag,
                 connectedSince: connectedSince[target],
                 thresholds: target.healthThresholds,
                 icon: target.statusIcon

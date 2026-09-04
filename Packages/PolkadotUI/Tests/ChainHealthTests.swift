@@ -5,7 +5,7 @@ import Foundation
 struct ChainHealthTests {
     private let thresholds = ChainHealthThresholds(
         blockAge: ChainHealthBounds(healthy: .seconds(12), zero: .seconds(60)),
-        finalityStall: ChainHealthBounds(healthy: .seconds(40), zero: .seconds(180)),
+        finalityLag: ChainHealthCountBounds(healthy: 6, zero: 24),
         ping: ChainHealthBounds(healthy: .milliseconds(200), zero: .milliseconds(2_000)),
         missingTermGrace: .seconds(20)
     )
@@ -33,7 +33,7 @@ struct ChainHealthTests {
         let now = Date()
         let row = makeConnectedRow(
             lastBlockDate: now.addingTimeInterval(-5),
-            finalizedAdvancedAt: now.addingTimeInterval(-20),
+            finalityLag: 3,
             connectedSince: now.addingTimeInterval(-30)
         )
 
@@ -49,14 +49,14 @@ struct ChainHealthTests {
 
         let rowHalfAge = makeConnectedRow(
             lastBlockDate: now.addingTimeInterval(-36),
-            finalizedAdvancedAt: now.addingTimeInterval(-20),
+            finalityLag: 3,
             connectedSince: connectedAt
         )
         let scoreHalfAge = ChainHealth.score(for: rowHalfAge, at: now)
 
         let rowAlmostDead = makeConnectedRow(
             lastBlockDate: now.addingTimeInterval(-59),
-            finalizedAdvancedAt: now.addingTimeInterval(-20),
+            finalityLag: 3,
             connectedSince: connectedAt
         )
         let scoreAlmostDead = ChainHealth.score(for: rowAlmostDead, at: now)
@@ -71,7 +71,7 @@ struct ChainHealthTests {
         let now = Date()
         let row = makeConnectedRow(
             lastBlockDate: now.addingTimeInterval(-61),
-            finalizedAdvancedAt: now.addingTimeInterval(-20),
+            finalityLag: 3,
             connectedSince: now.addingTimeInterval(-30)
         )
 
@@ -121,14 +121,14 @@ struct ChainHealthTests {
 private extension ChainHealthTests {
     func makeConnectedRow(
         lastBlockDate: Date? = nil,
-        finalizedAdvancedAt: Date? = nil,
+        finalityLag: Int? = nil,
         connectedSince: Date?
     ) -> ChainConnectionStatusViewModel {
         makeRow(
             state: .connected,
             latency: .milliseconds(100),
             lastBlockDate: lastBlockDate,
-            finalizedAdvancedAt: finalizedAdvancedAt,
+            finalityLag: finalityLag,
             connectedSince: connectedSince
         )
     }
@@ -137,7 +137,7 @@ private extension ChainHealthTests {
         state: ChainConnectionState,
         latency: Duration? = nil,
         lastBlockDate: Date? = nil,
-        finalizedAdvancedAt: Date? = nil,
+        finalityLag: Int? = nil,
         connectedSince: Date? = nil
     ) -> ChainConnectionStatusViewModel {
         let stateTitle =
@@ -157,7 +157,7 @@ private extension ChainHealthTests {
             stateTitle: stateTitle,
             latency: latency,
             lastBlockDate: lastBlockDate,
-            finalizedAdvancedAt: finalizedAdvancedAt,
+            finalityLag: finalityLag,
             connectedSince: connectedSince,
             thresholds: thresholds,
             icon: .people

@@ -9,7 +9,7 @@ import SubstrateSdk
 struct ChainBlockInfo: Equatable {
     let number: BlockNumber
     let receivedAt: Date
-    let finalizedAdvancedAt: Date?
+    let finalizedNumber: BlockNumber?
 }
 
 @MainActor
@@ -181,7 +181,7 @@ private extension ChainBlockProvider {
         blocks[target] = ChainBlockInfo(
             number: number,
             receivedAt: Date(),
-            finalizedAdvancedAt: currentBlock?.finalizedAdvancedAt
+            finalizedNumber: currentBlock?.finalizedNumber
         )
         blocksSubject.send(blocks)
     }
@@ -214,7 +214,7 @@ private extension ChainBlockProvider {
         blocks[target] = ChainBlockInfo(
             number: currentBlock.number,
             receivedAt: currentBlock.receivedAt,
-            finalizedAdvancedAt: Date()
+            finalizedNumber: number
         )
         blocksSubject.send(blocks)
     }

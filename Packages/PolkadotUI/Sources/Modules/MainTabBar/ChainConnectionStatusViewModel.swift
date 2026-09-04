@@ -20,7 +20,7 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let stateTitle: String
     public let latency: Duration?
     public let lastBlockDate: Date?
-    public let finalizedAdvancedAt: Date?
+    public let finalityLag: Int?
     public let connectedSince: Date?
     public let thresholds: ChainHealthThresholds
     public let icon: ChainStatusIcon
@@ -32,7 +32,7 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         stateTitle: String,
         latency: Duration?,
         lastBlockDate: Date?,
-        finalizedAdvancedAt: Date?,
+        finalityLag: Int?,
         connectedSince: Date?,
         thresholds: ChainHealthThresholds,
         icon: ChainStatusIcon
@@ -43,7 +43,7 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         self.stateTitle = stateTitle
         self.latency = latency
         self.lastBlockDate = lastBlockDate
-        self.finalizedAdvancedAt = finalizedAdvancedAt
+        self.finalityLag = finalityLag
         self.connectedSince = connectedSince
         self.thresholds = thresholds
         self.icon = icon
