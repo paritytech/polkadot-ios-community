@@ -3293,9 +3293,6 @@
         }
       }
     },
-    "Payments Privacy Mode" : {
-
-    },
     "polkadot.host.message.too.big.error" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4193,6 +4190,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Configuración"
+          }
+        }
+      }
+    },
+    "settings.privacymode.balanced.details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stronger privacy, moderate speed"
+          }
+        }
+      }
+    },
+    "settings.privacymode.balanced.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Balanced"
+          }
+        }
+      }
+    },
+    "settings.privacymode.fastest.details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fastest payments, lower privacy"
+          }
+        }
+      }
+    },
+    "settings.privacymode.fastest.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fastest"
+          }
+        }
+      }
+    },
+    "settings.privacymode.private.details" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Maximum privacy, lowest speed"
+          }
+        }
+      }
+    },
+    "settings.privacymode.private.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most Private"
+          }
+        }
+      }
+    },
+    "settings.privacymode.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payments Privacy Mode"
           }
         }
       }

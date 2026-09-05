@@ -3,22 +3,21 @@ import DesignSystem
 import Coinage
 
 /// Presentation for the payment-privacy modes. Colours map to semantic design-system tokens
-/// (warning / success / amethyst) rather than raw values. Copy is hardcoded pending the stage-2
-/// localization pass.
+/// (warning / success / amethyst) rather than raw values.
 extension RecyclingStrategyType {
     var displayTitle: String {
         switch self {
-        case .minPrivacy: "Fastest"
-        case .balanced: "Balanced"
-        case .maxPrivacy: "Most Private"
+        case .minPrivacy: String(localized: .settingsPrivacymodeFastestTitle)
+        case .balanced: String(localized: .settingsPrivacymodeBalancedTitle)
+        case .maxPrivacy: String(localized: .settingsPrivacymodePrivateTitle)
         }
     }
 
     var displayDescription: String {
         switch self {
-        case .minPrivacy: "Fastest payments, lower privacy"
-        case .balanced: "Stronger privacy, moderate speed"
-        case .maxPrivacy: "Maximum privacy, lowest speed"
+        case .minPrivacy: String(localized: .settingsPrivacymodeFastestDetails)
+        case .balanced: String(localized: .settingsPrivacymodeBalancedDetails)
+        case .maxPrivacy: String(localized: .settingsPrivacymodePrivateDetails)
         }
     }
 

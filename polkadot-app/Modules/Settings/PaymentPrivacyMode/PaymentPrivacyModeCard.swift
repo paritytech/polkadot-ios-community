@@ -37,7 +37,7 @@ private extension PaymentPrivacyModeCard {
                 .foregroundStyle(.fgSecondary)
                 .frame(width: 32, height: 32)
 
-            Text("Payments Privacy Mode")
+            Text(String(localized: .settingsPrivacymodeTitle))
                 .typography(.bodyLarge)
                 .foregroundStyle(.fgPrimary)
         }
