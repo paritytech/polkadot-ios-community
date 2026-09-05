@@ -25,12 +25,7 @@ public actor CoinRecyclingEvaluator {
     /// Nil until the first evaluation completes — balance must not emit before it, or it reads as zero.
     private nonisolated let verdictsSubject = AsyncCurrentValueSubject<RecyclingVerdicts?>(nil)
 
-    private var latestCoins: [TrackedCoin] = []
-    private var latestVouchers: [TrackedVoucher] = []
-    private var latestType: RecyclingStrategyType
-
-    private var assetsTask: Task<Void, Never>?
-    private var strategyTask: Task<Void, Never>?
+    private var inputTask: Task<Void, Never>?
 
     private static let evaluationInterval: Duration = .seconds(5)
 
@@ -54,7 +49,6 @@ public actor CoinRecyclingEvaluator {
         self.quotaTracker = quotaTracker
         self.denominationContext = denominationContext
         self.logger = logger
-        latestType = settings.strategy
     }
 
     /// Verdicts stream — deduplicated and withheld until the first evaluation lands.
@@ -78,84 +72,65 @@ public actor CoinRecyclingEvaluator {
 }
 
 private extension CoinRecyclingEvaluator {
+    struct Assets {
+        let coins: [TrackedCoin]
+        let vouchers: [TrackedVoucher]
+    }
+
+    struct Input {
+        let assets: Assets
+        let strategy: RecyclingStrategyType
+    }
+
     func run() {
         let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
         let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
 
-        // A leading tick (immediate) followed by a periodic one, folded into the throttled asset path.
-        // The tick is load-bearing twice: it arms balanced's delay exit without an external event, and
-        // it re-emits every interval as the retry path now that the worker is gone.
         let leadingTick: AsyncSyncSequence<[Void]> = [()].async
         let tick = chain(
             leadingTick,
             AsyncTimerSequence(interval: Self.evaluationInterval, clock: ContinuousClock()).map { _ in () }
         )
 
-        // Assets + tick are throttled: the voucher pass, capacity lookup, quota read and gating walk
-        // run at most once per interval however bursty the ledger writes are.
-        assetsTask = Task { [weak self] in
-            let data = combineLatest(coinsStream, vouchersStream)
-            let throttled = combineLatest(data, tick)._throttle(for: Self.evaluationInterval, latest: true)
+        inputTask = Task { [settings, weak self] in
+            let assets = combineLatest(coinsStream, vouchersStream).map { coins, vouchers in
+                Assets(coins: coins, vouchers: vouchers)
+            }
+
+            let throttledAssets = combineLatest(assets, tick)._throttle(for: Self.evaluationInterval, latest: true)
+            let inputStream = combineLatest(throttledAssets, settings.strategyStream()).map { assets, strategy in
+                Input(assets: assets.0, strategy: strategy)
+            }
+
             do {
-                for try await ((coins, vouchers), _) in throttled {
-                    await self?.updateAssets(coins: coins, vouchers: vouchers)
+                for try await input in inputStream {
+                    await self?.evaluateAndRecycle(for: input)
                 }
             } catch {
                 self?.logger?.error("Recycling evaluator asset stream failed: \(error)")
             }
         }
-
-        // Strategy changes re-judge immediately, outside the throttle: flipping the privacy switch must
-        // re-evaluate the whole active set now, not up to an interval later.
-        strategyTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                for try await type in settings.strategyStream() {
-                    await updateStrategy(type)
-                }
-            } catch {
-                logger?.error("Recycling evaluator strategy stream failed: \(error)")
-            }
-        }
     }
 
     func cancelTasks() {
-        assetsTask?.cancel()
-        strategyTask?.cancel()
+        inputTask?.cancel()
     }
 
-    func updateAssets(coins: [TrackedCoin], vouchers: [TrackedVoucher]) async {
-        latestCoins = coins
-        latestVouchers = vouchers
-        await evaluateAndRecycle()
-    }
-
-    func updateStrategy(_ type: RecyclingStrategyType) async {
-        latestType = type
-        await evaluateAndRecycle()
-    }
-
-    func evaluateAndRecycle() async {
+    func evaluateAndRecycle(for input: Input) async {
         do {
-            let verdicts = try await evaluate(
-                now: Date(),
-                coins: latestCoins,
-                vouchers: latestVouchers,
-                type: latestType
-            )
+            let verdicts = try await evaluate(input: input, now: Date())
             verdictsSubject.send(verdicts)
-            await recycleGated(verdicts, coins: latestCoins)
+            await recycleGated(verdicts, coins: input.assets.coins)
         } catch {
             logger?.error("Recycling evaluation failed: \(error)")
         }
     }
 
-    func evaluate(
-        now: Date,
-        coins: [TrackedCoin],
-        vouchers: [TrackedVoucher],
-        type: RecyclingStrategyType
-    ) async throws -> RecyclingVerdicts {
+    func evaluate(input: Input, now: Date) async throws -> RecyclingVerdicts {
+        let vouchers = input.assets.vouchers
+        let coins = input.assets.coins
+        let type = input.strategy
+
         let voucherExponents = Set(vouchers.map(\.voucher.exponent))
         let capacities = try await ringCapacityProvider.capacities(for: voucherExponents)
         let usabilityContext = VoucherUsabilityContext(ringCapacities: capacities, now: now)

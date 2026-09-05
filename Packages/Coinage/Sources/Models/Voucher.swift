@@ -3,7 +3,7 @@ import SubstrateSdk
 import Operation_iOS
 
 /// A coin currently residing in the Recycler, waiting for anonymity.
-public struct Voucher: Equatable, CoinageDerivable {
+public struct Voucher: Equatable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
     public let derivationIndex: DerivationIndex
     public let allocatedAt: Date

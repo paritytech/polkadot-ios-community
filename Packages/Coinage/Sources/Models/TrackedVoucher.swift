@@ -3,7 +3,7 @@ import Operation_iOS
 
 /// A ``Voucher`` paired with the durability overlay (``CoinageAssetState``) that determines its
 /// balance and selection disposition. Assembled on read; never persisted as-is.
-public struct TrackedVoucher: Equatable {
+public struct TrackedVoucher: Equatable, Sendable {
     public let voucher: Voucher
     public let state: CoinageAssetState
 
