@@ -326,14 +326,7 @@ extension CoinageService: CoinageServicing {
             breakdownContext: denominationContext
         )
 
-        let nonDegradedAmount: BigUInt =
-            if result.privacyLevel == .full {
-                amount
-            } else {
-                computeNonDegradedAmount(from: result, context: denominationContext)
-            }
-
-        return TransferPreview(selectionResult: result, fullAmount: amount, nonDegradedAmount: nonDegradedAmount)
+        return TransferPreview(selectionResult: result, fullAmount: amount)
     }
 
     public func executeTransfer(
@@ -442,26 +435,6 @@ private extension CoinageService {
             return try result.get()
         }
         throw CancellationError()
-    }
-}
-
-// MARK: - Non-Degraded Amount
-
-private extension CoinageService {
-    func computeNonDegradedAmount(from result: CoinSelectionResult, context: DenominationBreakdownContext) -> BigUInt {
-        switch result {
-        case let .unloadIntoCoins(coins, perGroupAllocations):
-            let coinsAmount = coins.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
-            let fullGroupsAmount = perGroupAllocations
-                .filter { $0.vouchers.allSatisfy { $0.effectivePrivacy() == .full } }
-                .reduce(BigUInt.zero) { sum, alloc in
-                    alloc.recipientDenominations.reduce(sum) { $0 + context.valueInPlanks(for: $1.exponent) }
-                }
-            return coinsAmount + fullGroupsAmount
-        case .exactMatch,
-             .split:
-            return .zero
-        }
     }
 }
 

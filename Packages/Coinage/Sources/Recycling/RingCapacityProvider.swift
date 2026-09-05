@@ -10,6 +10,10 @@ import Individuality
 /// within a session, so results are memoised per denomination.
 public protocol RingCapacityProviding: Sendable {
     func capacities(for exponents: Set<Int16>) async throws -> [Int16: Int]
+
+    /// Only the capacities already memoised — no chain read. Used by the ``BalanceEvaluationMode/immediate``
+    /// pass, which must not block; an unresolved denomination simply reads as not-yet-full.
+    func peekCapacities(for exponents: Set<Int16>) async -> [Int16: Int]
 }
 
 public actor RingCapacityProvider: RingCapacityProviding {
@@ -62,5 +66,9 @@ public actor RingCapacityProvider: RingCapacityProviding {
         }
 
         return cache.filter { exponents.contains($0.key) }
+    }
+
+    public func peekCapacities(for exponents: Set<Int16>) async -> [Int16: Int] {
+        cache.filter { exponents.contains($0.key) }
     }
 }

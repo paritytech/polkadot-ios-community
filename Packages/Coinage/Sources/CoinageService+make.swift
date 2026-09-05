@@ -279,6 +279,7 @@ public extension CoinageService {
             voucherKeypairFactory: voucherKeypairFactory,
             txService: txService,
             originFactory: originFactory,
+            backgroundExecutor: backgroundExecutor,
             logger: logger
         )
 

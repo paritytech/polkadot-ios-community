@@ -3,7 +3,10 @@ import SubstrateSdk
 import BigInt
 
 protocol RecyclingStrategyProviding {
-    func coinStrategy(for type: RecyclingStrategyType) async throws -> CoinRecyclingStrategyProtocol
+    func coinStrategy(
+        for type: RecyclingStrategyType,
+        mode: BalanceEvaluationMode
+    ) async throws -> CoinRecyclingStrategyProtocol
 
     func voucherStrategy(for type: RecyclingStrategyType) -> CoinRecyclingStrategyProtocol
 }
@@ -28,10 +31,22 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
     }
 
     /// The full decorated policy: chain-limits wraps quota-limits wraps the parametric policy.
-    public func coinStrategy(for type: RecyclingStrategyType) async throws -> CoinRecyclingStrategyProtocol {
-        let quota = try await quotaTracker.remainingQuota()
-        let threshold = quotaReserve.mul(value: BigUInt(max(0, quota.limit)))
-        let quotaExhausted = BigUInt(max(0, quota.remaining)) <= threshold
+    ///
+    /// ``BalanceEvaluationMode/immediate`` skips the quota read (a chain call the balance must not wait
+    /// on) and treats quota as exhausted, so the quota decorator returns an empty map and only the
+    /// chain age-ceiling gates — a coin the policy would hold shows as spendable until the
+    /// ``BalanceEvaluationMode/complete`` pass corrects it.
+    public func coinStrategy(
+        for type: RecyclingStrategyType,
+        mode: BalanceEvaluationMode
+    ) async throws -> CoinRecyclingStrategyProtocol {
+        let quotaExhausted: Bool =
+            switch mode {
+            case .immediate:
+                true
+            case .complete:
+                try await isQuotaExhausted()
+            }
 
         return EnsureChainLimitsStrategy(
             inner: EnsureQuotaLimitsStrategy(
@@ -40,6 +55,12 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
             ),
             forcedRecyclingAge: forcedRecyclingAge
         )
+    }
+
+    private func isQuotaExhausted() async throws -> Bool {
+        let quota = try await quotaTracker.remainingQuota()
+        let threshold = quotaReserve.mul(value: BigUInt(max(0, quota.limit)))
+        return BigUInt(max(0, quota.remaining)) <= threshold
     }
 
     /// Voucher usability only: both decorators delegate it untouched, so a bare policy suffices and

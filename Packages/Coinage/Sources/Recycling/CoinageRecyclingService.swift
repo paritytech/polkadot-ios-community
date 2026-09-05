@@ -6,6 +6,7 @@ import Operation_iOS
 import SDKLogger
 import SubstrateSdk
 import StructuredConcurrency
+import BackgroundExecution
 
 /// Persisted recycling intent handed from `prepareRecycle` to the submission step.
 private struct PreparedRecycle {
@@ -24,6 +25,7 @@ actor CoinageRecyclingService {
     private let voucherKeypairFactory: any VoucherKeyDeriving
     private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol
 
     init(
@@ -32,6 +34,7 @@ actor CoinageRecyclingService {
         voucherKeypairFactory: any VoucherKeyDeriving,
         txService: any CoinageTxServicing,
         originFactory: OriginCreating,
+        backgroundExecutor: any BackgroundExecuting,
         logger: SDKLoggerProtocol
     ) {
         self.voucherMinter = voucherMinter
@@ -39,6 +42,7 @@ actor CoinageRecyclingService {
         self.voucherKeypairFactory = voucherKeypairFactory
         self.txService = txService
         self.originFactory = originFactory
+        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
     }
 }
@@ -46,9 +50,12 @@ actor CoinageRecyclingService {
 // MARK: - CoinageRecyclingServicing
 
 extension CoinageRecyclingService: CoinageRecyclingServicing {
+    /// Prepares every recycle up front, then submits them as one atomic batch: the durability write —
+    /// and so the evaluator's re-trigger off the coin snapshot — happens once, not once per coin. The
+    /// background-task assertion lets a fold mid-submission still finish registering the batch.
     func recycleCoins(_ coins: [Coin]) async throws {
-        for coin in coins {
-            try await recycleCoin(coin)
+        try await backgroundExecutor.execute { [self] in
+            try await submitRecycle(coins)
         }
     }
 }
@@ -56,21 +63,28 @@ extension CoinageRecyclingService: CoinageRecyclingServicing {
 // MARK: - Private
 
 private extension CoinageRecyclingService {
-    /// Fire-and-forget recycle of a single coin, matching Appendix B's `load_recycler_with_coin`:
-    /// `prepareRecycle` mints the voucher, then `submit` registers the entry — which claims the coin —
-    /// and tracks the extrinsic in the background.
-    func recycleCoin(_ coin: Coin) async throws {
-        let prepared = try await prepareRecycle(coin)
-        try await txService.submitTransaction(
-            request: CoinageTxRequest(
-                inputs: [.coin(.own(coin.derivationIndex, coin.publicKey))],
-                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex, prepared.voucher.publicKey)],
-                builder: prepared.builder,
-                origin: prepared.origin
-            ),
-            groupId: nil
-        )
-        logger.debug("Submitted recycle: coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
+    func submitRecycle(_ coins: [Coin]) async throws {
+        var requests: [CoinageTxRequest] = []
+
+        for coin in coins {
+            do {
+                let prepared = try await prepareRecycle(coin)
+                requests.append(
+                    CoinageTxRequest(
+                        inputs: [.coin(.own(coin.derivationIndex, coin.publicKey))],
+                        outputs: [.recyclerVoucher(prepared.voucher.derivationIndex, prepared.voucher.publicKey)],
+                        builder: prepared.builder,
+                        origin: prepared.origin
+                    )
+                )
+            } catch {
+                logger.error("Coin recycling failed: \(coin.derivationIndex)")
+            }
+        }
+
+        guard !requests.isEmpty else { return }
+
+        try await txService.submitTransactions(requests, groupId: nil)
     }
 
     /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`)

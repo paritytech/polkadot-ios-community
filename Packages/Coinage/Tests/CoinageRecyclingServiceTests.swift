@@ -4,114 +4,55 @@ import Operation_iOS
 import ExtrinsicService
 import KeyDerivation
 import BandersnatchApi
+import BackgroundExecution
 import SubstrateSdk
 import SDKLogger
 @testable import Coinage
 
+/// `CoinageRecyclingService` is submission-only: the decision of *which* coins to recycle lives in
+/// `CoinRecyclingEvaluator`. These tests pin the submission contract — one `loadRecyclerWithCoin`
+/// entry per coin, consuming that coin and minting a voucher — and that a pre-submission failure
+/// surfaces with nothing registered.
 @Suite("CoinageRecyclingService Tests")
 struct CoinageRecyclingServiceTests {
-    // MARK: - Eligibility
+    @Test("No coins is a no-op")
+    func emptyIsNoOp() async throws {
+        let sut = makeSUT()
 
-    @Test("Only free, on-chain coins at or above the recycle age are submitted")
-    func recyclesOnlyEligibleCoins() async throws {
-        let sut = makeSUT(coins: [
-            makeTracked(index: 1, age: 13),
-            makeTracked(index: 2, age: 14),
-            makeTracked(index: 3, age: 16)
-        ])
+        try await sut.service.recycleCoins([])
 
-        await sut.service.recycleOldCoins()
-
-        // Eligible are 2 and 3, processed oldest first (3 then 2).
-        let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(3, testKey(3))), .coin(.own(2, testKey(2)))])
+        #expect(await sut.txService.submittedInputs.isEmpty)
     }
 
-    @Test("Coins below the age, with unknown age, or not free/on-chain are skipped")
-    func skipsIneligible() async throws {
-        let sut = makeSUT(coins: [
-            makeTracked(index: 1, age: 16),
-            makeTracked(index: 2, age: 16, free: false),
-            makeTracked(index: 3, age: 16, onchain: false),
-            makeTracked(index: 4, age: nil)
-        ])
+    @Test("Each coin registers one entry consuming it and minting a voucher")
+    func eachCoinRegistersOneEntry() async throws {
+        let sut = makeSUT()
 
-        await sut.service.recycleOldCoins()
+        try await sut.service.recycleCoins([coin(index: 7), coin(index: 9)])
 
-        let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(1, testKey(1)))])
+        let inputs = await sut.txService.submittedInputs
+        let outputs = await sut.txService.submittedOutputs
+        #expect(inputs == [[.coin(.own(7, key(7)))], [.coin(.own(9, key(9)))]])
+        #expect(outputs.allSatisfy { $0.count == 1 })
     }
 
-    @Test("Eligible coins are processed oldest first")
-    func processesOldestFirst() async throws {
-        let sut = makeSUT(coins: [
-            makeTracked(index: 1, age: 14),
-            makeTracked(index: 2, age: 16),
-            makeTracked(index: 3, age: 15)
-        ])
+    @Test("Coins are submitted in the order given")
+    func preservesOrder() async throws {
+        let sut = makeSUT()
 
-        await sut.service.recycleOldCoins()
+        try await sut.service.recycleCoins([coin(index: 3), coin(index: 1), coin(index: 2)])
 
-        let inputs = await sut.durabilityService.store.allEntries.flatMap(\.inputs)
-        #expect(inputs == [.coin(.own(2, testKey(2))), .coin(.own(3, testKey(3))), .coin(.own(1, testKey(1)))])
+        let inputs = await sut.txService.submittedInputs
+        #expect(inputs == [[.coin(.own(3, key(3)))], [.coin(.own(1, key(1)))], [.coin(.own(2, key(2)))]])
     }
 
-    // MARK: - Submission
-
-    @Test("A recycle registers one entry consuming the coin and minting a voucher")
-    func successRegistersEntry() async throws {
-        let sut = makeSUT(coins: [makeTracked(index: 7, age: 14)])
-
-        await sut.service.recycleOldCoins()
-
-        let entries = await sut.durabilityService.store.allEntries
-        #expect(entries.count == 1)
-        #expect(entries.first?.inputs == [.coin(.own(7, testKey(7)))])
-        #expect(entries.first?.outputs.count == 1)
-    }
-
-    @Test("A pre-submission mint failure registers no entry")
-    func mintErrorRegistersNoEntry() async throws {
-        let sut = makeSUT(coins: [makeTracked(index: 7, age: 14)], minterError: StubError.boom)
-
-        await sut.service.recycleOldCoins()
-
-        let entries = await sut.durabilityService.store.allEntries
-        #expect(entries.isEmpty)
-    }
-
-    @Test("recycleCoins rethrows on a pre-submission failure")
-    func recycleCoinsRethrows() async throws {
+    @Test("A coin whose preparation fails is skipped, not rethrown, and nothing is submitted")
+    func prepareFailureIsSkipped() async throws {
         let sut = makeSUT(minterError: StubError.boom)
 
-        await #expect(throws: StubError.self) {
-            try await sut.service.recycleCoins([makeTracked(index: 7, age: 14).coin])
-        }
-    }
+        try await sut.service.recycleCoins([coin(index: 7)])
 
-    // MARK: - Scheduling
-
-    @Test("scheduleRecycling arms the background task and recycles")
-    func scheduleRecyclingArmsAndRecycles() async throws {
-        let sut = makeSUT(coins: [makeTracked(index: 1, age: 14)], backgroundRecyclingInterval: 3_600)
-
-        await sut.service.scheduleRecycling()
-
-        let entries = await sut.durabilityService.store.allEntries
-        #expect(entries.count == 1)
-        #expect(await sut.scheduler.scheduleCount == 1)
-        #expect(await sut.scheduler.lastEarliestBegin == 3_600)
-    }
-
-    @Test("Foreground recycling recycles without arming a background task")
-    func foregroundRecyclingRuns() async throws {
-        let sut = makeSUT(coins: [makeTracked(index: 1, age: 14)])
-
-        await sut.service.recycleOldCoins()
-
-        let entries = await sut.durabilityService.store.allEntries
-        #expect(entries.count == 1)
-        #expect(await sut.scheduler.scheduleCount == 0)
+        #expect(await sut.txService.submittedInputs.isEmpty)
     }
 }
 
@@ -120,72 +61,36 @@ struct CoinageRecyclingServiceTests {
 private extension CoinageRecyclingServiceTests {
     struct SUT {
         let service: CoinageRecyclingService
-        let coinService: RecyclingMockCoinService
-        let scheduler: RecordingScheduler
-        let durabilityService: MockCoinageTxService
+        let txService: MockCoinageTxService
     }
 
-    func makeSUT(
-        coins: [TrackedCoin] = [],
-        minterError: Error? = nil,
-        backgroundRecyclingInterval: TimeInterval = 3_600,
-        recycleAtAge: Int16 = 14
-    ) -> SUT {
-        let coinService = RecyclingMockCoinService(trackedCoins: coins)
-        let scheduler = RecordingScheduler()
-        let durabilityService = MockCoinageTxService()
-
+    func makeSUT(minterError: Error? = nil) -> SUT {
+        let txService = MockCoinageTxService()
         let service = CoinageRecyclingService(
-            schedulerFactory: RecordingSchedulerFactory(scheduler: scheduler),
-            coinService: coinService,
             voucherMinter: StubVoucherMinter(error: minterError),
             coinKeypairFactory: StubCoinKeyFactory(),
             voucherKeypairFactory: StubVoucherKeyFactory(),
-            txService: durabilityService,
+            txService: txService,
             originFactory: StubOriginFactory(),
-            logger: StubLogger(),
-            backgroundRecyclingInterval: backgroundRecyclingInterval,
-            recycleAtAge: recycleAtAge
+            backgroundExecutor: StubBackgroundExecutor(),
+            logger: StubLogger()
         )
-
-        return SUT(
-            service: service,
-            coinService: coinService,
-            scheduler: scheduler,
-            durabilityService: durabilityService
-        )
+        return SUT(service: service, txService: txService)
     }
 
-    func makeTracked(index: UInt64, age: Int16?, free: Bool = true, onchain: Bool = true) -> TrackedCoin {
-        let coin = Coin(
-            exponent: 3,
-            derivationIndex: index,
-            age: age,
-            isOnchain: onchain,
-            publicKey: testKey(index)
-        )
-        let state = free
-            ? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
-            : CoinageAssetState(handedOff: false, consumerStatus: .finalizedSuccess, minterStatus: nil)
-        return TrackedCoin(coin: coin, state: state)
+    func key(_ index: DerivationIndex) -> Data {
+        Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+    }
+
+    func coin(index: DerivationIndex) -> Coin {
+        Coin(exponent: 3, derivationIndex: index, age: 14, isOnchain: true, publicKey: key(index))
     }
 }
 
-// MARK: - Mocks
+// MARK: - Stubs
 
-private final class RecyclingMockCoinService: CoinServiceProtocol, @unchecked Sendable {
-    private let trackedCoins: [TrackedCoin]
-
-    init(trackedCoins: [TrackedCoin]) {
-        self.trackedCoins = trackedCoins
-    }
-
-    func fetchAllTrackedCoins() async throws -> [TrackedCoin] { trackedCoins }
-    func fetchCoins(publicKeys: Set<PublicKey>) async throws -> Set<Coin> {
-        Set(trackedCoins.map(\.coin).filter { publicKeys.contains($0.publicKey) })
-    }
-
-    func save(coins _: [Coin]) async throws {}
+private func stubKey(_ index: DerivationIndex) -> Data {
+    Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
 }
 
 private actor StubVoucherMinter: VoucherMinting {
@@ -206,39 +111,9 @@ private actor StubVoucherMinter: VoucherMinting {
             allocatedAt: Date(),
             readyAt: Date.distantPast,
             remoteState: .unlocated,
-            publicKey: testKey(index)
+            publicKey: stubKey(index)
         )
     }
-}
-
-private actor RecordingSchedulerFactory: CoinRecycleSchedulerMaking {
-    private let scheduler: RecordingScheduler
-
-    init(scheduler: RecordingScheduler) {
-        self.scheduler = scheduler
-    }
-
-    func makeScheduler() -> CoinRecycleTaskScheduling {
-        scheduler
-    }
-}
-
-private final class RecordingScheduler: CoinRecycleTaskScheduling, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _scheduleCount = 0
-    private var _lastEarliestBegin: TimeInterval?
-
-    var scheduleCount: Int { lock.withLock { _scheduleCount } }
-    var lastEarliestBegin: TimeInterval? { lock.withLock { _lastEarliestBegin } }
-
-    func schedule(earliestBegin: TimeInterval) {
-        lock.withLock {
-            _scheduleCount += 1
-            _lastEarliestBegin = earliestBegin
-        }
-    }
-
-    func cancel() {}
 }
 
 private final class StubCoinKeyFactory: CoinKeyDeriving {
@@ -304,6 +179,12 @@ private final class StubExtrinsicOrigin: ExtrinsicOriginDefining {
             )
         }
         return CompoundOperationWrapper(targetOperation: operation)
+    }
+}
+
+private struct StubBackgroundExecutor: BackgroundExecuting {
+    func execute<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        try await operation()
     }
 }
 

@@ -277,9 +277,6 @@ extension TransferAmountViewLayout {
                 }
             }
 
-            let privacyText = info.privacyLevel == .degraded ? "Privacy: Degraded" : "Privacy: Full"
-            text += "\n\n\(privacyText)"
-
             debugStrategyLabel.text = text
             debugStrategyView.isHidden = false
         }

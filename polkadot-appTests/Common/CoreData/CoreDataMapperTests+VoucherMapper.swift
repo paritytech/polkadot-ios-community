@@ -55,7 +55,7 @@ extension CoreDataMapperTests {
 
         @Test("remoteState .inRecycler preserves recycler index")
         func roundTripInRecycler() async throws {
-            let original = makeVoucher(derivationIndex: 52, remoteState: .inRecycler(.init(index: 7)))
+            let original = makeVoucher(derivationIndex: 52, remoteState: .inRecycler(.init(index: 7, membersCount: 0)))
             try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
 
             let result = try #require(

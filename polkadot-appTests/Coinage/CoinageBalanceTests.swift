@@ -1,18 +1,14 @@
-import AsyncExtensions
 import BigInt
-import CoreData
 import Foundation
-import Operation_iOS
-import SubstrateSdk
 import Testing
-
 @testable import Coinage
-@testable import polkadot_app
 
-/// End-to-end propagation: a real ``CoinageTxCoreDataRepository`` and ``CoinageBalanceService`` over an
-/// in-memory ``UserDataStorageTestFacade`` (an "in-memory repository"), proving that modifying a
-/// coinage tx entry re-emits a changed balance through the `subscribeSnapshot` path.
-@Suite("Coinage balance propagation")
+/// Pure three-bucket balance calculation — the iOS port of Android's `RealTotalBalanceUseCaseTest`.
+///
+/// Coins bucket by the recycling verdict passed in (as the evaluator supplies it); vouchers bucket by
+/// the strategy's own usability rule. Asserts `availablePrivate` / `gainingPrivacy` / `pending`
+/// directly against `CoinageBalanceService.calculateBalance`, with no actor, streams, or chain reads.
+@Suite("Coinage balance calculation")
 struct CoinageBalanceTests {
     private let context = DenominationBreakdownContext(
         unit: BigUInt(1_000_000),
@@ -21,108 +17,225 @@ struct CoinageBalanceTests {
         minExponent: -6
     )
 
-    @Test("Failing the entry that reserves a coin re-emits it as spendable")
-    func entryStatusChangePropagatesToBalance() async throws {
-        let facade = UserDataStorageTestFacade()
-        let store = CoinageTxCoreDataRepository(storageFacade: facade)
-        let factory = CoinageDatabaseDependencyFactory(storageFacade: facade)
+    // MARK: - Coins (verdict-driven)
 
-        let coinKey = Data(repeating: 1, count: 32)
-        try await persistCoin(exponent: 1, index: 0, key: coinKey, facade: facade)
+    @Test("Empty data returns zero balance")
+    func emptyIsZero() {
+        expect(coins: [], vouchers: [], verdicts: [:], availablePrivate: 0, gaining: 0, pending: 0)
+    }
 
-        // An entry consuming the coin: while it is live the coin is reserved (spendable nowhere).
-        let entryId = try await registerConsumer(of: coinKey, store: store)
-
-        let service = CoinageBalanceService(
-            denominationContext: context,
-            databaseFactory: factory,
-            logger: nil
+    @Test("A coin the strategy allows is available")
+    func allowedCoinAvailable() {
+        expect(
+            coins: [minted(exponent: 1, index: 0)],
+            verdicts: [0: .allowUse],
+            availablePrivate: planks(1), gaining: 0, pending: 0
         )
-        service.start()
+    }
 
-        // Baseline: the coin is reserved by the live entry, so it counts nowhere.
-        let baseline = try await firstSpendable(from: service) { $0 == 0 }
-        #expect(baseline == 0)
-
-        // Failing the entry releases the input; the change must reach the balance stream.
-        try await store.updateTxStatus(
-            for: entryId,
-            expectedCurrentStatus: .pending,
-            verdict: Verdict(status: .failure, successDetectedAt: nil)
+    @Test("A coin the strategy gated is gaining privacy, not spendable")
+    func gatedCoinGainsPrivacy() {
+        expect(
+            coins: [minted(exponent: 1, index: 0)],
+            verdicts: [0: .toRecycle],
+            availablePrivate: 0, gaining: planks(1), pending: 0
         )
+    }
 
-        let released = try await firstSpendable(from: service) { $0 == context.valueInPlanks(for: 1) }
-        #expect(released == context.valueInPlanks(for: 1))
+    @Test("A coin the chain will no longer accept is pending")
+    func mustRecycleCoinPending() {
+        expect(
+            coins: [minted(exponent: 1, index: 0)],
+            verdicts: [0: .mustRecycle],
+            availablePrivate: 0, gaining: 0, pending: planks(1)
+        )
+    }
 
-        service.stop()
+    @Test("A settled coin the evaluator has not judged yet counts as pending")
+    func unjudgedCoinPending() {
+        expect(
+            coins: [minted(exponent: 1, index: 0)],
+            verdicts: [:],
+            availablePrivate: 0, gaining: 0, pending: planks(1)
+        )
+    }
+
+    @Test("A coin still arriving is pending")
+    func arrivingCoinPending() {
+        expect(
+            coins: [tracked(coin(exponent: 1, index: 0, age: nil, onChain: false), state: minter(.pending))],
+            verdicts: [:],
+            availablePrivate: 0, gaining: 0, pending: planks(1)
+        )
+    }
+
+    @Test("A coin whose mint provably failed counts nowhere")
+    func failedMintNowhere() {
+        expect(
+            coins: [tracked(coin(exponent: 1, index: 0, age: nil, onChain: false), state: minter(.failure))],
+            verdicts: [:],
+            availablePrivate: 0, gaining: 0, pending: 0
+        )
+    }
+
+    @Test("A coin held by a live transaction of ours counts nowhere")
+    func heldCoinNowhere() {
+        expect(
+            coins: [tracked(coin(exponent: 1, index: 0, age: 0, onChain: true), state: consumer(.pending))],
+            verdicts: [0: .allowUse],
+            availablePrivate: 0, gaining: 0, pending: 0
+        )
+    }
+
+    @Test("A coin handed off counts nowhere")
+    func handedOffCoinNowhere() {
+        let state = CoinageAssetState(handedOff: true, consumerStatus: nil, minterStatus: nil)
+        expect(
+            coins: [tracked(coin(exponent: 1, index: 0, age: 0, onChain: true), state: state)],
+            verdicts: [0: .allowUse],
+            availablePrivate: 0, gaining: 0, pending: 0
+        )
+    }
+
+    // MARK: - Vouchers (strategy-driven usability)
+
+    @Test("An in-recycler voucher the strategy releases is available")
+    func usableVoucherAvailable() {
+        expect(
+            vouchers: [tracked(inRecycler(exponent: 1, members: 1))],
+            strategy: .minPrivacy,
+            availablePrivate: planks(1), gaining: 0, pending: 0
+        )
+    }
+
+    @Test("An in-recycler voucher held back for privacy is gaining privacy")
+    func heldVoucherGainsPrivacy() {
+        expect(
+            vouchers: [tracked(inRecycler(exponent: 1, members: 1))],
+            strategy: .maxPrivacy,
+            capacities: [1: 767],
+            availablePrivate: 0, gaining: planks(1), pending: 0
+        )
+    }
+
+    @Test("An onboarding voucher is pending")
+    func onboardingVoucherPending() {
+        expect(
+            vouchers: [tracked(voucher(exponent: 1, state: .onboarding))],
+            availablePrivate: 0, gaining: 0, pending: planks(1)
+        )
+    }
+
+    @Test("An unlocated voucher still arriving is pending")
+    func arrivingVoucherPending() {
+        expect(
+            vouchers: [tracked(voucher(exponent: 1, state: .unlocated), state: minter(.pending))],
+            availablePrivate: 0, gaining: 0, pending: planks(1)
+        )
+    }
+
+    // MARK: - Combined
+
+    @Test("Buckets a mix of coins and vouchers correctly")
+    func combined() {
+        expect(
+            coins: [
+                minted(exponent: 1, index: 0),
+                minted(exponent: 2, index: 1),
+                minted(exponent: 3, index: 2)
+            ],
+            vouchers: [tracked(inRecycler(exponent: 4, members: 1))],
+            verdicts: [0: .allowUse, 1: .toRecycle, 2: .mustRecycle],
+            strategy: .minPrivacy,
+            availablePrivate: planks(1) + planks(4), gaining: planks(2), pending: planks(3)
+        )
     }
 }
 
 // MARK: - Helpers
 
 private extension CoinageBalanceTests {
-    func persistCoin(
-        exponent: Int16,
-        index: DerivationIndex,
-        key: Data,
-        facade: UserDataStorageTestFacade
-    ) async throws {
-        let repo = facade.makeRepo(mapper: CoinMapper())
-        let coin = Coin(exponent: exponent, derivationIndex: index, age: 0, isOnchain: true, publicKey: key)
-        try await repo.saveOperation({ [coin] }, { [] }).asyncExecute()
+    func planks(_ exponent: Int16) -> BigUInt { context.valueInPlanks(for: exponent) }
+
+    var free: CoinageAssetState { CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil) }
+    func minter(_ status: CoinageTxStatus) -> CoinageAssetState {
+        CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: status)
     }
 
-    func registerConsumer(of key: Data, store: CoinageTxCoreDataRepository) async throws -> CoinageTxId {
-        let registration = CoinageTxRegistration(
-            txHash: Data(repeating: 0xAB, count: 32),
-            checkpoint: BlockRef(number: 100, hash: Data([100])),
-            mortalityBlocks: 64,
-            groupId: nil,
-            inputs: [.coin(.own(0, key))],
-            outputs: []
+    func consumer(_ status: CoinageTxStatus) -> CoinageAssetState {
+        CoinageAssetState(handedOff: false, consumerStatus: status, minterStatus: nil)
+    }
+
+    func key(_ index: DerivationIndex) -> Data {
+        Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+    }
+
+    func coin(exponent: Int16, index: DerivationIndex, age: Int16?, onChain: Bool) -> Coin {
+        Coin(exponent: exponent, derivationIndex: index, age: age, isOnchain: onChain, publicKey: key(index))
+    }
+
+    func minted(exponent: Int16, index: DerivationIndex) -> TrackedCoin {
+        tracked(coin(exponent: exponent, index: index, age: 0, onChain: true), state: free)
+    }
+
+    func tracked(_ coin: Coin, state: CoinageAssetState) -> TrackedCoin {
+        TrackedCoin(coin: coin, state: state)
+    }
+
+    func voucher(exponent: Int16, state: Voucher.OnChainState, index: DerivationIndex = 0) -> Voucher {
+        Voucher(
+            exponent: exponent,
+            derivationIndex: index,
+            allocatedAt: Date(timeIntervalSince1970: 0),
+            readyAt: Date(timeIntervalSinceNow: -3_600),
+            remoteState: state,
+            publicKey: key(index)
         )
-        let validator = CoinageTxRegistrationValidator()
-        let captured = CapturedId()
-        try await store.register(
-            [registration],
-            validation: { try validator.validate([registration], transaction: $0) },
-            onCommit: { captured.id = $0.first }
+    }
+
+    func inRecycler(exponent: Int16, members: UInt32, index: DerivationIndex = 0) -> Voucher {
+        voucher(exponent: exponent, state: .inRecycler(.init(index: 1, membersCount: members)), index: index)
+    }
+
+    func tracked(_ voucher: Voucher, state: CoinageAssetState? = nil) -> TrackedVoucher {
+        TrackedVoucher(voucher: voucher, state: state ?? free)
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    func expect(
+        coins: [TrackedCoin] = [],
+        vouchers: [TrackedVoucher] = [],
+        verdicts: RecyclingVerdicts = [:],
+        strategy: RecyclingStrategyType = .minPrivacy,
+        capacities: [Int16: Int] = [:],
+        availablePrivate: BigUInt,
+        gaining: BigUInt,
+        pending: BigUInt,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        let voucherStrategy = ParametricRecyclingStrategy(
+            params: strategy.params(forcedRecyclingAge: CoinageConstants.recycleAtAge)
         )
-        guard let id = captured.id else { throw BalanceTestError.registrationFailed }
-        return id
+        let usability = VoucherUsabilityContext(ringCapacities: capacities, now: Date())
+        let preClassificator = CoinageAssetPreClassificator()
+
+        let coinBuckets = preClassificator.preClassifyCoins(coins)
+        let voucherBuckets = preClassificator.preClassifyVouchers(
+            vouchers,
+            strategy: voucherStrategy,
+            context: usability
+        )
+
+        let balance = CoinageBalanceService.calculateBalance(
+            coinBuckets: coinBuckets,
+            voucherBuckets: voucherBuckets,
+            verdicts: verdicts,
+            canSpendWithConfirmation: voucherStrategy.allowsConfirmedSpend(),
+            context: context
+        )
+
+        #expect(balance.availablePrivate == availablePrivate, sourceLocation: sourceLocation)
+        #expect(balance.gainingPrivacy.amount == gaining, sourceLocation: sourceLocation)
+        #expect(balance.pending == pending, sourceLocation: sourceLocation)
     }
-
-    /// First spendable-total (`fullPrivacy + degraded`) emission matching `predicate`, or a timeout.
-    func firstSpendable(
-        from service: CoinageBalanceServiceProtocol,
-        timeout: Duration = .seconds(120),
-        where predicate: @escaping @Sendable (BigUInt) -> Bool
-    ) async throws -> BigUInt {
-        try await withThrowingTaskGroup(of: BigUInt?.self) { group in
-            group.addTask {
-                for try await model in service.spendableBalanceStream {
-                    let total = model.fullPrivacy.balanceInPlanks() + model.degraded.balanceInPlanks()
-                    if predicate(total) { return total }
-                }
-                return nil
-            }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                return nil
-            }
-            let first = try await group.next() ?? nil
-            group.cancelAll()
-            guard let value = first else { throw BalanceTestError.timeout }
-            return value
-        }
-    }
-}
-
-private enum BalanceTestError: Error {
-    case registrationFailed
-    case timeout
-}
-
-private final class CapturedId: @unchecked Sendable {
-    var id: CoinageTxId?
 }

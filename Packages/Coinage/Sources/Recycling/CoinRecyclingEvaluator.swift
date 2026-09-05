@@ -117,22 +117,36 @@ private extension CoinRecyclingEvaluator {
     }
 
     func evaluateAndRecycle(for input: Input) async {
+        let now = Date()
+
+        // Fast pass first, but only until a verdict exists: it applies just the chain age-ceiling (no
+        // quota or capacity read) so balance renders without waiting on the chain. Recycling never runs
+        // off it — recycling is a chain write, so starting it here buys nothing over the complete pass.
+        if verdictsSubject.value == nil,
+           let immediate = try? await evaluate(input: input, now: now, mode: .immediate) {
+            verdictsSubject.send(immediate)
+        }
+
         do {
-            let verdicts = try await evaluate(input: input, now: Date())
-            verdictsSubject.send(verdicts)
-            await recycleGated(verdicts, coins: input.assets.coins)
+            let complete = try await evaluate(input: input, now: now, mode: .complete)
+            verdictsSubject.send(complete)
+            await recycleGated(complete, coins: input.assets.coins)
         } catch {
             logger?.error("Recycling evaluation failed: \(error)")
         }
     }
 
-    func evaluate(input: Input, now: Date) async throws -> RecyclingVerdicts {
+    func evaluate(input: Input, now: Date, mode: BalanceEvaluationMode) async throws -> RecyclingVerdicts {
         let vouchers = input.assets.vouchers
         let coins = input.assets.coins
         let type = input.strategy
 
         let voucherExponents = Set(vouchers.map(\.voucher.exponent))
-        let capacities = try await ringCapacityProvider.capacities(for: voucherExponents)
+        let capacities =
+            switch mode {
+            case .complete: try await ringCapacityProvider.capacities(for: voucherExponents)
+            case .immediate: await ringCapacityProvider.peekCapacities(for: voucherExponents)
+            }
         let usabilityContext = VoucherUsabilityContext(ringCapacities: capacities, now: now)
 
         let coinBuckets = preClassificator.preClassifyCoins(coins)
@@ -150,7 +164,7 @@ private extension CoinRecyclingEvaluator {
                 + voucherBuckets.gainingPrivacy.totalPlanks(in: denominationContext)
         )
 
-        let coinStrategy = try await strategyProvider.coinStrategy(for: type)
+        let coinStrategy = try await strategyProvider.coinStrategy(for: type, mode: mode)
         return coinStrategy.evaluate(
             coins: coinBuckets.minted.map(\.coin),
             snapshot: snapshot,

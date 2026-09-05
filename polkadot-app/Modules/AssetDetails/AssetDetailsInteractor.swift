@@ -224,32 +224,20 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
     private func subscribeToBalances() {
         balanceSubscriptionTask?.cancel()
         balanceSubscriptionTask = Task { [weak self] in
-            await withThrowingTaskGroup(of: Void.self) { group in
-                group.addTask { [weak self] in
-                    guard let stream = try await self?.coinageService.coinageBalanceService().totalBalanceStream
-                    else { return }
-                    do {
-                        for try await total in stream {
-                            try Task.checkCancellation()
-                            await self?.presenter?.didReceive(balance: total.balanceInDecimal())
-                        }
-                    } catch {
-                        Logger.shared.error("Total balance stream failed: \(error)")
-                    }
+            guard let self else { return }
+            do {
+                let balanceService = try await coinageService.coinageBalanceService()
+                let context = balanceService.denominationContext
+                for try await balance in balanceService.balanceStream {
+                    try Task.checkCancellation()
+                    // Locked is everything the strategy will not part with: pending plus any
+                    // gaining-privacy funds the strategy won't release on confirmation.
+                    let locked = balance.total - balance.available
+                    await presenter?.didReceive(balance: context.decimal(fromPlanks: balance.total))
+                    await presenter?.didReceive(lockedAmount: context.decimal(fromPlanks: locked))
                 }
-
-                group.addTask { [weak self] in
-                    guard let stream = try await self?.coinageService.coinageBalanceService().lockedBalanceStream
-                    else { return }
-                    do {
-                        for try await locked in stream {
-                            try Task.checkCancellation()
-                            await self?.presenter?.didReceive(lockedAmount: locked.balanceInDecimal())
-                        }
-                    } catch {
-                        Logger.shared.error("Locked balance stream failed: \(error)")
-                    }
-                }
+            } catch {
+                Logger.shared.error("Balance stream failed: \(error)")
             }
         }
     }

@@ -22,8 +22,6 @@ import os
 /// 2. **Pending Status Resolution**: For vouchers marked as pending, it monitors the recycler's pending queue.
 ///    Once the voucher's public key is removed from the chain's pending list, the local record is updated
 ///    to `isPending = false`.
-/// 3. **Ring Readiness Monitoring**: For vouchers in a recycler with degraded privacy level, monitors the
-///    ring size to update readiness state once the ring reaches minimum size.
 public final class VoucherLocationService: BaseSyncService {
     private let instanceId: CoinageInstanceId
     private let voucherRepository: AnyDataProviderRepository<Voucher>
@@ -55,30 +53,23 @@ public final class VoucherLocationService: BaseSyncService {
         stopSyncUp()
     }
 
-    /// Begins monitoring the local database for vouchers that require on-chain status updates.
-    /// Tracks both vouchers not yet in a recycler (for location resolution) and degraded vouchers
-    /// already in a recycler (for ring readiness monitoring) in a single subscription batch.
+    /// Begins monitoring the local database for vouchers not yet in a recycler, resolving their
+    /// on-chain location (onboarding → in-recycler) in a single subscription batch.
     override public func performSyncUp() {
         localVouchersMonitoringTask = Task { [weak self] in
             guard let self else { return }
 
             let stream = databaseFactory.makeTrackedVoucherSnapshotStream()
                 .map { $0.map(\.voucher) }
-                .map { vouchers -> ([Voucher], [Voucher]) in
-                    let needsSync = vouchers.filter { !$0.remoteState.isInRecycler }
-                    let degraded = vouchers.filter { $0.remoteState.isInRecycler && $0.privacy == .degraded }
-                    return (needsSync, degraded)
-                }
-                // Resubscribe only when the tracked key-set changes;
-                // non-key voucher edits keep the existing subscription, whose inner ring-status stream
-                // already surfaces readiness changes.
+                .map { vouchers in vouchers.filter { !$0.remoteState.isInRecycler } }
+                // Resubscribe only when the tracked key-set changes; non-key voucher edits keep the
+                // existing subscription.
                 .removeDuplicates { previous, current in
-                    Set(previous.0.map(\.publicKey)) == Set(current.0.map(\.publicKey))
-                        && Set(previous.1.map(\.publicKey)) == Set(current.1.map(\.publicKey))
+                    Set(previous.map(\.publicKey)) == Set(current.map(\.publicKey))
                 }
 
-            for try await (vouchers, degradedVouchers) in stream {
-                guard !vouchers.isEmpty || !degradedVouchers.isEmpty else {
+            for try await vouchers in stream {
+                guard !vouchers.isEmpty else {
                     logger.debug("Voucher sync stopped")
                     voucherStatusSubscriptionTask?.cancel()
                     continue
@@ -87,7 +78,7 @@ public final class VoucherLocationService: BaseSyncService {
 
                 do {
                     logger.debug("Voucher sync started")
-                    try await sync(vouchers, degradedVouchers: degradedVouchers)
+                    try await sync(vouchers)
                 } catch {
                     logger.error("Voucher sync failed during monitoring: \(error)")
                 }
@@ -161,34 +152,13 @@ extension VoucherLocationService {
             requests.append(BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey))
         }
 
-        // Degraded inRecycler vouchers: monitor ring size for readiness upgrade to .full.
-        for voucher in snapshot.degradedVouchers {
-            guard let recycler = voucher.recycler else { continue }
-
-            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
-            let mappingKey = SubscriptionKey.ringStatus(derivationIndex: voucher.derivationIndex).mappingKey
-
-            let innerRequest = DoubleMapSubscriptionRequest(
-                storagePath: MembersPallet.Storage.ringKeysStatus(),
-                localKey: "",
-                keyParamClosure: {
-                    (
-                        BytesCodable(wrappedValue: collectionId),
-                        StringCodable(wrappedValue: recycler.index)
-                    )
-                }
-            )
-
-            requests.append(BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey))
-        }
-
         return requests
     }
 
     /// Orchestrates the blockchain subscription for a set of vouchers.
-    /// Cancels existing subscriptions and creates a new batch request for locations, pending statuses,
-    /// and ring readiness for degraded vouchers — all in a single subscription.
-    private func sync(_ vouchers: [Voucher], degradedVouchers: [Voucher]) async throws {
+    /// Cancels existing subscriptions and creates a new batch request for locations and pending
+    /// statuses in a single subscription.
+    private func sync(_ vouchers: [Voucher]) async throws {
         voucherStatusSubscriptionTask?.cancel()
 
         let snapshot = stateLock.withLock { state -> SyncSnapshot in
@@ -197,12 +167,10 @@ extension VoucherLocationService {
             state.accumulatedRingPositions = state.accumulatedRingPositions.filter { currentIndices.contains($0.key) }
             state.accumulatedRingStatuses = state.accumulatedRingStatuses.filter { currentIndices.contains($0.key) }
             state.pendingVouchers = vouchers
-            state.degradedVouchers = degradedVouchers
             // Reset baseline so the resubscription diff check reflects what this batch actually subscribes to.
             state.subscribedDerivationIndices = Set(state.accumulatedRingPositions.keys)
             return SyncSnapshot(
                 pendingVouchers: state.pendingVouchers,
-                degradedVouchers: state.degradedVouchers,
                 accumulatedRingPositions: state.accumulatedRingPositions,
                 accumulatedRingStatuses: state.accumulatedRingStatuses,
             )
@@ -235,8 +203,8 @@ extension VoucherLocationService {
     }
 
     /// Processes updates received from the blockchain subscription.
-    /// Updates local voucher records if a recycler is found, if a voucher is no longer in the pending queue,
-    /// or if a degraded voucher's ring has reached minimum size for readiness upgrade.
+    /// Updates local voucher records if a recycler is found or if a voucher is no longer in the
+    /// pending queue.
     private func handleSubscriptionUpdate(
         _ result: MemberStatusResult
     ) async throws {
@@ -255,7 +223,6 @@ extension VoucherLocationService {
             let needsResubscription = Set(state.accumulatedRingPositions.keys) != state.subscribedDerivationIndices
             let snapshot = SyncSnapshot(
                 pendingVouchers: state.pendingVouchers,
-                degradedVouchers: state.degradedVouchers,
                 accumulatedRingPositions: state.accumulatedRingPositions,
                 accumulatedRingStatuses: state.accumulatedRingStatuses
             )
@@ -263,7 +230,7 @@ extension VoucherLocationService {
         }
 
         if needsResubscription {
-            try await sync(snapshot.pendingVouchers, degradedVouchers: snapshot.degradedVouchers)
+            try await sync(snapshot.pendingVouchers)
             return
         }
 
@@ -275,13 +242,12 @@ extension VoucherLocationService {
         applyRingStatusUpdates(result.ringStatusUpdates, snapshot: snapshot, voucherMap: voucherMap, into: &updates)
 
         guard !updates.isEmpty else { return }
-        // A dedicated write-only mapper touches only remoteState + privacy, so a concurrent change
-        // to any other voucher field is not clobbered by this location write.
+        // A dedicated write-only mapper touches only remoteState, so a concurrent change to any other
+        // voucher field is not clobbered by this location write.
         let locationUpdates = updates.values.map {
             VoucherLocationUpdate(
                 derivationIndex: $0.derivationIndex,
-                remoteState: $0.remoteState,
-                privacy: $0.privacy
+                remoteState: $0.remoteState
             )
         }
         try await databaseFactory.makeVoucherLocationRepository()
@@ -321,13 +287,6 @@ extension VoucherLocationService {
                 didChange = true
             }
 
-            if let ringStatus = snapshot.accumulatedRingStatuses[derivationIndex],
-               ringStatus.included >= CoinageConstants.minimumRingSize,
-               voucher.privacy == .degraded {
-                voucher = voucher.withReadinessState(.full)
-                didChange = true
-            }
-
             guard didChange else { continue }
             updates[derivationIndex] = voucher
         }
@@ -337,7 +296,6 @@ extension VoucherLocationService {
 
     // Second pass: ringKeysStatus arrived in this emission while the ring position was already accumulated
     // from a prior emission. The ring position update loop above won't cover this case.
-    // Also handles degraded inRecycler vouchers: upgrades readiness to .full when ring size meets minimum.
     private func applyRingStatusUpdates(
         _ ringStatusUpdates: [MemberStatusResult.RingStatusUpdate],
         snapshot: SyncSnapshot,
@@ -362,11 +320,6 @@ extension VoucherLocationService {
                 }
             }
 
-            if ringStatus.included >= CoinageConstants.minimumRingSize, voucher.privacy == .degraded {
-                voucher = voucher.withReadinessState(.full)
-                didChange = true
-            }
-
             guard didChange else { continue }
             updates[derivationIndex] = voucher
         }
@@ -385,7 +338,6 @@ public extension Voucher.OnChainState {
 extension VoucherLocationService {
     private struct SyncStateData {
         var pendingVouchers: [Voucher] = []
-        var degradedVouchers: [Voucher] = []
         // Tracks which derivation indices have an active ringKeysStatus subscription in the current batch.
         // Compared against discovered ring positions after each emission to detect when resubscription is needed.
         var subscribedDerivationIndices: Set<DerivationIndex> = []
@@ -398,7 +350,6 @@ extension VoucherLocationService {
 
     private struct SyncSnapshot {
         let pendingVouchers: [Voucher]
-        let degradedVouchers: [Voucher]
         let accumulatedRingPositions: [DerivationIndex: MembersPallet.RingPosition]
         let accumulatedRingStatuses: [DerivationIndex: MembersPallet.RingKeysStatus]
     }

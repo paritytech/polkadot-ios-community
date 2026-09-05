@@ -773,7 +773,7 @@ extension TransferSenderServiceTests {
             derivationIndex: derivationIndex,
             allocatedAt: Date.distantPast,
             readyAt: readyAt,
-            remoteState: .inRecycler(.init(index: recyclerIndex)),
+            remoteState: .inRecycler(.init(index: recyclerIndex, membersCount: 0)),
             publicKey: Data(repeating: UInt8(truncatingIfNeeded: derivationIndex), count: 32)
         )
         return TrackedVoucher(

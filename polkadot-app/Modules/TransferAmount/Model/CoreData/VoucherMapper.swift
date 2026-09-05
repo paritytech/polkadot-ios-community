@@ -46,8 +46,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
                 .unlocated
             }
 
-        let privacy: VoucherPrivacyLevel = entity.privacy == 1 ? .full : .degraded
-
         guard let publicKeyHex = entity.publicKey else {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDVoucher.publicKey))
         }
@@ -58,7 +56,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            privacy: privacy,
             publicKey: Data(hexString: publicKeyHex)
         )
     }
@@ -82,12 +79,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
-            }
-
-        entity.privacy =
-            switch model.privacy {
-            case .full: 1
-            case .degraded: 0
             }
     }
 }

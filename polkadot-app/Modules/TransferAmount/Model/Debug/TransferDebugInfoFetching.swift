@@ -52,8 +52,7 @@
                 strategyType: .externalPayment,
                 coinsUsed: coinInfos,
                 splitInfo: nil,
-                vouchersToUnload: voucherInfos,
-                privacyLevel: selection.isDegraded ? .degraded : .full
+                vouchersToUnload: voucherInfos
             )
         }
     }
@@ -74,8 +73,7 @@
                     strategyType: .exactMatch,
                     coinsUsed: coinInfos,
                     splitInfo: nil,
-                    vouchersToUnload: [],
-                    privacyLevel: result.privacyLevel
+                    vouchersToUnload: []
                 )
 
             case let .split(wholeCoins, overflowCoin, targetDenominations, changeDenominations):
@@ -97,8 +95,7 @@
                     strategyType: .split,
                     coinsUsed: coinInfos,
                     splitInfo: splitInfo,
-                    vouchersToUnload: [],
-                    privacyLevel: result.privacyLevel
+                    vouchersToUnload: []
                 )
 
             case let .unloadIntoCoins(coins, perGroupAllocations):
@@ -120,8 +117,7 @@
                     strategyType: .unloadAndSplit,
                     coinsUsed: coinInfos,
                     splitInfo: nil,
-                    vouchersToUnload: voucherInfos,
-                    privacyLevel: result.privacyLevel
+                    vouchersToUnload: voucherInfos
                 )
             }
         }

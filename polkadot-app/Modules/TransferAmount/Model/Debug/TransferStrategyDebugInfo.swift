@@ -31,6 +31,5 @@ import Coinage
         let coinsUsed: [CoinInfo]
         let splitInfo: SplitInfo?
         let vouchersToUnload: [VoucherInfo]
-        let privacyLevel: VoucherPrivacyLevel
     }
 #endif

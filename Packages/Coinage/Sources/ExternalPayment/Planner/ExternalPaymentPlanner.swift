@@ -41,17 +41,13 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
         let readyTotal = totalValue(of: readyVouchers, context: context)
         if readyTotal >= amount {
             let selected = selectVouchers(from: readyVouchers, target: amount, context: context)
-            let nonDegraded = nonDegradedAmount(from: selected, context: context)
             let selection = ExternalPaymentPreview.Selection(
                 vouchers: selected,
                 coins: [],
-                fullAmount: amount,
-                nonDegradedAmount: nonDegraded
+                fullAmount: amount
             )
             return .ready(selection)
         }
-
-        let fullPrivacyNonDegraded = nonDegradedAmount(from: readyVouchers, context: context)
 
         // Check if total vouchers (ready + waiting) would be enough
         let totalVoucherValue = readyTotal + totalValue(of: waitingVouchers, context: context)
@@ -59,8 +55,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
             let selection = ExternalPaymentPreview.Selection(
                 vouchers: readyVouchers,
                 coins: [],
-                fullAmount: amount,
-                nonDegradedAmount: fullPrivacyNonDegraded
+                fullAmount: amount
             )
             return .needsReschedule(
                 after: Date(timeIntervalSinceNow: rescheduleDelay),
@@ -80,8 +75,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
             let selection = ExternalPaymentPreview.Selection(
                 vouchers: readyVouchers,
                 coins: selectedCoins,
-                fullAmount: amount,
-                nonDegradedAmount: fullPrivacyNonDegraded
+                fullAmount: amount
             )
             return .loadCoins(selection)
         }
@@ -97,8 +91,7 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
             let selection = ExternalPaymentPreview.Selection(
                 vouchers: readyVouchers,
                 coins: spendableCoins + maturingCoins,
-                fullAmount: amount,
-                nonDegradedAmount: fullPrivacyNonDegraded
+                fullAmount: amount
             )
             return .needsReschedule(
                 after: Date(timeIntervalSinceNow: rescheduleDelay),
@@ -119,12 +112,6 @@ private extension ExternalPaymentPlanner {
 
     func totalValue(of coins: [Coin], context: DenominationBreakdownContext) -> Balance {
         coins.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.exponent) }
-    }
-
-    func nonDegradedAmount(from vouchers: [Voucher], context: DenominationBreakdownContext) -> BigUInt {
-        vouchers
-            .filter { $0.effectivePrivacy() == .full }
-            .reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
     }
 
     /// Greedy voucher selection: sort by value descending, accumulate until >= target.

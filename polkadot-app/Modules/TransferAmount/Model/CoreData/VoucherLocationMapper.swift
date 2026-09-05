@@ -3,7 +3,7 @@ import CoreData
 import Coinage
 import Operation_iOS
 
-/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `privacy`) onto an
+/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers`) onto an
 /// existing `CDVoucher`, leaving every other column untouched. Write-only: it never reads back.
 final class VoucherLocationMapper {
     enum MappingError: Error {
@@ -51,12 +51,6 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
-            }
-
-        entity.privacy =
-            switch model.privacy {
-            case .full: 1
-            case .degraded: 0
             }
     }
 }

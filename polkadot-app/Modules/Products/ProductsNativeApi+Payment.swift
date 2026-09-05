@@ -38,9 +38,9 @@ extension ProductsNativeApi {
 
         let coinageService = try requirePaymentsSupport().coinageService
         let balanceService = try await coinageService.coinageBalanceService()
-        return balanceService.spendableBalanceStream
+        return balanceService.balanceStream
             .map { balance in
-                PaymentBalance(available: balance.totalInPlanks())
+                PaymentBalance(available: balance.availablePrivate)
             }
             .eraseToAnyAsyncSequence()
     }
@@ -145,8 +145,8 @@ private extension ProductsNativeApi {
         let balanceService = try await coinageService.coinageBalanceService()
 
         var spendable = Balance(0)
-        for try await value in balanceService.spendableBalanceStream.prefix(1) {
-            spendable = value.totalInPlanks()
+        for try await value in balanceService.balanceStream.prefix(1) {
+            spendable = value.availablePrivate
         }
 
         if spendable < amount {

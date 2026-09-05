@@ -109,6 +109,9 @@ private extension UnloadQuotaTracker {
 
         var remaining = 0
         for period in periods {
+            // TODO: this endups maxCounter/1000 queries which can be slow.
+            // Consider to go page by page and stop on first page wit
+            // hole in the end
             let queries: [(period: UInt32, alias: Data)] = try (0 ..< maxCounter).map { counter in
                 let context = UnloadTokenContextBuilder.freeUnloadTokenContext(period: period, counter: counter)
                 return try (period: period, alias: aliasProvider.deriveAlias(for: context))

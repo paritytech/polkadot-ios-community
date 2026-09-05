@@ -272,11 +272,7 @@ private extension TransferAmountPresenter {
             guard let self else { return }
             do {
                 let validation = try await interactor.previewTransfer(for: amount)
-                if validation.isDegraded {
-                    showDegradedPrivacyActionSheet(validation: validation)
-                } else {
-                    doSubmit(validation: validation, sendFullAmount: true)
-                }
+                doSubmit(validation: validation)
             } catch {
                 view?.didStopSubmission()
                 showTransferFailed(error)
@@ -284,38 +280,7 @@ private extension TransferAmountPresenter {
         }
     }
 
-    func showDegradedPrivacyActionSheet(validation: TransferPreviewValidation) {
-        let fullAmount = formattedAmount(validation.fullAmount)
-        // When the receiver expects exactly the stated amount (external payments,
-        // W3S terminal payments, ...), a partial send is not a meaningful choice —
-        // suppress the non-degraded option so the user gets "send with degraded"
-        // or "cancel".
-        let canShowNonDegradedOption = validation.canSendNonDegraded && !config.requiresExactAmount
-        let nonDegradedAmount = canShowNonDegradedOption
-            ? formattedAmount(validation.nonDegradedAmount)
-            : nil
-        let degradedAmountValue = validation.fullAmount - validation.nonDegradedAmount
-        let degradedAmount = formattedAmount(degradedAmountValue)
-
-        let model = TransferPrivacyModel(
-            fullAmount: fullAmount,
-            nonDegradedAmount: nonDegradedAmount,
-            degradedAmount: degradedAmount
-        )
-
-        wireframe.showDegradedPrivacy(
-            model: model,
-            from: view,
-            onSendDegraded: { [weak self] in
-                self?.doSubmit(validation: validation, sendFullAmount: true)
-            },
-            onSendNonDegraded: { [weak self] in
-                self?.doSubmit(validation: validation, sendFullAmount: false)
-            }
-        )
-    }
-
-    func doSubmit(validation: TransferPreviewValidation, sendFullAmount: Bool) {
+    func doSubmit(validation: TransferPreviewValidation) {
         view?.didStartSubmission()
         transferTask?.cancel()
         statusTask?.cancel()
@@ -323,10 +288,7 @@ private extension TransferAmountPresenter {
         transferTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await interactor.confirmTransfer(
-                    validation: validation,
-                    sendFullAmount: sendFullAmount
-                )
+                try await interactor.confirmTransfer(validation: validation)
                 if !config.recipientIsPlaceholder {
                     interactor.saveRecentContact()
                 }
