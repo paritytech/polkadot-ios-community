@@ -39,13 +39,4 @@ extension RecyclingStrategyType {
         case .maxPrivacy: .avatarBgAmethyst
         }
     }
-
-    /// The muted knob fill, paired with ``displayAccentColor`` for the icon on top.
-    var displayFillColor: Color {
-        switch self {
-        case .minPrivacy: .bgStatusWarning
-        case .balanced: .bgStatusSuccess
-        case .maxPrivacy: .avatarBgAmethyst
-        }
-    }
 }
