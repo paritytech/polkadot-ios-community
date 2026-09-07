@@ -27,6 +27,8 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let icon: ChainStatusIcon
     public let health: Double
 
+    public var healthGrade: ChainHealthGrade { .init(health: health) }
+
     public init(
         id: String,
         title: String,

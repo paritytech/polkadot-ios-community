@@ -35,69 +35,79 @@
         }
       }
     },
-    "connectionStatusBlockAgeValue": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%@ ago"
-          }
-        }
-      }
-    },
     "connectionStatusBlockLabel": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Block"
+            "value": "Block:"
           }
         }
       }
     },
-    "connectionStatusFinalityLabel": {
+    "connectionStatusHealthExcellent": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Finality"
+            "value": "Excellent"
           }
         }
       }
     },
-    "connectionStatusFinalityValue": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld block"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%lld blocks"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "connectionStatusLatencyLabel": {
+    "connectionStatusHealthFair": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Latency"
+            "value": "Fair"
+          }
+        }
+      }
+    },
+    "connectionStatusHealthGood": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Good"
+          }
+        }
+      }
+    },
+    "connectionStatusHealthPoor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poor"
+          }
+        }
+      }
+    },
+    "connectionStatusPanelTitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network Status"
+          }
+        }
+      }
+    },
+    "connectionStatusSpeedValue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speed is %@"
           }
         }
       }
