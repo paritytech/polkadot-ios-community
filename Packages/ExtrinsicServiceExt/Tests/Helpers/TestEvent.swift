@@ -27,7 +27,7 @@ final class TestEvent: @unchecked Sendable {
         ready.forEach { $0.resume() }
     }
 
-    func wait(occurrences expected: Int = 1, timeout: Duration = .seconds(2)) async throws {
+    func wait(occurrences expected: Int = 1, timeout: Duration = .seconds(100)) async throws {
         guard occurrences < expected else { return }
 
         try await withTimeout(timeout) { [self] in

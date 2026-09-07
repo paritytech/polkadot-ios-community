@@ -3,13 +3,12 @@ import SubstrateSdk
 import Operation_iOS
 
 /// A coin currently residing in the Recycler, waiting for anonymity.
-public struct Voucher: Equatable, CoinageDerivable {
+public struct Voucher: Equatable, CoinageDerivable, Sendable {
     public let exponent: Int16 // 2^n
     public let derivationIndex: DerivationIndex
     public let allocatedAt: Date
     public let readyAt: Date
     public let remoteState: OnChainState
-    public let privacy: VoucherPrivacyLevel
 
     /// On-chain public key (member key) derived from `derivationIndex`, cached so the durability
     /// layer never re-derives it on the fly.
@@ -41,9 +40,11 @@ public struct Voucher: Equatable, CoinageDerivable {
 
     public struct Recycler: Equatable, Sendable {
         public let index: UInt32
+        public let membersCount: UInt32
 
-        public init(index: UInt32) {
+        public init(index: UInt32, membersCount: UInt32) {
             self.index = index
+            self.membersCount = membersCount
         }
     }
 
@@ -53,7 +54,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         allocatedAt: Date,
         readyAt: Date,
         remoteState: OnChainState = .unlocated,
-        privacy: VoucherPrivacyLevel = .degraded,
         publicKey: PublicKey
     ) {
         self.exponent = exponent
@@ -61,7 +61,6 @@ public struct Voucher: Equatable, CoinageDerivable {
         self.allocatedAt = allocatedAt
         self.readyAt = readyAt
         self.remoteState = remoteState
-        self.privacy = privacy
         self.publicKey = publicKey
     }
 
@@ -72,35 +71,12 @@ public struct Voucher: Equatable, CoinageDerivable {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            privacy: privacy,
             publicKey: publicKey
         )
-    }
-
-    public func withReadinessState(_ state: VoucherPrivacyLevel) -> Voucher {
-        Voucher(
-            exponent: exponent,
-            derivationIndex: derivationIndex,
-            allocatedAt: allocatedAt,
-            readyAt: readyAt,
-            remoteState: remoteState,
-            privacy: state,
-            publicKey: publicKey
-        )
-    }
-
-    public func effectivePrivacy(at date: Date = .now) -> VoucherPrivacyLevel {
-        privacy == .full && date >= readyAt ? .full : .degraded
     }
 
     public var isInRecycler: Bool {
         if case .inRecycler = remoteState { true } else { false }
-    }
-
-    /// Spendable without leaking its origin: in the recycler, past its unload delay, and drawn from
-    /// a ring large enough to hide it. A missing half only lowers it to degraded, not unusable.
-    public func isReadyToUseSecured(at date: Date = .now) -> Bool {
-        isInRecycler && effectivePrivacy(at: date) == .full
     }
 }
 

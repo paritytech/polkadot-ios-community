@@ -32,8 +32,6 @@ extension ServiceCoordinator {
             return nil
         }
 
-        CoinageRecyclingTaskRegistrator.shared.service = coinageService.recyclingService
-
         let transferMonitor = CoinageTransferMonitor(
             coinageService: coinageService,
             storageFacade: UserDataStorageFacade.shared,
@@ -53,17 +51,6 @@ extension ServiceCoordinator {
             backupSyncService: backupSyncService,
             claimStatusStore: claimStatusStore
         )
-    }
-
-    static func makeBackgroundRecyclingService() -> (any CoinageRecyclingServicing)? {
-        let storageFacade = UserDataStorageFacade.shared
-        let databaseFactory = CoinageDatabaseDependencyFactory(storageFacade: storageFacade)
-        let externalPaymentStore = ExternalPaymentCoreDataStore(storageFacade: storageFacade)
-
-        return createCoinageService(
-            databaseFactory: databaseFactory,
-            externalPaymentStore: externalPaymentStore
-        )?.recyclingService
     }
 
     private static func createW3sPaymentTracking(coinageService: CoinageServicing) -> W3sPaymentTracking {
@@ -170,8 +157,6 @@ private extension ServiceCoordinator {
             return nil
         }
 
-        let schedulerFactory = CoinRecycleSchedulerFactory(logger: logger)
-
         let coinageTxStore = CoinageTxCoreDataRepository(
             storageFacade: UserDataStorageFacade.shared
         )
@@ -188,10 +173,12 @@ private extension ServiceCoordinator {
             rootEntropyManager: RootEntropyManager.shared,
             keystore: Keychain(),
             txStore: coinageTxStore,
-            schedulerFactory: schedulerFactory,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
+            recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
+            personOriginProvider: coinageOriginFactory.personOriginProvider,
+            viewFunctionFetcher: viewFunctionFetcher,
             logger: logger
         )
     }

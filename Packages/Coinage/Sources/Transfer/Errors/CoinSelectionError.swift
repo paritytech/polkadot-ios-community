@@ -4,8 +4,6 @@ import Foundation
 public enum CoinSelectionError: Error, Equatable {
     /// The wallet does not have enough funds to cover the requested amount.
     case insufficientFunds
-    /// No vouchers have reached their ready time.
-    case noReadyVouchers
     /// The requested amount cannot be represented with available denominations.
     case amountNotRepresentable
     /// The requested amount is zero.

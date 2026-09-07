@@ -32,6 +32,7 @@ enum SettingsKey: String {
     case backendSessionId
     case showTransferStrategyDebug
     case truApiRuntimeEnabled
+    case coinageRecyclingStrategy
 }
 
 extension SettingsManagerProtocol {

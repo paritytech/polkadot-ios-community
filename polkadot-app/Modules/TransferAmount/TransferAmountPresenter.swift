@@ -147,20 +147,35 @@ extension TransferAmountPresenter: TransferAmountInteractorOutputProtocol {
 @MainActor
 private extension TransferAmountPresenter {
     func provideAvailableBalance() {
-        guard let maxAmount = calculateMax() else {
+        guard let breakdown = spendableBreakdown else {
             return
         }
 
-        let amount = balanceViewModelFactory.plainAmountFromValue(maxAmount).value(for: .current)
+        // `Max:` shows what costs no privacy to spend; the gaining-privacy extra is surfaced as a hint.
+        let amount = balanceViewModelFactory.plainAmountFromValue(breakdown.availablePrivate).value(for: .current)
         view?.didReceive(availableBalance: amount)
+        providePrivacyHint(breakdown: breakdown)
+    }
+
+    func providePrivacyHint(breakdown: TransferSpendableBreakdown) {
+        guard breakdown.gainingPrivacy > 0 else {
+            view?.didReceive(privacyHint: nil)
+            return
+        }
+        let formatted = balanceViewModelFactory.plainAmountFromValue(breakdown.gainingPrivacy).value(for: .current)
+        view?.didReceive(privacyHint: String(localized: .Transfer.privacyCostHint(formatted)))
     }
 
     func calculateMax() -> BigUInt? {
-        spendableBreakdown.map { $0.secured + $0.lowPrivacy }
+        spendableBreakdown.map { $0.availablePrivate + $0.gainingPrivacy }
+    }
+
+    func calculateAvailablePrivate() -> BigUInt? {
+        spendableBreakdown.map(\.availablePrivate)
     }
 
     func provideInputAmount() {
-        let maxAmount = calculateMax()
+        let maxAmount = calculateAvailablePrivate()
         let amount = inputAmount?.absoluteValue(
             from: maxAmount?.decimal(assetInfo: chainAsset.assetDisplayInfo) ?? 0
         )
@@ -175,7 +190,7 @@ private extension TransferAmountPresenter {
     func provideAmountViewModel() {
         let amountViewModel = amountInputStrategy.createInputViewModelFactory(
             for: inputAmount,
-            balance: calculateMax()
+            balance: calculateAvailablePrivate()
         )
 
         view?.didReceive(amountViewModel: amountViewModel)
@@ -258,7 +273,7 @@ private extension TransferAmountPresenter {
     }
 
     func calculateInputAmount() -> Decimal? {
-        guard let maxAmount = calculateMax() else {
+        guard let maxAmount = calculateAvailablePrivate() else {
             return nil
         }
 
@@ -272,10 +287,10 @@ private extension TransferAmountPresenter {
             guard let self else { return }
             do {
                 let validation = try await interactor.previewTransfer(for: amount)
-                if validation.isDegraded {
-                    showDegradedPrivacyActionSheet(validation: validation)
+                if validation.requiresPrivacyConfirmation {
+                    presentPrivacyConfirmation(validation: validation)
                 } else {
-                    doSubmit(validation: validation, sendFullAmount: true)
+                    doSubmit(validation: validation)
                 }
             } catch {
                 view?.didStopSubmission()
@@ -284,38 +299,22 @@ private extension TransferAmountPresenter {
         }
     }
 
-    func showDegradedPrivacyActionSheet(validation: TransferPreviewValidation) {
-        let fullAmount = formattedAmount(validation.fullAmount)
-        // When the receiver expects exactly the stated amount (external payments,
-        // W3S terminal payments, ...), a partial send is not a meaningful choice —
-        // suppress the non-degraded option so the user gets "send with degraded"
-        // or "cancel".
-        let canShowNonDegradedOption = validation.canSendNonDegraded && !config.requiresExactAmount
-        let nonDegradedAmount = canShowNonDegradedOption
-            ? formattedAmount(validation.nonDegradedAmount)
-            : nil
-        let degradedAmountValue = validation.fullAmount - validation.nonDegradedAmount
-        let degradedAmount = formattedAmount(degradedAmountValue)
-
-        let model = TransferPrivacyModel(
-            fullAmount: fullAmount,
-            nonDegradedAmount: nonDegradedAmount,
-            degradedAmount: degradedAmount
-        )
-
-        wireframe.showDegradedPrivacy(
-            model: model,
+    /// The spend dips into gaining-privacy funds: confirm before submitting
+    func presentPrivacyConfirmation(validation: TransferPreviewValidation) {
+        let amountText = formattedAmount(validation.fullAmount)
+        wireframe.showGainingPrivacyConfirmation(
             from: view,
-            onSendDegraded: { [weak self] in
-                self?.doSubmit(validation: validation, sendFullAmount: true)
+            amount: amountText,
+            onSendAnyway: { [weak self] in
+                self?.doSubmit(validation: validation)
             },
-            onSendNonDegraded: { [weak self] in
-                self?.doSubmit(validation: validation, sendFullAmount: false)
+            onCancel: { [weak self] in
+                self?.view?.didStopSubmission()
             }
         )
     }
 
-    func doSubmit(validation: TransferPreviewValidation, sendFullAmount: Bool) {
+    func doSubmit(validation: TransferPreviewValidation) {
         view?.didStartSubmission()
         transferTask?.cancel()
         statusTask?.cancel()
@@ -323,10 +322,7 @@ private extension TransferAmountPresenter {
         transferTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await interactor.confirmTransfer(
-                    validation: validation,
-                    sendFullAmount: sendFullAmount
-                )
+                try await interactor.confirmTransfer(validation: validation)
                 if !config.recipientIsPlaceholder {
                     interactor.saveRecentContact()
                 }
@@ -393,12 +389,12 @@ private extension TransferAmountPresenter {
     }
 
     func buildBalanceInfoModel(breakdown: TransferSpendableBreakdown) -> BalanceInfoModel {
-        let total = breakdown.secured + breakdown.lowPrivacy + (lockedBalance ?? 0)
+        let total = breakdown.availablePrivate + breakdown.gainingPrivacy + (lockedBalance ?? 0)
         let totalStr = formattedAmount(total)
-        let availableNowDecimal = breakdown.secured + breakdown.lowPrivacy
+        let availableNowDecimal = breakdown.availablePrivate + breakdown.gainingPrivacy
         let availableNowStr = formattedAmount(availableNowDecimal)
-        let securedStr = formattedAmount(breakdown.secured)
-        let lowPrivacyStr = formattedAmount(breakdown.lowPrivacy)
+        let availablePrivateStr = formattedAmount(breakdown.availablePrivate)
+        let gainingPrivacyStr = formattedAmount(breakdown.gainingPrivacy)
 
         var availableSoonStr: String?
         if let locked = lockedBalance, locked > 0 {
@@ -408,8 +404,8 @@ private extension TransferAmountPresenter {
         return BalanceInfoModel(
             totalBalance: totalStr,
             availableNow: availableNowStr,
-            secured: securedStr,
-            lowPrivacy: lowPrivacyStr,
+            availablePrivate: availablePrivateStr,
+            gainingPrivacy: gainingPrivacyStr,
             availableSoon: availableSoonStr
         )
     }

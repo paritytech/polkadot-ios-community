@@ -75,4 +75,8 @@ class QRScannerViewLayout: UIView, AdaptiveDesignable {
             make.bottom.equalTo(safeAreaLayoutGuide).offset(-24.0)
         }
     }
+
+    /// Called once the preview layer is attached and its session is running. The base layout
+    /// shows the preview immediately; subclasses covering the start-up delay fade it in here.
+    func didAttachPreview() {}
 }

@@ -341,12 +341,10 @@ private extension AssetDetailsPresenter {
                         case .inRecycler: voucher.readyAt > .now ? "Locked" : "Ready"
                         }
 
-                    let anonymity = voucher.privacy == .degraded ? "Degraded" : "Full"
-
                     return VoucherDetailViewModel(
                         id: voucher.identifier,
                         exponent: "2^\(voucher.exponent)",
-                        state: [stateString, anonymity].joined(separator: " | "),
+                        state: stateString,
                         allocatedAt: dateFormatter.string(from: voucher.allocatedAt),
                         readyAt: dateFormatter.string(from: voucher.readyAt)
                     )

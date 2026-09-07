@@ -2,8 +2,15 @@ import Foundation
 
 @MainActor
 enum WalletQRScanViewFactory {
+    /// Embedded is hosted inside the tab bar panel; full screen is presented modally.
+    enum Presentation {
+        case fullScreen
+        case embedded
+    }
+
     static func createView(
-        for delegate: WalletQRScanDelegate
+        for delegate: WalletQRScanDelegate,
+        presentation: Presentation = .fullScreen
     ) -> QRScannerViewProtocol? {
         let processingQueue = QRCaptureService.processingQueue
         let qrService = QRCaptureService(delegate: nil, delegateQueue: processingQueue)
@@ -23,7 +30,13 @@ enum WalletQRScanViewFactory {
             qrExtractionService: qrExtractor
         )
 
-        let view = QRScannerViewController(presenter: presenter)
+        let view: QRScannerViewController =
+            switch presentation {
+            case .fullScreen:
+                QRScannerViewController(presenter: presenter)
+            case .embedded:
+                EmbeddedQRScannerViewController(presenter: presenter)
+            }
 
         presenter.view = view
 

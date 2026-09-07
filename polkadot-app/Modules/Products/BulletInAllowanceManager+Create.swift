@@ -81,7 +81,8 @@ extension BulletInAllowanceManager {
         return BulletInAllowanceManager(
             infoProvider: infoProvider,
             allocator: allocator,
-            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry)
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
+            logger: Logger.shared
         )
     }
 }

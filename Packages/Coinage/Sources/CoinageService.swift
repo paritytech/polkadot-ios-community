@@ -125,6 +125,13 @@ public actor CoinageService {
     private let recoveryService: any CoinageBackupRecoveryServicing
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
+    // Recycling strategy evaluation — the evaluator is built lazily once the context resolves.
+    private nonisolated let recyclingStrategySettings: any CoinageRecyclingStrategyProviding
+    private let recyclingStrategyResolver: any RecyclingStrategyProviding
+    private let ringCapacityProvider: any RingCapacityProviding
+    private let preClassificator: any CoinageAssetsPreClassificating
+    private let quotaTracker: any UnloadQuotaTracking
+
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
@@ -136,7 +143,7 @@ public actor CoinageService {
 
     // App State
     private let applicationStateStreamFactory: ApplicationStateStreamFactory
-    private var appStateTask: Task<Void, Never>?
+    private var recyclingEvaluator: CoinRecyclingEvaluator?
 
     private var breakdownContext: DenominationBreakdownContext?
     private var cachedBalanceService: CoinageBalanceServiceProtocol?
@@ -166,6 +173,11 @@ public actor CoinageService {
         coinStateSyncService: CoinStateSyncService,
         voucherLocationService: VoucherLocationService,
         recyclingService: any CoinageRecyclingServicing,
+        recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
+        recyclingStrategyResolver: any RecyclingStrategyProviding,
+        ringCapacityProvider: any RingCapacityProviding,
+        preClassificator: any CoinageAssetsPreClassificating,
+        quotaTracker: any UnloadQuotaTracking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
@@ -181,6 +193,11 @@ public actor CoinageService {
         self.coinStateSyncService = coinStateSyncService
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
+        self.recyclingStrategySettings = recyclingStrategySettings
+        self.recyclingStrategyResolver = recyclingStrategyResolver
+        self.ringCapacityProvider = ringCapacityProvider
+        self.preClassificator = preClassificator
+        self.quotaTracker = quotaTracker
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
@@ -259,9 +276,7 @@ extension CoinageService: CoinageServicing {
             voucherLocationService.setup()
             externalPaymentService.setup(with: context)
 
-            subscribeForeground()
-
-            Task { await recyclingService.scheduleRecycling() }
+            ensureRecyclingEvaluator(context: context)
 
             try await txService.releaseUncommittedHandoffs()
 
@@ -298,21 +313,30 @@ extension CoinageService: CoinageServicing {
         let coins = try await coinService.fetchAllTrackedCoins()
         let vouchers = try await voucherService.fetchAllTracked()
 
-        let result = try await senderService.previewStrategy(
-            amount: amount,
-            availableCoins: coins,
-            availableVouchers: vouchers,
-            breakdownContext: denominationContext
-        )
+        // Spendable first; widen to gaining-privacy funds only if spendable cannot cover the amount.
+        // Under `maxPrivacy` the selector never widens, so the second pass is a no-op and the loop
+        // still terminates in `insufficientFunds`.
+        for scope in [SpendScope.spendable, .withConfirmation] {
+            let (availableCoins, availableVouchers) = await selectableAssets(
+                coins: coins,
+                vouchers: vouchers,
+                scope: scope
+            )
 
-        let nonDegradedAmount: BigUInt =
-            if result.privacyLevel == .full {
-                amount
-            } else {
-                computeNonDegradedAmount(from: result, context: denominationContext)
+            do {
+                let result = try await senderService.previewStrategy(
+                    amount: amount,
+                    availableCoins: availableCoins,
+                    availableVouchers: availableVouchers,
+                    breakdownContext: denominationContext
+                )
+                return TransferPreview(selectionResult: result, fullAmount: amount, scope: scope)
+            } catch CoinSelectionError.insufficientFunds, CoinSelectionError.emptyWallet {
+                continue
             }
+        }
 
-        return TransferPreview(selectionResult: result, fullAmount: amount, nonDegradedAmount: nonDegradedAmount)
+        throw CoinSelectionError.insufficientFunds
     }
 
     public func executeTransfer(
@@ -361,9 +385,15 @@ extension CoinageService: CoinageServicing {
         if let service = cachedBalanceService {
             return service
         }
+        let evaluator = ensureRecyclingEvaluator(context: context)
         let service = CoinageBalanceService(
             denominationContext: context,
             databaseFactory: databaseFactory,
+            verdicts: evaluator.verdicts,
+            settings: recyclingStrategySettings,
+            strategyResolver: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator,
             logger: logger
         )
         service.start()
@@ -418,39 +448,66 @@ private extension CoinageService {
     }
 }
 
-// MARK: - Non-Degraded Amount
+// MARK: - Recycling Evaluation
 
 private extension CoinageService {
-    func computeNonDegradedAmount(from result: CoinSelectionResult, context: DenominationBreakdownContext) -> BigUInt {
-        switch result {
-        case let .unloadIntoCoins(coins, perGroupAllocations):
-            let coinsAmount = coins.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
-            let fullGroupsAmount = perGroupAllocations
-                .filter { $0.vouchers.allSatisfy { $0.effectivePrivacy() == .full } }
-                .reduce(BigUInt.zero) { sum, alloc in
-                    alloc.recipientDenominations.reduce(sum) { $0 + context.valueInPlanks(for: $1.exponent) }
-                }
-            return coinsAmount + fullGroupsAmount
-        case .exactMatch,
-             .split:
-            return .zero
+    /// Lazily builds and starts the verdict-driven recycling evaluator — the single foreground trigger
+    /// for recycling, replacing the age-based schedule and the foreground catch-up. Shared with the
+    /// balance service, which consumes its verdicts. Built here because it needs the resolved context.
+    @discardableResult
+    func ensureRecyclingEvaluator(context: DenominationBreakdownContext) -> CoinRecyclingEvaluator {
+        if let recyclingEvaluator {
+            return recyclingEvaluator
         }
+
+        let evaluator = CoinRecyclingEvaluator(
+            databaseFactory: databaseFactory,
+            settings: recyclingStrategySettings,
+            strategyProvider: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator,
+            recyclingService: recyclingService,
+            quotaTracker: quotaTracker,
+            denominationContext: context,
+            logger: logger
+        )
+        evaluator.start()
+        recyclingEvaluator = evaluator
+        return evaluator
     }
-}
 
-// MARK: - Foreground Subscription
-
-private extension CoinageService {
-    func subscribeForeground() {
-        guard appStateTask == nil else { return }
-
-        let recyclingService = recyclingService
-        let foregroundEvents = applicationStateStreamFactory.stream(for: .willEnterForeground)
-
-        appStateTask = Task { [recyclingService] in
-            for await _ in foregroundEvents {
-                await recyclingService.recycleOldCoins()
-            }
+    /// Narrows the wallet to the assets a spend may draw on for `scope`, applying the current verdicts
+    /// and voucher usability. Before the first verdict lands it returns the raw sets, letting the
+    /// downstream `CoinSelector` apply its own free/on-chain filter.
+    func selectableAssets(
+        coins: [TrackedCoin],
+        vouchers: [TrackedVoucher],
+        scope: SpendScope
+    ) async -> (coins: [TrackedCoin], vouchers: [TrackedVoucher]) {
+        guard let verdicts = recyclingEvaluator?.currentVerdicts() else {
+            return (coins, vouchers)
         }
+
+        let voucherStrategy = recyclingStrategyResolver.voucherStrategy(for: recyclingStrategySettings.strategy)
+        let capacities = await (try? ringCapacityProvider.capacities(
+            for: Set(vouchers.map(\.voucher.exponent))
+        )) ?? [:]
+        let usability = VoucherUsabilityContext(ringCapacities: capacities, now: Date())
+
+        let selector = CoinageAssetSelector(preClassificator: preClassificator)
+        return (
+            coins: selector.selectableCoins(
+                coins,
+                verdicts: verdicts,
+                allowsConfirmedSpend: voucherStrategy.allowsConfirmedSpend(),
+                scope: scope
+            ),
+            vouchers: selector.selectableVouchers(
+                vouchers,
+                strategy: voucherStrategy,
+                context: usability,
+                scope: scope
+            )
+        )
     }
 }

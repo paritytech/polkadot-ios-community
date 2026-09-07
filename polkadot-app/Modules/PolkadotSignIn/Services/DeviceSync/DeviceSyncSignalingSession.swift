@@ -4,7 +4,6 @@ import AsyncExtensions
 
 /// WebRTC signaling over the device sync message transport (statement store).
 ///
-/// Matches Android's `SyncPeerChannelSignaling`: sends/receives
 /// `SyncSignalingEnvelope { offerId, message }` through the encrypted device
 /// sync transport. SDP is encoded using MinimalSetup SCALE format (via
 /// `SdpCoder`). ICE candidates are encoded using MinimalCandidate SCALE format.

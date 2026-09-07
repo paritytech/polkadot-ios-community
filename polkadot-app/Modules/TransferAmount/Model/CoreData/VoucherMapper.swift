@@ -30,7 +30,8 @@ extension VoucherMapper: CoreDataMapperProtocol {
         let recycler: Voucher.Recycler? =
             if entity.recyclerIndex >= 0 {
                 Voucher.Recycler(
-                    index: UInt32(entity.recyclerIndex)
+                    index: UInt32(entity.recyclerIndex),
+                    membersCount: UInt32(max(0, entity.recyclerMembers))
                 )
             } else {
                 nil
@@ -45,8 +46,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
                 .unlocated
             }
 
-        let privacy: VoucherPrivacyLevel = entity.privacy == 1 ? .full : .degraded
-
         guard let publicKeyHex = entity.publicKey else {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDVoucher.publicKey))
         }
@@ -57,7 +56,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             allocatedAt: allocatedAt,
             readyAt: readyAt,
             remoteState: state,
-            privacy: privacy,
             publicKey: Data(hexString: publicKeyHex)
         )
     }
@@ -73,6 +71,7 @@ extension VoucherMapper: CoreDataMapperProtocol {
         entity.readyAt = model.readyAt
         entity.allocatedAt = model.allocatedAt
         entity.recyclerIndex = model.recycler.flatMap { Int64($0.index) } ?? -1
+        entity.recyclerMembers = model.recycler.map { Int64($0.membersCount) } ?? 0
         entity.publicKey = model.publicKey.toHex()
 
         entity.onChainState =
@@ -80,12 +79,6 @@ extension VoucherMapper: CoreDataMapperProtocol {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
-            }
-
-        entity.privacy =
-            switch model.privacy {
-            case .full: 1
-            case .degraded: 0
             }
     }
 }

@@ -194,6 +194,10 @@ extension TransferAmountViewController: TransferAmountViewProtocol {
         rootView.balanceView.bind(amount: availableBalance)
     }
 
+    func didReceive(privacyHint: String?) {
+        rootView.bind(privacyHint: privacyHint)
+    }
+
     func didReceive(amountViewModel: AmountInputViewModelProtocol) {
         rootView.amountInputView.bind(inputViewModel: amountViewModel)
     }

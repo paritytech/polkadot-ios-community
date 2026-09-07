@@ -341,138 +341,70 @@
         }
       }
     },
-    "sheet.action.learn.more": {
+    "privacy.cost.hint": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Why is %1$(degraded)@ less private?"
+            "value": "Extra %@ is spendable, but at the risk of reducing your privacy"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Por qué %1$(degraded)@ es menos privado?"
+            "value": "Se pueden gastar %@ más, pero con el riesgo de reducir tu privacidad"
           }
         }
       }
     },
-    "sheet.action.send.full": {
+    "privacy.confirm.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Send %1$(full)@ with less privacy"
+            "value": "This payment might reduce your privacy"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enviar %1$(full)@ con menos privacidad"
+            "value": "Este pago podría reducir tu privacidad"
           }
         }
       }
     },
-    "sheet.action.send.privately": {
+    "privacy.confirm.body": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Send %1$(nonDegraded)@ privately"
+            "value": "In this payment you are using funds that have not yet been fully processed by the privacy system."
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enviar %1$(nonDegraded)@ de forma privada"
+            "value": "En este pago estás usando fondos que aún no han sido completamente procesados por el sistema de privacidad."
           }
         }
       }
     },
-    "sheet.degraded.learn.more.details": {
+    "privacy.confirm.send.anyway": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Some funds are ready for the most private send flow, while others still need an extra privacy step.\n\nYou can still send them now, and the payment will work normally. However, those funds may reveal a little more information on-chain than funds that are fully ready for private sending.\n\nFor the strongest privacy, send only the private-ready amount or wait until the rest of your funds are ready.\n"
+            "value": "Send %@ anyway"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Algunos fondos están listos para el flujo de envío más privado, mientras que otros aún necesitan un paso extra de privacidad.\n\nAun así puedes enviarlos ahora y el pago funcionará con normalidad. Sin embargo, esos fondos podrían revelar un poco más de información en la cadena que los fondos totalmente listos para envío privado.\n\nPara la mayor privacidad, envía solo el monto listo para envío privado o espera a que el resto de tus fondos esté listo.\n"
-          }
-        }
-      }
-    },
-    "sheet.degraded.learn.more.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Why are some funds less private?"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Por qué algunos fondos son menos privados?"
-          }
-        }
-      }
-    },
-    "sheet.degraded.message.full": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "To send the full %1$(full)@, some funds will use lower-privacy sources."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Para enviar el total de %1$(full)@, algunos fondos usarán fuentes con menor privacidad."
-          }
-        }
-      }
-    },
-    "sheet.degraded.message.with.degraded": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can send %1$(nonDegraded)@ privately.\n\nTo send the full %2$(full)@, the remaining %3$(degraded)@ will use lower-privacy funds."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Puedes enviar %1$(nonDegraded)@ de forma privada.\n\nPara enviar el total de %2$(full)@, los %3$(degraded)@ restantes usarán fondos con menor privacidad."
-          }
-        }
-      }
-    },
-    "sheet.degraded.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Some funds are less private"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Algunos fondos son menos privados"
+            "value": "Enviar %@ de todos modos"
           }
         }
       }

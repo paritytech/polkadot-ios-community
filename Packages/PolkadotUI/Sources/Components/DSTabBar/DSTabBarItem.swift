@@ -1,6 +1,18 @@
 import UIKit
 
 public struct DSTabBarItem: Equatable {
+    /// A `.tab` participates in selection and carries the lens; an `.action` triggers a panel and
+    /// is skipped by drag resolution.
+    public enum Role: Equatable {
+        case tab
+        case action
+    }
+
+    public enum Content: Equatable {
+        case icon(UIImage)
+        case tabsGlyph(count: Int)
+    }
+
     public enum Badge: Equatable {
         case attention
 
@@ -11,23 +23,44 @@ public struct DSTabBarItem: Equatable {
         }
     }
 
-    public let icon: UIImage
+    public let content: Content
     public let title: String?
+    public let role: Role
     public var badge: Badge?
     public var accessibilityLabel: String
     public var accessibilityIdentifier: String?
 
     public init(
-        icon: UIImage,
+        content: Content,
         title: String?,
+        role: Role = .tab,
         badge: Badge? = nil,
         accessibilityLabel: String,
         accessibilityIdentifier: String? = nil
     ) {
-        self.icon = icon
+        self.content = content
         self.title = title
+        self.role = role
         self.badge = badge
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    public init(
+        icon: UIImage,
+        title: String?,
+        role: Role = .tab,
+        badge: Badge? = nil,
+        accessibilityLabel: String,
+        accessibilityIdentifier: String? = nil
+    ) {
+        self.init(
+            content: .icon(icon),
+            title: title,
+            role: role,
+            badge: badge,
+            accessibilityLabel: accessibilityLabel,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
     }
 }

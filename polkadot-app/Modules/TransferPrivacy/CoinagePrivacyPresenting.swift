@@ -2,26 +2,25 @@ import UIKitExt
 
 @MainActor
 protocol CoinagePrivacyPresenting {
-    func showDegradedPrivacy(
-        model: TransferPrivacyModel,
+    func showGainingPrivacyConfirmation(
         from view: (any ControllerBackedProtocol)?,
-        onSendDegraded: @escaping () -> Void,
-        onSendNonDegraded: @escaping () -> Void
+        amount: String,
+        onSendAnyway: @escaping () -> Void,
+        onCancel: @escaping () -> Void
     )
 }
 
 extension CoinagePrivacyPresenting {
-    func showDegradedPrivacy(
-        model: TransferPrivacyModel,
+    func showGainingPrivacyConfirmation(
         from view: (any ControllerBackedProtocol)?,
-        onSendDegraded: @escaping () -> Void,
-        onSendNonDegraded: @escaping () -> Void
+        amount: String,
+        onSendAnyway: @escaping () -> Void,
+        onCancel: @escaping () -> Void
     ) {
-        let sheetView = TransferPrivacyViewFactory.createView(
-            from: model,
-            onSendDegraded: onSendDegraded,
-            onSendNonDegraded: onSendNonDegraded,
-            onCancel: { [weak view] in view?.controller.dismiss(animated: true) }
+        let sheetView = TransferPrivacyViewFactory.createGainingPrivacyConfirmation(
+            amount: amount,
+            onSendAnyway: onSendAnyway,
+            onCancel: onCancel
         )
         view?.controller.present(sheetView, animated: true)
     }

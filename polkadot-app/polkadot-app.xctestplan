@@ -146,6 +146,20 @@
         "identifier" : "KeyDerivationTests",
         "name" : "KeyDerivationTests"
       }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Packages\/CommonService",
+        "identifier" : "CommonServiceTests",
+        "name" : "CommonServiceTests"
+      }
+    },
+    {
+      "target" : {
+        "containerPath" : "container:Packages\/ExtrinsicServiceExt",
+        "identifier" : "ExtrinsicServiceExtTests",
+        "name" : "ExtrinsicServiceExtTests"
+      }
     }
   ],
   "version" : 2

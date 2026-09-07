@@ -5,16 +5,20 @@ import ExternalAccessibility
 import Products
 
 protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
-    func show(tabs: [TabBarItem], selecting tab: TabBarItem)
+    func show(slots: [TabBarSlot], selecting tab: TabBarItem)
     func select(tab: TabBarItem)
     func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction)
+    func showScanPanel()
+    func showChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor
 protocol MainTabBarPresenterProtocol: AnyObject {
     func setup()
     func configureViews()
+    func didRequestContentPanel(for action: TabBarAction)
 }
 
 protocol MainTabBarInteractorInputProtocol: AnyObject {
@@ -31,6 +35,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didRemoveWidget(for extensionId: ChatExtension.Id)
     func didReceivePolkadotSignInRequest(with url: URL)
     func didReceiveSPATabs(_ tabs: [SPATab])
+    func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
 @MainActor
@@ -41,7 +46,6 @@ protocol MainTabBarWireframeProtocol: AnyObject {
 enum TabBarItem: String, CaseIterable {
     case chat
     case wallet
-    case scan
     case browse
     case settings
 
@@ -50,7 +54,6 @@ enum TabBarItem: String, CaseIterable {
             switch self {
             case .chat: .tabChat
             case .wallet: .tabWallet
-            case .scan: .tabScan
             case .browse: .tabBrowse
             case .settings: .tabSettings
             }
@@ -61,7 +64,6 @@ enum TabBarItem: String, CaseIterable {
         switch self {
         case .chat: String(localized: .tabChat)
         case .wallet: String(localized: .tabWallet)
-        case .scan: String(localized: .tabScan)
         case .browse: String(localized: .tabBrowse)
         case .settings: String(localized: .tabSettings)
         }
@@ -73,15 +75,11 @@ enum TabBarBadge: Equatable {
 }
 
 extension TabBarItem {
-    var displayTitle: String? {
-        self == .scan ? nil : title
-    }
-
-    func makeBarItem(badge: TabBarBadge?) -> DSTabBarItem {
+    func makeBarItem(badge: DSTabBarItem.Badge?) -> DSTabBarItem {
         DSTabBarItem(
             icon: image,
-            title: displayTitle,
-            badge: badge.map { _ in .attention },
+            title: title,
+            badge: badge,
             accessibilityLabel: title,
             accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue
         )

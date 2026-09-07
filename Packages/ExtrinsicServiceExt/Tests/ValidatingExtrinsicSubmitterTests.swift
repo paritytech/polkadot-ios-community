@@ -147,24 +147,20 @@ struct ValidatingExtrinsicSubmitterTests {
         }
     }
 
-    @Test("a pool drop ends the attempt without recovery")
-    func droppedEndsTheAttemptWithoutRecovery() async throws {
+    @Test("a pool drop triggers recovery")
+    func droppedExtrinsicTriggersRecovery() async throws {
         let context = try makeContext(validity: .valid)
-        let terminal = context.statusEvent { result in
-            guard case let .success(model) = result else { return false }
-            return model.statusUpdate.getFinalExtrinsicFailure() != nil
-        }
 
         context.submit()
         try await context.base.subscribed.wait()
 
         context.base.emit(.success(makeStatus(.onChain(.dropped))))
 
-        try await terminal.wait()
-        #expect(
-            context.recovery.failures.isEmpty,
-            "a dropped extrinsic is pool-banned — resubmitting it can only fail"
-        )
+        try await context.recovery.recovered.wait()
+        guard case .txInvalidation = try #require(context.recovery.failures.first) else {
+            Issue.record("expected txInvalidation")
+            return
+        }
     }
 
     @Test("usurped ends the attempt instead of leaking the subscription")
@@ -393,7 +389,7 @@ private extension ValidatingExtrinsicSubmitterTests {
             recovery: recovery,
             api: api,
             blockInfo: blockInfo,
-            builtExtrinsic: ExtrinsicBuiltModel(extrinsic: "0x0401", sender: .none)
+            builtExtrinsic: ExtrinsicBuiltModel(extrinsic: "0x0401", sender: .none, mortality: .immortal)
         )
     }
 

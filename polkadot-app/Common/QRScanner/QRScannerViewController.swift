@@ -61,6 +61,8 @@ class QRScannerViewController: UIViewController, ViewHolder {
 
             rootView.qrFrameView.frameLayer = videoPreviewLayer
         }
+
+        rootView.didAttachPreview()
     }
 
     // MARK: Message Management
@@ -98,6 +100,9 @@ extension QRScannerViewController: QRScannerViewProtocol {
     }
 
     func present(message: String, animated: Bool, autoDismiss: Bool) {
+        // A pending hide from an earlier message would otherwise dismiss this one.
+        invalidateMessageScheduling()
+
         rootView.messageLabel.text = message
 
         let block: () -> Void = { [weak self] in

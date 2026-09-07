@@ -26,12 +26,10 @@ public struct AppPermissionsViewLayout: View {
     public init() {}
 
     public var body: some View {
-        Group {
-            if viewModel.items.isEmpty {
-                emptyState
-            } else {
-                permissionsList
-            }
+        if viewModel.items.isEmpty {
+            emptyState
+        } else {
+            permissionsList
         }
     }
 }

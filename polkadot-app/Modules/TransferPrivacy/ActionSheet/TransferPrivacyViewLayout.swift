@@ -5,9 +5,7 @@ import PolkadotUI
 struct TransferPrivacyViewModel {
     let title: String
     let message: String
-    let linkTitle: String
-    let mainActionTitle: String?
-    let secondaryActionTitle: String
+    let sendAnywayTitle: String
 }
 
 final class TransferPrivacyViewLayout: BottomSheetBaseLayout {
@@ -30,20 +28,8 @@ final class TransferPrivacyViewLayout: BottomSheetBaseLayout {
         label.textAlignment = .center
     }
 
-    let linkButton: UIButton = .create { button in
-        button.setImage(UIImage(resource: .iconArrowRight20), for: .normal)
-        button.semanticContentAttribute = .forceRightToLeft
-        button.setTitleColor(UIColor.fgTertiary, for: .normal)
-        button.setTitleColor(.fgTertiary.withAlphaComponent(0.2), for: .highlighted)
-        button.titleLabel?.font = .regular14
-    }
-
     let mainButton: RoundedButton = .create { button in
         button.applyMainStyle()
-    }
-
-    let secondaryButton: RoundedButton = .create { button in
-        button.applySecondaryStyle()
     }
 
     let cancelButton: UIButton = .create { button in
@@ -80,14 +66,12 @@ final class TransferPrivacyViewLayout: BottomSheetBaseLayout {
         }
         contentStack.addArrangedSubview(iconView)
         contentStack.addArrangedSubview(textsStack)
-        contentStack.addArrangedSubview(linkButton)
 
         let actionsStack: UIStackView = .create { stack in
             stack.axis = .vertical
             stack.spacing = 8
         }
         actionsStack.addArrangedSubview(mainButton)
-        actionsStack.addArrangedSubview(secondaryButton)
         actionsStack.addArrangedSubview(cancelButton)
 
         contentView.addSubview(contentStack)
@@ -106,10 +90,6 @@ final class TransferPrivacyViewLayout: BottomSheetBaseLayout {
             make.height.equalTo(UIConstants.actionHeight)
         }
 
-        secondaryButton.snp.makeConstraints { make in
-            make.height.equalTo(UIConstants.actionHeight)
-        }
-
         cancelButton.snp.makeConstraints { make in
             make.height.equalTo(52)
         }
@@ -120,16 +100,7 @@ extension TransferPrivacyViewLayout {
     func bind(viewModel: TransferPrivacyViewModel) {
         titleLabel.text = viewModel.title
         messageLabel.text = viewModel.message
-        linkButton.setTitle(viewModel.linkTitle, for: .normal)
-
-        if let mainTitle = viewModel.mainActionTitle {
-            mainButton.imageWithTitleView?.title = mainTitle
-            mainButton.isHidden = false
-        } else {
-            mainButton.isHidden = true
-        }
-
-        secondaryButton.imageWithTitleView?.title = viewModel.secondaryActionTitle
+        mainButton.imageWithTitleView?.title = viewModel.sendAnywayTitle
         cancelButton.setTitle(String(localized: .Common.cancel), for: .normal)
     }
 }

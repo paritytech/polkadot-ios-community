@@ -18,20 +18,6 @@ final class TransferAmountWireframe: TransferAmountWireframeProtocol {
         navigationController?.popToRootViewController(animated: false)
     }
 
-    func showDegradedPrivacy(
-        model: TransferPrivacyModel,
-        from view: (any ControllerBackedProtocol)?,
-        onSendDegraded: @escaping () -> Void,
-        onSendNonDegraded: @escaping () -> Void
-    ) {
-        let sheetView = TransferPrivacyViewFactory.createView(
-            from: model,
-            onSendDegraded: onSendDegraded,
-            onSendNonDegraded: onSendNonDegraded
-        )
-        view?.controller.present(sheetView, animated: true)
-    }
-
     func showBalanceInfo(model: BalanceInfoModel, from view: (any ControllerBackedProtocol)?) {
         let sheet = BalanceInfoViewFactory.createView(from: model)
         view?.controller.present(sheet, animated: true)

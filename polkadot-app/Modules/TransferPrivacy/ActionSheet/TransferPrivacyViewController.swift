@@ -29,18 +29,10 @@ final class TransferPrivacyViewController: UIViewController, ViewHolder {
     }
 
     private func setupActions() {
-        let linkAction = UIAction { [weak presenter] _ in
-            presenter?.activateLink()
+        let sendAnywayAction = UIAction { [weak presenter] _ in
+            presenter?.sendAnyway()
         }
-        rootView.linkButton.addAction(linkAction, for: .touchUpInside)
-        let mainAction = UIAction { [weak presenter] _ in
-            presenter?.selectMain()
-        }
-        rootView.mainButton.addAction(mainAction, for: .touchUpInside)
-        let secondaryAction = UIAction { [weak presenter] _ in
-            presenter?.selectSecondary()
-        }
-        rootView.secondaryButton.addAction(secondaryAction, for: .touchUpInside)
+        rootView.mainButton.addAction(sendAnywayAction, for: .touchUpInside)
         let cancelAction = UIAction { [weak presenter] _ in
             presenter?.cancel()
         }

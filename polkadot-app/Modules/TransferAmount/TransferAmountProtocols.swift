@@ -13,6 +13,8 @@ protocol TransferAmountViewProtocol: ControllerBackedProtocol, ValidationResultP
     func didReceive(amountViewModel: AmountInputViewModelProtocol)
     func didReceive(assetViewModel: AssetAmountViewModel)
     func didReceive(availableBalance: String)
+    /// The "Extra … is spendable at the risk of reducing your privacy" hint, or nil to hide it.
+    func didReceive(privacyHint: String?)
     func didReceive(feeViewModel: BalanceViewModelProtocol?)
     func didReceive(recipient viewModel: TransferRecipientViewModel)
 
@@ -55,7 +57,7 @@ protocol TransferAmountInteractorInputProtocol: AnyObject {
 
     func lifecycleStream() -> AnyAsyncSequence<ClaimStatus>
     func previewTransfer(for amount: Decimal) async throws -> TransferPreviewValidation
-    func confirmTransfer(validation: TransferPreviewValidation, sendFullAmount: Bool) async throws
+    func confirmTransfer(validation: TransferPreviewValidation) async throws
     func saveRecentContact()
 
     #if TESTNET_FEATURE

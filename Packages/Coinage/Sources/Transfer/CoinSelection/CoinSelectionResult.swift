@@ -79,15 +79,4 @@ extension CoinSelectionResult {
         case let .unloadIntoCoins(_, perGroupAllocations): perGroupAllocations.flatMap(\.vouchers)
         }
     }
-
-    /// The privacy level of vouchers used in this selection.
-    public var privacyLevel: VoucherPrivacyLevel {
-        switch self {
-        case .exactMatch,
-             .split:
-            .full
-        case let .unloadIntoCoins(_, perGroupAllocations):
-            perGroupAllocations.flatMap(\.vouchers).contains { $0.effectivePrivacy() == .degraded } ? .degraded : .full
-        }
-    }
 }

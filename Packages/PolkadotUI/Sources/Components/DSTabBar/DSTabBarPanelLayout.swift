@@ -27,7 +27,11 @@ enum DSTabBarPanelLayout {
     }
 
     /// The container stacks the panel above the capsule, so it must fit both.
+    static func panelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        min(contentHeight + DSTabBarMetrics.capsuleHeight, max(0, availableHeight))
+    }
+
     static func panelHeight(rowHeights: [CGFloat], availableHeight: CGFloat) -> CGFloat {
-        min(contentHeight(rowHeights: rowHeights) + DSTabBarMetrics.capsuleHeight, max(0, availableHeight))
+        panelHeight(contentHeight: contentHeight(rowHeights: rowHeights), availableHeight: availableHeight)
     }
 }

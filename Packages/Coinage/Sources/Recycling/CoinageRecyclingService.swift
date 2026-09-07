@@ -6,6 +6,7 @@ import Operation_iOS
 import SDKLogger
 import SubstrateSdk
 import StructuredConcurrency
+import BackgroundExecution
 
 /// Persisted recycling intent handed from `prepareRecycle` to the submission step.
 private struct PreparedRecycle {
@@ -14,125 +15,76 @@ private struct PreparedRecycle {
     let builder: ExtrinsicBuilderClosure
 }
 
-/// Schedules and executes coin recycling to prevent expiration.
-/// Fire-and-forget submits each eligible coin; the durability layer resolves the outcome.
+/// Submits coin recycling. The decision of *which* coins to recycle lives in `CoinRecyclingEvaluator`;
+/// this service only submits, fire-and-forget, one `loadRecyclerWithCoin` extrinsic per coin. The
+/// durability layer resolves each outcome; a coin whose extrinsic never lands is released by the
+/// recovery pass at mortality, so there is nothing to roll back here.
 actor CoinageRecyclingService {
-    private let coinService: CoinServiceProtocol
     private let voucherMinter: any VoucherMinting
     private let coinKeypairFactory: any CoinKeyDeriving
     private let voucherKeypairFactory: any VoucherKeyDeriving
     private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let backgroundExecutor: any BackgroundExecuting
     private let logger: SDKLoggerProtocol
 
-    private let schedulerFactory: CoinRecycleSchedulerMaking
-    private let backgroundRecyclingInterval: TimeInterval
-    private let recycleAtAge: Int16
-
     init(
-        schedulerFactory: CoinRecycleSchedulerMaking,
-        coinService: CoinServiceProtocol,
         voucherMinter: any VoucherMinting,
         coinKeypairFactory: any CoinKeyDeriving,
         voucherKeypairFactory: any VoucherKeyDeriving,
         txService: any CoinageTxServicing,
         originFactory: OriginCreating,
-        logger: SDKLoggerProtocol,
-        backgroundRecyclingInterval: TimeInterval,
-        recycleAtAge: Int16
+        backgroundExecutor: any BackgroundExecuting,
+        logger: SDKLoggerProtocol
     ) {
-        self.schedulerFactory = schedulerFactory
-        self.coinService = coinService
         self.voucherMinter = voucherMinter
         self.coinKeypairFactory = coinKeypairFactory
         self.voucherKeypairFactory = voucherKeypairFactory
         self.txService = txService
         self.originFactory = originFactory
+        self.backgroundExecutor = backgroundExecutor
         self.logger = logger
-        self.backgroundRecyclingInterval = backgroundRecyclingInterval
-        self.recycleAtAge = recycleAtAge
     }
 }
 
 // MARK: - CoinageRecyclingServicing
 
 extension CoinageRecyclingService: CoinageRecyclingServicing {
+    /// Prepares every recycle up front, then submits them as one atomic batch: the durability write —
+    /// and so the evaluator's re-trigger off the coin snapshot — happens once, not once per coin. The
+    /// background-task assertion lets a fold mid-submission still finish registering the batch.
     func recycleCoins(_ coins: [Coin]) async throws {
-        for coin in coins {
-            try await recycleCoin(coin)
+        try await backgroundExecutor.execute { [self] in
+            try await submitRecycle(coins)
         }
-    }
-
-    func recycleOldCoins() async {
-        await runRecycling()
-    }
-
-    func scheduleRecycling() async {
-        await ensureScheduled()
-        await runRecycling()
     }
 }
 
 // MARK: - Private
 
 private extension CoinageRecyclingService {
-    func ensureScheduled() async {
-        await schedulerFactory
-            .makeScheduler()
-            .schedule(earliestBegin: backgroundRecyclingInterval)
-    }
+    func submitRecycle(_ coins: [Coin]) async throws {
+        var requests: [CoinageTxRequest] = []
 
-    func runRecycling() async {
-        logger.debug("Starting recycling run")
-
-        do {
-            let eligibleCoins = try await fetchEligibleCoins()
-
-            guard !eligibleCoins.isEmpty else {
-                logger.debug("No eligible coins for recycling")
-                return
+        for coin in coins {
+            do {
+                let prepared = try await prepareRecycle(coin)
+                requests.append(
+                    CoinageTxRequest(
+                        inputs: [.coin(.own(coin.derivationIndex, coin.publicKey))],
+                        outputs: [.recyclerVoucher(prepared.voucher.derivationIndex, prepared.voucher.publicKey)],
+                        builder: prepared.builder,
+                        origin: prepared.origin
+                    )
+                )
+            } catch {
+                logger.error("Coin recycling failed: \(coin.derivationIndex)")
             }
-
-            logger.debug("Found \(eligibleCoins.count) eligible coins for recycling")
-
-            var submittedCount = 0
-            var failedCount = 0
-
-            for coin in eligibleCoins {
-                if Task.isCancelled { break }
-
-                do {
-                    try await recycleCoin(coin)
-                    submittedCount += 1
-                } catch {
-                    logger.error("Recycle failed for coin \(coin.derivationIndex), leaving for recovery: \(error)")
-                    failedCount += 1
-                }
-            }
-
-            logger.debug("Recycling run complete: \(submittedCount) submitted, \(failedCount) failed")
-        } catch {
-            logger.error("Recycling run failed: \(error)")
         }
-    }
 
-    /// Fire-and-forget recycle of a single coin, matching Appendix B's `load_recycler_with_coin`:
-    /// `prepareRecycle` mints the voucher, then `submit` registers the entry —
-    /// which claims the coin — and tracks the extrinsic in the background. The durability layer
-    /// resolves the outcome; a coin whose extrinsic never lands is released by the recovery pass at
-    /// mortality, so there is nothing to roll back here.
-    func recycleCoin(_ coin: Coin) async throws {
-        let prepared = try await prepareRecycle(coin)
-        try await txService.submitTransaction(
-            request: CoinageTxRequest(
-                inputs: [.coin(.own(coin.derivationIndex, coin.publicKey))],
-                outputs: [.recyclerVoucher(prepared.voucher.derivationIndex, prepared.voucher.publicKey)],
-                builder: prepared.builder,
-                origin: prepared.origin
-            ),
-            groupId: nil
-        )
-        logger.debug("Submitted recycle: coin \(coin.derivationIndex) -> voucher \(prepared.voucher.derivationIndex)")
+        guard !requests.isEmpty else { return }
+
+        try await txService.submitTransactions(requests, groupId: nil)
     }
 
     /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`)
@@ -160,12 +112,5 @@ private extension CoinageRecyclingService {
 
         // The voucher is already persisted by the allocator, so a crash mid-flight is recoverable.
         return PreparedRecycle(voucher: voucher, origin: origin, builder: builder)
-    }
-
-    func fetchEligibleCoins() async throws -> [Coin] {
-        try await coinService.fetchAllTrackedCoins()
-            .filter { $0.isAwaitingRecycling(for: recycleAtAge) }
-            .map(\.coin)
-            .sorted { ($0.age ?? 0) > ($1.age ?? 0) }
     }
 }

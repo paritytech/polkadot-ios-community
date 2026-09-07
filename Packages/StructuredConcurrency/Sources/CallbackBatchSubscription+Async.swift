@@ -10,7 +10,7 @@ public extension CallbackBatchStorageSubscription {
     ///
     /// Transparently bounded by the node's `state_subscribeStorage` key limit: when `requests`
     /// exceeds ``maxSubscriptionKeys`` the keys are split across several subscriptions. Their initial
-    /// values are folded into one map (Android's `toMultiSubscription`) and held back until the map
+    /// values are folded into one map and held back until the map
     /// holds **every** key, so the first emission is always the complete current snapshot — never a
     /// partial chunk — after which each chunk's later notifications pass through as deltas. Within the
     /// limit it is a single native subscription (initial snapshot, then deltas) — identical shape.
@@ -50,8 +50,7 @@ public extension CallbackBatchStorageSubscription {
     private static var maxSubscriptionKeys: Int { 1_000 }
 
     /// Merges the chunk subscriptions into one stream by accumulating every key's latest value into a
-    /// map and emitting a rebuilt `T` only once the map is complete — the port of Android's
-    /// `toMultiSubscription`.
+    /// map and emitting a rebuilt `T` only once the map is complete.
     private static func multiplexedAsyncStream(
         chunks: [[BatchStorageSubscriptionRequest]],
         expectedSize: Int,

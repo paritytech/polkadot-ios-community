@@ -25,7 +25,7 @@ final class CoinageOriginFactory: ExtrinsicOriginFactory, OriginCreating {
     // unload tokens
     private let unloadTokenResolver: UnloadTokenResolving
 
-    private let personOriginProvider: OriginPersonProviding
+    let personOriginProvider: OriginPersonProviding
 
     init(
         chainRegistry: ChainRegistryProtocol,
@@ -121,7 +121,7 @@ final class CoinageOriginFactory: ExtrinsicOriginFactory, OriginCreating {
 
         let personOrigin = try await personOriginProvider.pickPersonOrigin()
 
-        let aliasProvider = makeAliasProvider(for: personOrigin)
+        let aliasProvider = personOrigin.makeAliasProvider()
         let personProofDependency = makeProofDependency(for: personOrigin)
 
         let resolvedTokens = try await markStallRegion("Resolve unload tokens") {
@@ -181,15 +181,6 @@ private extension CoinageOriginFactory {
             recyclerKey: key,
             proofParamsFetcher: proofParamsFetcher
         )
-    }
-
-    func makeAliasProvider(for pickedOrigin: PersonOrigin) -> AliasProviding {
-        switch pickedOrigin {
-        case let .lite(_, keyManager):
-            RingMemberAliasProvider(keyManager: keyManager)
-        case let .full(_, keyManager):
-            RingMemberAliasProvider(keyManager: keyManager)
-        }
     }
 
     func makeProofDependency(for pickedOrigin: PersonOrigin) -> PersonProofDependency {

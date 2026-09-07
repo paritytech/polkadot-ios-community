@@ -42,4 +42,13 @@ public extension MembersPallet.RingExponent {
         case .r2e14: .domain16
         }
     }
+
+    /// Provable ring capacity — the real anonymity-set size a proof can verify against:
+    /// `2^exponent - RING_PIOP_OVERHEAD`. The overhead is `4 + Bandersnatch scalar MODULUS_BIT_SIZE (253)`,
+    /// constant across domain sizes. r2e9 -> 255, r2e10 -> 767, r2e14 -> 16127.
+    var ringCapacity: Int {
+        (1 << Int(rawValue)) - Self.ringPiopOverhead
+    }
+
+    private static var ringPiopOverhead: Int { 257 }
 }

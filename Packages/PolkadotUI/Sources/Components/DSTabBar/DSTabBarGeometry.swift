@@ -68,19 +68,14 @@ enum DSTabBarGeometry {
 struct DSTabBarRow {
     let width: CGFloat
     let itemCount: Int
-    let isCentreExpanded: Bool
 }
 
 extension DSTabBarRow {
-    var centreIndex: Int? {
-        itemCount == 0 ? nil : itemCount / 2
-    }
-
     func itemFrame(at index: Int) -> CGRect {
         CGRect(
-            x: DSTabBarMetrics.rowPadding + CGFloat(unitIndex(forItemAt: index)) * unitStride,
+            x: DSTabBarMetrics.rowPadding + CGFloat(index) * unitStride,
             y: 0,
-            width: unitWidth + CGFloat(unitSpan(forItemAt: index) - 1) * unitStride,
+            width: unitWidth,
             height: DSTabBarMetrics.itemHeight
         )
     }
@@ -95,44 +90,26 @@ extension DSTabBarRow {
         )
     }
 
-    func nearestItemIndex(toX xPosition: CGFloat) -> Int {
-        guard itemCount > 0 else {
-            return 0
+    /// Snaps to the nearest centre among `candidates` only, so a drag sweeping over an action item
+    /// passes it by. Returns `nil` when there is nothing to snap to.
+    func nearestItemIndex(toX xPosition: CGFloat, restrictedTo candidates: [Int]) -> Int? {
+        candidates.min {
+            abs(itemFrame(at: $0).midX - xPosition) < abs(itemFrame(at: $1).midX - xPosition)
         }
-        let centres = (0 ..< itemCount).map { itemFrame(at: $0).midX }
-        let nearestIndex = centres.indices.min {
-            abs(centres[$0] - xPosition) < abs(centres[$1] - xPosition)
-        }
-        return nearestIndex ?? 0
     }
 }
 
 private extension DSTabBarRow {
-    var unitCount: Int {
-        itemCount + (isCentreExpanded ? 1 : 0)
-    }
-
     var unitWidth: CGFloat {
-        guard unitCount > 0 else {
+        guard itemCount > 0 else {
             return 0
         }
         let usable = width - DSTabBarMetrics.rowPadding * 2
-        let overlapTotal = CGFloat(unitCount - 1) * DSTabBarMetrics.itemOverlap
-        return max(0, (usable + overlapTotal) / CGFloat(unitCount))
+        let overlapTotal = CGFloat(itemCount - 1) * DSTabBarMetrics.itemOverlap
+        return max(0, (usable + overlapTotal) / CGFloat(itemCount))
     }
 
     var unitStride: CGFloat {
         unitWidth - DSTabBarMetrics.itemOverlap
-    }
-
-    func unitSpan(forItemAt index: Int) -> Int {
-        isCentreExpanded && index == centreIndex ? 2 : 1
-    }
-
-    func unitIndex(forItemAt index: Int) -> Int {
-        guard isCentreExpanded, let centreIndex, index > centreIndex else {
-            return index
-        }
-        return index + 1
     }
 }

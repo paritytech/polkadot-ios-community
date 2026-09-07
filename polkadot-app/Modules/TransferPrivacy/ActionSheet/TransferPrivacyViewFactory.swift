@@ -4,18 +4,17 @@ import UIKit_iOS
 
 @MainActor
 enum TransferPrivacyViewFactory {
-    static func createView(
-        from model: TransferPrivacyModel,
-        onSendDegraded: @escaping () -> Void,
-        onSendNonDegraded: @escaping () -> Void,
-        onCancel _: (() -> Void)? = nil
+    static func createGainingPrivacyConfirmation(
+        amount: String,
+        onSendAnyway: @escaping () -> Void,
+        onCancel: @escaping () -> Void
     ) -> UIViewController {
         let wireframe = TransferPrivacyWireframe()
         let presenter = TransferPrivacyPresenter(
-            model: model,
+            model: TransferPrivacyModel(amount: amount),
             wireframe: wireframe,
-            onMainTapped: onSendNonDegraded,
-            onSecondaryTapped: onSendDegraded
+            onSendAnyway: onSendAnyway,
+            onCancel: onCancel
         )
         let view = TransferPrivacyViewController(presenter: presenter)
         presenter.view = view

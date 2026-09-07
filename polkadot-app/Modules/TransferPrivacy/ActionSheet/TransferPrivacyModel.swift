@@ -1,7 +1,6 @@
 import Foundation
 
+/// The gaining-privacy spend confirmation: the amount being sent, for the "Send X anyway" action.
 struct TransferPrivacyModel {
-    let fullAmount: String
-    let nonDegradedAmount: String?
-    let degradedAmount: String
+    let amount: String
 }

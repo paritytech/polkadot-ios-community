@@ -339,7 +339,7 @@ private extension DiagonalStripeBand {
     }
 }
 
-private extension ClosedRange where Bound == CGFloat {
+private extension ClosedRange<CGFloat> {
     func interpolatedValue(at progress: CGFloat) -> CGFloat {
         lowerBound + (upperBound - lowerBound) * progress
     }

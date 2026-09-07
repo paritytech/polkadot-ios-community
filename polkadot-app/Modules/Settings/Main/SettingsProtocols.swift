@@ -1,5 +1,6 @@
 import Foundation
 import UIKitExt
+import Coinage
 
 protocol SettingsViewProtocol: ControllerBackedProtocol {
     func applyContent(_ content: SettingsViewModel.Content)
@@ -9,11 +10,13 @@ protocol SettingsViewProtocol: ControllerBackedProtocol {
 protocol SettingsPresenterProtocol: AnyObject {
     func setup()
     func didTapCell(_ cell: SettingsViewModel.CellType)
+    func didSelectPrivacyStrategy(_ strategy: RecyclingStrategyType)
 }
 
 protocol SettingsInteractorInputProtocol: AnyObject {
     func setup()
     func openMailApp()
+    func savePrivacyStrategy(_ strategy: RecyclingStrategyType)
 }
 
 @MainActor
@@ -24,6 +27,7 @@ protocol SettingsInteractorOutputProtocol: AnyObject {
     func didOpenMailApp()
     func didFailToOpenMailApp(email: String)
     func didReceiveHasBlockedUsers(_ hasBlockedUsers: Bool)
+    func didReceivePrivacyStrategy(_ strategy: RecyclingStrategyType)
 }
 
 @MainActor

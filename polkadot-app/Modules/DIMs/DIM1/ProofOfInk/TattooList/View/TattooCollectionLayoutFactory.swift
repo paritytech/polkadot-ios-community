@@ -6,9 +6,9 @@ enum TattooCollectionViewLayout {
     static func createLayout() -> UICollectionViewLayout {
         let layout = UICollectionViewCompositionalLayout { section, _ -> NSCollectionLayoutSection? in
             if section > 0 {
-                return Self.createTattooSection()
+                Self.createTattooSection()
             } else {
-                return Self.createHeaderSection()
+                Self.createHeaderSection()
             }
         }
 

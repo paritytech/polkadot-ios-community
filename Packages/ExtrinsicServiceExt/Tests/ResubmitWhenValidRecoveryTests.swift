@@ -140,7 +140,7 @@ struct ResubmitWhenValidRecoveryTests {
         let recovery = try makeRecovery(api: api, ticks: 500)
 
         let decision = await recovery.recover(
-            builtExtrinsic: ExtrinsicBuiltModel(extrinsic: "not-hex", sender: .none),
+            builtExtrinsic: ExtrinsicBuiltModel(extrinsic: "not-hex", sender: .none, mortality: .immortal),
             failure: .txInvalidation
         )
 
@@ -191,7 +191,7 @@ private extension ResubmitWhenValidRecoveryTests {
     }
 
     func makeBuiltExtrinsic() throws -> ExtrinsicBuiltModel {
-        ExtrinsicBuiltModel(extrinsic: "0x0401", sender: .none)
+        ExtrinsicBuiltModel(extrinsic: "0x0401", sender: .none, mortality: .immortal)
     }
 
     func expectResubmit(

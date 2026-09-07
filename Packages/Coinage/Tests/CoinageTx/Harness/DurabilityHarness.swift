@@ -11,7 +11,7 @@ let harnessMortalPeriod: UInt32 = 128
 ///
 /// It wires the *real* registrar, async submission tracker and recovery pass — exactly as
 /// `CoinageService.make` does — over fakes, so the async submission path is exercised for real. The
-/// one deviation from production is deliberate and mirrors Android's `RecordingRecoveryScheduler`: the
+/// one deviation from production is deliberate: the
 /// tracker's release-time `onRecovery` only *records* a request rather than launching a pass, so
 /// passes run only when a scenario asks — which keeps every walk replayable and shrinkable.
 ///

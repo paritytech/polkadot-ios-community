@@ -40,8 +40,6 @@ final class FakeCoinageChainViewFactory: CoinageChainViewFactoryProtocol, @unche
         )
     }
 
-    // Head streams drive the production recovery loop; the fuzz runs passes explicitly, so these are
-    // empty — matching Android's harness, which never starts the loop.
     func finalizedHeads() -> AnyAsyncSequence<BlockNumber> {
         AsyncStream<BlockNumber> { $0.finish() }.eraseToAnyAsyncSequence()
     }

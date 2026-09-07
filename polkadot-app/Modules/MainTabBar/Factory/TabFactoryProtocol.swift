@@ -5,6 +5,7 @@ import Keystore_iOS
 @MainActor
 protocol TabFactoryProtocol {
     func view(for item: TabBarItem) -> UIViewController?
+    func makeScanController() -> UIViewController?
 }
 
 final class TabFactory: TabFactoryProtocol {
@@ -35,8 +36,6 @@ final class TabFactory: TabFactoryProtocol {
                 createChatTab()
             case .wallet:
                 createWalletTab()
-            case .scan:
-                createScanTab()
             case .browse:
                 createBrowseTab()
             case .settings:
@@ -44,6 +43,13 @@ final class TabFactory: TabFactoryProtocol {
             }
 
         return mainContentVC
+    }
+
+    func makeScanController() -> UIViewController? {
+        WalletQRScanViewFactory.createView(
+            for: scanResultHandler,
+            presentation: .embedded
+        )?.controller
     }
 }
 
@@ -117,12 +123,5 @@ private extension TabFactory {
         navigation.scrollEdgeBarSettings = .defaultSettings
 
         return navigation
-    }
-
-    private func createScanTab() -> UIViewController? {
-        guard let view = WalletQRScanViewFactory.createView(for: scanResultHandler) else {
-            return nil
-        }
-        return view.controller
     }
 }

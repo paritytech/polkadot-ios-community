@@ -47,4 +47,6 @@
   --disable testSuiteAccessControl
   --disable wrapPropertyBodies
   --disable wrapFunctionBodies
+  --disable wrapIfStatementBodies
+  --disable wrapIfExpressionBodies
   --disable redundantViewBuilder

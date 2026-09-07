@@ -2,8 +2,19 @@ import UIKit
 import DesignSystem
 
 final class DSTabBarItemView: UIView {
+    /// Action items never receive the pill, so an open panel is signalled by tinting the item.
+    var isActive: Bool = false {
+        didSet {
+            guard isActive != oldValue else {
+                return
+            }
+            applyTint()
+        }
+    }
+
     private let isSelectedAppearance: Bool
     private let iconView = UIImageView()
+    private let tabsGlyphView = DSTabBarTabsGlyphView()
     private let titleLabel = UILabel()
     private let badgeView = UIView()
 
@@ -21,7 +32,17 @@ final class DSTabBarItemView: UIView {
     }
 
     func apply(_ item: DSTabBarItem) {
-        iconView.image = item.icon.withRenderingMode(.alwaysTemplate)
+        switch item.content {
+        case let .icon(image):
+            iconView.image = image.withRenderingMode(.alwaysTemplate)
+            iconView.isHidden = false
+            tabsGlyphView.isHidden = true
+        case let .tabsGlyph(count):
+            tabsGlyphView.count = count
+            tabsGlyphView.isHidden = false
+            iconView.isHidden = true
+        }
+
         titleLabel.text = item.title
         titleLabel.isHidden = item.title == nil
 
@@ -30,6 +51,8 @@ final class DSTabBarItemView: UIView {
 
         isAccessibilityElement = false
         accessibilityIdentifier = item.accessibilityIdentifier
+
+        applyTint()
     }
 
     override func layoutSubviews() {
@@ -41,7 +64,9 @@ final class DSTabBarItemView: UIView {
             ? ((bounds.height - iconSize) / 2).rounded()
             : DSTabBarMetrics.itemTopPadding
 
-        iconView.frame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
+        let glyphFrame = CGRect(x: iconX, y: iconY, width: iconSize, height: iconSize)
+        iconView.frame = glyphFrame
+        tabsGlyphView.frame = glyphFrame
 
         let titleHeight = titleLabel.font.lineHeight.rounded(.up)
         titleLabel.frame = CGRect(
@@ -63,21 +88,38 @@ final class DSTabBarItemView: UIView {
 }
 
 private extension DSTabBarItemView {
+    var tint: UIColor {
+        isSelectedAppearance || isActive ? .fgPrimary : .fgSecondary
+    }
+
     func setupSubviews() {
         isUserInteractionEnabled = false
 
-        let tint: UIColor = isSelectedAppearance ? .fgPrimary : .fgSecondary
-
         iconView.contentMode = .scaleAspectFit
-        iconView.tintColor = tint
         addSubview(iconView)
+
+        tabsGlyphView.isHidden = true
+        addSubview(tabsGlyphView)
 
         titleLabel.font = .labelSmallEmphasized
         titleLabel.textAlignment = .center
-        titleLabel.textColor = tint
         addSubview(titleLabel)
 
         badgeView.isHidden = true
         addSubview(badgeView)
+
+        registerForTraitChanges([DSThemeTrait.self]) { (view: DSTabBarItemView, _) in
+            view.applyTint()
+            view.tabsGlyphView.refreshColorsForTraitChange()
+        }
+
+        applyTint()
+    }
+
+    func applyTint() {
+        let color = tint
+        iconView.tintColor = color
+        titleLabel.textColor = color
+        tabsGlyphView.glyphColor = color
     }
 }

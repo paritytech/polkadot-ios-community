@@ -141,11 +141,11 @@ private extension CallAudioSessionManager {
         let current: CallAudioRoute? = systemAudioSession.currentRoute.outputs.first.map { output -> CallAudioRoute in
             switch output.portType {
             case .builtInSpeaker:
-                return .builtInSpeaker
+                .builtInSpeaker
             case .builtInReceiver:
-                return .builtInReceiver
+                .builtInReceiver
             default:
-                return .external(output)
+                .external(output)
             }
         }
 

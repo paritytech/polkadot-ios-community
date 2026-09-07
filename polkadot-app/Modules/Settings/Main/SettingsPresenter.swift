@@ -2,6 +2,7 @@ import DesignSystem
 import UIKit
 import UIKitExt
 import SafariServices
+import Coinage
 
 @MainActor
 final class SettingsPresenter {
@@ -16,6 +17,7 @@ final class SettingsPresenter {
     private var hasBlockedUsers = false
     private var appVersion: String?
     private var selectedCurrencyCode: String?
+    private var selectedPrivacyStrategy: RecyclingStrategyType?
 
     init(
         interactor: SettingsInteractorInputProtocol,
@@ -66,17 +68,21 @@ private extension SettingsPresenter {
     }
 
     func refreshContent() {
-        let content = viewModelFactory.makeContent(
+        let input = SettingsContentInput(
             visibleCells: visibleCells(),
             attentionItems: attentionItems,
             selectedCurrencyCode: selectedCurrencyCode,
             selectedThemeName: selectedThemeName,
+            selectedPrivacyStrategy: selectedPrivacyStrategy,
             appVersion: appVersion,
             onSelect: { [weak self] cellType in
                 self?.didTapCell(cellType)
+            },
+            onSelectPrivacyStrategy: { [weak self] strategy in
+                self?.didSelectPrivacyStrategy(strategy)
             }
         )
-        view?.applyContent(content)
+        view?.applyContent(viewModelFactory.makeContent(input))
     }
 }
 
@@ -84,6 +90,13 @@ extension SettingsPresenter: SettingsPresenterProtocol {
     func setup() {
         prewarmingToken = wireframe.prewarmURLs([fetchURL(for: .termsOfUse)])
         interactor.setup()
+    }
+
+    func didSelectPrivacyStrategy(_ strategy: RecyclingStrategyType) {
+        guard strategy != selectedPrivacyStrategy else { return }
+        selectedPrivacyStrategy = strategy
+        refreshContent()
+        interactor.savePrivacyStrategy(strategy)
     }
 
     // swiftlint:disable:next cyclomatic_complexity
@@ -152,6 +165,12 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
 
     func didReceiveHasBlockedUsers(_ hasBlockedUsers: Bool) {
         self.hasBlockedUsers = hasBlockedUsers
+        refreshContent()
+    }
+
+    func didReceivePrivacyStrategy(_ strategy: RecyclingStrategyType) {
+        guard strategy != selectedPrivacyStrategy else { return }
+        selectedPrivacyStrategy = strategy
         refreshContent()
     }
 }

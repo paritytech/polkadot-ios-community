@@ -208,6 +208,38 @@ public extension View {
     func dsMenuListItemPosition(_ position: DSMenuListItemPosition) -> some View {
         environment(\.dsMenuListItemPosition, position)
     }
+
+    /// Wraps arbitrary content in the same grouped-cell surface a `DSMenuListItem` uses, so custom
+    /// rows (e.g. an inline control) sit flush inside a menu list group instead of looking like a
+    /// separate card.
+    func dsMenuListCellSurface(
+        position: DSMenuListItemPosition,
+        showsDivider: Bool = false
+    ) -> some View {
+        modifier(DSMenuListCellSurface(position: position, showsDivider: showsDivider))
+    }
+}
+
+private struct DSMenuListCellSurface: ViewModifier {
+    let position: DSMenuListItemPosition
+    let showsDivider: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color.bgSurfaceContainer,
+                in: UnevenRoundedRectangle(cornerRadii: cornerRadii(for: position), style: .continuous)
+            )
+            .overlay(alignment: .bottom) {
+                if showsDivider {
+                    Rectangle()
+                        .fill(Color.strokePrimary)
+                        .frame(height: 1)
+                        .padding(.horizontal, DSSpacings.mediumIncreased)
+                }
+            }
+    }
 }
 
 #if DEBUG

@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 import PolkadotUI
 import SnapKit
 import DesignSystem
@@ -12,6 +13,8 @@ final class MainTabBarViewController: UIViewController {
     let flowStateProvider: any SPAFlowStateProviding
 
     private let chromeController = TabBarBottomChromeController()
+
+    private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(models: []))
 
     private lazy var container = TabBarContainer(hostController: self)
 
@@ -43,24 +46,26 @@ final class MainTabBarViewController: UIViewController {
 
         view.backgroundColor = .bgSurfaceMain
 
+        installStatusBar()
+
         installChromeController()
 
         chromeController.onSelect = { [weak self] index, isReselection in
             self?.handleSelection(index: index, isReselection: isReselection)
         }
 
-        chromeController.onCentreHalfTapped = { [weak self] half in
-            guard let self, half == .tabs else {
+        chromeController.onPanelChanged = { [weak self] kind in
+            guard let action = kind?.contentAction else {
                 return
             }
-            chromeController.setPanelOpen(!chromeController.isPanelOpen, animated: true)
+            self?.presenter.didRequestContentPanel(for: action)
         }
 
         chromeController.onChipTapped = { [weak self] id in
             guard let self, let tab = browserCoordinator.tabs.first(where: { $0.id == id }) else {
                 return
             }
-            chromeController.setPanelOpen(false, animated: true)
+            chromeController.setPanel(nil, animated: true)
             mountSPA(for: tab)
         }
 
@@ -100,6 +105,20 @@ final class MainTabBarViewController: UIViewController {
 // MARK: - Private
 
 private extension MainTabBarViewController {
+    func installStatusBar() {
+        additionalSafeAreaInsets.top = ChainConnectionStatusBarView.preferredHeight
+
+        addChild(statusBarHost)
+        statusBarHost.view.backgroundColor = .clear
+        view.addSubview(statusBarHost.view)
+        statusBarHost.view.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(view.safeAreaLayoutGuide.snp.top)
+        }
+
+        statusBarHost.didMove(toParent: self)
+    }
+
     func installChromeController() {
         addChild(chromeController)
         view.addSubview(chromeController.view)
@@ -231,7 +250,7 @@ private extension MainTabBarViewController {
 
 extension MainTabBarViewController {
     func handleSelection(index: Int, isReselection: Bool) {
-        chromeController.setPanelOpen(false, animated: true)
+        chromeController.setPanel(nil, animated: true)
 
         guard tabs.indices.contains(index) else {
             return
@@ -250,8 +269,8 @@ extension MainTabBarViewController {
 // MARK: - MainTabBarViewProtocol
 
 extension MainTabBarViewController: MainTabBarViewProtocol {
-    func show(tabs: [TabBarItem], selecting tab: TabBarItem) {
-        let content = tabs.compactMap { item in
+    func show(slots: [TabBarSlot], selecting tab: TabBarItem) {
+        let content = slots.compactMap(\.tab).compactMap { item in
             viewFactory.view(for: item).map { (item: item, controller: $0) }
         }
         content.forEach { entry in
@@ -259,18 +278,19 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
             (entry.controller as? AppNavigationController)?.transitionObserver = self
         }
 
-        self.tabs = content.map(\.item)
+        tabs = content.map(\.item)
 
-        let index = self.tabs.firstIndex(of: tab) ?? 0
+        let index = tabs.firstIndex(of: tab) ?? 0
 
-        chromeController.setItems(self.tabs.map { $0.makeBarItem(badge: badges[$0]) })
+        chromeController.setItems(slots)
         chromeController.setSelectedIndex(index)
+        badges.forEach { setBadge($0.value, for: $0.key) }
         container.setControllers(content.map(\.controller), selecting: index)
         reconcileChromeWithSelectedTab()
     }
 
     func select(tab: TabBarItem) {
-        chromeController.setPanelOpen(false, animated: true)
+        chromeController.setPanel(nil, animated: true)
 
         guard let index = tabs.firstIndex(of: tab) else {
             return
@@ -295,6 +315,18 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     func showSPATabs(_ viewModels: [SPATabChipViewModel]) {
         spaChipViewModels = viewModels
         applyChips()
+    }
+
+    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction) {
+        chromeController.setContentPanel(configuration, for: action)
+    }
+
+    func showScanPanel() {
+        chromeController.setContentController(viewFactory.makeScanController(), for: .scan)
+    }
+
+    func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {
+        statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
     }
 }
 

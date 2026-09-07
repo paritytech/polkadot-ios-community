@@ -17,12 +17,10 @@ public struct BlockedUsersViewLayout: View {
     public init() {}
 
     public var body: some View {
-        Group {
-            if viewModel.items.isEmpty {
-                emptyState
-            } else {
-                blockedUsersList
-            }
+        if viewModel.items.isEmpty {
+            emptyState
+        } else {
+            blockedUsersList
         }
     }
 }

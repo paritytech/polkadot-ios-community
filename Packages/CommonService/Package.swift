@@ -14,6 +14,10 @@ let package = Package(
     ],
     dependencies: [
         .package(
+            url: "https://github.com/sideeffect-io/AsyncExtensions",
+            exact: "0.5.4"
+        ),
+        .package(
             url: "https://github.com/novasamatech/substrate-sdk-ios",
             from: "5.7.0"
         ),
@@ -23,10 +27,16 @@ let package = Package(
         .target(
             name: "CommonService",
             dependencies: [
+                .product(name: "AsyncExtensions", package: "AsyncExtensions"),
                 .product(name: "SubstrateSdk", package: "substrate-sdk-ios"),
                 .product(name: "SubstrateStorageSubscription", package: "substrate-sdk-ios"),
                 .product(name: "ChainStore", package: "ChainStore")
             ]
+        ),
+        .testTarget(
+            name: "CommonServiceTests",
+            dependencies: ["CommonService"],
+            path: "Tests"
         )
     ]
 )

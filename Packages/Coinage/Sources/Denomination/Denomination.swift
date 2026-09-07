@@ -60,6 +60,12 @@ public struct DenominationBreakdownContext: Equatable {
         return results
     }
 
+    /// Converts a plank amount into its decimal currency amount using the asset precision. Public so
+    /// display consumers can render ``CoinageBalance`` buckets without reaching for the precision.
+    public func decimal(fromPlanks planks: Balance) -> Decimal {
+        .fromSubstrateAmount(planks, precision: precision) ?? 0
+    }
+
     /// Returns the plank value for a given denomination exponent: `unit * 2^exponent`.
     public func valueInPlanks(for exponent: Int16) -> BigUInt {
         if exponent >= 0 {

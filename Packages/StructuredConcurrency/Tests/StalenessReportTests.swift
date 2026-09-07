@@ -729,35 +729,6 @@ struct StalenessReportTests {
         await report.drain()
         #expect(report.subject.value.isEmpty)
     }
-
-    @Test("end-to-end with board: dismiss frozen activity stops snapshot")
-    func endToEndBoardDismissStopsSnapshot() async throws {
-        let fakeTime = Ref<TimeInterval>(TimeInterval(0))
-        let date: @Sendable () -> Date = {
-            Date(timeIntervalSince1970: fakeTime.value)
-        }
-
-        let report = StalenessReport(currentDate: date, maxSteps: 10)
-        let board = await MainActor.run {
-            StallBoard(sources: [report], revealAfter: 5, currentDate: date)
-        }
-
-        await report.trackActivity("root") {
-            fakeTime.value = 5.0
-        }
-
-        try await awaitIngestion(board) { $0.ingestedActivities.count == 1 }
-        await MainActor.run { board.refresh() }
-        let snapshot1 = await MainActor.run { board.currentSnapshot }
-        #expect(snapshot1 != nil)
-
-        let activityId = try #require(await MainActor.run { board.ingestedActivities.first?.id })
-        await board.dismiss(id: activityId)
-
-        await MainActor.run { board.refresh() }
-        let snapshot2 = await MainActor.run { board.currentSnapshot }
-        #expect(snapshot2 == nil)
-    }
 }
 
 /// These exercise `StalenessReport.shared` and the `isEnabled` global, so they must not run

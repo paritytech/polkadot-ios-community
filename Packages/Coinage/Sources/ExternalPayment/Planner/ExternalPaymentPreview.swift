@@ -29,21 +29,15 @@ public extension ExternalPaymentPreview {
         public let coins: [Coin]
         /// The originally requested transfer amount.
         public let fullAmount: BigUInt
-        /// Amount achievable using only full-privacy vouchers.
-        public let nonDegradedAmount: BigUInt
-
-        public var isDegraded: Bool { nonDegradedAmount < fullAmount }
 
         public init(
             vouchers: [Voucher],
             coins: [Coin],
-            fullAmount: BigUInt,
-            nonDegradedAmount: BigUInt
+            fullAmount: BigUInt
         ) {
             self.vouchers = vouchers
             self.coins = coins
             self.fullAmount = fullAmount
-            self.nonDegradedAmount = nonDegradedAmount
         }
     }
 }
@@ -62,9 +56,7 @@ public extension ExternalPaymentPreview {
         }
     }
 
-    var isDegraded: Bool { selection?.isDegraded ?? false }
     var fullAmount: BigUInt { selection?.fullAmount ?? .zero }
-    var nonDegradedAmount: BigUInt { selection?.nonDegradedAmount ?? .zero }
 
     var isExecutable: Bool {
         switch self {

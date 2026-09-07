@@ -88,8 +88,8 @@ struct BalanceInfoView: View {
                 .foregroundStyle(.fgSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 4) {
-                subRow(title: String(localized: .Transfer.balanceInfoSecured), amount: model.secured)
-                subRow(title: String(localized: .Transfer.balanceInfoLowPrivacy), amount: model.lowPrivacy)
+                subRow(title: String(localized: .Transfer.balanceInfoSecured), amount: model.availablePrivate)
+                subRow(title: String(localized: .Transfer.balanceInfoLowPrivacy), amount: model.gainingPrivacy)
             }
             .foregroundStyle(.fgSecondary)
         }

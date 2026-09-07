@@ -1,22 +1,19 @@
 import Operation_iOS
 
-/// The on-chain location and readiness a location sync resolves for a voucher — its `remoteState`
-/// (onboarding / in-recycler) and `privacy` (degraded / full) — keyed by derivation index.
-/// Persisted through a dedicated write-only mapper so a location write only ever touches these
-/// fields, never reading-then-overwriting the rest of the voucher.
+/// The on-chain location a location sync resolves for a voucher — its `remoteState`
+/// (onboarding / in-recycler) — keyed by derivation index. Persisted through a dedicated write-only
+/// mapper so a location write only ever touches this field, never reading-then-overwriting the rest
+/// of the voucher.
 public struct VoucherLocationUpdate: Equatable, Sendable {
     public let derivationIndex: DerivationIndex
     public let remoteState: Voucher.OnChainState
-    public let privacy: VoucherPrivacyLevel
 
     public init(
         derivationIndex: DerivationIndex,
-        remoteState: Voucher.OnChainState,
-        privacy: VoucherPrivacyLevel
+        remoteState: Voucher.OnChainState
     ) {
         self.derivationIndex = derivationIndex
         self.remoteState = remoteState
-        self.privacy = privacy
     }
 }
 

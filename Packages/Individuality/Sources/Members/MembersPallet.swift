@@ -69,11 +69,22 @@ public extension MembersPallet {
             @StringCodable public var ringIndex: RingIndex
             @StringCodable public var ringPage: PageIndex
             @StringCodable public var ringPosition: UInt32
+
+            public init(ringIndex: RingIndex, ringPage: PageIndex, ringPosition: UInt32) {
+                _ringIndex = StringCodable(wrappedValue: ringIndex)
+                _ringPage = StringCodable(wrappedValue: ringPage)
+                _ringPosition = StringCodable(wrappedValue: ringPosition)
+            }
         }
 
         public struct Onboarding: Decodable, Equatable {
             @StringCodable public var queuePage: PageIndex
             @StringCodable public var queuedAt: UInt64
+
+            public init(queuePage: PageIndex, queuedAt: UInt64) {
+                _queuePage = StringCodable(wrappedValue: queuePage)
+                _queuedAt = StringCodable(wrappedValue: queuedAt)
+            }
         }
 
         case onboarding(Onboarding)
@@ -128,7 +139,7 @@ public extension MembersPallet {
             }
         }
 
-        var includedRingPosition: UInt32? {
+        public var includedRingPosition: UInt32? {
             switch self {
             case .onboarding,
                  .suspended:
@@ -210,6 +221,11 @@ public extension MembersPallet {
     struct RingKeysStatus: Decodable, Equatable {
         @StringCodable public var total: UInt32
         @StringCodable public var included: UInt32
+
+        public init(total: UInt32, included: UInt32) {
+            _total = StringCodable(wrappedValue: total)
+            _included = StringCodable(wrappedValue: included)
+        }
 
         public func includesKey(from ringPosition: RingPosition) -> Bool {
             guard let includedRingPosition = ringPosition.includedRingPosition else {

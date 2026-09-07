@@ -37,6 +37,14 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
         return button
     }()
 
+    let privacyHintLabel: PolkadotUI.Label = .create {
+        $0.typography = .bodyMedium
+        $0.textColor = .fgSecondary
+        $0.numberOfLines = 0
+        $0.textAlignment = .center
+        $0.isHidden = true
+    }
+
     let amountInputView = AmountInputView()
 
     let cashLabel: PolkadotUI.Label = .create {
@@ -128,10 +136,16 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
             make.centerY.equalTo(balanceView)
         }
 
+        addSubview(privacyHintLabel)
+        privacyHintLabel.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(24)
+            make.top.equalTo(balanceView.snp.bottom).offset(DSSpacings.extraSmall)
+        }
+
         addSubview(amountInputView)
         amountInputView.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(24)
-            make.top.equalTo(balanceView.snp.bottom).offset(8)
+            make.top.equalTo(privacyHintLabel.snp.bottom).offset(8)
             make.height.equalTo(88)
         }
 
@@ -194,6 +208,11 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
 
     var confirmView: UIView {
         transferButtonController.view
+    }
+
+    func bind(privacyHint: String?) {
+        privacyHintLabel.text = privacyHint
+        privacyHintLabel.isHidden = privacyHint == nil
     }
 
     func bind(recipient: TransferRecipientViewModel) {
@@ -276,9 +295,6 @@ extension TransferAmountViewLayout {
                     text += "\n  idx=\(voucher.derivationIndex)  exp=2^\(voucher.exponent)"
                 }
             }
-
-            let privacyText = info.privacyLevel == .degraded ? "Privacy: Degraded" : "Privacy: Full"
-            text += "\n\n\(privacyText)"
 
             debugStrategyLabel.text = text
             debugStrategyView.isHidden = false

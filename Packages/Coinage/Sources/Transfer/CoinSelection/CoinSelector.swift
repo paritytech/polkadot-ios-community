@@ -61,37 +61,17 @@ extension CoinSelector: CoinSelecting {
             return splitResult
         }
 
-        let fullPrivacyVouchers = availableVouchers.filter { $0.privacy == .full }
-
-        // Strategy 3a: Unload with full privacy (ready vouchers only)
-        if let fullPrivacy = try tryUnloadIntoCoins(
+        // Strategy 3: Unload the selectable vouchers into coins. Per-voucher privacy quality is no
+        // longer a selection axis — the strategy-driven balance decides usability, and this draws on
+        // whatever the durability overlay marks selectable.
+        if let unloaded = try tryUnloadIntoCoins(
             amount: input.amount,
             coins: availableCoins,
-            vouchers: fullPrivacyVouchers,
+            vouchers: availableVouchers,
             maxVouchersPerGroup: input.maxVouchersPerGroup,
             breakdownContext: input.breakdownContext
         ) {
-            return fullPrivacy
-        }
-
-        let allVouchers = availableVouchers
-
-        // Strategy 3b: Unload with degraded privacy fallback
-        if allVouchers.count > fullPrivacyVouchers.count {
-            if let degradedPrivacy = try tryUnloadIntoCoins(
-                amount: input.amount,
-                coins: availableCoins,
-                vouchers: allVouchers,
-                maxVouchersPerGroup: input.maxVouchersPerGroup,
-                breakdownContext: input.breakdownContext
-            ) {
-                return degradedPrivacy
-            }
-        }
-
-        // If we have vouchers but none are ready, and they could cover the amount
-        if !availableVouchers.isEmpty, fullPrivacyVouchers.isEmpty {
-            throw CoinSelectionError.noReadyVouchers
+            return unloaded
         }
 
         // Otherwise, insufficient funds

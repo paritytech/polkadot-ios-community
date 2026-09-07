@@ -15,7 +15,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/novasamatech/substrate-sdk-ios",
-            from: "5.7.0"
+            from: "5.11.0"
         ),
         .package(path: "../XcmDefinition"),
         .package(path: "../ChainStore"),

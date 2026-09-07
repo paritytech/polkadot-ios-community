@@ -10,11 +10,22 @@ struct VoucherOnChainInfo {
     let publicKey: Data
     let exponent: Int16
     let ringPosition: MembersPallet.RingPosition
+    /// Included member count of the ring this voucher was placed in (`RingKeysStatus.included`); nil when
+    /// the voucher holds no ring index (Onboarding/Suspended) or the ring status could not be read.
+    let ringMembersCount: UInt32?
     /// Three-valued: a Suspended member (no ring index to key an alias under) or a failed alias read
     /// leaves consumption `.unknown` rather than falsely reading not-unloaded.
     let aliasEvidence: VoucherAliasEvidence
 
     var isUnloaded: Bool { aliasEvidence == .unloaded }
+
+    /// The reconciled on-chain location: an unloaded read overrides everything, a ring-placed voucher
+    /// becomes in-recycler carrying its real member count, otherwise it is still onboarding.
+    var onChainState: Voucher.OnChainState {
+        guard !isUnloaded else { return .unlocated }
+        guard let ringIndex = ringPosition.ringIndex else { return .onboarding }
+        return .inRecycler(Voucher.Recycler(index: ringIndex, membersCount: ringMembersCount ?? 0))
+    }
 }
 
 // MARK: - Protocol
@@ -131,11 +142,16 @@ final class VoucherOnChainQueryService: VoucherOnChainQuerying, @unchecked Senda
             aliasFetchSucceeded = false
         }
 
+        // Step 5: read each placed ring's included member count so the recovered voucher carries the real
+        // ring size rather than a placeholder. A ring with no status row simply leaves the count nil.
+        let ringMembersByIndex = try await fetchRingMemberCounts(for: placed, atBlockHash: atBlockHash)
+
         let infoByIndex: [DerivationIndex: VoucherOnChainInfo] = members.reduce(into: [:]) { dict, member in
             dict[member.index] = VoucherOnChainInfo(
                 publicKey: member.publicKey,
                 exponent: member.exponent,
                 ringPosition: member.ringPosition,
+                ringMembersCount: ringMembersByIndex[member.index],
                 aliasEvidence: Self.aliasEvidence(
                     for: member.ringPosition,
                     aliasState: aliasByIndex[member.index] ?? nil,
@@ -254,6 +270,35 @@ private extension VoucherOnChainQueryService {
             )
             .asyncExecute()
             .map(\.value)
+    }
+
+    func fetchRingMemberCounts(
+        for keys: [(derivationIndex: DerivationIndex, exponent: Int16, ringIndex: MembersPallet.RingIndex)],
+        atBlockHash: BlockHashData?
+    ) async throws -> [DerivationIndex: UInt32] {
+        guard !keys.isEmpty else { return [:] }
+
+        let coderFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
+
+        let statuses: [MembersPallet.RingKeysStatus?] = try await storageRequestFactory.queryItems(
+            engine: connection,
+            keyParams1: { [instanceId] in
+                keys.map { RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: $0.exponent) }
+            },
+            keyParams2: {
+                keys.map { StringCodable(wrappedValue: $0.ringIndex) }
+            },
+            factory: { coderFactory },
+            storagePath: MembersPallet.Storage.ringKeysStatus(),
+            at: atBlockHash
+        )
+        .asyncExecute()
+        .map(\.value)
+
+        return zip(keys, statuses).reduce(into: [:]) { dict, pair in
+            guard let status = pair.1 else { return }
+            dict[pair.0.derivationIndex] = status.included
+        }
     }
 
     func fetchPositions(

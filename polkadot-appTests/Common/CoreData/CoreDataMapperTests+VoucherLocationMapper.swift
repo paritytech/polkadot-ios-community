@@ -30,8 +30,7 @@ extension CoreDataMapperTests {
 
             let updated = VoucherLocationUpdate(
                 derivationIndex: 100,
-                remoteState: .inRecycler(.init(index: 3)),
-                privacy: original.privacy
+                remoteState: .inRecycler(.init(index: 3, membersCount: 0))
             )
 
             try await locationRepo.saveOperation({ [updated] }, { [] }).asyncExecute()
@@ -54,8 +53,7 @@ extension CoreDataMapperTests {
         func throwsForNewEntity() async throws {
             let update = VoucherLocationUpdate(
                 derivationIndex: 999,
-                remoteState: .onboarding,
-                privacy: .full
+                remoteState: .onboarding
             )
 
             await #expect(throws: VoucherLocationMapper.MappingError.missingVoucher) {

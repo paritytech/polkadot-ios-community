@@ -1,13 +1,27 @@
 import UIKit
+import DesignSystem
 
 public final class DSTabBarView: UIView {
+    /// What a press at a given x resolves to. Actions are hit-tested against their own frame;
+    /// tabs snap to the nearest centre, so the gaps around an action still reach a tab.
+    enum Target: Equatable {
+        case tab(Int)
+        case action(Int)
+    }
+
     private var itemsStorage: [DSTabBarItem] = []
 
     public var items: [DSTabBarItem] {
         get { itemsStorage }
         set {
+            let previousCount = itemsStorage.count
             itemsStorage = newValue
             rebuildItemViews()
+
+            guard previousCount > 0, newValue.count != previousCount else {
+                return
+            }
+            applyRowReflow()
         }
     }
 
@@ -21,48 +35,25 @@ public final class DSTabBarView: UIView {
         }
     }
 
+    /// The action item whose panel is open. Tints that item without moving the lens.
+    public var activeActionIndex: Int? {
+        didSet {
+            guard activeActionIndex != oldValue else {
+                return
+            }
+            applyActiveAction()
+            rebuildAccessibilityElements()
+        }
+    }
+
     public var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
+
+    public var onActionTapped: ((Int) -> Void)?
 
     public var onFoldChangeRequested: ((_ folded: Bool, _ velocityX: CGFloat) -> Void)?
 
-    public var spaTabCount: Int = 0 {
-        didSet {
-            guard spaTabCount != oldValue else { return }
-            centreSlotView.count = spaTabCount
-            centreSlotView.isHidden = spaTabCount == 0
-
-            guard (oldValue > 0) != (spaTabCount > 0) else {
-                updateLens(animated: false)
-                setNeedsLayout()
-                return
-            }
-            animateRowReflow()
-        }
-    }
-
-    public var isPanelOpen: Bool = false {
-        didSet {
-            guard isPanelOpen != oldValue else { return }
-            centreSlotView.isPanelOpen = isPanelOpen
-            updateLens(animated: true)
-            rebuildAccessibilityElements()
-        }
-    }
-
-    public var isSPAMounted: Bool = false {
-        didSet {
-            guard isSPAMounted != oldValue else { return }
-            centreSlotView.isSPAMounted = isSPAMounted
-            updateLens(animated: true)
-            rebuildAccessibilityElements()
-        }
-    }
-
-    public var onCentreHalfTapped: ((DSTabBarCentreSlot.Half) -> Void)?
-
     private let content = UIView()
     private let lens = DSTabBarSelectionLens()
-    private let centreSlotView = DSTabBarCentreSlotView()
 
     private var itemViews: [DSTabBarItemView] = []
     private var selectedItemViews: [DSTabBarItemView] = []
@@ -116,10 +107,7 @@ public final class DSTabBarView: UIView {
         itemsStorage[index].badge = badge
         itemViews[index].apply(itemsStorage[index])
         selectedItemViews[index].apply(itemsStorage[index])
-    }
-
-    public func setCentreAccessibility(qrLabel: String, tabsLabel: String) {
-        centreSlotView.setAccessibility(qrLabel: qrLabel, tabsLabel: tabsLabel)
+        applyActiveAction()
     }
 
     override public func layoutSubviews() {
@@ -148,41 +136,24 @@ private extension DSTabBarView {
     var row: DSTabBarRow {
         DSTabBarRow(
             width: DSTabBarGeometry.rowWidth(capsuleWidth: bounds.width),
-            itemCount: items.count,
-            isCentreExpanded: spaTabCount > 0
+            itemCount: items.count
         )
     }
 
-    var centreSlotFrame: CGRect? {
-        guard let centreIndex = row.centreIndex else {
-            return nil
-        }
-        return DSTabBarCentreSlot.slotFrame(itemFrame: row.itemFrame(at: centreIndex))
+    var tabIndices: [Int] {
+        itemsStorage.indices.filter { itemsStorage[$0].role == .tab }
     }
 
-    var openCentreSlotFrame: CGRect? {
-        spaTabCount > 0 ? centreSlotFrame : nil
-    }
-
-    func animateRowReflow() {
-        animatesLensOnNextLayout = true
+    /// The apps action sits mid-row, so springing the reflow slides its neighbours across a whole
+    /// slot and reads as the whole bar moving. The new layout is applied outright instead.
+    func applyRowReflow() {
         setNeedsLayout()
-
-        UIView.animate(
-            withDuration: DSTabBarMetrics.selectionSpringDuration,
-            delay: 0,
-            usingSpringWithDamping: DSTabBarMetrics.selectionSpringDamping,
-            initialSpringVelocity: 0,
-            options: [.allowUserInteraction, .beginFromCurrentState],
-            animations: { self.layoutIfNeeded() }
-        )
+        layoutIfNeeded()
     }
 
     func setupHierarchy() {
         addSubview(content)
         content.addSubview(lens)
-        lens.contentView.addSubview(centreSlotView)
-        centreSlotView.isHidden = true
     }
 
     func setupGesture() {
@@ -211,6 +182,7 @@ private extension DSTabBarView {
             return view
         }
 
+        applyActiveAction()
         rebuildAccessibilityElements()
         setNeedsLayout()
     }
@@ -223,28 +195,12 @@ private extension DSTabBarView {
             selectedItemViews[index].frame = frame
         }
         rebuildAccessibilityElements()
-
-        guard let centreIndex = row.centreIndex, let slot = centreSlotFrame else {
-            return
-        }
-        centreSlotView.frame = slot
-        centreSlotView.setQRIcon(items[centreIndex].icon)
-        itemViews[centreIndex].isHidden = spaTabCount > 0
-        selectedItemViews[centreIndex].isHidden = spaTabCount > 0
     }
 
-    func pillFrame(forItemAt index: Int) -> CGRect {
-        if index == row.centreIndex, let slot = openCentreSlotFrame {
-            return slot
+    func applyActiveAction() {
+        for index in itemViews.indices {
+            itemViews[index].isActive = index == activeActionIndex
         }
-        return row.pillFrame(at: index)
-    }
-
-    var isCentreLensParked: Bool {
-        spaTabCount > 0 && DSTabBarCentreSlot.isTabsActive(
-            isPanelOpen: isPanelOpen,
-            isSPAMounted: isSPAMounted
-        )
     }
 
     func updateLens(animated: Bool) {
@@ -252,42 +208,43 @@ private extension DSTabBarView {
             return
         }
 
-        centreSlotView.isQRSelected = selectedIndex == row.centreIndex
+        lens.update(pillFrame: lensPillFrame(), isLifted: dragState != nil, animated: animated)
+    }
 
-        let resolvedPillFrame: CGRect
-        if let dragState {
-            var frame = pillFrame(forItemAt: dragState.index)
-            frame.origin.x = DSTabBarGeometry.clampedPillOriginX(
-                dragState.currentX,
-                pillWidth: frame.width,
-                rowWidth: row.width
-            )
-            resolvedPillFrame = frame
-        } else if isCentreLensParked, let centreIndex = row.centreIndex {
-            resolvedPillFrame = pillFrame(forItemAt: centreIndex)
-        } else {
-            resolvedPillFrame = pillFrame(forItemAt: selectedIndex)
+    /// The pill rests on the selected tab; a drag in flight carries it, clamped to the row.
+    func lensPillFrame() -> CGRect {
+        let row = row
+
+        guard let dragState else {
+            return row.pillFrame(at: selectedIndex)
         }
 
-        lens.update(pillFrame: resolvedPillFrame, isLifted: dragState != nil, animated: animated)
+        var frame = row.pillFrame(at: dragState.index)
+        frame.origin.x = DSTabBarGeometry.clampedPillOriginX(
+            dragState.currentX,
+            pillWidth: frame.width,
+            rowWidth: row.width
+        )
+        return frame
     }
 
     func drawnPillIndex(currentX: CGFloat, referenceIndex: Int) -> Int {
         let row = row
-        let pillWidth = pillFrame(forItemAt: referenceIndex).width
+        let pillWidth = row.pillFrame(at: referenceIndex).width
         let drawnOriginX = DSTabBarGeometry.clampedPillOriginX(currentX, pillWidth: pillWidth, rowWidth: row.width)
-        return resolvedItemIndex(atX: drawnOriginX + pillWidth / 2)
+        return row.nearestItemIndex(
+            toX: drawnOriginX + pillWidth / 2,
+            restrictedTo: tabIndices
+        ) ?? referenceIndex
     }
 
     @objc func handleSelection(_ recognizer: DSTabSelectionRecognizer) {
         switch recognizer.state {
         case .began:
-            guard !isFolded else {
+            guard !isFolded, case let .tab(index)? = resolvedTarget(atX: recognizer.location(in: lens).x) else {
                 return
             }
-            let locationX = recognizer.location(in: lens).x
-            let index = resolvedItemIndex(atX: locationX)
-            let pill = pillFrame(forItemAt: index)
+            let pill = row.pillFrame(at: index)
             dragState = (startX: pill.minX, currentX: pill.minX, index: index)
             updateLens(animated: true)
         case .changed:
@@ -325,20 +282,7 @@ private extension DSTabBarView {
 
         switch decision {
         case .select:
-            guard let dragIndex else {
-                return
-            }
-            if dragIndex == row.centreIndex, let slot = openCentreSlotFrame {
-                let locationX = recognizer.location(in: lens).x
-                let half = DSTabBarCentreSlot.half(atX: locationX, inSlot: slot)
-                onCentreHalfTapped?(half)
-
-                guard half == .qr else {
-                    updateLens(animated: true)
-                    return
-                }
-            }
-            commitSelection(at: dragIndex)
+            applySelectDecision(for: recognizer, dragIndex: dragIndex)
         case .fold,
              .unfold:
             updateLens(animated: true)
@@ -346,6 +290,21 @@ private extension DSTabBarView {
         case .settle:
             updateLens(animated: true)
         }
+    }
+
+    /// A drag only ever exists for a tab, so a select with no drag is a press on an action.
+    func applySelectDecision(for recognizer: DSTabSelectionRecognizer, dragIndex: Int?) {
+        if let dragIndex {
+            commitSelection(at: dragIndex)
+            return
+        }
+
+        guard !isFolded,
+              case let .action(index)? = resolvedTarget(atX: recognizer.location(in: lens).x)
+        else {
+            return
+        }
+        onActionTapped?(index)
     }
 
     func commitSelection(at index: Int) {
@@ -358,11 +317,8 @@ private extension DSTabBarView {
     }
 
     func rebuildAccessibilityElements() {
-        accessibilityElements = items.enumerated().flatMap { index, item -> [Any] in
-            if index == row.centreIndex, spaTabCount > 0 {
-                return centreSlotView.accessibilityElements ?? []
-            }
-            return [itemAccessibilityElement(for: item, at: index)]
+        accessibilityElements = items.enumerated().map { index, item in
+            itemAccessibilityElement(for: item, at: index)
         }
     }
 
@@ -370,19 +326,40 @@ private extension DSTabBarView {
         let element = UIAccessibilityElement(accessibilityContainer: self)
         element.accessibilityLabel = item.accessibilityLabel
         element.accessibilityIdentifier = item.accessibilityIdentifier
-        element.accessibilityTraits = index == selectedIndex && !isCentreLensParked ? [.button, .selected] : [.button]
         element.accessibilityFrameInContainerSpace = lens.convert(row.itemFrame(at: index), to: self)
+        element.accessibilityTraits = [.button]
+
+        switch item.role {
+        case .tab:
+            if index == selectedIndex {
+                element.accessibilityTraits = [.button, .selected]
+            }
+        case .action:
+            if #available(iOS 18.0, *) {
+                element.accessibilityExpandedStatus = index == activeActionIndex ? .expanded : .collapsed
+            }
+        }
+
         return element
     }
 }
 
 extension DSTabBarView {
-    func resolvedItemIndex(atX xPosition: CGFloat) -> Int {
-        if let slot = openCentreSlotFrame,
-           let centreIndex = row.centreIndex,
-           xPosition >= slot.minX, xPosition <= slot.maxX {
-            return centreIndex
+    func resolvedTarget(atX xPosition: CGFloat) -> Target? {
+        let row = row
+
+        let actionIndex = itemsStorage.indices.first { index in
+            guard itemsStorage[index].role == .action else {
+                return false
+            }
+            let frame = row.itemFrame(at: index)
+            return xPosition >= frame.minX && xPosition <= frame.maxX
         }
-        return row.nearestItemIndex(toX: xPosition)
+
+        if let actionIndex {
+            return .action(actionIndex)
+        }
+
+        return row.nearestItemIndex(toX: xPosition, restrictedTo: tabIndices).map(Target.tab)
     }
 }

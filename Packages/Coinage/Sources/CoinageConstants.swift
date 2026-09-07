@@ -18,9 +18,6 @@ public enum CoinageConstants {
     /// Coin age threshold at which recycling is triggered (coinMaxAge - 2).
     public static let recycleAtAge: Int16 = coinMaxAge - 2
 
-    /// Minimum ring size threshold for full privacy (spec requirement).
-    static let minimumRingSize: UInt32 = 10
-
     /// Lookback window (in seconds) for unload token period calculation (1 hour).
     static let periodLookbackInterval: UInt64 = 3_600
 

@@ -5,58 +5,37 @@ final class TransferPrivacyPresenter {
 
     private let model: TransferPrivacyModel
     private let wireframe: TransferPrivacyWireframeProtocol
-    private let onMainTapped: (() -> Void)?
-    private let onSecondaryTapped: () -> Void
+    private let onSendAnyway: () -> Void
+    private let onCancel: () -> Void
 
     init(
         model: TransferPrivacyModel,
         wireframe: TransferPrivacyWireframeProtocol,
-        onMainTapped: (() -> Void)?,
-        onSecondaryTapped: @escaping () -> Void
+        onSendAnyway: @escaping () -> Void,
+        onCancel: @escaping () -> Void
     ) {
         self.model = model
         self.wireframe = wireframe
-        self.onMainTapped = onMainTapped
-        self.onSecondaryTapped = onSecondaryTapped
+        self.onSendAnyway = onSendAnyway
+        self.onCancel = onCancel
     }
 }
 
 extension TransferPrivacyPresenter: TransferPrivacyPresenterProtocol {
     func setup() {
-        let messageText = model.nonDegradedAmount.map { nonDegradedTitle in
-            String(
-                localized: .Transfer.sheetDegradedMessageWithDegraded(
-                    nonDegraded: nonDegradedTitle,
-                    full: model.fullAmount,
-                    degraded: model.degradedAmount
-                )
-            )
-        } ?? String(localized: .Transfer.sheetDegradedMessageFull(full: model.fullAmount))
-
         let viewModel = TransferPrivacyViewModel(
-            title: String(localized: .Transfer.sheetDegradedTitle),
-            message: messageText,
-            linkTitle: String(localized: .Transfer.sheetActionLearnMore(degraded: model.degradedAmount)),
-            mainActionTitle: model.nonDegradedAmount
-                .map { String(localized: .Transfer.sheetActionSendPrivately(nonDegraded: $0)) },
-            secondaryActionTitle: String(localized: .Transfer.sheetActionSendFull(full: model.fullAmount))
+            title: String(localized: .Transfer.privacyConfirmTitle),
+            message: String(localized: .Transfer.privacyConfirmBody),
+            sendAnywayTitle: String(localized: .Transfer.privacyConfirmSendAnyway(model.amount))
         )
         view?.didReceive(viewModel: viewModel)
     }
 
-    func activateLink() {
-        wireframe.showInfo(from: view)
-    }
-
-    func selectMain() {
-        wireframe.complete(from: view, onMainTapped)
-    }
-
-    func selectSecondary() {
-        wireframe.complete(from: view) { [weak self] in self?.onSecondaryTapped() }
+    func sendAnyway() {
+        wireframe.complete(from: view) { [onSendAnyway] in onSendAnyway() }
     }
 
     func cancel() {
-        wireframe.close(from: view)
+        wireframe.complete(from: view) { [onCancel] in onCancel() }
     }
 }

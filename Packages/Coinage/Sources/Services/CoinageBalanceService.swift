@@ -7,51 +7,32 @@ import AsyncAlgorithms
 import BigInt
 import SDKLogger
 
-public struct CoinageSpendableBalanceModel: Equatable {
-    /// Coins and in-recycler vouchers with full effective privacy.
-    public let fullPrivacy: CoinageBalance
-    /// In-recycler vouchers with degraded effective privacy (not time-ready or low ring size).
-    public let degraded: CoinageBalance
-
-    public func totalInPlanks() -> Balance {
-        fullPrivacy.balanceInPlanks() + degraded.balanceInPlanks()
-    }
-
-    public init(fullPrivacy: CoinageBalance, degraded: CoinageBalance) {
-        self.fullPrivacy = fullPrivacy
-        self.degraded = degraded
-    }
-}
-
 public protocol CoinageBalanceServiceProtocol {
     func start()
     func stop()
 
-    var spendableBalanceStream: AnyAsyncSequence<CoinageSpendableBalanceModel> { get }
-    var lockedBalanceStream: AnyAsyncSequence<CoinageBalance> { get }
+    /// The single strategy-aware balance. Amounts are planks; render via ``denominationContext``.
+    var balanceStream: AnyAsyncSequence<CoinageBalance> { get }
+
+    /// The cached denomination context for plank→decimal conversion by display consumers.
+    var denominationContext: DenominationBreakdownContext { get }
 }
 
-public extension CoinageBalanceServiceProtocol {
-    var totalBalanceStream: AnyAsyncSequence<CoinageBalance> {
-        combineLatest(spendableBalanceStream, lockedBalanceStream)
-            .map { spendable, locked in
-                let planks = spendable.fullPrivacy.balanceInPlanks()
-                    + spendable.degraded.balanceInPlanks()
-                    + locked.balanceInPlanks()
-                return CoinageBalance(planks: planks, context: locked.context)
-            }
-            .removeDuplicates()
-            .eraseToAnyAsyncSequence()
-    }
-}
-
+/// Buckets a full snapshot of tracked assets into the strategy-aware three-bucket ``CoinageBalance``,
+/// applying the recycling evaluator's coin verdicts and the current strategy's voucher usability.
+///
+/// Balance runs the pre-classifiers itself on every emission (real-time) and takes only the coin
+/// verdicts from the evaluator, so a spend drops the displayed balance immediately rather than up to an
+/// interval later. Its own voucher-usability read uses ``BalanceEvaluationMode/immediate`` (peek) ring
+/// capacities, so it never blocks on a chain call.
 public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
-    enum ServiceError: Error {
-        case assetNotFound
-    }
-
-    private nonisolated let denominationContext: DenominationBreakdownContext
+    public nonisolated let denominationContext: DenominationBreakdownContext
     private nonisolated let databaseFactory: any DatabaseDependencyFactoring
+    private nonisolated let verdicts: AnyAsyncSequence<RecyclingVerdicts>
+    private nonisolated let settings: any CoinageRecyclingStrategyProviding
+    private let strategyResolver: any RecyclingStrategyProviding
+    private let ringCapacityProvider: any RingCapacityProviding
+    private let preClassificator: any CoinageAssetsPreClassificating
     private nonisolated let logger: SDKLoggerProtocol?
 
     private var balanceSubscriptionTask: Task<Void, Never>?
@@ -59,32 +40,34 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
 
     private var latestCoins: [TrackedCoin] = []
     private var latestVouchers: [TrackedVoucher] = []
+    private var latestVerdicts: RecyclingVerdicts = [:]
 
-    private nonisolated let spendableBalanceSubject: AsyncCurrentValueSubject<CoinageSpendableBalanceModel>
-    private nonisolated let lockedBalanceSubject: AsyncCurrentValueSubject<CoinageBalance>
+    private nonisolated let balanceSubject: AsyncCurrentValueSubject<CoinageBalance>
 
     init(
         denominationContext: DenominationBreakdownContext,
         databaseFactory: any DatabaseDependencyFactoring,
+        verdicts: AnyAsyncSequence<RecyclingVerdicts>,
+        settings: any CoinageRecyclingStrategyProviding,
+        strategyResolver: any RecyclingStrategyProviding,
+        ringCapacityProvider: any RingCapacityProviding,
+        preClassificator: any CoinageAssetsPreClassificating,
         logger: SDKLoggerProtocol?
     ) {
         self.denominationContext = denominationContext
         self.databaseFactory = databaseFactory
+        self.verdicts = verdicts
+        self.settings = settings
+        self.strategyResolver = strategyResolver
+        self.ringCapacityProvider = ringCapacityProvider
+        self.preClassificator = preClassificator
         self.logger = logger
 
-        let zeroBalance = CoinageBalance(planks: 0, context: denominationContext)
-        spendableBalanceSubject = AsyncCurrentValueSubject<CoinageSpendableBalanceModel>(
-            CoinageSpendableBalanceModel(fullPrivacy: zeroBalance, degraded: zeroBalance)
-        )
-        lockedBalanceSubject = AsyncCurrentValueSubject<CoinageBalance>(zeroBalance)
+        balanceSubject = AsyncCurrentValueSubject<CoinageBalance>(.empty)
     }
 
-    public nonisolated var spendableBalanceStream: AnyAsyncSequence<CoinageSpendableBalanceModel> {
-        spendableBalanceSubject.eraseToAnyAsyncSequence()
-    }
-
-    public nonisolated var lockedBalanceStream: AnyAsyncSequence<CoinageBalance> {
-        lockedBalanceSubject.eraseToAnyAsyncSequence()
+    public nonisolated var balanceStream: AnyAsyncSequence<CoinageBalance> {
+        balanceSubject.removeDuplicates().eraseToAnyAsyncSequence()
     }
 
     public nonisolated func start() {
@@ -100,19 +83,23 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     }
 }
 
-extension CoinageBalanceService {
-    private func subscribeToBalances() {
+private extension CoinageBalanceService {
+    func subscribeToBalances() {
         balanceSubscriptionTask?.cancel()
         balanceSubscriptionTask = Task { [weak self] in
             guard let self else { return }
+            let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
+            let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
+            // Combining with `verdicts` withholds the first computation until the evaluator produces one,
+            // so balance never flashes zero-available before the first evaluation lands.
+            let combined = combineLatest(
+                combineLatest(coinsStream, vouchersStream),
+                verdicts,
+                settings.strategyStream()
+            )
             do {
-                logger?.debug("Balance subscription started")
-                // Each element is a full snapshot of the tracked set, re-emitted on every save that
-                // touches a coin/voucher or its durability entry — no manual change-merge needed.
-                let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
-                let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
-                for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
-                    await updateBalancesAsync(coins: coins, vouchers: vouchers)
+                for try await ((coins, vouchers), verdictMap, _) in combined {
+                    await update(coins: coins, vouchers: vouchers, verdicts: verdictMap)
                 }
             } catch {
                 logger?.error("Balance subscription failed: \(error)")
@@ -120,34 +107,56 @@ extension CoinageBalanceService {
         }
     }
 
-    private func updateBalancesAsync(coins: [TrackedCoin]?, vouchers: [TrackedVoucher]?) async {
-        if let coins { latestCoins = coins }
-        if let vouchers { latestVouchers = vouchers }
-
-        let currentCoins = latestCoins
-        let currentVouchers = latestVouchers
-        logger?.debug("Did receive coins: \(currentCoins.count) vouchers: \(currentVouchers.count)")
-
-        // Each tracked asset already carries its durability overlay (`CoinageAssetState`), derived
-        // at fetch time — no separate batched durability read is needed here.
-        let (spendableBalance, lockedBalance, nextUnlock) = Self.calculateBalance(
-            coins: currentCoins,
-            vouchers: currentVouchers,
-            context: denominationContext
-        )
-
-        spendableBalanceSubject.send(spendableBalance)
-        lockedBalanceSubject.send(lockedBalance)
-
-        scheduleUnlockTimer(for: nextUnlock)
+    func update(coins: [TrackedCoin], vouchers: [TrackedVoucher], verdicts: RecyclingVerdicts) async {
+        latestCoins = coins
+        latestVouchers = vouchers
+        latestVerdicts = verdicts
+        await recompute()
     }
 
-    private func cancelTasks() {
+    func cancelTasks() {
         balanceSubscriptionTask?.cancel()
         unlockTimerTask?.cancel()
     }
 
-    private func scheduleUnlockTimer(for nextUnlock: Date?) {
+    func recompute() async {
+        let now = Date()
+        let voucherStrategy = strategyResolver.voucherStrategy(for: settings.strategy)
+
+        let exponents = Set(latestVouchers.map(\.voucher.exponent))
+        let capacities = await ringCapacityProvider.peekCapacities(for: exponents)
+        let usability = VoucherUsabilityContext(ringCapacities: capacities, now: now)
+
+        let coinBuckets = preClassificator.preClassifyCoins(latestCoins)
+        let voucherBuckets = preClassificator.preClassifyVouchers(
+            latestVouchers,
+            strategy: voucherStrategy,
+            context: usability
+        )
+
+        balanceSubject.send(
+            Self.calculateBalance(
+                coinBuckets: coinBuckets,
+                voucherBuckets: voucherBuckets,
+                verdicts: latestVerdicts,
+                canSpendWithConfirmation: voucherStrategy.allowsConfirmedSpend(),
+                context: denominationContext
+            )
+        )
+
+        scheduleUnlockTimer(for: nextUnlock(among: voucherBuckets.gainingPrivacy, now: now))
+    }
+
+    /// The earliest future `readyAt` among gaining-privacy vouchers, so the delay-exit is re-evaluated
+    /// the moment a voucher's unload delay elapses.
+    func nextUnlock(among gainingPrivacy: [TrackedVoucher], now: Date) -> Date? {
+        gainingPrivacy
+            .map(\.voucher.readyAt)
+            .filter { $0 > now }
+            .min()
+    }
+
+    func scheduleUnlockTimer(for nextUnlock: Date?) {
         unlockTimerTask?.cancel()
         guard let nextUnlock else { return }
 
@@ -155,100 +164,52 @@ extension CoinageBalanceService {
         guard interval > 0 else { return }
 
         unlockTimerTask = Task { [weak self] in
-            // Add 0.1s buffer to guarantee `.now` will have passed the target date
-            // when the task wakes up, avoiding a race condition.
+            // Add 0.1s buffer so `.now` has passed the target when the task wakes.
             try? await Task.sleep(for: .seconds(interval + 0.1))
-
             guard !Task.isCancelled, let self else { return }
-            await updateBalancesAsync(coins: nil, vouchers: nil)
+            await recompute()
         }
     }
+}
 
-    /// Buckets a full snapshot of tracked assets into spendable / degraded / locked. `static internal`
-    /// so the package balance test can exercise the pure logic directly.
+extension CoinageBalanceService {
+    /// Pure bucketing: maps pre-classified assets and coin verdicts into the three-bucket balance.
+    /// Extracted (internal, not private) so it can be unit-tested without the actor, streams, or chain
+    /// reads.
     static func calculateBalance(
-        coins: [TrackedCoin],
-        vouchers: [TrackedVoucher],
+        coinBuckets: CoinBuckets,
+        voucherBuckets: VoucherBuckets,
+        verdicts: RecyclingVerdicts,
+        canSpendWithConfirmation: Bool,
         context: DenominationBreakdownContext
-    ) -> (spendable: CoinageSpendableBalanceModel, locked: CoinageBalance, nextUnlock: Date?) {
-        let now = Date.now
-
-        let coinPlanks = splitCoinPlanks(coins: coins, context: context)
-
-        var lockedVouchersPlanks = BigUInt(0)
-        var fullPrivacyVouchersPlanks = BigUInt(0)
-        var degradedVouchersPlanks = BigUInt(0)
-        var nextUnlock: Date?
-
-        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
-        // admits. A voucher it rejects (reserved by a live entry, or dead/orphan) is counted nowhere.
-        for tracked in vouchers where tracked.isBalanceCounted {
-            let voucher = tracked.voucher
-            let amount = context.valueInPlanks(for: voucher.exponent)
-
-            guard tracked.isSelectable else {
-                // Onboarding or minting: not usable yet but expected to arrive — locked until it
-                // lands in the recycler.
-                lockedVouchersPlanks += amount
-                continue
-            }
-
-            // In the recycler on chain — spendable; on-chain presence is authoritative even if a
-            // local minting entry is still live. Split by effective privacy.
-            if voucher.isReadyToUseSecured(at: now) {
-                fullPrivacyVouchersPlanks += amount
-            } else {
-                degradedVouchersPlanks += amount
-                // Track when this voucher becomes full-privacy due to readyAt passing
-                if voucher.readyAt > now, voucher.privacy == .full {
-                    nextUnlock = min(nextUnlock ?? voucher.readyAt, voucher.readyAt)
-                }
-            }
-        }
-
-        let lockedPlanks = lockedVouchersPlanks + coinPlanks.expiringSoon + coinPlanks.pending
-
-        return (
-            spendable: CoinageSpendableBalanceModel(
-                fullPrivacy: CoinageBalance(planks: coinPlanks.spendable + fullPrivacyVouchersPlanks, context: context),
-                degraded: CoinageBalance(planks: degradedVouchersPlanks, context: context)
-            ),
-            locked: CoinageBalance(planks: lockedPlanks, context: context),
-            nextUnlock: nextUnlock
-        )
-    }
-
-    /// Buckets coins by the durability overlay carried on each `TrackedCoin`. Every disposition is a
-    /// named predicate; a coin matching none (not free, or dead/vanished) is counted nowhere.
-    ///
-    /// | Predicate | Bucket |
-    /// |---|---|
-    /// | ``TrackedCoin/isSelectable`` — free, on chain, age-valid | spendable |
-    /// | ``TrackedCoin/isMinting`` — not on chain yet, minter can still arrive | pending (locked) |
-    /// | ``TrackedCoin/isAwaitingRecycling`` — on chain, free, aged out | expiringSoon (locked) |
-    private static func splitCoinPlanks(
-        coins: some Collection<TrackedCoin>,
-        context: DenominationBreakdownContext
-    ) -> (spendable: BigUInt, pending: BigUInt, expiringSoon: BigUInt) {
-        var spendable = BigUInt(0)
-        var pending = BigUInt(0)
-        var expiringSoon = BigUInt(0)
-
-        // `isBalanceCounted` is the single inclusion gate; the buckets below just split what it
-        // admits. A coin it rejects (handed off, consumed, reserved, or vanished) is counted nowhere.
-        for tracked in coins where tracked.isBalanceCounted {
+    ) -> CoinageBalance {
+        var availableCoins = BigUInt.zero
+        var gainingCoins = BigUInt.zero
+        var pendingCoins = BigUInt.zero
+        for tracked in coinBuckets.minted {
             let amount = context.valueInPlanks(for: tracked.coin.exponent)
-
-            if tracked.isSelectable {
-                spendable += amount
-            } else if tracked.isMinting {
-                pending += amount
-            } else if tracked.isAwaitingRecycling() {
-                // On chain, free, aged out. Guaranteed to hold here given the `isBalanceCounted` gate.
-                expiringSoon += amount
+            switch verdicts[tracked.coin.derivationIndex] {
+            case .allowUse:
+                availableCoins += amount
+            case .toRecycle:
+                gainingCoins += amount
+            case .mustRecycle,
+                 .none:
+                // Chain-forced, or not yet evaluated — both count as pending, never spendable.
+                pendingCoins += amount
             }
         }
 
-        return (spendable, pending, expiringSoon)
+        let availablePrivate = availableCoins + voucherBuckets.usable.totalPlanks(in: context)
+        let gainingAmount = gainingCoins + voucherBuckets.gainingPrivacy.totalPlanks(in: context)
+        let pending = pendingCoins
+            + coinBuckets.minting.totalPlanks(in: context)
+            + voucherBuckets.minting.totalPlanks(in: context)
+
+        return CoinageBalance(
+            availablePrivate: availablePrivate,
+            gainingPrivacy: .init(amount: gainingAmount, canSpendWithConfirmation: canSpendWithConfirmation),
+            pending: pending
+        )
     }
 }

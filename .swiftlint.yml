@@ -27,6 +27,8 @@ identifier_name:
     - id
 nesting:
   type_level: 3
+disabled_rules:
+  - legacy_swiftui_aspect_ratio
 opt_in_rules:
   - array_init
   - closure_spacing
