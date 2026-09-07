@@ -60,7 +60,12 @@ private extension CoinageClaimSubmitter {
     /// Mints a fresh destination coin (persisted on allocation, so registration can link the output
     /// row) and builds a transfer of the received coin into it, signed by the peer's key.
     func buildClaim(_ coin: ClaimableCoin, groupId: CoinageTxGroupId) async throws -> CoinageTxRequest {
-        let destination = try await minter.mintCoin(exponent: coin.valueExponent)
+        // A claim from raw secret keys (top-up, recovery) never sees the source coin's on-chain
+        // state, so neither its recycler nor its age is available to reconstruct a chain from.
+        let destination = try await minter.mintCoin(
+            exponent: coin.valueExponent,
+            provenance: .unknown
+        )
 
         let wallet = try CoinDerivedWallet(privateKey: coin.privateKey, publicKey: coin.publicKey)
         let origin = try originFactory.createAsCoinOrigin(for: wallet)
