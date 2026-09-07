@@ -186,12 +186,16 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                     let updatedVouchers = vouchers.map { voucher in
                         guard voucher.readyAt > .now else { return voucher }
 
+                        // Every field has to be carried over: this is a whole-model save, so any
+                        // omission is written back as the initialiser's default.
                         return Voucher(
                             exponent: voucher.exponent,
                             derivationIndex: voucher.derivationIndex,
                             allocatedAt: voucher.allocatedAt,
                             readyAt: .now,
                             remoteState: voucher.remoteState,
+                            recyclerFungibility: voucher.recyclerFungibility,
+                            maxRecyclerFungibility: voucher.maxRecyclerFungibility,
                             publicKey: voucher.publicKey
                         )
                     }
