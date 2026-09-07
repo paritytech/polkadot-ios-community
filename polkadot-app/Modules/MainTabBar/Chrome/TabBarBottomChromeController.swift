@@ -27,6 +27,7 @@ final class TabBarBottomChromeController: UIViewController {
     private var openPanel: TabBarPanelKind?
     private var pendingPanel: TabBarPanelKind?
     private var isApplyingPanel = false
+    private var hasPendingContentPanelResize = false
 
     private var slots: [TabBarSlot] = []
     private var slotMap = TabBarSlotMap(slots: [])
@@ -149,6 +150,8 @@ final class TabBarBottomChromeController: UIViewController {
 
     func setPanel(_ kind: TabBarPanelKind?, animated: Bool) {
         pendingPanel = nil
+        // A resize owed by the outgoing content must not land on whatever replaces it.
+        hasPendingContentPanelResize = false
 
         let previousPanel = openPanel
         let animator = animated ? makePanelAnimator() : nil
@@ -330,14 +333,41 @@ private extension TabBarBottomChromeController {
 
     /// A push that arrives while `setPanel` is applying is already covered by the
     /// open animation.
+    ///
+    /// One that arrives while an animation is running waits for it. Resizing there would cancel
+    /// the open and strand the container at whatever height it had reached, and the size it would
+    /// aim for is measured before SwiftUI has laid out the content that just changed, so the panel
+    /// settles on the previous content's height.
     func resizeForContentPanel() {
         guard !isApplyingPanel, openPanel?.contentAction != nil else {
+            return
+        }
+
+        guard panelAnimator == nil else {
+            deferResizeForContentPanel()
             return
         }
 
         let animator = makePanelAnimator()
         updateGlassContainerHeight(animator: animator)
         animator.startAnimation()
+    }
+
+    /// Every push during one animation is owed the same single resize, measured once the
+    /// animation — and with it the pending SwiftUI layout — has settled.
+    func deferResizeForContentPanel() {
+        guard !hasPendingContentPanelResize, let panelAnimator else {
+            return
+        }
+
+        hasPendingContentPanelResize = true
+        panelAnimator.addCompletion { [weak self] _ in
+            guard let self, hasPendingContentPanelResize else {
+                return
+            }
+            hasPendingContentPanelResize = false
+            resizeForContentPanel()
+        }
     }
 
     func clearContentPanel() {
