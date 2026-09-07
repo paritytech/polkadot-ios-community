@@ -79,7 +79,7 @@ private extension CoinageRecyclingService {
                     )
                 )
             } catch {
-                logger.error("Coin recycling failed: \(coin.derivationIndex)")
+                logger.error("Coin recycling failed for \(coin.derivationIndex): \(error)")
             }
         }
 
