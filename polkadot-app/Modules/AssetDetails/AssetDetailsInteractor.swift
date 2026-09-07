@@ -109,6 +109,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
         #if TESTNET_FEATURE
             subscribeToCoinage()
+            provideDenominationContext()
         #endif
     }
 
@@ -200,6 +201,19 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                         .asyncExecute()
                 } catch {
                     Logger.shared.error("Failed to make all vouchers ready: \(error)")
+                }
+            }
+        }
+
+        /// Needed to price individual holdings. Only real rows depend on it — debug fixtures
+        /// carry their own context — so a failure here degrades to amount-less real rows.
+        private func provideDenominationContext() {
+            Task { [weak presenter, coinageService] in
+                do {
+                    let context = try await coinageService.denominationContext()
+                    await presenter?.didReceive(denominationContext: context)
+                } catch {
+                    Logger.shared.error("Denomination context unavailable: \(error)")
                 }
             }
         }

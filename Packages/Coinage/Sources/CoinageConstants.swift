@@ -1,6 +1,12 @@
 import Foundation
 
 public enum CoinageConstants {
+    /// Upper bound of the recycler-fungibility scale (percentage).
+    public static let fullFungibility: UInt8 = 100
+
+    /// Fungibility points a coin loses per hop in its provenance chain.
+    public static let hopFungibilityPenalty: UInt8 = 20
+
     /// Interval at which the background recycling task is scheduled (24 hours).
     public static let backgroundRecyclingInterval: TimeInterval = 24 * 60 * 60
 

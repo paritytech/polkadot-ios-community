@@ -1,3 +1,4 @@
+import BigInt
 import Foundation
 import Foundation_iOS
 import SubstrateSdk
@@ -25,6 +26,27 @@ final class AssetDetailsPresenter {
     private var lockedAmount: Decimal = 0
     private var coins: [TrackedCoin] = []
     private var vouchers: [TrackedVoucher] = []
+    #if TESTNET_FEATURE
+        /// Non-nil while the debug switch is on; shadows `coins`/`vouchers` for display only.
+        private var fixtureCoinage: (coins: [TrackedCoin], vouchers: [TrackedVoucher])?
+        /// Loaded from chain state; needed to price individual holdings.
+        private var denominationContext: DenominationBreakdownContext?
+
+        /// Fixtures carry their own pricing so test data renders without the chain.
+        private var activeDenominationContext: DenominationBreakdownContext? {
+            fixtureCoinage != nil ? CoinageFixtures.denominationContext : denominationContext
+        }
+
+        /// `TrackedCoin.isBalanceCounted` is the domain's single inclusion rule, so the list
+        /// shows exactly what the balance counts — for fixtures too, since they are tracked.
+        private var displayedCoins: [Coin] {
+            (fixtureCoinage?.coins ?? coins).filter(\.isBalanceCounted).map(\.coin)
+        }
+
+        private var displayedVouchers: [Voucher] {
+            (fixtureCoinage?.vouchers ?? vouchers).filter(\.isBalanceCounted).map(\.voucher)
+        }
+    #endif
     private var price: PriceData?
     let logger: LoggerProtocol
 
@@ -128,6 +150,13 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
             interactor?.topUp()
         }
 
+        func onToggleFixtureCoinage() {
+            // Regenerated on every enable so voucher timestamps stay relative to "now".
+            fixtureCoinage = fixtureCoinage == nil ? CoinageFixtures.make() : nil
+            view?.didReceive(usesFixtureCoinage: fixtureCoinage != nil)
+            provideCoinageBreakdown()
+        }
+
         func onMakeAllVouchersReady() {
             interactor?.makeAllVouchersReady()
         }
@@ -155,6 +184,11 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             }
 
             wireframe.present(error: error, from: view)
+        }
+
+        func didReceive(denominationContext: DenominationBreakdownContext) {
+            self.denominationContext = denominationContext
+            provideCoinageBreakdown()
         }
 
         func didReceive(coins: [TrackedCoin], vouchers: [TrackedVoucher]) {
@@ -285,9 +319,10 @@ private extension AssetDetailsPresenter {
 #if TESTNET_FEATURE
     private extension AssetDetailsPresenter {
         func provideCoinageBreakdown() {
-            func formatted(from decimal: Decimal) -> String {
+            func formatted(from decimal: Decimal, includeSymbol: Bool = true) -> String {
+                let assetInfo = chainAsset.asset.digitalDollarDisplayInfo
                 let balanceViewModelFactory = PrimitiveBalanceViewModelFactory(
-                    targetAssetInfo: chainAsset.asset.digitalDollarDisplayInfo,
+                    targetAssetInfo: includeSymbol ? assetInfo : assetInfo.withoutSymbol,
                     formatterFactory: balanceFormatterFactory
                 )
                 return balanceViewModelFactory.balanceFromPrice(
@@ -298,69 +333,151 @@ private extension AssetDetailsPresenter {
                 .amount
             }
 
-            let dateFormatter = DateFormatter()
-            dateFormatter.dateStyle = .short
-            dateFormatter.timeStyle = .short
+            let context = activeDenominationContext
 
-            // Only assets that make up the balance are counted and listed — the same inclusion rule
-            // the balance uses (`TrackedCoin/TrackedVoucher.isBalanceCounted`).
-            let countedCoins = coins.filter(\.isBalanceCounted)
-            let countedVouchers = vouchers.filter(\.isBalanceCounted)
+            // Pulled out of the map closures below: inlining it defeats the type checker.
+            func amount(forExponent exponent: Int16) -> String? {
+                guard let context else { return nil }
 
-            let coinDetails = countedCoins
-                .sorted { $0.coin.derivationIndex < $1.coin.derivationIndex }
-                .map { tracked in
-                    let coin = tracked.coin
-                    let state = tracked.state
-                    let stateLabel: String = {
-                        if coin.handoffMark != .none { return "Handed off" }
-                        if state.isConsumed { return "Spent" }
-                        if state.isInUse { return "Reserved" }
-                        if state.isMintingFailed, !coin.isOnchain { return "Minting failed" }
-                        if !coin.isOnchain {
-                            return "Pending mint"
-                        }
-                        return "Available"
-                    }()
-                    return CoinDetailViewModel(
+                return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
+            }
+
+            // Value descending, then best fungibility first. Value is `unit * 2^exponent`,
+            // so ordering by exponent is exactly ordering by value.
+            let coinDetails = displayedCoins
+                .sorted { lhs, rhs in
+                    lhs.exponent == rhs.exponent
+                        ? (lhs.fungibilityScore ?? 0) > (rhs.fungibilityScore ?? 0)
+                        : lhs.exponent > rhs.exponent
+                }
+                .map { coin in
+                    CoinageHoldingViewModel(
                         id: coin.identifier,
-                        exponent: "2^\(coin.exponent)",
-                        state: stateLabel,
-                        age: coin.age.map { "\($0)" } ?? "Unknown"
+                        amount: amount(forExponent: coin.exponent),
+                        fungibility: Self.fungibilityModel(for: coin)
                     )
                 }
 
-            let voucherDetails = countedVouchers
-                .sorted { $0.voucher.derivationIndex < $1.voucher.derivationIndex }
-                .map { tracked in
-                    let voucher = tracked.voucher
-                    let stateString: String =
-                        switch voucher.remoteState {
-                        case .unlocated: "Unlocated"
-                        case .onboarding: "Pending"
-                        case .inRecycler: voucher.readyAt > .now ? "Locked" : "Ready"
-                        }
-
-                    return VoucherDetailViewModel(
+            let voucherDetails = displayedVouchers
+                .sorted { lhs, rhs in
+                    lhs.exponent == rhs.exponent
+                        ? (lhs.fungibilityScore ?? 0) > (rhs.fungibilityScore ?? 0)
+                        : lhs.exponent > rhs.exponent
+                }
+                .map { voucher in
+                    CoinageHoldingViewModel(
                         id: voucher.identifier,
-                        exponent: "2^\(voucher.exponent)",
-                        state: stateString,
-                        allocatedAt: dateFormatter.string(from: voucher.allocatedAt),
-                        readyAt: dateFormatter.string(from: voucher.readyAt)
+                        amount: amount(forExponent: voucher.exponent),
+                        fungibility: .voucher(score: voucher.fungibilityScore ?? 0)
                     )
                 }
 
-            let spendable = balance - lockedAmount
+            let amounts = fixtureAmounts() ?? (
+                total: balance,
+                spendable: balance - lockedAmount,
+                pending: lockedAmount
+            )
+
             let breakdown = CoinageBalanceBreakdownViewModel(
-                totalBalance: formatted(from: balance),
-                spendableBalance: formatted(from: spendable),
-                pendingBalance: formatted(from: lockedAmount),
-                coinCount: countedCoins.count,
-                voucherCount: countedVouchers.count,
+                totalBalance: formatted(from: amounts.total),
+                spendableBalance: formatted(from: amounts.spendable),
+                pendingBalance: formatted(from: amounts.pending),
+                composition: context.map {
+                    Self.composition(coins: displayedCoins, vouchers: displayedVouchers, context: $0)
+                } ?? .empty,
                 coinDetails: coinDetails,
                 voucherDetails: voucherDetails
             )
             view?.didReceive(coinageBreakdown: breakdown)
+        }
+
+        /// Totals the fixture holdings. Fixtures are all unclaimed and on chain, so there is
+        /// nothing pending — the interesting fixture signal is the per-holding depiction and the
+        /// composition bar, not the lifecycle split.
+        func fixtureAmounts() -> (total: Decimal, spendable: Decimal, pending: Decimal)? {
+            guard fixtureCoinage != nil else { return nil }
+
+            let context = CoinageFixtures.denominationContext
+            let exponents = displayedCoins.map(\.exponent) + displayedVouchers.map(\.exponent)
+            let total = exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) }
+
+            return (total: total, spendable: total, pending: 0)
+        }
+
+        /// Value-weighted split of the holdings into private / loading / public.
+        ///
+        /// A holding counts as private once it reaches the same high band the per-row bars
+        /// paint green — coins *and* vouchers alike. Anything short of that is public if it is
+        /// a coin, or still loading if it is a voucher, since a voucher can yet improve as its
+        /// recycler fills. Spent coins are not held and are excluded.
+        static func composition(
+            coins: [Coin],
+            vouchers: [Voucher],
+            context: DenominationBreakdownContext
+        ) -> PrivacyCompositionBar.Model {
+            var privatePlanks = BigUInt(0)
+            var publicPlanks = BigUInt(0)
+            var loadingPlanks = BigUInt(0)
+
+            for coin in coins {
+                let value = context.valueInPlanks(for: coin.exponent)
+                if FungibilityBand(score: coin.fungibilityScore ?? 0) == .high {
+                    privatePlanks += value
+                } else {
+                    publicPlanks += value
+                }
+            }
+
+            for voucher in vouchers {
+                let value = context.valueInPlanks(for: voucher.exponent)
+                if FungibilityBand(score: voucher.fungibilityScore ?? 0) == .high {
+                    privatePlanks += value
+                } else {
+                    loadingPlanks += value
+                }
+            }
+
+            let total = privatePlanks + publicPlanks + loadingPlanks
+
+            guard total > 0 else { return .empty }
+
+            // Scaled integer division keeps this exact for plank counts far beyond Double.
+            func share(_ part: BigUInt) -> Double {
+                let scale = BigUInt(1_000_000)
+                return Double(part * scale / total) / Double(scale)
+            }
+
+            return PrivacyCompositionBar.Model(
+                privateShare: share(privatePlanks),
+                loadingShare: share(loadingPlanks),
+                publicShare: share(publicPlanks)
+            )
+        }
+
+        /// Maps a coin's provenance onto the depiction.
+        ///
+        /// A split hop fans out from the node it originated at — the node *before* it — so
+        /// hop `i` being a split marks node `i-1`, where node `-1` is the recycler square.
+        /// The final dot therefore never fans out: it is "here, now".
+        static func fungibilityModel(for coin: Coin) -> FungibilityBarView.Model {
+            let branches = coin.hops.map { hop in
+                switch hop {
+                case .transfer: 0
+                case let .split(fanout): FungibilityBarView.Model.branches(forFanout: fanout)
+                }
+            }
+
+            // An unknown recycler fungibility scores as zero: a privacy indicator should not
+            // claim a holding is private when its provenance is unknown.
+            return FungibilityBarView.Model(
+                score: coin.fungibilityScore ?? 0,
+                recyclerScore: coin.recyclerFungibility ?? 0,
+                squareBranches: branches.first ?? 0,
+                hopBranches: branches.indices.map { index in
+                    let next = index + 1
+                    return next < branches.count ? branches[next] : 0
+                }
+            )
         }
     }
 #endif

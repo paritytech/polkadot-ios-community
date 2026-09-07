@@ -71,6 +71,10 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
             viewModel.onMakeAllVouchersReady = { [weak presenter] in
                 presenter?.onMakeAllVouchersReady()
             }
+
+            viewModel.onToggleFixtureCoinage = { [weak presenter] in
+                presenter?.onToggleFixtureCoinage()
+            }
         #endif
     }
 
@@ -108,6 +112,10 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
 
         func didReceive(testnetTopUpLoading: Bool) {
             viewModel.isTestnetTopUpInProgress = testnetTopUpLoading
+        }
+
+        func didReceive(usesFixtureCoinage: Bool) {
+            viewModel.usesFixtureCoinage = usesFixtureCoinage
         }
     #endif
 

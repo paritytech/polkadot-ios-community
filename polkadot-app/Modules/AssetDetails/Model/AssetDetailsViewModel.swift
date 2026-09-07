@@ -9,27 +9,22 @@ import Foundation
         let totalBalance: String
         let spendableBalance: String
         let pendingBalance: String
-        let coinCount: Int
-        let voucherCount: Int
-        let coinDetails: [CoinDetailViewModel]
-        let voucherDetails: [VoucherDetailViewModel]
+        let composition: PrivacyCompositionBar.Model
+        let coinDetails: [CoinageHoldingViewModel]
+        let voucherDetails: [CoinageHoldingViewModel]
     }
 #endif
 
-struct CoinDetailViewModel: Identifiable {
-    let id: String
-    let exponent: String
-    let state: String
-    let age: String
-}
-
-struct VoucherDetailViewModel: Identifiable {
-    let id: String
-    let exponent: String
-    let state: String
-    let allocatedAt: String
-    let readyAt: String
-}
+#if TESTNET_FEATURE
+    /// A single coin or voucher row: its amount, and a number-free fungibility depiction.
+    struct CoinageHoldingViewModel: Identifiable {
+        let id: String
+        /// Pre-formatted with the asset symbol, e.g. `0.32 CASH`. Nil until the
+        /// denomination context is known.
+        let amount: String?
+        let fungibility: FungibilityBarView.Model
+    }
+#endif
 
 protocol AssetDetailsViewModelProtocol: Observation.Observable {
     var balanceCardModel: AssetDetailsBalanceCard.ViewModel? { get set }
@@ -56,6 +51,8 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
         var isTestnetTopUpInProgress: Bool { get set }
         var onTestnetTopUp: (() -> Void)? { get set }
         var onMakeAllVouchersReady: (() -> Void)? { get set }
+        var usesFixtureCoinage: Bool { get set }
+        var onToggleFixtureCoinage: (() -> Void)? { get set }
     #endif
 }
 
@@ -85,5 +82,7 @@ class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
         var isTestnetTopUpInProgress: Bool = false
         var onTestnetTopUp: (() -> Void)?
         var onMakeAllVouchersReady: (() -> Void)?
+        var usesFixtureCoinage: Bool = false
+        var onToggleFixtureCoinage: (() -> Void)?
     #endif
 }

@@ -54,6 +54,9 @@ struct AssetDetailsView: View {
     @ViewBuilder
     private var expandedBody: some View {
         VStack(spacing: 16) {
+            #if TESTNET_FEATURE
+                fixtureToggle()
+            #endif
             if viewModel.showsBackupNotification {
                 backupCard()
             } else {
@@ -135,6 +138,44 @@ struct AssetDetailsView: View {
     }
 
     #if TESTNET_FEATURE
+        private func fixtureToggle() -> some View {
+            Button {
+                viewModel.onToggleFixtureCoinage?()
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(verbatim: "Test data")
+                            .textStyle(.body14Regular())
+                        Text(
+                            verbatim: viewModel.usesFixtureCoinage
+                                ? "\(CoinageFixtures.coinCount) coins, \(CoinageFixtures.voucherCount) vouchers"
+                                : "Using real holdings"
+                        )
+                        .textStyle(.caption12Regular())
+                        .foregroundStyle(.fgSecondary)
+                    }
+
+                    Spacer()
+
+                    Text(verbatim: viewModel.usesFixtureCoinage ? "ON" : "OFF")
+                        .textStyle(.body14Regular())
+                        .foregroundStyle(viewModel.usesFixtureCoinage ? Color.fgPrimaryInverted : .fgSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(
+                            viewModel.usesFixtureCoinage ? Color.bgActionPrimary : .bgSurfaceMain,
+                            in: Capsule()
+                        )
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity)
+                .background(.bgSurfaceNested, in: RoundedRectangle(cornerRadius: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.fgPrimary)
+        }
+
         private func testnetTopUpButton() -> some View {
             Button {
                 viewModel.onTestnetTopUp?()
@@ -195,8 +236,8 @@ struct AssetDetailsView: View {
 
                 Divider()
 
-                BreakdownRow(title: "Coins", value: "\(breakdown.coinCount)")
-                BreakdownRow(title: "Vouchers", value: "\(breakdown.voucherCount)")
+                PrivacyCompositionBar(model: breakdown.composition)
+                    .padding(.vertical, 2)
 
                 if let onMakeAllVouchersReady {
                     Button {
@@ -239,79 +280,45 @@ struct AssetDetailsView: View {
 
         var body: some View {
             VStack(spacing: 16) {
-                if !breakdown.coinDetails.isEmpty {
-                    VStack(spacing: 8) {
-                        Text(verbatim: "Coins")
-                            .textStyle(.body14SemiBold())
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                section(title: "Coins", holdings: breakdown.coinDetails)
+                section(title: "Currently Loading", holdings: breakdown.voucherDetails)
+            }
+        }
 
-                        ForEach(breakdown.coinDetails) { coin in
-                            CoinDetailRow(coin: coin)
-                        }
-                    }
-                }
+        @ViewBuilder
+        private func section(title: String, holdings: [CoinageHoldingViewModel]) -> some View {
+            if !holdings.isEmpty {
+                VStack(spacing: 6) {
+                    Text(verbatim: title)
+                        .textStyle(.body14SemiBold())
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !breakdown.voucherDetails.isEmpty {
-                    VStack(spacing: 8) {
-                        Text(verbatim: "Vouchers")
-                            .textStyle(.body14SemiBold())
-                            .frame(maxWidth: .infinity, alignment: .leading)
-
-                        ForEach(breakdown.voucherDetails) { voucher in
-                            VoucherDetailRow(voucher: voucher)
-                        }
+                    ForEach(holdings) { holding in
+                        CoinageHoldingRow(holding: holding)
                     }
                 }
             }
         }
     }
 
-    private struct CoinDetailRow: View {
-        let coin: CoinDetailViewModel
+    private struct CoinageHoldingRow: View {
+        let holding: CoinageHoldingViewModel
+
+        /// Fixed so every depiction starts at the same x across both lists. Sized for the
+        /// widest bare number the denominations produce, with no currency symbol.
+        private let amountColumnWidth: CGFloat = 52
 
         var body: some View {
-            VStack(spacing: 4) {
-                HStack {
-                    Text(verbatim: "#\(coin.id)")
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(.fgSecondary)
-                    Spacer()
-                    Text(verbatim: coin.state)
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(coin.state == "Available" ? Color
-                            .fgPrimary : .fgSecondary)
-                }
-                HStack {
-                    BreakdownRow(title: "Value", value: coin.exponent)
-                    Divider().background(.fgPrimary)
-                    BreakdownRow(title: "Age", value: coin.age)
-                }
-            }
-            .padding(8)
-            .background(.bgSurfaceNested, in: RoundedRectangle(cornerRadius: 12))
-        }
-    }
+            HStack(spacing: 10) {
+                Text(verbatim: holding.amount ?? "—")
+                    .textStyle(.body14Regular())
+                    .foregroundStyle(.fgPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: amountColumnWidth, alignment: .trailing)
 
-    private struct VoucherDetailRow: View {
-        let voucher: VoucherDetailViewModel
-
-        var body: some View {
-            VStack(spacing: 4) {
-                HStack {
-                    Text(verbatim: "#\(voucher.id)")
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(.fgSecondary)
-                    Spacer()
-                    Text(verbatim: voucher.state)
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(voucher.state == "Ready" ? .fgPrimary : .fgSecondary)
-                }
-                BreakdownRow(title: "Value", value: voucher.exponent)
-                BreakdownRow(title: "Allocated", value: voucher.allocatedAt)
-                BreakdownRow(title: "Ready at", value: voucher.readyAt)
+                FungibilityBarView(model: holding.fungibility)
             }
-            .padding(8)
-            .background(.bgSurfaceNested, in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
