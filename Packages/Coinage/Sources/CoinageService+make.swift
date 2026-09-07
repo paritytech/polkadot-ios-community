@@ -190,6 +190,20 @@ public extension CoinageService {
             voucherLoaderFactory: voucherLoaderFactory
         )
 
+        // Shared unload-quota tracker: read by the recycling strategy's quota valve and decremented by the
+        // unload paths (transfer / external payment) as free-unload tokens are spent.
+        let consumedTokenChecker = ConsumedTokenChecker(
+            operationQueue: operationQueue,
+            connection: connection,
+            runtimeCodingService: runtimeService
+        )
+        let quotaTracker = UnloadQuotaTracker(
+            runtimeCodingService: runtimeService,
+            consumedTokenChecker: consumedTokenChecker,
+            personOriginProvider: personOriginProvider,
+            viewFunctionFetcher: viewFunctionFetcher
+        )
+
         let planFactory = TransferPlanFactory(
             instanceId: instanceId,
             minter: coinageMinter,
@@ -197,6 +211,7 @@ public extension CoinageService {
             coinKeyFactory: coinKeypairFactory,
             durability: txService,
             originFactory: originFactory,
+            quotaTracker: quotaTracker,
             recyclerLoader: readinessLoader,
             blockInfoProvider: blockNumberProvider,
             logger: logger
@@ -285,17 +300,6 @@ public extension CoinageService {
 
         // Recycling strategy evaluation collaborators. The evaluator itself is built lazily once the
         // denomination context resolves (see `CoinageService.setup`).
-        let consumedTokenChecker = ConsumedTokenChecker(
-            operationQueue: operationQueue,
-            connection: connection,
-            runtimeCodingService: runtimeService
-        )
-        let quotaTracker = UnloadQuotaTracker(
-            runtimeCodingService: runtimeService,
-            consumedTokenChecker: consumedTokenChecker,
-            personOriginProvider: personOriginProvider,
-            viewFunctionFetcher: viewFunctionFetcher
-        )
         let ringCapacityProvider = RingCapacityProvider(
             instanceId: instanceId,
             operationQueue: operationQueue,
@@ -316,6 +320,7 @@ public extension CoinageService {
             extrinsicMonitor: extrinsicMonitorFactory,
             durability: txService,
             originFactory: originFactory,
+            quotaTracker: quotaTracker,
             blockNumberProvider: blockNumberProvider
         )
 
@@ -351,7 +356,6 @@ public extension CoinageService {
             recyclingStrategyResolver: recyclingStrategyResolver,
             ringCapacityProvider: ringCapacityProvider,
             preClassificator: preClassificator,
-            quotaTracker: quotaTracker,
             applicationStateStreamFactory: applicationStateStreamFactory,
             databaseFactory: databaseFactory,
             recoveryService: recoveryService,

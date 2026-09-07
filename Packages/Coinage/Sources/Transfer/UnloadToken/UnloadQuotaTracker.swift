@@ -20,12 +20,16 @@ public struct UnloadQuota: Equatable, Sendable {
 /// batches, so a high-privacy strategy raises pressure here.
 public protocol UnloadQuotaTracking: Sendable {
     func remainingQuota() async throws -> UnloadQuota
-    /// Decrements the cached estimate after a successful unload rather than re-walking the range.
-    func noteUnloadHappened() async
+    /// Decrements the cached estimate by `count` after that many successful unloads rather than
+    /// re-walking the range. Called by the unload paths (transfers / external payments) — the only
+    /// operations that spend free-unload tokens. Recycling loads coins under a coin origin and spends
+    /// none, so it must not call this.
+    func noteUnloadHappened(count: Int) async
 }
 
 /// Counts unconsumed counters across the valid periods, caching the result for the current period.
-/// The count is exact while tokens are consumed in index order (which `UnloadTokenResolver` does).
+/// The count is exact while tokens are consumed in index order (which `UnloadTokenResolver` does): the
+/// consumed counters form a prefix, so the walk stops at the first free one and treats the rest as free.
 public actor UnloadQuotaTracker: UnloadQuotaTracking {
     private let runtimeCodingService: RuntimeCodingServiceProtocol
     private let consumedTokenChecker: any ConsumedTokenChecking
@@ -42,6 +46,9 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
 
     /// A full re-walk every this many unloads bounds incremental drift from the decrement path.
     private static let unloadsBeforeRefresh = 5
+
+    /// Counters queried per chain call; a batch that ends on a free counter stops the walk.
+    private static let batchSize: UInt32 = 100
 
     public init(
         runtimeCodingService: RuntimeCodingServiceProtocol,
@@ -84,19 +91,53 @@ public actor UnloadQuotaTracker: UnloadQuotaTracking {
         return quota
     }
 
-    public func noteUnloadHappened() {
-        unloadsSinceWalk += 1
+    public func noteUnloadHappened(count: Int) {
+        guard count > 0 else { return }
+        unloadsSinceWalk += count
 
         if unloadsSinceWalk >= Self.unloadsBeforeRefresh {
             cache = nil
             unloadsSinceWalk = 0
         } else if let current = cache {
             let decremented = UnloadQuota(
-                remaining: max(0, current.quota.remaining - 1),
+                remaining: max(0, current.quota.remaining - count),
                 limit: current.quota.limit
             )
             cache = Cache(period: current.period, quota: decremented)
         }
+    }
+}
+
+extension UnloadQuotaTracker {
+    /// Counts the free counters in `0 ..< maxCounter`, querying a batch at a time and stopping as soon as
+    /// a batch ends on a free counter: because tokens are taken in index order the consumed counters are a
+    /// prefix, so everything past a free one is free too and the tail need not be queried. `consumedInBatch`
+    /// returns the consumed flags (`true` = consumed) for a half-open counter range. Pure and side-effect
+    /// free so the paging can be unit-tested without the chain.
+    static func countFreeCounters(
+        maxCounter: UInt32,
+        batchSize: UInt32,
+        consumedInBatch: (Range<UInt32>) async throws -> [Bool]
+    ) async rethrows -> Int {
+        guard maxCounter > 0, batchSize > 0 else { return 0 }
+
+        var batchStart: UInt32 = 0
+        var free = 0
+
+        while batchStart < maxCounter {
+            let batchEnd = min(batchStart + batchSize, maxCounter)
+            let consumed = try await consumedInBatch(batchStart ..< batchEnd)
+            free += consumed.lazy.filter { !$0 }.count
+
+            // A free counter at the end of the batch means the whole remaining tail is free.
+            if consumed.last == false {
+                return free + Int(maxCounter - batchEnd)
+            }
+
+            batchStart = batchEnd
+        }
+
+        return free
     }
 }
 
@@ -109,16 +150,16 @@ private extension UnloadQuotaTracker {
 
         var remaining = 0
         for period in periods {
-            // TODO: this endups maxCounter/1000 queries which can be slow.
-            // Consider to go page by page and stop on first page wit
-            // hole in the end
-            let queries: [(period: UInt32, alias: Data)] = try (0 ..< maxCounter).map { counter in
-                let context = UnloadTokenContextBuilder.freeUnloadTokenContext(period: period, counter: counter)
-                return try (period: period, alias: aliasProvider.deriveAlias(for: context))
+            remaining += try await Self.countFreeCounters(
+                maxCounter: maxCounter,
+                batchSize: Self.batchSize
+            ) { range in
+                let queries: [(period: UInt32, alias: Data)] = try range.map { counter in
+                    let context = UnloadTokenContextBuilder.freeUnloadTokenContext(period: period, counter: counter)
+                    return try (period: period, alias: aliasProvider.deriveAlias(for: context))
+                }
+                return try await consumedTokenChecker.fetchConsumedStatus(for: queries)
             }
-
-            let consumed = try await consumedTokenChecker.fetchConsumedStatus(for: queries)
-            remaining += consumed.lazy.filter { !$0 }.count
         }
 
         return UnloadQuota(remaining: remaining, limit: Int(maxCounter) * periods.count)

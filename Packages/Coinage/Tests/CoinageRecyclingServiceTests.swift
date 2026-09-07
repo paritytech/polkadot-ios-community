@@ -54,6 +54,22 @@ struct CoinageRecyclingServiceTests {
 
         #expect(await sut.txService.submittedInputs.isEmpty)
     }
+
+    @Test("recycleCoins returns the number of extrinsics actually submitted")
+    func returnsSubmittedCount() async throws {
+        let sut = makeSUT()
+
+        let submitted = try await sut.service.recycleCoins([coin(index: 7), coin(index: 9), coin(index: 11)])
+
+        #expect(submitted == 3)
+    }
+
+    @Test("recycleCoins returns zero when nothing is submitted")
+    func returnsZeroWhenNothingSubmitted() async throws {
+        #expect(try await makeSUT().service.recycleCoins([]) == 0)
+        // A coin whose preparation fails is skipped, so the batch submits nothing.
+        #expect(try await makeSUT(minterError: StubError.boom).service.recycleCoins([coin(index: 7)]) == 0)
+    }
 }
 
 // MARK: - SUT

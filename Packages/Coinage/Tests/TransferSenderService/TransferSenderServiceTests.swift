@@ -800,6 +800,7 @@ extension TransferSenderServiceTests {
             coinKeyFactory: coinKeyFactory,
             durability: mockDurability,
             originFactory: originFactory,
+            quotaTracker: StubUnloadQuotaTracker(),
             recyclerLoader: recyclerLoader,
             blockInfoProvider: blockInfoProvider,
             logger: nil

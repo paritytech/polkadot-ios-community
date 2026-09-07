@@ -261,3 +261,8 @@ extension TransferSenderServiceTests {
         }
     }
 }
+
+struct StubUnloadQuotaTracker: UnloadQuotaTracking {
+    func remainingQuota() async throws -> UnloadQuota { UnloadQuota(remaining: 0, limit: 0) }
+    func noteUnloadHappened(count _: Int) async {}
+}

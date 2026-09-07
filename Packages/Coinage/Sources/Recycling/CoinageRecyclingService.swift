@@ -53,7 +53,8 @@ extension CoinageRecyclingService: CoinageRecyclingServicing {
     /// Prepares every recycle up front, then submits them as one atomic batch: the durability write —
     /// and so the evaluator's re-trigger off the coin snapshot — happens once, not once per coin. The
     /// background-task assertion lets a fold mid-submission still finish registering the batch.
-    func recycleCoins(_ coins: [Coin]) async throws {
+    @discardableResult
+    func recycleCoins(_ coins: [Coin]) async throws -> Int {
         try await backgroundExecutor.execute { [self] in
             try await submitRecycle(coins)
         }
@@ -63,7 +64,7 @@ extension CoinageRecyclingService: CoinageRecyclingServicing {
 // MARK: - Private
 
 private extension CoinageRecyclingService {
-    func submitRecycle(_ coins: [Coin]) async throws {
+    func submitRecycle(_ coins: [Coin]) async throws -> Int {
         var requests: [CoinageTxRequest] = []
 
         for coin in coins {
@@ -82,9 +83,10 @@ private extension CoinageRecyclingService {
             }
         }
 
-        guard !requests.isEmpty else { return }
+        guard !requests.isEmpty else { return 0 }
 
         try await txService.submitTransactions(requests, groupId: nil)
+        return requests.count
     }
 
     /// Locks the coin, allocates the voucher, and persists the voucher (`.pendingOnboarding`)
