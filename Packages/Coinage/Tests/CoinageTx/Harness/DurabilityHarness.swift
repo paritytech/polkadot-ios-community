@@ -24,7 +24,7 @@ final class DurabilityHarness: @unchecked Sendable {
     let chainFactory: FakeCoinageChainViewFactory
     let store: MockCoinageTxRepository
     let submitter: FakeExtrinsicSubmitter
-    private let backgroundExecutor = FakeBackgroundExecutor()
+    private let backgroundExecutor = StubBackgroundExecutor()
 
     private var subsystem: Subsystem
     private var nextExtrinsicSeq: UInt64 = 0
@@ -285,7 +285,7 @@ private extension DurabilityHarness {
             store: MockCoinageTxRepository,
             chainFactory: FakeCoinageChainViewFactory,
             submitter: FakeExtrinsicSubmitter,
-            backgroundExecutor: FakeBackgroundExecutor
+            backgroundExecutor: StubBackgroundExecutor
         ) -> Subsystem {
             let watched = CoinageTrackingTxSet()
             let recorder = RecoveryRecorder()
