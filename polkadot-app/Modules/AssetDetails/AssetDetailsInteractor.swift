@@ -42,7 +42,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     private var topUpProductTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
-        private var coinageSubscriptionTask: Task<Void, Never>?
         private let databaseFactory: any DatabaseDependencyFactoring
         private let backgroundExecutor: BackgroundExecuting
 
@@ -87,9 +86,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         recoveryStateTask?.cancel()
         priceSubscriptionTask?.cancel()
         topUpProductTask?.cancel()
-        #if TESTNET_FEATURE
-            coinageSubscriptionTask?.cancel()
-        #endif
     }
 }
 
@@ -108,7 +104,6 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
         subscribeToRecoveryState()
 
         #if TESTNET_FEATURE
-            subscribeToCoinage()
             provideDenominationContext()
         #endif
     }
@@ -222,25 +217,11 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
             }
         }
 
-        /// The balance service classifies each holding in the same computation that produces the
-        /// balance figures, so the detail rows can never contradict the totals beside them.
-        private func subscribeToCoinage() {
-            coinageSubscriptionTask?.cancel()
-            coinageSubscriptionTask = Task { [weak self, coinageService] in
-                do {
-                    let balanceService = try await coinageService.coinageBalanceService()
-
-                    for try await holdings in balanceService.holdingsStream {
-                        try Task.checkCancellation()
-                        await self?.presenter?.didReceive(holdings: holdings)
-                    }
-                } catch {
-                    Logger.shared.error("Coinage subscription failed: \(error)")
-                }
-            }
-        }
     #endif
 
+    /// Reads the balance and the holdings behind it as one value. Two subscriptions would let the
+    /// figures and the rows come from different evaluations, so the breakdown would briefly show
+    /// totals its own rows do not add up to.
     private func subscribeToBalances() {
         balanceSubscriptionTask?.cancel()
         balanceSubscriptionTask = Task { [weak self] in
@@ -248,8 +229,9 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
             do {
                 let balanceService = try await coinageService.coinageBalanceService()
                 let context = balanceService.denominationContext
-                for try await balance in balanceService.balanceStream {
+                for try await summary in balanceService.summaryStream {
                     try Task.checkCancellation()
+                    let balance = summary.balance
                     // Locked is everything the strategy will not part with: pending plus any
                     // gaining-privacy funds the strategy won't release on confirmation.
                     let locked = balance.total - balance.available
@@ -258,8 +240,8 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
                     #if TESTNET_FEATURE
                         // The breakdown shows the domain's own three buckets rather than
-                        // re-deriving them, so its figures and the bar below them are the same
-                        // classification from the same tick.
+                        // re-deriving them, and the holdings that produced them arrive in the same
+                        // value — so its figures and the bar below them cannot disagree.
                         await presenter?.didReceive(
                             coinageAmounts: CoinageAmounts(
                                 total: context.decimal(fromPlanks: balance.total),
@@ -270,6 +252,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                                 pending: context.decimal(fromPlanks: balance.pending)
                             )
                         )
+                        await presenter?.didReceive(holdings: summary.holdings)
                     #endif
                 }
             } catch {
