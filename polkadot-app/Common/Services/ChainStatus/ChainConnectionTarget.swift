@@ -41,13 +41,23 @@ enum ChainConnectionTarget: CaseIterable {
         }
     }
 
+    private var finalityBounds: ChainHealthCountBounds {
+        switch self {
+        case .chat,
+             .assethub:
+            ChainHealthCountBounds(healthy: 15, zero: 30)
+        case .bulletin:
+            ChainHealthCountBounds(healthy: 6, zero: 30)
+        }
+    }
+
     var healthThresholds: ChainHealthThresholds {
         ChainHealthThresholds(
             blockAge: ChainHealthBounds(
                 healthy: expectedBlockTime * 2,
                 zero: expectedBlockTime * 10
             ),
-            finalityLag: ChainHealthCountBounds(healthy: 15, zero: 30),
+            finalityLag: finalityBounds,
             ping: ChainHealthBounds(healthy: .milliseconds(150), zero: .milliseconds(1_000)),
             missingTermGrace: .seconds(45)
         )
