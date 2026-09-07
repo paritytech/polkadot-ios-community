@@ -73,6 +73,7 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
 
     #if TESTNET_FEATURE
         func didReceive(holdings: CoinageHoldings)
+        func didReceive(coinageAmounts: CoinageAmounts)
         func didReceive(denominationContext: DenominationBreakdownContext)
         func didCompleteTopUp(_ result: Result<Void, Error>)
     #endif

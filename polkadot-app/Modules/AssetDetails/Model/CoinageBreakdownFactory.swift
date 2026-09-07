@@ -26,13 +26,13 @@
                 Row(
                     id: "coin-\(holding.coin.derivationIndex)",
                     exponent: holding.coin.exponent,
-                    rank: holding.isSpendable ? 0 : 2,
+                    rank: holding.isAvailableNow ? 0 : 2,
                     derivationIndex: holding.coin.derivationIndex,
                     status: .coin(
                         CoinStatusView.Model(
                             hopDots: holding.coin.hops.map(innerDots(for:)),
                             fungibility: holding.coin.recyclerFungibility,
-                            isSpendable: holding.isSpendable
+                            isSpendable: holding.isAvailableNow
                         )
                     )
                 )
@@ -48,7 +48,7 @@
                         VoucherStatusView.Model(
                             maxFungibility: holding.voucher.maxRecyclerFungibility,
                             fungibility: holding.voucher.recyclerFungibility,
-                            isUnloadable: holding.isUnloadable
+                            isUnloadable: holding.isAvailableNow
                         )
                     )
                 )
@@ -68,32 +68,17 @@
             }
         }
 
-        /// Value-weighted split for the summary bar: spendable coins, everything in a recycler, and
-        /// coins the strategy will not release. Every holding lands in exactly one section, so the
+        /// Value-weighted split for the summary bar, bucketed exactly as the figures above it are:
+        /// every holding lands in one bucket regardless of whether it is a coin or a voucher, so the
         /// three shares account for the whole total balance.
         static func composition(
             of holdings: CoinageHoldings,
             context: DenominationBreakdownContext
         ) -> CoinageCompositionBar.Model {
-            var spendable = BigUInt(0)
-            var loading = BigUInt(0)
-            var unspendable = BigUInt(0)
-
-            for holding in holdings.coins {
-                let value = context.valueInPlanks(for: holding.coin.exponent)
-
-                if holding.isSpendable {
-                    spendable += value
-                } else {
-                    unspendable += value
-                }
+            let planks = planksByAvailability(of: holdings) {
+                context.valueInPlanks(for: $0)
             }
-
-            for holding in holdings.vouchers {
-                loading += context.valueInPlanks(for: holding.voucher.exponent)
-            }
-
-            let total = spendable + loading + unspendable
+            let total = planks.availableNow + planks.gainingPrivacy + planks.pending
 
             guard total > 0 else { return .empty }
 
@@ -104,10 +89,72 @@
             }
 
             return CoinageCompositionBar.Model(
-                spendableShare: share(spendable),
-                loadingShare: share(loading),
-                unspendableShare: share(unspendable)
+                availableNowShare: share(planks.availableNow),
+                gainingPrivacyShare: share(planks.gainingPrivacy),
+                pendingShare: share(planks.pending)
             )
+        }
+
+        /// The three figures for a holdings snapshot, used where no chain-computed balance is
+        /// available — the debug fixtures. Real balances come from the domain, which totals the same
+        /// buckets from the same classification.
+        static func amounts(
+            of holdings: CoinageHoldings,
+            context: DenominationBreakdownContext
+        ) -> CoinageAmounts {
+            var availableNow = Decimal.zero
+            var gainingPrivacy = Decimal.zero
+            var pending = Decimal.zero
+
+            func add(_ availability: CoinageAvailability, _ value: Decimal) {
+                switch availability {
+                case .availableNow: availableNow += value
+                case .gainingPrivacy: gainingPrivacy += value
+                case .pending: pending += value
+                }
+            }
+
+            for holding in holdings.coins {
+                add(holding.availability, context.amount(forExponent: holding.coin.exponent))
+            }
+
+            for holding in holdings.vouchers {
+                add(holding.availability, context.amount(forExponent: holding.voucher.exponent))
+            }
+
+            return CoinageAmounts(
+                total: availableNow + gainingPrivacy + pending,
+                availableNow: availableNow,
+                gainingPrivacy: gainingPrivacy,
+                pending: pending
+            )
+        }
+
+        private static func planksByAvailability(
+            of holdings: CoinageHoldings,
+            value: (Int16) -> BigUInt
+        ) -> (availableNow: BigUInt, gainingPrivacy: BigUInt, pending: BigUInt) {
+            var availableNow = BigUInt(0)
+            var gainingPrivacy = BigUInt(0)
+            var pending = BigUInt(0)
+
+            func add(_ availability: CoinageAvailability, _ planks: BigUInt) {
+                switch availability {
+                case .availableNow: availableNow += planks
+                case .gainingPrivacy: gainingPrivacy += planks
+                case .pending: pending += planks
+                }
+            }
+
+            for holding in holdings.coins {
+                add(holding.availability, value(holding.coin.exponent))
+            }
+
+            for holding in holdings.vouchers {
+                add(holding.availability, value(holding.voucher.exponent))
+            }
+
+            return (availableNow, gainingPrivacy, pending)
         }
 
         /// Inner dots for a hop: one per sibling it moved or was produced alongside.
@@ -121,10 +168,14 @@
         }
     }
 
-    /// The three figures shown above the summary bar.
+    /// The figures shown above the summary bar. The last three partition ``total``, and are the
+    /// three buckets the bar draws.
     struct CoinageAmounts: Equatable {
         let total: Decimal
-        let spendable: Decimal
+        let availableNow: Decimal
+        let gainingPrivacy: Decimal
         let pending: Decimal
+
+        static let zero = CoinageAmounts(total: 0, availableNow: 0, gainingPrivacy: 0, pending: 0)
     }
 #endif

@@ -30,6 +30,8 @@ final class AssetDetailsPresenter {
         private var holdings: CoinageHoldings = .empty
         /// Non-nil while the debug switch is on; shadows `holdings` for display only.
         private var fixtureHoldings: CoinageHoldings?
+        /// The domain's three buckets for the real holdings, totalled by the balance service.
+        private var coinageAmounts: CoinageAmounts?
         /// Loaded from chain state; needed to price individual holdings.
         private var denominationContext: DenominationBreakdownContext?
 
@@ -190,6 +192,11 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             self.holdings = holdings
             provideCoinageBreakdown()
         }
+
+        func didReceive(coinageAmounts: CoinageAmounts) {
+            self.coinageAmounts = coinageAmounts
+            provideCoinageBreakdown()
+        }
     #endif
 
     func didReceive(fiatOnrampStatuses: Set<FiatOnrampTransactionStatusPayload>) {
@@ -345,15 +352,12 @@ private extension AssetDetailsPresenter {
                 )
             }
 
-            let amounts = fixtureAmounts() ?? CoinageAmounts(
-                total: balance,
-                spendable: balance - lockedAmount,
-                pending: lockedAmount
-            )
+            let amounts = fixtureAmounts() ?? coinageAmounts ?? .zero
 
             let breakdown = CoinageBalanceBreakdownViewModel(
                 totalBalance: formatted(from: amounts.total),
-                spendableBalance: formatted(from: amounts.spendable),
+                availableNowBalance: formatted(from: amounts.availableNow),
+                gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy),
                 pendingBalance: formatted(from: amounts.pending),
                 composition: context.map {
                     CoinageBreakdownFactory.composition(of: holdings, context: $0)
@@ -363,36 +367,15 @@ private extension AssetDetailsPresenter {
             view?.didReceive(coinageBreakdown: breakdown)
         }
 
-        /// Totals the fixture holdings. Spendable comes from the fixtures' own randomised
-        /// classification rather than being assumed, so the figures agree with the bar and the rows.
-        /// Everything else is reported as pending — fixtures carry no lifecycle detail to split it
-        /// further.
+        /// Totals the fixture holdings by the same buckets the domain uses, so test data exercises
+        /// the real relationship between the figures and the bar.
         func fixtureAmounts() -> CoinageAmounts? {
             guard let fixtureHoldings else { return nil }
 
-            let context = CoinageFixtures.denominationContext
-            var total = Decimal.zero
-            var spendable = Decimal.zero
-
-            for holding in fixtureHoldings.coins {
-                let value = context.amount(forExponent: holding.coin.exponent)
-                total += value
-
-                if holding.isSpendable {
-                    spendable += value
-                }
-            }
-
-            for holding in fixtureHoldings.vouchers {
-                let value = context.amount(forExponent: holding.voucher.exponent)
-                total += value
-
-                if holding.isUnloadable {
-                    spendable += value
-                }
-            }
-
-            return CoinageAmounts(total: total, spendable: spendable, pending: total - spendable)
+            return CoinageBreakdownFactory.amounts(
+                of: fixtureHoldings,
+                context: CoinageFixtures.denominationContext
+            )
         }
     }
 #endif

@@ -216,25 +216,30 @@ struct AssetDetailsView: View {
                     .accessibilityId(AccessibilityID.Wallet.coinageHeader)
 
                 BreakdownRow(
-                    title: "Total Balance",
+                    title: "Total",
                     value: breakdown.totalBalance,
                     labelAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceLabel,
                     valueAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceValue
                 )
+                // The next three partition the total, and are the three sections the bar below
+                // draws — in the same order, so the bar needs no legend.
                 BreakdownRow(
-                    title: "Spendable Balance",
-                    value: breakdown.spendableBalance,
+                    title: "Available Now",
+                    value: breakdown.availableNowBalance,
                     labelAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceLabel,
                     valueAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceValue
                 )
+                // No accessibility id yet: the registry lives in another repo.
                 BreakdownRow(
-                    title: "Pending Balance",
+                    title: "Gaining Privacy",
+                    value: breakdown.gainingPrivacyBalance
+                )
+                BreakdownRow(
+                    title: "Pending",
                     value: breakdown.pendingBalance,
                     labelAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceLabel,
                     valueAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceValue
                 )
-
-                Divider()
 
                 CoinageCompositionBar(model: breakdown.composition)
                     .padding(.vertical, 2)

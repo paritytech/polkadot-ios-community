@@ -7,7 +7,8 @@ import Foundation
 #if TESTNET_FEATURE
     struct CoinageBalanceBreakdownViewModel {
         let totalBalance: String
-        let spendableBalance: String
+        let availableNowBalance: String
+        let gainingPrivacyBalance: String
         let pendingBalance: String
         let composition: CoinageCompositionBar.Model
         /// Coins and vouchers in one list, already ordered for display.

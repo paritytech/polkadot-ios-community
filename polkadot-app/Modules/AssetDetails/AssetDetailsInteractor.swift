@@ -255,6 +255,22 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                     let locked = balance.total - balance.available
                     await presenter?.didReceive(balance: context.decimal(fromPlanks: balance.total))
                     await presenter?.didReceive(lockedAmount: context.decimal(fromPlanks: locked))
+
+                    #if TESTNET_FEATURE
+                        // The breakdown shows the domain's own three buckets rather than
+                        // re-deriving them, so its figures and the bar below them are the same
+                        // classification from the same tick.
+                        await presenter?.didReceive(
+                            coinageAmounts: CoinageAmounts(
+                                total: context.decimal(fromPlanks: balance.total),
+                                availableNow: context.decimal(fromPlanks: balance.availablePrivate),
+                                gainingPrivacy: context.decimal(
+                                    fromPlanks: balance.gainingPrivacy.amount
+                                ),
+                                pending: context.decimal(fromPlanks: balance.pending)
+                            )
+                        )
+                    #endif
                 }
             } catch {
                 Logger.shared.error("Balance stream failed: \(error)")

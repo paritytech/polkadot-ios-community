@@ -56,7 +56,7 @@
                     publicKey: publicKey(for: index)
                 )
 
-                return CoinageHoldings.CoinHolding(coin: coin, isSpendable: .random())
+                return CoinageHoldings.CoinHolding(coin: coin, availability: randomAvailability())
             }
         }
 
@@ -72,6 +72,15 @@
                 Int.random(in: 0 ..< 100) < 25
                     ? .split(fanout: UInt8.random(in: 2 ... 7))
                     : .transfer(bundleSize: UInt8.random(in: 1 ... 6))
+            }
+        }
+
+        /// Weighted so all three sections of the summary bar get something to show.
+        static func randomAvailability() -> CoinageAvailability {
+            switch Int.random(in: 0 ..< 100) {
+            case ..<45: .availableNow
+            case ..<75: .gainingPrivacy
+            default: .pending
             }
         }
 
@@ -106,7 +115,7 @@
                     publicKey: publicKey(for: index)
                 )
 
-                return CoinageHoldings.VoucherHolding(voucher: voucher, isUnloadable: .random())
+                return CoinageHoldings.VoucherHolding(voucher: voucher, availability: randomAvailability())
             }
         }
     }
