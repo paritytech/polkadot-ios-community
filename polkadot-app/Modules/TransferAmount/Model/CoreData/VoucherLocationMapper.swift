@@ -7,8 +7,8 @@ import Operation_iOS
 /// two fungibility scores) onto an existing `CDVoucher`, leaving every other column untouched.
 ///
 /// Write-only in the sense that it never transforms an entity back into a model. It does read
-/// `maxRecyclerFungibility` — the ceiling is frozen the first time the voucher is seen in a ring, so
-/// the write has to know whether one is already stored.
+/// `recyclerIndex` — the ceiling is frozen for as long as the voucher stays in one ring, so the
+/// write has to know which ring was stored before it.
 final class VoucherLocationMapper {
     enum MappingError: Error {
         case missingVoucher
@@ -36,6 +36,8 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             throw MappingError.missingVoucher
         }
 
+        let previousRecyclerIndex = entity.recyclerIndex
+
         entity.recyclerIndex =
             switch model.remoteState {
             case let .inRecycler(recycler): Int64(recycler.index)
@@ -61,9 +63,14 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             entity.recyclerFungibility = Int16(fungibility)
         }
 
-        // Zero doubles as "no ceiling recorded yet": a voucher is minted before the chain assigns it
-        // a ring, so there is nothing to compute one from until it lands in one.
-        if let ceiling = model.maxRecyclerFungibility, entity.maxRecyclerFungibility == 0 {
+        // The ceiling describes one particular ring, so it is captured when the voucher enters a
+        // ring and again only if it is ever placed in a different one — never on a refresh of the
+        // ring it is already in.
+        //
+        // Keyed on the ring index rather than on the stored score being zero: zero is a legitimate
+        // reading for a fully drained ring, and treating it as "nothing captured yet" would let a
+        // later, more favourable reading overwrite a ceiling that is supposed to be frozen.
+        if let ceiling = model.maxRecyclerFungibility, entity.recyclerIndex != previousRecyclerIndex {
             entity.maxRecyclerFungibility = Int16(ceiling)
         }
     }
