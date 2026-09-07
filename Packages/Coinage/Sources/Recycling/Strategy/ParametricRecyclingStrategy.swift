@@ -20,7 +20,7 @@ public struct ParametricRecyclingStrategy: CoinRecyclingStrategyProtocol {
         var unavailable = snapshot.unavailable
         var verdicts = RecyclingVerdicts()
 
-        for coin in coins.sorted(by: { $0.ageOrDefault > $1.ageOrDefault }) {
+        for coin in coins.sorted(by: Self.olderFirst) {
             // Headroom, not fit: while anything is left in the budget the next coin is admitted even
             // if it overshoots, so a coin larger than the whole budget still recycles instead of
             // waiting for the forced age. A zero budget admits nothing (`unavailable < 0` is never true).
@@ -34,6 +34,16 @@ public struct ParametricRecyclingStrategy: CoinRecyclingStrategyProtocol {
         }
 
         return verdicts
+    }
+
+    /// Oldest first, ties broken by derivation index. Budget is consumed in this order, so equal-age coins
+    /// need a stable tiebreaker or a coin can flap between spendable and held across ticks (`sorted(by:)` is
+    /// not a stable sort).
+    private static func olderFirst(_ lhs: Coin, _ rhs: Coin) -> Bool {
+        if lhs.ageOrDefault != rhs.ageOrDefault {
+            return lhs.ageOrDefault > rhs.ageOrDefault
+        }
+        return lhs.derivationIndex < rhs.derivationIndex
     }
 
     public func isVoucherUsable(_ voucher: Voucher, context: VoucherUsabilityContext) -> Bool {
