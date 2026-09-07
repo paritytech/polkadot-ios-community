@@ -1,8 +1,8 @@
 import SwiftUI
 import DesignSystem
 
-/// Numeric readout of every monitored connection. The permanent top strip grades health with a
-/// ring; this panel prints the figures behind the grade, so it draws no ring of its own.
+/// Numeric readout of every monitored connection. It repeats the top strip's ring at a larger
+/// size so the two read as the same mark, and prints the figures behind the grade beside it.
 public struct ConnectionStatusPanelView: View, Hashable {
     public let rows: [ChainConnectionStatusViewModel]
 
@@ -35,40 +35,41 @@ private extension ConnectionStatusPanelView {
     static let blockAgeFormatter = DateComponentsFormatter.secondsMinutesAbbreviated
 
     func rowView(_ row: ChainConnectionStatusViewModel, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(row.icon.imageResource)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundStyle(Color.fgPrimary)
-                    .frame(width: 16, height: 16)
+        HStack(spacing: 12) {
+            // The ring labels itself "title, stateTitle", which the row's own text already says.
+            // Hiding it here rather than ignoring the row's children keeps the figures readable.
+            ChainStatusRingView(viewModel: row, diameter: 40)
+                .accessibilityHidden(true)
 
-                Text(verbatim: row.title)
-                    .font(.caption12Regular())
-                    .foregroundStyle(Color.fgPrimary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    Text(verbatim: row.title)
+                        .font(.caption12Regular())
+                        .foregroundStyle(Color.fgPrimary)
+                        .lineLimit(1)
 
-                Spacer(minLength: 0)
+                    Spacer(minLength: 0)
 
-                Text(verbatim: row.stateTitle)
-                    .font(.caption12Regular())
-                    .foregroundStyle(Color.fgSecondary)
-                    .lineLimit(1)
-            }
+                    Text(verbatim: row.stateTitle)
+                        .font(.caption12Regular())
+                        .foregroundStyle(Color.fgSecondary)
+                        .lineLimit(1)
+                }
 
-            HStack(alignment: .top, spacing: 12) {
-                figureView(
-                    label: String(localized: .Common.connectionStatusLatencyLabel),
-                    value: latencyText(row.latency)
-                )
-                figureView(
-                    label: String(localized: .Common.connectionStatusBlockLabel),
-                    value: blockAgeText(row.lastBlockDate, now: now)
-                )
-                figureView(
-                    label: String(localized: .Common.connectionStatusFinalityLabel),
-                    value: finalityText(row.finalityLag)
-                )
+                HStack(alignment: .top, spacing: 12) {
+                    figureView(
+                        label: String(localized: .Common.connectionStatusLatencyLabel),
+                        value: latencyText(row.latency)
+                    )
+                    figureView(
+                        label: String(localized: .Common.connectionStatusBlockLabel),
+                        value: blockAgeText(row.lastBlockDate, now: now)
+                    )
+                    figureView(
+                        label: String(localized: .Common.connectionStatusFinalityLabel),
+                        value: finalityText(row.finalityLag)
+                    )
+                }
             }
         }
     }
@@ -121,20 +122,5 @@ private extension ConnectionStatusPanelView {
         }
 
         return String(localized: .Common.connectionStatusFinalityValue(finalityLag))
-    }
-}
-
-private extension ChainStatusIcon {
-    var imageResource: ImageResource {
-        switch self {
-        case .people:
-            .statusIconPeople
-        case .bulletin:
-            .statusIconBulletin
-        case .assetHub:
-            .statusIconAssethub
-        case .statementStore:
-            .statusIconSstore
-        }
     }
 }
