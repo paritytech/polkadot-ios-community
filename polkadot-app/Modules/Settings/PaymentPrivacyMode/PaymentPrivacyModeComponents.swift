@@ -8,7 +8,7 @@ import Coinage
 
 // MARK: - Layout constants
 
-enum Metrics {
+enum PrivacyModeMetrics {
     static let circle: CGFloat = 28
     static let selectedCircle: CGFloat = 40
     static let trackHeight: CGFloat = 40
@@ -68,7 +68,7 @@ struct ModeCircleView: View {
     }
 
     var body: some View {
-        let diameter = isSelected ? Metrics.selectedCircle : Metrics.circle
+        let diameter = isSelected ? PrivacyModeMetrics.selectedCircle : PrivacyModeMetrics.circle
         let accent = previousMode.displayAccentColor
             .blended(with: currentMode.displayAccentColor, fraction: fadeProgress)
 
@@ -76,7 +76,7 @@ struct ModeCircleView: View {
             Circle()
                 .fill(accent)
                 .frame(width: diameter, height: diameter)
-                .blur(radius: Metrics.glowBlur)
+                .blur(radius: PrivacyModeMetrics.glowBlur)
                 .opacity(hasGlow ? 0.45 : 0)
 
             Circle()
@@ -86,7 +86,7 @@ struct ModeCircleView: View {
                 .shadow(color: .shadowMedium.opacity(0.7), radius: 4, y: 4)
                 .overlay(glyphs(diameter: diameter))
         }
-        .frame(width: Metrics.boxHeight, height: Metrics.boxHeight)
+        .frame(width: PrivacyModeMetrics.boxHeight, height: PrivacyModeMetrics.boxHeight)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
         .animation(.easeInOut(duration: 0.2), value: hasGlow)
         .onChange(of: mode) { _, newMode in
@@ -103,7 +103,7 @@ struct ModeCircleView: View {
     /// Outgoing and incoming glyphs dissolving into each other on the same fade.
     @ViewBuilder
     private func glyphs(diameter: CGFloat) -> some View {
-        let font = Font.system(size: diameter * Metrics.iconFraction, weight: .semibold)
+        let font = Font.system(size: diameter * PrivacyModeMetrics.iconFraction, weight: .semibold)
         ZStack {
             Image(systemName: previousMode.displayIconName)
                 .font(font)
@@ -127,7 +127,7 @@ struct ModeMarkerView: View {
     let isSelected: Bool
 
     var body: some View {
-        let side = isSelected ? Metrics.selectedMarker : Metrics.marker
+        let side = isSelected ? PrivacyModeMetrics.selectedMarker : PrivacyModeMetrics.marker
         let color = isSelected ? mode.displayAccentColor : mode.markerMutedColor
 
         Triangle()
@@ -137,10 +137,10 @@ struct ModeMarkerView: View {
                 Triangle()
                     .fill(mode.displayAccentColor)
                     .frame(width: side, height: side)
-                    .blur(radius: Metrics.markerGlowBlur)
+                    .blur(radius: PrivacyModeMetrics.markerGlowBlur)
                     .opacity(isSelected ? 0.45 : 0)
             )
-            .frame(height: Metrics.selectedMarker)
+            .frame(height: PrivacyModeMetrics.selectedMarker)
             .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
@@ -156,11 +156,16 @@ struct TickScale: View {
     var body: some View {
         Canvas { context, size in
             var path = Path()
-            let top = size.height / 2 - Metrics.tickHeight / 2
+            let top = size.height / 2 - PrivacyModeMetrics.tickHeight / 2
             var tickX = start
-            while tickX + Metrics.tickWidth <= end {
-                path.addRect(CGRect(x: tickX, y: top, width: Metrics.tickWidth, height: Metrics.tickHeight))
-                tickX += Metrics.tickStep
+            while tickX + PrivacyModeMetrics.tickWidth <= end {
+                path.addRect(CGRect(
+                    x: tickX,
+                    y: top,
+                    width: PrivacyModeMetrics.tickWidth,
+                    height: PrivacyModeMetrics.tickHeight
+                ))
+                tickX += PrivacyModeMetrics.tickStep
             }
             context.fill(
                 path,
@@ -245,37 +250,5 @@ extension Color {
                 alpha: baseAlpha + (tintAlpha - baseAlpha) * clamped
             )
         })
-    }
-
-    /// Scales a shadow's alpha down as the `surface` it lands on brightens, so a fixed black shadow (the
-    /// design system's `shadow.*` tokens are the same in every theme) does not read as a bruise on the light
-    /// themes. Dynamic: the surface luminance is read from the render-time traits.
-    func softened(on surface: Color, falloff: CGFloat = Metrics.lightSurfaceFalloff) -> Color {
-        let shadow = UIColor(self)
-        let base = UIColor(surface)
-
-        return Color(uiColor: UIColor { traits in
-            let resolvedShadow = shadow.resolvedColor(with: traits)
-            let luminance = base.resolvedColor(with: traits).relativeLuminance
-
-            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-            resolvedShadow.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-
-            return UIColor(red: red, green: green, blue: blue, alpha: alpha * (1 - luminance * falloff))
-        })
-    }
-}
-
-private extension UIColor {
-    /// WCAG relative luminance (0 = black … 1 = white).
-    var relativeLuminance: CGFloat {
-        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
-        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
-
-        func linear(_ component: CGFloat) -> CGFloat {
-            component <= 0.03928 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
-        }
-
-        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 }
