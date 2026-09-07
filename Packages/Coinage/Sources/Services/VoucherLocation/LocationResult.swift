@@ -14,8 +14,16 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
         let ringKeysStatus: MembersPallet.RingKeysStatus?
     }
 
+    /// `RecyclersUnloadedCount` for the ring the voucher sits in. The entry is an `OptionQuery`
+    /// populated only as aliases are unloaded, so an absent reading means "none yet", not "unknown".
+    struct UnloadedCountUpdate {
+        let derivationIndex: DerivationIndex
+        let unloadedCount: UInt32?
+    }
+
     let ringPositionUpdates: [MemberUpdate]
     let ringStatusUpdates: [RingStatusUpdate]
+    let unloadedCountUpdates: [UnloadedCountUpdate]
     let blockHash: BlockHashData?
 
     init(
@@ -25,6 +33,7 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
     ) throws {
         var updates: [MemberUpdate] = []
         var ringStatusUpdates: [RingStatusUpdate] = []
+        var unloadedCountUpdates: [UnloadedCountUpdate] = []
 
         for item in values {
             guard
@@ -56,11 +65,23 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
                     derivationIndex: derivationIndex,
                     ringKeysStatus: ringKeysStatus
                 ))
+
+            case let .unloadedCount(derivationIndex):
+                let count = try? item.value.map(
+                    to: StringScaleMapper<UInt32>?.self,
+                    with: context
+                )
+
+                unloadedCountUpdates.append(.init(
+                    derivationIndex: derivationIndex,
+                    unloadedCount: count?.value
+                ))
             }
         }
 
         ringPositionUpdates = updates
         self.ringStatusUpdates = ringStatusUpdates
+        self.unloadedCountUpdates = unloadedCountUpdates
         blockHash = try blockHashJson.map(to: BlockHashData?.self, with: context)
     }
 }

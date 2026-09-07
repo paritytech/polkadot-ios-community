@@ -61,8 +61,10 @@ public struct Voucher: Equatable, CoinageDerivable, Sendable {
         allocatedAt: Date,
         readyAt: Date,
         remoteState: OnChainState = .unlocated,
-        recyclerFungibility: UInt8 = CoinageConstants.fullFungibility,
-        maxRecyclerFungibility: UInt8 = CoinageConstants.fullFungibility,
+        // Zero until the chain assigns a ring: the index is not known when the voucher is minted,
+        // so there is nothing to compute a score from, and zero reads as "no anonymity yet".
+        recyclerFungibility: UInt8 = 0,
+        maxRecyclerFungibility: UInt8 = 0,
         publicKey: PublicKey
     ) {
         self.exponent = exponent

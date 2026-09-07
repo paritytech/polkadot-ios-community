@@ -3,6 +3,7 @@ import Foundation
 enum SubscriptionKey: Hashable {
     case member(derivationIndex: DerivationIndex)
     case ringStatus(derivationIndex: DerivationIndex)
+    case unloadedCount(derivationIndex: DerivationIndex)
 
     static let separator = ":"
 
@@ -19,6 +20,9 @@ enum SubscriptionKey: Hashable {
         case "rs":
             guard components.count == 2, let index = DerivationIndex(components[1]) else { return nil }
             self = .ringStatus(derivationIndex: index)
+        case "uc":
+            guard components.count == 2, let index = DerivationIndex(components[1]) else { return nil }
+            self = .unloadedCount(derivationIndex: index)
         default:
             return nil
         }
@@ -28,6 +32,7 @@ enum SubscriptionKey: Hashable {
         switch self {
         case let .member(index): ["m", "\(index)"].joined(separator: Self.separator)
         case let .ringStatus(index): ["rs", "\(index)"].joined(separator: Self.separator)
+        case let .unloadedCount(index): ["uc", "\(index)"].joined(separator: Self.separator)
         }
     }
 }

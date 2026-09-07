@@ -264,12 +264,20 @@ public extension CoinageService {
             logger: logger
         )
 
+        let ringCapacityProvider = RingCapacityProvider(
+            instanceId: instanceId,
+            operationQueue: operationQueue,
+            connection: connection,
+            runtimeCodingService: runtimeService
+        )
+
         let voucherLocationService = VoucherLocationService(
             instanceId: instanceId,
             voucherRepository: voucherRepository,
             databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,
+            ringCapacityProvider: ringCapacityProvider,
             logger: logger
         )
 
@@ -295,12 +303,6 @@ public extension CoinageService {
             consumedTokenChecker: consumedTokenChecker,
             personOriginProvider: personOriginProvider,
             viewFunctionFetcher: viewFunctionFetcher
-        )
-        let ringCapacityProvider = RingCapacityProvider(
-            instanceId: instanceId,
-            operationQueue: operationQueue,
-            connection: connection,
-            runtimeCodingService: runtimeService
         )
         let recyclingStrategyResolver = RecyclingStrategyProvider(quotaTracker: quotaTracker)
         let preClassificator = CoinageAssetPreClassificator()

@@ -3,8 +3,12 @@ import CoreData
 import Coinage
 import Operation_iOS
 
-/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers`) onto an
-/// existing `CDVoucher`, leaving every other column untouched. Write-only: it never reads back.
+/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers` and the
+/// two fungibility scores) onto an existing `CDVoucher`, leaving every other column untouched.
+///
+/// Write-only in the sense that it never transforms an entity back into a model. It does read
+/// `maxRecyclerFungibility` — the ceiling is frozen the first time the voucher is seen in a ring, so
+/// the write has to know whether one is already stored.
 final class VoucherLocationMapper {
     enum MappingError: Error {
         case missingVoucher
@@ -52,5 +56,15 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             case .onboarding: 1
             case .inRecycler: 2
             }
+
+        if let fungibility = model.recyclerFungibility {
+            entity.recyclerFungibility = Int16(fungibility)
+        }
+
+        // Zero doubles as "no ceiling recorded yet": a voucher is minted before the chain assigns it
+        // a ring, so there is nothing to compute one from until it lands in one.
+        if let ceiling = model.maxRecyclerFungibility, entity.maxRecyclerFungibility == 0 {
+            entity.maxRecyclerFungibility = Int16(ceiling)
+        }
     }
 }
