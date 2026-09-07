@@ -72,7 +72,7 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     func didResolveTopUpProduct(_ result: Result<ProductPage, Error>)
 
     #if TESTNET_FEATURE
-        func didReceive(coins: [TrackedCoin], vouchers: [TrackedVoucher])
+        func didReceive(holdings: CoinageHoldings)
         func didReceive(denominationContext: DenominationBreakdownContext)
         func didCompleteTopUp(_ result: Result<Void, Error>)
     #endif

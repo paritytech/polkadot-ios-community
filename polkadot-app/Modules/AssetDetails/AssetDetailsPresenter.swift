@@ -24,27 +24,22 @@ final class AssetDetailsPresenter {
     private let chainAsset: ChainAsset
     private var balance: Decimal = 0
     private var lockedAmount: Decimal = 0
-    private var coins: [TrackedCoin] = []
-    private var vouchers: [TrackedVoucher] = []
     #if TESTNET_FEATURE
-        /// Non-nil while the debug switch is on; shadows `coins`/`vouchers` for display only.
-        private var fixtureCoinage: (coins: [TrackedCoin], vouchers: [TrackedVoucher])?
+        /// Classified alongside the balance figures, so the rows and the bar always account for
+        /// exactly the total shown above them.
+        private var holdings: CoinageHoldings = .empty
+        /// Non-nil while the debug switch is on; shadows `holdings` for display only.
+        private var fixtureHoldings: CoinageHoldings?
         /// Loaded from chain state; needed to price individual holdings.
         private var denominationContext: DenominationBreakdownContext?
 
         /// Fixtures carry their own pricing so test data renders without the chain.
         private var activeDenominationContext: DenominationBreakdownContext? {
-            fixtureCoinage != nil ? CoinageFixtures.denominationContext : denominationContext
+            fixtureHoldings != nil ? CoinageFixtures.denominationContext : denominationContext
         }
 
-        /// `TrackedCoin.isBalanceCounted` is the domain's single inclusion rule, so the list
-        /// shows exactly what the balance counts — for fixtures too, since they are tracked.
-        private var displayedCoins: [Coin] {
-            (fixtureCoinage?.coins ?? coins).filter(\.isBalanceCounted).map(\.coin)
-        }
-
-        private var displayedVouchers: [Voucher] {
-            (fixtureCoinage?.vouchers ?? vouchers).filter(\.isBalanceCounted).map(\.voucher)
+        private var displayedHoldings: CoinageHoldings {
+            fixtureHoldings ?? holdings
         }
     #endif
     private var price: PriceData?
@@ -151,9 +146,9 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
         }
 
         func onToggleFixtureCoinage() {
-            // Regenerated on every enable so voucher timestamps stay relative to "now".
-            fixtureCoinage = fixtureCoinage == nil ? CoinageFixtures.make() : nil
-            view?.didReceive(usesFixtureCoinage: fixtureCoinage != nil)
+            // Regenerated on every enable, so each activation shows a fresh random spread.
+            fixtureHoldings = fixtureHoldings == nil ? CoinageFixtures.make() : nil
+            view?.didReceive(usesFixtureCoinage: fixtureHoldings != nil)
             provideCoinageBreakdown()
         }
 
@@ -191,9 +186,8 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             provideCoinageBreakdown()
         }
 
-        func didReceive(coins: [TrackedCoin], vouchers: [TrackedVoucher]) {
-            self.coins = coins
-            self.vouchers = vouchers
+        func didReceive(holdings: CoinageHoldings) {
+            self.holdings = holdings
             provideCoinageBreakdown()
         }
     #endif
@@ -334,45 +328,24 @@ private extension AssetDetailsPresenter {
             }
 
             let context = activeDenominationContext
+            let holdings = displayedHoldings
 
-            // Pulled out of the map closures below: inlining it defeats the type checker.
+            // Pulled out of the map closure below: inlining it defeats the type checker.
             func amount(forExponent exponent: Int16) -> String? {
                 guard let context else { return nil }
 
                 return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
             }
 
-            // Value descending, then best fungibility first. Value is `unit * 2^exponent`,
-            // so ordering by exponent is exactly ordering by value.
-            let coinDetails = displayedCoins
-                .sorted { lhs, rhs in
-                    lhs.exponent == rhs.exponent
-                        ? (lhs.fungibilityScore ?? 0) > (rhs.fungibilityScore ?? 0)
-                        : lhs.exponent > rhs.exponent
-                }
-                .map { coin in
-                    CoinageHoldingViewModel(
-                        id: coin.identifier,
-                        amount: amount(forExponent: coin.exponent),
-                        fungibility: Self.fungibilityModel(for: coin)
-                    )
-                }
+            let rows = CoinageBreakdownFactory.rows(from: holdings).map { row in
+                CoinageHoldingViewModel(
+                    id: row.id,
+                    amount: amount(forExponent: row.exponent),
+                    status: row.status
+                )
+            }
 
-            let voucherDetails = displayedVouchers
-                .sorted { lhs, rhs in
-                    lhs.exponent == rhs.exponent
-                        ? (lhs.fungibilityScore ?? 0) > (rhs.fungibilityScore ?? 0)
-                        : lhs.exponent > rhs.exponent
-                }
-                .map { voucher in
-                    CoinageHoldingViewModel(
-                        id: voucher.identifier,
-                        amount: amount(forExponent: voucher.exponent),
-                        fungibility: .voucher(score: voucher.fungibilityScore ?? 0)
-                    )
-                }
-
-            let amounts = fixtureAmounts() ?? (
+            let amounts = fixtureAmounts() ?? CoinageAmounts(
                 total: balance,
                 spendable: balance - lockedAmount,
                 pending: lockedAmount
@@ -383,101 +356,43 @@ private extension AssetDetailsPresenter {
                 spendableBalance: formatted(from: amounts.spendable),
                 pendingBalance: formatted(from: amounts.pending),
                 composition: context.map {
-                    Self.composition(coins: displayedCoins, vouchers: displayedVouchers, context: $0)
+                    CoinageBreakdownFactory.composition(of: holdings, context: $0)
                 } ?? .empty,
-                coinDetails: coinDetails,
-                voucherDetails: voucherDetails
+                holdings: rows
             )
             view?.didReceive(coinageBreakdown: breakdown)
         }
 
-        /// Totals the fixture holdings. Fixtures are all unclaimed and on chain, so there is
-        /// nothing pending — the interesting fixture signal is the per-holding depiction and the
-        /// composition bar, not the lifecycle split.
-        func fixtureAmounts() -> (total: Decimal, spendable: Decimal, pending: Decimal)? {
-            guard fixtureCoinage != nil else { return nil }
+        /// Totals the fixture holdings. Spendable comes from the fixtures' own randomised
+        /// classification rather than being assumed, so the figures agree with the bar and the rows.
+        /// Everything else is reported as pending — fixtures carry no lifecycle detail to split it
+        /// further.
+        func fixtureAmounts() -> CoinageAmounts? {
+            guard let fixtureHoldings else { return nil }
 
             let context = CoinageFixtures.denominationContext
-            let exponents = displayedCoins.map(\.exponent) + displayedVouchers.map(\.exponent)
-            let total = exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) }
+            var total = Decimal.zero
+            var spendable = Decimal.zero
 
-            return (total: total, spendable: total, pending: 0)
-        }
+            for holding in fixtureHoldings.coins {
+                let value = context.amount(forExponent: holding.coin.exponent)
+                total += value
 
-        /// Value-weighted split of the holdings into private / loading / public.
-        ///
-        /// A holding counts as private once it reaches the same high band the per-row bars
-        /// paint green — coins *and* vouchers alike. Anything short of that is public if it is
-        /// a coin, or still loading if it is a voucher, since a voucher can yet improve as its
-        /// recycler fills. Spent coins are not held and are excluded.
-        static func composition(
-            coins: [Coin],
-            vouchers: [Voucher],
-            context: DenominationBreakdownContext
-        ) -> PrivacyCompositionBar.Model {
-            var privatePlanks = BigUInt(0)
-            var publicPlanks = BigUInt(0)
-            var loadingPlanks = BigUInt(0)
-
-            for coin in coins {
-                let value = context.valueInPlanks(for: coin.exponent)
-                if FungibilityBand(score: coin.fungibilityScore ?? 0) == .high {
-                    privatePlanks += value
-                } else {
-                    publicPlanks += value
+                if holding.isSpendable {
+                    spendable += value
                 }
             }
 
-            for voucher in vouchers {
-                let value = context.valueInPlanks(for: voucher.exponent)
-                if FungibilityBand(score: voucher.fungibilityScore ?? 0) == .high {
-                    privatePlanks += value
-                } else {
-                    loadingPlanks += value
+            for holding in fixtureHoldings.vouchers {
+                let value = context.amount(forExponent: holding.voucher.exponent)
+                total += value
+
+                if holding.isUnloadable {
+                    spendable += value
                 }
             }
 
-            let total = privatePlanks + publicPlanks + loadingPlanks
-
-            guard total > 0 else { return .empty }
-
-            // Scaled integer division keeps this exact for plank counts far beyond Double.
-            func share(_ part: BigUInt) -> Double {
-                let scale = BigUInt(1_000_000)
-                return Double(part * scale / total) / Double(scale)
-            }
-
-            return PrivacyCompositionBar.Model(
-                privateShare: share(privatePlanks),
-                loadingShare: share(loadingPlanks),
-                publicShare: share(publicPlanks)
-            )
-        }
-
-        /// Maps a coin's provenance onto the depiction.
-        ///
-        /// A split hop fans out from the node it originated at — the node *before* it — so
-        /// hop `i` being a split marks node `i-1`, where node `-1` is the recycler square.
-        /// The final dot therefore never fans out: it is "here, now".
-        static func fungibilityModel(for coin: Coin) -> FungibilityBarView.Model {
-            let branches = coin.hops.map { hop in
-                switch hop {
-                case .transfer: 0
-                case let .split(fanout): FungibilityBarView.Model.branches(forFanout: fanout)
-                }
-            }
-
-            // An unknown recycler fungibility scores as zero: a privacy indicator should not
-            // claim a holding is private when its provenance is unknown.
-            return FungibilityBarView.Model(
-                score: coin.fungibilityScore ?? 0,
-                recyclerScore: coin.recyclerFungibility ?? 0,
-                squareBranches: branches.first ?? 0,
-                hopBranches: branches.indices.map { index in
-                    let next = index + 1
-                    return next < branches.count ? branches[next] : 0
-                }
-            )
+            return CoinageAmounts(total: total, spendable: spendable, pending: total - spendable)
         }
     }
 #endif

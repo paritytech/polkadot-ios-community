@@ -218,15 +218,17 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
             }
         }
 
+        /// The balance service classifies each holding in the same computation that produces the
+        /// balance figures, so the detail rows can never contradict the totals beside them.
         private func subscribeToCoinage() {
             coinageSubscriptionTask?.cancel()
-            coinageSubscriptionTask = Task { [weak self, databaseFactory] in
-                let coinsStream = databaseFactory.makeTrackedCoinSnapshotStream()
-                let vouchersStream = databaseFactory.makeTrackedVoucherSnapshotStream()
-
+            coinageSubscriptionTask = Task { [weak self, coinageService] in
                 do {
-                    for try await (coins, vouchers) in combineLatest(coinsStream, vouchersStream) {
-                        await self?.presenter?.didReceive(coins: coins, vouchers: vouchers)
+                    let balanceService = try await coinageService.coinageBalanceService()
+
+                    for try await holdings in balanceService.holdingsStream {
+                        try Task.checkCancellation()
+                        await self?.presenter?.didReceive(holdings: holdings)
                     }
                 } catch {
                     Logger.shared.error("Coinage subscription failed: \(error)")

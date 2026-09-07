@@ -9,20 +9,24 @@ import Foundation
         let totalBalance: String
         let spendableBalance: String
         let pendingBalance: String
-        let composition: PrivacyCompositionBar.Model
-        let coinDetails: [CoinageHoldingViewModel]
-        let voucherDetails: [CoinageHoldingViewModel]
+        let composition: CoinageCompositionBar.Model
+        /// Coins and vouchers in one list, already ordered for display.
+        let holdings: [CoinageHoldingViewModel]
     }
 #endif
 
 #if TESTNET_FEATURE
-    /// A single coin or voucher row: its amount, and a number-free fungibility depiction.
+    /// A single coin or voucher row: its value, and a number-free status depiction.
     struct CoinageHoldingViewModel: Identifiable {
         let id: String
-        /// Pre-formatted with the asset symbol, e.g. `0.32 CASH`. Nil until the
-        /// denomination context is known.
+        /// The bare value, no currency symbol. Nil until the denomination context is known.
         let amount: String?
-        let fungibility: FungibilityBarView.Model
+        let status: Status
+
+        enum Status: Equatable {
+            case coin(CoinStatusView.Model)
+            case voucher(VoucherStatusView.Model)
+        }
     }
 #endif
 

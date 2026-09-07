@@ -14,6 +14,10 @@ public protocol CoinageBalanceServiceProtocol {
     /// The single strategy-aware balance. Amounts are planks; render via ``denominationContext``.
     var balanceStream: AnyAsyncSequence<CoinageBalance> { get }
 
+    /// The individual holdings behind ``balanceStream``, classified from the same computation, for
+    /// displays that need per-holding detail rather than the totals.
+    var holdingsStream: AnyAsyncSequence<CoinageHoldings> { get }
+
     /// The cached denomination context for plank→decimal conversion by display consumers.
     var denominationContext: DenominationBreakdownContext { get }
 }
@@ -43,6 +47,7 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     private var latestVerdicts: RecyclingVerdicts = [:]
 
     private nonisolated let balanceSubject: AsyncCurrentValueSubject<CoinageBalance>
+    private nonisolated let holdingsSubject: AsyncCurrentValueSubject<CoinageHoldings>
 
     init(
         denominationContext: DenominationBreakdownContext,
@@ -64,10 +69,15 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
         self.logger = logger
 
         balanceSubject = AsyncCurrentValueSubject<CoinageBalance>(.empty)
+        holdingsSubject = AsyncCurrentValueSubject<CoinageHoldings>(.empty)
     }
 
     public nonisolated var balanceStream: AnyAsyncSequence<CoinageBalance> {
         balanceSubject.removeDuplicates().eraseToAnyAsyncSequence()
+    }
+
+    public nonisolated var holdingsStream: AnyAsyncSequence<CoinageHoldings> {
+        holdingsSubject.removeDuplicates().eraseToAnyAsyncSequence()
     }
 
     public nonisolated func start() {
@@ -141,6 +151,14 @@ private extension CoinageBalanceService {
                 verdicts: latestVerdicts,
                 canSpendWithConfirmation: voucherStrategy.allowsConfirmedSpend(),
                 context: denominationContext
+            )
+        )
+
+        holdingsSubject.send(
+            CoinageHoldings.make(
+                coinBuckets: coinBuckets,
+                voucherBuckets: voucherBuckets,
+                verdicts: latestVerdicts
             )
         )
 

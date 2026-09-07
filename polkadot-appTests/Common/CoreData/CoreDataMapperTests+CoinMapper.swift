@@ -143,7 +143,6 @@ extension CoreDataMapperTests {
                 Coin(exponent: 4, derivationIndex: 900, age: nil, recyclerFungibility: nil, publicKey: key(0x17))
             )
             #expect(result.recyclerFungibility == nil)
-            #expect(result.fungibilityScore == nil)
         }
     }
 }

@@ -236,7 +236,7 @@ struct AssetDetailsView: View {
 
                 Divider()
 
-                PrivacyCompositionBar(model: breakdown.composition)
+                CoinageCompositionBar(model: breakdown.composition)
                     .padding(.vertical, 2)
 
                 if let onMakeAllVouchersReady {
@@ -279,23 +279,9 @@ struct AssetDetailsView: View {
         let breakdown: CoinageBalanceBreakdownViewModel
 
         var body: some View {
-            VStack(spacing: 16) {
-                section(title: "Coins", holdings: breakdown.coinDetails)
-                section(title: "Currently Loading", holdings: breakdown.voucherDetails)
-            }
-        }
-
-        @ViewBuilder
-        private func section(title: String, holdings: [CoinageHoldingViewModel]) -> some View {
-            if !holdings.isEmpty {
-                VStack(spacing: 6) {
-                    Text(verbatim: title)
-                        .textStyle(.body14SemiBold())
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    ForEach(holdings) { holding in
-                        CoinageHoldingRow(holding: holding)
-                    }
+            VStack(spacing: 6) {
+                ForEach(breakdown.holdings) { holding in
+                    CoinageHoldingRow(holding: holding)
                 }
             }
         }
@@ -304,8 +290,8 @@ struct AssetDetailsView: View {
     private struct CoinageHoldingRow: View {
         let holding: CoinageHoldingViewModel
 
-        /// Fixed so every depiction starts at the same x across both lists. Sized for the
-        /// widest bare number the denominations produce, with no currency symbol.
+        /// Fixed, not intrinsic: every depiction has to start at the same x and share one column
+        /// width, or the bar lengths would not be comparable between rows.
         private let amountColumnWidth: CGFloat = 52
 
         var body: some View {
@@ -317,7 +303,12 @@ struct AssetDetailsView: View {
                     .minimumScaleFactor(0.8)
                     .frame(width: amountColumnWidth, alignment: .trailing)
 
-                FungibilityBarView(model: holding.fungibility)
+                switch holding.status {
+                case let .coin(model):
+                    CoinStatusView(model: model)
+                case let .voucher(model):
+                    VoucherStatusView(model: model)
+                }
             }
         }
     }
