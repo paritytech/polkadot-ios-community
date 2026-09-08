@@ -19,7 +19,6 @@ protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     #if TESTNET_FEATURE
         func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel)
         func didReceive(testnetTopUpLoading: Bool)
-        func didReceive(usesFixtureCoinage: Bool)
     #endif
 }
 
@@ -38,7 +37,6 @@ protocol AssetDetailsPresenterProtocol: AnyObject {
     #if TESTNET_FEATURE
         func onTestnetTopUp()
         func onMakeAllVouchersReady()
-        func onToggleFixtureCoinage()
     #endif
 }
 

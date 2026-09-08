@@ -54,9 +54,6 @@ struct AssetDetailsView: View {
     @ViewBuilder
     private var expandedBody: some View {
         VStack(spacing: 16) {
-            #if TESTNET_FEATURE
-                fixtureToggle()
-            #endif
             if viewModel.showsBackupNotification {
                 backupCard()
             } else {
@@ -144,44 +141,6 @@ struct AssetDetailsView: View {
     }
 
     #if TESTNET_FEATURE
-        private func fixtureToggle() -> some View {
-            Button {
-                viewModel.onToggleFixtureCoinage?()
-            } label: {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(verbatim: "Test data")
-                            .textStyle(.body14Regular())
-                        Text(
-                            verbatim: viewModel.usesFixtureCoinage
-                                ? "\(CoinageFixtures.coinCount) coins, \(CoinageFixtures.voucherCount) vouchers"
-                                : "Using real holdings"
-                        )
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(.fgSecondary)
-                    }
-
-                    Spacer()
-
-                    Text(verbatim: viewModel.usesFixtureCoinage ? "ON" : "OFF")
-                        .textStyle(.body14Regular())
-                        .foregroundStyle(viewModel.usesFixtureCoinage ? Color.fgPrimaryInverted : .fgSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            viewModel.usesFixtureCoinage ? Color.bgActionPrimary : .bgSurfaceMain,
-                            in: Capsule()
-                        )
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .frame(maxWidth: .infinity)
-                .background(.bgSurfaceNested, in: RoundedRectangle(cornerRadius: 12))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(Color.fgPrimary)
-        }
-
         private func testnetTopUpButton() -> some View {
             Button {
                 viewModel.onTestnetTopUp?()

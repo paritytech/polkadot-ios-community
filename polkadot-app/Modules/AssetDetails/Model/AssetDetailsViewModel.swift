@@ -59,8 +59,6 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
         var isTestnetTopUpInProgress: Bool { get set }
         var onTestnetTopUp: (() -> Void)? { get set }
         var onMakeAllVouchersReady: (() -> Void)? { get set }
-        var usesFixtureCoinage: Bool { get set }
-        var onToggleFixtureCoinage: (() -> Void)? { get set }
     #endif
 }
 
@@ -90,7 +88,5 @@ class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
         var isTestnetTopUpInProgress: Bool = false
         var onTestnetTopUp: (() -> Void)?
         var onMakeAllVouchersReady: (() -> Void)?
-        var usesFixtureCoinage: Bool = false
-        var onToggleFixtureCoinage: (() -> Void)?
     #endif
 }

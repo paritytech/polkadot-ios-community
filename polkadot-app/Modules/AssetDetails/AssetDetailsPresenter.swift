@@ -28,21 +28,10 @@ final class AssetDetailsPresenter {
         /// Classified alongside the balance figures, so the rows and the bar always account for
         /// exactly the total shown above them.
         private var holdings: CoinageHoldings = .empty
-        /// Non-nil while the debug switch is on; shadows `holdings` for display only.
-        private var fixtureHoldings: CoinageHoldings?
         /// The domain's three buckets for the real holdings, totalled by the balance service.
         private var coinageAmounts: CoinageAmounts?
         /// Loaded from chain state; needed to price individual holdings.
         private var denominationContext: DenominationBreakdownContext?
-
-        /// Fixtures carry their own pricing so test data renders without the chain.
-        private var activeDenominationContext: DenominationBreakdownContext? {
-            fixtureHoldings != nil ? CoinageFixtures.denominationContext : denominationContext
-        }
-
-        private var displayedHoldings: CoinageHoldings {
-            fixtureHoldings ?? holdings
-        }
     #endif
     private var price: PriceData?
     let logger: LoggerProtocol
@@ -145,13 +134,6 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
             view?.didReceive(testnetTopUpLoading: true)
 
             interactor?.topUp()
-        }
-
-        func onToggleFixtureCoinage() {
-            // Regenerated on every enable, so each activation shows a fresh random spread.
-            fixtureHoldings = fixtureHoldings == nil ? CoinageFixtures.make() : nil
-            view?.didReceive(usesFixtureCoinage: fixtureHoldings != nil)
-            provideCoinageBreakdown()
         }
 
         func onMakeAllVouchersReady() {
@@ -330,8 +312,8 @@ private extension AssetDetailsPresenter {
                 .amount
             }
 
-            let context = activeDenominationContext
-            let holdings = displayedHoldings
+            let context = denominationContext
+            let holdings = holdings
 
             // Pulled out of the map closure below: inlining it defeats the type checker.
             func amount(forExponent exponent: Int16) -> String? {
@@ -348,7 +330,7 @@ private extension AssetDetailsPresenter {
                 )
             }
 
-            let amounts = fixtureAmounts() ?? coinageAmounts ?? .zero
+            let amounts = coinageAmounts ?? .zero
 
             let breakdown = CoinageBalanceBreakdownViewModel(
                 totalBalance: formatted(from: amounts.total, includeSymbol: false),
@@ -362,17 +344,6 @@ private extension AssetDetailsPresenter {
                 holdings: rows
             )
             view?.didReceive(coinageBreakdown: breakdown)
-        }
-
-        /// Totals the fixture holdings by the same buckets the domain uses, so test data exercises
-        /// the real relationship between the figures and the bar.
-        func fixtureAmounts() -> CoinageAmounts? {
-            guard let fixtureHoldings else { return nil }
-
-            return CoinageBreakdownFactory.amounts(
-                of: fixtureHoldings,
-                context: CoinageFixtures.denominationContext
-            )
         }
     }
 #endif

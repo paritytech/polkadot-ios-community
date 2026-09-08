@@ -95,41 +95,6 @@
             )
         }
 
-        /// The three figures for a holdings snapshot, used where no chain-computed balance is
-        /// available — the debug fixtures. Real balances come from the domain, which totals the same
-        /// buckets from the same classification.
-        static func amounts(
-            of holdings: CoinageHoldings,
-            context: DenominationBreakdownContext
-        ) -> CoinageAmounts {
-            var availableNow = Decimal.zero
-            var gainingPrivacy = Decimal.zero
-            var pending = Decimal.zero
-
-            func add(_ availability: CoinageAvailability, _ value: Decimal) {
-                switch availability {
-                case .availableNow: availableNow += value
-                case .gainingPrivacy: gainingPrivacy += value
-                case .pending: pending += value
-                }
-            }
-
-            for holding in holdings.coins {
-                add(holding.availability, context.amount(forExponent: holding.coin.exponent))
-            }
-
-            for holding in holdings.vouchers {
-                add(holding.availability, context.amount(forExponent: holding.voucher.exponent))
-            }
-
-            return CoinageAmounts(
-                total: availableNow + gainingPrivacy + pending,
-                availableNow: availableNow,
-                gainingPrivacy: gainingPrivacy,
-                pending: pending
-            )
-        }
-
         /// Plank totals per bucket. A named type rather than a tuple, so the three stay labelled
         /// wherever they travel.
         private struct BucketPlanks {
