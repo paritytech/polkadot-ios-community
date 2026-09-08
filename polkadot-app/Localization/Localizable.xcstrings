@@ -4695,6 +4695,12 @@
             "state": "translated",
             "value": "All users"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todos los usuarios"
+          }
         }
       }
     },
@@ -4705,6 +4711,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "My contacts"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mis contactos"
           }
         }
       }
