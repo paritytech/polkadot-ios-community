@@ -19,8 +19,9 @@ struct SearchAccountViewModel {
 
 extension SearchAccountViewModel {
     enum Section: Hashable {
-        case `default`
+        case contacts
         case recentContacts
+        case globalSearch
     }
 
     enum AccountType: Hashable {
@@ -35,7 +36,7 @@ extension SearchAccountViewModel {
 
     enum DataType {
         case idle(recent: [RecipientViewModel], contacts: [AccountType])
-        case searchResults([AccountType])
+        case searchResults(recent: [RecipientViewModel], contacts: [AccountType], global: [AccountType])
     }
 }
 
@@ -59,8 +60,9 @@ extension SearchAccountViewModel.AccountType {
 extension SearchAccountViewModel.Section {
     var title: String? {
         switch self {
-        case .default: nil
+        case .contacts: String(localized: .transactionSearchMyContacts)
         case .recentContacts: String(localized: .transactionSearchRecentContacts)
+        case .globalSearch: String(localized: .transactionSearchAllUsers)
         }
     }
 }

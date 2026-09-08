@@ -4687,6 +4687,28 @@
         }
       }
     },
+    "transaction.search.all.users": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All users"
+          }
+        }
+      }
+    },
+    "transaction.search.my.contacts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My contacts"
+          }
+        }
+      }
+    },
     "transaction.success.title": {
       "extractionState": "manual",
       "localizations": {

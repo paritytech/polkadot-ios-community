@@ -10,6 +10,8 @@ final class SearchAccountInteractor {
 
     private let searchUsernameFactory: SearchUsernameOperationFactory
     private let recentContactsManager: RecentContactsManaging
+    private let remoteContactSearch: RemoteContactOperationMaking
+    private let chatOpenResolver: ChatOpenModelResolving
     private let debouncer = Debouncer(delay: 0.5, queue: .main)
     private var searchTask: Task<Void, Never>?
     private let logger: LoggerProtocol
@@ -19,10 +21,14 @@ final class SearchAccountInteractor {
     init(
         searchUsernameFactory: SearchUsernameOperationFactory,
         recentContactsManager: RecentContactsManaging,
+        remoteContactSearch: RemoteContactOperationMaking,
+        chatOpenResolver: ChatOpenModelResolving,
         logger: LoggerProtocol
     ) {
         self.searchUsernameFactory = searchUsernameFactory
         self.recentContactsManager = recentContactsManager
+        self.remoteContactSearch = remoteContactSearch
+        self.chatOpenResolver = chatOpenResolver
         self.logger = logger
     }
 
@@ -58,6 +64,17 @@ extension SearchAccountInteractor: SearchAccountInteractorInputProtocol {
             self?.performSearch(query: input)
         }
     }
+
+    func resolveChat(for contact: Chat.RemoteContact) {
+        Task { [weak self, chatOpenResolver] in
+            do {
+                let model = try await chatOpenResolver.resolveOpenModel(for: contact)
+                await self?.presenter?.didResolveChat(model)
+            } catch {
+                await self?.presenter?.didReceiveSearchError(message: error.localizedDescription)
+            }
+        }
+    }
 }
 
 // MARK: - RecentContactsServiceDelegate
@@ -83,19 +100,24 @@ private extension SearchAccountInteractor {
     func performSearch(query: String) {
         searchTask?.cancel()
 
-        searchTask = Task { [weak self, logger] in
+        searchTask = Task { [weak presenter, searchUsernameFactory, remoteContactSearch, logger] in
             do {
-                let accounts = try await self?.searchUsernameFactory.searchUsername(
+                async let localResults = searchUsernameFactory.searchUsername(
                     for: UsernameRequestModel(prefix: query)
-                ) ?? []
+                )
+                async let globalResults = remoteContactSearch.search(by: query).asyncExecute()
+
+                let local = try await localResults
+                let global = await (try? globalResults) ?? []
 
                 try Task.checkCancellation()
-                await self?.presenter?.didFindSearchResults(accounts)
+                await presenter?.didFindContacts(local)
+                await presenter?.didFindGlobalContacts(global)
             } catch {
                 guard !Task.isCancelled else { return }
 
                 logger.debug(error.localizedDescription)
-                await self?.presenter?.didReceiveSearchError(message: error.localizedDescription)
+                await presenter?.didReceiveSearchError(message: error.localizedDescription)
             }
         }
     }

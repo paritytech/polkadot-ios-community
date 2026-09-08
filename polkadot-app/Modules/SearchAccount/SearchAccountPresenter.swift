@@ -20,6 +20,8 @@ final class SearchAccountPresenter {
     private let recipientViewModelFactory: RecipientViewModelFactoryProtocol
     private var recentContactsMap = [String: RecentContactModelWithUsername]()
     private var allContacts: [UsernameResponseModel] = []
+    private var contactResults: [SearchAccountViewModel.AccountType] = []
+    private var globalContacts: [AccountAddress: Chat.RemoteContact] = [:]
     private var currentQuery: String?
 
     init(
@@ -81,16 +83,59 @@ final class SearchAccountPresenter {
         view?.applyData(viewModel)
     }
 
+    private func filterRecentContactsByQuery(_ query: String) -> [RecipientViewModel] {
+        let lowerQuery = query.lowercased()
+        let filtered = recentContactsMap.filter { _, contact in
+            let usernameMatches = (contact.username?.value ?? "").lowercased().hasPrefix(lowerQuery)
+            let addressMatches = (try? contact.recentContact.accountID.toAddress(
+                using: chainAsset.chain.chainFormat
+            ))?.lowercased().hasPrefix(lowerQuery) ?? false
+            return usernameMatches || addressMatches
+        }
+        return recipientViewModelFactory.createRecentContacts(from: filtered)
+    }
+
+    private func dedupe(
+        _ accounts: [SearchAccountViewModel.AccountType],
+        against recent: [RecipientViewModel]
+    ) -> [SearchAccountViewModel.AccountType] {
+        let recentIds = Set(recent.compactMap { try? $0.accountType.accountAddress.toAccountId() })
+        return accounts.filter { account in
+            guard let accountId = try? account.accountAddress.toAccountId() else { return true }
+            return !recentIds.contains(accountId)
+        }
+    }
+
     private func updateIdleViewModel() {
         let recent = recipientViewModelFactory.createRecentContacts(from: recentContactsMap)
             .prefix(Self.maxRecentContactsDisplay)
         let contacts = allContacts.map { mapToAccountType(from: $0) }
-
-        let filtered = contacts.filter { contact in
-            !recent.contains(where: { $0.accountType == contact })
-        }
+        let filtered = dedupe(contacts, against: Array(recent))
 
         updateViewModel(dataType: .idle(recent: Array(recent), contacts: filtered))
+    }
+
+    private func rebuildSearchResultsForCurrentQuery() {
+        guard let currentQuery else { return }
+
+        let recentMatches = filterRecentContactsByQuery(currentQuery)
+        let contacts = dedupe(contactResults, against: recentMatches)
+
+        let recentIds = Set(recentMatches.compactMap { try? $0.accountType.accountAddress.toAccountId() })
+        let contactIds = Set(contacts.compactMap { try? $0.accountAddress.toAccountId() })
+
+        let globalRows = globalContacts
+            .filter { _, contact in
+                !recentIds.contains(contact.accountId) && !contactIds.contains(contact.accountId)
+            }
+            .sorted { $0.value.username < $1.value.username }
+            .map { address, contact in
+                SearchAccountViewModel.AccountType.username(contact.username, address)
+            }
+
+        updateViewModel(
+            dataType: .searchResults(recent: recentMatches, contacts: contacts, global: globalRows)
+        )
     }
 }
 
@@ -114,26 +159,38 @@ extension SearchAccountPresenter: SearchAccountPresenterProtocol {
             !inputText.isEmpty
         else {
             currentQuery = nil
+            contactResults = []
+            globalContacts.removeAll()
             return updateIdleViewModel()
         }
 
         currentQuery = inputText
+        contactResults = []
+        globalContacts.removeAll()
 
         if isAccountAddress(inputText) {
-            updateViewModel(dataType: .searchResults([mapToAccountType(from: inputText)]))
+            contactResults = [mapToAccountType(from: inputText)]
+            rebuildSearchResultsForCurrentQuery()
         } else if inputText.count <= .maximumPrefixCount {
+            rebuildSearchResultsForCurrentQuery()
             interactor.searchAccount(for: inputText.trimmingDot())
             view?.didStartLoading()
         } else {
-            updateViewModel(dataType: .searchResults([]))
+            updateViewModel(dataType: .searchResults(recent: [], contacts: [], global: []))
         }
     }
 
     func selectAccount(_ cellType: SearchAccountViewController.Cell) {
-        handleAccountSelection(cellType.accountType)
-        guard let recipient = try? RecipientModel(accountType: cellType.accountType) else { return }
-
-        wireframe.showTransfer(from: view, recipient: recipient, chainAsset: chainAsset)
+        switch cellType {
+        case let .globalContact(accountType):
+            guard let contact = globalContacts[accountType.accountAddress] else { return }
+            interactor.resolveChat(for: contact)
+        case .account,
+             .recentContact:
+            handleAccountSelection(cellType.accountType)
+            guard let recipient = try? RecipientModel(accountType: cellType.accountType) else { return }
+            wireframe.showTransfer(from: view, recipient: recipient, chainAsset: chainAsset)
+        }
     }
 
     func didEndEditingInput(_ input: String?) {
@@ -163,11 +220,25 @@ extension SearchAccountPresenter: SearchAccountInteractorOutputProtocol {
         updateIdleViewModel()
     }
 
-    func didFindSearchResults(_ accounts: [UsernameResponseModel]) {
+    func didFindContacts(_ accounts: [UsernameResponseModel]) {
         view?.didStopLoading()
-        guard currentQuery != nil else { return }
         let sorted = accounts.sorted { $0.username < $1.username }
-        updateViewModel(dataType: .searchResults(sorted.map { mapToAccountType(from: $0) }))
+        contactResults = sorted.map { mapToAccountType(from: $0) }
+        rebuildSearchResultsForCurrentQuery()
+    }
+
+    func didFindGlobalContacts(_ contacts: [Chat.RemoteContact]) {
+        globalContacts = contacts.reduce(into: [AccountAddress: Chat.RemoteContact]()) { result, contact in
+            guard let address = try? contact.accountId.toAddress(using: chainAsset.chain.chainFormat) else {
+                return
+            }
+            result[address] = contact
+        }
+        rebuildSearchResultsForCurrentQuery()
+    }
+
+    func didResolveChat(_ model: ChatOpenModel) {
+        wireframe.showChat(model)
     }
 
     func didReceiveSearchError(message: String?) {

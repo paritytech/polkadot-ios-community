@@ -25,12 +25,15 @@ protocol SearchAccountInteractorInputProtocol: AnyObject {
     func setup()
     func subscribeToRecentContacts(for chainAsset: ChainAsset)
     func searchAccount(for input: String)
+    func resolveChat(for contact: Chat.RemoteContact)
 }
 
 @MainActor
 protocol SearchAccountInteractorOutputProtocol: AnyObject {
     func didFetchAllContacts(_ accounts: [UsernameResponseModel])
-    func didFindSearchResults(_ accounts: [UsernameResponseModel])
+    func didFindContacts(_ accounts: [UsernameResponseModel])
+    func didFindGlobalContacts(_ contacts: [Chat.RemoteContact])
+    func didResolveChat(_ model: ChatOpenModel)
     func didReceiveSearchError(message: String?)
     func didReceiveRecentContacts(_ contacts: [DataProviderChange<RecentContactModelWithUsername>])
 }
@@ -43,4 +46,5 @@ protocol SearchAccountWireframeProtocol: AnyObject, WalletQRScanPresentable, Ale
         recipient: RecipientModel,
         chainAsset: ChainAsset
     )
+    func showChat(_ model: ChatOpenModel)
 }

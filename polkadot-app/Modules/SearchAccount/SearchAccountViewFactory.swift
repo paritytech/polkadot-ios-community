@@ -1,6 +1,7 @@
 import Foundation
 import Coinage
 import ChainRegistry
+import MessageExchangeKit
 
 @MainActor
 enum SearchAccountViewFactory {
@@ -28,6 +29,8 @@ enum SearchAccountViewFactory {
         let interactor = SearchAccountInteractor(
             searchUsernameFactory: searchUsernameFactory,
             recentContactsManager: recentContactsService,
+            remoteContactSearch: RemoteContactOperationFactory(),
+            chatOpenResolver: ChatOpenModelResolver(),
             logger: logger
         )
         let wireframe = SearchAccountWireframe(coinageServicing: coinageServicing)
