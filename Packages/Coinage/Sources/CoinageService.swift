@@ -370,7 +370,8 @@ extension CoinageService: CoinageServicing {
             let vouchers = try await voucherService.load(
                 amount: amount,
                 externalAssetHolder: externalAssetHolder,
-                breakdownContext: context
+                breakdownContext: context,
+                groupId: nil
             )
             return vouchers.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
         }

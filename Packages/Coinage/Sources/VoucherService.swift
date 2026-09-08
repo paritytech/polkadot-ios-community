@@ -10,12 +10,14 @@ import SDKLogger
 import Operation_iOS
 
 public protocol VoucherServiceProtocol: Sendable {
-    /// Loads vouchers for `amount` and returns them.
+    /// Loads vouchers for `amount` and returns them. `groupId` is forwarded to the durability layer
+    /// so a caller can watch the load settle as one operation; `nil` leaves the entries ungrouped.
     @discardableResult
     func load(
         amount: BigUInt,
         externalAssetHolder: any WalletManaging,
-        breakdownContext: DenominationBreakdownContext
+        breakdownContext: DenominationBreakdownContext,
+        groupId: CoinageTxGroupId?
     ) async throws -> [Voucher]
 
     /// Fetch all vouchers paired with their derived durability overlay.
@@ -40,11 +42,12 @@ extension VoucherService: VoucherServiceProtocol {
     public func load(
         amount: BigUInt,
         externalAssetHolder: any WalletManaging,
-        breakdownContext: DenominationBreakdownContext
+        breakdownContext: DenominationBreakdownContext,
+        groupId: CoinageTxGroupId?
     ) async throws -> [Voucher] {
         let loader = try voucherLoaderFactory.makeLoader(for: externalAssetHolder)
         // Vouchers are persisted by the allocator as they are minted.
-        return try await loader.load(amount: amount, breakdownContext: breakdownContext)
+        return try await loader.load(amount: amount, breakdownContext: breakdownContext, groupId: groupId)
     }
 
     public func fetchAllTracked() async throws -> [TrackedVoucher] {
