@@ -23,9 +23,10 @@ struct ChainStatusRingView: View, Hashable {
                 .animation(healthAnimation, value: health)
 
             Circle()
-                .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
+                .strokeBorder(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
 
             Circle()
+                .inset(by: lineWidth / 2)
                 .trim(from: 1 - health, to: 1)
                 .stroke(
                     arcColor,
