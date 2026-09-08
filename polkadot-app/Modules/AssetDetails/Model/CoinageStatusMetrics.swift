@@ -12,9 +12,6 @@
         static let barHeight: CGFloat = 21
         static let summaryBarHeight: CGFloat = 20
         static let outlineWidth: CGFloat = 1
-        /// Ring around a provenance circle. Thicker than ``outlineWidth`` so it reads as part of the
-        /// mark rather than as a separation from the surface behind it.
-        static let circleStrokeWidth: CGFloat = 2
         /// Gap between circles, and between the two bars of a voucher row.
         static let itemSpacing: CGFloat = 4
         /// Gap between the stacked red and orange bars.
@@ -65,12 +62,6 @@
 
         /// Thinner, so the stacked pair keeps some colour inside its frame.
         static let thinFrameWidth: CGFloat = 0.75
-
-        /// Fill of a provenance circle: a deep red rather than the design's near-black swatch, which
-        /// was authored against a dark canvas and reads as a black hole on a light one. Luminance
-        /// 0.066 against that swatch's 0.021, so it stays unmistakably red while holding white dots
-        /// at 9:1 and separating from a light surface at 7.9:1.
-        static let circleFill = Color(red: 140 / 255, green: 29 / 255, blue: 36 / 255)
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///

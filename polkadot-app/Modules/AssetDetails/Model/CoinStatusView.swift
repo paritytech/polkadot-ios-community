@@ -174,18 +174,14 @@
             }
         }
 
-        /// One hop. The fill is a constant dark red whatever the dot count — the count is carried by
-        /// the dots alone, so making the fill track it as well only weakened both readings.
+        /// One hop: a solid red disc carrying its dot count.
+        ///
+        /// No darker interior. Any red dark enough to read as a distinct fill behind the ring also
+        /// reads as black on a light surface — the last attempt sat at luminance 0.066, level with
+        /// the theme's own body text. The design has no such fill either: its rows are solid discs,
+        /// and the one dark-centred circle in the file is a legend drawn on a black canvas.
         static func drawCircle(dots: Int, in context: inout GraphicsContext, rect: CGRect) {
-            let inset = CoinageStatusMetrics.circleStrokeWidth / 2
-            let ring = Path(ellipseIn: rect.insetBy(dx: inset, dy: inset))
-
-            context.fill(ring, with: .color(CoinageStatusMetrics.circleFill))
-            context.stroke(
-                ring,
-                with: .color(Color.fgError),
-                lineWidth: CoinageStatusMetrics.circleStrokeWidth
-            )
+            context.fill(Path(ellipseIn: rect), with: .color(Color.fgError))
 
             let centre = CGPoint(x: rect.midX, y: rect.midY)
 
@@ -197,8 +193,7 @@
             }
         }
 
-        /// White, as the design has it. It sits on the pinned dark circle fill rather than on the
-        /// ground, so it stays legible whatever the theme does.
+        /// White, as the design has it: 5.4:1 on the red disc, on every theme.
         static func fillDot(at centre: CGPoint, in context: inout GraphicsContext) {
             let size = CoinageStatusMetrics.innerDotSize
             let rect = CGRect(
