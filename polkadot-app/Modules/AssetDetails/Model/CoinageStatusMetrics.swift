@@ -1,6 +1,8 @@
 #if TESTNET_FEATURE
     import Coinage
+    import DesignSystem
     import SwiftUI
+    import UIKit
 
     /// Shared geometry and scale conversions for the holding depictions, so the voucher bars, the
     /// coin provenance and the summary bar cannot drift apart.
@@ -65,14 +67,44 @@
         /// invisible case the plate exists to prevent.
         static let platePadding: CGFloat = 2
 
-        /// Backing plate for every depiction, and the summary bar's unfilled track. Deliberately the
-        /// same on all five themes.
+        /// Ground for every depiction, and the summary bar's unfilled track: the theme's own surface
+        /// with its brightness held down.
         ///
         /// The mark colours are semantic — white is spendable, red is not, orange is unknown — so they
-        /// must not follow the theme. Four of the five themes are light, where a white mark on the
-        /// surface is invisible, so rather than flip the mark the marks get a constant dark ground to
-        /// sit on. This is the design's own row surface.
-        static let plate = Color(red: 28 / 255, green: 28 / 255, blue: 34 / 255)
+        /// are pinned and cannot follow the theme, which means they need a dark ground on all five.
+        /// A constant near-black slab does that but reads as foreign inside a warm palette, so only
+        /// the brightness is pinned and the hue is the theme's: Lisbon gets a dark brown, Malta a dark
+        /// green. White still lands at 14:1 or better everywhere, and the pinned red and orange at
+        /// 3.2:1 and 6.8:1 at worst.
+        static var plate: Color {
+            let surface = UIColor(Color.bgSurfaceMain)
+            var hue: CGFloat = 0
+            var saturation: CGFloat = 0
+            var brightness: CGFloat = 0
+            var alpha: CGFloat = 0
+
+            guard surface.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+                return plateFallback
+            }
+
+            return Color(
+                UIColor(
+                    hue: hue,
+                    saturation: min(saturation * plateSaturationBoost, plateMaximumSaturation),
+                    brightness: plateBrightness,
+                    alpha: 1
+                )
+            )
+        }
+
+        /// A pale surface carries little saturation, so it is amplified to keep the theme's character
+        /// readable once the brightness is pinned this far down.
+        private static let plateSaturationBoost: CGFloat = 2
+        private static let plateMaximumSaturation: CGFloat = 0.5
+        private static let plateBrightness: CGFloat = 0.16
+
+        /// For a surface that cannot be read as hue, saturation and brightness.
+        private static let plateFallback = Color(red: 28 / 255, green: 28 / 255, blue: 34 / 255)
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///
