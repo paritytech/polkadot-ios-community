@@ -280,39 +280,30 @@ struct AssetDetailsView: View {
         }
     }
 
+    /// Two columns, laid out as a grid so the value column takes the width of the widest value in
+    /// the list and every depiction starts at the same x. Sizing each row on its own would give the
+    /// bars different columns to scale against, and a fixed width would either clip long values or
+    /// shrink them out of alignment.
     private struct CoinageDetailsView: View {
         let breakdown: CoinageBalanceBreakdownViewModel
 
         var body: some View {
-            VStack(spacing: 6) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
                 ForEach(breakdown.holdings) { holding in
-                    CoinageHoldingRow(holding: holding)
-                }
-            }
-        }
-    }
+                    GridRow {
+                        Text(verbatim: holding.amount ?? "—")
+                            .textStyle(.body14Regular())
+                            .foregroundStyle(.fgPrimary)
+                            .lineLimit(1)
+                            .gridColumnAlignment(.trailing)
 
-    private struct CoinageHoldingRow: View {
-        let holding: CoinageHoldingViewModel
-
-        /// Fixed, not intrinsic: every depiction has to start at the same x and share one column
-        /// width, or the bar lengths would not be comparable between rows.
-        private let amountColumnWidth: CGFloat = 52
-
-        var body: some View {
-            HStack(spacing: 10) {
-                Text(verbatim: holding.amount ?? "—")
-                    .textStyle(.body14Regular())
-                    .foregroundStyle(.fgPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(width: amountColumnWidth, alignment: .trailing)
-
-                switch holding.status {
-                case let .coin(model):
-                    CoinStatusView(model: model)
-                case let .voucher(model):
-                    VoucherStatusView(model: model)
+                        switch holding.status {
+                        case let .coin(model):
+                            CoinStatusView(model: model)
+                        case let .voucher(model):
+                            VoucherStatusView(model: model)
+                        }
+                    }
                 }
             }
         }

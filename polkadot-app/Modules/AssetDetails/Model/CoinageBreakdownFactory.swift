@@ -78,7 +78,7 @@
             let planks = planksByAvailability(of: holdings) {
                 context.valueInPlanks(for: $0)
             }
-            let total = planks.availableNow + planks.gainingPrivacy + planks.pending
+            let total = planks.total
 
             guard total > 0 else { return .empty }
 
@@ -130,19 +130,27 @@
             )
         }
 
-        private static func planksByAvailability(
-            of holdings: CoinageHoldings,
-            value: (Int16) -> BigUInt
-        ) -> (availableNow: BigUInt, gainingPrivacy: BigUInt, pending: BigUInt) {
+        /// Plank totals per bucket. A named type rather than a tuple, so the three stay labelled
+        /// wherever they travel.
+        private struct BucketPlanks {
             var availableNow = BigUInt(0)
             var gainingPrivacy = BigUInt(0)
             var pending = BigUInt(0)
 
-            func add(_ availability: CoinageAvailability, _ planks: BigUInt) {
+            var total: BigUInt { availableNow + gainingPrivacy + pending }
+        }
+
+        private static func planksByAvailability(
+            of holdings: CoinageHoldings,
+            value: (Int16) -> BigUInt
+        ) -> BucketPlanks {
+            var planks = BucketPlanks()
+
+            func add(_ availability: CoinageAvailability, _ amount: BigUInt) {
                 switch availability {
-                case .availableNow: availableNow += planks
-                case .gainingPrivacy: gainingPrivacy += planks
-                case .pending: pending += planks
+                case .availableNow: planks.availableNow += amount
+                case .gainingPrivacy: planks.gainingPrivacy += amount
+                case .pending: planks.pending += amount
                 }
             }
 
@@ -154,7 +162,7 @@
                 add(holding.availability, value(holding.voucher.exponent))
             }
 
-            return (availableNow, gainingPrivacy, pending)
+            return planks
         }
 
         /// Inner dots for a hop: one per sibling it moved or was produced alongside.
