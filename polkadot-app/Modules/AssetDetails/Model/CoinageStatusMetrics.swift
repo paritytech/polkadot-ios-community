@@ -2,7 +2,6 @@
     import Coinage
     import DesignSystem
     import SwiftUI
-    import UIKit
 
     /// Shared geometry and scale conversions for the holding depictions, so the voucher bars, the
     /// coin provenance and the summary bar cannot drift apart.
@@ -54,64 +53,35 @@
         static let legendSwatchSize: CGFloat = 12
         static let legendSwatchCornerRadius: CGFloat = 3
 
-        /// Opacity of `fgError` used to fill a provenance circle. Composited over ``plate``, which is
-        /// theme-independent, so the resulting dark red is too — within a few units of the design's
-        /// own swatch.
-        static let circleFillOpacity: CGFloat = 0.2
-
-        /// Corner radius of the plate every depiction is drawn on.
+        /// Corner radius of the ground every depiction is drawn on.
         static let plateCornerRadius: CGFloat = 6
 
-        /// Margin of plate left visible around a depiction. Without it a full-height white mark would
-        /// meet the row's own background at its top and bottom edges, which on a light theme is the
-        /// invisible case the plate exists to prevent.
+        /// Margin of ground left visible around a depiction.
         static let platePadding: CGFloat = 2
 
-        /// Ground for every depiction, and the summary bar's unfilled track: the theme's own surface
-        /// with its brightness held down.
+        /// Ground for every depiction, and the summary bar's unfilled track: the app's own
+        /// background, which is a touch darker than the card the depictions sit on.
         ///
-        /// The mark colours are semantic — white is spendable, red is not, orange is unknown — so they
-        /// are pinned and cannot follow the theme, which means they need a dark ground on all five.
-        /// A constant near-black slab does that but reads as foreign inside a warm palette, so only
-        /// the brightness is pinned and the hue is the theme's: Lisbon gets a dark brown, Malta a dark
-        /// green. White still lands at 14:1 or better everywhere, and the pinned red and orange at
-        /// 3.2:1 and 6.8:1 at worst.
-        static var plate: Color {
-            let surface = UIColor(Color.bgSurfaceMain)
-            var hue: CGFloat = 0
-            var saturation: CGFloat = 0
-            var brightness: CGFloat = 0
-            var alpha: CGFloat = 0
+        /// It follows the theme, so it stays part of the palette instead of reading as a slab laid
+        /// over it. What keeps the pinned marks legible on it is ``markFrame``, not the ground.
+        static var plate: Color { .bgSurfaceMain }
 
-            guard surface.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
-                return plateFallback
-            }
-
-            return Color(
-                UIColor(
-                    hue: hue,
-                    saturation: min(saturation * plateSaturationBoost, plateMaximumSaturation),
-                    brightness: plateBrightness,
-                    alpha: 1
-                )
-            )
-        }
-
-        /// A pale surface carries little saturation, so it is amplified to keep the theme's character
-        /// readable once the brightness is pinned down.
-        private static let plateSaturationBoost: CGFloat = 3
-        private static let plateMaximumSaturation: CGFloat = 0.6
-
-        /// How dark the ground is held, and the one dial worth turning here.
+        /// Frame drawn around every mark.
         ///
-        /// Raising it reads warmer and closer to the theme's own surface, but the binding constraint
-        /// is the red mark rather than the white one: `fgError` is itself mid-dark, so red loses its
-        /// track as the ground lightens. Measured against Lisbon — 0.16: red 3.4:1, 0.24: 2.7:1,
-        /// 0.34: 2.1:1. White stays above 9:1 across all of that range.
-        private static let plateBrightness: CGFloat = 0.24
+        /// The mark colours are semantic and pinned, so white has to stay white on a cream theme
+        /// where it would otherwise vanish. A frame solves that without darkening the ground: it
+        /// measures 15:1 or better against all four light grounds and 18:1 against white itself. On
+        /// the dark theme it merges into the background, which costs nothing there — white already
+        /// measures 19:1 against it.
+        static let markFrame = Color(red: 20 / 255, green: 20 / 255, blue: 24 / 255)
+        static let markFrameWidth: CGFloat = 1
 
-        /// For a surface that cannot be read as hue, saturation and brightness.
-        private static let plateFallback = Color(red: 28 / 255, green: 28 / 255, blue: 34 / 255)
+        /// Thinner, so the stacked pair keeps some colour inside its frame.
+        static let thinFrameWidth: CGFloat = 0.75
+
+        /// Fill of a provenance circle: the design's own swatch, pinned rather than tinted from the
+        /// ground, so it stays a dark red instead of turning pale on a light theme.
+        static let circleFill = Color(red: 63 / 255, green: 30 / 255, blue: 34 / 255)
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///

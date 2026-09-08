@@ -26,9 +26,12 @@
                     RoundedRectangle(cornerRadius: CoinageStatusMetrics.legendSwatchCornerRadius)
                 )
                 // The white swatch would vanish into a light theme's summary box without it.
-                .coinagePlate(
-                    cornerRadius: CoinageStatusMetrics.legendSwatchCornerRadius
-                        + CoinageStatusMetrics.platePadding
+                .overlay(
+                    RoundedRectangle(cornerRadius: CoinageStatusMetrics.legendSwatchCornerRadius)
+                        .stroke(
+                            CoinageStatusMetrics.markFrame,
+                            lineWidth: CoinageStatusMetrics.markFrameWidth
+                        )
                 )
         }
 

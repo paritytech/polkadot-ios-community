@@ -47,9 +47,11 @@
                 .frame(width: geometry.size.width, height: CoinageStatusMetrics.summaryBarHeight)
                 .background(CoinageStatusMetrics.plate)
                 .clipShape(Capsule())
-                .coinagePlate(
-                    cornerRadius: CoinageStatusMetrics.summaryBarHeight / 2
-                        + CoinageStatusMetrics.platePadding
+                .overlay(
+                    Capsule().stroke(
+                        CoinageStatusMetrics.markFrame,
+                        lineWidth: CoinageStatusMetrics.markFrameWidth
+                    )
                 )
             }
             .frame(height: CoinageStatusMetrics.summaryBarHeight)

@@ -33,10 +33,22 @@
                     solidShape
                         .fill(model.isUnloadable ? Color.fgStaticWhite : Color.fgError)
                         .frame(width: layout.solidWidth, height: height)
+                        .overlay(
+                            solidShape.stroke(
+                                CoinageStatusMetrics.markFrame,
+                                lineWidth: CoinageStatusMetrics.markFrameWidth
+                            )
+                        )
 
                     BarberPole()
                         .frame(width: layout.poleWidth, height: height)
                         .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(
+                                CoinageStatusMetrics.markFrame,
+                                lineWidth: CoinageStatusMetrics.markFrameWidth
+                            )
+                        )
                         .offset(x: layout.poleOrigin)
                 }
                 .frame(width: width, height: height, alignment: .leading)

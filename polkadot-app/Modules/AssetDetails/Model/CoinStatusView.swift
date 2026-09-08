@@ -154,6 +154,11 @@
             )
 
             context.fill(path, with: .color(model.isSpendable ? Color.fgStaticWhite : Color.fgError))
+            context.stroke(
+                path,
+                with: .color(CoinageStatusMetrics.markFrame),
+                lineWidth: CoinageStatusMetrics.markFrameWidth
+            )
         }
 
         static func drawCircles(_ hopDots: [Int], in context: inout GraphicsContext, height: CGFloat) {
@@ -170,13 +175,13 @@
             }
         }
 
-        /// One hop. The fill is a constant muted red whatever the dot count — the count is carried by
+        /// One hop. The fill is a constant dark red whatever the dot count — the count is carried by
         /// the dots alone, so making the fill track it as well only weakened both readings.
         static func drawCircle(dots: Int, in context: inout GraphicsContext, rect: CGRect) {
             let inset = CoinageStatusMetrics.circleStrokeWidth / 2
             let ring = Path(ellipseIn: rect.insetBy(dx: inset, dy: inset))
 
-            context.fill(ring, with: .color(Color.fgError.opacity(CoinageStatusMetrics.circleFillOpacity)))
+            context.fill(ring, with: .color(CoinageStatusMetrics.circleFill))
             context.stroke(
                 ring,
                 with: .color(Color.fgError),
@@ -193,8 +198,8 @@
             }
         }
 
-        /// White, as the design has it. It sits on the dark plate rather than on the theme surface,
-        /// so it stays legible without following the theme.
+        /// White, as the design has it. It sits on the pinned dark circle fill rather than on the
+        /// ground, so it stays legible whatever the theme does.
         static func fillDot(at centre: CGPoint, in context: inout GraphicsContext) {
             let size = CoinageStatusMetrics.innerDotSize
             let rect = CGRect(
@@ -210,12 +215,13 @@
             )
         }
 
-        /// White at reduced opacity rather than a foreground token: the chip sits on ``plate``, and a
-        /// theme-following grey would be a dark grey on a dark plate for four of the five themes.
+        /// Theme tokens, not pinned colours: unlike the marks, the chip carries no status, and the
+        /// ground it sits on is the theme's own background — which is exactly what these are paired
+        /// with by construction.
         static func overflowLabel(count: Int) -> Text {
             Text(verbatim: "+\(count)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color.fgStaticWhite.opacity(0.75))
+                .foregroundColor(Color.fgSecondary)
         }
 
         static func overflowChipWidth(count: Int, in context: GraphicsContext) -> CGFloat {
@@ -240,13 +246,24 @@
 
             context.stroke(
                 capsule,
-                with: .color(Color.fgStaticWhite.opacity(0.4)),
+                with: .color(Color.strokeTertiary),
                 lineWidth: CoinageStatusMetrics.outlineWidth
             )
             context.draw(
                 overflowLabel(count: count),
                 at: CGPoint(x: rect.midX, y: rect.midY),
                 anchor: .center
+            )
+        }
+
+        /// Fills a bar of the stacked pair and frames it. Orange measures under 2:1 against a light
+        /// ground, so the frame is what makes these two legible rather than their own contrast.
+        static func frame(_ path: Path, _ color: Color, in context: inout GraphicsContext) {
+            context.fill(path, with: .color(color))
+            context.stroke(
+                path,
+                with: .color(CoinageStatusMetrics.markFrame),
+                lineWidth: CoinageStatusMetrics.thinFrameWidth
             )
         }
 
@@ -260,13 +277,11 @@
             let topBar = CGRect(x: rect.minX, y: top, width: rect.width, height: height)
             let bottomBar = CGRect(x: rect.minX, y: top + total - height, width: rect.width, height: height)
 
-            context.fill(
-                Path(roundedRect: topBar, cornerRadius: height / 2),
-                with: .color(Color.fgError)
-            )
-            context.fill(
+            frame(Path(roundedRect: topBar, cornerRadius: height / 2), Color.fgError, in: &context)
+            frame(
                 Path(roundedRect: bottomBar, cornerRadius: height / 2),
-                with: .color(Color.bgStatusWarning)
+                Color.bgStatusWarning,
+                in: &context
             )
         }
     }
