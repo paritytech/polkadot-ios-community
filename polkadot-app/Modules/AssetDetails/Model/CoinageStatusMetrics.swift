@@ -1,6 +1,6 @@
 #if TESTNET_FEATURE
     import Coinage
-    import CoreGraphics
+    import SwiftUI
 
     /// Shared geometry and scale conversions for the holding depictions, so the voucher bars, the
     /// coin provenance and the summary bar cannot drift apart.
@@ -52,12 +52,27 @@
         static let legendSwatchSize: CGFloat = 12
         static let legendSwatchCornerRadius: CGFloat = 3
 
-        /// Opacity of ``DesignSystem`` `fgError` used to fill a provenance circle.
-        ///
-        /// A literal dark red cannot survive the theme flipping — four of the five themes are light —
-        /// so the fill is a muted tint of the ring instead. On the dark theme this lands within a few
-        /// units of the design's own swatch; on the light themes it becomes the pale equivalent.
+        /// Opacity of `fgError` used to fill a provenance circle. Composited over ``plate``, which is
+        /// theme-independent, so the resulting dark red is too — within a few units of the design's
+        /// own swatch.
         static let circleFillOpacity: CGFloat = 0.2
+
+        /// Corner radius of the plate every depiction is drawn on.
+        static let plateCornerRadius: CGFloat = 6
+
+        /// Margin of plate left visible around a depiction. Without it a full-height white mark would
+        /// meet the row's own background at its top and bottom edges, which on a light theme is the
+        /// invisible case the plate exists to prevent.
+        static let platePadding: CGFloat = 2
+
+        /// Backing plate for every depiction, and the summary bar's unfilled track. Deliberately the
+        /// same on all five themes.
+        ///
+        /// The mark colours are semantic — white is spendable, red is not, orange is unknown — so they
+        /// must not follow the theme. Four of the five themes are light, where a white mark on the
+        /// surface is invisible, so rather than flip the mark the marks get a constant dark ground to
+        /// sit on. This is the design's own row surface.
+        static let plate = Color(red: 28 / 255, green: 28 / 255, blue: 34 / 255)
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///
@@ -103,6 +118,24 @@
                 }
 
             return units.map { CGPoint(x: $0.x * pitch, y: $0.y * pitch) }
+        }
+    }
+#endif
+
+#if TESTNET_FEATURE
+    import SwiftUI
+
+    extension View {
+        /// Puts a depiction on the constant dark plate its colours are calibrated against, leaving a
+        /// margin of it visible on every side so a white mark is always framed.
+        func coinagePlate(
+            cornerRadius: CGFloat = CoinageStatusMetrics.plateCornerRadius
+        ) -> some View {
+            padding(CoinageStatusMetrics.platePadding)
+                .background(
+                    CoinageStatusMetrics.plate,
+                    in: RoundedRectangle(cornerRadius: cornerRadius)
+                )
         }
     }
 #endif

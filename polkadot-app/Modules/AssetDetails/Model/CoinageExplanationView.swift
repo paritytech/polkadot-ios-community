@@ -25,12 +25,17 @@
                 .clipShape(
                     RoundedRectangle(cornerRadius: CoinageStatusMetrics.legendSwatchCornerRadius)
                 )
+                // The white swatch would vanish into a light theme's summary box without it.
+                .coinagePlate(
+                    cornerRadius: CoinageStatusMetrics.legendSwatchCornerRadius
+                        + CoinageStatusMetrics.platePadding
+                )
         }
 
         @ViewBuilder
         private var shape: some View {
             switch kind {
-            case .availableNow: Color.fgPrimary
+            case .availableNow: Color.fgStaticWhite
             case .gainingPrivacy: BarberPole()
             case .unavailable: Color.fgError
             }
@@ -42,7 +47,8 @@
     /// Every illustration is the real drawing code at a fixed width, not a facsimile, so the key
     /// cannot describe a mark the list has stopped drawing.
     struct CoinageExplanationView: View {
-        @State private var isExpanded = false
+        /// Owned by the caller: the state has to outlive the holdings updating underneath it.
+        @Binding var isExpanded: Bool
 
         var body: some View {
             VStack(spacing: 12) {
@@ -75,6 +81,9 @@
                         .font(.caption)
                 }
                 .foregroundStyle(Color.fgSecondary)
+                // The row is mostly the Spacer between label and chevron, and a Spacer draws
+                // nothing, so without this the middle of the row is not hit-testable.
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
@@ -115,6 +124,7 @@
                             CoinStatusView.CircleIllustration(dots: 0)
                             CoinStatusView.CircleIllustration(dots: 3)
                         }
+                        .coinagePlate()
                     )
                 ),
                 Entry(

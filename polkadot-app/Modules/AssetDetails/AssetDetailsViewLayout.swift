@@ -81,6 +81,12 @@ struct AssetDetailsView: View {
                 }
             #endif
         }
+        // The expanded card is sized to the whole screen, so the bottom of its content lands under
+        // the tab bar chrome, which is an overlay: content there is drawn but cannot be tapped. The
+        // chrome's inset does not reach this hierarchy, so clear it explicitly from the height the
+        // bar itself publishes, on top of the device's own inset.
+        .safeAreaPadding(.bottom)
+        .padding(.bottom, DSTabBarView.preferredHeight())
     }
 
     private func balanceCard(
@@ -207,6 +213,7 @@ struct AssetDetailsView: View {
         var onMakeAllVouchersReady: (() -> Void)?
 
         @State private var showDetails = false
+        @State private var showExplanation = false
 
         var body: some View {
             VStack(spacing: 12) {
@@ -251,7 +258,7 @@ struct AssetDetailsView: View {
 
                 if showDetails {
                     CoinageDetailsView(breakdown: breakdown)
-                    CoinageExplanationView()
+                    CoinageExplanationView(isExpanded: $showExplanation)
                 }
             }
             .padding(16)

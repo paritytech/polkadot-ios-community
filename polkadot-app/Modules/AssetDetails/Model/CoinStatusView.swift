@@ -29,6 +29,7 @@
                 Self.draw(model, in: &context, size: size)
             }
             .frame(height: CoinageStatusMetrics.barHeight)
+            .coinagePlate()
         }
     }
 
@@ -152,8 +153,7 @@
                 cornerRadius: CoinageStatusMetrics.solidBarCornerRadius
             )
 
-            context.fill(path, with: .color(model.isSpendable ? Color.fgPrimary : Color.fgError))
-            context.stroke(path, with: .color(Color.strokeCutout), lineWidth: CoinageStatusMetrics.outlineWidth)
+            context.fill(path, with: .color(model.isSpendable ? Color.fgStaticWhite : Color.fgError))
         }
 
         static func drawCircles(_ hopDots: [Int], in context: inout GraphicsContext, height: CGFloat) {
@@ -193,9 +193,8 @@
             }
         }
 
-        /// `fgPrimary`, not the pair's orange: orange inside the tinted fill measures about 2.2:1 on
-        /// the four light themes, which a 4pt dot cannot survive. This reads at 11:1 or better on all
-        /// five.
+        /// White, as the design has it. It sits on the dark plate rather than on the theme surface,
+        /// so it stays legible without following the theme.
         static func fillDot(at centre: CGPoint, in context: inout GraphicsContext) {
             let size = CoinageStatusMetrics.innerDotSize
             let rect = CGRect(
@@ -207,14 +206,16 @@
 
             context.fill(
                 Path(roundedRect: rect, cornerRadius: CoinageStatusMetrics.innerDotCornerRadius),
-                with: .color(Color.fgPrimary)
+                with: .color(Color.fgStaticWhite)
             )
         }
 
+        /// White at reduced opacity rather than a foreground token: the chip sits on ``plate``, and a
+        /// theme-following grey would be a dark grey on a dark plate for four of the five themes.
         static func overflowLabel(count: Int) -> Text {
             Text(verbatim: "+\(count)")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color.fgSecondary)
+                .foregroundColor(Color.fgStaticWhite.opacity(0.75))
         }
 
         static func overflowChipWidth(count: Int, in context: GraphicsContext) -> CGFloat {
@@ -239,7 +240,7 @@
 
             context.stroke(
                 capsule,
-                with: .color(Color.strokeTertiary),
+                with: .color(Color.fgStaticWhite.opacity(0.4)),
                 lineWidth: CoinageStatusMetrics.outlineWidth
             )
             context.draw(
@@ -265,7 +266,7 @@
             )
             context.fill(
                 Path(roundedRect: bottomBar, cornerRadius: height / 2),
-                with: .color(Color.fgWarning)
+                with: .color(Color.bgStatusWarning)
             )
         }
     }
@@ -301,6 +302,7 @@
                     )
                 }
                 .frame(height: CoinageStatusMetrics.barHeight)
+                .coinagePlate()
             }
         }
     }

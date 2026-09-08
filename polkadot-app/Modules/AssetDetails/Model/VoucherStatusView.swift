@@ -31,23 +31,18 @@
 
                 ZStack(alignment: .leading) {
                     solidShape
-                        .fill(model.isUnloadable ? Color.fgPrimary : Color.fgError)
+                        .fill(model.isUnloadable ? Color.fgStaticWhite : Color.fgError)
                         .frame(width: layout.solidWidth, height: height)
-                        .overlay(
-                            solidShape.stroke(Color.strokeCutout, lineWidth: CoinageStatusMetrics.outlineWidth)
-                        )
 
                     BarberPole()
                         .frame(width: layout.poleWidth, height: height)
                         .clipShape(Capsule())
-                        .overlay(
-                            Capsule().stroke(Color.strokeCutout, lineWidth: CoinageStatusMetrics.outlineWidth)
-                        )
                         .offset(x: layout.poleOrigin)
                 }
                 .frame(width: width, height: height, alignment: .leading)
             }
             .frame(height: CoinageStatusMetrics.barHeight)
+            .coinagePlate()
         }
     }
 
