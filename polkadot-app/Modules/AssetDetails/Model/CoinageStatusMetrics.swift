@@ -98,10 +98,17 @@
         }
 
         /// A pale surface carries little saturation, so it is amplified to keep the theme's character
-        /// readable once the brightness is pinned this far down.
-        private static let plateSaturationBoost: CGFloat = 2
-        private static let plateMaximumSaturation: CGFloat = 0.5
-        private static let plateBrightness: CGFloat = 0.16
+        /// readable once the brightness is pinned down.
+        private static let plateSaturationBoost: CGFloat = 3
+        private static let plateMaximumSaturation: CGFloat = 0.6
+
+        /// How dark the ground is held, and the one dial worth turning here.
+        ///
+        /// Raising it reads warmer and closer to the theme's own surface, but the binding constraint
+        /// is the red mark rather than the white one: `fgError` is itself mid-dark, so red loses its
+        /// track as the ground lightens. Measured against Lisbon — 0.16: red 3.4:1, 0.24: 2.7:1,
+        /// 0.34: 2.1:1. White stays above 9:1 across all of that range.
+        private static let plateBrightness: CGFloat = 0.24
 
         /// For a surface that cannot be read as hue, saturation and brightness.
         private static let plateFallback = Color(red: 28 / 255, green: 28 / 255, blue: 34 / 255)
