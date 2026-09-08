@@ -62,7 +62,7 @@ final class SenderDeviceActivator {
                 let settings = Chat.ContactDeviceSettings(accountId: peer.accountId, changes: changes)
                 try await contactsStorageService.updateDeviceSettings([settings]).asyncExecute()
             } catch {
-                logger.error("Failed to activate sender devices: \(error)")
+                logger.error("Failed to activate sender devices: \(error) \(peer.accountId.toHex())")
             }
         }
     }

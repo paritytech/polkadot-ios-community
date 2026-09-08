@@ -175,7 +175,7 @@ private extension ConnectionRetentionTests {
             nodes: [],
             nodeSwitchStrategy: .roundRobin,
             addressPrefix: 0,
-            genesisHash: nil,
+            explicitGenesisHash: nil,
             types: nil,
             icon: nil,
             options: nil,

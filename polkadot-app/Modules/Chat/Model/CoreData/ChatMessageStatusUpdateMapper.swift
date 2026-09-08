@@ -82,7 +82,7 @@ private extension ChatMessageStatusUpdateMapper {
                     keyPath: #keyPath(CDChatMessage.chat)
                 )
             }
-            let newUnread = CDChatUnreadMessage(context: context)
+            let newUnread = try context.insertNew(CDChatUnreadMessage.self)
             newUnread.messageId = model.messageId
             newUnread.chat = chatEntity
         case .new:

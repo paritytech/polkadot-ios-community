@@ -103,7 +103,7 @@ extension ChatModelMapper: CoreDataMapperProtocol {
             entity.createdAt = model.createdAt
 
             if let metadata = model.roomMetadata {
-                let metadataEntity = entity.roomMetadata ?? CDChatRoomMetadata(context: context)
+                let metadataEntity = try entity.roomMetadata ?? context.insertNew(CDChatRoomMetadata.self)
 
                 ChatRoomMetadataEntityMapper().populate(entity: metadataEntity, from: metadata)
 
