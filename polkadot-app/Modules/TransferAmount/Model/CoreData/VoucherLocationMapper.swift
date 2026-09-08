@@ -7,8 +7,9 @@ import Operation_iOS
 /// two fungibility scores) onto an existing `CDVoucher`, leaving every other column untouched.
 ///
 /// Write-only in the sense that it never transforms an entity back into a model. It does read
-/// `recyclerIndex` — the ceiling is frozen for as long as the voucher stays in one ring, so the
-/// write has to know which ring was stored before it.
+/// `recyclerIndex` and `maxFungibilityCaptured` — the ceiling is frozen for as long as the voucher
+/// stays in one ring, so the write has to know which ring was stored before it and whether a
+/// ceiling has actually been recorded for that ring yet.
 final class VoucherLocationMapper {
     enum MappingError: Error {
         case missingVoucher
@@ -59,19 +60,39 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             case .inRecycler: 2
             }
 
+        let enteredNewRing = entity.recyclerIndex != previousRecyclerIndex
+
+        populateFungibility(entity: entity, from: model, enteredNewRing: enteredNewRing)
+    }
+}
+
+private extension VoucherLocationMapper {
+    /// The current score tracks every reading; the ceiling is captured once per ring membership —
+    /// on entry, and again only if the voucher is ever placed in a different ring.
+    ///
+    /// Capture is tracked explicitly rather than inferred. Inferring it from the stored score being
+    /// zero would mistake a fully drained ring's genuine zero for "not recorded"; inferring it from
+    /// the ring index changing would miss the case where the ring arrives before its score, leaving
+    /// the ceiling unset for good — including for every voucher already in a ring when this column
+    /// was added.
+    func populateFungibility(
+        entity: CoreDataEntity,
+        from model: DataProviderModel,
+        enteredNewRing: Bool
+    ) {
         if let fungibility = model.recyclerFungibility {
             entity.recyclerFungibility = Int16(fungibility)
         }
 
-        // The ceiling describes one particular ring, so it is captured when the voucher enters a
-        // ring and again only if it is ever placed in a different one — never on a refresh of the
-        // ring it is already in.
-        //
-        // Keyed on the ring index rather than on the stored score being zero: zero is a legitimate
-        // reading for a fully drained ring, and treating it as "nothing captured yet" would let a
-        // later, more favourable reading overwrite a ceiling that is supposed to be frozen.
-        if let ceiling = model.maxRecyclerFungibility, entity.recyclerIndex != previousRecyclerIndex {
-            entity.maxRecyclerFungibility = Int16(ceiling)
+        if enteredNewRing {
+            entity.maxFungibilityCaptured = false
         }
+
+        guard let ceiling = model.maxRecyclerFungibility, !entity.maxFungibilityCaptured else {
+            return
+        }
+
+        entity.maxRecyclerFungibility = Int16(ceiling)
+        entity.maxFungibilityCaptured = true
     }
 }

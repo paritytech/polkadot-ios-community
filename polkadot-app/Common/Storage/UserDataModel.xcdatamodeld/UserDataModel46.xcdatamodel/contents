@@ -276,6 +276,7 @@
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="maxRecyclerFungibility" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="maxFungibilityCaptured" optional="NO" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="onChainState" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
         <attribute name="publicKey" optional="YES" attributeType="String"/>
         <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
