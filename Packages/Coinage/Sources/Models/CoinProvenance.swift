@@ -34,6 +34,15 @@ public struct CoinProvenance: Equatable, Sendable {
     /// Received from a peer. Their chain is not visible to us, so it is assumed to be one transfer
     /// per unit of on-chain age — the conservative reading — with the bundle we claimed it in
     /// recorded as the most recent hop.
+    ///
+    /// Recorded when the claim is submitted rather than when the coin is first seen on chain. The
+    /// age is not a guess: the pallet stores `source age + 1` on a successful transfer, and a claim
+    /// against a source that changed underneath us fails validation instead of succeeding with some
+    /// other age. Recording it here is what preserves the real bundle size, which is not
+    /// recoverable at first presence.
+    ///
+    /// The cost is that a claim which never settles leaves a coin carrying provenance for something
+    /// that never existed on chain. Such a coin is not counted in the balance, so it is not shown.
     public static func received(ageAfterTransfer: Int16, bundleSize: Int) -> CoinProvenance {
         let hopCount = max(Int(ageAfterTransfer), 1)
         let unseen = Array(repeating: Hop.transfer(bundleSize: 1), count: hopCount - 1)

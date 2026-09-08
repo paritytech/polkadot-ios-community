@@ -174,8 +174,10 @@ extension VoucherLocationService {
         capacities: [Int16: Int]
     ) -> AnyAsyncSequence<[DerivationIndex: VoucherLocationUpdate]> {
         let voucherByIndex = Dictionary(uniqueKeysWithValues: vouchers.map { ($0.derivationIndex, $0) })
-        let requests = ringStatusRequests(positions: positions, voucherByIndex: voucherByIndex)
-            + unloadedCountRequests(positions: positions, voucherByIndex: voucherByIndex)
+        let recyclers = Self.recyclers(positions: positions, voucherByIndex: voucherByIndex)
+        // One request per distinct ring, however many vouchers share it.
+        let rings = Set(recyclers.values)
+        let requests = ringStatusRequests(for: rings) + unloadedCountRequests(for: rings)
 
         guard !requests.isEmpty else {
             let resolved = Self.resolveLocations(positions: positions, statuses: [:])
@@ -200,9 +202,14 @@ extension VoucherLocationService {
                 snapshot.applying(result)
             }
             .map { snapshot in
-                Self.updates(
-                    locations: Self.resolveLocations(positions: positions, statuses: snapshot.statuses),
-                    unloadedCounts: snapshot.unloadedCounts,
+                // The readings are shared per ring; the resolution below is per voucher, so each
+                // voucher reads the ring it sits in.
+                let statuses = recyclers.compactMapValues { snapshot.statuses[$0] }
+                let unloadedCounts = recyclers.compactMapValues { snapshot.unloadedCounts[$0] }
+
+                return Self.updates(
+                    locations: Self.resolveLocations(positions: positions, statuses: statuses),
+                    unloadedCounts: unloadedCounts,
                     voucherByIndex: voucherByIndex,
                     capacities: capacities
                 )
@@ -238,18 +245,12 @@ private extension VoucherLocationService {
         }
     }
 
-    func ringStatusRequests(
-        positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        voucherByIndex: [DerivationIndex: Voucher]
-    ) -> [BatchStorageSubscriptionRequest] {
-        positions.compactMap { derivationIndex, entry -> BatchStorageSubscriptionRequest? in
-            guard case let .defined(.some(position)) = entry,
-                  let ringIndex = position.ringIndex,
-                  let voucher = voucherByIndex[derivationIndex]
-            else { return nil }
-
-            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
-            let mappingKey = SubscriptionKey.ringStatus(derivationIndex: derivationIndex).mappingKey
+    func ringStatusRequests(for rings: Set<RecyclerKey>) -> [BatchStorageSubscriptionRequest] {
+        rings.map { ring in
+            let collectionId = RecyclerCollectionIdentifier.identifier(
+                instanceId: instanceId,
+                for: ring.exponent
+            )
 
             let innerRequest = DoubleMapSubscriptionRequest(
                 storagePath: MembersPallet.Storage.ringKeysStatus(),
@@ -257,34 +258,28 @@ private extension VoucherLocationService {
                 keyParamClosure: {
                     (
                         BytesCodable(wrappedValue: collectionId),
-                        StringCodable(wrappedValue: ringIndex)
+                        StringCodable(wrappedValue: ring.index)
                     )
                 }
             )
 
-            return BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey)
+            return BatchStorageSubscriptionRequest(
+                innerRequest: innerRequest,
+                mappingKey: SubscriptionKey.ringStatus(recycler: ring).mappingKey
+            )
         }
     }
 
-    /// Subscribes to `RecyclersUnloadedCount` for the ring each placed voucher sits in. A plain map
-    /// whose single key is a tuple, so it goes through `MapSubscriptionRequest` rather than the n-map
-    /// path used for `RecyclerAliasStates`.
-    func unloadedCountRequests(
-        positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        voucherByIndex: [DerivationIndex: Voucher]
-    ) -> [BatchStorageSubscriptionRequest] {
-        positions.compactMap { derivationIndex, entry -> BatchStorageSubscriptionRequest? in
-            guard case let .defined(.some(position)) = entry,
-                  let ringIndex = position.ringIndex,
-                  let voucher = voucherByIndex[derivationIndex]
-            else { return nil }
-
+    /// Subscribes to `RecyclersUnloadedCount` per ring. A plain map whose single key is a tuple, so
+    /// it goes through `MapSubscriptionRequest` rather than the n-map path used for
+    /// `RecyclerAliasStates`.
+    func unloadedCountRequests(for rings: Set<RecyclerKey>) -> [BatchStorageSubscriptionRequest] {
+        rings.map { ring in
             let key = RecyclerUnloadedCountKey(
                 instanceId: instanceId,
-                exponent: voucher.exponent,
-                ringIndex: ringIndex
+                exponent: ring.exponent,
+                ringIndex: ring.index
             )
-            let mappingKey = SubscriptionKey.unloadedCount(derivationIndex: derivationIndex).mappingKey
 
             let innerRequest = MapSubscriptionRequest(
                 storagePath: CoinagePallet.Storage.recyclersUnloadedCount(),
@@ -292,7 +287,10 @@ private extension VoucherLocationService {
                 keyParamClosure: { key }
             )
 
-            return BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey)
+            return BatchStorageSubscriptionRequest(
+                innerRequest: innerRequest,
+                mappingKey: SubscriptionKey.unloadedCount(recycler: ring).mappingKey
+            )
         }
     }
 }
@@ -300,11 +298,27 @@ private extension VoucherLocationService {
 // MARK: - Ring readings
 
 extension VoucherLocationService {
+    /// The ring each placed voucher sits in. Vouchers that share a ring map to one ``RecyclerKey``,
+    /// which is what collapses their subscriptions into a single request each.
+    static func recyclers(
+        positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
+        voucherByIndex: [DerivationIndex: Voucher]
+    ) -> [DerivationIndex: RecyclerKey] {
+        positions.reduce(into: [:]) { recyclers, entry in
+            guard case let .defined(.some(position)) = entry.value,
+                  let ringIndex = position.ringIndex,
+                  let voucher = voucherByIndex[entry.key]
+            else { return }
+
+            recyclers[entry.key] = RecyclerKey(exponent: voucher.exponent, index: ringIndex)
+        }
+    }
+
     /// The two per-ring readings, accumulated from the subscription's deltas. Kept together so one
     /// `scan` covers both and the join sees a consistent pair.
     struct RingSnapshot {
-        var statuses: [DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>]
-        var unloadedCounts: [DerivationIndex: UncertainStorage<UInt32?>]
+        var statuses: [RecyclerKey: UncertainStorage<MembersPallet.RingKeysStatus?>]
+        var unloadedCounts: [RecyclerKey: UncertainStorage<UInt32?>]
 
         static let empty = RingSnapshot(statuses: [:], unloadedCounts: [:])
 
@@ -312,11 +326,11 @@ extension VoucherLocationService {
             var snapshot = self
 
             for update in result.ringStatusUpdates {
-                snapshot.statuses[update.derivationIndex] = .defined(update.ringKeysStatus)
+                snapshot.statuses[update.recycler] = .defined(update.ringKeysStatus)
             }
 
             for update in result.unloadedCountUpdates {
-                snapshot.unloadedCounts[update.derivationIndex] = .defined(update.unloadedCount)
+                snapshot.unloadedCounts[update.recycler] = .defined(update.unloadedCount)
             }
 
             return snapshot

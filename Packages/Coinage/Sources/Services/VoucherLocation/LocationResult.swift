@@ -9,15 +9,16 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
         let ringPosition: MembersPallet.RingPosition?
     }
 
+    /// Ring state is shared, so these arrive per ring rather than per voucher.
     struct RingStatusUpdate {
-        let derivationIndex: DerivationIndex
+        let recycler: RecyclerKey
         let ringKeysStatus: MembersPallet.RingKeysStatus?
     }
 
-    /// `RecyclersUnloadedCount` for the ring the voucher sits in. The entry is an `OptionQuery`
-    /// populated only as aliases are unloaded, so an absent reading means "none yet", not "unknown".
+    /// `RecyclersUnloadedCount` for a ring. The entry is an `OptionQuery` populated only as aliases
+    /// are unloaded, so an absent reading means "none yet", not "unknown".
     struct UnloadedCountUpdate {
-        let derivationIndex: DerivationIndex
+        let recycler: RecyclerKey
         let unloadedCount: UInt32?
     }
 
@@ -55,25 +56,25 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
                     ringPosition: ringPosition
                 ))
 
-            case let .ringStatus(derivationIndex):
+            case let .ringStatus(recycler):
                 let ringKeysStatus = try? item.value.map(
                     to: MembersPallet.RingKeysStatus?.self,
                     with: context
                 )
 
                 ringStatusUpdates.append(.init(
-                    derivationIndex: derivationIndex,
+                    recycler: recycler,
                     ringKeysStatus: ringKeysStatus
                 ))
 
-            case let .unloadedCount(derivationIndex):
+            case let .unloadedCount(recycler):
                 let count = try? item.value.map(
                     to: StringScaleMapper<UInt32>?.self,
                     with: context
                 )
 
                 unloadedCountUpdates.append(.init(
-                    derivationIndex: derivationIndex,
+                    recycler: recycler,
                     unloadedCount: count?.value
                 ))
             }
