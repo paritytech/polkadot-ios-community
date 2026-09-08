@@ -27,7 +27,7 @@ enum ChainConnectionTarget: CaseIterable {
         case .bulletin:
             "Bulletin"
         case .assethub:
-            "Asset Hub"
+            "Hub"
         }
     }
 
