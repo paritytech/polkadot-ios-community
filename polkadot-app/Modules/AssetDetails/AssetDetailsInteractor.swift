@@ -250,9 +250,9 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                                     fromPlanks: balance.gainingPrivacy.amount
                                 ),
                                 pending: context.decimal(fromPlanks: balance.pending)
-                            )
+                            ),
+                            holdings: summary.holdings
                         )
-                        await presenter?.didReceive(holdings: summary.holdings)
                     #endif
                 }
             } catch {

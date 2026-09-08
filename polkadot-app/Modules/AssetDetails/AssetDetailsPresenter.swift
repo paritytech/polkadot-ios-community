@@ -188,13 +188,9 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             provideCoinageBreakdown()
         }
 
-        func didReceive(holdings: CoinageHoldings) {
-            self.holdings = holdings
-            provideCoinageBreakdown()
-        }
-
-        func didReceive(coinageAmounts: CoinageAmounts) {
+        func didReceive(coinageAmounts: CoinageAmounts, holdings: CoinageHoldings) {
             self.coinageAmounts = coinageAmounts
+            self.holdings = holdings
             provideCoinageBreakdown()
         }
     #endif
