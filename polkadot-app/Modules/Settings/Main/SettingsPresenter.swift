@@ -51,8 +51,6 @@ private extension SettingsPresenter {
         case .backup,
              .theme,
              .currency,
-             .revoke,
-             .paymentHistory,
              .linkedDevices,
              .apps,
              .contactUs,
@@ -99,7 +97,6 @@ extension SettingsPresenter: SettingsPresenterProtocol {
         interactor.savePrivacyStrategy(strategy)
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     func didTapCell(_ cell: SettingsViewModel.CellType) {
         switch cell {
         case .termsOfUse,
@@ -119,10 +116,6 @@ extension SettingsPresenter: SettingsPresenterProtocol {
             }
         case .currency:
             wireframe.showCurrencyPicker(from: view)
-        case .revoke:
-            wireframe.showRecoverPendingTransactions(from: view)
-        case .paymentHistory:
-            wireframe.showPaymentHistory(from: view)
         case .linkedDevices:
             wireframe.showLinkedDevices(from: view)
         case .apps:

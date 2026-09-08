@@ -103,7 +103,7 @@ final class ChainModelMapper {
             if let existingEntity = maybeExistingEntity {
                 assetEntity = existingEntity
             } else {
-                assetEntity = CDAsset(context: context)
+                assetEntity = try context.insertNew(CDAsset.self)
             }
 
             assetEntity.assetId = assetEntityId
@@ -158,7 +158,7 @@ final class ChainModelMapper {
             if let existingEntity = maybeExistingEntity {
                 nodeEntity = existingEntity
             } else {
-                nodeEntity = CDChainNodeItem(context: context)
+                nodeEntity = try context.insertNew(CDChainNodeItem.self)
             }
 
             nodeEntity.url = node.url
@@ -224,8 +224,8 @@ final class ChainModelMapper {
         for entity: CDChain,
         from model: ChainModel,
         context: NSManagedObjectContext
-    ) {
-        let optApiEntities: [CDChainApi]? = model.externalApis?.apis.map { apiModel in
+    ) throws {
+        let optApiEntities: [CDChainApi]? = try model.externalApis?.apis.map { apiModel in
             let apiEntity: CDChainApi
 
             let maybeExistingEntity = entity.externalApis?.first { entity in
@@ -239,7 +239,7 @@ final class ChainModelMapper {
             if let existingEntity = maybeExistingEntity {
                 apiEntity = existingEntity
             } else {
-                apiEntity = CDChainApi(context: context)
+                apiEntity = try context.insertNew(CDChainApi.self)
             }
 
             apiEntity.apiType = apiModel.apiType

@@ -18,7 +18,7 @@ enum TrUAPISupportedChains {
         let chains = roles.compactMap { role -> HostChainEntry? in
             guard
                 let chain = chainRegistry.getChain(for: role.chainId),
-                let genesisHex = chain.genesisHash,
+                let genesisHex = chain.explicitGenesisHash,
                 let genesis = try? Data(hexString: genesisHex)
             else {
                 return nil

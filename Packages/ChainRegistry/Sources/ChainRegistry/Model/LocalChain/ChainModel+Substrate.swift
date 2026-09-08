@@ -3,6 +3,10 @@ import SubstrateSdk
 import Operation_iOS
 
 extension ChainModel: ChainProtocol {
+    public var genesisHash: ChainId {
+        explicitGenesisHash ?? chainId
+    }
+
     public var disabledCheckMetadataHash: Bool {
         true
     }

@@ -67,7 +67,7 @@ private extension NewOutgoingChatRequestMapper {
         var contactModel = Chat.Contact(remoteContact: model.remoteContact, ownKeyId: model.ownKeyId)
         contactModel.pushId = model.pushId
 
-        let contact = CDChatContact(context: context)
+        let contact = try context.insertNew(CDChatContact.self)
         try ChatContactMapper().populate(
             entity: contact,
             from: contactModel,
@@ -87,7 +87,7 @@ private extension NewOutgoingChatRequestMapper {
             throw MappingError.existingChat
         }
 
-        let chat = CDChat(context: context)
+        let chat = try context.insertNew(CDChat.self)
 
         try ChatModelMapper().populate(
             entity: chat,

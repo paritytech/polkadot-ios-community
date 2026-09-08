@@ -1,6 +1,15 @@
 {
-  "originHash" : "f829de7c258530dd4eccb4706bb220b59c83eda8ef837af91e16db3fa80c80e9",
+  "originHash" : "b6b0c0c40e9e50c3c109d8618f0c1ad837d70d66ad0f9c6e8717b2c2b0c32ec4",
   "pins" : [
+    {
+      "identity" : "asyncextensions",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sideeffect-io/AsyncExtensions",
+      "state" : {
+        "revision" : "735748a3ffb7ec880aa252e1c38ec0a65929cb87",
+        "version" : "0.5.4"
+      }
+    },
     {
       "identity" : "bigint",
       "kind" : "remoteSourceControl",
@@ -69,8 +78,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/logger-ios",
       "state" : {
-        "revision" : "cafece8626141b4430ddc8d5288d3444abd122de",
-        "version" : "0.0.1"
+        "revision" : "4d8a513664a272c201ba0a424a28d133827c924b",
+        "version" : "0.0.2"
       }
     },
     {
@@ -87,8 +96,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/Operation-iOS",
       "state" : {
-        "revision" : "32d8155004a0809c53407b637fdeacb47e917b1b",
-        "version" : "2.5.0"
+        "revision" : "1434daa4c32b8d90771888663ecdd1b0fe709690",
+        "version" : "2.6.0"
       }
     },
     {
@@ -132,8 +141,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "9bcba45b567dac1e8f3cbfe19e8aac4271e0a85a",
-        "version" : "5.8.0"
+        "revision" : "fd0bd87c53cded6aa098b410ed80fc48f5756404",
+        "version" : "5.12.0"
+      }
+    },
+    {
+      "identity" : "swift-collections",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-collections.git",
+      "state" : {
+        "revision" : "a0cb0954ecb21e4e31b0070e6ed5674e8556685a",
+        "version" : "1.6.0"
       }
     },
     {
