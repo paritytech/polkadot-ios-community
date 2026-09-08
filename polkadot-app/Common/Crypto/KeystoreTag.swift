@@ -6,7 +6,8 @@ extension KeystoreTag {
     static var anonymousDeviceIDTag: String {
         [
             domain,
-            "anonymousDeviceID"
+            // New-chain launch reset: `.v2` orphans the pre-relaunch device id so a fresh one is minted.
+            "anonymousDeviceID.v2"
         ].joined(with: .colon)
     }
 

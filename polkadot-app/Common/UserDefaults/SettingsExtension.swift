@@ -1,10 +1,13 @@
 import Foundation
 import Keystore_iOS
 
+// New-chain launch reset: identity/registration keys carry an explicit `.v2` raw value
+// so a returning user's pre-relaunch UserDefaults values are orphaned and never read again,
+// producing a genuinely clean re-onboarded user. Do not drop the suffix — it resurrects old state.
 enum SettingsKey: String {
-    case username
-    case usernameClaimed
-    case isPerson
+    case username = "username.v2"
+    case usernameClaimed = "usernameClaimed.v2"
+    case isPerson = "isPerson.v2"
     case waitingRoomNotificationDate
     case gameStartNotificationDate
     case registrationStartNotificationDates
@@ -26,10 +29,10 @@ enum SettingsKey: String {
     case voucherScanHorizon
     case deviceEncryptId
     case nextSyncUpdateId
-    case themeSelected
+    case themeSelected = "themeSelected.v2"
     case gameCalendarReminder
     case localNetworkPermissionRequested
-    case backendSessionId
+    case backendSessionId = "backendSessionId.v2"
     case showTransferStrategyDebug
     case truApiRuntimeEnabled
     case coinageRecyclingStrategy
