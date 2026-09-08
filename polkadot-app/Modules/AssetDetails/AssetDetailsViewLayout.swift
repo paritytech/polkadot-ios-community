@@ -296,7 +296,7 @@ private struct CoinageBalanceBreakdownView: View {
             // No accessibility id yet: the registry lives in another repo.
             LegendEntry(
                 kind: .gainingPrivacy,
-                title: String(localized: .coinageGainingPrivacy),
+                title: String(localized: .coinageLoading),
                 value: breakdown.gainingPrivacyBalance
             ),
             LegendEntry(

@@ -1964,17 +1964,6 @@
         }
       }
     },
-    "coinageGainingPrivacy": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gaining privacy"
-          }
-        }
-      }
-    },
     "coinageHideDetails": {
       "extractionState": "manual",
       "localizations": {
@@ -2036,7 +2025,18 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vouchers are coins gaining privacy. The block is how traceable they will still be at best; the striped part is the privacy still to be earned."
+            "value": "Vouchers are coins that are loading. The block is how traceable they will still be at best; the striped part is how much loading is left."
+          }
+        }
+      }
+    },
+    "coinageLoading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading"
           }
         }
       }
