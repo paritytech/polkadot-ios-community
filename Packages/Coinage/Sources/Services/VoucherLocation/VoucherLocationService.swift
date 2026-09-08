@@ -423,6 +423,7 @@ extension VoucherLocationService {
                     capacity: capacity
                 ),
                 maxRecyclerFungibility: RecyclerFungibility.maximum(
+                    included: recycler.membersCount,
                     unloaded: unloaded,
                     capacity: capacity
                 )

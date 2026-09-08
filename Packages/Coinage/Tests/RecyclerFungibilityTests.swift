@@ -7,12 +7,12 @@ struct RecyclerFungibilityTests {
 
     @Test("An untouched ring is fully fungible")
     func maximumWithNothingUnloaded() {
-        #expect(RecyclerFungibility.maximum(unloaded: 0, capacity: 64) == 100)
+        #expect(RecyclerFungibility.maximum(included: 64, unloaded: 0, capacity: 64) == 100)
     }
 
     @Test("A fully drained ring offers nothing")
     func maximumWithEverythingUnloaded() {
-        #expect(RecyclerFungibility.maximum(unloaded: 64, capacity: 64) == 0)
+        #expect(RecyclerFungibility.maximum(included: 64, unloaded: 64, capacity: 64) == 0)
     }
 
     @Test(
@@ -25,17 +25,32 @@ struct RecyclerFungibilityTests {
         ]
     )
     func maximumFormula(unloaded: UInt32, capacity: Int, expected: UInt8) {
-        #expect(RecyclerFungibility.maximum(unloaded: unloaded, capacity: capacity) == expected)
+        // A full ring, so U is not clamped and the formula is exercised as written.
+        #expect(
+            RecyclerFungibility.maximum(
+                included: UInt32(capacity),
+                unloaded: unloaded,
+                capacity: capacity
+            ) == expected
+        )
     }
 
-    @Test("An unloaded count past capacity clamps instead of going negative")
-    func maximumClampsUnloaded() {
-        #expect(RecyclerFungibility.maximum(unloaded: 200, capacity: 64) == 0)
+    /// The ceiling is frozen, so a transiently over-large unloaded count must not depress it
+    /// permanently: it is sanitised against the members it refers to, exactly as `current` is.
+    @Test("An unloaded count past the included count clamps to it, not to capacity")
+    func maximumClampsUnloadedToIncluded() {
+        // 100·(64² − 8²)/64² = 98.4, not the 61 that clamping to capacity would give.
+        #expect(RecyclerFungibility.maximum(included: 8, unloaded: 40, capacity: 64) == 98)
+    }
+
+    @Test("An empty ring scores zero")
+    func maximumWithEmptyRing() {
+        #expect(RecyclerFungibility.maximum(included: 0, unloaded: 0, capacity: 64) == 0)
     }
 
     @Test("A capacity of zero scores zero rather than dividing by zero")
     func maximumWithoutCapacity() {
-        #expect(RecyclerFungibility.maximum(unloaded: 0, capacity: 0) == 0)
+        #expect(RecyclerFungibility.maximum(included: 4, unloaded: 0, capacity: 0) == 0)
     }
 
     // MARK: - current
@@ -93,6 +108,7 @@ struct RecyclerFungibilityTests {
                         capacity: capacity
                     )
                     let maximum = RecyclerFungibility.maximum(
+                        included: UInt32(included),
                         unloaded: UInt32(unloaded),
                         capacity: capacity
                     )
@@ -114,6 +130,7 @@ struct RecyclerFungibilityTests {
                         capacity: capacity
                     )
                     let maximum = RecyclerFungibility.maximum(
+                        included: UInt32(included),
                         unloaded: UInt32(unloaded),
                         capacity: capacity
                     )

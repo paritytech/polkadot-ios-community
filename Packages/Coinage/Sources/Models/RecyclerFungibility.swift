@@ -7,18 +7,23 @@ import Foundation
 /// not a runtime-wide constant — `I`, the ring's included member count, and `U`, the ring's
 /// `RecyclersUnloadedCount`.
 ///
-/// `U` is clamped from above because the chain decrements the unloaded count when a dispatch fails,
-/// so a reading can transiently exceed the members it refers to. Without the clamp the numerators go
-/// negative, which the `UInt8` result cannot represent.
+/// `U` is sanitised once, against `I`, before either score is computed: the chain decrements the
+/// unloaded count when a dispatch fails, so a reading can transiently exceed the members it refers
+/// to. Clamping to `L` instead would let such a reading depress the ceiling — which is frozen, so a
+/// momentary bad value would stick permanently.
 public enum RecyclerFungibility {
-    /// The best score a voucher entering this ring could have had: `100 · (L² − U²) / L²`.
+    /// The best score a voucher entering this ring could have had: `100 · (L² − U²) / L²`, which is
+    /// ``current(included:unloaded:capacity:)`` evaluated at a full ring.
     ///
     /// Frozen onto the voucher the first time it is observed in a ring — the ring index is assigned
-    /// on chain, so it is not knowable when the voucher is minted.
-    public static func maximum(unloaded: UInt32, capacity: Int) -> UInt8 {
-        guard capacity > 0 else { return 0 }
+    /// on chain, so it is not knowable when the voucher is minted. `I` is taken only to sanitise `U`
+    /// by the same rule the current score uses.
+    public static func maximum(included: UInt32, unloaded: UInt32, capacity: Int) -> UInt8 {
+        let includedCount = Int(included)
 
-        let clampedUnloaded = min(Int(unloaded), capacity)
+        guard capacity > 0, includedCount > 0 else { return 0 }
+
+        let clampedUnloaded = min(Int(unloaded), includedCount)
 
         return percentage(
             numerator: capacity * capacity - clampedUnloaded * clampedUnloaded,
