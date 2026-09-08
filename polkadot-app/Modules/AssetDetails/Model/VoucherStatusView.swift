@@ -54,7 +54,6 @@
                 .frame(width: width, height: height, alignment: .leading)
             }
             .frame(height: CoinageStatusMetrics.barHeight)
-            .coinagePlate()
         }
     }
 

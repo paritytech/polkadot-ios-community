@@ -127,7 +127,6 @@
                             CoinStatusView.CircleIllustration(dots: 0)
                             CoinStatusView.CircleIllustration(dots: 3)
                         }
-                        .coinagePlate()
                     )
                 ),
                 Entry(

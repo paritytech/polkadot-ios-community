@@ -272,12 +272,18 @@ struct AssetDetailsView: View {
                     .foregroundStyle(Color.fgSecondary)
                     .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceLabel)
 
-                Text(breakdown.totalBalance)
-                    .textStyle(.title32SemiBold())
-                    .foregroundStyle(Color.fgPrimary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
-                    .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceValue)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(breakdown.totalBalance)
+                        .textStyle(.title32SemiBold())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceValue)
+
+                    Text(breakdown.symbol)
+                        .textStyle(.caption12Regular())
+                        .foregroundStyle(Color.fgSecondary)
+                }
+                .foregroundStyle(Color.fgPrimary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -323,7 +329,7 @@ struct AssetDetailsView: View {
             [
                 LegendEntry(
                     kind: .availableNow,
-                    title: "Available Now",
+                    title: "Spendable",
                     value: breakdown.availableNowBalance,
                     labelAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceLabel,
                     valueAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceValue
@@ -331,7 +337,7 @@ struct AssetDetailsView: View {
                 // No accessibility id yet: the registry lives in another repo.
                 LegendEntry(
                     kind: .gainingPrivacy,
-                    title: "Gaining Privacy",
+                    title: "Maturing",
                     value: breakdown.gainingPrivacyBalance
                 ),
                 LegendEntry(

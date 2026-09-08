@@ -45,7 +45,6 @@
                     Spacer(minLength: 0)
                 }
                 .frame(width: geometry.size.width, height: CoinageStatusMetrics.summaryBarHeight)
-                .background(CoinageStatusMetrics.plate)
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(

@@ -351,10 +351,11 @@ private extension AssetDetailsPresenter {
             let amounts = fixtureAmounts() ?? coinageAmounts ?? .zero
 
             let breakdown = CoinageBalanceBreakdownViewModel(
-                totalBalance: formatted(from: amounts.total),
-                availableNowBalance: formatted(from: amounts.availableNow),
-                gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy),
-                pendingBalance: formatted(from: amounts.pending),
+                totalBalance: formatted(from: amounts.total, includeSymbol: false),
+                availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
+                gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
+                pendingBalance: formatted(from: amounts.pending, includeSymbol: false),
+                symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
                 composition: context.map {
                     CoinageBreakdownFactory.composition(of: holdings, context: $0)
                 } ?? .empty,

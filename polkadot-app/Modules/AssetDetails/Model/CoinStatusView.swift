@@ -29,7 +29,6 @@
                 Self.draw(model, in: &context, size: size)
             }
             .frame(height: CoinageStatusMetrics.barHeight)
-            .coinagePlate()
         }
     }
 
@@ -317,7 +316,6 @@
                     )
                 }
                 .frame(height: CoinageStatusMetrics.barHeight)
-                .coinagePlate()
             }
         }
     }

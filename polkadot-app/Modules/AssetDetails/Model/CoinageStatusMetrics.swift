@@ -53,35 +53,24 @@
         static let legendSwatchSize: CGFloat = 12
         static let legendSwatchCornerRadius: CGFloat = 3
 
-        /// Corner radius of the ground every depiction is drawn on.
-        static let plateCornerRadius: CGFloat = 6
-
-        /// Margin of ground left visible around a depiction.
-        static let platePadding: CGFloat = 2
-
-        /// Ground for every depiction, and the summary bar's unfilled track: the app's own
-        /// background, which is a touch darker than the card the depictions sit on.
-        ///
-        /// It follows the theme, so it stays part of the palette instead of reading as a slab laid
-        /// over it. What keeps the pinned marks legible on it is ``markFrame``, not the ground.
-        static var plate: Color { .bgSurfaceMain }
-
         /// Frame drawn around every mark.
         ///
         /// The mark colours are semantic and pinned, so white has to stay white on a cream theme
-        /// where it would otherwise vanish. A frame solves that without darkening the ground: it
-        /// measures 15:1 or better against all four light grounds and 18:1 against white itself. On
-        /// the dark theme it merges into the background, which costs nothing there — white already
-        /// measures 19:1 against it.
+        /// where it would otherwise vanish. A frame does that on its own — 18:1 against white, and
+        /// 15:1 or better against every light surface — so the marks need no backdrop. On the dark
+        /// theme it merges into the background, which costs nothing there: white already measures
+        /// 19:1 against it.
         static let markFrame = Color(red: 20 / 255, green: 20 / 255, blue: 24 / 255)
         static let markFrameWidth: CGFloat = 1
 
         /// Thinner, so the stacked pair keeps some colour inside its frame.
         static let thinFrameWidth: CGFloat = 0.75
 
-        /// Fill of a provenance circle: the design's own swatch, pinned rather than tinted from the
-        /// ground, so it stays a dark red instead of turning pale on a light theme.
-        static let circleFill = Color(red: 63 / 255, green: 30 / 255, blue: 34 / 255)
+        /// Fill of a provenance circle: a deep red rather than the design's near-black swatch, which
+        /// was authored against a dark canvas and reads as a black hole on a light one. Luminance
+        /// 0.066 against that swatch's 0.021, so it stays unmistakably red while holding white dots
+        /// at 9:1 and separating from a light surface at 7.9:1.
+        static let circleFill = Color(red: 140 / 255, green: 29 / 255, blue: 36 / 255)
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///
@@ -127,24 +116,6 @@
                 }
 
             return units.map { CGPoint(x: $0.x * pitch, y: $0.y * pitch) }
-        }
-    }
-#endif
-
-#if TESTNET_FEATURE
-    import SwiftUI
-
-    extension View {
-        /// Puts a depiction on the constant dark plate its colours are calibrated against, leaving a
-        /// margin of it visible on every side so a white mark is always framed.
-        func coinagePlate(
-            cornerRadius: CGFloat = CoinageStatusMetrics.plateCornerRadius
-        ) -> some View {
-            padding(CoinageStatusMetrics.platePadding)
-                .background(
-                    CoinageStatusMetrics.plate,
-                    in: RoundedRectangle(cornerRadius: cornerRadius)
-                )
         }
     }
 #endif
