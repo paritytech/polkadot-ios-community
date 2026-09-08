@@ -186,6 +186,7 @@ public extension CoinageService {
             logger: logger
         )
         let voucherService = VoucherService(
+            databaseFactory: databaseFactory,
             trackedVoucherRepository: trackedVoucherRepository,
             voucherLoaderFactory: voucherLoaderFactory
         )

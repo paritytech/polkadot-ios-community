@@ -22,16 +22,23 @@ public protocol VoucherServiceProtocol: Sendable {
 
     /// Fetch all vouchers paired with their derived durability overlay.
     func fetchAllTracked() async throws -> [TrackedVoucher]
+
+    /// Fetch only the vouchers with the given public keys — a filtered query, not the whole set.
+    /// Empty `publicKeys` returns an empty array without touching the store.
+    func fetchVouchers(publicKeys: Set<PublicKey>) async throws -> [Voucher]
 }
 
 public final class VoucherService: @unchecked Sendable {
+    private let databaseFactory: any DatabaseDependencyFactoring
     private let trackedVoucherRepository: AnyDataProviderRepository<TrackedVoucher>
     private let voucherLoaderFactory: VoucherLoaderFactoryProtocol
 
     public init(
+        databaseFactory: any DatabaseDependencyFactoring,
         trackedVoucherRepository: AnyDataProviderRepository<TrackedVoucher>,
         voucherLoaderFactory: VoucherLoaderFactoryProtocol
     ) {
+        self.databaseFactory = databaseFactory
         self.trackedVoucherRepository = trackedVoucherRepository
         self.voucherLoaderFactory = voucherLoaderFactory
     }
@@ -52,5 +59,12 @@ extension VoucherService: VoucherServiceProtocol {
 
     public func fetchAllTracked() async throws -> [TrackedVoucher] {
         try await trackedVoucherRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
+    }
+
+    public func fetchVouchers(publicKeys: Set<PublicKey>) async throws -> [Voucher] {
+        guard !publicKeys.isEmpty else { return [] }
+        return try await databaseFactory.makeVoucherRepository(publicKeys: Array(publicKeys))
+            .fetchAllOperation(with: RepositoryFetchOptions())
+            .asyncExecute()
     }
 }

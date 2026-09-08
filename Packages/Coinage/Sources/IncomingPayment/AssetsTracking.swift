@@ -8,12 +8,8 @@ import BigInt
 import SDKLogger
 import XcmDefinition
 
-/// The `Assets` pallet's `AssetId` is an XCM `Location` (`xcm::latest` = v5 in the People runtime),
-/// encoded bare (no version byte) — the v5 analogue of `AssetConversionPallet.AssetId`.
 public typealias CoinageAssetLocationId = Xcm.Version5<XcmUni.AssetId>
 
-/// Tracks a target account's balance in the external asset a coinage instance wraps. Resolves the
-/// asset id from `Instances` once, then subscribes to `Assets.Account(assetId, accountId)`.
 public protocol AssetsTracking: Sendable {
     func track(
         instanceId: CoinageInstanceId,
@@ -21,7 +17,7 @@ public protocol AssetsTracking: Sendable {
     ) async throws -> AnyAsyncSequence<Balance>
 }
 
-public final class AssetBalanceTracker: AssetsTracking {
+public final class AssetBalanceTracker: AssetsTracking, @unchecked Sendable {
     private let connection: any JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
     private let storageRequestFactory: any StorageRequestFactoryProtocol
@@ -98,11 +94,6 @@ private extension AssetBalanceTracker {
     }
 }
 
-/// The asset-id projection of the `Instances` record. The asset id is an XCM `Location`
-/// (`CoinageAssetLocationId`), matching the People runtime's `pallet_assets::AssetId = Location`.
-///
-/// ⚠️ VERIFY the field NAME against runtime metadata (plan Risk 2): assumed `asset`. The TYPE is
-/// confirmed (Location / XCM v5).
 private struct CoinageInstanceAsset: Decodable {
     let asset: CoinageAssetLocationId
 }

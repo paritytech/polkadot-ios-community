@@ -14,7 +14,7 @@ public protocol IncomingPaymentSourceValidating: Sendable {
 
 /// Both source shapes carry sr25519 secret keys (coin keys and the wallet holder key alike), so one
 /// implementation derives public keys for either. The protocol stays a seam for injection/mocking.
-public final class IncomingPaymentSourceValidator: IncomingPaymentSourceValidating {
+public final class IncomingPaymentSourceValidator: IncomingPaymentSourceValidating, @unchecked Sendable {
     private let snKeyFactory: any SNKeyFactoryProtocol
 
     public init(snKeyFactory: any SNKeyFactoryProtocol = SNKeyFactory()) {

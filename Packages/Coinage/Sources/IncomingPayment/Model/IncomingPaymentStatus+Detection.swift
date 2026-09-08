@@ -8,7 +8,8 @@ public extension IncomingPaymentStatus {
         switch detection {
         case .detecting:
             self = .detecting
-        case .claiming, .claimingRest:
+        case .claiming,
+             .claimingRest:
             self = .claiming
         case let .claimed(_, finalized):
             self = .claimed(finalized: finalized)

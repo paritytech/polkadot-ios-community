@@ -22,11 +22,13 @@ public enum IncomingPaymentStatus: Equatable, Sendable {
 public extension IncomingPaymentStatus {
     var isTerminal: Bool {
         switch self {
-        case .detecting, .claiming:
+        case .detecting,
+             .claiming:
             false
         case let .claimed(finalized):
             finalized
-        case .claimedPartially, .notClaimed:
+        case .claimedPartially,
+             .notClaimed:
             true
         }
     }
