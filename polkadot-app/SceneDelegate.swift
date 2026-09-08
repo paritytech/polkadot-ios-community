@@ -3,7 +3,7 @@ import DesignSystem
 import StructuredConcurrency
 import UIKit
 
-#if IOS_PASEO_E2E && targetEnvironment(simulator)
+#if targetEnvironment(simulator)
     import KeyDerivation
     import Keystore_iOS
 #endif
@@ -33,7 +33,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
             return
         }
 
-        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+        #if targetEnvironment(simulator)
             if SPAConfiguration.isSimulatorBrowseRequested {
                 prepareTrUAPISimulatorE2EUser()
             }
@@ -118,7 +118,7 @@ extension SceneDelegate {
     }
 #endif
 
-#if IOS_PASEO_E2E && targetEnvironment(simulator)
+#if targetEnvironment(simulator)
     private extension SceneDelegate {
         /// Puts a fresh simulator into the state `make ios-chat-run` expects:
         /// the rust runtime on, and an identity so onboarding does not block it.

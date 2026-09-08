@@ -99,7 +99,7 @@ extension ProductBot: ChatExtensionBotProtocol {
             do {
                 try await runtime.start(messagingSupport: .init(bot: self, context: context))
 
-                #if IOS_PASEO_E2E && targetEnvironment(simulator)
+                #if targetEnvironment(simulator)
                     // Drives the first user message for `make ios-chat-run`. The core
                     // buffers host actions until the product subscribes, so no wait.
                     let environment = ProcessInfo.processInfo.environment

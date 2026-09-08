@@ -53,7 +53,7 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
         writeSimulatorConnectionMarkerIfNeeded(marker: marker)
     }
 
-    #if IOS_PASEO_E2E && targetEnvironment(simulator)
+    #if targetEnvironment(simulator)
         /// `ProcessInfo.environment` rebuilds the whole dictionary on every read, so
         /// the harness switch is resolved once.
         private static let e2eMarkersEnabled =
@@ -63,7 +63,7 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
     /// Drop a file the truapi E2E launcher polls for, so it knows the product
     /// actually reached the core over the ws-bridge.
     private func writeSimulatorConnectionMarkerIfNeeded(marker: String) {
-        #if IOS_PASEO_E2E && targetEnvironment(simulator)
+        #if targetEnvironment(simulator)
             guard marker == "truapi.ws_bridge.connection_open", Self.e2eMarkersEnabled else {
                 return
             }

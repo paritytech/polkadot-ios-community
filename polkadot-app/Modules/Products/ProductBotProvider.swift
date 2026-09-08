@@ -38,7 +38,7 @@ final class ProductBotProvider: ProductBotProviding {
             .map { [self] productDict in
                 var products = Array(productDict.values)
 
-                #if IOS_PASEO_E2E && targetEnvironment(simulator)
+                #if targetEnvironment(simulator)
                     if let injected = Self.simulatorChatProduct(),
                        !products.contains(where: { $0.identifier == injected.identifier }) {
                         products.append(injected)
@@ -50,7 +50,7 @@ final class ProductBotProvider: ProductBotProviding {
             .eraseToAnyAsyncSequence()
     }
 
-    #if IOS_PASEO_E2E && targetEnvironment(simulator)
+    #if targetEnvironment(simulator)
         /// The product the truapi E2E launcher wants a chat bot for, named by environment
         /// rather than installed through the UI so `make ios-chat-run` needs no taps.
         /// It still goes through the normal resolve path, so a manifest product is served
@@ -66,7 +66,7 @@ final class ProductBotProvider: ProductBotProviding {
 
             let name = environment["TRUAPI_IOS_E2E_CHAT_PRODUCT_NAME"]?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let displayName = name.nilIfEmpty ?? productId
+            let displayName = name?.nilIfEmpty ?? productId
 
             return Product(id: productId, name: displayName)
         }
