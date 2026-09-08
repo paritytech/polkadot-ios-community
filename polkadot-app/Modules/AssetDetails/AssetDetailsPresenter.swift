@@ -24,15 +24,13 @@ final class AssetDetailsPresenter {
     private let chainAsset: ChainAsset
     private var balance: Decimal = 0
     private var lockedAmount: Decimal = 0
-    #if TESTNET_FEATURE
-        /// Classified alongside the balance figures, so the rows and the bar always account for
-        /// exactly the total shown above them.
-        private var holdings: CoinageHoldings = .empty
-        /// The domain's three buckets for the real holdings, totalled by the balance service.
-        private var coinageAmounts: CoinageAmounts?
-        /// Loaded from chain state; needed to price individual holdings.
-        private var denominationContext: DenominationBreakdownContext?
-    #endif
+    /// Classified alongside the balance figures, so the rows and the bar always account for
+    /// exactly the total shown above them.
+    private var holdings: CoinageHoldings = .empty
+    /// The domain's three buckets for the real holdings, totalled by the balance service.
+    private var coinageAmounts: CoinageAmounts?
+    /// Loaded from chain state; needed to price individual holdings.
+    private var denominationContext: DenominationBreakdownContext?
     private var price: PriceData?
     let logger: LoggerProtocol
 
@@ -154,6 +152,17 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
         }
     }
 
+    func didReceive(denominationContext: DenominationBreakdownContext) {
+        self.denominationContext = denominationContext
+        provideCoinageBreakdown()
+    }
+
+    func didReceive(coinageAmounts: CoinageAmounts, holdings: CoinageHoldings) {
+        self.coinageAmounts = coinageAmounts
+        self.holdings = holdings
+        provideCoinageBreakdown()
+    }
+
     #if TESTNET_FEATURE
         func didCompleteTopUp(_ result: Result<Void, Error>) {
             view?.didReceive(testnetTopUpLoading: false)
@@ -163,17 +172,6 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
             }
 
             wireframe.present(error: error, from: view)
-        }
-
-        func didReceive(denominationContext: DenominationBreakdownContext) {
-            self.denominationContext = denominationContext
-            provideCoinageBreakdown()
-        }
-
-        func didReceive(coinageAmounts: CoinageAmounts, holdings: CoinageHoldings) {
-            self.coinageAmounts = coinageAmounts
-            self.holdings = holdings
-            provideCoinageBreakdown()
         }
     #endif
 
@@ -295,55 +293,53 @@ private extension AssetDetailsPresenter {
     }
 }
 
-#if TESTNET_FEATURE
-    private extension AssetDetailsPresenter {
-        func provideCoinageBreakdown() {
-            func formatted(from decimal: Decimal, includeSymbol: Bool = true) -> String {
-                let assetInfo = chainAsset.asset.digitalDollarDisplayInfo
-                let balanceViewModelFactory = PrimitiveBalanceViewModelFactory(
-                    targetAssetInfo: includeSymbol ? assetInfo : assetInfo.withoutSymbol,
-                    formatterFactory: balanceFormatterFactory
-                )
-                return balanceViewModelFactory.balanceFromPrice(
-                    decimal,
-                    priceData: price
-                )
-                .value(for: .current)
-                .amount
-            }
-
-            let context = denominationContext
-            let holdings = holdings
-
-            // Pulled out of the map closure below: inlining it defeats the type checker.
-            func amount(forExponent exponent: Int16) -> String? {
-                guard let context else { return nil }
-
-                return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
-            }
-
-            let rows = CoinageBreakdownFactory.rows(from: holdings).map { row in
-                CoinageHoldingViewModel(
-                    id: row.id,
-                    amount: amount(forExponent: row.exponent),
-                    status: row.status
-                )
-            }
-
-            let amounts = coinageAmounts ?? .zero
-
-            let breakdown = CoinageBalanceBreakdownViewModel(
-                totalBalance: formatted(from: amounts.total, includeSymbol: false),
-                availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
-                gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
-                pendingBalance: formatted(from: amounts.pending, includeSymbol: false),
-                symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
-                composition: context.map {
-                    CoinageBreakdownFactory.composition(of: holdings, context: $0)
-                } ?? .empty,
-                holdings: rows
+private extension AssetDetailsPresenter {
+    func provideCoinageBreakdown() {
+        func formatted(from decimal: Decimal, includeSymbol: Bool = true) -> String {
+            let assetInfo = chainAsset.asset.digitalDollarDisplayInfo
+            let balanceViewModelFactory = PrimitiveBalanceViewModelFactory(
+                targetAssetInfo: includeSymbol ? assetInfo : assetInfo.withoutSymbol,
+                formatterFactory: balanceFormatterFactory
             )
-            view?.didReceive(coinageBreakdown: breakdown)
+            return balanceViewModelFactory.balanceFromPrice(
+                decimal,
+                priceData: price
+            )
+            .value(for: .current)
+            .amount
         }
+
+        let context = denominationContext
+        let holdings = holdings
+
+        // Pulled out of the map closure below: inlining it defeats the type checker.
+        func amount(forExponent exponent: Int16) -> String? {
+            guard let context else { return nil }
+
+            return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
+        }
+
+        let rows = CoinageBreakdownFactory.rows(from: holdings).map { row in
+            CoinageHoldingViewModel(
+                id: row.id,
+                amount: amount(forExponent: row.exponent),
+                status: row.status
+            )
+        }
+
+        let amounts = coinageAmounts ?? .zero
+
+        let breakdown = CoinageBalanceBreakdownViewModel(
+            totalBalance: formatted(from: amounts.total, includeSymbol: false),
+            availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
+            gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
+            pendingBalance: formatted(from: amounts.pending, includeSymbol: false),
+            symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
+            composition: context.map {
+                CoinageBreakdownFactory.composition(of: holdings, context: $0)
+            } ?? .empty,
+            holdings: rows
+        )
+        view?.didReceive(coinageBreakdown: breakdown)
     }
-#endif
+}

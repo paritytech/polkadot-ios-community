@@ -102,15 +102,14 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         lockedAmountString = String(localized: .balanceOnhold(amount: lockedAmount.amount))
     }
 
-    #if TESTNET_FEATURE
-        func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel) {
-            viewModel.coinageBreakdown = coinageBreakdown
-        }
+    func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel) {
+        viewModel.coinageBreakdown = coinageBreakdown
+    }
 
+    #if TESTNET_FEATURE
         func didReceive(testnetTopUpLoading: Bool) {
             viewModel.isTestnetTopUpInProgress = testnetTopUpLoading
         }
-
     #endif
 
     func didReceive(fundingStates: [AssetFundingStatusView.FundingState]) {

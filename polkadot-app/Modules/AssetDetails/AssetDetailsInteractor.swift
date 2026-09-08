@@ -42,7 +42,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     private var topUpProductTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
-        private let databaseFactory: any DatabaseDependencyFactoring
         private let backgroundExecutor: BackgroundExecuting
 
         let voucherRepository: AnyDataProviderRepository<Voucher>
@@ -58,7 +57,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         coinageService: CoinageServicing,
         coinageBackupSyncService: any CoinageBackupSyncServicing,
         balanceSyncStateStorage: BalanceSyncStateStoring,
-        databaseFactory: any DatabaseDependencyFactoring,
+        databaseFactory _: any DatabaseDependencyFactoring,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
         hostProvider: ProductHostProviding,
@@ -74,8 +73,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         self.hostProvider = hostProvider
         #if TESTNET_FEATURE
             self.backgroundExecutor = backgroundExecutor
-            self.databaseFactory = databaseFactory
-
             self.voucherRepository = voucherRepository
         #endif
     }
@@ -103,9 +100,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
         subscribeToBalances()
         subscribeToRecoveryState()
 
-        #if TESTNET_FEATURE
-            provideDenominationContext()
-        #endif
+        provideDenominationContext()
     }
 
     func triggerSync() {
@@ -204,20 +199,20 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
             }
         }
 
-        /// Needed to price individual holdings. Only real rows depend on it — debug fixtures
-        /// carry their own context — so a failure here degrades to amount-less real rows.
-        private func provideDenominationContext() {
-            Task { [weak presenter, coinageService] in
-                do {
-                    let context = try await coinageService.denominationContext()
-                    await presenter?.didReceive(denominationContext: context)
-                } catch {
-                    Logger.shared.error("Denomination context unavailable: \(error)")
-                }
+    #endif
+
+    /// Needed to price individual holdings, so a failure here degrades to amount-less rows rather
+    /// than to no rows.
+    private func provideDenominationContext() {
+        Task { [weak presenter, coinageService] in
+            do {
+                let context = try await coinageService.denominationContext()
+                await presenter?.didReceive(denominationContext: context)
+            } catch {
+                Logger.shared.error("Denomination context unavailable: \(error)")
             }
         }
-
-    #endif
+    }
 
     /// Reads the balance and the holdings behind it as one value. Two subscriptions would let the
     /// figures and the rows come from different evaluations, so the breakdown would briefly show
@@ -238,22 +233,20 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
                     await presenter?.didReceive(balance: context.decimal(fromPlanks: balance.total))
                     await presenter?.didReceive(lockedAmount: context.decimal(fromPlanks: locked))
 
-                    #if TESTNET_FEATURE
-                        // The breakdown shows the domain's own three buckets rather than
-                        // re-deriving them, and the holdings that produced them arrive in the same
-                        // value — so its figures and the bar below them cannot disagree.
-                        await presenter?.didReceive(
-                            coinageAmounts: CoinageAmounts(
-                                total: context.decimal(fromPlanks: balance.total),
-                                availableNow: context.decimal(fromPlanks: balance.availablePrivate),
-                                gainingPrivacy: context.decimal(
-                                    fromPlanks: balance.gainingPrivacy.amount
-                                ),
-                                pending: context.decimal(fromPlanks: balance.pending)
+                    // The breakdown shows the domain's own three buckets rather than
+                    // re-deriving them, and the holdings that produced them arrive in the same
+                    // value — so its figures and the bar below them cannot disagree.
+                    await presenter?.didReceive(
+                        coinageAmounts: CoinageAmounts(
+                            total: context.decimal(fromPlanks: balance.total),
+                            availableNow: context.decimal(fromPlanks: balance.availablePrivate),
+                            gainingPrivacy: context.decimal(
+                                fromPlanks: balance.gainingPrivacy.amount
                             ),
-                            holdings: summary.holdings
-                        )
-                    #endif
+                            pending: context.decimal(fromPlanks: balance.pending)
+                        ),
+                        holdings: summary.holdings
+                    )
                 }
             } catch {
                 Logger.shared.error("Balance stream failed: \(error)")
