@@ -33,7 +33,7 @@
                 let widths = Self.widths(for: model, totalWidth: geometry.size.width)
 
                 HStack(spacing: 0) {
-                    Color.fgStaticWhite
+                    Color.fgPrimary
                         .frame(width: widths.availableNow)
 
                     BarberPole()
@@ -48,7 +48,7 @@
                 .background(Color.bgSurfaceMain)
                 .clipShape(Capsule())
                 .overlay(
-                    Capsule().stroke(Color.black, lineWidth: CoinageStatusMetrics.outlineWidth)
+                    Capsule().stroke(Color.strokeCutout, lineWidth: CoinageStatusMetrics.outlineWidth)
                 )
             }
             .frame(height: CoinageStatusMetrics.summaryBarHeight)

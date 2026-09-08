@@ -31,17 +31,17 @@
 
                 ZStack(alignment: .leading) {
                     solidShape
-                        .fill(model.isUnloadable ? Color.fgStaticWhite : Color.fgError)
+                        .fill(model.isUnloadable ? Color.fgPrimary : Color.fgError)
                         .frame(width: layout.solidWidth, height: height)
                         .overlay(
-                            solidShape.stroke(Color.black, lineWidth: CoinageStatusMetrics.outlineWidth)
+                            solidShape.stroke(Color.strokeCutout, lineWidth: CoinageStatusMetrics.outlineWidth)
                         )
 
                     BarberPole()
                         .frame(width: layout.poleWidth, height: height)
                         .clipShape(Capsule())
                         .overlay(
-                            Capsule().stroke(Color.black, lineWidth: CoinageStatusMetrics.outlineWidth)
+                            Capsule().stroke(Color.strokeCutout, lineWidth: CoinageStatusMetrics.outlineWidth)
                         )
                         .offset(x: layout.poleOrigin)
                 }

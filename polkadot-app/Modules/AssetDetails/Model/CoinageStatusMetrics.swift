@@ -4,18 +4,20 @@
 
     /// Shared geometry and scale conversions for the holding depictions, so the voucher bars, the
     /// coin provenance and the summary bar cannot drift apart.
+    ///
+    /// The values come from the design's export, which is 1:1 points.
     enum CoinageStatusMetrics {
-        /// Height of every depiction — roughly the height of the row's amount text, so coin and
-        /// voucher rows come out the same height.
-        static let barHeight: CGFloat = 16
+        /// Height of every depiction, and so also the diameter of a provenance circle.
+        static let barHeight: CGFloat = 21
         static let summaryBarHeight: CGFloat = 20
         static let outlineWidth: CGFloat = 1
-        /// Thicker than the black outline, per the coin circles' red margin.
-        static let circleStrokeWidth: CGFloat = 1.8
+        /// Ring around a provenance circle. Thicker than ``outlineWidth`` so it reads as part of the
+        /// mark rather than as a separation from the surface behind it.
+        static let circleStrokeWidth: CGFloat = 2
         /// Gap between circles, and between the two bars of a voucher row.
-        static let itemSpacing: CGFloat = 3
-        /// Gap between the stacked red and orange bars, so the pair still totals ``barHeight``.
-        static let stackSpacing: CGFloat = 3
+        static let itemSpacing: CGFloat = 4
+        /// Gap between the stacked red and orange bars.
+        static let stackSpacing: CGFloat = 4
         /// Leftover column narrower than this reads as a sliver rather than a bar, so the stacked
         /// pair is dropped instead of drawn into it.
         static let minimumVisibleWidth: CGFloat = 6
@@ -27,13 +29,35 @@
 
         /// Well short of a capsule's `height / 2`, so a minimum-width bar reads as a rounded square
         /// rather than as one of the coin provenance circles.
-        static let solidBarCornerRadius: CGFloat = 4
+        static let solidBarCornerRadius: CGFloat = 5.5
 
         /// Height of each bar in the stacked pair standing in for unknown provenance. The pair and
         /// the gap between them come to less than ``barHeight`` — they read as a lighter mark than a
         /// solid bar, which is the point.
-        static let unknownBarHeight: CGFloat = 4
+        static let unknownBarHeight: CGFloat = 3
         static let maximumInnerDots = 4
+
+        /// Inner dots sit on a fixed pitch, clustered at the middle of the circle rather than spread
+        /// around its edge, which keeps four of them legible inside ``barHeight``.
+        static let innerDotSize: CGFloat = 4
+        static let innerDotCornerRadius: CGFloat = 2
+        static let innerDotPitch: CGFloat = 6
+
+        /// Chip standing in for the hops that did not fit the column. Sized to its label, with a
+        /// floor so a one-digit count still reads as a chip rather than a dot.
+        static let overflowChipMinimumWidth: CGFloat = 26
+        static let overflowChipPadding: CGFloat = 6
+
+        /// Swatch beside each summary figure, keying it to a section of the bar above.
+        static let legendSwatchSize: CGFloat = 12
+        static let legendSwatchCornerRadius: CGFloat = 3
+
+        /// Opacity of ``DesignSystem`` `fgError` used to fill a provenance circle.
+        ///
+        /// A literal dark red cannot survive the theme flipping — four of the five themes are light —
+        /// so the fill is a muted tint of the ring instead. On the dark theme this lands within a few
+        /// units of the design's own swatch; on the light themes it becomes the pale equivalent.
+        static let circleFillOpacity: CGFloat = 0.2
 
         /// Fraction of the column a score occupies: `1 − √(score/100)`.
         ///
@@ -50,6 +74,35 @@
         /// large bundle stays legible.
         static func innerDots(forCount count: UInt8) -> Int {
             min(max(Int(count) - 1, 0), maximumInnerDots)
+        }
+
+        /// Dot centres for a cluster, as offsets from the circle's centre in points.
+        ///
+        /// Laid out by hand rather than on a ring: one centred, two abreast, three as an apex-up
+        /// triangle, four as a square. Offsets are in units of ``innerDotPitch``, so the cluster
+        /// scales with the dot size instead of with the circle.
+        static func innerDotOffsets(forDots dots: Int) -> [CGPoint] {
+            let pitch = innerDotPitch
+
+            let units: [CGPoint] =
+                switch min(max(dots, 0), maximumInnerDots) {
+                case 1: [CGPoint(x: 0, y: 0)]
+                case 2: [CGPoint(x: -0.5, y: 0), CGPoint(x: 0.5, y: 0)]
+                case 3: [
+                        CGPoint(x: 0, y: -0.6),
+                        CGPoint(x: -0.5333, y: 0.4),
+                        CGPoint(x: 0.5333, y: 0.4)
+                    ]
+                case 4: [
+                        CGPoint(x: -0.5, y: -0.5),
+                        CGPoint(x: 0.5, y: -0.5),
+                        CGPoint(x: -0.5, y: 0.5),
+                        CGPoint(x: 0.5, y: 0.5)
+                    ]
+                default: []
+                }
+
+            return units.map { CGPoint(x: $0.x * pitch, y: $0.y * pitch) }
         }
     }
 #endif

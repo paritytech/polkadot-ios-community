@@ -9,6 +9,8 @@
     /// A coin that has never hopped shows a single bar sized by its recycler's fungibility instead.
     /// Where provenance runs out — an unknown recycler, or column left over past the last circle —
     /// the stacked red-and-orange pair stands in for what is not known.
+    ///
+    /// Hops that do not fit are counted into a chip rather than dropped silently.
     struct CoinStatusView: View {
         struct Model: Equatable {
             /// One entry per hop, oldest first: the inner-dot count already resolved from the hop's
@@ -30,6 +32,63 @@
         }
     }
 
+    extension CoinStatusView {
+        /// How many circles are drawn, and how many hops the chip has to account for.
+        struct CirclePlan: Equatable {
+            let shown: Int
+            let hidden: Int
+            /// Zero when there is no chip — either nothing is hidden, or the column is too narrow to
+            /// carry even the chip on its own. Callers draw a chip exactly when this is positive,
+            /// which is what keeps a chip out of a column that cannot hold it.
+            let chipWidth: CGFloat
+            /// Width taken by the circles and, when there is one, the chip.
+            let usedWidth: CGFloat
+        }
+
+        /// Fits as many whole circles as the column allows, giving up one more to the chip when some
+        /// have to be hidden. A circle that would be clipped is never drawn part-way.
+        ///
+        /// `chipWidth` is passed in because measuring the chip's label needs a resolved graphics
+        /// context, which the layout itself has no use for.
+        static func plan(
+            hopCount: Int,
+            width: CGFloat,
+            diameter: CGFloat,
+            chipWidth: (Int) -> CGFloat
+        ) -> CirclePlan {
+            let spacing = CoinageStatusMetrics.itemSpacing
+
+            func span(circles: Int) -> CGFloat {
+                circles > 0 ? CGFloat(circles) * diameter + CGFloat(circles - 1) * spacing : 0
+            }
+
+            let fitting = max(min(Int((width + spacing) / (diameter + spacing)), hopCount), 0)
+
+            if fitting == hopCount {
+                return CirclePlan(
+                    shown: fitting,
+                    hidden: 0,
+                    chipWidth: 0,
+                    usedWidth: span(circles: fitting)
+                )
+            }
+
+            for shown in stride(from: fitting, through: 0, by: -1) {
+                let hidden = hopCount - shown
+                let chip = chipWidth(hidden)
+                let used = shown > 0 ? span(circles: shown) + spacing + chip : chip
+
+                if used <= width {
+                    return CirclePlan(shown: shown, hidden: hidden, chipWidth: chip, usedWidth: used)
+                }
+            }
+
+            // Too narrow for even the chip. The hops are still unaccounted for, but there is nowhere
+            // to say so, so the row falls through to the unknown pair alone.
+            return CirclePlan(shown: 0, hidden: hopCount, chipWidth: 0, usedWidth: 0)
+        }
+    }
+
     private extension CoinStatusView {
         static func draw(_ model: Model, in context: inout GraphicsContext, size: CGSize) {
             guard !model.hopDots.isEmpty else {
@@ -37,9 +96,29 @@
                 return
             }
 
-            let drawn = drawCircles(model.hopDots, in: &context, size: size)
+            let plan = plan(
+                hopCount: model.hopDots.count,
+                width: size.width,
+                diameter: size.height,
+                chipWidth: { overflowChipWidth(count: $0, in: context) }
+            )
 
-            let origin = drawn.usedWidth + CoinageStatusMetrics.itemSpacing
+            drawCircles(Array(model.hopDots.prefix(plan.shown)), in: &context, height: size.height)
+
+            if plan.chipWidth > 0 {
+                drawOverflowChip(
+                    count: plan.hidden,
+                    in: &context,
+                    rect: CGRect(
+                        x: plan.usedWidth - plan.chipWidth,
+                        y: 0,
+                        width: plan.chipWidth,
+                        height: size.height
+                    )
+                )
+            }
+
+            let origin = plan.usedWidth + CoinageStatusMetrics.itemSpacing
             let remaining = size.width - origin
 
             guard remaining >= CoinageStatusMetrics.minimumVisibleWidth else { return }
@@ -73,82 +152,101 @@
                 cornerRadius: CoinageStatusMetrics.solidBarCornerRadius
             )
 
-            context.fill(path, with: .color(model.isSpendable ? Color.fgStaticWhite : Color.fgError))
-            context.stroke(path, with: .color(Color.black), lineWidth: CoinageStatusMetrics.outlineWidth)
+            context.fill(path, with: .color(model.isSpendable ? Color.fgPrimary : Color.fgError))
+            context.stroke(path, with: .color(Color.strokeCutout), lineWidth: CoinageStatusMetrics.outlineWidth)
         }
 
-        /// Draws as many whole circles as fit. A circle that would be clipped is dropped entirely
-        /// rather than drawn part-way.
-        static func drawCircles(
-            _ hopDots: [Int],
-            in context: inout GraphicsContext,
-            size: CGSize
-        ) -> (count: Int, usedWidth: CGFloat) {
-            let diameter = size.height
+        static func drawCircles(_ hopDots: [Int], in context: inout GraphicsContext, height: CGFloat) {
             let spacing = CoinageStatusMetrics.itemSpacing
-            let fitting = Int((size.width + spacing) / (diameter + spacing))
-            let count = min(max(fitting, 0), hopDots.count)
 
-            guard count > 0 else { return (0, 0) }
-
-            for index in 0 ..< count {
+            for (index, dots) in hopDots.enumerated() {
                 let rect = CGRect(
-                    x: CGFloat(index) * (diameter + spacing),
+                    x: CGFloat(index) * (height + spacing),
                     y: 0,
-                    width: diameter,
-                    height: diameter
+                    width: height,
+                    height: height
                 )
-                drawCircle(dots: hopDots[index], in: &context, rect: rect)
+                drawCircle(dots: dots, in: &context, rect: rect)
             }
-
-            let usedWidth = CGFloat(count) * diameter + CGFloat(count - 1) * spacing
-
-            return (count, usedWidth)
         }
 
+        /// One hop. The fill is a constant muted red whatever the dot count — the count is carried by
+        /// the dots alone, so making the fill track it as well only weakened both readings.
         static func drawCircle(dots: Int, in context: inout GraphicsContext, rect: CGRect) {
             let inset = CoinageStatusMetrics.circleStrokeWidth / 2
-            let outline = Path(ellipseIn: rect.insetBy(dx: inset, dy: inset))
+            let ring = Path(ellipseIn: rect.insetBy(dx: inset, dy: inset))
 
-            context.fill(outline, with: .color(Color.fgStaticWhite))
+            context.fill(ring, with: .color(Color.fgError.opacity(CoinageStatusMetrics.circleFillOpacity)))
             context.stroke(
-                outline,
+                ring,
                 with: .color(Color.fgError),
                 lineWidth: CoinageStatusMetrics.circleStrokeWidth
             )
 
-            guard dots > 0 else { return }
+            let centre = CGPoint(x: rect.midX, y: rect.midY)
 
-            let radius = rect.width / 2
-            let dotRadius = radius * 0.18
-            let center = CGPoint(x: rect.midX, y: rect.midY)
-
-            // A lone sibling reads better centred than parked on the ring.
-            guard dots > 1 else {
-                fillDot(at: center, radius: dotRadius, in: &context)
-                return
-            }
-
-            let ringRadius = radius * 0.45
-
-            for index in 0 ..< dots {
-                let angle = -CGFloat.pi / 2 + CGFloat(index) * 2 * .pi / CGFloat(dots)
-                let position = CGPoint(
-                    x: center.x + cos(angle) * ringRadius,
-                    y: center.y + sin(angle) * ringRadius
+            for offset in CoinageStatusMetrics.innerDotOffsets(forDots: dots) {
+                fillDot(
+                    at: CGPoint(x: centre.x + offset.x, y: centre.y + offset.y),
+                    in: &context
                 )
-                fillDot(at: position, radius: dotRadius, in: &context)
             }
         }
 
-        static func fillDot(at center: CGPoint, radius: CGFloat, in context: inout GraphicsContext) {
+        /// `fgPrimary`, not the pair's orange: orange inside the tinted fill measures about 2.2:1 on
+        /// the four light themes, which a 4pt dot cannot survive. This reads at 11:1 or better on all
+        /// five.
+        static func fillDot(at centre: CGPoint, in context: inout GraphicsContext) {
+            let size = CoinageStatusMetrics.innerDotSize
             let rect = CGRect(
-                x: center.x - radius,
-                y: center.y - radius,
-                width: radius * 2,
-                height: radius * 2
+                x: centre.x - size / 2,
+                y: centre.y - size / 2,
+                width: size,
+                height: size
             )
-            context.fill(Path(ellipseIn: rect), with: .color(Color.fgError))
+
+            context.fill(
+                Path(roundedRect: rect, cornerRadius: CoinageStatusMetrics.innerDotCornerRadius),
+                with: .color(Color.fgPrimary)
+            )
+        }
+
+        static func overflowLabel(count: Int) -> Text {
+            Text(verbatim: "+\(count)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color.fgSecondary)
+        }
+
+        static func overflowChipWidth(count: Int, in context: GraphicsContext) -> CGFloat {
+            let measured = context
+                .resolve(overflowLabel(count: count))
+                .measure(in: CGSize(width: 200, height: 200))
+
+            return max(
+                CoinageStatusMetrics.overflowChipMinimumWidth,
+                measured.width + CoinageStatusMetrics.overflowChipPadding * 2
+            )
+        }
+
+        /// Outlined rather than filled, so it reads as a count of what is missing instead of as one
+        /// more hop.
+        static func drawOverflowChip(count: Int, in context: inout GraphicsContext, rect: CGRect) {
+            let inset = CoinageStatusMetrics.outlineWidth / 2
+            let capsule = Path(
+                roundedRect: rect.insetBy(dx: inset, dy: inset),
+                cornerRadius: rect.height / 2
+            )
+
+            context.stroke(
+                capsule,
+                with: .color(Color.strokeTertiary),
+                lineWidth: CoinageStatusMetrics.outlineWidth
+            )
+            context.draw(
+                overflowLabel(count: count),
+                at: CGPoint(x: rect.midX, y: rect.midY),
+                anchor: .center
+            )
         }
 
         /// The stacked pair standing in for provenance that is not known. Thinner than a solid bar
@@ -169,6 +267,41 @@
                 Path(roundedRect: bottomBar, cornerRadius: height / 2),
                 with: .color(Color.fgWarning)
             )
+        }
+    }
+
+    extension CoinStatusView {
+        /// One provenance circle on its own, for the legend. Shares ``drawCircle`` with the rows, so
+        /// the explanation cannot illustrate a mark the list does not draw.
+        struct CircleIllustration: View {
+            let dots: Int
+
+            var body: some View {
+                Canvas { context, size in
+                    CoinStatusView.drawCircle(
+                        dots: dots,
+                        in: &context,
+                        rect: CGRect(origin: .zero, size: size)
+                    )
+                }
+                .frame(
+                    width: CoinageStatusMetrics.barHeight,
+                    height: CoinageStatusMetrics.barHeight
+                )
+            }
+        }
+
+        /// The unknown pair on its own, for the legend.
+        struct UnknownIllustration: View {
+            var body: some View {
+                Canvas { context, size in
+                    CoinStatusView.drawUnknown(
+                        in: &context,
+                        rect: CGRect(origin: .zero, size: size)
+                    )
+                }
+                .frame(height: CoinageStatusMetrics.barHeight)
+            }
         }
     }
 #endif

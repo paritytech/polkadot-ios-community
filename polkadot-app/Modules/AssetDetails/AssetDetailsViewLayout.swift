@@ -215,34 +215,12 @@ struct AssetDetailsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityId(AccessibilityID.Wallet.coinageHeader)
 
-                BreakdownRow(
-                    title: "Total",
-                    value: breakdown.totalBalance,
-                    labelAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceLabel,
-                    valueAccessibilityId: AccessibilityID.Wallet.coinageTotalBalanceValue
-                )
-                // The next three partition the total, and are the three sections the bar below
-                // draws — in the same order, so the bar needs no legend.
-                BreakdownRow(
-                    title: "Available Now",
-                    value: breakdown.availableNowBalance,
-                    labelAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceLabel,
-                    valueAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceValue
-                )
-                // No accessibility id yet: the registry lives in another repo.
-                BreakdownRow(
-                    title: "Gaining Privacy",
-                    value: breakdown.gainingPrivacyBalance
-                )
-                BreakdownRow(
-                    title: "Pending",
-                    value: breakdown.pendingBalance,
-                    labelAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceLabel,
-                    valueAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceValue
-                )
+                totalHeadline
 
                 CoinageCompositionBar(model: breakdown.composition)
                     .padding(.vertical, 2)
+
+                summaryLegend
 
                 if let onMakeAllVouchersReady {
                     Button {
@@ -273,10 +251,90 @@ struct AssetDetailsView: View {
 
                 if showDetails {
                     CoinageDetailsView(breakdown: breakdown)
+                    CoinageExplanationView()
                 }
             }
             .padding(16)
             .background(.bgSurfaceContainer, in: RoundedRectangle(cornerRadius: 24))
+        }
+
+        private var totalHeadline: some View {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: "Total balance")
+                    .textStyle(.caption12Regular())
+                    .foregroundStyle(Color.fgSecondary)
+                    .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceLabel)
+
+                Text(breakdown.totalBalance)
+                    .textStyle(.title32SemiBold())
+                    .foregroundStyle(Color.fgPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceValue)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        /// The three figures partition the total and are the three sections of the bar above, in the
+        /// same order, each keyed to its section by a swatch.
+        ///
+        /// A grid rather than three stacked columns: a label long enough to wrap would otherwise push
+        /// its own value down and leave the three figures on different lines.
+        private var summaryLegend: some View {
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
+                GridRow {
+                    ForEach(legendEntries) { entry in
+                        HStack(spacing: 6) {
+                            CoinageLegendSwatch(kind: entry.kind)
+
+                            Text(entry.title)
+                                .textStyle(.caption12Regular())
+                                .foregroundStyle(Color.fgSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityId(entry.labelAccessibilityId)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .gridCellAnchor(.topLeading)
+
+                GridRow {
+                    ForEach(legendEntries) { entry in
+                        Text(entry.value)
+                            .textStyle(.body14SemiBold())
+                            .foregroundStyle(Color.fgPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityId(entry.valueAccessibilityId)
+                    }
+                }
+            }
+        }
+
+        private var legendEntries: [LegendEntry] {
+            [
+                LegendEntry(
+                    kind: .availableNow,
+                    title: "Available Now",
+                    value: breakdown.availableNowBalance,
+                    labelAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceLabel,
+                    valueAccessibilityId: AccessibilityID.Wallet.coinageSpendableBalanceValue
+                ),
+                // No accessibility id yet: the registry lives in another repo.
+                LegendEntry(
+                    kind: .gainingPrivacy,
+                    title: "Gaining Privacy",
+                    value: breakdown.gainingPrivacyBalance
+                ),
+                LegendEntry(
+                    kind: .unavailable,
+                    title: "Unavailable",
+                    value: breakdown.pendingBalance,
+                    labelAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceLabel,
+                    valueAccessibilityId: AccessibilityID.Wallet.coinagePendingBalanceValue
+                )
+            ]
         }
     }
 
@@ -288,7 +346,7 @@ struct AssetDetailsView: View {
         let breakdown: CoinageBalanceBreakdownViewModel
 
         var body: some View {
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 18) {
                 ForEach(breakdown.holdings) { holding in
                     GridRow {
                         Text(verbatim: holding.amount ?? "—")
@@ -309,23 +367,14 @@ struct AssetDetailsView: View {
         }
     }
 
-    private struct BreakdownRow: View {
+    /// One of the three figures under the summary bar.
+    private struct LegendEntry: Identifiable {
+        let kind: CoinageLegendSwatch.Kind
         let title: String
         let value: String
         var labelAccessibilityId: (any AccessibilityIdentifying)?
         var valueAccessibilityId: (any AccessibilityIdentifying)?
 
-        var body: some View {
-            HStack {
-                Text(title)
-                    .textStyle(.body14Regular())
-                    .foregroundStyle(.fgSecondary)
-                    .accessibilityId(labelAccessibilityId)
-                Spacer()
-                Text(value)
-                    .textStyle(.body14SemiBold())
-                    .accessibilityId(valueAccessibilityId)
-            }
-        }
+        var id: String { title }
     }
 #endif

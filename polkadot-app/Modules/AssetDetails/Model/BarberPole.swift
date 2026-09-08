@@ -28,7 +28,7 @@
                 let margin = period + size.height * slant
 
                 ZStack(alignment: .leading) {
-                    Color.fgStaticWhite
+                    Color.fgPrimary
 
                     Canvas { context, canvasSize in
                         Self.drawStripes(
