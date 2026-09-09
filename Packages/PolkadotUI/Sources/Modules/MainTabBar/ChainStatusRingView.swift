@@ -1,7 +1,7 @@
 import SwiftUI
 import DesignSystem
 
-/// Per-chain status indicator. The arc length carries health (block age, finality stall, and ping
+/// Per-chain status indicator. The arc length carries health (block age and finality stall
 /// combined worst-of) and is colored by health score; the centre icon identifies the chain and is
 /// tinted by connection state, inverting against the disc once a fully healthy ring fills in.
 struct ChainStatusRingView: View, Hashable {
