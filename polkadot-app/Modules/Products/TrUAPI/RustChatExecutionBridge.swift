@@ -13,9 +13,17 @@ final class RustChatExecutionBridge: RustProductExecutionBridge, ChatHostBridge,
     private let chatMessaging: any ProductChatMessaging
     // The base class keeps `dependencies` private; hold on to the logger here.
     private let logger: LoggerProtocol
+    /// How long a callback waits for the surface. Injectable so a test is not racing
+    /// a wall clock: under a loaded test bundle a task can wait seconds for a core.
+    private let callTimeout: DispatchTimeInterval
 
-    init(dependencies: Dependencies, chatMessaging: any ProductChatMessaging) {
+    init(
+        dependencies: Dependencies,
+        chatMessaging: any ProductChatMessaging,
+        callTimeout: DispatchTimeInterval = .seconds(2)
+    ) {
         self.chatMessaging = chatMessaging
+        self.callTimeout = callTimeout
         logger = dependencies.logger
         super.init(dependencies: dependencies)
     }
@@ -88,10 +96,8 @@ extension RoomInfo {
 private extension RustChatExecutionBridge {
     /// Blocks a core dispatch thread shared by every execution, so waits are bounded
     /// and short — `create_chat_room` calls back twice in a row.
-    func awaitBlocking<T: Sendable>(
-        timeout: DispatchTimeInterval = .seconds(2),
-        _ body: @escaping @Sendable () async throws -> T
-    ) throws -> T {
+    func awaitBlocking<T: Sendable>(_ body: @escaping @Sendable () async throws -> T) throws -> T {
+        let timeout = callTimeout
         let semaphore = DispatchSemaphore(value: 0)
         nonisolated(unsafe) var outcome: Result<T, Error> = .failure(CancellationError())
         let task = Task.detached(priority: .userInitiated) {

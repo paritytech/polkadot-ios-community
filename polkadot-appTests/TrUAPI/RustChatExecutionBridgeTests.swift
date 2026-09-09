@@ -1,30 +1,41 @@
+import AsyncExtensions
 import Foundation
 import Products
 import Testing
 import TrUAPIHost
 @testable import polkadot_app
 
+/// Serialized so this suite runs one blocking bridge call at a time, and time-limited
+/// because a call that never returns would otherwise hang the whole bundle.
+@Suite(.serialized, .timeLimit(.minutes(1)))
 struct RustChatExecutionBridgeTests {
     /// Only the dependency factory needs the main actor; the suite must not, because
     /// `awaitBlocking` parks the calling thread on a semaphore.
-    private func makeBridge(api: RecordingChatMessaging) async -> RustChatExecutionBridge {
+    private func makeBridge(
+        api: any ProductChatMessaging,
+        callTimeout: DispatchTimeInterval = .seconds(60)
+    ) async -> RustChatExecutionBridge {
+        // A generous timeout: the production default is a wall clock, and a loaded
+        // test bundle can leave a task queued for seconds before it runs.
         await RustChatExecutionBridge(
             dependencies: MainActor.run { makeChatBridgeDependencies() },
-            chatMessaging: api
+            chatMessaging: api,
+            callTimeout: callTimeout
         )
     }
 
-    /// Runs a bridge call the way the core does, off the cooperative pool.
+    /// Runs a bridge call on a thread of its own, the way the core does.
     ///
     /// `awaitBlocking` parks its caller on a semaphore and waits for a detached task,
-    /// which needs a pool thread to finish. Calling it straight from an async test
-    /// parks a pool thread instead, and with the suite running in parallel that
-    /// starves the detached tasks on a machine with few cores until they time out.
+    /// which needs a cooperative pool thread to finish. Parking a pool thread instead
+    /// starves that task under parallel test load. A shared queue is no better: if its
+    /// threads are all parked the block never starts, and then no timeout applies and
+    /// the continuation is never resumed. A dedicated thread always runs.
     private func offPool<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global().async {
-                continuation.resume(with: Result { try body() })
-            }
+            let thread = Thread { continuation.resume(with: Result { try body() }) }
+            thread.name = "chat-bridge-test-call"
+            thread.start()
         }
     }
 
@@ -125,5 +136,33 @@ struct RustChatExecutionBridgeTests {
         let bridge = await makeBridge(api: api)
 
         #expect(try await offPool { try bridge.listRooms() }.isEmpty)
+    }
+
+    /// The timeout says the send may still land, so it must not be mistaken for a
+    /// clean refusal by whoever reads it.
+    @Test func aSurfaceThatNeverAnswersTimesOut() async throws {
+        let bridge = await makeBridge(api: StallingChatMessaging(), callTimeout: .milliseconds(50))
+
+        await #expect(throws: HostRejection.self) {
+            try await offPool { try bridge.postMessage(roomId: "r", content: .text(text: "hi")) }
+        }
+    }
+}
+
+/// Never answers, so the bridge has to fall through to its timeout.
+private struct StallingChatMessaging: ProductChatMessaging {
+    func sendMessage(_: ProductBotMessage, roomId _: String?) async throws -> String {
+        try await Task.sleep(for: .seconds(60))
+        return ""
+    }
+
+    func createRoom(_: CreateRoomRequest) async throws -> CreateRoomResult {
+        try await Task.sleep(for: .seconds(60))
+        throw CancellationError()
+    }
+
+    func subscribeRooms() async throws -> AnyAsyncSequence<[RoomInfo]> {
+        try await Task.sleep(for: .seconds(60))
+        throw CancellationError()
     }
 }
