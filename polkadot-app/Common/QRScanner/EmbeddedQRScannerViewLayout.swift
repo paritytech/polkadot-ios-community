@@ -29,7 +29,7 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
         placeholderView.layer.cornerRadius = DSRadii.large
         placeholderView.layer.masksToBounds = true
         placeholderView.snp.makeConstraints { make in
-            make.top.left.right.equalToSuperview().inset(DSSpacings.extraLarge)
+            make.top.left.right.equalToSuperview().inset(DSSpacings.mediumIncreased)
             make.bottom.equalToSuperview().inset(DSSpacings.small)
         }
 
