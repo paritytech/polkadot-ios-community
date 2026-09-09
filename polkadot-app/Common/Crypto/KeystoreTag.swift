@@ -3,14 +3,6 @@ import SubstrateSdk
 import KeyDerivation
 
 extension KeystoreTag {
-    static var anonymousDeviceIDTag: String {
-        [
-            domain,
-            // New-chain launch reset: `.v2` orphans the pre-relaunch device id so a fresh one is minted.
-            "anonymousDeviceID.v2"
-        ].joined(with: .colon)
-    }
-
     static func referralTicketTag(
         _ accountId: AccountId
     ) -> String {
@@ -34,10 +26,6 @@ extension KeystoreTag {
             encryptId,
             "deviceEncryptionKey"
         ].joined(with: .colon)
-    }
-
-    static func legacyTag(for metaId: String) -> String {
-        metaId + "-entropy"
     }
 
     static func backendClientTag(for sessionId: String) -> String {

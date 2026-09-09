@@ -16,9 +16,7 @@ enum UserStorageParams {
     ///  - switch version of UserStorageParams.modelVersion;
     static let modelVersion: UserStorageVersion = .version45
     static let modelDirectory: String = "UserDataModel.momd"
-    // New-chain launch reset: the `.v2` suffix opens a fresh empty store and leaves the
-    // pre-relaunch `UserDataModel.sqlite` orphaned on disk. The `.momd` model is unchanged.
-    static let databaseName = "UserDataModel.v2.sqlite"
+    static let databaseName = "UserDataModel_v2.sqlite"
 
     static let sharedStorageDirectoryURL: URL = SharedContainerGroup
         .containerURL

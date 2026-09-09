@@ -13,9 +13,6 @@ public protocol RootEntropyIdStoring {
 }
 
 public class RootEntropyIdStore: RootEntropyIdStoring {
-    // New-chain launch reset: the `.v2` suffix orphans any pre-relaunch pointer so
-    // `hasRootEntropy()` reads an empty key and routes returning users to onboarding.
-    // Do not revert — it would resurrect the old registration and skip fresh onboarding.
     static let entropyIdKey: String = "io.polkadot.app.entropy.id.v2"
 
     private let userDefaults: UserDefaults

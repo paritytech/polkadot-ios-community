@@ -2,9 +2,7 @@ import CoreData
 import Operation_iOS
 
 enum SubstrateStorageParams {
-    // New-chain launch reset: the `.v2` suffix opens a fresh empty store and leaves the
-    // pre-relaunch `SubstrateDataModel.sqlite` orphaned on disk. The `.momd` model is unchanged.
-    static let databaseName = "SubstrateDataModel.v2.sqlite"
+    static let databaseName = "SubstrateDataModel_v2.sqlite"
     static let modelDirectory: String = "SubstrateDataModel.momd"
     static let modelVersion: SubstrateStorageVersion = .version4
 
