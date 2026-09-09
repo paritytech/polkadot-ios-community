@@ -84,8 +84,6 @@ private extension SettingsViewModelFactory {
         case .backup: .iconCloud
         case .theme: .iconPalette
         case .currency: .iconDollar
-        case .revoke: .iconRevoke
-        case .paymentHistory: .iconFile
         case .linkedDevices: .iconLaptopMinimal
         case .apps: .iconGrid
         case .blockedUsers: .iconBlock
@@ -110,8 +108,6 @@ private extension SettingsViewModelFactory {
                 .chevron
             }
         case .backup,
-             .revoke,
-             .paymentHistory,
              .linkedDevices,
              .apps,
              .blockedUsers,

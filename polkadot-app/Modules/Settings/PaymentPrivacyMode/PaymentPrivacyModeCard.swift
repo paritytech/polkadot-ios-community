@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PolkadotUI
 import DesignSystem
 import Coinage
@@ -21,7 +22,7 @@ struct PaymentPrivacyModeCard: View {
     /// The scale mark the drag last crossed — the haptic grain of a drag.
     @State private var markIndex = 0
     /// How long the dragged sphere's glyph/accent cross-fade runs, shortened as the drag speeds up.
-    @State private var dragFadeDuration = Metrics.slowDragFade
+    @State private var dragFadeDuration = PrivacyModeMetrics.slowDragFade
     @State private var lastDragX: CGFloat?
     @State private var lastDragTime: Date?
 
@@ -69,16 +70,16 @@ private extension PaymentPrivacyModeCard {
                     TickScale(start: centerX(0, width: width), end: centerX(lastIndex, width: width))
                     circles(width: width)
                 }
-                .frame(width: width, height: Metrics.boxHeight)
+                .frame(width: width, height: PrivacyModeMetrics.boxHeight)
                 .contentShape(Rectangle())
                 .gesture(dragGesture(width: width))
             }
-            .frame(height: Metrics.boxHeight)
+            .frame(height: PrivacyModeMetrics.boxHeight)
 
             GeometryReader { geo in
                 markersRow(width: geo.size.width)
             }
-            .frame(height: Metrics.selectedMarker + Metrics.markerGlowBlur)
+            .frame(height: PrivacyModeMetrics.selectedMarker + PrivacyModeMetrics.markerGlowBlur)
 
             labelsRow
         }
@@ -103,7 +104,7 @@ private extension PaymentPrivacyModeCard {
                         .shadow(.inner(color: recess, radius: 5, y: 7))
                 )
         }
-        .frame(width: width, height: Metrics.trackHeight)
+        .frame(width: width, height: PrivacyModeMetrics.trackHeight)
     }
 
     func circles(width: CGFloat) -> some View {
@@ -116,7 +117,7 @@ private extension PaymentPrivacyModeCard {
                 )
                 // While dragging, the covered mode hands its place to the dragged sphere below.
                 .opacity(dragFraction != nil && index == highlightedIndex ? 0 : 1)
-                .position(x: centerX(CGFloat(index), width: width), y: Metrics.boxHeight / 2)
+                .position(x: centerX(CGFloat(index), width: width), y: PrivacyModeMetrics.boxHeight / 2)
             }
 
             if let fraction = dragFraction {
@@ -126,7 +127,7 @@ private extension PaymentPrivacyModeCard {
                     hasGlow: false,
                     fadeDuration: dragFadeDuration
                 )
-                .position(x: centerX(fraction, width: width), y: Metrics.boxHeight / 2)
+                .position(x: centerX(fraction, width: width), y: PrivacyModeMetrics.boxHeight / 2)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
@@ -138,7 +139,7 @@ private extension PaymentPrivacyModeCard {
         ZStack {
             ForEach(Array(modes.enumerated()), id: \.element) { index, mode in
                 ModeMarkerView(mode: mode, isSelected: index == highlightedIndex)
-                    .position(x: centerX(CGFloat(index), width: width), y: Metrics.selectedMarker / 2)
+                    .position(x: centerX(CGFloat(index), width: width), y: PrivacyModeMetrics.selectedMarker / 2)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
@@ -205,13 +206,13 @@ private extension PaymentPrivacyModeCard {
     /// Centre of a (possibly fractional) mode position: inset from each edge by half a sphere, then evenly
     /// spread — so the outer modes sit `inset` from the track ends, not a full column-width in.
     func centerX(_ position: CGFloat, width: CGFloat) -> CGFloat {
-        Metrics.inset + position * trackStep(width: width)
+        PrivacyModeMetrics.inset + position * trackStep(width: width)
     }
 
     /// Distance between neighbouring mode centres.
     func trackStep(width: CGFloat) -> CGFloat {
         guard modes.count > 1 else { return 0 }
-        return (width - Metrics.inset * 2) / lastIndex
+        return (width - PrivacyModeMetrics.inset * 2) / lastIndex
     }
 
     /// A single gesture that reads a tap and a drag apart: a touch that never crosses the slop selects the
@@ -228,7 +229,7 @@ private extension PaymentPrivacyModeCard {
                 dragFraction = fraction
 
                 let scaleStart = centerX(0, width: width)
-                markIndex = max(0, Int((centerX(fraction, width: width) - scaleStart) / Metrics.tickStep))
+                markIndex = max(0, Int((centerX(fraction, width: width) - scaleStart) / PrivacyModeMetrics.tickStep))
             }
             .onEnded { value in
                 lastDragX = nil
@@ -265,7 +266,7 @@ private extension PaymentPrivacyModeCard {
     }
 
     func beginDrag() {
-        dragFadeDuration = Metrics.slowDragFade
+        dragFadeDuration = PrivacyModeMetrics.slowDragFade
         lastDragX = nil
         lastDragTime = nil
     }
@@ -283,8 +284,9 @@ private extension PaymentPrivacyModeCard {
         guard elapsed > 0, step > 0 else { return }
 
         let speed = abs(locationX - previousX) / step / CGFloat(elapsed)
-        let reach = min(max(speed / Metrics.fastDragSpeed, 0), 1)
-        let target = Metrics.slowDragFade + (Metrics.fastDragFade - Metrics.slowDragFade) * Double(reach)
+        let reach = min(max(speed / PrivacyModeMetrics.fastDragSpeed, 0), 1)
+        let target = PrivacyModeMetrics
+            .slowDragFade + (PrivacyModeMetrics.fastDragFade - PrivacyModeMetrics.slowDragFade) * Double(reach)
         dragFadeDuration += (target - dragFadeDuration) * 0.4
     }
 
@@ -292,7 +294,44 @@ private extension PaymentPrivacyModeCard {
     func fractionAt(_ locationX: CGFloat, width: CGFloat) -> CGFloat {
         let step = trackStep(width: width)
         guard step > 0 else { return 0 }
-        return min(max((locationX - Metrics.inset) / step, 0), lastIndex)
+        return min(max((locationX - PrivacyModeMetrics.inset) / step, 0), lastIndex)
+    }
+}
+
+// MARK: - Recess shadow shading
+
+private extension Color {
+    /// Scales a shadow's alpha down as the `surface` it lands on brightens, so a fixed black shadow (the
+    /// design system's `shadow.*` tokens are the same in every theme) does not read as a bruise on the light
+    /// themes. Dynamic: the surface luminance is read from the render-time traits. Sole consumer is
+    /// ``trackGroove(width:)``.
+    func softened(on surface: Color, falloff: CGFloat = PrivacyModeMetrics.lightSurfaceFalloff) -> Color {
+        let shadow = UIColor(self)
+        let base = UIColor(surface)
+
+        return Color(uiColor: UIColor { traits in
+            let resolvedShadow = shadow.resolvedColor(with: traits)
+            let luminance = base.resolvedColor(with: traits).relativeLuminance
+
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            resolvedShadow.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+            return UIColor(red: red, green: green, blue: blue, alpha: alpha * (1 - luminance * falloff))
+        })
+    }
+}
+
+private extension UIColor {
+    /// WCAG relative luminance (0 = black … 1 = white).
+    var relativeLuminance: CGFloat {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+
+        func linear(_ component: CGFloat) -> CGFloat {
+            component <= 0.03928 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
+        }
+
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 }
 

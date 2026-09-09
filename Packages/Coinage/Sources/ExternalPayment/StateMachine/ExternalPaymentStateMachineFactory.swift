@@ -20,6 +20,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
     private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let quotaTracker: any UnloadQuotaTracking
     private let blockNumberProvider: BlockInfoProviding
     private let logger: SDKLoggerProtocol?
 
@@ -34,6 +35,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         durability: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -47,6 +49,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         self.extrinsicMonitor = extrinsicMonitor
         self.durability = durability
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
         self.logger = logger
     }
@@ -84,6 +87,7 @@ private extension ExternalPaymentStateMachineFactory {
             recyclerLoader: recyclerLoader,
             durability: durability,
             originFactory: originFactory,
+            quotaTracker: quotaTracker,
             blockNumberProvider: blockNumberProvider,
             logger: logger
         )

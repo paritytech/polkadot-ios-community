@@ -1214,6 +1214,23 @@
         }
       }
     },
+    "Chat.transfer.Inbox.sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(username)@ is sending you"
+          }
+        },
+        "es-ES" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(username)@ te está enviando"
+          }
+        }
+      }
+    },
     "Chat.transfer.outbox" : {
       "extractionState" : "manual",
       "localizations" : {

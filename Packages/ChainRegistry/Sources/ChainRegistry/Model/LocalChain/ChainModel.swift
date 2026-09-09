@@ -55,7 +55,7 @@ public struct ChainModel: Equatable, Hashable {
     public let assets: Set<AssetModel>
     public let nodes: Set<ChainNodeModel>
     public let addressPrefix: AddressPrefix
-    public let genesisHash: String?
+    public let explicitGenesisHash: String?
     public let types: TypesSettings?
     public let icon: URL?
     public let options: [LocalChainOptions]?
@@ -74,7 +74,7 @@ public struct ChainModel: Equatable, Hashable {
         nodes: Set<ChainNodeModel>,
         nodeSwitchStrategy: NodeSwitchStrategy,
         addressPrefix: UInt16,
-        genesisHash: String?,
+        explicitGenesisHash: String?,
         types: TypesSettings?,
         icon: URL?,
         options: [LocalChainOptions]?,
@@ -91,7 +91,7 @@ public struct ChainModel: Equatable, Hashable {
         self.nodes = nodes
         self.nodeSwitchStrategy = nodeSwitchStrategy
         self.addressPrefix = addressPrefix
-        self.genesisHash = genesisHash
+        self.explicitGenesisHash = explicitGenesisHash
         self.types = types
         self.icon = icon
         self.options = options
@@ -118,7 +118,7 @@ public struct ChainModel: Equatable, Hashable {
         nodeSwitchStrategy = .init(rawStrategy: remoteModel.nodeSelectionStrategy)
 
         addressPrefix = remoteModel.addressPrefix
-        genesisHash = remoteModel.genesisHash
+        explicitGenesisHash = remoteModel.genesisHash
         types = remoteModel.types
         icon = remoteModel.icon
 
@@ -329,7 +329,7 @@ public extension ChainModel {
             nodes: nodes,
             nodeSwitchStrategy: nodeSwitchStrategy,
             addressPrefix: addressPrefix,
-            genesisHash: genesisHash,
+            explicitGenesisHash: explicitGenesisHash,
             types: types,
             icon: icon,
             options: options,
@@ -353,7 +353,7 @@ public extension ChainModel {
             nodes: nodes,
             nodeSwitchStrategy: nodeSwitchStrategy,
             addressPrefix: addressPrefix,
-            genesisHash: genesisHash,
+            explicitGenesisHash: explicitGenesisHash,
             types: types,
             icon: icon,
             options: options,
@@ -377,7 +377,7 @@ public extension ChainModel {
             nodes: nodes,
             nodeSwitchStrategy: nodeSwitchStrategy,
             addressPrefix: addressPrefix,
-            genesisHash: genesisHash,
+            explicitGenesisHash: explicitGenesisHash,
             types: types,
             icon: icon,
             options: options,
@@ -398,7 +398,7 @@ public extension ChainModel {
             nodes: nodes,
             nodeSwitchStrategy: nodeSwitchStrategy,
             addressPrefix: addressPrefix,
-            genesisHash: genesisHash,
+            explicitGenesisHash: explicitGenesisHash,
             types: types,
             icon: icon,
             options: options,

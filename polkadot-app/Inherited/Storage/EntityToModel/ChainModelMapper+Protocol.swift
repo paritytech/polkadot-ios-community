@@ -52,7 +52,7 @@ extension ChainModelMapper: CoreDataMapperProtocol {
             nodes: Set(nodes),
             nodeSwitchStrategy: nodeSwitchStrategy,
             addressPrefix: UInt16(bitPattern: entity.addressPrefix),
-            genesisHash: entity.genesisHash,
+            explicitGenesisHash: entity.genesisHash,
             types: types,
             icon: entity.icon,
             options: options,
@@ -83,7 +83,7 @@ extension ChainModelMapper: CoreDataMapperProtocol {
         entity.hasGovernanceV1 = model.hasGovernanceV1
         entity.hasGovernance = model.hasGovernanceV2
         entity.noSubstrateRuntime = model.noSubstrateRuntime
-        entity.genesisHash = model.genesisHash
+        entity.genesisHash = model.explicitGenesisHash
         entity.hasSwapHub = model.hasSwapHub
         entity.hasSwapHydra = model.hasSwapHydra
         entity.hasProxy = model.hasProxy

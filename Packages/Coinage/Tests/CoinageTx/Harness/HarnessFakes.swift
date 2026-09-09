@@ -3,15 +3,6 @@ import os
 @preconcurrency import ExtrinsicService
 import SubstrateSdk
 @testable import Coinage
-import BackgroundExecution
-
-/// Runs the operation inline, without an OS background-task assertion — the harness has no app
-/// lifecycle to survive, so `execute` is a pass-through.
-struct FakeBackgroundExecutor: BackgroundExecuting {
-    func execute<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
-        try await operation()
-    }
-}
 
 /// Ends the tracker's watch without deciding anything.
 ///

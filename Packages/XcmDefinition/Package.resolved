@@ -69,8 +69,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/logger-ios",
       "state" : {
-        "revision" : "cafece8626141b4430ddc8d5288d3444abd122de",
-        "version" : "0.0.1"
+        "revision" : "4d8a513664a272c201ba0a424a28d133827c924b",
+        "version" : "0.0.2"
       }
     },
     {
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/Operation-iOS",
       "state" : {
-        "revision" : "1a5d000abb70f52920a130d9264278dbd645fdd1",
-        "version" : "2.4.0"
+        "revision" : "1434daa4c32b8d90771888663ecdd1b0fe709690",
+        "version" : "2.6.0"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "8aca8104d97a4ac27c650aa7f856c0accc9d82d8",
-        "version" : "5.6.5"
+        "revision" : "fd0bd87c53cded6aa098b410ed80fc48f5756404",
+        "version" : "5.12.0"
       }
     },
     {

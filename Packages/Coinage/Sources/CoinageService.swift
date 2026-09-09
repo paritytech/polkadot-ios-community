@@ -130,7 +130,6 @@ public actor CoinageService {
     private let recyclingStrategyResolver: any RecyclingStrategyProviding
     private let ringCapacityProvider: any RingCapacityProviding
     private let preClassificator: any CoinageAssetsPreClassificating
-    private let quotaTracker: any UnloadQuotaTracking
 
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
@@ -177,7 +176,6 @@ public actor CoinageService {
         recyclingStrategyResolver: any RecyclingStrategyProviding,
         ringCapacityProvider: any RingCapacityProviding,
         preClassificator: any CoinageAssetsPreClassificating,
-        quotaTracker: any UnloadQuotaTracking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
@@ -197,7 +195,6 @@ public actor CoinageService {
         self.recyclingStrategyResolver = recyclingStrategyResolver
         self.ringCapacityProvider = ringCapacityProvider
         self.preClassificator = preClassificator
-        self.quotaTracker = quotaTracker
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
@@ -468,7 +465,6 @@ private extension CoinageService {
             ringCapacityProvider: ringCapacityProvider,
             preClassificator: preClassificator,
             recyclingService: recyclingService,
-            quotaTracker: quotaTracker,
             denominationContext: context,
             logger: logger
         )
