@@ -216,6 +216,10 @@ final class TabBarBottomChromeController: UIViewController {
 
         setPanel(nil, animated: true)
         pendingPanel = kind
+        // `setPanel` cleared the pill's action; re-resolve it against the incoming panel so the
+        // swap springs the pill straight across instead of parking it on the selected tab for the
+        // length of the close.
+        updateActiveActionIndex()
     }
 
     func setContentPanel(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction) {
@@ -327,8 +331,12 @@ private extension TabBarBottomChromeController {
         updateActiveActionIndex()
     }
 
+    /// `pendingPanel` counts as open: during an action-to-action swap the outgoing panel is already
+    /// closed while the incoming one waits on the close animation, and the pill belongs on the
+    /// action that is arriving.
     func updateActiveActionIndex() {
-        barView.activeActionIndex = openPanel.flatMap { slotMap.itemIndex(for: $0.action) }
+        let panel = openPanel ?? pendingPanel
+        barView.activeActionIndex = panel.flatMap { slotMap.itemIndex(for: $0.action) }
     }
 
     /// A push that arrives while `setPanel` is applying is already covered by the
