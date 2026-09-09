@@ -19,7 +19,6 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
     public let title: String
     public let state: ChainConnectionState
     public let stateTitle: String
-    public let latency: Duration?
     public let lastBlockDate: Date?
     public let finalityLag: Int?
     public let connectedSince: Date?
@@ -34,7 +33,6 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         title: String,
         state: ChainConnectionState,
         stateTitle: String,
-        latency: Duration?,
         lastBlockDate: Date?,
         finalityLag: Int?,
         connectedSince: Date?,
@@ -46,7 +44,6 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
         self.title = title
         self.state = state
         self.stateTitle = stateTitle
-        self.latency = latency
         self.lastBlockDate = lastBlockDate
         self.finalityLag = finalityLag
         self.connectedSince = connectedSince
@@ -61,7 +58,6 @@ public struct ChainConnectionStatusViewModel: Hashable, Identifiable {
             title: title,
             state: state,
             stateTitle: stateTitle,
-            latency: latency,
             lastBlockDate: lastBlockDate,
             finalityLag: finalityLag,
             connectedSince: connectedSince,

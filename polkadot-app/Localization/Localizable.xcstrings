@@ -1283,7 +1283,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You send %1$(amount)@"
+            "value": "You sent %1$(amount)@"
           }
         },
         "es-ES": {

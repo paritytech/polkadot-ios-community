@@ -57,8 +57,7 @@ enum ChainConnectionTarget: CaseIterable {
                 healthy: expectedBlockTime * 2,
                 zero: expectedBlockTime * 10
             ),
-            finalityLag: finalityBounds,
-            ping: ChainHealthBounds(healthy: .milliseconds(150), zero: .milliseconds(1_000)),
+            finalityLag: ChainHealthCountBounds(healthy: 15, zero: 30),
             missingTermGrace: .seconds(45)
         )
     }

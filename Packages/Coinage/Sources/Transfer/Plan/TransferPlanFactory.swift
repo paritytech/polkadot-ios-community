@@ -22,6 +22,7 @@ final class TransferPlanFactory {
     private let coinKeyFactory: any CoinKeyDeriving
     private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let quotaTracker: any UnloadQuotaTracking
     private let recyclerLoader: RecyclerReadinessLoading
     private let blockInfoProvider: any BlockInfoProviding
     private let logger: SDKLoggerProtocol?
@@ -33,6 +34,7 @@ final class TransferPlanFactory {
         coinKeyFactory: any CoinKeyDeriving,
         durability: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         recyclerLoader: RecyclerReadinessLoading,
         blockInfoProvider: any BlockInfoProviding,
         logger: SDKLoggerProtocol?
@@ -43,6 +45,7 @@ final class TransferPlanFactory {
         self.coinKeyFactory = coinKeyFactory
         self.durability = durability
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.recyclerLoader = recyclerLoader
         self.blockInfoProvider = blockInfoProvider
         self.logger = logger
@@ -83,6 +86,7 @@ extension TransferPlanFactory: TransferPlanCreating {
                 recyclerLoader: recyclerLoader,
                 txService: durability,
                 originFactory: originFactory,
+                quotaTracker: quotaTracker,
                 blockInfoProvider: blockInfoProvider,
                 currentDate: currentDate,
                 logger: logger

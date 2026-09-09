@@ -20,6 +20,7 @@ final class ExternalPaymentStateFactory {
     let recyclerLoader: RecyclerReadinessLoading
     let durability: any CoinageTxServicing
     let originFactory: OriginCreating
+    let quotaTracker: any UnloadQuotaTracking
     let blockNumberProvider: BlockInfoProviding
     let logger: SDKLoggerProtocol?
 
@@ -34,6 +35,7 @@ final class ExternalPaymentStateFactory {
         recyclerLoader: RecyclerReadinessLoading,
         durability: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol?
     ) {
@@ -47,6 +49,7 @@ final class ExternalPaymentStateFactory {
         self.recyclerLoader = recyclerLoader
         self.durability = durability
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
         self.logger = logger
     }

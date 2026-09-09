@@ -25,6 +25,7 @@ final class OffboardVouchersForPaymentService {
     private let recyclerLoader: RecyclerReadinessLoading
     private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let quotaTracker: any UnloadQuotaTracking
     private let blockNumberProvider: BlockInfoProviding
     private let denominationContext: DenominationBreakdownContext
     private let logger: SDKLoggerProtocol?
@@ -36,6 +37,7 @@ final class OffboardVouchersForPaymentService {
         recyclerLoader: RecyclerReadinessLoading,
         txService: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding,
         denominationContext: DenominationBreakdownContext,
         logger: SDKLoggerProtocol? = nil
@@ -46,6 +48,7 @@ final class OffboardVouchersForPaymentService {
         self.recyclerLoader = recyclerLoader
         self.txService = txService
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
         self.denominationContext = denominationContext
         self.logger = logger
@@ -114,6 +117,11 @@ private extension OffboardVouchersForPaymentService {
         let requests = try await buildGroupRequests(payment: payment, vouchers: vouchers)
         _ = try await txService.submitTransactions(requests, groupId: groupId)
         logger?.debug("Registered \(requests.count) offboard groups under \(groupId)")
+
+        // Each group spent one free-unload token; noted only on this registration path (a re-join
+        // adopts already-committed inputs, whose tokens the original attempt already spent) and after
+        // submission, so the quota estimate follows the actual spend.
+        await quotaTracker.noteUnloadHappened(count: requests.count)
     }
 
     func awaitGroupOutcome(groupId: CoinageTxGroupId) async throws -> OffboardOutcome {
