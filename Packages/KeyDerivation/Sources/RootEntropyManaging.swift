@@ -13,7 +13,7 @@ public protocol RootEntropyIdStoring {
 }
 
 public class RootEntropyIdStore: RootEntropyIdStoring {
-    static let entropyIdKey: String = "io.polkadot.app.entropy.id"
+    static let entropyIdKey: String = "io.polkadot.app.entropy.id.v2"
 
     private let userDefaults: UserDefaults
 
