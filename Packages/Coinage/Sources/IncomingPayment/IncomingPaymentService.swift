@@ -48,9 +48,14 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
 // MARK: - IncomingPaymentServicing
 
 public extension IncomingPaymentService {
-    func accept(amount: Balance, source: IncomingPaymentSource, paymentId: IncomingPaymentId) async throws {
+    func accept(
+        amount: Balance,
+        source: IncomingPaymentSource,
+        paymentId: IncomingPaymentId,
+        productId: String
+    ) async throws {
         do {
-            try await performAccept(amount: amount, source: source, paymentId: paymentId)
+            try await performAccept(amount: amount, source: source, paymentId: paymentId, productId: productId)
         } catch let error as IncomingPaymentError {
             throw error
         } catch {
@@ -58,19 +63,23 @@ public extension IncomingPaymentService {
         }
     }
 
-    func subscribeStatus(for paymentId: IncomingPaymentId) async -> AnyAsyncSequence<IncomingPaymentStatus> {
-        if let live = await paymentContext.liveStatusStream(for: paymentId) {
+    func subscribeStatus(
+        for paymentId: IncomingPaymentId,
+        productId: String
+    ) async -> AnyAsyncSequence<IncomingPaymentStatus> {
+        let groupId = IncomingPayment.groupId(productId: productId, paymentId: paymentId)
+
+        if let live = await paymentContext.liveStatusStream(for: groupId) {
             return live
         }
 
         // Cold subscribe (e.g. a processed payment after restart): re-derive terminal from durability.
-        let payment = try? await store.fetch(byId: paymentId)
-        guard let payment else {
-            return await paymentContext.seededStatusStream(.notClaimed, for: paymentId)
+        guard await (try? store.fetch(groupId: groupId)) ?? nil != nil else {
+            return await paymentContext.seededStatusStream(.notClaimed, for: groupId)
         }
 
-        let status = await deriveTerminalStatus(groupId: payment.groupId)
-        return await paymentContext.seededStatusStream(status, for: paymentId)
+        let status = await deriveTerminalStatus(groupId: groupId)
+        return await paymentContext.seededStatusStream(status, for: groupId)
     }
 
     func setup() {
@@ -101,8 +110,14 @@ public extension IncomingPaymentService {
 // MARK: - Accept
 
 private extension IncomingPaymentService {
-    func performAccept(amount: Balance, source: IncomingPaymentSource, paymentId: IncomingPaymentId) async throws {
-        if try await store.fetch(byId: paymentId) != nil {
+    func performAccept(
+        amount: Balance,
+        source: IncomingPaymentSource,
+        paymentId: IncomingPaymentId,
+        productId: String
+    ) async throws {
+        let groupId = IncomingPayment.groupId(productId: productId, paymentId: paymentId)
+        if try await store.fetch(groupId: groupId) != nil {
             throw IncomingPaymentError.alreadyExists
         }
 
@@ -111,9 +126,9 @@ private extension IncomingPaymentService {
 
         let payment = IncomingPayment(
             paymentId: paymentId,
+            productId: productId,
             source: source,
             amount: amount,
-            groupId: paymentId,
             processed: false,
             createdAt: Date()
         )
@@ -148,7 +163,7 @@ private extension IncomingPaymentService {
             for try await payments in store.observeActivePayments() {
                 for payment in payments {
                     await paymentContext.process(
-                        paymentId: payment.paymentId,
+                        groupId: payment.groupId,
                         run: runClosure(for: payment, denomination: denomination)
                     )
                 }
@@ -169,7 +184,7 @@ private extension IncomingPaymentService {
                     for try await detection in claimStream(for: payment, denomination: denomination) {
                         await paymentContext.report(
                             IncomingPaymentStatus(detection: detection),
-                            for: payment.paymentId
+                            for: payment.groupId
                         )
                     }
                 } catch {

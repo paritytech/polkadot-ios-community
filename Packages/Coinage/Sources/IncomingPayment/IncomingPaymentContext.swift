@@ -3,11 +3,12 @@ import Foundation
 import SDKLogger
 
 /// Holds the in-flight incoming-payment claim tasks and each payment's current derived status,
-/// mirroring `MixnetUploadContext`. Persists the terminal `processed` flag; status itself is never
+/// mirroring `MixnetUploadContext`. Keyed by `groupId` (`"productId:paymentId"`) so payments from
+/// different products never collide. Persists the terminal `processed` flag; status itself is never
 /// persisted (it is derived from the durability group and cached in a per-payment subject).
 actor IncomingPaymentContext {
     struct Pending {
-        let paymentId: IncomingPaymentId
+        let groupId: CoinageTxGroupId
         let run: @Sendable () -> Task<Void, Never>
     }
 
@@ -15,8 +16,8 @@ actor IncomingPaymentContext {
     private let maxConcurrent: Int
     private let logger: SDKLoggerProtocol?
 
-    private var tasks: [IncomingPaymentId: Task<Void, Never>] = [:]
-    private var subjects: [IncomingPaymentId: AsyncCurrentValueSubject<IncomingPaymentStatus>] = [:]
+    private var tasks: [CoinageTxGroupId: Task<Void, Never>] = [:]
+    private var subjects: [CoinageTxGroupId: AsyncCurrentValueSubject<IncomingPaymentStatus>] = [:]
     private var pending: [Pending] = []
 
     init(
@@ -33,36 +34,36 @@ actor IncomingPaymentContext {
 // MARK: - Scheduling
 
 extension IncomingPaymentContext {
-    /// Starts (or queues, when at capacity) the claim for `paymentId`. Dedups by id and seeds the
+    /// Starts (or queues, when at capacity) the claim for `groupId`. Dedups by `groupId` and seeds the
     /// status subject `.detecting`, so a subscriber attaching before the task reports sees detecting.
-    func process(paymentId: IncomingPaymentId, run: @escaping @Sendable () -> Task<Void, Never>) {
-        guard tasks[paymentId] == nil, !pending.contains(where: { $0.paymentId == paymentId }) else {
+    func process(groupId: CoinageTxGroupId, run: @escaping @Sendable () -> Task<Void, Never>) {
+        guard tasks[groupId] == nil, !pending.contains(where: { $0.groupId == groupId }) else {
             return
         }
 
-        _ = subject(for: paymentId)
+        _ = subject(for: groupId)
 
         if tasks.count < maxConcurrent {
-            tasks[paymentId] = run()
+            tasks[groupId] = run()
         } else {
-            pending.append(Pending(paymentId: paymentId, run: run))
+            pending.append(Pending(groupId: groupId, run: run))
         }
     }
 
     /// Reports a derived status. On a terminal status, marks the payment processed, frees the slot and
     /// starts the next queued claim. The subject is kept so its terminal value stays queryable.
-    func report(_ status: IncomingPaymentStatus, for paymentId: IncomingPaymentId) async {
-        subject(for: paymentId).send(status)
+    func report(_ status: IncomingPaymentStatus, for groupId: CoinageTxGroupId) async {
+        subject(for: groupId).send(status)
 
         guard status.isTerminal else { return }
 
         do {
-            try await store.markProcessed(paymentId: paymentId)
+            try await store.markProcessed(groupId: groupId)
         } catch {
-            logger?.error("Failed to mark incoming payment \(paymentId) processed: \(error)")
+            logger?.error("Failed to mark incoming payment \(groupId) processed: \(error)")
         }
 
-        tasks[paymentId] = nil
+        tasks[groupId] = nil
         startNextIfPossible()
     }
 
@@ -76,19 +77,19 @@ extension IncomingPaymentContext {
 // MARK: - Status
 
 extension IncomingPaymentContext {
-    /// The live status stream for `paymentId`, or `nil` when the context holds nothing for it (a cold
+    /// The live status stream for `groupId`, or `nil` when the context holds nothing for it (a cold
     /// subscribe to a processed record — the service derives the terminal status from durability).
-    func liveStatusStream(for paymentId: IncomingPaymentId) -> AnyAsyncSequence<IncomingPaymentStatus>? {
-        subjects[paymentId]?.eraseToAnyAsyncSequence()
+    func liveStatusStream(for groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPaymentStatus>? {
+        subjects[groupId]?.eraseToAnyAsyncSequence()
     }
 
     /// Seeds a subject with an externally derived status (e.g. a terminal status re-derived from
     /// durability for a processed record) and returns its stream.
     func seededStatusStream(
         _ status: IncomingPaymentStatus,
-        for paymentId: IncomingPaymentId
+        for groupId: CoinageTxGroupId
     ) -> AnyAsyncSequence<IncomingPaymentStatus> {
-        let subject = subject(for: paymentId)
+        let subject = subject(for: groupId)
         subject.send(status)
         return subject.eraseToAnyAsyncSequence()
     }
@@ -97,19 +98,19 @@ extension IncomingPaymentContext {
 // MARK: - Private
 
 private extension IncomingPaymentContext {
-    func subject(for paymentId: IncomingPaymentId) -> AsyncCurrentValueSubject<IncomingPaymentStatus> {
-        if let subject = subjects[paymentId] {
+    func subject(for groupId: CoinageTxGroupId) -> AsyncCurrentValueSubject<IncomingPaymentStatus> {
+        if let subject = subjects[groupId] {
             return subject
         }
         let subject = AsyncCurrentValueSubject<IncomingPaymentStatus>(.detecting)
-        subjects[paymentId] = subject
+        subjects[groupId] = subject
         return subject
     }
 
     func startNextIfPossible() {
         while tasks.count < maxConcurrent, !pending.isEmpty {
             let next = pending.removeFirst()
-            tasks[next.paymentId] = next.run()
+            tasks[next.groupId] = next.run()
         }
     }
 }

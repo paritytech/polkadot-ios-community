@@ -30,6 +30,10 @@ public protocol CoinageServicing: Actor {
     /// Throws if `setup(with:)` has not been called or if setup failed.
     func denominationContext() async throws -> DenominationBreakdownContext
 
+    /// Builds the incoming-payment service; its lifecycle (setup/throttle) is driven by the
+    /// ServiceCoordinator.
+    func makeIncomingPaymentService() -> any IncomingPaymentServicing
+
     /// Configure the facade with an asset. Must be called before other operations.
     /// - Parameter asset: The asset providing decimal precision
     /// - Throws: Errors from context loading
@@ -134,6 +138,12 @@ public actor CoinageService {
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
+    // Incoming payments — the service is built on demand via `makeIncomingPaymentService()`; its
+    // lifecycle (setup/throttle) is driven by the ServiceCoordinator.
+    private let incomingPaymentStore: any IncomingPaymentStoring
+    private let claimAssetService: any ClaimAssetServicing
+    private let instanceId: CoinageInstanceId
+
     private let contextLoader: DenominationContextLoaderProtocol
 
     // Balance observation — the factory builds the tracked-asset snapshot streams on demand
@@ -179,6 +189,9 @@ public actor CoinageService {
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
+        incomingPaymentStore: any IncomingPaymentStoring,
+        claimAssetService: any ClaimAssetServicing,
+        instanceId: CoinageInstanceId,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinService = coinService
@@ -201,7 +214,31 @@ public actor CoinageService {
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
+        self.incomingPaymentStore = incomingPaymentStore
+        self.claimAssetService = claimAssetService
+        self.instanceId = instanceId
         self.logger = logger
+    }
+}
+
+// MARK: - Incoming Payments
+
+extension CoinageService: DenominationContextProviding {}
+
+public extension CoinageService {
+    func makeIncomingPaymentService() -> any IncomingPaymentServicing {
+        let context = IncomingPaymentContext(store: incomingPaymentStore, logger: logger)
+        return IncomingPaymentService(
+            store: incomingPaymentStore,
+            validator: IncomingPaymentSourceValidator(),
+            paymentContext: context,
+            claimCoinsService: claimCoinsService,
+            claimAssetService: claimAssetService,
+            txService: txService,
+            contextProvider: self,
+            instanceId: instanceId,
+            logger: logger
+        )
     }
 }
 

@@ -43,6 +43,7 @@ public extension CoinageService {
         txStore: any CoinageTxRepositoryProtocol,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         externalPaymentStore: ExternalPaymentStoring,
+        incomingPaymentStore: IncomingPaymentStoring,
         backgroundExecutor: any BackgroundExecuting,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
         personOriginProvider: any OriginPersonProviding,
@@ -339,6 +340,21 @@ public extension CoinageService {
             logger: logger
         )
 
+        let assetsTracking = AssetBalanceTracker(
+            connection: connection,
+            runtimeService: runtimeService,
+            storageRequestFactory: storageRequestFactory,
+            logger: logger
+        )
+
+        let claimAssetService = ClaimAssetService(
+            assetsTracking: assetsTracking,
+            voucherLoaderFactory: voucherLoaderFactory,
+            voucherService: voucherService,
+            txService: txService,
+            logger: logger
+        )
+
         let coinageService = CoinageService(
             coinService: coinService,
             voucherService: voucherService,
@@ -360,6 +376,9 @@ public extension CoinageService {
             applicationStateStreamFactory: applicationStateStreamFactory,
             databaseFactory: databaseFactory,
             recoveryService: recoveryService,
+            incomingPaymentStore: incomingPaymentStore,
+            claimAssetService: claimAssetService,
+            instanceId: instanceId,
             logger: logger
         )
 
