@@ -98,58 +98,6 @@ The chain name and state survive only as the ring's accessibility label, which t
 
 **Install order in `viewDidLoad` is load-bearing.** `installStatusBar()` runs *before* `installChromeController()` so the bottom chrome stays topmost, and mounted tab children insert at subview index 0 so they stay behind the strip. `TabBarContainer` is unchanged — children still mount full-bleed into the container's own view.
 
-*Rationale:* the obvious alternative — pinning a dedicated content container view below the strip and mounting children into it — physically moves the child's frame out of the top safe area, so UIKit computes the child's `safeAreaInsets.top` as 0 and a `UINavigationBar` stops drawing its background at the container's top edge instead of extending to y=0. Applying the inset per tab controller from the chrome was also rejected: it needs the same "which controller is current" tracking the chrome already does for the bottom, in a second owner.
-
-**Content flow.** `MainTabBarPresenter.didReceiveChainStatus` pushes to two hosts. `view?.showChainStatus(rows)` is called *outside* the `#if !FEATURE_PRODUCTS`; the existing `showTabBarPanelContent` call stays inside it. The strip takes raw `[ChainConnectionStatusViewModel]`, not a `HashableContentConfiguration`, because its host is a `UIHostingController` rather than a `UIContentView` — exactly the case the provider's row-emitting contract anticipates, with the presenter wrapping at its own push site. The view controller assigns `statusBarHost.rootView`.
-
-**The strip forced sampling to go app-wide.** `ChainStatusProvider` used to gate its two sampling siblings behind a panel-visibility signal — `onPanelChanged` → `didChangeContentPanelVisibility` → `setChainStatusActive` → `setActive`. A permanent strip means there is no longer a moment when nobody is displaying latency or block freshness, so the gate had no state left to express and **the whole chain was deleted**: `ChainStatusProviding.setActive`, `MainTabBarInteractorInputProtocol.setChainStatusActive`, `MainTabBarPresenterProtocol.didChangeContentPanelVisibility` and the `onPanelChanged` assignment are all gone. Activation now happens once from `ChainStatusProvider.start()`, called by `ServiceCoordinator.setup()`, which guards on `!isObserving` and spawns a `Task` awaiting `setActive(true)` on both siblings; `statusStream()` is a pure `nonisolated` accessor that starts nothing.
-
-*Cost, accepted deliberately:* a 30 s `system_health` probe per chain and three `subscribeNewHeads` subscriptions now run for the app's lifetime in **every** arm, where before they ran only while the peek panel was open. `ServiceCoordinator.throttle()` still does not reach them. This is what buys the strip a real ping colour instead of a permanently un-sampled grey dot.
-
-*Accepted:*
-
-- A child that ignores its safe area and paints to y=0 (a chat background, an SPA web view) **shows through the strip**, behind the icons — mounted children sit at subview index 0, below the clear host, and nothing masks them.
-- `availablePanelHeight` in the chrome subtracts `view.safeAreaInsets.top`, which now includes the strip, so the tabs and content panels open 20pt shorter.
-- Nav bars shift down 20pt on every screen; their background still stretches to y=0, visible behind the strip's icons.
-
-## Chain Status Ring
-
-`ChainStatusRingView` renders an arc and a centre icon. The arc length and disc fill reflect health — worst-of score from block age, finality lag, and ping, each scored against per-chain `ChainHealthThresholds` and median-smoothed over a 10-sample window by the provider. The centre is `ChainStatusIcon` (`.people` / `.bulletin` / `.assetHub` / `.statementStore`), tinted by connection state, inverting to `.bgSurfaceMain` when the disc fills (health > 0.75).
-
-**Arc is coloured by health.** `ChainStatusRingStyle.arcColor(for:)` returns `.fgPrimary` (health > 0.75), `.bgStatusSuccess` (> 0.5), `.bgStatusWarning` (> 0.25), or `.bgStatusError` (≤ 0.25). A fully healthy chain is monochrome (filled disc + fgPrimary), so any colour on the ring indicates a degradation.
-
-**No `TimelineView`.** Freshness updates flow through new `ChainConnectionStatusViewModel` instances pushed by `ChainStatusProvider`, not through a view-local time source. The provider runs a 1 s tick but emits only when scores change (`guard scoredRows != lastEmittedRows else { return }`), so identical sets are dropped and a stalled chain stops emitting.
-
-**One mark, two sizes.** `diameter` scales stroke and icon — `diameter / 8` and `diameter * 0.625` — so the two hosts draw the same proportions. The strip is bound by its 20pt band; a future content panel would pass a larger diameter.
-
-**Icon pulsing on `.connecting`.** A separate private `ChainStatusIconView` owns the pulse animation's `@State` so `ChainStatusRingView` keeps the synthesized `Hashable` conformance, which UIKit's content configuration reuse requires.
-
-## Chain Status Provider
-
-`ServiceCoordinator.createDefault` builds one `ChainStatusProvider` and one `ChainLatencyProvider` and exposes the former on `ServiceCoordinatorProtocol.chainStatusProvider`. `MainTabBarViewFactory` injects it into the interactor, which keeps a single `chainStatusSubscription` forwarding `chainStatusProvider.statusStream()` to the presenter's `didReceiveChainStatus(_:)`. One instance, app lifetime.
-
-*Rationale for single instance:* The status registry keys observers by target identity so duplicates do not collapse. Every new provider instance re-seeds to `.connecting` — rows would flicker back to connecting on each navigation if instantiated per-screen.
-
-**Configuration and emission.** The provider constructs its `rowsSubject` (`AsyncCurrentValueSubject`) holding a complete row set, so the first render carries four rows (three chains plus a synthetic Statement Store row) and no later edit can drop a seed-then-push call. Each update pushes a **fresh** `ChainConnectionStatusViewModel` set; `MainTabBarPresenter` wraps them in `SwiftUIContentConfiguration(view: ChainConnectionStatusView(rows:))` at its own push site. This frees a non-`UIContentView` host (a nav-bar dropdown) from unwrapping a configuration it never wanted.
-
-**Networking.** The provider consumes `networkStatusService.statusStream(for:)` directly, one call per chain against the shared singleton, and maps `NetworkStatus` → `ChainConnectionState` in `ChainConnectionTarget.swift`. `NetworkStatus` never crosses into `PolkadotUI`. Reaching `.connected` is debounced 300 ms (`withDebounce`). `waitingForNetwork` is global rather than per-chain, so a dropped device path takes all four rows offline together.
-
-**Names are fixed labels, not registry names.** `ChainConnectionTarget.title` returns `Individuality` / `Bulletin` / `Asset Hub` / (and `Statement Store` for the synthetic row). The registry's own names are long and vary by build arm — the chat target resolves to a People chain, so the registry would render "Paseo People" in nightly and "Polkadot People" in release — which reads badly under a 40pt ring. Not localized, as chain names never were.
-
-*This deleted a mechanism that used to be load-bearing.* The provider previously took a `ChainRegistryProtocol` purely to resolve names, and subscribed via `chainsSubscribe` because the status stream applies `removeDuplicates()`: a chain reaching `.connected` before the registry loaded would emit exactly once and keep its fallback title forever. Fixed labels make that race unreachable, so `chainsSubscribe`, `handleChainDataUpdate`, the `names` dictionary, the `chainsUnsubscribe(self)` in `deinit` and the registry dependency itself are all gone — `ChainStatusProvider` no longer touches `ChainRegistry` at all. Restoring registry names means restoring that subscription with it.
-
-### Latency
-
-`ChainLatencyProvider` is a *sibling* of the status provider, not a part of it — it owns probe timing only, and `ChainStatusProvider` combines its stream in, so row composition stays in one place.
-
-- Probe is a timed `RPCMethod.healthCheck` (`system_health`) over `chainRegistry.getConnection(for:)`, every 30 s for the app's lifetime, all three chains concurrently in a task group.
-- `JSONRPCOptions(resendOnReconnect: false)` is required. The default `true` queues a probe issued while the socket is down and resolves it after reconnect, so the measured interval swallows the whole outage and reports a false multi-second latency. `WebSocketEngine.sendSubstratePing` in the SDK uses the identical option for its own health check.
-- Also bounded by `withTimeout(10 s)`: the flag covers a known-down socket, the timeout covers a socket that is up with a node that never answers.
-- Reported value is the median of the last 3 samples, so one slow probe cannot move the ring.
-- Samples are cleared when a chain leaves `.connected`, in `ChainStatusProvider.handleStatusUpdate` — the only place that knows both facts. Without it a drop-and-reconnect shows the pre-drop number for up to 30 s.
-
-`ChainConnectionStatusViewModel.latency` is a raw `Duration?`, not a formatted string. The ring has to *compare* a latency against a threshold, which a localized string cannot do — latency now reaches the ring only through the health score. Thresholds live in `ChainConnectionTarget.healthThresholds` because deciding what a number *means* is presentation, not composition.
-
 ## Re-tap
 
 `TabBarReselectionPolicy.action(for:)`, in order: modal presented on the target → `.ignore`; stack deeper than its root → `.popToRoot`; otherwise `.scrollToTop`.
