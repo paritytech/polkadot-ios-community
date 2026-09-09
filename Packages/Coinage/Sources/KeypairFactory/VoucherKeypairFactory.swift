@@ -2,14 +2,14 @@ import KeyDerivation
 import SubstrateSdk
 import NovaCrypto
 
-public protocol VoucherKeyDeriving: CoinageKeypairFactory where Model == Voucher {
+public protocol VoucherKeyDeriving: VoucherKeypairFactoryProtocol {
     /// Creates a key manager for a voucher index to perform Bandersnatch operations (proofs, signing, aliases).
     func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging
 }
 
 public extension VoucherKeyDeriving {
     /// Convenience over ``createKeyManager(index:)`` for a model whose index it reads.
-    func createKeyManager(for model: Model) throws -> any BandersnatchKeyManaging {
+    func createKeyManager(for model: Voucher) throws -> any BandersnatchKeyManaging {
         try createKeyManager(index: model.derivationIndex)
     }
 }
@@ -18,22 +18,33 @@ enum VoucherEntropyDerivingError: Error {
     case invalidDerivationPath
 }
 
-public final class VoucherKeypairFactory: BaseKeypairFactory<Voucher> {
-    public init(entropyManager: RootEntropyManaging) {
-        super.init(basePath: "//pps//ring-vrf", entropyManager: entropyManager)
-    }
+public final class VoucherKeypairFactory {
+    let entropyManager: RootEntropyManaging
 
-    override public func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
-        try createKeyManager(index: index).getMemberKey()
+    public init(entropyManager: RootEntropyManaging) {
+        self.entropyManager = entropyManager
     }
 }
 
 extension VoucherKeypairFactory: VoucherKeyDeriving {
+    public func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
+        try createKeyManager(index: index).getMemberKey()
+    }
+
     public func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging {
         BandersnatchKeyManager(
-            entropyDeriver: VoucherEntropyDeriving(path: derivationPath(index: index)),
+            entropyDeriver: VoucherEntropyDeriving(path: voucherPath(for: index)),
             entropyManager: entropyManager
         )
+    }
+}
+
+public extension VoucherKeypairFactory {
+    func voucherPath(for derivationIndex: DerivationIndex) -> String {
+        let purse = CoinageConstants.Derivation.mainPurse
+        let page = CoinageConstants.Derivation.page
+
+        return "//coinage-ring-vrf//\(purse)//\(page)//\(derivationIndex)"
     }
 }
 
@@ -47,6 +58,9 @@ final class VoucherEntropyDeriving: BandersnatchEntropyDeriving {
         self.path = path
     }
 
+    /// Ring-VRF keys derive entirely from entropy — there is no public (soft) derivation — so every
+    /// junction in `//coinage-ring-vrf//<purse>//<page>//<item>` must be hard and is folded into the
+    /// entropy chain. A soft junction has no ring-VRF meaning and is rejected.
     func deriveEntropy(from seed: Data) throws -> Data {
         let junctionResult = try junctionFactory.parse(path: path)
         let chaincodes = junctionResult.chaincodes
