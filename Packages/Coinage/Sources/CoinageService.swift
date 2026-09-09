@@ -32,7 +32,7 @@ public protocol CoinageServicing: Actor {
 
     /// Builds the incoming-payment service; its lifecycle (setup/throttle) is driven by the
     /// ServiceCoordinator.
-    func makeIncomingPaymentService() -> any IncomingPaymentServicing
+    nonisolated func makeIncomingPaymentService() -> any IncomingPaymentServicing
 
     /// Configure the facade with an asset. Must be called before other operations.
     /// - Parameter asset: The asset providing decimal precision
@@ -139,16 +139,18 @@ public actor CoinageService {
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
     // Incoming payments — the service is built on demand via `makeIncomingPaymentService()`; its
-    // lifecycle (setup/throttle) is driven by the ServiceCoordinator.
-    private let incomingPaymentStore: any IncomingPaymentStoring
-    private let claimAssetService: any ClaimAssetServicing
-    private let instanceId: CoinageInstanceId
+    // lifecycle (setup/throttle) is driven by the ServiceCoordinator. `nonisolated` so the factory is
+    // callable synchronously during app assembly.
+    private nonisolated let incomingPaymentStore: any IncomingPaymentStoring
+    private nonisolated let claimAssetService: any ClaimAssetServicing
+    private nonisolated let instanceId: CoinageInstanceId
 
     private let contextLoader: DenominationContextLoaderProtocol
 
     // Balance observation — the factory builds the tracked-asset snapshot streams on demand
     private let databaseFactory: any DatabaseDependencyFactoring
-    private let logger: SDKLoggerProtocol?
+    // `nonisolated(unsafe)`: an immutable, thread-safe logger the nonisolated factory needs to read.
+    private nonisolated(unsafe) let logger: SDKLoggerProtocol?
 
     // App State
     private let applicationStateStreamFactory: ApplicationStateStreamFactory
@@ -226,7 +228,7 @@ public actor CoinageService {
 extension CoinageService: DenominationContextProviding {}
 
 public extension CoinageService {
-    func makeIncomingPaymentService() -> any IncomingPaymentServicing {
+    nonisolated func makeIncomingPaymentService() -> any IncomingPaymentServicing {
         let context = IncomingPaymentContext(store: incomingPaymentStore, logger: logger)
         return IncomingPaymentService(
             store: incomingPaymentStore,

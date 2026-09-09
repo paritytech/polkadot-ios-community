@@ -67,6 +67,7 @@ public extension ContainerBridge {
         registerRemotePermission(nativeApi: nativeApi)
         registerPaymentBalanceSubscribe(nativeApi: nativeApi)
         registerPaymentTopUp(nativeApi: nativeApi)
+        registerPaymentTopUpStatusSubscribe(nativeApi: nativeApi)
         registerHostPaymentRequest(nativeApi: nativeApi)
         registerHostPaymentStatusSubscribe(nativeApi: nativeApi)
         registerPushNotification(nativeApi: nativeApi)
@@ -590,15 +591,24 @@ private extension ContainerBridge {
 
     func registerPaymentTopUp(nativeApi: ProductsNativeApiProtocol) {
         registerRequestHandler(method: "paymentTopUp") { params in
-            let amountString = try params.mapOrMissing(for: "amount") { $0.stringValue }
-            guard let amount = Balance(amountString) else {
-                throw ContainerBridgeHostApiError.invalidPaymentTopUpAmount(amountString)
-            }
+            let request = try params.map(to: PaymentTopUpRequestDto.self)
 
-            let source = try params.map(to: PaymentTopUpSource.self)
-
-            try await nativeApi.paymentTopUp(amount: amount, source: source)
+            try await nativeApi.paymentTopUp(
+                amount: request.amount,
+                source: request.source,
+                id: request.id
+            )
             return JSON.dictionaryValue([:])
+        }
+    }
+
+    func registerPaymentTopUpStatusSubscribe(nativeApi: ProductsNativeApiProtocol) {
+        registerSubscriptionHandler(method: "paymentTopUpStatusSubscribe") { params in
+            let request = try params.map(to: PaymentTopUpStatusSubscribeDto.self)
+
+            return try await nativeApi.subscribePaymentTopUpStatus(id: request.id)
+                .map { try HostPaymentTopUpStatusDto(status: $0).toScaleCompatibleJSON() }
+                .eraseToAnyAsyncSequence()
         }
     }
 }

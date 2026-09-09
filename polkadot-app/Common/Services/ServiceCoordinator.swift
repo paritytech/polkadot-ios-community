@@ -173,6 +173,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         notificationBadgeSyncService.setup()
         messageExpansionService.start()
         allowanceRenewalService.setup()
+        paymentsSupport.incomingPaymentService.setup()
 
         Task {
             await chainStatusProvider.start()
@@ -217,6 +218,7 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         attachmentDownloadService.throttle()
         notificationBadgeSyncService.throttle()
         allowanceRenewalService.throttle()
+        paymentsSupport.incomingPaymentService.throttle()
 
         messageExpansionService.stop()
 
@@ -347,7 +349,10 @@ extension ServiceCoordinator {
         let chatRequestCoordinator = createChatRequestCoordinator(statementTracker: statementDeliveryTracker)
         let audioSessionManager = AudioSessionManager()
 
-        let paymentsSupport = PaymentsSupport(coinageService: coinageServices.coinageService)
+        let paymentsSupport = PaymentsSupport(
+            coinageService: coinageServices.coinageService,
+            incomingPaymentService: coinageServices.incomingPaymentService
+        )
 
         let truApiDependencies = TruApiDependenciesLocator()
         truApiDependencies.setDependency(allowanceSupport)
