@@ -1,4 +1,5 @@
 import Foundation
+import Operation_iOS
 import SubstrateSdk
 
 /// A durable, restart-recoverable top-up. Status is NOT stored here — it is derived from the
@@ -52,4 +53,9 @@ public extension IncomingPayment {
     static func groupId(productId: String, paymentId: IncomingPaymentId) -> CoinageTxGroupId {
         "\(productId):\(paymentId)"
     }
+}
+
+extension IncomingPayment: Operation_iOS.Identifiable {
+    /// The persistence identity — the product-bound `groupId`.
+    public var identifier: String { groupId }
 }

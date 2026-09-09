@@ -34,4 +34,17 @@ public extension IncomingPaymentSource {
         case let .coinsFromPrivateKeys(secretKeys): secretKeys
         }
     }
+
+    /// Rebuilds a source from its persisted discriminator + secret keys (used by the CoreData mapper).
+    init(sourceType: IncomingPaymentSourceType, secretKeys: [Data]) throws {
+        switch sourceType {
+        case .externalAsset:
+            guard let secretKey = secretKeys.first else {
+                throw IncomingPaymentError.invalidSource(reason: "External-asset source has no secret key")
+            }
+            self = .externalAssetFromWallet(secretKey: secretKey)
+        case .coins:
+            self = .coinsFromPrivateKeys(secretKeys: secretKeys)
+        }
+    }
 }
