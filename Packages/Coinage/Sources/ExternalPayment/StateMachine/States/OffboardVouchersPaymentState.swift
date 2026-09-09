@@ -23,6 +23,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
             recyclerLoader: factory.recyclerLoader,
             txService: factory.durability,
             originFactory: factory.originFactory,
+            quotaTracker: factory.quotaTracker,
             blockNumberProvider: factory.blockNumberProvider,
             denominationContext: factory.context,
             logger: factory.logger

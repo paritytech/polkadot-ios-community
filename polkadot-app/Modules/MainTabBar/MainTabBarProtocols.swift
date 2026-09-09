@@ -78,7 +78,7 @@ extension TabBarItem {
     func makeBarItem(badge: DSTabBarItem.Badge?) -> DSTabBarItem {
         DSTabBarItem(
             icon: image,
-            title: title,
+            title: nil,
             badge: badge,
             accessibilityLabel: title,
             accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue

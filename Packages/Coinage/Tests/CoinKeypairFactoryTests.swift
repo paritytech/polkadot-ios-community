@@ -58,6 +58,6 @@ struct CoinKeypairFactoryTests {
 
     @Test("Base derivation path is correct")
     func derivationPathCorrectness() {
-        #expect(factory.derivationPath(index: 123) == "//pps//coin//123")
+        #expect(factory.coinPath(for: 123) == "//coinage//4294967295//0/123")
     }
 }

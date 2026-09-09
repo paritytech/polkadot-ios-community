@@ -9,9 +9,9 @@ import BandersnatchApi
 struct VoucherEntropyDerivingTests {
     private let seed = Data(repeating: 0x01, count: 32)
 
-    @Test("Derives entropy successfully for valid all-hard paths")
+    @Test("Derives entropy successfully for a valid all-hard voucher path")
     func derivesEntropyValidPath() throws {
-        let deriver = VoucherEntropyDeriving(path: "//hard1//hard2")
+        let deriver = VoucherEntropyDeriving(path: "//coinage-ring-vrf//4294967295//0//1")
         let entropy = try deriver.deriveEntropy(from: seed)
 
         #expect(entropy.count == 32)
@@ -19,8 +19,8 @@ struct VoucherEntropyDerivingTests {
 
     @Test("Throws an error when path contains soft junctions")
     func derivesEntropyInvalidPath() throws {
-        // VoucherEntropyDeriving expects only hard junctions (//)
-        let deriver = VoucherEntropyDeriving(path: "//hard1/soft2")
+        // Ring-VRF entropy derivation has no soft variant — every junction must be hard.
+        let deriver = VoucherEntropyDeriving(path: "//coinage-ring-vrf//4294967295//0/1")
 
         #expect(throws: VoucherEntropyDerivingError.invalidDerivationPath) {
             try deriver.deriveEntropy(from: seed)
@@ -97,6 +97,6 @@ struct VoucherKeypairFactoryTests {
 
     @Test("Base derivation path is correct")
     func derivationPathCorrectness() {
-        #expect(factory.derivationPath(index: 123) == "//pps//ring-vrf//123")
+        #expect(factory.voucherPath(for: 123) == "//coinage-ring-vrf//4294967295//0//123")
     }
 }

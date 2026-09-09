@@ -3,13 +3,6 @@ import SubstrateSdk
 import KeyDerivation
 
 extension KeystoreTag {
-    static var anonymousDeviceIDTag: String {
-        [
-            domain,
-            "anonymousDeviceID"
-        ].joined(with: .colon)
-    }
-
     static func referralTicketTag(
         _ accountId: AccountId
     ) -> String {
@@ -33,10 +26,6 @@ extension KeystoreTag {
             encryptId,
             "deviceEncryptionKey"
         ].joined(with: .colon)
-    }
-
-    static func legacyTag(for metaId: String) -> String {
-        metaId + "-entropy"
     }
 
     static func backendClientTag(for sessionId: String) -> String {

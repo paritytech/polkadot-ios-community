@@ -22,6 +22,7 @@ struct UnloadIntoCoinsStrategy {
     private let recyclerLoader: RecyclerReadinessLoading
     private let txService: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let quotaTracker: any UnloadQuotaTracking
     private let blockInfoProvider: any BlockInfoProviding
     private let currentDate: Date
     private let logger: SDKLoggerProtocol?
@@ -35,6 +36,7 @@ struct UnloadIntoCoinsStrategy {
         recyclerLoader: RecyclerReadinessLoading,
         txService: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockInfoProvider: any BlockInfoProviding,
         currentDate: Date,
         logger: SDKLoggerProtocol?
@@ -47,6 +49,7 @@ struct UnloadIntoCoinsStrategy {
         self.recyclerLoader = recyclerLoader
         self.txService = txService
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockInfoProvider = blockInfoProvider
         self.currentDate = currentDate
         self.logger = logger
@@ -93,6 +96,10 @@ extension UnloadIntoCoinsStrategy: TransferStrategy {
             },
             groupId: groupId
         )
+
+        // Each group spent one free-unload token; note them after submission (a token for a tx that
+        // never left is still available) so the quota estimate follows the actual spend.
+        await quotaTracker.noteUnloadHappened(count: requests.count)
 
         // Ready coins need no submission; every group's recipient coins leave to the peer. Change
         // coins stay ours. All pre-committed before the memo can leave.
