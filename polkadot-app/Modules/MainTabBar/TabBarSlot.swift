@@ -5,6 +5,7 @@ import PolkadotUI
 enum TabBarAction: Hashable {
     case scan
     case spaTabs
+    case connectionStatus
 }
 
 enum TabBarSlot: Equatable {
@@ -48,6 +49,8 @@ private extension TabBarAction {
             .icon(UIImage.tabScan.withRenderingMode(.alwaysTemplate))
         case .spaTabs:
             .tabsGlyph(count: spaTabCount)
+        case .connectionStatus:
+            .icon(DSTabBarConnectionGlyph.image)
         }
     }
 
@@ -57,6 +60,8 @@ private extension TabBarAction {
             String(localized: .Products.productTabsAccessibilityScanner)
         case .spaTabs:
             String(localized: .Products.productTabsAccessibilityOpenApps(spaTabCount))
+        case .connectionStatus:
+            String(localized: .Common.connectionStatusAccessibilityLabel)
         }
     }
 }

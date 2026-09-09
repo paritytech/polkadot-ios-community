@@ -13,8 +13,8 @@ struct ChainStatusRingView: View, Hashable {
 
     var body: some View {
         let health = viewModel.health
-        let arcColor = ChainStatusRingStyle.arcColor(for: health)
-        let isFilled = ChainStatusRingStyle.isFilled(for: health)
+        let arcColor = ChainStatusRingStyle.arcColor(for: viewModel.healthGrade)
+        let isFilled = ChainStatusRingStyle.isFilled(for: viewModel.healthGrade)
 
         ZStack {
             Circle()
@@ -23,9 +23,10 @@ struct ChainStatusRingView: View, Hashable {
                 .animation(healthAnimation, value: health)
 
             Circle()
-                .stroke(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
+                .strokeBorder(Color.fgPrimary.opacity(0.2), lineWidth: lineWidth)
 
             Circle()
+                .inset(by: lineWidth / 2)
                 .trim(from: 1 - health, to: 1)
                 .stroke(
                     arcColor,

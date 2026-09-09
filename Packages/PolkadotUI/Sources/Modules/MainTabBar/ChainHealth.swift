@@ -36,6 +36,27 @@ public struct ChainHealthThresholds: Hashable {
     }
 }
 
+/// Named bands of the health score. Owns the thresholds; `ChainStatusRingStyle` draws them.
+public enum ChainHealthGrade: Hashable {
+    case excellent
+    case good
+    case fair
+    case poor
+
+    public init(health: Double) {
+        self =
+            if health > 0.75 {
+                .excellent
+            } else if health > 0.5 {
+                .good
+            } else if health > 0.25 {
+                .fair
+            } else {
+                .poor
+            }
+    }
+}
+
 public enum ChainHealth {
     public static func score(for viewModel: ChainConnectionStatusViewModel, at date: Date) -> Double {
         guard viewModel.state == .connected else {

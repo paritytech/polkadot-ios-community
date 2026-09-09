@@ -35,13 +35,13 @@ public final class DSTabBarView: UIView {
         }
     }
 
-    /// The action item whose panel is open. Tints that item without moving the lens.
+    /// The action item whose panel is open. The lens parks on it until the panel closes.
     public var activeActionIndex: Int? {
         didSet {
             guard activeActionIndex != oldValue else {
                 return
             }
-            applyActiveAction()
+            updateLens(animated: true)
             rebuildAccessibilityElements()
         }
     }
@@ -107,7 +107,6 @@ public final class DSTabBarView: UIView {
         itemsStorage[index].badge = badge
         itemViews[index].apply(itemsStorage[index])
         selectedItemViews[index].apply(itemsStorage[index])
-        applyActiveAction()
     }
 
     override public func layoutSubviews() {
@@ -142,6 +141,15 @@ private extension DSTabBarView {
 
     var tabIndices: [Int] {
         itemsStorage.indices.filter { itemsStorage[$0].role == .tab }
+    }
+
+    /// An open panel outranks the selected tab, so the single pill reads as current focus rather
+    /// than leaving the bar with two marks.
+    var restingPillIndex: Int {
+        guard let activeActionIndex, itemsStorage.indices.contains(activeActionIndex) else {
+            return selectedIndex
+        }
+        return activeActionIndex
     }
 
     /// The apps action sits mid-row, so springing the reflow slides its neighbours across a whole
@@ -182,7 +190,6 @@ private extension DSTabBarView {
             return view
         }
 
-        applyActiveAction()
         rebuildAccessibilityElements()
         setNeedsLayout()
     }
@@ -197,12 +204,6 @@ private extension DSTabBarView {
         rebuildAccessibilityElements()
     }
 
-    func applyActiveAction() {
-        for index in itemViews.indices {
-            itemViews[index].isActive = index == activeActionIndex
-        }
-    }
-
     func updateLens(animated: Bool) {
         guard !items.isEmpty, bounds.width > 0 else {
             return
@@ -211,12 +212,13 @@ private extension DSTabBarView {
         lens.update(pillFrame: lensPillFrame(), isLifted: dragState != nil, animated: animated)
     }
 
-    /// The pill rests on the selected tab; a drag in flight carries it, clamped to the row.
+    /// The pill rests on the selected tab, parks on an action while that action's panel is open,
+    /// and a drag in flight carries it, clamped to the row.
     func lensPillFrame() -> CGRect {
         let row = row
 
         guard let dragState else {
-            return row.pillFrame(at: selectedIndex)
+            return row.pillFrame(at: restingPillIndex)
         }
 
         var frame = row.pillFrame(at: dragState.index)

@@ -27,7 +27,7 @@ enum ChainConnectionTarget: CaseIterable {
         case .bulletin:
             "Bulletin"
         case .assethub:
-            "Asset Hub"
+            "Hub"
         }
     }
 
@@ -38,6 +38,16 @@ enum ChainConnectionTarget: CaseIterable {
             .seconds(2)
         case .bulletin:
             .seconds(6)
+        }
+    }
+
+    private var finalityBounds: ChainHealthCountBounds {
+        switch self {
+        case .chat,
+             .assethub:
+            ChainHealthCountBounds(healthy: 15, zero: 30)
+        case .bulletin:
+            ChainHealthCountBounds(healthy: 6, zero: 30)
         }
     }
 
