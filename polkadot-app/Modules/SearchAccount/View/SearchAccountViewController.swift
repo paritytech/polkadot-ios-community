@@ -140,17 +140,12 @@ final class SearchAccountViewController: UIViewController, ViewHolder {
         rootView.addressInputView.textField.becomeFirstResponder()
     }
 
-    private func prepareData(_ dataType: SearchAccountViewModel.DataType) -> Snapshot {
+    private func prepareData(_ content: SearchAccountViewModel.Content) -> Snapshot {
         var snapshot = SearchAccountViewController.Snapshot()
-        switch dataType {
-        case let .idle(recent, contacts):
-            appendSection(.recentContacts, items: recent.map { .recentContact($0) }, to: &snapshot)
-            appendSection(.contacts, items: contacts.map { .account($0) }, to: &snapshot)
-        case let .searchResults(recent, contacts, global):
-            appendSection(.recentContacts, items: recent.map { .recentContact($0) }, to: &snapshot)
-            appendSection(.contacts, items: contacts.map { .account($0) }, to: &snapshot)
-            appendSection(.globalSearch, items: global.map { .globalContact($0) }, to: &snapshot)
-        }
+
+        appendSection(.recentContacts, items: content.recent.map { .recentContact($0) }, to: &snapshot)
+        appendSection(.contacts, items: content.contacts.map { .account($0) }, to: &snapshot)
+        appendSection(.globalSearch, items: content.global.map { .globalContact($0) }, to: &snapshot)
 
         return snapshot
     }
@@ -192,15 +187,13 @@ extension SearchAccountViewController: SearchAccountViewProtocol {
 
     func applyData(_ viewModel: SearchAccountViewModel) {
         self.viewModel = viewModel
-        let snapshot = prepareData(viewModel.dataType)
+        let snapshot = prepareData(viewModel.content)
         applySnapshot(snapshot)
 
         let query = rootView.addressInputView.inputValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let isEmpty: Bool =
-            switch viewModel.dataType {
-            case let .idle(recent, contacts): recent.isEmpty && contacts.isEmpty
-            case let .searchResults(recent, contacts, global): recent.isEmpty && contacts.isEmpty && global.isEmpty
-            }
+        let isEmpty = viewModel.content.recent.isEmpty
+            && viewModel.content.contacts.isEmpty
+            && viewModel.content.global.isEmpty
 
         noResultsQuery = (!query.isEmpty && isEmpty) ? query : nil
         setNeedsUpdateContentUnavailableConfiguration()

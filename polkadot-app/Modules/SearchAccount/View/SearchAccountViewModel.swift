@@ -4,16 +4,16 @@ import SubstrateSdk
 
 struct SearchAccountViewModel {
     let inputViewModel: InputModel
-    let dataType: DataType
+    let content: Content
 
     init(
         inputViewModel: InputModel = InputModel(
             inputViewModel: InputViewModel.createAccountInputViewModel(for: "")
         ),
-        dataType: DataType = .idle(recent: [], contacts: [])
+        content: Content = .empty
     ) {
         self.inputViewModel = inputViewModel
-        self.dataType = dataType
+        self.content = content
     }
 }
 
@@ -34,9 +34,12 @@ extension SearchAccountViewModel {
         var selectedAccount: AccountType?
     }
 
-    enum DataType {
-        case idle(recent: [RecipientViewModel], contacts: [AccountType])
-        case searchResults(recent: [RecipientViewModel], contacts: [AccountType], global: [AccountType])
+    struct Content {
+        let recent: [RecipientViewModel]
+        let contacts: [AccountType]
+        let global: [AccountType]
+
+        static let empty = Content(recent: [], contacts: [], global: [])
     }
 }
 

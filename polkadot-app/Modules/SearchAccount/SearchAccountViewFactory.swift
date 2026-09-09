@@ -26,19 +26,20 @@ enum SearchAccountViewFactory {
             chatContactRepositoryFactory: ChatContactRepositoryFactory(),
             chainModel: chainAsset.chain
         )
+        let recipientViewModelFactory = RecipientViewModelFactory()
         let interactor = SearchAccountInteractor(
             searchUsernameFactory: searchUsernameFactory,
             recentContactsManager: recentContactsService,
             remoteContactSearch: RemoteContactOperationFactory(),
             chatOpenResolver: ChatOpenModelResolver(),
+            chainAsset: chainAsset,
             logger: logger
         )
         let wireframe = SearchAccountWireframe(coinageServicing: coinageServicing)
         let presenter = SearchAccountPresenter(
             interactor: interactor,
             wireframe: wireframe,
-            recipientViewModelFactory: RecipientViewModelFactory(),
-            logger: logger,
+            recipientViewModelFactory: recipientViewModelFactory,
             chainAsset: chainAsset
         )
 
