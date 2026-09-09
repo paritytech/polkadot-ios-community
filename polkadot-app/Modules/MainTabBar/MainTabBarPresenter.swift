@@ -12,7 +12,7 @@ final class MainTabBarPresenter {
     #if FEATURE_PRODUCTS
         let slots: [TabBarSlot] = [
             .tab(.chat), .tab(.wallet), .action(.scan), .action(.spaTabs),
-            .tab(.browse), .tab(.settings), .action(.connectionStatus)
+            .tab(.browse), .tab(.settings)
         ]
     #else
         let slots: [TabBarSlot] = [
