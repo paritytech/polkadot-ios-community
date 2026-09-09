@@ -14,11 +14,11 @@ enum ChainStatusRingStyle {
         case .excellent:
             .fgPrimary
         case .good:
-            .bgStatusSuccess
+            .fgPrimary
         case .fair:
-            .bgStatusWarning
+            .strokeWarning
         case .poor:
-            .bgStatusError
+            .strokeError
         }
     }
 }
