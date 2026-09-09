@@ -76,7 +76,7 @@ private extension NewIncomingChatRequestMapper {
         // identity-level during the handshake. Devices will be stored after
         // DeviceChatAccepted is exchanged.
 
-        let contact = CDChatContact(context: context)
+        let contact = try context.insertNew(CDChatContact.self)
         try ChatContactMapper().populate(
             entity: contact,
             from: contactModel,
@@ -96,7 +96,7 @@ private extension NewIncomingChatRequestMapper {
             throw MappingError.existingChat
         }
 
-        let chat = CDChat(context: context)
+        let chat = try context.insertNew(CDChat.self)
 
         try ChatModelMapper().populate(
             entity: chat,

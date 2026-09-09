@@ -1306,7 +1306,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You send %1$(amount)@"
+            "value": "You sent %1$(amount)@"
           }
         },
         "es-ES": {
@@ -3635,210 +3635,6 @@
         }
       }
     },
-    "recover.pending.transactions.banner.empty": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last recovery: nothing to recover"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Última recuperación: no hay nada que recuperar"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.banner.error": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last recovery failed: %@"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La última recuperación falló: %@"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.banner.success": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last recovery: %@"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Última recuperación: %@"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.button": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocar"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.description": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This will cancel any payments that have not been completed yet. Payments that are still pending, processing, or waiting for confirmation will not go through. Completed payments will not be affected."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esto cancelará todos los pagos que aún no se hayan completado. Los pagos que estén pendientes, en proceso o esperando confirmación no se realizarán. Los pagos completados no se verán afectados."
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.error": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recovery failed"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La recuperación falló"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.headline": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke pending payments?"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Revocar los pagos pendientes?"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.note": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This action cannot be undone. To send these payments later, you’ll need to create them again."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta acción no se puede deshacer. Para enviar estos pagos más adelante, tendrás que crearlos de nuevo."
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.recovering": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoking..."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocando..."
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.success": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recovered %@"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se recuperó %@"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.success.empty": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nothing to recover"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No hay nada que recuperar"
-          }
-        }
-      }
-    },
-    "recover.pending.transactions.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recover"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recuperar"
-          }
-        }
-      }
-    },
     "recovering.account.description": {
       "extractionState": "manual",
       "localizations": {
@@ -4213,23 +4009,6 @@
         }
       }
     },
-    "settings.cell.payment_history": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Payment History"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Historial de pagos"
-          }
-        }
-      }
-    },
     "settings.cell.privacy": {
       "extractionState": "manual",
       "localizations": {
@@ -4243,23 +4022,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Política de privacidad"
-          }
-        }
-      }
-    },
-    "settings.cell.recover": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revoke Payments"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Revocar pagos"
           }
         }
       }
@@ -4464,23 +4226,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Legal"
-          }
-        }
-      }
-    },
-    "settings.section.payments": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Payments"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pagos"
           }
         }
       }

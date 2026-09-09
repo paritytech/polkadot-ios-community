@@ -31,7 +31,6 @@ protocol ServiceCoordinatorProtocol: ApplicationServiceProtocol {
     var personDataStore: DetermineStatePersonDataStore { get }
     var coinageService: CoinageServicing { get }
     var coinageBackupSyncService: CoinageBackupSyncServicing { get }
-    var spentCoinsRecoveryService: SpentCoinsRecoveryServicing { get }
     var accountManager: ProductsAccountManaging { get }
     var allowanceManagerFacade: AllowanceManagerFacade { get }
     var turnService: TURNCredentialsProviding { get }
@@ -64,7 +63,6 @@ final class ServiceCoordinator {
     let personDataStore: DetermineStatePersonDataStore
     let coinageBackupSyncService: CoinageBackupSyncServicing
     let messageExpansionService: CompactedMessageExpansionServicing
-    let spentCoinsRecoveryService: SpentCoinsRecoveryServicing
     let notificationBadgeSyncService: NotificationBadgeSyncService
     let accountManager: ProductsAccountManaging
     let allowanceManagerFacade: AllowanceManagerFacade
@@ -106,7 +104,6 @@ final class ServiceCoordinator {
         personDataStore: DetermineStatePersonDataStore,
         coinageBackupSyncService: CoinageBackupSyncServicing,
         messageExpansionService: CompactedMessageExpansionServicing,
-        spentCoinsRecoveryService: SpentCoinsRecoveryServicing,
         notificationBadgeSyncService: NotificationBadgeSyncService,
         accountManager: ProductsAccountManaging,
         allowanceManagerFacade: AllowanceManagerFacade,
@@ -141,7 +138,6 @@ final class ServiceCoordinator {
         self.personDataStore = personDataStore
         self.coinageBackupSyncService = coinageBackupSyncService
         self.messageExpansionService = messageExpansionService
-        self.spentCoinsRecoveryService = spentCoinsRecoveryService
         self.notificationBadgeSyncService = notificationBadgeSyncService
         self.accountManager = accountManager
         self.allowanceManagerFacade = allowanceManagerFacade
@@ -202,7 +198,6 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
             }
             // Recovering backup 1st
             await coinageBackupSyncService.setup()
-            await spentCoinsRecoveryService.setup()
             await coinageTransferMonitor.setup()
             await w3sPaymentTracking.setup()
             await depositService.setup()
@@ -228,7 +223,6 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         Task {
             await deviceSyncService.throttle()
             await coinageBackupSyncService.throttle()
-            await spentCoinsRecoveryService.throttle()
             await coinageTransferMonitor.throttle()
             await w3sPaymentTracking.throttle()
             await signInHostCoordinator.throttle()
@@ -343,10 +337,6 @@ extension ServiceCoordinator {
             return nil
         }
 
-        let spentCoinsRecoveryService = SpentCoinsRecoveryService(
-            coinageService: coinageServices.coinageService
-        )
-
         guard let personhoodServices = createPersonhoodServices(
             syncStateStore: syncServiceResult.syncStore
         ) else {
@@ -460,7 +450,6 @@ extension ServiceCoordinator {
             personDataStore: syncServiceResult.personDataStore,
             coinageBackupSyncService: coinageServices.backupSyncService,
             messageExpansionService: messageExpansionService,
-            spentCoinsRecoveryService: spentCoinsRecoveryService,
             notificationBadgeSyncService: notificationBadgeSyncService,
             accountManager: accountManager,
             allowanceManagerFacade: allowanceManagerFacade,

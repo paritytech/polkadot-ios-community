@@ -246,7 +246,8 @@ extension TransferRecipientService {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
-        try logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+        let memoId = try memo.identifier().toHexString()
+        logger?.debug("\(memoId) start, timeout \(blockTimeout) blocks")
 
         try await withThrowingTaskGroup(of: Void.self) { group in
             group.addTask { [logger] in
@@ -254,8 +255,9 @@ extension TransferRecipientService {
                 for try await header in stream.cancellable() {
                     count += 1
                     if count == 1 {
-                        try logger?.debug(
-                            "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
+                        let memoId = try memo.identifier().toHexString()
+                        logger?.debug(
+                            "\(memoId) started from block \(header.number.hexBlockNumber)"
                         )
                     }
                     if count >= blockTimeout {
@@ -290,7 +292,8 @@ extension TransferRecipientService {
         let stream = acquireHeadStream()
         defer { releaseHeadStream() }
 
-        try logger?.debug("\(memo.identifier().toHexString()) start, timeout \(blockTimeout) blocks")
+        let memoId = try memo.identifier().toHexString()
+        logger?.debug("\(memoId) start, timeout \(blockTimeout) blocks")
 
         try await withThrowingTaskGroup(of: Void.self) { [logger] group in
             group.addTask {
@@ -298,8 +301,9 @@ extension TransferRecipientService {
                 for try await header in stream.cancellable() {
                     count += 1
                     if count == 1 {
-                        try logger?.debug(
-                            "\(memo.identifier().toHexString()) started from block \(header.number.hexBlockNumber)"
+                        let memoId = try memo.identifier().toHexString()
+                        logger?.debug(
+                            "\(memoId) started from block \(header.number.hexBlockNumber)"
                         )
                     }
                     if count >= blockTimeout {

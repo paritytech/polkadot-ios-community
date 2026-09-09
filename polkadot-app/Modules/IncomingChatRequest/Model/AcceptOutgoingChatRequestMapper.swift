@@ -68,7 +68,7 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
                 using: context
             )
         } else {
-            let newEntity = CDChatRequest(context: context)
+            let newEntity = try context.insertNew(CDChatRequest.self)
 
             try acceptIncomingMapper.populate(
                 entity: newEntity,

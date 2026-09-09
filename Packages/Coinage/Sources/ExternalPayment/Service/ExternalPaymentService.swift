@@ -20,6 +20,7 @@ struct ExternalPaymentDependency {
     let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
     let durability: any CoinageTxServicing
     let originFactory: OriginCreating
+    let quotaTracker: any UnloadQuotaTracking
     let blockNumberProvider: BlockInfoProviding
 
     init(
@@ -33,6 +34,7 @@ struct ExternalPaymentDependency {
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         durability: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding
     ) {
         self.instanceId = instanceId
@@ -45,6 +47,7 @@ struct ExternalPaymentDependency {
         self.extrinsicMonitor = extrinsicMonitor
         self.durability = durability
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
     }
 }
@@ -90,6 +93,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             extrinsicMonitor: dependency.extrinsicMonitor,
             durability: dependency.durability,
             originFactory: dependency.originFactory,
+            quotaTracker: dependency.quotaTracker,
             blockNumberProvider: dependency.blockNumberProvider,
             logger: logger
         )

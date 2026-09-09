@@ -51,59 +51,6 @@ extension TransferSenderServiceTests {
         }
     }
 
-    final class MockCoinKeyFactory: CoinKeyDeriving {
-        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
-            Data(repeating: 0, count: 32)
-        }
-
-        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
-            Data(repeating: 0, count: 64)
-        }
-    }
-
-    final class MockVoucherKeyFactory: VoucherKeyDeriving {
-        func derivePublicKey(index _: DerivationIndex) throws -> PublicKey {
-            Data(repeating: 0, count: 32)
-        }
-
-        func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey {
-            Data(repeating: 0, count: 64)
-        }
-
-        func createKeyManager(index: DerivationIndex) throws -> any BandersnatchKeyManaging {
-            MockBandersnatchKeyManager(derivationIndex: index)
-        }
-    }
-
-    final class MockBandersnatchKeyManager: BandersnatchKeyManaging {
-        let derivationIndex: UInt64
-
-        init(derivationIndex: UInt64) {
-            self.derivationIndex = derivationIndex
-        }
-
-        func getRawPublicKey() throws -> Data {
-            Data(repeating: 0, count: 32)
-        }
-
-        func sign(_: Data) throws -> Data {
-            Data(repeating: 0, count: 32)
-        }
-
-        func createProof(
-            _: Data,
-            members _: [BandersnatchPubKey],
-            context _: Data,
-            domainSize _: BandersnatchApi.RingDomainSize
-        ) throws -> Data {
-            Data(repeating: 0, count: 64)
-        }
-
-        func deriveAlias(for _: Data) throws -> Data {
-            Data(repeating: 0, count: 32)
-        }
-    }
-
     /// Mock recycler loader that returns configured recycler states
     final class MockRecyclerLoader: RecyclerReadinessLoading {
         var states: [RecyclerKey: MembersPallet.RingStatus] = [:]
@@ -178,52 +125,6 @@ extension TransferSenderServiceTests {
     }
 
     /// Mock origin factory that returns mock origins
-    final class MockOriginFactory: OriginCreating {
-        let errorToThrow: Error?
-
-        init(errorToThrow: Error? = nil) {
-            self.errorToThrow = errorToThrow
-        }
-
-        func createAsCoinOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
-            MockExtrinsicOrigin()
-        }
-
-        func createInfallibleUnpaidSignedOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
-            MockExtrinsicOrigin()
-        }
-
-        func createAsUnloadTokenOrigins(
-            voucherGroups: [[Voucher]],
-            currentDate _: Date,
-            blockHash _: SubstrateSdk.BlockHashData?
-        ) async throws -> [ExtrinsicOriginDefining] {
-            if let error = errorToThrow {
-                throw error
-            }
-            return voucherGroups.map { _ in MockExtrinsicOrigin() }
-        }
-    }
-
-    /// Mock extrinsic origin that returns successful resolution
-    final class MockExtrinsicOrigin: ExtrinsicOriginDefining {
-        func createOriginResolutionWrapper(
-            for dependency: @escaping () throws -> ExtrinsicOriginDefinitionDependency,
-            extrinsicVersion _: Extrinsic.Version,
-            purpose _: ExtrinsicOriginPurpose
-        ) -> CompoundOperationWrapper<ExtrinsicOriginDefinitionResponse> {
-            let operation = ClosureOperation<ExtrinsicOriginDefinitionResponse> {
-                let dep = try dependency()
-                return ExtrinsicOriginDefinitionResponse(
-                    builders: dep.builders,
-                    senderResolution: dep.senderResolution,
-                    feePayment: dep.feePayment
-                )
-            }
-            return CompoundOperationWrapper(targetOperation: operation)
-        }
-    }
-
     final class MockBlockNumberProvider: BlockInfoProviding {
         func fetchCurrentHash() async throws -> SubstrateSdk.BlockHashData {
             Data(repeating: 0x00, count: 32)
@@ -253,13 +154,9 @@ extension TransferSenderServiceTests {
             AsyncStream<Block.Header> { $0.finish() }.eraseToAnyAsyncSequence()
         }
     }
+}
 
-    /// Runs the operation inline, no OS background assertion — deterministic for tests.
-    struct InlineBackgroundExecutor: BackgroundExecuting {
-        func execute<T: Sendable>(
-            _ operation: @escaping @Sendable () async throws -> T
-        ) async throws -> T {
-            try await operation()
-        }
-    }
+struct StubUnloadQuotaTracker: UnloadQuotaTracking {
+    func remainingQuota() async throws -> UnloadQuota { UnloadQuota(remaining: 0, limit: 0) }
+    func noteUnloadHappened(count _: Int) async {}
 }

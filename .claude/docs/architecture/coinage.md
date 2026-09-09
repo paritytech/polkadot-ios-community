@@ -18,12 +18,13 @@ Coinage is the payment primitive for the Polkadot app — managing digital coins
 
 ## Coin Model
 
-A coin has:
+A coin (`Packages/Coinage/Sources/Models/Coin.swift`) has:
+- `exponent` — coin value as a power of two (`2^n`)
 - `derivationIndex` — unique derivation path
-- `valueExponent` — coin value
-- `age` — coin age/lifecycle
-- `spentState` — current spending state
-- `accountId` — associated account
+- `age` — on-chain age; `nil` = never seen on chain, `0` = fresh from unload/split
+- `isOnchain` — on-chain presence, written only by chain sync (`age != nil ∧ ¬isOnchain` = seen then vanished)
+- `handoffMark` — whether the coin has been handed off to a peer, and how far along
+- `publicKey` — on-chain account id derived from `derivationIndex`, cached so the durability layer never re-derives it
 
 ## Key Rules
 

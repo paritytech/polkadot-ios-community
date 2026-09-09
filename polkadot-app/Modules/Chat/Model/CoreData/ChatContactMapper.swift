@@ -129,7 +129,7 @@ extension ChatContactMapper {
         }
 
         for device in model.devices {
-            let deviceEntity = CDContactDevice(context: context)
+            let deviceEntity = try context.insertNew(CDContactDevice.self)
             deviceEntity.statementAccountId = device.statementAccountId
             deviceEntity.encryptionPublicKey = device.encryptionPublicKey
             deviceEntity.contact = entity
@@ -153,7 +153,8 @@ extension ChatContactMapper {
                 #keyPath(CDContactGame.gameIndex),
                 gameIndex
             )
-            let game: CDContactGame = try (context.first(for: predicate)) ?? CDContactGame(context: context)
+            let game: CDContactGame = try (context.first(for: predicate))
+                ?? context.insertNew(CDContactGame.self)
             game.gameIndex = gameIndex
             game.gameDate = date
             entity.game = game
@@ -176,13 +177,13 @@ extension CDChatContact {
     func upsertDevice(
         _ peerDevice: Chat.PeerDevice,
         context: NSManagedObjectContext
-    ) {
+    ) throws {
         let existingDevices = devices as? Set<CDContactDevice> ?? []
         let existing = existingDevices.first {
             $0.statementAccountId == peerDevice.statementAccountId
         }
 
-        let deviceEntity = existing ?? CDContactDevice(context: context)
+        let deviceEntity = try existing ?? context.insertNew(CDContactDevice.self)
         deviceEntity.statementAccountId = peerDevice.statementAccountId
         deviceEntity.encryptionPublicKey = peerDevice.encryptionPublicKey
         deviceEntity.contact = self

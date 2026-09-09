@@ -13,7 +13,7 @@ public extension ChatTransferMessageConfiguration {
         messageReaction: ChatMessageContainerConfiguration.MessageReactionViewModel? = nil
     ) -> ChatMessageContainerConfiguration {
         let configuration = ChatTransferMessageConfiguration(
-            title: String(localized: .chatTransferInbox(username: username)),
+            title: state.inboxTitle(username: username),
             amountText: amount,
             tokenSymbol: tokenSymbol,
             originalAmountText: originalAmount,
@@ -71,5 +71,20 @@ public extension ChatTransferMessageConfiguration {
             contentInsets: .zero,
             identifier: ChatTransferMessageConfiguration.defaultReuseIdentifier
         )
+    }
+}
+
+private extension ChatTransferMessageConfiguration.State {
+    func inboxTitle(username: String) -> String {
+        switch self {
+        case .finished,
+             .sent,
+             .partiallyClaimed,
+             .error:
+            String(localized: .chatTransferInbox(username: username))
+        case .processing,
+             .claiming:
+            String(localized: .chatTransferInboxSending(username: username))
+        }
     }
 }

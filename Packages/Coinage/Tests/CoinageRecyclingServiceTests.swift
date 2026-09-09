@@ -1,12 +1,5 @@
 import Testing
 import Foundation
-import Operation_iOS
-import ExtrinsicService
-import KeyDerivation
-import BandersnatchApi
-import BackgroundExecution
-import SubstrateSdk
-import SDKLogger
 @testable import Coinage
 
 /// `CoinageRecyclingService` is submission-only: the decision of *which* coins to recycle lives in
@@ -53,6 +46,22 @@ struct CoinageRecyclingServiceTests {
         try await sut.service.recycleCoins([coin(index: 7)])
 
         #expect(await sut.txService.submittedInputs.isEmpty)
+    }
+
+    @Test("recycleCoins returns the number of extrinsics actually submitted")
+    func returnsSubmittedCount() async throws {
+        let sut = makeSUT()
+
+        let submitted = try await sut.service.recycleCoins([coin(index: 7), coin(index: 9), coin(index: 11)])
+
+        #expect(submitted == 3)
+    }
+
+    @Test("recycleCoins returns zero when nothing is submitted")
+    func returnsZeroWhenNothingSubmitted() async throws {
+        #expect(try await makeSUT().service.recycleCoins([]) == 0)
+        // A coin whose preparation fails is skipped, so the batch submits nothing.
+        #expect(try await makeSUT(minterError: StubError.boom).service.recycleCoins([coin(index: 7)]) == 0)
     }
 }
 
@@ -114,84 +123,4 @@ private actor StubVoucherMinter: VoucherMinting {
             publicKey: stubKey(index)
         )
     }
-}
-
-private final class StubCoinKeyFactory: CoinKeyDeriving {
-    func derivePublicKey(index _: DerivationIndex) throws -> PublicKey { Data(repeating: 0, count: 32) }
-    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey { Data(repeating: 0, count: 64) }
-}
-
-private final class StubVoucherKeyFactory: VoucherKeyDeriving {
-    func derivePublicKey(index _: DerivationIndex) throws -> PublicKey { Data(repeating: 0, count: 32) }
-    func derivePrivateKey(index _: DerivationIndex) throws -> PrivateKey { Data(repeating: 0, count: 64) }
-
-    func createKeyManager(index _: DerivationIndex) throws -> any BandersnatchKeyManaging {
-        StubBandersnatchKeyManager()
-    }
-}
-
-private final class StubBandersnatchKeyManager: BandersnatchKeyManaging {
-    func getRawPublicKey() throws -> Data { Data(repeating: 0, count: 32) }
-    func sign(_: Data) throws -> Data { Data(repeating: 0, count: 32) }
-
-    func createProof(
-        _: Data,
-        members _: [BandersnatchPubKey],
-        context _: Data,
-        domainSize _: BandersnatchApi.RingDomainSize
-    ) throws -> Data {
-        Data(repeating: 0, count: 64)
-    }
-
-    func deriveAlias(for _: Data) throws -> Data { Data(repeating: 0, count: 32) }
-}
-
-private final class StubOriginFactory: OriginCreating {
-    func createAsCoinOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
-        StubExtrinsicOrigin()
-    }
-
-    func createInfallibleUnpaidSignedOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
-        StubExtrinsicOrigin()
-    }
-
-    func createAsUnloadTokenOrigins(
-        voucherGroups: [[Voucher]],
-        currentDate _: Date,
-        blockHash _: BlockHashData?
-    ) async throws -> [ExtrinsicOriginDefining] {
-        voucherGroups.map { _ in StubExtrinsicOrigin() }
-    }
-}
-
-private final class StubExtrinsicOrigin: ExtrinsicOriginDefining {
-    func createOriginResolutionWrapper(
-        for dependency: @escaping () throws -> ExtrinsicOriginDefinitionDependency,
-        extrinsicVersion _: Extrinsic.Version,
-        purpose _: ExtrinsicOriginPurpose
-    ) -> CompoundOperationWrapper<ExtrinsicOriginDefinitionResponse> {
-        let operation = ClosureOperation<ExtrinsicOriginDefinitionResponse> {
-            let dep = try dependency()
-            return ExtrinsicOriginDefinitionResponse(
-                builders: dep.builders,
-                senderResolution: dep.senderResolution,
-                feePayment: dep.feePayment
-            )
-        }
-        return CompoundOperationWrapper(targetOperation: operation)
-    }
-}
-
-private struct StubBackgroundExecutor: BackgroundExecuting {
-    func execute<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
-        try await operation()
-    }
-}
-
-private final class StubLogger: SDKLoggerProtocol {
-    func verbose(message _: String, file _: String, function _: String, line _: Int) {}
-    func debug(message _: String, file _: String, function _: String, line _: Int) {}
-    func info(message _: String, file _: String, function _: String, line _: Int) {}
-    func warning(message _: String, file _: String, function _: String, line _: Int) {}
-    func error(message _: String, file _: String, function _: String, line _: Int) {}
 }

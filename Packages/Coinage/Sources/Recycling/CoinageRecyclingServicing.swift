@@ -4,5 +4,7 @@ import Foundation
 /// this service only performs the submission, one `loadRecyclerWithCoin` extrinsic per coin.
 public protocol CoinageRecyclingServicing: Actor {
     /// Recycles the given coins into vouchers. Coins whose ledger state is not free are skipped.
-    func recycleCoins(_ coins: [Coin]) async throws
+    /// Returns the number of extrinsics actually submitted — zero when every coin was skipped.
+    @discardableResult
+    func recycleCoins(_ coins: [Coin]) async throws -> Int
 }

@@ -244,7 +244,7 @@ private extension CoinageTxCoreDataRepository {
         let existing: CDCoinageTxEntry? = try context.first(
             for: NSPredicate(format: "%K == %@", #keyPath(CDCoinageTxEntry.identifier), entry.identifier)
         )
-        let entity = existing ?? CDCoinageTxEntry(context: context)
+        let entity = try existing ?? context.insertNew(CDCoinageTxEntry.self)
         try entryMapper.populate(entity: entity, from: entry, using: context)
     }
 
