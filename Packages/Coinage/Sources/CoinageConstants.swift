@@ -23,4 +23,15 @@ public enum CoinageConstants {
 
     /// Maximum random wait time before a voucher becomes ready (6 hours).
     static let maxVoucherWaitTime: TimeInterval = 6 * 60 * 60
+
+    /// Key-derivation path components for coinage keys. Coins derive under
+    /// `//coinage//<purse>//<page>/<item>` and vouchers under
+    /// `//coinage-ring-vrf//<purse>//<page>//<item>`.
+    public enum Derivation {
+        /// `MAIN_PURSE` — the single purse all coinage keys derive under.
+        static let mainPurse: UInt32 = 4_294_967_295
+
+        /// `PAGE` — coinage keys currently all live on page 0.
+        static let page: UInt32 = 0
+    }
 }
