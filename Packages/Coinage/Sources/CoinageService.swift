@@ -142,6 +142,9 @@ public actor CoinageService {
     // lifecycle (setup/throttle) is driven by the ServiceCoordinator. `nonisolated` so the factory is
     // callable synchronously during app assembly.
     private nonisolated let incomingPaymentStore: any IncomingPaymentStoring
+    private nonisolated let incomingPaymentSecretStore: any IncomingPaymentSecretStoring
+    private nonisolated let incomingPaymentSourceResolver: any IncomingPaymentSourceResolving
+    private nonisolated let incomingPaymentAcknowledger: any IncomingPaymentAcknowledging
     private nonisolated let claimAssetService: any ClaimAssetServicing
     private nonisolated let instanceId: CoinageInstanceId
 
@@ -192,6 +195,9 @@ public actor CoinageService {
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
         incomingPaymentStore: any IncomingPaymentStoring,
+        incomingPaymentSecretStore: any IncomingPaymentSecretStoring,
+        incomingPaymentSourceResolver: any IncomingPaymentSourceResolving,
+        incomingPaymentAcknowledger: any IncomingPaymentAcknowledging,
         claimAssetService: any ClaimAssetServicing,
         instanceId: CoinageInstanceId,
         logger: SDKLoggerProtocol? = nil
@@ -217,6 +223,9 @@ public actor CoinageService {
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
         self.incomingPaymentStore = incomingPaymentStore
+        self.incomingPaymentSecretStore = incomingPaymentSecretStore
+        self.incomingPaymentSourceResolver = incomingPaymentSourceResolver
+        self.incomingPaymentAcknowledger = incomingPaymentAcknowledger
         self.claimAssetService = claimAssetService
         self.instanceId = instanceId
         self.logger = logger
@@ -229,15 +238,16 @@ extension CoinageService: DenominationContextProviding {}
 
 public extension CoinageService {
     nonisolated func makeIncomingPaymentService() -> any IncomingPaymentServicing {
-        let context = IncomingPaymentContext(store: incomingPaymentStore, logger: logger)
-        return IncomingPaymentService(
+        IncomingPaymentService(
             store: incomingPaymentStore,
-            validator: IncomingPaymentSourceValidator(),
-            paymentContext: context,
+            secretStore: incomingPaymentSecretStore,
+            sourceResolver: incomingPaymentSourceResolver,
+            paymentContext: IncomingPaymentContext(logger: logger),
             claimCoinsService: claimCoinsService,
             claimAssetService: claimAssetService,
             txService: txService,
             contextProvider: self,
+            acknowledger: incomingPaymentAcknowledger,
             instanceId: instanceId,
             logger: logger
         )

@@ -3,16 +3,15 @@ import Foundation
 import SDKLogger
 
 /// Holds the in-flight incoming-payment claim tasks and each payment's current derived status,
-/// mirroring `MixnetUploadContext`. Keyed by `groupId` (`"productId:paymentId"`) so payments from
-/// different products never collide. Persists the terminal `processed` flag; status itself is never
-/// persisted (it is derived from the durability group and cached in a per-payment subject).
+/// keyed by `groupId`. A pure scheduler: it starts/dedups/queues runners and caches the live status
+/// per payment. Persisting the verdict and wiping secrets is the service's job (it holds the record);
+/// the context only tracks tasks and subjects.
 actor IncomingPaymentContext {
     struct Pending {
         let groupId: CoinageTxGroupId
         let run: @Sendable () -> Task<Void, Never>
     }
 
-    private let store: any IncomingPaymentStoring
     private let maxConcurrent: Int
     private let logger: SDKLoggerProtocol?
 
@@ -20,12 +19,7 @@ actor IncomingPaymentContext {
     private var subjects: [CoinageTxGroupId: AsyncCurrentValueSubject<IncomingPaymentStatus>] = [:]
     private var pending: [Pending] = []
 
-    init(
-        store: any IncomingPaymentStoring,
-        maxConcurrent: Int = 5,
-        logger: SDKLoggerProtocol?
-    ) {
-        self.store = store
+    init(maxConcurrent: Int = 5, logger: SDKLoggerProtocol?) {
         self.maxConcurrent = maxConcurrent
         self.logger = logger
     }
@@ -50,19 +44,14 @@ extension IncomingPaymentContext {
         }
     }
 
-    /// Reports a derived status. On a terminal status, marks the payment processed, frees the slot and
-    /// starts the next queued claim. The subject is kept so its terminal value stays queryable.
-    func report(_ status: IncomingPaymentStatus, for groupId: CoinageTxGroupId) async {
+    /// Emits a status to the payment's subject (the live channel subscribers read).
+    func report(_ status: IncomingPaymentStatus, for groupId: CoinageTxGroupId) {
         subject(for: groupId).send(status)
+    }
 
-        guard status.isTerminal else { return }
-
-        do {
-            try await store.markProcessed(groupId: groupId)
-        } catch {
-            logger?.error("Failed to mark incoming payment \(groupId) processed: \(error)")
-        }
-
+    /// The runner for `groupId` is done. Frees the slot and starts the next queued claim. The subject
+    /// is kept so its last value stays queryable this session.
+    func finish(groupId: CoinageTxGroupId) {
         tasks[groupId] = nil
         startNextIfPossible()
     }
@@ -78,13 +67,13 @@ extension IncomingPaymentContext {
 
 extension IncomingPaymentContext {
     /// The live status stream for `groupId`, or `nil` when the context holds nothing for it (a cold
-    /// subscribe to a processed record — the service derives the terminal status from durability).
+    /// subscribe to a settled record — the service returns the stored verdict instead).
     func liveStatusStream(for groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPaymentStatus>? {
         subjects[groupId]?.eraseToAnyAsyncSequence()
     }
 
-    /// Seeds a subject with an externally derived status (e.g. a terminal status re-derived from
-    /// durability for a processed record) and returns its stream.
+    /// Seeds a subject with an externally supplied status (e.g. a stored terminal verdict) and returns
+    /// its stream.
     func seededStatusStream(
         _ status: IncomingPaymentStatus,
         for groupId: CoinageTxGroupId

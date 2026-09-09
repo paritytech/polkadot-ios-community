@@ -2,56 +2,49 @@ import Foundation
 import Operation_iOS
 import SubstrateSdk
 
-/// A durable, restart-recoverable top-up. Status is NOT stored here — it is derived from the
-/// CoinageTx durability group identified by ``groupId`` (plus detection). The record persists only
-/// what cannot be recomputed: the idempotency key, the claim's group, the amount, the secret
-/// material needed to drive the claim, and a ``processed`` flag marking the operation complete.
-///
-/// Material is never wiped — a completed operation keeps everything so its terminal status stays
-/// queryable indefinitely (host API contract) and restart recovery can tell processed from active.
+/// A durable, restart-recoverable top-up. The record holds no secret material — the source lives in
+/// the encrypted `IncomingPaymentSecretStoring` — and no live status. It persists only what cannot be
+/// recomputed: the product-supplied id, the product it is bound to, the amount, when its retry window
+/// opened, and — once there is one — its terminal ``outcome`` (read back exactly, never re-derived).
 public struct IncomingPayment: Equatable, Sendable {
     /// The product-supplied idempotency key. Unique only within a product.
     public let paymentId: IncomingPaymentId
     /// The product this payment is bound to. `(productId, paymentId)` is the global identity.
     public let productId: String
-    /// Secret material driving the claim, plus its shape.
-    public let source: IncomingPaymentSource
     public let amount: Balance
-    /// Set once the operation reaches a terminal status. `setup()` never starts a task for a
-    /// processed record; its presence (not material absence) is the "inactive" signal.
-    public let processed: Bool
+    /// The retry window opened here; a resumed run finishes the window it was given.
     public let createdAt: Date
+    /// The immutable verdict, `nil` until nothing further will be attempted. Its presence is the
+    /// "inactive/complete" signal — `setup()` never starts a task for a settled record.
+    public let outcome: IncomingPaymentTerminalOutcome?
 
     public init(
         paymentId: IncomingPaymentId,
         productId: String,
-        source: IncomingPaymentSource,
         amount: Balance,
-        processed: Bool,
-        createdAt: Date
+        createdAt: Date,
+        outcome: IncomingPaymentTerminalOutcome?
     ) {
         self.paymentId = paymentId
         self.productId = productId
-        self.source = source
         self.amount = amount
-        self.processed = processed
         self.createdAt = createdAt
+        self.outcome = outcome
     }
 }
 
 public extension IncomingPayment {
-    /// The CoinageTx durability group the claim registers under — bound to the product, so the same
-    /// `paymentId` from different products never collides. The sole source of truth for status.
+    /// The CoinageTx durability group the claim registers under — product-bound and `"top up:"`
+    /// prefixed, so the same `paymentId` from different products never collides and a top-up group
+    /// never clashes with a transfer group (`groupId = messageId`).
     var groupId: CoinageTxGroupId { Self.groupId(productId: productId, paymentId: paymentId) }
 
-    var sourceType: IncomingPaymentSourceType { source.sourceType }
-
-    /// A payment is active until it is marked ``processed`` on reaching a terminal status.
-    var isActive: Bool { !processed }
+    /// A payment is active until it is settled with a terminal ``outcome``.
+    var isActive: Bool { outcome == nil }
 
     /// The durability group / record identity for a `(productId, paymentId)` pair.
     static func groupId(productId: String, paymentId: IncomingPaymentId) -> CoinageTxGroupId {
-        "\(productId):\(paymentId)"
+        "top up:\(productId):\(paymentId)"
     }
 }
 

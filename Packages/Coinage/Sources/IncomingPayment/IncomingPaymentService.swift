@@ -1,22 +1,26 @@
 import AsyncExtensions
 import Foundation
-import KeyDerivation
 import os
 import SDKLogger
 import SubstrateSdk
 
-/// Drives inbound top-ups to completion, restart-durably. `accept` only validates and persists; the
+/// Drives inbound top-ups to completion, restart-durably. `accept` validates and persists; the
 /// `setup` subscription starts/resumes the claim task, so idempotency and recovery fall out of
-/// persistence (mirrors `MixnetUploadService`). Status is derived from the durability group, never
-/// stored — the record carries only a `groupId` and a `processed` flag.
+/// persistence (mirrors `MixnetUploadService`).
+///
+/// Secrets live only in `IncomingPaymentSecretStoring` (encrypted, wiped on settle); the record holds
+/// no source and no live status. The terminal verdict is written once on settle and read back
+/// exactly, so a reorg after settlement can never change what a completed top-up reports.
 public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked Sendable {
     private let store: any IncomingPaymentStoring
-    private let validator: any IncomingPaymentSourceValidating
+    private let secretStore: any IncomingPaymentSecretStoring
+    private let sourceResolver: any IncomingPaymentSourceResolving
     private let paymentContext: IncomingPaymentContext
     private let claimCoinsService: any ClaimCoinsServicing
     private let claimAssetService: any ClaimAssetServicing
     private let txService: any CoinageTxServicing
     private let contextProvider: any DenominationContextProviding
+    private let acknowledger: any IncomingPaymentAcknowledging
     private let instanceId: CoinageInstanceId
     private let logger: SDKLoggerProtocol?
 
@@ -24,22 +28,26 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
 
     init(
         store: any IncomingPaymentStoring,
-        validator: any IncomingPaymentSourceValidating,
+        secretStore: any IncomingPaymentSecretStoring,
+        sourceResolver: any IncomingPaymentSourceResolving,
         paymentContext: IncomingPaymentContext,
         claimCoinsService: any ClaimCoinsServicing,
         claimAssetService: any ClaimAssetServicing,
         txService: any CoinageTxServicing,
         contextProvider: any DenominationContextProviding,
+        acknowledger: any IncomingPaymentAcknowledging,
         instanceId: CoinageInstanceId,
         logger: SDKLoggerProtocol?
     ) {
         self.store = store
-        self.validator = validator
+        self.secretStore = secretStore
+        self.sourceResolver = sourceResolver
         self.paymentContext = paymentContext
         self.claimCoinsService = claimCoinsService
         self.claimAssetService = claimAssetService
         self.txService = txService
         self.contextProvider = contextProvider
+        self.acknowledger = acknowledger
         self.instanceId = instanceId
         self.logger = logger
     }
@@ -50,12 +58,12 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
 public extension IncomingPaymentService {
     func accept(
         amount: Balance,
-        source: IncomingPaymentSource,
+        descriptor: IncomingPaymentSourceDescriptor,
         paymentId: IncomingPaymentId,
         productId: String
     ) async throws {
         do {
-            try await performAccept(amount: amount, source: source, paymentId: paymentId, productId: productId)
+            try await performAccept(amount: amount, descriptor: descriptor, paymentId: paymentId, productId: productId)
         } catch let error as IncomingPaymentError {
             throw error
         } catch {
@@ -73,12 +81,13 @@ public extension IncomingPaymentService {
             return live
         }
 
-        // Cold subscribe (e.g. a processed payment after restart): re-derive terminal from durability.
-        guard await (try? store.fetch(groupId: groupId)) ?? nil != nil else {
+        // Cold subscribe: a settled record returns its stored verdict exactly; an unknown one, notClaimed.
+        let payment = try? await store.fetch(groupId: groupId)
+        guard let payment else {
             return await paymentContext.seededStatusStream(.notClaimed, for: groupId)
         }
 
-        let status = await deriveTerminalStatus(groupId: groupId)
+        let status = payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting
         return await paymentContext.seededStatusStream(status, for: groupId)
     }
 
@@ -112,7 +121,7 @@ public extension IncomingPaymentService {
 private extension IncomingPaymentService {
     func performAccept(
         amount: Balance,
-        source: IncomingPaymentSource,
+        descriptor: IncomingPaymentSourceDescriptor,
         paymentId: IncomingPaymentId,
         productId: String
     ) async throws {
@@ -121,26 +130,39 @@ private extension IncomingPaymentService {
             throw IncomingPaymentError.alreadyExists
         }
 
-        let fingerprints = try validator.fingerprints(for: source)
-        try await ensureSourceFree(fingerprints: fingerprints)
+        // Validate by resolving — a source that cannot produce signing/claim material is invalid.
+        do {
+            _ = try await sourceResolver.resolve(productId: productId, descriptor: descriptor)
+        } catch {
+            throw IncomingPaymentError.invalidSource(reason: error.localizedDescription)
+        }
+
+        try await ensureSourceFree(descriptor: descriptor, productId: productId)
+
+        // Both recorded before a single transaction is built, so a resumed top-up can be picked up.
+        try secretStore.save(groupId: groupId, descriptor: descriptor)
 
         let payment = IncomingPayment(
             paymentId: paymentId,
             productId: productId,
-            source: source,
             amount: amount,
-            processed: false,
-            createdAt: Date()
+            createdAt: Date(),
+            outcome: nil
         )
-        try await store.save(payment)
+        do {
+            try await store.save(payment)
+        } catch {
+            secretStore.remove(groupId: groupId)
+            throw error
+        }
     }
 
-    /// Throws `SourceBusy` when any secret key is already used by an active (unprocessed) payment.
-    func ensureSourceFree(fingerprints: Set<Data>) async throws {
+    /// Throws `SourceBusy` when the descriptor draws on the same funds as an active payment's.
+    func ensureSourceFree(descriptor: IncomingPaymentSourceDescriptor, productId: String) async throws {
         let active = try await store.fetchActivePayments()
         for other in active {
-            let otherFingerprints = (try? validator.fingerprints(for: other.source)) ?? []
-            if !fingerprints.isDisjoint(with: otherFingerprints) {
+            guard let otherDescriptor = secretStore.fetch(groupId: other.groupId) else { continue }
+            if descriptor.drawsOnSameFunds(as: otherDescriptor, sameProduct: other.productId == productId) {
                 throw IncomingPaymentError.sourceBusy
             }
         }
@@ -179,37 +201,54 @@ private extension IncomingPaymentService {
     ) -> @Sendable () -> Task<Void, Never> {
         { [weak self] in
             Task { [weak self] in
-                guard let self else { return }
-                do {
-                    for try await detection in claimStream(for: payment, denomination: denomination) {
-                        await paymentContext.report(
-                            IncomingPaymentStatus(detection: detection),
-                            for: payment.groupId
-                        )
-                    }
-                } catch {
-                    logger?.error("Incoming payment \(payment.paymentId) claim failed: \(error)")
-                }
+                await self?.drive(payment: payment, denomination: denomination)
             }
         }
     }
 
+    func drive(payment: IncomingPayment, denomination: DenominationBreakdownContext) async {
+        defer { Task { [paymentContext, groupId = payment.groupId] in await paymentContext.finish(groupId: groupId) } }
+
+        // Secret gone (Keychain lost): can't re-run, so settle from the ledger.
+        guard let descriptor = secretStore.fetch(groupId: payment.groupId) else {
+            let status = await verdictFromDurability(payment)
+            await paymentContext.report(status, for: payment.groupId)
+            await settle(payment: payment, finalStatus: status)
+            return
+        }
+
+        let resolved: ResolvedIncomingSource
+        do {
+            resolved = try await sourceResolver.resolve(productId: payment.productId, descriptor: descriptor)
+        } catch {
+            logger?.error("Incoming payment \(payment.paymentId) source unresolvable; will retry: \(error)")
+            return
+        }
+
+        var last: IncomingPaymentStatus = .detecting
+        for await detection in claimStream(for: payment, resolved: resolved, denomination: denomination) {
+            last = IncomingPaymentStatus(detection: detection)
+            await paymentContext.report(last, for: payment.groupId)
+        }
+        await settle(payment: payment, finalStatus: last)
+    }
+
     func claimStream(
         for payment: IncomingPayment,
+        resolved: ResolvedIncomingSource,
         denomination: DenominationBreakdownContext
     ) -> AnyAsyncSequence<CoinageTransferDetection> {
-        let retryUntil = payment.createdAt.addingTimeInterval(CoinageConstants.claimRetryWindow)
+        let retryUntil = payment.createdAt.addingTimeInterval(CoinageConstants.topUpRetryWindow)
 
-        switch payment.source {
-        case let .coinsFromPrivateKeys(secretKeys):
+        switch resolved {
+        case let .coins(secretKeys):
             return claimCoinsService.claim(
                 coinKeys: secretKeys,
                 groupId: payment.groupId,
                 retryUntil: retryUntil,
                 context: denomination
             )
-        case let .externalAssetFromWallet(secretKey):
-            let wallet = DynamicDerivedWallet(secretKeyProvider: { secretKey })
+        case let .wallet(wallet):
             return claimAssetService.claim(
                 wallet: wallet,
                 amount: payment.amount,
@@ -221,14 +260,39 @@ private extension IncomingPaymentService {
         }
     }
 
-    /// Best-effort terminal status for a processed record, from the durability group snapshot. An
-    /// empty group means nothing was ever loaded → `.notClaimed`; otherwise the group's finalization
-    /// state. The exact partial figure is not reconstructed here (a rare post-restart cold read).
-    func deriveTerminalStatus(groupId: CoinageTxGroupId) async -> IncomingPaymentStatus {
-        let entries = await (try? txService.getOperationGroupStatuses(groupId)) ?? []
+    /// Writes the verdict, wipes the secret, and prompts the user on an unhappy ending. A run that
+    /// ended without a verdict (window not yet closed) is left for the next launch to resume.
+    func settle(payment: IncomingPayment, finalStatus: IncomingPaymentStatus) async {
+        guard let outcome = finalStatus.terminalOutcome else {
+            logger?.warning("Incoming payment \(payment.paymentId) ended without a verdict: \(finalStatus)")
+            return
+        }
+
+        do {
+            try await store.settle(groupId: payment.groupId, outcome: outcome)
+        } catch {
+            logger?.error("Incoming payment \(payment.paymentId) failed to persist verdict: \(error)")
+        }
+        secretStore.remove(groupId: payment.groupId)
+
+        switch outcome {
+        case .claimedPartially, .notClaimed:
+            await acknowledger.acknowledge(
+                productId: payment.productId,
+                paymentId: payment.paymentId,
+                outcome: outcome
+            )
+        case .claimed:
+            break
+        }
+    }
+
+    /// Best-effort verdict for a payment whose secret is gone, from the durability group snapshot.
+    /// Empty group ⇒ nothing was loaded ⇒ `.notClaimed`; otherwise its finalization state (the exact
+    /// partial figure is not reconstructed here — a rare post-loss path).
+    func verdictFromDurability(_ payment: IncomingPayment) async -> IncomingPaymentStatus {
+        let entries = (try? await txService.getOperationGroupStatuses(payment.groupId)) ?? []
         guard !entries.isEmpty else { return .notClaimed }
-        return entries.allSatisfy { $0.status == .finalizedSuccess }
-            ? .claimed(finalized: true)
-            : .claimed(finalized: false)
+        return entries.allSatisfy { $0.status == .finalizedSuccess } ? .claimed(finalized: true) : .notClaimed
     }
 }

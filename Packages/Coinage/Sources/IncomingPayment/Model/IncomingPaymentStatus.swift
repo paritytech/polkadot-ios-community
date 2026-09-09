@@ -32,4 +32,31 @@ public extension IncomingPaymentStatus {
             true
         }
     }
+
+    /// The status a persisted terminal verdict reports — read back exactly, never re-derived.
+    init(outcome: IncomingPaymentTerminalOutcome) {
+        switch outcome {
+        case .claimed:
+            self = .claimed(finalized: true)
+        case let .claimedPartially(actualClaimed):
+            self = .claimedPartially(actualClaimed: actualClaimed)
+        case .notClaimed:
+            self = .notClaimed
+        }
+    }
+
+    /// The persistable verdict for a terminal status, or `nil` while nothing is settled. A
+    /// non-finalized `claimed` is not terminal and yields `nil`.
+    var terminalOutcome: IncomingPaymentTerminalOutcome? {
+        switch self {
+        case let .claimed(finalized):
+            finalized ? .claimed : nil
+        case let .claimedPartially(actualClaimed):
+            .claimedPartially(actualClaimed: actualClaimed)
+        case .notClaimed:
+            .notClaimed
+        case .detecting, .claiming:
+            nil
+        }
+    }
 }
