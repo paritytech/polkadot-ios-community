@@ -39,30 +39,6 @@ final class SettingsWireframe: SettingsWireframeProtocol {
         )
     }
 
-    func showRecoverPendingTransactions(from view: (any SettingsViewProtocol)?) {
-        guard let recoverView = RecoverPendingTransactionsViewFactory.createView(
-            serviceCoordinator: serviceCoordinator
-        ) else {
-            return
-        }
-
-        view?.controller.navigationController?.pushViewController(
-            recoverView.controller,
-            animated: true
-        )
-    }
-
-    func showPaymentHistory(from view: (any SettingsViewProtocol)?) {
-        guard let historyView = PaymentHistoryViewFactory.createView() else {
-            return
-        }
-
-        view?.controller.navigationController?.pushViewController(
-            historyView.controller,
-            animated: true
-        )
-    }
-
     func showCurrencyPicker(from view: (any SettingsViewProtocol)?) {
         let pickerController = CurrencyPickerViewFactory.createView()
         view?.controller.navigationController?.pushViewController(pickerController, animated: true)

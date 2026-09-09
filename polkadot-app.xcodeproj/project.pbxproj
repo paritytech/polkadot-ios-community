@@ -120,6 +120,7 @@
 				Common/Storage/Migration/SubstrateStorageVersion.swift,
 				Common/Storage/Migration/UserStorageVersion.swift,
 				"Common/Storage/NSManagedObjectContext+Fetch.swift",
+				"Common/Storage/NSManagedObjectContext+Insert.swift",
 				Common/Storage/StorageFacadeProtocol.swift,
 				Common/Storage/SubstrateDataModel.xcdatamodeld,
 				Common/Storage/SubstrateDataStorageFacade.swift,

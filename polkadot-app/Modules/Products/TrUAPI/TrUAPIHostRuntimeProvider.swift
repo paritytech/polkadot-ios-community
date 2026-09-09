@@ -114,10 +114,10 @@ extension TrUAPIHostRuntimeProvider {
         let peopleChain = try chainRegistry.getChainOrError(for: AppConfig.Chains.usernameChain)
         let bulletinChain = try chainRegistry.getChainOrError(for: AppConfig.Chains.bulletInChain)
 
-        guard let peopleGenesisHex = peopleChain.genesisHash else {
+        guard let peopleGenesisHex = peopleChain.explicitGenesisHash else {
             throw TrUAPIRuntimeConfigError.missingGenesisHash(chain: "people")
         }
-        guard let bulletinGenesisHex = bulletinChain.genesisHash else {
+        guard let bulletinGenesisHex = bulletinChain.explicitGenesisHash else {
             throw TrUAPIRuntimeConfigError.missingGenesisHash(chain: "bulletin")
         }
 

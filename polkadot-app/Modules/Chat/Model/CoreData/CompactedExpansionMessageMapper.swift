@@ -51,7 +51,7 @@ extension CompactedExpansionMessageMapper: CoreDataMapperProtocol {
             ) {
                 let expandedEntity: CDChatMessage = try context.first(
                     for: .chatMessage(with: remoteMessage.messageId)
-                ) ?? CDChatMessage(context: context)
+                ) ?? context.insertNew(CDChatMessage.self)
 
                 try expandedMessageMapper.populate(
                     entity: expandedEntity,

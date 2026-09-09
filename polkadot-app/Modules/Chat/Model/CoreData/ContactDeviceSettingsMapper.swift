@@ -53,7 +53,8 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
         for change in model.changes {
             switch change {
             case let .added(device):
-                let deviceEntity = devicesByAccountId[device.statementAccountId] ?? CDContactDevice(context: context)
+                let deviceEntity = try devicesByAccountId[device.statementAccountId]
+                    ?? context.insertNew(CDContactDevice.self)
                 deviceEntity.statementAccountId = device.statementAccountId
                 deviceEntity.encryptionPublicKey = device.encryptionPublicKey
                 deviceEntity.contact = entity

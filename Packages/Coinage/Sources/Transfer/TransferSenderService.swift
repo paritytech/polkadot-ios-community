@@ -2,6 +2,7 @@ import Foundation
 import BigInt
 import SubstrateSdk
 import SDKLogger
+import StructuredConcurrency
 
 /// Protocol for a coin unload to complete transfer.
 protocol TransferSenderServicing: Actor {
@@ -98,36 +99,38 @@ extension TransferSenderService: TransferSenderServicing {
         breakdownContext: DenominationBreakdownContext,
         groupId: CoinageTxGroupId?
     ) async throws -> PreparedTransfer {
-        let plan: TransferPlan
-        do {
-            plan = try await planFactory.createPlan(for: result, currentDate: currentDate)
-        } catch {
-            logger?.error("Plan creation failed: \(error)")
-            throw TransferSenderServiceError.planCreationFailed(error)
-        }
+        try await markStallActivity("Execute transfer") {
+            let plan: TransferPlan
+            do {
+                plan = try await planFactory.createPlan(for: result, currentDate: currentDate)
+            } catch {
+                logger?.error("Plan creation failed: \(error)")
+                throw TransferSenderServiceError.planCreationFailed(error)
+            }
 
-        // Mint outputs (persisted by the allocator), fire the background-tracked submission, and
-        // pre-commit the handoff — everything that must land before the memo (the keys) can leave.
-        // A failure leaves registered entries and a provisional handoff, both resolved by the
-        // recovery pass / relaunch.
-        let prepared: PreparedStrategy
-        do {
-            prepared = try await plan.strategy.prepare(groupId: groupId)
-        } catch {
-            logger?.error("Strategy preparation failed: \(error)")
-            throw TransferSenderServiceError.strategyFailed(error)
-        }
+            // Mint outputs (persisted by the allocator), fire the background-tracked submission, and
+            // pre-commit the handoff — everything that must land before the memo (the keys) can leave.
+            // A failure leaves registered entries and a provisional handoff, both resolved by the
+            // recovery pass / relaunch.
+            let prepared: PreparedStrategy
+            do {
+                prepared = try await plan.strategy.prepare(groupId: groupId)
+            } catch {
+                logger?.error("Strategy preparation failed: \(error)")
+                throw TransferSenderServiceError.strategyFailed(error)
+            }
 
-        // Memo is built from what `prepare` just minted.
-        let memo: TransferMemo
-        do {
-            memo = try memoBuilder.buildMemo(from: prepared.memoEntries, breakdownContext: breakdownContext)
-        } catch {
-            logger?.error("Memo building failed: \(error)")
-            throw TransferSenderServiceError.memoBuildingFailed(error)
-        }
+            // Memo is built from what `prepare` just minted.
+            let memo: TransferMemo
+            do {
+                memo = try memoBuilder.buildMemo(from: prepared.memoEntries, breakdownContext: breakdownContext)
+            } catch {
+                logger?.error("Memo building failed: \(error)")
+                throw TransferSenderServiceError.memoBuildingFailed(error)
+            }
 
-        return PreparedTransfer(memo: memo, handoffCommit: prepared.handoffCommit)
+            return PreparedTransfer(memo: memo, handoffCommit: prepared.handoffCommit)
+        }
     }
 
     func previewStrategy(

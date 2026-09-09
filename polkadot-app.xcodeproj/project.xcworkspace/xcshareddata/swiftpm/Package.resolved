@@ -1,5 +1,5 @@
 {
-  "originHash" : "307b469307f4af14e8059fc2c78c24b7d550fa62da26dae196d2ff59242a6701",
+  "originHash" : "6218bec7db7600c6de7e5c30ef96a5e3d73f43efe89244f995573ee1cb3a5044",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "revision" : "2590dbcf2344d84e50d434dc29fa3c9ef21513d7",
-        "version" : "1.14.1"
+        "revision" : "3c1eb23431bd2c245c26eb33867fefb1a9b2cf10",
+        "version" : "1.16.0"
       }
     },
     {
@@ -231,8 +231,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/logger-ios",
       "state" : {
-        "revision" : "cafece8626141b4430ddc8d5288d3444abd122de",
-        "version" : "0.0.1"
+        "revision" : "067337bd88bcb3fe61b208bc3050fa2e22670340",
+        "version" : "0.1.0"
       }
     },
     {
@@ -267,8 +267,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/Operation-iOS",
       "state" : {
-        "revision" : "32d8155004a0809c53407b637fdeacb47e917b1b",
-        "version" : "2.5.0"
+        "revision" : "6870932682cbb3a8c833f61bc0cee16f884ab5c6",
+        "version" : "2.7.0"
       }
     },
     {
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "6d01f4e470e7bd811e79a18c2cb1b3f084c79b55",
-        "version" : "5.11.0"
+        "revision" : "cb890bd5d4bbe5aa3e13aac8f1e201180fd7b02e",
+        "version" : "5.13.0"
       }
     },
     {

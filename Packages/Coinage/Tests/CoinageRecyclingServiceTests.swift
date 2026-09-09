@@ -124,5 +124,3 @@ private actor StubVoucherMinter: VoucherMinting {
         )
     }
 }
-
-// Shared key/origin/executor/logger doubles live in `Tests/Mocks/` (one type per file).

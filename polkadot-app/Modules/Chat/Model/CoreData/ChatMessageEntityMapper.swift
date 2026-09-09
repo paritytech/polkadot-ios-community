@@ -176,7 +176,7 @@ private extension ChatMessageEntityMapper {
         using context: NSManagedObjectContext
     ) throws {
         if entity.content == nil {
-            entity.content = CDMessageContent(context: context)
+            entity.content = try context.insertNew(CDMessageContent.self)
         }
 
         entity.content?.data = try content.scaleEncoded()

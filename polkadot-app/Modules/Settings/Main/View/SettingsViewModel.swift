@@ -11,8 +11,6 @@ enum SettingsViewModel {
         case backup
         case theme
         case currency
-        case revoke
-        case paymentHistory
         case linkedDevices
         case apps
         case blockedUsers
@@ -25,8 +23,6 @@ enum SettingsViewModel {
             case .backup: String(localized: .settingsCellBackup)
             case .theme: String(localized: .settingsCellTheme)
             case .currency: String(localized: .settingsCellCurrency)
-            case .revoke: String(localized: .settingsCellRecover)
-            case .paymentHistory: String(localized: .settingsCellPaymentHistory)
             case .linkedDevices: String(localized: .settingsCellLinkedDevices)
             case .apps: String(localized: .settingsCellApps)
             case .blockedUsers: String(localized: .settingsCellBlockedUsers)
@@ -53,13 +49,11 @@ enum SettingsViewModel {
         case general
         case security
         case legal
-        case payments
         case support
 
         var header: String {
             switch self {
             case .general: String(localized: .settingsSectionGeneral)
-            case .payments: String(localized: .settingsSectionPayments)
             case .security: String(localized: .settingsSectionSecurity)
             case .legal: String(localized: .settingsSectionLegal)
             case .support: String(localized: .settingsSectionSupport)
@@ -69,12 +63,6 @@ enum SettingsViewModel {
         var cells: [CellType] {
             switch self {
             case .general: [.theme]
-            case .payments:
-                #if F_DEV
-                    [.revoke, .paymentHistory]
-                #else
-                    [.revoke]
-                #endif
             case .security: Self.securityCells
             case .legal: [.privacy, .termsOfUse]
             case .support: [.contactUs]

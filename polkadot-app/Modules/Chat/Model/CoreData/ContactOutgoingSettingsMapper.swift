@@ -94,7 +94,7 @@ extension ContactOutgoingSettingsMapper: CoreDataMapperProtocol {
             content: .token(tokenContent)
         )
 
-        let newMessageEntity = CDChatMessage(context: context)
+        let newMessageEntity = try context.insertNew(CDChatMessage.self)
 
         try ChatMessageEntityMapper().populate(
             entity: newMessageEntity,
