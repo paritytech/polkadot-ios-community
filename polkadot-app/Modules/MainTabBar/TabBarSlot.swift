@@ -50,11 +50,7 @@ private extension TabBarAction {
         case .spaTabs:
             .tabsGlyph(count: spaTabCount)
         case .connectionStatus:
-            // Placeholder until design supplies a glyph for Assets.xcassets/icons/tabs/.
-            .icon(
-                UIImage(systemName: "antenna.radiowaves.left.and.right")?
-                    .withRenderingMode(.alwaysTemplate) ?? UIImage()
-            )
+            .icon(DSTabBarConnectionGlyph.image)
         }
     }
 
