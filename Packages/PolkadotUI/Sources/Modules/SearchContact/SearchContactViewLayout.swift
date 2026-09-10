@@ -133,11 +133,6 @@ public extension SearchContactViewLayout {
         set { searchHeader.cancelHandler = newValue }
     }
 
-    var scanHandler: (() -> Void)? {
-        get { searchHeader.scanHandler }
-        set { searchHeader.scanHandler = newValue }
-    }
-
     func bind(viewModel: ViewModel) {
         configureCollectionView(viewModel: viewModel)
         searchHintLabel.setHidden(!viewModel.showHint)

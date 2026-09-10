@@ -9,7 +9,6 @@ protocol SearchContactViewProtocol: ControllerBackedProtocol {
 protocol SearchContactPresenterProtocol: AnyObject {
     func setup()
     func search(username: String)
-    func scanQRCode()
     func didSelectContact(identifier: String)
 }
 
@@ -26,7 +25,6 @@ protocol SearchContactInteractorOutputProtocol: AnyObject {
 }
 
 @MainActor
-protocol SearchContactWireframeProtocol: AnyObject, WalletQRScanPresentable, AlertPresentable, ErrorPresentable {
-    func showQRScan(from view: SearchContactViewProtocol?)
+protocol SearchContactWireframeProtocol: AnyObject, AlertPresentable, ErrorPresentable {
     func complete(from view: SearchContactViewProtocol?, with model: ChatOpenModel)
 }

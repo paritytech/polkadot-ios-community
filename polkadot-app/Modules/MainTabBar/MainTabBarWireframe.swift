@@ -35,8 +35,7 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
             moduleNavigator.openChat(openModel)
         }
         guard let search = SearchContactViewFactory.createView(
-            with: searchModel,
-            coinageService: serviceCoordinator.coinageService
+            with: searchModel
         ) else { return }
         search.controller.modalPresentationStyle = .fullScreen
         search.controller.modalTransitionStyle = .crossDissolve

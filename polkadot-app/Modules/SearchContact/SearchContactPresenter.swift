@@ -33,10 +33,6 @@ extension SearchContactPresenter: SearchContactPresenterProtocol {
         interactor.search(username: username)
     }
 
-    func scanQRCode() {
-        wireframe.showQRScan(from: view)
-    }
-
     func didSelectContact(identifier: String) {
         guard let contact = currentSearch.contacts.first(where: { $0.username == identifier }) else {
             return
