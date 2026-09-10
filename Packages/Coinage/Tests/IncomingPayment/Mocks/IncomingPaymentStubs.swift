@@ -51,10 +51,7 @@ final class StubSourceResolver: IncomingPaymentSourceResolving, @unchecked Senda
         self.shouldFail = shouldFail
     }
 
-    func resolve(
-        productId _: String,
-        descriptor: IncomingPaymentSourceDescriptor
-    ) async throws -> ResolvedIncomingSource {
+    func resolve(descriptor: IncomingPaymentSourceDescriptor) async throws -> ResolvedIncomingSource {
         if shouldFail { throw Invalid() }
         switch descriptor {
         case let .coins(secretKeys): return .coins(secretKeys: secretKeys)

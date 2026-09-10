@@ -10,7 +10,22 @@ public enum IncomingPaymentSourceDescriptor: Equatable, Sendable, Codable {
     case coins(secretKeys: [Data])
 }
 
+/// Persisted discriminator for a descriptor (the tag the secret store serialises alongside the bytes).
+public enum IncomingPaymentSourceKind: String, Sendable, Equatable {
+    case productAccount
+    case privateKey
+    case coins
+}
+
 public extension IncomingPaymentSourceDescriptor {
+    var kind: IncomingPaymentSourceKind {
+        switch self {
+        case .productAccount: .productAccount
+        case .privateKey: .privateKey
+        case .coins: .coins
+        }
+    }
+
     /// Whether two sources are the same money and so cannot be claimed at once.
     ///
     /// A derivation index means nothing outside the product whose subtree it indexes, so two of those

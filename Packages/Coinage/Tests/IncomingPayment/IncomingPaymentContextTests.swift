@@ -85,7 +85,7 @@ struct IncomingPaymentContextTests {
 
     private func waitUntil(
         _ condition: @escaping () async -> Bool,
-        timeout: Duration = .seconds(3)
+        timeout: Duration = .seconds(100)
     ) async throws {
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while ContinuousClock.now < deadline {

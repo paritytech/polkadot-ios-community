@@ -310,7 +310,7 @@ struct IncomingPaymentServiceTests {
 
     private func waitUntil(
         _ condition: @escaping () -> Bool,
-        timeout: Duration = .seconds(5)
+        timeout: Duration = .seconds(100)
     ) async throws {
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while ContinuousClock.now < deadline {

@@ -11,15 +11,8 @@ public enum ResolvedIncomingSource {
 }
 
 /// Turns a stored source descriptor into signing/claim material.
-///
-/// Implemented app-side because resolving a product-account index needs the device root entropy the
-/// Coinage package does not hold. Throwing resolution is how an invalid source surfaces
-/// (`IncomingPaymentError.invalidSource`).
 public protocol IncomingPaymentSourceResolving: Sendable {
-    func resolve(
-        productId: String,
-        descriptor: IncomingPaymentSourceDescriptor
-    ) async throws -> ResolvedIncomingSource
+    func resolve(descriptor: IncomingPaymentSourceDescriptor) async throws -> ResolvedIncomingSource
 }
 
 public final class IncomingPaymentSourceResolver: IncomingPaymentSourceResolving, @unchecked Sendable {
@@ -29,10 +22,7 @@ public final class IncomingPaymentSourceResolver: IncomingPaymentSourceResolving
         self.entropyManager = entropyManager
     }
 
-    public func resolve(
-        productId _: String,
-        descriptor: IncomingPaymentSourceDescriptor
-    ) async throws -> ResolvedIncomingSource {
+    public func resolve(descriptor: IncomingPaymentSourceDescriptor) async throws -> ResolvedIncomingSource {
         switch descriptor {
         case let .productAccount(derivationPath):
             let wallet = DynamicDerivedWallet(

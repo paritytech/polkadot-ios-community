@@ -114,7 +114,7 @@ private extension IncomingPaymentService {
 
         // Validate by resolving — a source that cannot produce signing/claim material is invalid.
         do {
-            _ = try await sourceResolver.resolve(productId: productId, descriptor: descriptor)
+            _ = try await sourceResolver.resolve(descriptor: descriptor)
         } catch {
             throw IncomingPaymentError.invalidSource(reason: error.localizedDescription)
         }
@@ -144,7 +144,7 @@ private extension IncomingPaymentService {
         let active = try await store.fetchActivePayments()
         for other in active {
             guard let otherDescriptor = secretStore.fetch(groupId: other.groupId) else { continue }
-            if false {
+            if descriptor.drawsOnSameFunds(as: otherDescriptor, sameProduct: other.productId == productId) {
                 throw IncomingPaymentError.sourceBusy
             }
         }
@@ -189,7 +189,7 @@ private extension IncomingPaymentService {
 
         let resolved: ResolvedIncomingSource
         do {
-            resolved = try await sourceResolver.resolve(productId: payment.productId, descriptor: descriptor)
+            resolved = try await sourceResolver.resolve(descriptor: descriptor)
         } catch {
             logger?.error("Incoming payment \(payment.paymentId) source unresolvable; will retry: \(error)")
             return
