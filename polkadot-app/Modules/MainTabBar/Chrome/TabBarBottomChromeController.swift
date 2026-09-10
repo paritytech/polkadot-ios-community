@@ -16,12 +16,6 @@ final class TabBarBottomChromeController: UIViewController {
     private weak var appliedTabController: UIViewController?
     private weak var appliedContentController: UIViewController?
 
-    private var panelAnimator: UIViewPropertyAnimator?
-    private var openPanel: TabBarPanelKind?
-    private var pendingPanel: TabBarPanelKind?
-    private var isApplyingPanel = false
-    private var hasPendingContentPanelResize = false
-
     private var slots: [TabBarSlot] = []
     private var slotMap = TabBarSlotMap(slots: [])
     private var spaTabCount = 0
@@ -50,6 +44,28 @@ final class TabBarBottomChromeController: UIViewController {
         sequence: TabBarTipSequenceFactory.make(steps: TabBarTips.steps),
         itemIndex: { [weak self] slot in self?.slotMap.itemIndex(for: slot) },
         statusStripAnchor: { [weak self] in self?.statusStripAnchorProvider?() }
+    )
+
+    private lazy var panelController = TabBarPanelController(
+        surface: chromeSurface,
+        onPanelChanged: { [weak self] kind in
+            self?.onPanelChanged?(kind)
+        },
+        onOpenPanelChanged: { [weak self] kind in
+            self?.updateActiveActionIndex()
+            (self?.viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
+        },
+        dismissTips: { [weak self] in
+            self?.tipController.dismissForPanel()
+        },
+        tearDownContent: { [weak self] in
+            self?.detachHostedController()
+            self?.chromeSurface.setContentHostedView(nil)
+            self?.chromeSurface.setContentConfiguration(nil)
+        },
+        setBackdropOpen: { [weak self] isOpen, animator in
+            self?.backdropView.setOpen(isOpen, animator: animator)
+        }
     )
 
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
@@ -109,7 +125,7 @@ final class TabBarBottomChromeController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        chromeSurface.updateHeight(for: openPanel, animator: nil)
+        panelController.refreshHeightAfterLayout()
 
         foldController.reapplyForWidthChange()
     }
@@ -146,105 +162,39 @@ final class TabBarBottomChromeController: UIViewController {
         chromeSurface.setChips(chips, selected: selected, closeActionTitle: String(localized: .Common.close))
 
         if chips.isEmpty || chromeSurface.availablePanelHeight <= 0 {
-            if openPanel == .spaTabs {
-                setPanel(nil, animated: true)
+            if panelController.open == .spaTabs {
+                panelController.setPanel(nil, animated: true)
             }
             return
         }
 
-        let animator = openPanel == .spaTabs ? makePanelAnimator() : nil
-        chromeSurface.updateHeight(for: openPanel, animator: animator)
-        animator?.startAnimation()
+        panelController.refreshHeightAfterChipsChange()
     }
 
     func setPanel(_ kind: TabBarPanelKind?, animated: Bool) {
-        pendingPanel = nil
-        // A resize owed by the outgoing content must not land on whatever replaces it.
-        hasPendingContentPanelResize = false
-
-        let previousPanel = openPanel
-        let animator = animated ? makePanelAnimator() : nil
-
-        backdropView.setOpen(kind != nil, animator: animator)
-        chromeSurface.setPanelsOpen(kind, animator: animator)
-        (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
-
-        if kind != nil {
-            tipController.dismissForPanel()
-        }
-
-        openPanel = kind
-        updateActiveActionIndex()
-
-        // Content is requested before the height is measured, so the open animates
-        // straight to its final size and the scanner's capture session warms up during
-        // the animation rather than after it. `isApplyingPanel` stops that push starting
-        // a rival animator.
-        if previousPanel != kind {
-            isApplyingPanel = true
-            onPanelChanged?(kind)
-            isApplyingPanel = false
-        }
-
-        chromeSurface.updateHeight(for: kind, animator: animator)
-
-        // The scanner's capture session must be released once the panel is gone, so the teardown
-        // rides the same animator and still runs when there is none (a fold closes unanimated).
-        if previousPanel?.contentAction != nil, kind?.contentAction == nil {
-            let teardown = { [weak self] in self?.clearContentPanel() }
-            if let animator {
-                animator.addCompletion { _ in teardown() }
-            } else {
-                teardown()
-            }
-        }
-
-        // `togglePanel` sets `pendingPanel` after this close returns, so the reopen is read at
-        // completion time: a fold or another tap in between clears it and cancels the switch.
-        if kind == nil, let animator {
-            animator.addCompletion { [weak self] _ in
-                guard let self, let pendingPanel else {
-                    return
-                }
-                self.pendingPanel = nil
-                setPanel(pendingPanel, animated: true)
-            }
-        }
-
-        animator?.startAnimation()
+        panelController.setPanel(kind, animated: animated)
     }
 
     /// Selecting a different action closes the open panel before opening the new one, so the
     /// change reads as a close followed by an open instead of a silent content swap.
     func togglePanel(_ kind: TabBarPanelKind) {
-        guard let openPanel else {
-            setPanel(kind, animated: true)
-            return
-        }
-
-        guard openPanel != kind else {
-            setPanel(nil, animated: true)
-            return
-        }
-
-        setPanel(nil, animated: true)
-        pendingPanel = kind
+        panelController.togglePanel(kind)
     }
 
     func setContentPanel(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction) {
-        guard openPanel == .content(action) else {
+        guard panelController.open == .content(action) else {
             return
         }
 
         detachHostedController()
         chromeSurface.setContentConfiguration(configuration)
-        resizeForContentPanel()
+        panelController.resizeForContentPanel()
     }
 
     /// A camera controller needs its appearance callbacks, so it is hosted as a child rather than
     /// wrapped in a content view.
     func setContentController(_ controller: UIViewController?, for action: TabBarAction) {
-        guard openPanel == .content(action) else {
+        guard panelController.open == .content(action) else {
             return
         }
 
@@ -259,7 +209,7 @@ final class TabBarBottomChromeController: UIViewController {
             chromeSurface.setContentHostedView(nil)
         }
 
-        resizeForContentPanel()
+        panelController.resizeForContentPanel()
     }
 
     func apply(
@@ -317,10 +267,6 @@ final class TabBarBottomChromeController: UIViewController {
 
         updateLayout()
     }
-
-    deinit {
-        panelAnimator?.cancelInPlace()
-    }
 }
 
 // MARK: - Bar items and panel content
@@ -343,46 +289,7 @@ private extension TabBarBottomChromeController {
     }
 
     func updateActiveActionIndex() {
-        barView.activeActionIndex = openPanel.flatMap { slotMap.itemIndex(for: $0.action) }
-    }
-
-    /// A push that arrives while `setPanel` is applying is already covered by the
-    /// open animation.
-    ///
-    /// One that arrives while an animation is running waits for it. Resizing there would cancel
-    /// the open and strand the container at whatever height it had reached, and the size it would
-    /// aim for is measured before SwiftUI has laid out the content that just changed, so the panel
-    /// settles on the previous content's height.
-    func resizeForContentPanel() {
-        guard !isApplyingPanel, openPanel?.contentAction != nil else {
-            return
-        }
-
-        guard panelAnimator == nil else {
-            deferResizeForContentPanel()
-            return
-        }
-
-        let animator = makePanelAnimator()
-        chromeSurface.updateHeight(for: openPanel, animator: animator)
-        animator.startAnimation()
-    }
-
-    /// Every push during one animation is owed the same single resize, measured once the
-    /// animation — and with it the pending SwiftUI layout — has settled.
-    func deferResizeForContentPanel() {
-        guard !hasPendingContentPanelResize, let panelAnimator else {
-            return
-        }
-
-        hasPendingContentPanelResize = true
-        panelAnimator.addCompletion { [weak self] _ in
-            guard let self, hasPendingContentPanelResize else {
-                return
-            }
-            hasPendingContentPanelResize = false
-            resizeForContentPanel()
-        }
+        barView.activeActionIndex = panelController.open.flatMap { slotMap.itemIndex(for: $0.action) }
     }
 
     func clearContentPanel() {
@@ -428,25 +335,7 @@ private extension TabBarBottomChromeController {
             foldController.setUserOverride(.shown, velocityX: 0)
             return
         }
-        setPanel(nil, animated: true)
-    }
-
-    /// One animator drives the panel contents and the container resize so they cannot drift apart.
-    func makePanelAnimator() -> UIViewPropertyAnimator {
-        let previousPanelAnimator = panelAnimator
-        panelAnimator = nil
-        previousPanelAnimator?.cancelInPlace()
-
-        let animator = UIViewPropertyAnimator(
-            duration: DSTabBarTabsPanelView.openDuration,
-            dampingRatio: DSTabBarTabsPanelView.openDampingRatio
-        )
-        animator.addCompletion { [weak self] _ in
-            self?.panelAnimator = nil
-        }
-        panelAnimator = animator
-
-        return animator
+        panelController.setPanel(nil, animated: true)
     }
 
     func installBar() {
