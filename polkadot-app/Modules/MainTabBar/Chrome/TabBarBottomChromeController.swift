@@ -5,25 +5,17 @@ import SnapKit
 
 final class TabBarBottomChromeController: UIViewController {
     private let chromeSurface = TabBarChromeSurfaceView()
-    private let glassContainer = DSGlassContainerView(
-        shape: .rounded(32),
-        tint: UIColor.bgSurfaceContainer
-    )
     private let barView = DSTabBarView()
     private let backdropView = DSTabBarBackdropView()
     private let floatingWidgetContainerView = MainTabBarFloatingWidgetStackView()
-    private let tabsPanelView = DSTabBarTabsPanelView()
-    private let contentPanelView = DSTabBarContentPanelView()
 
     private var widgetControllers: [AppWidgetID: AppWidgetContentViewController] = [:]
     private weak var contentSafeAreaAdjustedViewController: UIViewController?
     private var floatingWidgetBottomConstraint: Constraint?
-    private var glassContainerHeightConstraint: Constraint?
 
     private weak var appliedTabController: UIViewController?
     private weak var appliedContentController: UIViewController?
 
-    private var appliedGlassContainerHeight: CGFloat = 0
     private var panelAnimator: UIViewPropertyAnimator?
     private var openPanel: TabBarPanelKind?
     private var pendingPanel: TabBarPanelKind?
@@ -80,12 +72,6 @@ final class TabBarBottomChromeController: UIViewController {
         max(0, occupiedHeight - view.safeAreaInsets.bottom)
     }
 
-    private var availablePanelHeight: CGFloat {
-        view.bounds.height
-            - view.safeAreaInsets.top
-            - DSTabBarView.preferredHeight()
-    }
-
     override func loadView() {
         view = TabBarChromePassthroughView()
     }
@@ -96,10 +82,7 @@ final class TabBarBottomChromeController: UIViewController {
         view.backgroundColor = .clear
 
         installChromeSurface()
-        installGlassContainer()
         installBar()
-        installTabsPanel()
-        installContentPanel()
         installBackdrop()
         installFloatingWidgetContainer()
         installWidgetsIfNeeded()
@@ -126,7 +109,7 @@ final class TabBarBottomChromeController: UIViewController {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
 
-        updateGlassContainerHeight(animator: nil)
+        chromeSurface.updateHeight(for: openPanel, animator: nil)
 
         foldController.reapplyForWidthChange()
     }
@@ -160,10 +143,9 @@ final class TabBarBottomChromeController: UIViewController {
             spaTabCount = chips.count
             rebuildItems()
         }
-        tabsPanelView.setChips(chips, selected: selected)
-        tabsPanelView.closeActionTitle = String(localized: .Common.close)
+        chromeSurface.setChips(chips, selected: selected, closeActionTitle: String(localized: .Common.close))
 
-        if chips.isEmpty || availablePanelHeight <= 0 {
+        if chips.isEmpty || chromeSurface.availablePanelHeight <= 0 {
             if openPanel == .spaTabs {
                 setPanel(nil, animated: true)
             }
@@ -171,7 +153,7 @@ final class TabBarBottomChromeController: UIViewController {
         }
 
         let animator = openPanel == .spaTabs ? makePanelAnimator() : nil
-        updateGlassContainerHeight(animator: animator)
+        chromeSurface.updateHeight(for: openPanel, animator: animator)
         animator?.startAnimation()
     }
 
@@ -184,8 +166,7 @@ final class TabBarBottomChromeController: UIViewController {
         let animator = animated ? makePanelAnimator() : nil
 
         backdropView.setOpen(kind != nil, animator: animator)
-        tabsPanelView.setOpen(kind == .spaTabs, animator: animator)
-        contentPanelView.setOpen(kind?.contentAction != nil, animator: animator)
+        chromeSurface.setPanelsOpen(kind, animator: animator)
         (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
 
         if kind != nil {
@@ -205,7 +186,7 @@ final class TabBarBottomChromeController: UIViewController {
             isApplyingPanel = false
         }
 
-        updateGlassContainerHeight(animator: animator)
+        chromeSurface.updateHeight(for: kind, animator: animator)
 
         // The scanner's capture session must be released once the panel is gone, so the teardown
         // rides the same animator and still runs when there is none (a fold closes unanimated).
@@ -256,7 +237,7 @@ final class TabBarBottomChromeController: UIViewController {
         }
 
         detachHostedController()
-        contentPanelView.setConfiguration(configuration)
+        chromeSurface.setContentConfiguration(configuration)
         resizeForContentPanel()
     }
 
@@ -271,11 +252,11 @@ final class TabBarBottomChromeController: UIViewController {
 
         if let controller {
             addChild(controller)
-            contentPanelView.setHostedView(controller.view)
+            chromeSurface.setContentHostedView(controller.view)
             controller.didMove(toParent: self)
             hostedPanelController = controller
         } else {
-            contentPanelView.setHostedView(nil)
+            chromeSurface.setContentHostedView(nil)
         }
 
         resizeForContentPanel()
@@ -383,7 +364,7 @@ private extension TabBarBottomChromeController {
         }
 
         let animator = makePanelAnimator()
-        updateGlassContainerHeight(animator: animator)
+        chromeSurface.updateHeight(for: openPanel, animator: animator)
         animator.startAnimation()
     }
 
@@ -406,8 +387,8 @@ private extension TabBarBottomChromeController {
 
     func clearContentPanel() {
         detachHostedController()
-        contentPanelView.setHostedView(nil)
-        contentPanelView.setConfiguration(nil)
+        chromeSurface.setContentHostedView(nil)
+        chromeSurface.setContentConfiguration(nil)
     }
 
     func detachHostedController() {
@@ -431,17 +412,9 @@ private extension TabBarBottomChromeController {
         chromeSurface.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
-    }
 
-    func installGlassContainer() {
-        chromeSurface.insertSubview(glassContainer, at: 0)
-        glassContainer.snp.makeConstraints { make in
-            make.centerX.equalToSuperview()
-            make.width.lessThanOrEqualTo(DSTabBarView.maxWidth)
-            make.width.equalToSuperview().offset(-DSTabBarView.horizontalMargin * 2).priority(.high)
-            make.bottom.equalToSuperview().offset(-DSTabBarView.bottomGap)
-            glassContainerHeightConstraint = make.height.equalTo(DSTabBarView.capsuleHeight).constraint
-        }
+        chromeSurface.onChipTapped = { [weak self] id in self?.onChipTapped?(id) }
+        chromeSurface.onChipCloseRequested = { [weak self] id in self?.onChipCloseRequested?(id) }
     }
 
     func installOutsideTapRecognizer() {
@@ -476,33 +449,10 @@ private extension TabBarBottomChromeController {
         return animator
     }
 
-    func updateGlassContainerHeight(animator: UIViewPropertyAnimator?) {
-        let containerHeight: CGFloat =
-            switch openPanel {
-            case .spaTabs:
-                tabsPanelView.preferredHeight(availableHeight: availablePanelHeight)
-            case .content:
-                contentPanelView.preferredHeight(availableHeight: availablePanelHeight)
-            case nil:
-                DSTabBarView.capsuleHeight
-            }
-
-        guard containerHeight != appliedGlassContainerHeight else {
-            return
-        }
-
-        appliedGlassContainerHeight = containerHeight
-        glassContainerHeightConstraint?.update(offset: containerHeight)
-
-        animator?.addAnimations { [weak self] in
-            self?.view.layoutIfNeeded()
-        }
-    }
-
     func installBar() {
-        chromeSurface.addSubview(barView)
+        chromeSurface.addBar(barView)
         barView.snp.makeConstraints { make in
-            make.bottom.leading.trailing.equalTo(glassContainer.contentView)
+            make.bottom.leading.trailing.equalTo(chromeSurface.capsuleLayoutReference)
             make.height.equalTo(DSTabBarView.capsuleHeight)
         }
 
@@ -543,29 +493,6 @@ private extension TabBarBottomChromeController {
 
         backdropView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
-        }
-    }
-
-    func installTabsPanel() {
-        chromeSurface.insertSubview(tabsPanelView, belowSubview: barView)
-
-        tabsPanelView.snp.makeConstraints { make in
-            make.top.equalTo(glassContainer.contentView)
-            make.leading.trailing.equalTo(glassContainer.contentView)
-            make.bottom.equalTo(barView.snp.top)
-        }
-
-        tabsPanelView.onChipTapped = { [weak self] id in self?.onChipTapped?(id) }
-        tabsPanelView.onChipCloseRequested = { [weak self] id in self?.onChipCloseRequested?(id) }
-    }
-
-    func installContentPanel() {
-        chromeSurface.insertSubview(contentPanelView, belowSubview: barView)
-
-        contentPanelView.snp.makeConstraints { make in
-            make.top.equalTo(glassContainer.contentView)
-            make.leading.trailing.equalTo(glassContainer.contentView)
-            make.bottom.equalTo(barView.snp.top)
         }
     }
 
