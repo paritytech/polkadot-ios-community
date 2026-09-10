@@ -473,8 +473,8 @@ private extension ServiceCoordinator {
         }
     }
 
-    /// - Note: The `truApiRuntimeEnabled` flag is read once at coordinator creation (app start).
-    ///   Toggling the flag takes effect on the next launch.
+    /// - Note: The runtime flag is read once at coordinator creation (app start), so toggling it
+    ///   takes effect on the next launch. An unset flag means TrUAPI — see `isTrUAPIRuntimeEnabled`.
     static func createSignInHostCoordinator(
         factory: MessageExchangeCoordinatorMaking,
         runtimeProvider: TrUAPIHostRuntimeProviding,
@@ -483,7 +483,7 @@ private extension ServiceCoordinator {
         logger: LoggerProtocol
     ) -> MessageExchangeSignInHostCoordinating? {
         do {
-            if SettingsManager.shared.value(for: .truApiRuntimeEnabled) {
+            if SettingsManager.shared.isTrUAPIRuntimeEnabled {
                 return try factory.makeTrUAPIHostCoordinator(runtimeProvider: runtimeProvider)
             }
 

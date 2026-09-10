@@ -6,7 +6,7 @@ final class SearchContactInteractor {
     weak var presenter: SearchContactInteractorOutputProtocol?
 
     private let searchApi: RemoteContactOperationMaking
-    private let chatRepositoryFactory: ChatRepositoryMaking
+    private let chatOpenResolver: ChatOpenModelResolving
     private let ownAccountId: AccountId
     private let searchRunner = SearchRunner()
     private var searchTask: Task<Void, Never>?
@@ -14,11 +14,11 @@ final class SearchContactInteractor {
     init(
         ownAccountId: AccountId,
         searchApi: RemoteContactOperationMaking = RemoteContactOperationFactory(),
-        chatRepositoryFactory: ChatRepositoryMaking = ChatRepositoryFactory()
+        chatOpenResolver: ChatOpenModelResolving = ChatOpenModelResolver()
     ) {
         self.ownAccountId = ownAccountId
         self.searchApi = searchApi
-        self.chatRepositoryFactory = chatRepositoryFactory
+        self.chatOpenResolver = chatOpenResolver
     }
 
     deinit {
@@ -54,24 +54,9 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
     }
 
     func decide(on contact: Chat.RemoteContact) {
-        let chatRepository = chatRepositoryFactory.createRepository(
-            forFilter: .contact(for: contact.accountId)
-        )
-
-        Task { [weak self] in
+        Task { [weak self, chatOpenResolver] in
             do {
-                let chats = try await chatRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
-
-                let openModel: ChatOpenModel
-                if let chat = chats.first {
-                    openModel = .existingChat(chat.chatId)
-                } else {
-                    let newRequest = try ChatOpenModel.NewRequest(
-                        remoteContact: contact,
-                        ownKeyId: Chat.Contact.Own.main()
-                    )
-                    openModel = .newRequest(newRequest)
-                }
+                let openModel = try await chatOpenResolver.resolveOpenModel(for: contact)
                 await self?.presenter?.didReceive(resolution: openModel)
             } catch {
                 await self?.presenter?.didReceive(error: error)
