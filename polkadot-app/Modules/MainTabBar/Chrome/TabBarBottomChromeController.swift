@@ -490,11 +490,9 @@ private extension TabBarBottomChromeController {
     }
 
     func installBar() {
-        glassContainer.contentView.addSubview(barView)
-
+        view.addSubview(barView)
         barView.snp.makeConstraints { make in
-            make.leading.trailing.equalToSuperview()
-            make.bottom.equalToSuperview()
+            make.bottom.leading.trailing.equalTo(glassContainer.contentView)
             make.height.equalTo(DSTabBarView.capsuleHeight)
         }
 

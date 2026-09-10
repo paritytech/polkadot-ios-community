@@ -37,12 +37,20 @@ extension TabBarAction {
             content: content(spaTabCount: spaTabCount),
             title: nil,
             role: .action,
-            accessibilityLabel: accessibilityLabel(spaTabCount: spaTabCount)
+            accessibilityLabel: accessibilityLabel(spaTabCount: spaTabCount),
+            showsGlassBackground: showsGlassBackground
         )
     }
 }
 
 private extension TabBarAction {
+    var showsGlassBackground: Bool {
+        switch self {
+        case .scan: true
+        default: false
+        }
+    }
+
     func content(spaTabCount: Int) -> DSTabBarItem.Content {
         switch self {
         case .scan:
