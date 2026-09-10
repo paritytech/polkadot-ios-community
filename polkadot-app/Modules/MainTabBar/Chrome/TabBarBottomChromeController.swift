@@ -4,6 +4,7 @@ import PolkadotUI
 import SnapKit
 
 final class TabBarBottomChromeController: UIViewController {
+    private let chromeSurface = TabBarChromeSurfaceView()
     private let glassContainer = DSGlassContainerView(
         shape: .rounded(32),
         tint: UIColor.bgSurfaceContainer
@@ -38,7 +39,7 @@ final class TabBarBottomChromeController: UIViewController {
 
     private lazy var foldController = TabBarFoldController(
         barView: barView,
-        glassContainer: glassContainer,
+        foldSurface: chromeSurface,
         chromeBounds: { [unowned self] in view.bounds },
         grabZoneSink: { [weak self] zone in
             (self?.viewIfLoaded as? TabBarChromePassthroughView)?.foldGrabZone = zone
@@ -94,12 +95,13 @@ final class TabBarBottomChromeController: UIViewController {
 
         view.backgroundColor = .clear
 
+        installChromeSurface()
         installGlassContainer()
         installBar()
-        installFloatingWidgetContainer()
-        installBackdrop()
         installTabsPanel()
         installContentPanel()
+        installBackdrop()
+        installFloatingWidgetContainer()
         installWidgetsIfNeeded()
 
         installOutsideTapRecognizer()
@@ -423,8 +425,16 @@ private extension TabBarBottomChromeController {
 // MARK: - Layout
 
 private extension TabBarBottomChromeController {
+    func installChromeSurface() {
+        chromeSurface.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(chromeSurface)
+        chromeSurface.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+    }
+
     func installGlassContainer() {
-        view.insertSubview(glassContainer, at: 0)
+        chromeSurface.insertSubview(glassContainer, at: 0)
         glassContainer.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
             make.width.lessThanOrEqualTo(DSTabBarView.maxWidth)
@@ -490,7 +500,7 @@ private extension TabBarBottomChromeController {
     }
 
     func installBar() {
-        view.addSubview(barView)
+        chromeSurface.addSubview(barView)
         barView.snp.makeConstraints { make in
             make.bottom.leading.trailing.equalTo(glassContainer.contentView)
             make.height.equalTo(DSTabBarView.capsuleHeight)
@@ -519,7 +529,7 @@ private extension TabBarBottomChromeController {
 
     func installFloatingWidgetContainer() {
         floatingWidgetContainerView.translatesAutoresizingMaskIntoConstraints = false
-        view.insertSubview(floatingWidgetContainerView, belowSubview: glassContainer)
+        view.insertSubview(floatingWidgetContainerView, belowSubview: chromeSurface)
 
         floatingWidgetContainerView.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview()
@@ -537,11 +547,11 @@ private extension TabBarBottomChromeController {
     }
 
     func installTabsPanel() {
-        glassContainer.contentView.insertSubview(tabsPanelView, belowSubview: barView)
+        chromeSurface.insertSubview(tabsPanelView, belowSubview: barView)
 
         tabsPanelView.snp.makeConstraints { make in
-            make.top.equalToSuperview()
-            make.leading.trailing.equalToSuperview()
+            make.top.equalTo(glassContainer.contentView)
+            make.leading.trailing.equalTo(glassContainer.contentView)
             make.bottom.equalTo(barView.snp.top)
         }
 
@@ -550,11 +560,11 @@ private extension TabBarBottomChromeController {
     }
 
     func installContentPanel() {
-        glassContainer.contentView.insertSubview(contentPanelView, belowSubview: barView)
+        chromeSurface.insertSubview(contentPanelView, belowSubview: barView)
 
         contentPanelView.snp.makeConstraints { make in
-            make.top.equalToSuperview()
-            make.leading.trailing.equalToSuperview()
+            make.top.equalTo(glassContainer.contentView)
+            make.leading.trailing.equalTo(glassContainer.contentView)
             make.bottom.equalTo(barView.snp.top)
         }
     }

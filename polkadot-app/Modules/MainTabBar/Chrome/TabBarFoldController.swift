@@ -12,7 +12,7 @@ private struct ScreenOverride {
 @MainActor
 final class TabBarFoldController {
     private unowned let barView: DSTabBarView
-    private unowned let glassContainer: DSGlassContainerView
+    private unowned let foldSurface: UIView
 
     /// Bounds of the chrome's own full-bleed view; every fold distance derives from it.
     private let chromeBounds: () -> CGRect
@@ -36,14 +36,14 @@ final class TabBarFoldController {
 
     init(
         barView: DSTabBarView,
-        glassContainer: DSGlassContainerView,
+        foldSurface: UIView,
         chromeBounds: @escaping () -> CGRect,
         grabZoneSink: @escaping (CGRect) -> Void,
         closePanel: @escaping () -> Void,
         stateSink: @escaping (TabBarVisibilityState) -> Void
     ) {
         self.barView = barView
-        self.glassContainer = glassContainer
+        self.foldSurface = foldSurface
         self.chromeBounds = chromeBounds
         self.grabZoneSink = grabZoneSink
         self.closePanel = closePanel
@@ -191,9 +191,10 @@ private extension TabBarFoldController {
         return distance > 0 ? distance : nil
     }
 
-    /// Glass cannot be moved by a transform on a nested view, so the whole container is translated.
+    /// The whole chrome surface is translated because the bar and both panels are siblings
+    /// of the glass, so translating the glass alone would leave them behind.
     func applyFoldOffset(_ offset: CGFloat) {
-        glassContainer.transform = CGAffineTransform(translationX: offset, y: 0)
+        foldSurface.transform = CGAffineTransform(translationX: offset, y: 0)
         updateFoldGrabZone()
     }
 
