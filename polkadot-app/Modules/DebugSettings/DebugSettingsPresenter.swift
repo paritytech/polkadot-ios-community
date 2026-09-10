@@ -108,10 +108,6 @@ extension DebugSettingsPresenter: DebugSettingsPresenterProtocol {
     func resetTips() {
         interactor.resetTips()
     }
-
-    func showAllTips() {
-        interactor.showAllTips()
-    }
 }
 
 extension DebugSettingsPresenter: DebugSettingsInteractorOutputProtocol {

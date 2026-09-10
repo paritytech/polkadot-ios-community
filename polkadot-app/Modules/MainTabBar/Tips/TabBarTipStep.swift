@@ -3,10 +3,10 @@ import UIKit
 
 struct TabBarTipStep {
     let tip: AnyTip
-    let slot: TabBarSlot
+    let anchor: TabBarTipAnchor
 
-    init(tip: some Tip, slot: TabBarSlot) {
+    init(tip: some Tip, anchor: TabBarTipAnchor) {
         self.tip = AnyTip(tip)
-        self.slot = slot
+        self.anchor = anchor
     }
 }

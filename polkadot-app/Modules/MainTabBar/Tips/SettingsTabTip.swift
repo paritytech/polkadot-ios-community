@@ -6,8 +6,6 @@ struct SettingsTabTip: Tip {
 
     var message: Text? { Text(verbatim: "Accounts, security, and preferences.") }
 
-    var image: Image? { Image(systemName: "gearshape") }
-
     var rules: [Rule] {
         #Rule(TabBarTips.$isBarShownAtRoot) { $0 == true }
     }

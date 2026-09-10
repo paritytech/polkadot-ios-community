@@ -16,6 +16,10 @@ final class MainTabBarViewController: UIViewController {
 
     private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(models: []))
 
+    /// The rings sit at the trailing end of the full-width strip, so the tip anchors here
+    /// rather than at the host view, whose centre is empty.
+    private let chainStatusAnchorGuide = UILayoutGuide()
+
     private lazy var container = TabBarContainer(hostController: self)
 
     private var tabs: [TabBarItem] = []
@@ -49,6 +53,8 @@ final class MainTabBarViewController: UIViewController {
         installStatusBar()
 
         installChromeController()
+
+        chromeController.statusStripAnchorProvider = { [weak self] in self?.chainStatusAnchorGuide }
 
         chromeController.onSelect = { [weak self] index, isReselection in
             self?.handleSelection(index: index, isReselection: isReselection)
@@ -114,6 +120,12 @@ private extension MainTabBarViewController {
         statusBarHost.view.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview()
             make.bottom.equalTo(view.safeAreaLayoutGuide.snp.top)
+        }
+
+        statusBarHost.view.addLayoutGuide(chainStatusAnchorGuide)
+        chainStatusAnchorGuide.snp.makeConstraints { make in
+            make.trailing.top.bottom.equalTo(statusBarHost.view)
+            make.width.equalTo(1)
         }
 
         statusBarHost.didMove(toParent: self)

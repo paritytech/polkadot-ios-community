@@ -55,13 +55,18 @@ final class TabBarBottomChromeController: UIViewController {
         host: self,
         barView: barView,
         sequence: TabBarTipSequenceFactory.make(steps: TabBarTips.steps),
-        itemIndex: { [weak self] slot in self?.slotMap.itemIndex(for: slot) }
+        itemIndex: { [weak self] slot in self?.slotMap.itemIndex(for: slot) },
+        statusStripAnchor: { [weak self] in self?.statusStripAnchorProvider?() }
     )
 
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
     var onChipTapped: ((UUID) -> Void)?
     var onChipCloseRequested: ((UUID) -> Void)?
     var onPanelChanged: ((TabBarPanelKind?) -> Void)?
+
+    /// The chain-status strip is installed by `MainTabBarViewController`, not by the chrome,
+    /// so its tip anchor is handed down rather than reached for.
+    var statusStripAnchorProvider: (() -> (any UIPopoverPresentationControllerSourceItem)?)?
 
     private var occupiedHeight: CGFloat {
         guard TabBarVisibilityPolicy.contributesClearance(isTabRoot: foldController.isTabRoot) else {

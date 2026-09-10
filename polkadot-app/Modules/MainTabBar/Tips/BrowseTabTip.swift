@@ -1,10 +1,10 @@
 import SwiftUI
 import TipKit
 
-struct ChatTabTip: Tip {
-    var title: Text { Text(verbatim: "Chats live here") }
+struct BrowseTabTip: Tip {
+    var title: Text { Text(verbatim: "Browse apps") }
 
-    var message: Text? { Text(verbatim: "Messages, calls, and contacts.") }
+    var message: Text? { Text(verbatim: "Discover dApps and open them in a tab.") }
 
     var rules: [Rule] {
         #Rule(TabBarTips.$isBarShownAtRoot) { $0 == true }

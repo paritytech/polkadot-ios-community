@@ -54,12 +54,7 @@ final class DebugSettingsViewLayout: UIView {
 
     let resetTipsButton: RoundedButton = .create { button in
         button.applyMainStyle()
-        button.imageWithTitleView?.title = "Reset Tab Bar Tips"
-    }
-
-    let showAllTipsButton: RoundedButton = .create { button in
-        button.applyMainStyle()
-        button.imageWithTitleView?.title = "Show All Tips"
+        button.imageWithTitleView?.title = "Reset Tips"
     }
 
     let strategyDebugSwitch = UISwitch()
@@ -155,8 +150,7 @@ final class DebugSettingsViewLayout: UIView {
             simulateCrash,
             replaceEntropyButton,
             themeSelectionButton,
-            resetTipsButton,
-            showAllTipsButton
+            resetTipsButton
         ]
 
         #if DEBUG

@@ -7,6 +7,7 @@ import UIKitExt
 final class TabBarTipController {
     private let barView: DSTabBarView
     private let itemIndex: (TabBarSlot) -> Int?
+    private let statusStripAnchor: () -> (any UIPopoverPresentationControllerSourceItem)?
     private let sequence: any TabBarTipSequenceProtocol
 
     private weak var host: UIViewController?
@@ -21,12 +22,14 @@ final class TabBarTipController {
         host: UIViewController,
         barView: DSTabBarView,
         sequence: any TabBarTipSequenceProtocol,
-        itemIndex: @escaping (TabBarSlot) -> Int?
+        itemIndex: @escaping (TabBarSlot) -> Int?,
+        statusStripAnchor: @escaping () -> (any UIPopoverPresentationControllerSourceItem)?
     ) {
         self.host = host
         self.barView = barView
         self.sequence = sequence
         self.itemIndex = itemIndex
+        self.statusStripAnchor = statusStripAnchor
     }
 
     func start() {
@@ -66,10 +69,6 @@ final class TabBarTipController {
         dismiss()
     }
 
-    /// Item views are recreated by `rebuildItems()`, and the slot map is empty until the first
-    /// `setItems`, so re-resolve the anchor and present again while a tip is still eligible.
-    /// Clearing `presentedTip` is enough — the dismissal is left to `present(_:)` so only one
-    /// transition runs.
     func refreshAnchor() {
         presentedTip = nil
         presentCurrent()
@@ -92,18 +91,29 @@ private extension TabBarTipController {
     func show(_ step: TabBarTipStep) {
         guard let host,
               host.presentedViewController == nil,
-              let index = itemIndex(step.slot),
-              let anchor = barView.itemAnchor(at: index)
+              let anchor = anchorItem(for: step.anchor)
         else {
             return
         }
 
         let controller = TipUIPopoverViewController(step.tip, sourceItem: anchor)
-        controller.popoverPresentationController?.permittedArrowDirections = .down
-        controller.popoverPresentationController?.passthroughViews = [barView]
+        controller.popoverPresentationController?.permittedArrowDirections = [.up, .down]
 
         host.present(controller, animated: true)
         presentedTip = step.tip
+    }
+
+    func anchorItem(for anchor: TabBarTipAnchor) -> (any UIPopoverPresentationControllerSourceItem)? {
+        switch anchor {
+        case let .barItem(slot):
+            guard let index = itemIndex(slot) else {
+                return nil
+            }
+
+            return barView.itemAnchor(at: index)
+        case .statusStrip:
+            return statusStripAnchor()
+        }
     }
 
     func dismiss() {

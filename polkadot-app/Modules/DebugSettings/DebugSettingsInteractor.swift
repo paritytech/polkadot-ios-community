@@ -115,10 +115,6 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
             }
         }
     }
-
-    func showAllTips() {
-        Tips.showAllTipsForTesting()
-    }
 }
 
 private extension DebugSettingsInteractor {
