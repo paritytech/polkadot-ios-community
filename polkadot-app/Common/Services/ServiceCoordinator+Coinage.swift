@@ -44,7 +44,7 @@ extension ServiceCoordinator {
             return nil
         }
 
-        let incomingPaymentService = coinageService.makeIncomingPaymentService()
+        let incomingPaymentService = coinageService.incomingPaymentService
 
         let transferMonitor = CoinageTransferMonitor(
             coinageService: coinageService,

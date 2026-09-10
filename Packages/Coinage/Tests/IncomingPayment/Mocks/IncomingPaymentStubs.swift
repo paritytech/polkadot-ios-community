@@ -162,20 +162,3 @@ final class StubCoinageTxServicing: CoinageTxServicing, @unchecked Sendable {
 
     func releaseUncommittedHandoffs() async throws {}
 }
-
-/// Denomination provider that reports the context as unavailable — `accept` never calls it.
-final class StubDenominationContextProvider: DenominationContextProviding, @unchecked Sendable {
-    struct Unavailable: Error {}
-
-    func denominationContext() async throws -> DenominationBreakdownContext {
-        throw Unavailable()
-    }
-}
-
-/// Denomination provider that returns a usable context, so the drive/settle path can run. The values
-/// are inert — the claim stubs ignore the context.
-final class WorkingDenominationContextProvider: DenominationContextProviding, @unchecked Sendable {
-    func denominationContext() async throws -> DenominationBreakdownContext {
-        DenominationBreakdownContext(unit: 1, precision: 10, maxExponent: 0, minExponent: 0)
-    }
-}

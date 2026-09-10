@@ -4,6 +4,14 @@ import AsyncExtensions
 @testable import Coinage
 
 struct IncomingPaymentServiceTests {
+    /// Inert denomination context — the claim stubs ignore it; it only exists to drive `setup(with:)`.
+    private static let denomination = DenominationBreakdownContext(
+        unit: 1,
+        precision: 10,
+        maxExponent: 0,
+        minExponent: 0
+    )
+
     private func makeService(
         store: InMemoryIncomingPaymentStore,
         secretStore: InMemoryIncomingPaymentSecretStore = InMemoryIncomingPaymentSecretStore(),
@@ -18,7 +26,6 @@ struct IncomingPaymentServiceTests {
             claimCoinsService: StubClaimCoinsService(),
             claimAssetService: StubClaimAssetService(),
             txService: StubCoinageTxServicing(),
-            contextProvider: StubDenominationContextProvider(),
             acknowledger: acknowledger,
             instanceId: 0,
             logger: StubLogger()
@@ -199,7 +206,7 @@ struct IncomingPaymentServiceTests {
             acknowledger: acknowledger
         )
 
-        rig.service.setup()
+        rig.service.setup(with: Self.denomination)
         try await waitUntil { acknowledger.calls().count == 1 }
         rig.service.throttle()
 
@@ -214,7 +221,7 @@ struct IncomingPaymentServiceTests {
         let acknowledger = StubAcknowledger()
         let rig = makeDrivingService(detections: [.notClaimed], acknowledger: acknowledger)
 
-        rig.service.setup()
+        rig.service.setup(with: Self.denomination)
         try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .notClaimed }
         rig.service.throttle()
 
@@ -229,7 +236,7 @@ struct IncomingPaymentServiceTests {
             acknowledger: acknowledger
         )
 
-        rig.service.setup()
+        rig.service.setup(with: Self.denomination)
         try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .claimed }
         rig.service.throttle()
 
@@ -242,7 +249,7 @@ struct IncomingPaymentServiceTests {
 
         #expect(rig.secretStore.hasDescriptor(for: "top up:prod:p"))
 
-        rig.service.setup()
+        rig.service.setup(with: Self.denomination)
         try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .notClaimed }
         rig.service.throttle()
 
@@ -255,7 +262,7 @@ struct IncomingPaymentServiceTests {
         let createdAt = Date(timeIntervalSince1970: 1_000_000)
         let rig = makeDrivingService(detections: [.notClaimed], createdAt: createdAt)
 
-        rig.service.setup()
+        rig.service.setup(with: Self.denomination)
         try await waitUntil { rig.claim.retryUntil() != nil }
         rig.service.throttle()
 
@@ -298,7 +305,6 @@ struct IncomingPaymentServiceTests {
             claimCoinsService: claim,
             claimAssetService: StubClaimAssetService(),
             txService: StubCoinageTxServicing(),
-            contextProvider: WorkingDenominationContextProvider(),
             acknowledger: acknowledger,
             instanceId: 0,
             logger: StubLogger()

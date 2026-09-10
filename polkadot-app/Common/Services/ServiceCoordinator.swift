@@ -173,7 +173,6 @@ extension ServiceCoordinator: ServiceCoordinatorProtocol {
         notificationBadgeSyncService.setup()
         messageExpansionService.start()
         allowanceRenewalService.setup()
-        paymentsSupport.incomingPaymentService.setup()
 
         Task {
             await chainStatusProvider.start()

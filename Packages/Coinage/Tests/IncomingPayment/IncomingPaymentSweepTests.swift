@@ -34,7 +34,6 @@ struct IncomingPaymentSweepTests {
             claimCoinsService: StubClaimCoinsService(),
             claimAssetService: StubClaimAssetService(),
             txService: StubCoinageTxServicing(),
-            contextProvider: StubDenominationContextProvider(),
             acknowledger: StubAcknowledger(),
             instanceId: 0,
             logger: StubLogger()

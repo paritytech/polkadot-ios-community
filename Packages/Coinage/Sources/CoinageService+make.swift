@@ -358,6 +358,20 @@ public extension CoinageService {
             logger: logger
         )
 
+        // Owned by CoinageService and set up from its `setup(with:)`, mirroring externalPaymentService.
+        let incomingPaymentService = IncomingPaymentService(
+            store: incomingPaymentStore,
+            secretStore: incomingPaymentSecretStore,
+            sourceResolver: incomingPaymentSourceResolver,
+            paymentContext: IncomingPaymentContext(logger: logger),
+            claimCoinsService: claimCoinsService,
+            claimAssetService: claimAssetService,
+            txService: txService,
+            acknowledger: incomingPaymentAcknowledger,
+            instanceId: instanceId,
+            logger: logger
+        )
+
         let coinageService = CoinageService(
             coinService: coinService,
             voucherService: voucherService,
@@ -379,12 +393,7 @@ public extension CoinageService {
             applicationStateStreamFactory: applicationStateStreamFactory,
             databaseFactory: databaseFactory,
             recoveryService: recoveryService,
-            incomingPaymentStore: incomingPaymentStore,
-            incomingPaymentSecretStore: incomingPaymentSecretStore,
-            incomingPaymentSourceResolver: incomingPaymentSourceResolver,
-            incomingPaymentAcknowledger: incomingPaymentAcknowledger,
-            claimAssetService: claimAssetService,
-            instanceId: instanceId,
+            incomingPaymentService: incomingPaymentService,
             logger: logger
         )
 

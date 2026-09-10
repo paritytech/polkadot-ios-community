@@ -26,13 +26,13 @@ public protocol CoinageServicing: Actor {
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
     nonisolated var externalPaymentService: any ExternalPaymentServicing { get }
 
+    /// The incoming-payment (top-up) service — exposed for dependency registration.
+    /// Lifecycle (setup/throttle) is managed internally by CoinageService.
+    nonisolated var incomingPaymentService: any IncomingPaymentServicing { get }
+
     /// Suspends until the denomination context is ready, then returns it.
     /// Throws if `setup(with:)` has not been called or if setup failed.
     func denominationContext() async throws -> DenominationBreakdownContext
-
-    /// Builds the incoming-payment service; its lifecycle (setup/throttle) is driven by the
-    /// ServiceCoordinator.
-    nonisolated func makeIncomingPaymentService() -> any IncomingPaymentServicing
 
     /// Configure the facade with an asset. Must be called before other operations.
     /// - Parameter asset: The asset providing decimal precision
@@ -138,22 +138,15 @@ public actor CoinageService {
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
-    // Incoming payments — the service is built on demand via `makeIncomingPaymentService()`; its
-    // lifecycle (setup/throttle) is driven by the ServiceCoordinator. `nonisolated` so the factory is
-    // callable synchronously during app assembly.
-    private nonisolated let incomingPaymentStore: any IncomingPaymentStoring
-    private nonisolated let incomingPaymentSecretStore: any IncomingPaymentSecretStoring
-    private nonisolated let incomingPaymentSourceResolver: any IncomingPaymentSourceResolving
-    private nonisolated let incomingPaymentAcknowledger: any IncomingPaymentAcknowledging
-    private nonisolated let claimAssetService: any ClaimAssetServicing
-    private nonisolated let instanceId: CoinageInstanceId
+    // Incoming payments (top-ups) — lifecycle managed internally (setup driven by `setup(with:)`),
+    // exposed for dependency registration. Mirrors `externalPaymentService`.
+    public nonisolated let incomingPaymentService: any IncomingPaymentServicing
 
     private let contextLoader: DenominationContextLoaderProtocol
 
     // Balance observation — the factory builds the tracked-asset snapshot streams on demand
     private let databaseFactory: any DatabaseDependencyFactoring
-    // `nonisolated(unsafe)`: an immutable, thread-safe logger the nonisolated factory needs to read.
-    private nonisolated(unsafe) let logger: SDKLoggerProtocol?
+    private let logger: SDKLoggerProtocol?
 
     // App State
     private let applicationStateStreamFactory: ApplicationStateStreamFactory
@@ -194,12 +187,7 @@ public actor CoinageService {
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
-        incomingPaymentStore: any IncomingPaymentStoring,
-        incomingPaymentSecretStore: any IncomingPaymentSecretStoring,
-        incomingPaymentSourceResolver: any IncomingPaymentSourceResolving,
-        incomingPaymentAcknowledger: any IncomingPaymentAcknowledging,
-        claimAssetService: any ClaimAssetServicing,
-        instanceId: CoinageInstanceId,
+        incomingPaymentService: any IncomingPaymentServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinService = coinService
@@ -222,37 +210,12 @@ public actor CoinageService {
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
-        self.incomingPaymentStore = incomingPaymentStore
-        self.incomingPaymentSecretStore = incomingPaymentSecretStore
-        self.incomingPaymentSourceResolver = incomingPaymentSourceResolver
-        self.incomingPaymentAcknowledger = incomingPaymentAcknowledger
-        self.claimAssetService = claimAssetService
-        self.instanceId = instanceId
+        self.incomingPaymentService = incomingPaymentService
         self.logger = logger
     }
 }
 
 // MARK: - Incoming Payments
-
-extension CoinageService: DenominationContextProviding {}
-
-public extension CoinageService {
-    nonisolated func makeIncomingPaymentService() -> any IncomingPaymentServicing {
-        IncomingPaymentService(
-            store: incomingPaymentStore,
-            secretStore: incomingPaymentSecretStore,
-            sourceResolver: incomingPaymentSourceResolver,
-            paymentContext: IncomingPaymentContext(logger: logger),
-            claimCoinsService: claimCoinsService,
-            claimAssetService: claimAssetService,
-            txService: txService,
-            contextProvider: self,
-            acknowledger: incomingPaymentAcknowledger,
-            instanceId: instanceId,
-            logger: logger
-        )
-    }
-}
 
 // MARK: - CoinageServicing
 
@@ -321,6 +284,7 @@ extension CoinageService: CoinageServicing {
             coinStateSyncService.setup()
             voucherLocationService.setup()
             externalPaymentService.setup(with: context)
+            incomingPaymentService.setup(with: context)
 
             ensureRecyclingEvaluator(context: context)
 

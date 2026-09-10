@@ -19,7 +19,6 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
     private let claimCoinsService: any ClaimCoinsServicing
     private let claimAssetService: any ClaimAssetServicing
     private let txService: any CoinageTxServicing
-    private let contextProvider: any DenominationContextProviding
     private let acknowledger: any IncomingPaymentAcknowledging
     private let instanceId: CoinageInstanceId
     private let logger: SDKLoggerProtocol?
@@ -34,7 +33,6 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
         claimCoinsService: any ClaimCoinsServicing,
         claimAssetService: any ClaimAssetServicing,
         txService: any CoinageTxServicing,
-        contextProvider: any DenominationContextProviding,
         acknowledger: any IncomingPaymentAcknowledging,
         instanceId: CoinageInstanceId,
         logger: SDKLoggerProtocol?
@@ -46,7 +44,6 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
         self.claimCoinsService = claimCoinsService
         self.claimAssetService = claimAssetService
         self.txService = txService
-        self.contextProvider = contextProvider
         self.acknowledger = acknowledger
         self.instanceId = instanceId
         self.logger = logger
@@ -91,10 +88,10 @@ public extension IncomingPaymentService {
         return await paymentContext.seededStatusStream(status, for: groupId)
     }
 
-    func setup() {
+    func setup(with denomination: DenominationBreakdownContext) {
         let task = Task { [weak self] in
             guard let self else { return }
-            await runSetup()
+            await runSetup(denomination: denomination)
         }
         setupTask.withLock { current in
             current?.cancel()
@@ -172,15 +169,7 @@ private extension IncomingPaymentService {
 // MARK: - Setup / driving
 
 private extension IncomingPaymentService {
-    func runSetup() async {
-        let denomination: DenominationBreakdownContext
-        do {
-            denomination = try await contextProvider.denominationContext()
-        } catch {
-            logger?.error("Incoming payments: denomination context unavailable: \(error)")
-            return
-        }
-
+    func runSetup(denomination: DenominationBreakdownContext) async {
         do {
             for try await payments in store.observeActivePayments() {
                 for payment in payments {
