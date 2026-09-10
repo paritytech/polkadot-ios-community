@@ -2,14 +2,16 @@ import Coinage
 
 final class PaymentsSupport {
     let coinageService: CoinageServicing
-    let incomingPaymentService: IncomingPaymentServicing
 
     var externalPaymentService: ExternalPaymentServicing {
         coinageService.externalPaymentService
     }
 
-    init(coinageService: CoinageServicing, incomingPaymentService: IncomingPaymentServicing) {
+    var incomingPaymentService: IncomingPaymentServicing {
+        coinageService.incomingPaymentService
+    }
+
+    init(coinageService: CoinageServicing) {
         self.coinageService = coinageService
-        self.incomingPaymentService = incomingPaymentService
     }
 }
