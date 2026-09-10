@@ -85,7 +85,7 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
     }
 
     func toggleTruApiRuntime() {
-        let current = SettingsManager.shared.value(for: .truApiRuntimeEnabled)
+        let current = SettingsManager.shared.isTrUAPIRuntimeEnabled
         SettingsManager.shared.set(value: !current, for: .truApiRuntimeEnabled)
         provideTruApiRuntimeState()
     }
@@ -131,7 +131,7 @@ private extension DebugSettingsInteractor {
     }
 
     func provideTruApiRuntimeState() {
-        let enabled = SettingsManager.shared.value(for: .truApiRuntimeEnabled)
+        let enabled = SettingsManager.shared.isTrUAPIRuntimeEnabled
         Task { @MainActor [weak presenter] in
             presenter?.didReceive(truApiRuntimeEnabled: enabled)
         }
