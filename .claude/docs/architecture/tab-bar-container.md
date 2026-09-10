@@ -108,7 +108,7 @@ Pop-to-root matches `UITabBarController`. Scroll-to-top is the addition and fire
 
 `DSTabSelectionRecognizer` tracks a single touch beginning anywhere `DSTabBarView.hitTest` claims — the capsule only. The folded bar's tap target lives on `TabBarChromePassthroughView`, which is full-bleed and can receive touches at the screen edge that the inset container cannot; a tap there routes through `setUserOverride(.shown,)`, the same path `onFoldChangeRequested` uses. The recognizer cancels once vertical travel exceeds `DSTabBarMetrics.selectionCancelVerticalSlop`; horizontal travel never cancels, since it drives drag-across-tabs (clamped by `DSTabBarGeometry.clampedPillOriginX`).
 
-Touch-to-item resolution is `resolvedTarget(atX:) -> Target?` (`.tab(Int)` or `.action(Int)`), tested in order: action frames, then nearest tab. A press beginning on an action creates no `dragState`, so the lens never *lifts* on one. Only `.tab` taps can drag or perform selection; `.action` fires `onActionTapped` in the `.ended / .select` branch, guarded by `!isFolded` to match the `.began` phase.
+Touch-to-item resolution is `resolvedTarget(atX:) -> Target?` (`.tab(Int)` or `.action(Int)`), tested in order: action frames, then nearest tab. A press beginning on an action creates no `dragState`, so the lens never lifts or parks on one. Only `.tab` taps can drag or perform selection; `.action` fires `onActionTapped` in the `.ended / .select` branch, guarded by `!isFolded` to match the `.began` phase.
 
 Cancelling does *not* hand the touch to the scroll view underneath — UIKit hit-tests once at `touchesBegan`, not on every move.
 
@@ -118,16 +118,6 @@ Cancelling does *not* hand the touch to the scroll view underneath — UIKit hit
 - A wide drag-across-tabs whose arc deviates past the slop cancels itself mid-drag.
 
 They are coupled — raising the slop widens the second, lowering it widens the first. Decoupling needs an axis-relative test: cancel only when vertical travel both exceeds the slop and dominates horizontal.
-
-### Selection Indicator
-
-There is **one** pill. `DSTabBarView.restingPillIndex` resolves where it rests: `activeActionIndex` when a panel is open, otherwise `selectedIndex` — a drag in flight outranks both, and only tabs can drag. So opening a panel springs the pill off the selected tab and onto that action, and closing it springs the pill back.
-
-The lens masks a second set of item views drawn in the selected appearance, so whatever the pill covers reads `.fgPrimary` for free — including an action. **This is why an action carries no separate active tint**: `DSTabBarItemView.isActive` used to light the icon while the panel was up and is gone, since `pillFrame` extends past `itemFrame` on both sides (2 / 2.4pt) and so always covers the whole item.
-
-`updateActiveActionIndex()` resolves against `openPanel ?? pendingPanel`. **The `pendingPanel` half is what keeps an action-to-action swap from flashing.** `togglePanel` closes the outgoing panel and defers the reopen to the close animator's completion, so for that whole duration `openPanel` is nil — reading it alone parked the pill back on the selected tab and then threw it out to the new action. Counting the pending panel springs the pill straight across. Anything that cancels the swap (a fold, a tab tap, a third action) goes through `setPanel`, which nils `pendingPanel` on its first line and then re-resolves, so a pending action cannot strand the pill.
-
-A tab tap while a panel is open updates `selectedIndex` first and clears `activeActionIndex` second (`handleSelection` → `setPanel(nil,)` → `updateActiveActionIndex()`), both in one runloop pass, so the pill makes a single spring to the new tab rather than two hops. Every open and close routes through `setPanel`, which always calls `updateActiveActionIndex()` — a stale index cannot strand the pill on an action, and `restingPillIndex` range-checks anyway for the reflow that drops the SPA-tabs action when the last app closes.
 
 ## Glass Container
 
