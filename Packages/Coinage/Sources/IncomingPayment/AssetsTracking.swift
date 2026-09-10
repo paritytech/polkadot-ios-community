@@ -39,30 +39,39 @@ public final class AssetBalanceTracker: AssetsTracking, @unchecked Sendable {
         instanceId: CoinageInstanceId,
         accountId: AccountId
     ) async throws -> AnyAsyncSequence<Balance> {
-        let assetId = try await resolveAssetId(instanceId: instanceId)
+        do {
+            let assetId = try await resolveAssetId(instanceId: instanceId)
 
-        let request = BatchStorageSubscriptionRequest(
-            innerRequest: DoubleMapSubscriptionRequest(
-                storagePath: AssetsPallet.Storage.account(),
-                localKey: "",
-                keyParamClosure: {
-                    (
-                        assetId,
-                        BytesCodable(wrappedValue: accountId)
-                    )
-                }
-            ),
-            mappingKey: Self.balanceMappingKey
-        )
+            logger?.debug(
+                "Starting tracking: \(assetId) \(String(describing: try? accountId.toAddress(using: .genericFormat)))"
+            )
 
-        return CallbackBatchStorageSubscription.asyncStream(
-            requests: [request],
-            connection: connection,
-            runtimeService: runtimeService,
-            logger: logger
-        )
-        .map { (result: AssetsBalanceResult) in result.balance }
-        .eraseToAnyAsyncSequence()
+            let request = BatchStorageSubscriptionRequest(
+                innerRequest: DoubleMapSubscriptionRequest(
+                    storagePath: AssetsPallet.Storage.account(),
+                    localKey: "",
+                    keyParamClosure: {
+                        (
+                            assetId,
+                            BytesCodable(wrappedValue: accountId)
+                        )
+                    }
+                ),
+                mappingKey: Self.balanceMappingKey
+            )
+
+            return CallbackBatchStorageSubscription.asyncStream(
+                requests: [request],
+                connection: connection,
+                runtimeService: runtimeService,
+                logger: logger
+            )
+            .map { (result: AssetsBalanceResult) in result.balance }
+            .eraseToAnyAsyncSequence()
+        } catch {
+            logger?.error("Failed to receive asset id for instance \(instanceId): \(error)")
+            throw error
+        }
     }
 }
 
@@ -90,12 +99,12 @@ private extension AssetBalanceTracker {
             throw CoinageError.notConfigured
         }
 
-        return record.asset
+        return record.assetId
     }
 }
 
 private struct CoinageInstanceAsset: Decodable {
-    let asset: CoinageAssetLocationId
+    let assetId: CoinageAssetLocationId
 }
 
 /// Single-key `Assets.Account` subscription result. An absent account row means a zero balance.

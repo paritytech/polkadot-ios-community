@@ -100,22 +100,42 @@ private extension ClaimAssetService {
 
         var settled: [CoinageTxEntry] = []
 
+        logger?.debug(
+            "Will start claim for group=\(groupId) amount=\(amount)"
+        )
+
         while !Task.isCancelled {
+            logger?.debug("Awaiting known operations for group=\(groupId)")
+
             // Await operations already registered under this group (resume-safe), reporting progress.
             settled = await awaitKnownOperationsSettled(
                 groupId: groupId, amount: amount, context: context, report: report
             )
 
+            logger?.debug("Awaiting claimed amount for group=\(groupId)")
+
             let claimed = await valueClaimed(settled.finalizedSuccess(), context: context)
+
+            logger?.debug("Received claimed amount=\(claimed), group=\(groupId)")
+
             let remaining = amount > claimed ? amount - claimed : 0
-            if remaining == 0 { break }
+            if remaining == 0 {
+                logger?.debug("All claimed, exiting claim loop for group=\(groupId)")
+                break
+            }
+
+            logger?.debug("Waiting for remained amount=\(remaining) for group=\(groupId)")
 
             // Detect the still-unloaded balance and load vouchers for the remainder.
             let observed = await awaitBalance(instanceId: instanceId, accountId: accountId, target: remaining)
             let loadable = Swift.min(observed, remaining)
 
+            logger?.debug("Loaded \(loadable) for group=\(groupId)")
+
             if loadable > 0 {
                 report(.claiming)
+
+                logger?.debug("Claiming \(loadable) for group=\(groupId)")
                 _ = await load(wallet: wallet, amount: loadable, groupId: groupId, context: context)
             } else if Date() >= retryUntil {
                 logger?.debug("Claim asset: window closed group=\(groupId) claimed<amount")
@@ -123,7 +143,11 @@ private extension ClaimAssetService {
             }
         }
 
-        await report(toVerdict(settled, amount: amount, context: context))
+        let verdict = await toVerdict(settled, amount: amount, context: context)
+
+        logger?.debug("Claming completed: verdict=\(verdict) group=\(groupId)")
+
+        report(verdict)
     }
 
     /// Reports the group on every ledger update until nothing in it is live, then returns what it
