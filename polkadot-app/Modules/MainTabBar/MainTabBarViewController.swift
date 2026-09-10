@@ -322,7 +322,11 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     }
 
     func showScanPanel() {
-        chromeController.setContentController(viewFactory.makeScanController(), for: .scan)
+        let controller = viewFactory.makeScanController { [weak self] in
+            self?.chromeController.setPanel(nil, animated: true)
+            self?.presenter.didRequestContactSearch()
+        }
+        chromeController.setContentController(controller, for: .scan)
     }
 
     func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {

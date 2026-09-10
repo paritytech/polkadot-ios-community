@@ -90,16 +90,6 @@ final class ContactsListViewController: UIViewController, ViewHolder, RootScreen
 
 private extension ContactsListViewController {
     func setupBarItems() {
-        let action = UIAction { [weak self] _ in
-            self?.presenter.showSearchContact()
-        }
-
-        navigationItem.rightBarButtonItem = UIBarButtonItem(
-            image: .add24,
-            primaryAction: action
-        )
-
-        navigationItem.rightBarButtonItem?.accessibilityId(AccessibilityID.Chats.newChatButton)
         titleView?.accessibilityId(AccessibilityID.Chats.title)
     }
 
