@@ -5,7 +5,7 @@ import AsyncExtensions
 
 struct IncomingPaymentContextTests {
     @Test func processSeedsDetecting() async throws {
-        let context = IncomingPaymentContext(store: InMemoryIncomingPaymentStore(), logger: StubLogger())
+        let context = IncomingPaymentContext(logger: StubLogger())
 
         // A run that reports nothing — the subject should still be seeded `.detecting`.
         await context.process(groupId: "g1") { Task {} }
@@ -17,10 +17,20 @@ struct IncomingPaymentContextTests {
         }
     }
 
+    @Test func dedupsByGroupId() async throws {
+        let context = IncomingPaymentContext(logger: StubLogger())
+        let runs = Counter()
+
+        await context.process(groupId: "g1") { Task { await runs.increment() } }
+        await context.process(groupId: "g1") { Task { await runs.increment() } }
+
+        try await waitUntil { await runs.value() >= 1 }
+        #expect(await runs.value() == 1)
+    }
+
     @Test(.timeLimit(.minutes(1)))
-    func terminalStatusMarksProcessed() async throws {
-        let store = InMemoryIncomingPaymentStore()
-        let context = IncomingPaymentContext(store: store, logger: StubLogger())
+    func reportEmitsStatusesButContextNeverPersists() async throws {
+        let context = IncomingPaymentContext(logger: StubLogger())
 
         await context.process(groupId: "g1") {
             Task {
@@ -36,29 +46,15 @@ struct IncomingPaymentContextTests {
             if status.isTerminal { break }
         }
         #expect(last == .claimed(finalized: true))
-
-        // `report` persists after emitting; give the trailing `markProcessed` a moment.
-        try await waitUntil { store.processedGroupIds() == ["g1"] }
-        #expect(store.processedGroupIds() == ["g1"])
     }
 
-    @Test func nonTerminalStatusDoesNotMarkProcessed() async throws {
-        let store = InMemoryIncomingPaymentStore()
-        let context = IncomingPaymentContext(store: store, logger: StubLogger())
-
-        await context.process(groupId: "g1") {
-            Task { await context.report(.claiming, for: "g1") }
-        }
-
-        let stream = try #require(await context.liveStatusStream(for: "g1"))
-        for try await status in stream where status == .claiming {
-            break
-        }
-        #expect(store.processedGroupIds().isEmpty)
+    @Test func liveStreamIsNilForUnknownGroup() async {
+        let context = IncomingPaymentContext(logger: StubLogger())
+        #expect(await context.liveStatusStream(for: "never-seen") == nil)
     }
 
     @Test func seededStatusStreamReplaysValue() async throws {
-        let context = IncomingPaymentContext(store: InMemoryIncomingPaymentStore(), logger: StubLogger())
+        let context = IncomingPaymentContext(logger: StubLogger())
 
         let stream = await context.seededStatusStream(.notClaimed, for: "g1")
         for try await status in stream {
@@ -67,14 +63,35 @@ struct IncomingPaymentContextTests {
         }
     }
 
+    @Test func finishFreesSlotForQueuedWork() async throws {
+        let context = IncomingPaymentContext(maxConcurrent: 1, logger: StubLogger())
+        let started = Counter()
+
+        await context.process(groupId: "g1") { Task { await started.increment() } }
+        // At capacity — this one queues behind g1.
+        await context.process(groupId: "g2") { Task { await started.increment() } }
+
+        try await waitUntil { await started.value() >= 1 }
+        await context.finish(groupId: "g1")
+
+        try await waitUntil { await started.value() == 2 }
+        #expect(await started.value() == 2)
+    }
+
     private func waitUntil(
-        _ condition: @escaping () -> Bool,
+        _ condition: @escaping () async -> Bool,
         timeout: Duration = .seconds(3)
     ) async throws {
         let deadline = ContinuousClock.now.advanced(by: timeout)
         while ContinuousClock.now < deadline {
-            if condition() { return }
+            if await condition() { return }
             try await Task.sleep(for: .milliseconds(10))
         }
     }
+}
+
+private actor Counter {
+    private var count = 0
+    func increment() { count += 1 }
+    func value() -> Int { count }
 }

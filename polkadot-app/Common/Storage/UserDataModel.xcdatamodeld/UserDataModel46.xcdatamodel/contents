@@ -126,14 +126,13 @@
         <relationship name="contacts" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="game" inverseEntity="CDChatContact"/>
     </entity>
     <entity name="CDIncomingPayment" representedClassName="CDIncomingPayment" syncable="YES" codeGenerationType="class">
+        <attribute name="actualClaimed" optional="YES" attributeType="String"/>
         <attribute name="amount" attributeType="String"/>
         <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="identifier" attributeType="String"/>
+        <attribute name="outcomeTag" optional="YES" attributeType="String"/>
         <attribute name="paymentId" attributeType="String"/>
-        <attribute name="processed" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <attribute name="productId" attributeType="String"/>
-        <attribute name="sourceMaterial" attributeType="Binary"/>
-        <attribute name="sourceType" attributeType="String"/>
         <fetchIndex name="byIncomingPaymentIdentifier">
             <fetchIndexElement property="identifier" type="Binary" order="ascending"/>
         </fetchIndex>

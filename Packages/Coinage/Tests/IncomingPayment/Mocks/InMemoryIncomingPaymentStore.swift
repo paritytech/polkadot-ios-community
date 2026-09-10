@@ -3,14 +3,14 @@ import Foundation
 import os
 @testable import Coinage
 
-/// In-memory `IncomingPaymentStoring` for tests. Thread-safe; publishes active-payment snapshots so
-/// `setup()` resume can be exercised. `saveError`/`fetchError` inject failures.
+/// In-memory `IncomingPaymentStoring` for tests. Records hold no secret material; `settle` writes the
+/// terminal verdict. `saveError`/`fetchError` inject failures.
 final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sendable {
     struct Failure: Error {}
 
     private struct State {
         var payments: [CoinageTxGroupId: IncomingPayment] = [:]
-        var processedGroupIds: [CoinageTxGroupId] = []
+        var settledGroupIds: [CoinageTxGroupId] = []
     }
 
     private let state = OSAllocatedUnfairLock(initialState: State())
@@ -40,20 +40,19 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     func fetchActivePayments() async throws -> [IncomingPayment] {
-        state.withLock { Array($0.payments.values.filter { !$0.processed }) }
+        state.withLock { Array($0.payments.values.filter { $0.outcome == nil }) }
     }
 
-    func markProcessed(groupId: CoinageTxGroupId) async throws {
+    func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
         state.withLock { state in
-            state.processedGroupIds.append(groupId)
+            state.settledGroupIds.append(groupId)
             if let existing = state.payments[groupId] {
                 state.payments[groupId] = IncomingPayment(
                     paymentId: existing.paymentId,
                     productId: existing.productId,
-                    source: existing.source,
                     amount: existing.amount,
-                    processed: true,
-                    createdAt: existing.createdAt
+                    createdAt: existing.createdAt,
+                    outcome: outcome
                 )
             }
         }
@@ -74,8 +73,8 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
 
     // MARK: - Test inspection
 
-    func processedGroupIds() -> [CoinageTxGroupId] {
-        state.withLock { $0.processedGroupIds }
+    func settledGroupIds() -> [CoinageTxGroupId] {
+        state.withLock { $0.settledGroupIds }
     }
 
     func payment(for groupId: CoinageTxGroupId) -> IncomingPayment? {
@@ -83,7 +82,7 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     private func publishActive() {
-        let active = state.withLock { Array($0.payments.values.filter { !$0.processed }) }
+        let active = state.withLock { Array($0.payments.values.filter { $0.outcome == nil }) }
         activeSubject.send(active)
     }
 }

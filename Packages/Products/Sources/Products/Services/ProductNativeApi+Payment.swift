@@ -27,9 +27,6 @@ public struct PaymentReceipt: Sendable {
     }
 }
 
-/// Product-supplied idempotency key for a top-up (`host_payment_top_up`).
-public typealias PaymentTopUpId = String
-
 /// Top-up status as seen by product scripts. Mirrors `host_payment_top_up_status`. Terminal:
 /// `claimed(finalized: true)`, `claimedPartially`, `notClaimed`.
 public enum HostPaymentTopUpStatus: Sendable, Equatable {

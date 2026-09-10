@@ -29,11 +29,17 @@ extension ServiceCoordinator {
         let incomingPaymentStore = IncomingPaymentCoreDataStore(
             storageFacade: UserDataStorageFacade.shared
         )
+        let incomingPaymentSecretStore = IncomingPaymentKeychainSecretStore()
+        let incomingPaymentSourceResolver = IncomingPaymentSourceResolver()
+        let incomingPaymentAcknowledger = TopUpAcknowledgementPresenter()
 
         guard let coinageService = createCoinageService(
             databaseFactory: databaseFactory,
             externalPaymentStore: externalPaymentStore,
-            incomingPaymentStore: incomingPaymentStore
+            incomingPaymentStore: incomingPaymentStore,
+            incomingPaymentSecretStore: incomingPaymentSecretStore,
+            incomingPaymentSourceResolver: incomingPaymentSourceResolver,
+            incomingPaymentAcknowledger: incomingPaymentAcknowledger
         ) else {
             return nil
         }
@@ -83,7 +89,10 @@ private extension ServiceCoordinator {
     static func createCoinageService(
         databaseFactory: DatabaseDependencyFactoring,
         externalPaymentStore: ExternalPaymentStoring,
-        incomingPaymentStore: IncomingPaymentStoring
+        incomingPaymentStore: IncomingPaymentStoring,
+        incomingPaymentSecretStore: IncomingPaymentSecretStoring,
+        incomingPaymentSourceResolver: IncomingPaymentSourceResolving,
+        incomingPaymentAcknowledger: IncomingPaymentAcknowledging
     ) -> CoinageService? {
         let logger = Logger.shared
         let chainRegistry = ChainRegistryFacade.sharedRegistry
@@ -186,6 +195,9 @@ private extension ServiceCoordinator {
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
             incomingPaymentStore: incomingPaymentStore,
+            incomingPaymentSecretStore: incomingPaymentSecretStore,
+            incomingPaymentSourceResolver: incomingPaymentSourceResolver,
+            incomingPaymentAcknowledger: incomingPaymentAcknowledger,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
             recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,

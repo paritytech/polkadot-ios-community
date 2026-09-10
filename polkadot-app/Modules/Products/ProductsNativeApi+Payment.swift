@@ -66,19 +66,19 @@ extension ProductsNativeApi {
     func paymentTopUp(amount: Balance, source: PaymentTopUpSource, id: PaymentTopUpId) async throws {
         let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
 
-        let incomingSource: IncomingPaymentSource
+        let descriptor: IncomingPaymentSourceDescriptor
         do {
-            incomingSource = try resolveIncomingSource(source)
+            descriptor = try Self.descriptor(from: source)
         } catch {
-            logger.error("Top-up source resolution failed: \(error)")
+            logger.error("Top-up source could not be described: \(error)")
             throw HostPaymentTopUpError.invalidSource
         }
 
         do {
             try await incomingPaymentService.accept(
                 amount: amount,
-                source: incomingSource,
-                paymentId: id,
+                descriptor: descriptor,
+                paymentId: id.asHex(),
                 productId: productId
             )
         } catch let error as IncomingPaymentError {
@@ -93,7 +93,7 @@ extension ProductsNativeApi {
     ) async throws -> AnyAsyncSequence<HostPaymentTopUpStatus> {
         let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
 
-        return await incomingPaymentService.subscribeStatus(for: id, productId: productId)
+        return await incomingPaymentService.subscribeStatus(for: id.asHex(), productId: productId)
             .map { HostPaymentTopUpStatus(status: $0) }
             .eraseToAnyAsyncSequence()
     }
@@ -155,24 +155,20 @@ private extension ProductsNativeApi {
     }
 }
 
-// MARK: - Top-Up Source Resolution
+// MARK: - Top-Up Source Description
 
 private extension ProductsNativeApi {
-    /// Resolves the product-facing source to a Coinage `IncomingPaymentSource`, deriving the wallet's
-    /// raw secret key from the derivation path so the claim never needs entropy.
-    func resolveIncomingSource(_ source: PaymentTopUpSource) throws -> IncomingPaymentSource {
+    /// Describes the product-facing source as the persisted bytes the claim is later resolved from —
+    /// the derivation **index** for a product account (never a derived key), the raw key otherwise.
+    /// Resolution + validation happen later, in `IncomingPaymentSourceResolver`.
+    static func descriptor(from source: PaymentTopUpSource) throws -> IncomingPaymentSourceDescriptor {
         switch source {
         case let .productAccount(derivationIndex):
-            let accountId = ProductAccountId(productId: productId, derivationIndex: derivationIndex)
-            let wallet = try DynamicDerivedWallet(
-                derivationPath: accountId.derivationPath(),
-                entropyManager: entropyManager
-            )
-            return try .externalAssetFromWallet(secretKey: wallet.fetchRawSecretKey())
+            try .productAccount(indexData: JSONEncoder().encode(derivationIndex))
         case let .privateKey(secretKey):
-            return .externalAssetFromWallet(secretKey: secretKey)
+            .privateKey(secretKey: secretKey)
         case let .coins(secretKeys):
-            return .coinsFromPrivateKeys(secretKeys: secretKeys)
+            .coins(secretKeys: secretKeys)
         }
     }
 }

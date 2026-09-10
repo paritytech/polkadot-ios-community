@@ -226,9 +226,13 @@ private extension IncomingPaymentService {
         }
 
         var last: IncomingPaymentStatus = .detecting
-        for await detection in claimStream(for: payment, resolved: resolved, denomination: denomination) {
-            last = IncomingPaymentStatus(detection: detection)
-            await paymentContext.report(last, for: payment.groupId)
+        do {
+            for try await detection in claimStream(for: payment, resolved: resolved, denomination: denomination) {
+                last = IncomingPaymentStatus(detection: detection)
+                await paymentContext.report(last, for: payment.groupId)
+            }
+        } catch {
+            logger?.error("Incoming payment \(payment.paymentId) claim stream failed: \(error)")
         }
         await settle(payment: payment, finalStatus: last)
     }
@@ -276,10 +280,12 @@ private extension IncomingPaymentService {
         secretStore.remove(groupId: payment.groupId)
 
         switch outcome {
-        case .claimedPartially, .notClaimed:
+        case .claimedPartially,
+             .notClaimed:
             await acknowledger.acknowledge(
                 productId: payment.productId,
                 paymentId: payment.paymentId,
+                requestedAmount: payment.amount,
                 outcome: outcome
             )
         case .claimed:
@@ -291,7 +297,7 @@ private extension IncomingPaymentService {
     /// Empty group ⇒ nothing was loaded ⇒ `.notClaimed`; otherwise its finalization state (the exact
     /// partial figure is not reconstructed here — a rare post-loss path).
     func verdictFromDurability(_ payment: IncomingPayment) async -> IncomingPaymentStatus {
-        let entries = (try? await txService.getOperationGroupStatuses(payment.groupId)) ?? []
+        let entries = await (try? txService.getOperationGroupStatuses(payment.groupId)) ?? []
         guard !entries.isEmpty else { return .notClaimed }
         return entries.allSatisfy { $0.status == .finalizedSuccess } ? .claimed(finalized: true) : .notClaimed
     }

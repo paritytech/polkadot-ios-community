@@ -55,7 +55,8 @@ public extension IncomingPaymentStatus {
             .claimedPartially(actualClaimed: actualClaimed)
         case .notClaimed:
             .notClaimed
-        case .detecting, .claiming:
+        case .detecting,
+             .claiming:
             nil
         }
     }

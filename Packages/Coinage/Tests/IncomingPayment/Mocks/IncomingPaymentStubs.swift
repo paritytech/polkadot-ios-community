@@ -1,18 +1,121 @@
 import AsyncExtensions
 import Foundation
 import KeyDerivation
+import os
 import SubstrateSdk
 @testable import Coinage
 
-/// Inert `ClaimCoinsServicing` — never drives anything; `accept` tests don't reach it.
+/// In-memory `IncomingPaymentSecretStoring` for tests. Records removals for wipe-on-settle assertions.
+final class InMemoryIncomingPaymentSecretStore: IncomingPaymentSecretStoring, @unchecked Sendable {
+    struct Failure: Error {}
+
+    private struct State {
+        var descriptors: [CoinageTxGroupId: IncomingPaymentSourceDescriptor] = [:]
+        var removed: [CoinageTxGroupId] = []
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+    var saveError: Error?
+
+    init(seed: [CoinageTxGroupId: IncomingPaymentSourceDescriptor] = [:]) {
+        state.withLock { $0.descriptors = seed }
+    }
+
+    func save(groupId: CoinageTxGroupId, descriptor: IncomingPaymentSourceDescriptor) throws {
+        if let saveError { throw saveError }
+        state.withLock { $0.descriptors[groupId] = descriptor }
+    }
+
+    func fetch(groupId: CoinageTxGroupId) -> IncomingPaymentSourceDescriptor? {
+        state.withLock { $0.descriptors[groupId] }
+    }
+
+    func remove(groupId: CoinageTxGroupId) {
+        state.withLock { state in
+            state.descriptors[groupId] = nil
+            state.removed.append(groupId)
+        }
+    }
+
+    func removedGroupIds() -> [CoinageTxGroupId] { state.withLock { $0.removed } }
+    func hasDescriptor(for groupId: CoinageTxGroupId) -> Bool { state.withLock { $0.descriptors[groupId] != nil } }
+}
+
+/// Resolver stub — succeeds (returning inert claim material) or throws to exercise `InvalidSource`.
+final class StubSourceResolver: IncomingPaymentSourceResolving, @unchecked Sendable {
+    struct Invalid: Error {}
+
+    let shouldFail: Bool
+
+    init(shouldFail: Bool = false) {
+        self.shouldFail = shouldFail
+    }
+
+    func resolve(
+        productId _: String,
+        descriptor: IncomingPaymentSourceDescriptor
+    ) async throws -> ResolvedIncomingSource {
+        if shouldFail { throw Invalid() }
+        switch descriptor {
+        case let .coins(secretKeys): return .coins(secretKeys: secretKeys)
+        // accept tests don't run the claim; a wallet is not needed here.
+        case .privateKey,
+             .productAccount: return .coins(secretKeys: [])
+        }
+    }
+}
+
+/// Acknowledger stub — records what it was asked to surface.
+final class StubAcknowledger: IncomingPaymentAcknowledging, @unchecked Sendable {
+    struct Call: Equatable {
+        let productId: String
+        let paymentId: IncomingPaymentId
+        let requestedAmount: Balance
+        let outcome: IncomingPaymentTerminalOutcome
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: [Call]())
+
+    func acknowledge(
+        productId: String,
+        paymentId: IncomingPaymentId,
+        requestedAmount: Balance,
+        outcome: IncomingPaymentTerminalOutcome
+    ) async {
+        lock.withLock {
+            $0.append(Call(
+                productId: productId,
+                paymentId: paymentId,
+                requestedAmount: requestedAmount,
+                outcome: outcome
+            ))
+        }
+    }
+
+    func calls() -> [Call] { lock.withLock { $0 } }
+}
+
+/// `ClaimCoinsServicing` that replays a fixed detection sequence, then finishes.
 final class StubClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
+    private let detections: [CoinageTransferDetection]
+
+    init(detections: [CoinageTransferDetection] = []) {
+        self.detections = detections
+    }
+
     func claim(
         coinKeys _: [Data],
         groupId _: CoinageTxGroupId,
         retryUntil _: Date,
         context _: DenominationBreakdownContext
     ) -> AnyAsyncSequence<CoinageTransferDetection> {
-        AsyncStream<CoinageTransferDetection> { $0.finish() }.eraseToAnyAsyncSequence()
+        let detections = detections
+        return AsyncStream<CoinageTransferDetection> { continuation in
+            for detection in detections {
+                continuation.yield(detection)
+            }
+            continuation.finish()
+        }.eraseToAnyAsyncSequence()
     }
 }
 
@@ -61,5 +164,13 @@ final class StubDenominationContextProvider: DenominationContextProviding, @unch
 
     func denominationContext() async throws -> DenominationBreakdownContext {
         throw Unavailable()
+    }
+}
+
+/// Denomination provider that returns a usable context, so the drive/settle path can run. The values
+/// are inert — the claim stubs ignore the context.
+final class WorkingDenominationContextProvider: DenominationContextProviding, @unchecked Sendable {
+    func denominationContext() async throws -> DenominationBreakdownContext {
+        DenominationBreakdownContext(unit: 1, precision: 10, maxExponent: 0, minExponent: 0)
     }
 }

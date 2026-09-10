@@ -5,12 +5,13 @@ import Foundation
 import Operation_iOS
 import StructuredConcurrency
 
-/// CoreData-backed implementation of ``IncomingPaymentStoring``. Records are keyed by their
-/// `groupId` (`"productId:paymentId"`) as `identifier`, so every lookup is product-scoped.
+/// CoreData-backed ``IncomingPaymentStoring``. Records are keyed by their `groupId`
+/// (`"top up:productId:paymentId"`) as `identifier`, hold no secrets, and are settled once with a
+/// terminal verdict; "active" means `outcomeTag == nil`.
 final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sendable {
     private let storageFacade: StorageFacadeProtocol
     private let repository: AnyDataProviderRepository<IncomingPayment>
-    private let processedRepository: AnyDataProviderRepository<IncomingPaymentProcessedUpdate>
+    private let outcomeRepository: AnyDataProviderRepository<IncomingPaymentOutcomeUpdate>
     private let logger: LoggerProtocol
 
     init(
@@ -27,12 +28,12 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
         )
         repository = AnyDataProviderRepository(fullRepository)
 
-        let processedRepo = storageFacade.createRepository(
+        let outcomeRepo = storageFacade.createRepository(
             filter: nil,
             sortDescriptors: [],
-            mapper: AnyCoreDataMapper(IncomingPaymentProcessedMapper())
+            mapper: AnyCoreDataMapper(IncomingPaymentOutcomeMapper())
         )
-        processedRepository = AnyDataProviderRepository(processedRepo)
+        outcomeRepository = AnyDataProviderRepository(outcomeRepo)
     }
 
     func save(_ payment: IncomingPayment) async throws {
@@ -49,9 +50,9 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
             .asyncExecute()
     }
 
-    func markProcessed(groupId: CoinageTxGroupId) async throws {
-        let update = IncomingPaymentProcessedUpdate(groupId: groupId, processed: true)
-        try await processedRepository.saveOperation({ [update] }, { [] }).asyncExecute()
+    func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
+        let update = IncomingPaymentOutcomeUpdate(groupId: groupId, outcome: outcome)
+        try await outcomeRepository.saveOperation({ [update] }, { [] }).asyncExecute()
     }
 
     func observePayment(groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPayment?> {
@@ -73,7 +74,7 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
 
 private extension IncomingPaymentCoreDataStore {
     static var activeFilter: NSPredicate {
-        NSPredicate(format: "%K == %@", #keyPath(CDIncomingPayment.processed), NSNumber(value: false))
+        NSPredicate(format: "%K == nil", #keyPath(CDIncomingPayment.outcomeTag))
     }
 
     func activeRepository() -> AnyDataProviderRepository<IncomingPayment> {
