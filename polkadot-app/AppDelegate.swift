@@ -1,4 +1,5 @@
 import UIKit
+import TipKit
 
 @main
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -20,6 +21,12 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
             !isPreviewBuild
         else {
             return true
+        }
+
+        do {
+            try Tips.configure()
+        } catch {
+            logger.error("Failed to configure TipKit: \(error)")
         }
 
         #if TESTNET_FEATURE

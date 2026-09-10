@@ -85,6 +85,18 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
             for: .touchUpInside
         )
 
+        rootView.resetTipsButton.addTarget(
+            self,
+            action: #selector(actionResetTips),
+            for: .touchUpInside
+        )
+
+        rootView.showAllTipsButton.addTarget(
+            self,
+            action: #selector(actionShowAllTips),
+            for: .touchUpInside
+        )
+
         rootView.strategyDebugSwitch.addTarget(
             self,
             action: #selector(actionToggleStrategyDebug),
@@ -141,6 +153,14 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
 
     @objc func actionShowThemeSelection() {
         presenter.showThemeSelection()
+    }
+
+    @objc func actionResetTips() {
+        presenter.resetTips()
+    }
+
+    @objc func actionShowAllTips() {
+        presenter.showAllTips()
     }
 
     @objc func actionToggleStrategyDebug() {

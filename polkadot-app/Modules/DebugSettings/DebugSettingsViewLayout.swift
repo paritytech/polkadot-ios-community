@@ -52,6 +52,16 @@ final class DebugSettingsViewLayout: UIView {
         button.imageWithTitleView?.title = "Theme Selection"
     }
 
+    let resetTipsButton: RoundedButton = .create { button in
+        button.applyMainStyle()
+        button.imageWithTitleView?.title = "Reset Tab Bar Tips"
+    }
+
+    let showAllTipsButton: RoundedButton = .create { button in
+        button.applyMainStyle()
+        button.imageWithTitleView?.title = "Show All Tips"
+    }
+
     let strategyDebugSwitch = UISwitch()
 
     private let strategyDebugLabel: Label = .create { (view: Label) in
@@ -144,7 +154,9 @@ final class DebugSettingsViewLayout: UIView {
             clearJWTTokenButton,
             simulateCrash,
             replaceEntropyButton,
-            themeSelectionButton
+            themeSelectionButton,
+            resetTipsButton,
+            showAllTipsButton
         ]
 
         #if DEBUG

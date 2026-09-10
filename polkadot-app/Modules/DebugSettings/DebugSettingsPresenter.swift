@@ -104,6 +104,14 @@ extension DebugSettingsPresenter: DebugSettingsPresenterProtocol {
     func openTrUAPIPlayground() {
         wireframe.showTrUAPIPlayground(from: view)
     }
+
+    func resetTips() {
+        interactor.resetTips()
+    }
+
+    func showAllTips() {
+        interactor.showAllTips()
+    }
 }
 
 extension DebugSettingsPresenter: DebugSettingsInteractorOutputProtocol {

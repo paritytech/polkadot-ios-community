@@ -45,7 +45,17 @@ final class TabBarBottomChromeController: UIViewController {
         },
         closePanel: { [weak self] in
             self?.setPanel(nil, animated: false)
+        },
+        stateSink: { [weak self] state in
+            self?.tipController.setBarShown(state == .shown)
         }
+    )
+
+    private lazy var tipController = TabBarTipController(
+        host: self,
+        barView: barView,
+        sequence: TabBarTipSequenceFactory.make(steps: TabBarTips.steps),
+        itemIndex: { [weak self] slot in self?.slotMap.itemIndex(for: slot) }
     )
 
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
@@ -88,6 +98,16 @@ final class TabBarBottomChromeController: UIViewController {
         installWidgetsIfNeeded()
 
         installOutsideTapRecognizer()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        tipController.start()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        tipController.stop()
     }
 
     override func viewSafeAreaInsetsDidChange() {
@@ -160,6 +180,11 @@ final class TabBarBottomChromeController: UIViewController {
         tabsPanelView.setOpen(kind == .spaTabs, animator: animator)
         contentPanelView.setOpen(kind?.contentAction != nil, animator: animator)
         (viewIfLoaded as? TabBarChromePassthroughView)?.isOutsideTapEnabled = kind != nil
+
+        if kind != nil {
+            tipController.dismissForPanel()
+        }
+
         openPanel = kind
         updateActiveActionIndex()
 
@@ -257,6 +282,7 @@ final class TabBarBottomChromeController: UIViewController {
 
         applyLayout(context, animatingAlongside: transitionCoordinator)
         foldController.refresh()
+        tipController.setBarShown(foldController.state == .shown)
     }
 
     func applyLayout(
@@ -325,6 +351,7 @@ private extension TabBarBottomChromeController {
 
         setSelectedIndex(selectedTabIndex)
         updateActiveActionIndex()
+        tipController.refreshAnchor()
     }
 
     func updateActiveActionIndex() {
@@ -471,6 +498,7 @@ private extension TabBarBottomChromeController {
         }
 
         barView.onSelect = { [weak self] itemIndex, isReselection in
+            self?.tipController.retireForUserInteraction()
             guard let self, let tabIndex = slotMap.tabIndex(forItemIndex: itemIndex) else {
                 return
             }
@@ -478,6 +506,7 @@ private extension TabBarBottomChromeController {
         }
 
         barView.onActionTapped = { [weak self] itemIndex in
+            self?.tipController.retireForUserInteraction()
             guard let self, let action = slotMap.action(forItemIndex: itemIndex) else {
                 return
             }

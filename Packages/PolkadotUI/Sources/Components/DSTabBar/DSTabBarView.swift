@@ -110,6 +110,12 @@ public final class DSTabBarView: UIView {
         applyActiveAction()
     }
 
+    /// Anchor view for a popover pointing at a bar item. Re-read it rather than caching:
+    /// item views are recreated whenever `items` changes.
+    public func itemAnchor(at index: Int) -> UIView? {
+        itemViews.indices.contains(index) ? itemViews[index] : nil
+    }
+
     override public func layoutSubviews() {
         super.layoutSubviews()
 

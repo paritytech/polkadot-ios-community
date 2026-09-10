@@ -23,6 +23,8 @@ protocol DebugSettingsPresenterProtocol: AnyObject {
     func toggleStrategyDebug()
     func toggleTruApiRuntime()
     func openTrUAPIPlayground()
+    func resetTips()
+    func showAllTips()
 }
 
 protocol DebugSettingsInteractorInputProtocol: AnyObject {
@@ -35,6 +37,8 @@ protocol DebugSettingsInteractorInputProtocol: AnyObject {
     func toggleStrategyDebug()
     func toggleTruApiRuntime()
     func restartApp()
+    func resetTips()
+    func showAllTips()
 }
 
 @MainActor

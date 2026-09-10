@@ -4,6 +4,7 @@ import Keystore_iOS
 import KeyDerivation
 import NovaCrypto
 import StructuredConcurrency
+import TipKit
 
 final class DebugSettingsInteractor {
     weak var presenter: DebugSettingsInteractorOutputProtocol?
@@ -93,6 +94,30 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
     func restartApp() {
         Logger.shared.info("TrUAPI runtime changed — terminating for restart")
         exit(0)
+    }
+
+    func resetTips() {
+        Task {
+            do {
+                try Tips.resetDatastore()
+            } catch {
+                Logger.shared.error("Failed to reset the tips datastore: \(error)")
+            }
+
+            // `resetDatastore` is documented for use before `Tips.configure` and can throw
+            // `tipsDatastoreAlreadyConfigured` from a debug action; `resetEligibility` is the
+            // call that revives an invalidated tip in the running app, so it must not be skipped
+            // when the datastore reset fails.
+            if #available(iOS 26.0, *) {
+                for step in TabBarTips.steps {
+                    await step.tip.resetEligibility()
+                }
+            }
+        }
+    }
+
+    func showAllTips() {
+        Tips.showAllTipsForTesting()
     }
 }
 
