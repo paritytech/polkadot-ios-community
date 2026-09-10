@@ -19,6 +19,7 @@ final class IncomingPaymentMapper: CoreDataMapperProtocol {
         guard let paymentId = entity.paymentId,
               let productId = entity.productId,
               let amountString = entity.amount,
+              let amount = BigUInt(amountString),
               let createdAt = entity.createdAt
         else {
             throw IncomingPaymentMapperError.missingRequiredField
@@ -27,7 +28,7 @@ final class IncomingPaymentMapper: CoreDataMapperProtocol {
         return try IncomingPayment(
             paymentId: paymentId,
             productId: productId,
-            amount: BigUInt(amountString) ?? 0,
+            amount: amount,
             createdAt: createdAt,
             outcome: IncomingPaymentOutcomeSerialization.outcome(
                 tag: entity.outcomeTag,

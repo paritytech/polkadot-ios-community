@@ -7,6 +7,10 @@ import Foundation
 /// one. Never enumerated: a descriptor is only ever fetched for a specific unfinished payment.
 public protocol IncomingPaymentSecretStoring: Sendable {
     func save(groupId: CoinageTxGroupId, descriptor: IncomingPaymentSourceDescriptor) throws
-    func fetch(groupId: CoinageTxGroupId) -> IncomingPaymentSourceDescriptor?
+
+    /// `nil` only when no secret is stored for `groupId`. A store that cannot be read right now (the
+    /// Keychain before first unlock, say) throws instead — the two must stay distinguishable, since
+    /// "gone" settles the payment for good.
+    func fetch(groupId: CoinageTxGroupId) throws -> IncomingPaymentSourceDescriptor?
     func remove(groupId: CoinageTxGroupId)
 }

@@ -18,6 +18,7 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
 
     var saveError: Error?
     var fetchError: Error?
+    var settleError: Error?
 
     init(seed: [IncomingPayment] = []) {
         state.withLock { state in
@@ -44,6 +45,7 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
+        if let settleError { throw settleError }
         state.withLock { state in
             state.settledGroupIds.append(groupId)
             if let existing = state.payments[groupId] {
@@ -57,14 +59,6 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
             }
         }
         publishActive()
-    }
-
-    func observePayment(groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPayment?> {
-        let current = state.withLock { $0.payments[groupId] }
-        return AsyncStream<IncomingPayment?> { continuation in
-            continuation.yield(current)
-            continuation.finish()
-        }.eraseToAnyAsyncSequence()
     }
 
     func observeActivePayments() -> AnyAsyncSequence<[IncomingPayment]> {

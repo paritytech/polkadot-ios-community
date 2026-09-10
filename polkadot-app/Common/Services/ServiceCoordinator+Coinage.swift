@@ -11,7 +11,6 @@ import ExtrinsicService
 extension ServiceCoordinator {
     struct CoinageServices {
         let coinageService: CoinageServicing
-        let incomingPaymentService: IncomingPaymentServicing
         let transferMonitor: CoinageTransferMonitoring
         let w3sPaymentTracking: W3sPaymentTracking
         let backupSyncService: CoinageBackupSyncServicing
@@ -38,8 +37,6 @@ extension ServiceCoordinator {
             return nil
         }
 
-        let incomingPaymentService = coinageService.incomingPaymentService
-
         let transferMonitor = CoinageTransferMonitor(
             coinageService: coinageService,
             storageFacade: UserDataStorageFacade.shared,
@@ -54,7 +51,6 @@ extension ServiceCoordinator {
 
         return CoinageServices(
             coinageService: coinageService,
-            incomingPaymentService: incomingPaymentService,
             transferMonitor: transferMonitor,
             w3sPaymentTracking: createW3sPaymentTracking(coinageService: coinageService),
             backupSyncService: backupSyncService,

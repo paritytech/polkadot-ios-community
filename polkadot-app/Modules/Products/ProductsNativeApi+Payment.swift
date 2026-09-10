@@ -84,7 +84,7 @@ extension ProductsNativeApi {
         } catch let error as IncomingPaymentError {
             throw error.asHostTopUpError
         } catch {
-            throw HostPaymentTopUpError.unknown(reason: error.localizedDescription)
+            throw HostPaymentTopUpError.unknown(reason: String(describing: error))
         }
     }
 
@@ -103,7 +103,7 @@ extension ProductsNativeApi {
         } catch let error as IncomingPaymentError {
             throw error.asHostTopUpError
         } catch {
-            throw HostPaymentTopUpError.unknown(reason: error.localizedDescription)
+            throw HostPaymentTopUpError.unknown(reason: String(describing: error))
         }
     }
 }
@@ -198,6 +198,7 @@ private extension IncomingPaymentError {
         case .alreadyExists: .alreadyExists
         case .invalidSource: .invalidSource
         case .sourceBusy: .sourceBusy
+        case .invalidAmount: .unknown(reason: "amount must be positive")
         case let .notFound(paymentId): .notFound(paymentId)
         case let .unknown(reason): .unknown(reason: reason)
         }

@@ -215,8 +215,6 @@ public actor CoinageService {
     }
 }
 
-// MARK: - Incoming Payments
-
 // MARK: - CoinageServicing
 
 extension CoinageService: CoinageServicing {

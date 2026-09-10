@@ -12,14 +12,9 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
     private let storageFacade: StorageFacadeProtocol
     private let repository: AnyDataProviderRepository<IncomingPayment>
     private let outcomeRepository: AnyDataProviderRepository<IncomingPaymentOutcomeUpdate>
-    private let logger: LoggerProtocol
 
-    init(
-        storageFacade: StorageFacadeProtocol,
-        logger: LoggerProtocol = Logger.shared
-    ) {
+    init(storageFacade: StorageFacadeProtocol) {
         self.storageFacade = storageFacade
-        self.logger = logger
 
         let fullRepository = storageFacade.createRepository(
             filter: nil,
@@ -53,13 +48,6 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
     func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
         let update = IncomingPaymentOutcomeUpdate(groupId: groupId, outcome: outcome)
         try await outcomeRepository.saveOperation({ [update] }, { [] }).asyncExecute()
-    }
-
-    func observePayment(groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPayment?> {
-        storageFacade.subscribeSingle(
-            mapper: AnyCoreDataMapper(IncomingPaymentMapper()),
-            filter: NSPredicate(format: "%K == %@", #keyPath(CDIncomingPayment.identifier), groupId)
-        )
     }
 
     func observeActivePayments() -> AnyAsyncSequence<[IncomingPayment]> {

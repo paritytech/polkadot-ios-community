@@ -33,7 +33,7 @@ struct IncomingPaymentSweepTests {
             paymentContext: IncomingPaymentContext(logger: StubLogger()),
             claimCoinsService: StubClaimCoinsService(),
             claimAssetService: StubClaimAssetService(),
-            txService: StubCoinageTxServicing(),
+            verdictResolver: StubGroupVerdictResolver(verdict: .notClaimed),
             acknowledger: StubAcknowledger(),
             instanceId: 0,
             logger: StubLogger()

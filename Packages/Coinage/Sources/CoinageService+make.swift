@@ -366,7 +366,11 @@ public extension CoinageService {
             paymentContext: IncomingPaymentContext(logger: logger),
             claimCoinsService: claimCoinsService,
             claimAssetService: claimAssetService,
-            txService: txService,
+            verdictResolver: CoinageGroupVerdictResolver(
+                txService: txService,
+                coinService: coinService,
+                voucherService: voucherService
+            ),
             acknowledger: incomingPaymentAcknowledger,
             instanceId: instanceId,
             logger: logger

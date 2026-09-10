@@ -11,8 +11,8 @@ Read a SURVIVED line as "no test distinguishes this rule's presence from its abs
 
 iOS split note: on Android the coinage→product status translation lives in `ExecuteTopUpUseCase`, in scope
 for these tests. On iOS the amount/shortfall arithmetic lives one layer down, in the claim services
-(`ClaimCoinsService`/`ClaimAssetService`), which the top-up tests stub. Those mutants therefore belong to a
-coinage-claim sweep, not this one, and are intentionally absent here.
+(`ClaimCoinsService`/`ClaimAssetService`), which the top-up tests stub. The asset claim loop's exit guards
+are covered by `ClaimAssetServiceTests` and swept here; the rest of the claim arithmetic is not.
 
 Usage, from the repository root:
     python3 Packages/Coinage/tools/top_up_mutation_sweep.py
@@ -35,6 +35,7 @@ STATUS = f"{COINAGE}/Model/IncomingPaymentStatus.swift"
 DETECT = f"{COINAGE}/Model/IncomingPaymentStatus+Detection.swift"
 MODEL = f"{COINAGE}/Model/IncomingPayment.swift"
 CONTEXT = f"{COINAGE}/IncomingPaymentContext.swift"
+CLAIM_ASSET = "Packages/Coinage/Sources/Transfer/Claim/ClaimAssetService.swift"
 
 DEFAULT_SIM = "F6327B69-0673-48AE-9515-C22A4B8CE8CE"  # iPhone 16
 ONLY_TESTING = [
@@ -43,6 +44,7 @@ ONLY_TESTING = [
     "CoinageTests/IncomingPaymentContextTests",
     "CoinageTests/IncomingPaymentServiceTests",
     "CoinageTests/IncomingPaymentSweepTests",
+    "CoinageTests/ClaimAssetServiceTests",
     "ProductsTests/PaymentTopUpRequestDtoTests",
 ]
 
@@ -52,6 +54,10 @@ MUTANTS = [
     ("accept: a used id is handed out again", SERVICE,
      "        if try await store.fetch(groupId: groupId) != nil {",
      "        if false {"),
+
+    ("accept: a top-up of nothing is accepted", SERVICE,
+     "        guard amount > 0 else {",
+     "        guard true else {"),
 
     # --- one live claim per source ---
     ("accept: a busy source is accepted", SERVICE,
@@ -74,6 +80,24 @@ MUTANTS = [
     ("settle: the source outlives the verdict", SERVICE,
      "        secretStore.remove(groupId: payment.groupId)",
      "        _ = payment.groupId"),
+
+    ("settle: an unpersisted verdict still wipes the secret", SERVICE,
+     "failed to persist verdict: \\(error)\")\n            return",
+     "failed to persist verdict: \\(error)\")"),
+
+    # --- a secret that cannot be read is not a secret that is gone ---
+    ("drive: an unreadable secret settles the payment", SERVICE,
+     "secret unreadable; left for next launch: \\(error)\")\n            return",
+     "secret unreadable; left for next launch: \\(error)\")\n            descriptor = nil"),
+
+    ("durability: an unobservable group is settled as notClaimed", SERVICE,
+     "group unobservable; left for next launch: \\(error)\")",
+     "group unobservable; left for next launch: \\(error)\")\n"
+     "            await settle(payment: payment, finalStatus: .notClaimed)"),
+
+    ("durability: what the group finalized is ignored", SERVICE,
+     "            let status = IncomingPaymentStatus(detection: detection)",
+     "            let status = IncomingPaymentStatus.notClaimed"),
 
     ("subscribe: a recorded verdict is re-derived", SERVICE,
      "            return payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting",
@@ -112,6 +136,15 @@ MUTANTS = [
      "        case .claiming,\n             .claimingRest:\n            self = .claiming",
      "        case .claiming:\n            self = .claiming\n        case let .claimingRest(claimed):\n"
      "            self = .claimedPartially(actualClaimed: claimed)"),
+
+    # --- the asset claim loop ends where the contract says ---
+    ("claim: a closed window is still attempted", CLAIM_ASSET,
+     "            if Date() >= retryUntil {",
+     "            if false {"),
+
+    ("claim: an unloadable remainder is attempted again", CLAIM_ASSET,
+     "            if context.breakdown(amountInPlanks: remaining).isEmpty {",
+     "            if false {"),
 
     # --- the retry window belongs to the operation ---
     ("window: the retry window is not the one the operation opened with", SERVICE,

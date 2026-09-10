@@ -25,11 +25,52 @@ struct IncomingPaymentServiceTests {
             paymentContext: IncomingPaymentContext(logger: StubLogger()),
             claimCoinsService: StubClaimCoinsService(),
             claimAssetService: StubClaimAssetService(),
-            txService: StubCoinageTxServicing(),
+            verdictResolver: StubGroupVerdictResolver(verdict: .notClaimed),
             acknowledger: acknowledger,
             instanceId: 0,
             logger: StubLogger()
         )
+    }
+
+    @Test func acceptRejectsZeroAmount() async throws {
+        let store = InMemoryIncomingPaymentStore()
+        let secretStore = InMemoryIncomingPaymentSecretStore()
+        let service = makeService(store: store, secretStore: secretStore)
+
+        await #expect {
+            try await service.accept(
+                amount: 0,
+                descriptor: .coins(secretKeys: [Data([0x01])]),
+                paymentId: "p1",
+                productId: "prod"
+            )
+        } throws: { ($0 as? IncomingPaymentError) == .invalidAmount }
+        #expect(store.payment(for: "top up:prod:p1") == nil)
+        #expect(!secretStore.hasDescriptor(for: "top up:prod:p1"))
+    }
+
+    @Test func acceptFailsWhenBusyCheckCannotReadSecrets() async throws {
+        let active = IncomingPayment(
+            paymentId: "p1",
+            productId: "prod",
+            amount: 100,
+            createdAt: Date(),
+            outcome: nil
+        )
+        let store = InMemoryIncomingPaymentStore(seed: [active])
+        let secretStore = InMemoryIncomingPaymentSecretStore()
+        secretStore.fetchError = InMemoryIncomingPaymentSecretStore.Failure()
+        let service = makeService(store: store, secretStore: secretStore)
+
+        await #expect {
+            try await service.accept(
+                amount: 50,
+                descriptor: .coins(secretKeys: [Data([0x05])]),
+                paymentId: "p2",
+                productId: "prod"
+            )
+        } throws: { Self.isUnknown($0) }
+        #expect(store.payment(for: "top up:prod:p2") == nil)
     }
 
     @Test func acceptPersistsRecordAndSecret() async throws {
@@ -254,6 +295,79 @@ struct IncomingPaymentServiceTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
+    func unreadableSecretLeavesPaymentActive() async throws {
+        let acknowledger = StubAcknowledger()
+        let rig = makeDrivingService(detections: [.notClaimed], acknowledger: acknowledger)
+        rig.secretStore.fetchError = InMemoryIncomingPaymentSecretStore.Failure()
+
+        rig.service.setup(with: Self.denomination)
+        try await Task.sleep(for: .milliseconds(200))
+        rig.service.throttle()
+
+        #expect(rig.store.payment(for: "top up:prod:p")?.outcome == nil)
+        #expect(rig.store.settledGroupIds().isEmpty)
+        #expect(acknowledger.calls().isEmpty)
+        #expect(rig.secretStore.removedGroupIds().isEmpty)
+        #expect(rig.verdictResolver.askedGroupIds().isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func lostSecretSettlesFromDurabilityGroup() async throws {
+        let acknowledger = StubAcknowledger()
+        let rig = makeDrivingService(
+            detections: [.claimed(amount: 100, finalized: true)],
+            acknowledger: acknowledger,
+            secretPresent: false,
+            durabilityVerdict: .success(.claimedPartially(claimed: 40))
+        )
+
+        rig.service.setup(with: Self.denomination)
+        try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome != nil }
+        rig.service.throttle()
+
+        #expect(rig.verdictResolver.askedGroupIds() == ["top up:prod:p"])
+        #expect(rig.claim.retryUntil() == nil)
+        #expect(rig.store.payment(for: "top up:prod:p")?.outcome == .claimedPartially(actualClaimed: 40))
+        #expect(acknowledger.calls().map(\.outcome) == [.claimedPartially(actualClaimed: 40)])
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func lostSecretWithUnobservableGroupLeavesPaymentActive() async throws {
+        let acknowledger = StubAcknowledger()
+        let rig = makeDrivingService(
+            detections: [.notClaimed],
+            acknowledger: acknowledger,
+            secretPresent: false,
+            durabilityVerdict: .failure(StubGroupVerdictResolver.Unobservable())
+        )
+
+        rig.service.setup(with: Self.denomination)
+        try await waitUntil { !rig.verdictResolver.askedGroupIds().isEmpty }
+        try await Task.sleep(for: .milliseconds(100))
+        rig.service.throttle()
+
+        #expect(rig.store.payment(for: "top up:prod:p")?.outcome == nil)
+        #expect(acknowledger.calls().isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func unpersistedVerdictKeepsSecretAndDoesNotAcknowledge() async throws {
+        let acknowledger = StubAcknowledger()
+        let rig = makeDrivingService(detections: [.notClaimed], acknowledger: acknowledger)
+        rig.store.settleError = InMemoryIncomingPaymentStore.Failure()
+
+        rig.service.setup(with: Self.denomination)
+        try await waitUntil { rig.claim.retryUntil() != nil }
+        try await Task.sleep(for: .milliseconds(200))
+        rig.service.throttle()
+
+        #expect(rig.store.payment(for: "top up:prod:p")?.outcome == nil)
+        #expect(rig.secretStore.hasDescriptor(for: "top up:prod:p"))
+        #expect(rig.secretStore.removedGroupIds().isEmpty)
+        #expect(acknowledger.calls().isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
     func claimRetryWindowIsTheOperationsOwn() async throws {
         let createdAt = Date(timeIntervalSince1970: 1_000_000)
         let rig = makeDrivingService(detections: [.notClaimed], createdAt: createdAt)
@@ -271,15 +385,18 @@ struct IncomingPaymentServiceTests {
         let store: InMemoryIncomingPaymentStore
         let secretStore: InMemoryIncomingPaymentSecretStore
         let claim: StubClaimCoinsService
+        let verdictResolver: StubGroupVerdictResolver
         let payment: IncomingPayment
     }
 
-    /// A service wired to drive one seeded `(prod, p)` payment (secret present, coins source) through a
-    /// canned detection sequence to settlement.
+    /// A service wired to drive one seeded `(prod, p)` payment (coins source) through a canned detection
+    /// sequence to settlement. Without a secret the durability fallback answers `durabilityVerdict`.
     private func makeDrivingService(
         detections: [CoinageTransferDetection],
         acknowledger: StubAcknowledger = StubAcknowledger(),
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        secretPresent: Bool = true,
+        durabilityVerdict: Result<CoinageTransferDetection, Error> = .success(.notClaimed)
     ) -> DrivingRig {
         let payment = IncomingPayment(
             paymentId: "p",
@@ -290,9 +407,14 @@ struct IncomingPaymentServiceTests {
         )
         let store = InMemoryIncomingPaymentStore(seed: [payment])
         let secretStore = InMemoryIncomingPaymentSecretStore(
-            seed: ["top up:prod:p": .coins(secretKeys: [Data([0x01])])]
+            seed: secretPresent ? ["top up:prod:p": .coins(secretKeys: [Data([0x01])])] : [:]
         )
         let claim = StubClaimCoinsService(detections: detections)
+        let verdictResolver =
+            switch durabilityVerdict {
+            case let .success(verdict): StubGroupVerdictResolver(verdict: verdict)
+            case let .failure(error): StubGroupVerdictResolver(error: error)
+            }
         let service = IncomingPaymentService(
             store: store,
             secretStore: secretStore,
@@ -300,12 +422,19 @@ struct IncomingPaymentServiceTests {
             paymentContext: IncomingPaymentContext(logger: StubLogger()),
             claimCoinsService: claim,
             claimAssetService: StubClaimAssetService(),
-            txService: StubCoinageTxServicing(),
+            verdictResolver: verdictResolver,
             acknowledger: acknowledger,
             instanceId: 0,
             logger: StubLogger()
         )
-        return DrivingRig(service: service, store: store, secretStore: secretStore, claim: claim, payment: payment)
+        return DrivingRig(
+            service: service,
+            store: store,
+            secretStore: secretStore,
+            claim: claim,
+            verdictResolver: verdictResolver,
+            payment: payment
+        )
     }
 
     private func waitUntil(

@@ -20,14 +20,17 @@ final class IncomingPaymentKeychainSecretStore: IncomingPaymentSecretStoring, @u
         try keychain.saveKey(data, with: identifier(for: groupId))
     }
 
-    func fetch(groupId: CoinageTxGroupId) -> IncomingPaymentSourceDescriptor? {
-        guard let data = try? keychain.fetchKey(for: identifier(for: groupId)),
-              let stored = try? JSONDecoder().decode(IncomingPaymentSourceDescriptor.self, from: data)
-        else {
+    /// Only a missing item reads as `nil`; a Keychain that cannot be read (locked before first unlock
+    /// on a VoIP-push launch, say) throws, so the caller never mistakes it for a lost secret.
+    func fetch(groupId: CoinageTxGroupId) throws -> IncomingPaymentSourceDescriptor? {
+        let data: Data
+        do {
+            data = try keychain.fetchKey(for: identifier(for: groupId))
+        } catch KeystoreError.noKeyFound {
             return nil
         }
 
-        return stored
+        return try JSONDecoder().decode(IncomingPaymentSourceDescriptor.self, from: data)
     }
 
     func remove(groupId: CoinageTxGroupId) {

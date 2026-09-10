@@ -22,10 +22,6 @@ public protocol IncomingPaymentStoring: Sendable {
     /// fetch-modify-save races — see CLAUDE.md). Idempotent; nothing may change after this.
     func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws
 
-    /// Streams a single payment's snapshots by `groupId`: the current value, then every change
-    /// (`nil` when absent).
-    func observePayment(groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPayment?>
-
     /// Streams snapshots of the active (`outcome == nil`) payments — the stream `setup()` subscribes
     /// to for resume.
     func observeActivePayments() -> AnyAsyncSequence<[IncomingPayment]>

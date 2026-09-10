@@ -16,6 +16,7 @@ final class InMemoryIncomingPaymentSecretStore: IncomingPaymentSecretStoring, @u
 
     private let state = OSAllocatedUnfairLock(initialState: State())
     var saveError: Error?
+    var fetchError: Error?
 
     init(seed: [CoinageTxGroupId: IncomingPaymentSourceDescriptor] = [:]) {
         state.withLock { $0.descriptors = seed }
@@ -26,8 +27,9 @@ final class InMemoryIncomingPaymentSecretStore: IncomingPaymentSecretStoring, @u
         state.withLock { $0.descriptors[groupId] = descriptor }
     }
 
-    func fetch(groupId: CoinageTxGroupId) -> IncomingPaymentSourceDescriptor? {
-        state.withLock { $0.descriptors[groupId] }
+    func fetch(groupId: CoinageTxGroupId) throws -> IncomingPaymentSourceDescriptor? {
+        if let fetchError { throw fetchError }
+        return state.withLock { $0.descriptors[groupId] }
     }
 
     func remove(groupId: CoinageTxGroupId) {
@@ -135,27 +137,30 @@ final class StubClaimAssetService: ClaimAssetServicing, @unchecked Sendable {
     }
 }
 
-/// Inert `CoinageTxServicing` — group observation returns empty; `accept` never touches it.
-final class StubCoinageTxServicing: CoinageTxServicing, @unchecked Sendable {
-    func submitTransactions(_: [CoinageTxRequest], groupId _: CoinageTxGroupId?) async throws -> [CoinageTxId] { [] }
+/// `CoinageGroupVerdictResolving` that answers with a fixed verdict, or throws. Records the groups it
+/// was asked about so a test can tell the durability fallback ran.
+final class StubGroupVerdictResolver: CoinageGroupVerdictResolving, @unchecked Sendable {
+    struct Unobservable: Error {}
 
-    func subscribeTransactionStatus(_: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
-        AsyncStream<CoinageTxStatus> { $0.finish() }.eraseToAnyAsyncSequence()
+    private let result: Result<CoinageTransferDetection, Error>
+    private let asked = OSAllocatedUnfairLock(initialState: [CoinageTxGroupId]())
+
+    init(verdict: CoinageTransferDetection) {
+        result = .success(verdict)
     }
 
-    func getOperationGroupStatuses(_: CoinageTxGroupId) async throws -> [CoinageTxEntry] { [] }
-
-    func subscribeOperationGroupStatuses(_: CoinageTxGroupId) -> AnyAsyncSequence<[CoinageTxEntry]> {
-        AsyncStream<[CoinageTxEntry]> { $0.finish() }.eraseToAnyAsyncSequence()
+    init(error: Error) {
+        result = .failure(error)
     }
 
-    func startRecoveryPass() {}
-    func start() {}
-    func stop() {}
-
-    func preCommitHandoff(_: [OwnAsset]) async throws -> any CoinageHandoffCommit {
-        fatalError("preCommitHandoff is not exercised by incoming-payment tests")
+    func settledVerdict(
+        groupId: CoinageTxGroupId,
+        amount _: Balance,
+        context _: DenominationBreakdownContext
+    ) async throws -> CoinageTransferDetection {
+        asked.withLock { $0.append(groupId) }
+        return try result.get()
     }
 
-    func releaseUncommittedHandoffs() async throws {}
+    func askedGroupIds() -> [CoinageTxGroupId] { asked.withLock { $0 } }
 }
