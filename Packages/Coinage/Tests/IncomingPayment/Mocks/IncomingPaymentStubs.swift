@@ -95,9 +95,11 @@ final class StubAcknowledger: IncomingPaymentAcknowledging, @unchecked Sendable 
     func calls() -> [Call] { lock.withLock { $0 } }
 }
 
-/// `ClaimCoinsServicing` that replays a fixed detection sequence, then finishes.
+/// `ClaimCoinsServicing` that replays a fixed detection sequence, then finishes. Records the
+/// `retryUntil` it was handed so tests can pin the retry window.
 final class StubClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
     private let detections: [CoinageTransferDetection]
+    private let capturedRetryUntil = OSAllocatedUnfairLock<Date?>(initialState: nil)
 
     init(detections: [CoinageTransferDetection] = []) {
         self.detections = detections
@@ -106,9 +108,10 @@ final class StubClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
     func claim(
         coinKeys _: [Data],
         groupId _: CoinageTxGroupId,
-        retryUntil _: Date,
+        retryUntil: Date,
         context _: DenominationBreakdownContext
     ) -> AnyAsyncSequence<CoinageTransferDetection> {
+        capturedRetryUntil.withLock { $0 = retryUntil }
         let detections = detections
         return AsyncStream<CoinageTransferDetection> { continuation in
             for detection in detections {
@@ -117,6 +120,8 @@ final class StubClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
             continuation.finish()
         }.eraseToAnyAsyncSequence()
     }
+
+    func retryUntil() -> Date? { capturedRetryUntil.withLock { $0 } }
 }
 
 /// Inert `ClaimAssetServicing`.

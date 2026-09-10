@@ -3,9 +3,10 @@ import Foundation
 import AsyncExtensions
 @testable import Coinage
 
-/// Property/mutation-style sweeps over the descriptor and outcome spaces. Port of the Android
-/// mutation-sweep harness: assert the invariants (idempotency, product-scoping, verdict immutability)
-/// hold across every shape rather than for a single hand-picked case.
+/// Property sweeps over the descriptor and outcome spaces: assert the invariants (idempotency,
+/// product-scoping, verdict immutability) hold across every shape rather than for a single hand-picked
+/// case. These are input-coverage tests, not mutation testing — the guards themselves are checked by
+/// `tools/top_up_mutation_sweep.py`, which deletes each rule and confirms a test dies.
 struct IncomingPaymentSweepTests {
     private static let descriptors: [IncomingPaymentSourceDescriptor] = [
         .coins(secretKeys: [Data([0x01])]),

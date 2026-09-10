@@ -194,29 +194,29 @@ struct IncomingPaymentServiceTests {
     @Test(.timeLimit(.minutes(1)))
     func partialOutcomeIsAcknowledgedAndPersisted() async throws {
         let acknowledger = StubAcknowledger()
-        let (service, store) = makeDrivingService(
+        let rig = makeDrivingService(
             detections: [.claiming, .claimedPartially(claimed: 40)],
             acknowledger: acknowledger
         )
 
-        service.setup()
+        rig.service.setup()
         try await waitUntil { acknowledger.calls().count == 1 }
-        service.throttle()
+        rig.service.throttle()
 
         let call = try #require(acknowledger.calls().first)
         #expect(call.outcome == .claimedPartially(actualClaimed: 40))
         #expect(call.requestedAmount == 100)
-        #expect(store.payment(for: "top up:prod:p")?.outcome == .claimedPartially(actualClaimed: 40))
+        #expect(rig.store.payment(for: "top up:prod:p")?.outcome == .claimedPartially(actualClaimed: 40))
     }
 
     @Test(.timeLimit(.minutes(1)))
     func notClaimedOutcomeIsAcknowledged() async throws {
         let acknowledger = StubAcknowledger()
-        let (service, store) = makeDrivingService(detections: [.notClaimed], acknowledger: acknowledger)
+        let rig = makeDrivingService(detections: [.notClaimed], acknowledger: acknowledger)
 
-        service.setup()
-        try await waitUntil { store.payment(for: "top up:prod:p")?.outcome == .notClaimed }
-        service.throttle()
+        rig.service.setup()
+        try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .notClaimed }
+        rig.service.throttle()
 
         #expect(acknowledger.calls().map(\.outcome) == [.notClaimed])
     }
@@ -224,41 +224,78 @@ struct IncomingPaymentServiceTests {
     @Test(.timeLimit(.minutes(1)))
     func claimedOutcomeIsNotAcknowledged() async throws {
         let acknowledger = StubAcknowledger()
-        let (service, store) = makeDrivingService(
+        let rig = makeDrivingService(
             detections: [.claimed(amount: 100, finalized: true)],
             acknowledger: acknowledger
         )
 
-        service.setup()
-        try await waitUntil { store.payment(for: "top up:prod:p")?.outcome == .claimed }
-        service.throttle()
+        rig.service.setup()
+        try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .claimed }
+        rig.service.throttle()
 
         #expect(acknowledger.calls().isEmpty)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func settleWipesSourceSecret() async throws {
+        let rig = makeDrivingService(detections: [.notClaimed])
+
+        #expect(rig.secretStore.hasDescriptor(for: "top up:prod:p"))
+
+        rig.service.setup()
+        try await waitUntil { rig.store.payment(for: "top up:prod:p")?.outcome == .notClaimed }
+        rig.service.throttle()
+
+        #expect(!rig.secretStore.hasDescriptor(for: "top up:prod:p"))
+        #expect(rig.secretStore.removedGroupIds() == ["top up:prod:p"])
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func claimRetryWindowIsTheOperationsOwn() async throws {
+        let createdAt = Date(timeIntervalSince1970: 1_000_000)
+        let rig = makeDrivingService(detections: [.notClaimed], createdAt: createdAt)
+
+        rig.service.setup()
+        try await waitUntil { rig.claim.retryUntil() != nil }
+        rig.service.throttle()
+
+        let retryUntil = try #require(rig.claim.retryUntil())
+        #expect(retryUntil == createdAt.addingTimeInterval(CoinageConstants.topUpRetryWindow))
+    }
+
+    struct DrivingRig {
+        let service: IncomingPaymentService
+        let store: InMemoryIncomingPaymentStore
+        let secretStore: InMemoryIncomingPaymentSecretStore
+        let claim: StubClaimCoinsService
+        let payment: IncomingPayment
     }
 
     /// A service wired to drive one seeded `(prod, p)` payment (secret present, coins source) through a
     /// canned detection sequence to settlement.
     private func makeDrivingService(
         detections: [CoinageTransferDetection],
-        acknowledger: StubAcknowledger
-    ) -> (IncomingPaymentService, InMemoryIncomingPaymentStore) {
+        acknowledger: StubAcknowledger = StubAcknowledger(),
+        createdAt: Date = Date()
+    ) -> DrivingRig {
         let payment = IncomingPayment(
             paymentId: "p",
             productId: "prod",
             amount: 100,
-            createdAt: Date(),
+            createdAt: createdAt,
             outcome: nil
         )
         let store = InMemoryIncomingPaymentStore(seed: [payment])
         let secretStore = InMemoryIncomingPaymentSecretStore(
             seed: ["top up:prod:p": .coins(secretKeys: [Data([0x01])])]
         )
+        let claim = StubClaimCoinsService(detections: detections)
         let service = IncomingPaymentService(
             store: store,
             secretStore: secretStore,
             sourceResolver: StubSourceResolver(),
             paymentContext: IncomingPaymentContext(logger: StubLogger()),
-            claimCoinsService: StubClaimCoinsService(detections: detections),
+            claimCoinsService: claim,
             claimAssetService: StubClaimAssetService(),
             txService: StubCoinageTxServicing(),
             contextProvider: WorkingDenominationContextProvider(),
@@ -266,7 +303,7 @@ struct IncomingPaymentServiceTests {
             instanceId: 0,
             logger: StubLogger()
         )
-        return (service, store)
+        return DrivingRig(service: service, store: store, secretStore: secretStore, claim: claim, payment: payment)
     }
 
     private func waitUntil(
