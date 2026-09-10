@@ -159,8 +159,8 @@ private extension IncomingPaymentService {
             do {
                 for try await payments in store.observeActivePayments() {
                     for payment in payments {
-                        await paymentContext.process(groupId: payment.groupId) {
-                            Task {
+                        await paymentContext.process(groupId: payment.groupId) { [weak self] in
+                            Task { [weak self] in
                                 await self?.drive(payment: payment, denomination: denomination)
                             }
                         }
