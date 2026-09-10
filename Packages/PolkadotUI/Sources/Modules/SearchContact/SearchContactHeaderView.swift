@@ -7,12 +7,12 @@ internal import UIKit_iOS
 final class SearchContactHeaderView: UIView {
     private let searchCapsuleContainer = {
         let view = DSChatInputGlassBackground(
-            cornerRadius: 18,
+            cornerRadius: 24,
             fallbackColor: .bgSurfaceContainer,
             interactive: false
         )
         view.snp.makeConstraints {
-            $0.height.equalTo(36)
+            $0.height.equalTo(48)
         }
 
         return view

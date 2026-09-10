@@ -31,18 +31,20 @@ public final class SearchContactFieldButton: UIControl {
     }
 
     private func setupViews() {
-        backgroundColor = .bgSurfaceNested
-        layer.cornerRadius = 18
-        layer.cornerCurve = .continuous
-
         addSubview(iconImageView)
         addSubview(label)
+
+        layer.cornerRadius = 24
+        layer.cornerCurve = .continuous
+        layer.borderWidth = 0.8
+        backgroundColor = .bgSurfaceNested
+        applyLayerColors()
 
         iconImageView.isUserInteractionEnabled = false
         label.isUserInteractionEnabled = false
 
         snp.makeConstraints {
-            $0.height.equalTo(36)
+            $0.height.equalTo(48)
         }
 
         iconImageView.snp.makeConstraints {
@@ -61,9 +63,19 @@ public final class SearchContactFieldButton: UIControl {
         isAccessibilityElement = true
         accessibilityTraits = .button
         accessibilityLabel = String(localized: .searchContactFieldPlaceholder)
+
+        registerForTraitChanges([DSThemeTrait.self]) { (view: SearchContactFieldButton, _) in
+            view.applyLayerColors()
+        }
     }
 
     @objc private func didTap() {
         onTap?()
+    }
+}
+
+private extension SearchContactFieldButton {
+    func applyLayerColors() {
+        layer.borderColor = UIColor.strokePrimary.resolvedColor(with: traitCollection).cgColor
     }
 }
