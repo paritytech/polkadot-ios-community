@@ -21,3 +21,34 @@ public protocol IncomingPaymentSourceResolving: Sendable {
         descriptor: IncomingPaymentSourceDescriptor
     ) async throws -> ResolvedIncomingSource
 }
+
+public final class IncomingPaymentSourceResolver: IncomingPaymentSourceResolving, @unchecked Sendable {
+    private let entropyManager: RootEntropyManaging
+
+    public init(entropyManager: RootEntropyManaging) {
+        self.entropyManager = entropyManager
+    }
+
+    public func resolve(
+        productId _: String,
+        descriptor: IncomingPaymentSourceDescriptor
+    ) async throws -> ResolvedIncomingSource {
+        switch descriptor {
+        case let .productAccount(derivationPath):
+            let wallet = DynamicDerivedWallet(
+                derivationPath: derivationPath,
+                entropyManager: entropyManager
+            )
+            _ = try wallet.getRawPublicKey()
+            return .wallet(wallet)
+
+        case let .privateKey(secretKey):
+            let wallet = DynamicDerivedWallet(secretKeyProvider: { secretKey })
+            _ = try wallet.getRawPublicKey()
+            return .wallet(wallet)
+
+        case let .coins(secretKeys):
+            return .coins(secretKeys: secretKeys)
+        }
+    }
+}

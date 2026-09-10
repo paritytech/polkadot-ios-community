@@ -66,10 +66,10 @@ struct IncomingPaymentModelTests {
 
 struct IncomingPaymentSourceDescriptorTests {
     @Test func productAccountMatchesOnSameProductAndIndex() {
-        let a = IncomingPaymentSourceDescriptor.productAccount(indexData: Data([1, 2, 3]))
-        #expect(a.drawsOnSameFunds(as: .productAccount(indexData: Data([1, 2, 3])), sameProduct: true))
-        #expect(!a.drawsOnSameFunds(as: .productAccount(indexData: Data([1, 2, 3])), sameProduct: false))
-        #expect(!a.drawsOnSameFunds(as: .productAccount(indexData: Data([9])), sameProduct: true))
+        let a = IncomingPaymentSourceDescriptor.productAccount(derivationPath: "//1")
+        #expect(a.drawsOnSameFunds(as: .productAccount(derivationPath: "//1"), sameProduct: true))
+        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//1"), sameProduct: false))
+        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//9"), sameProduct: true))
     }
 
     @Test func privateKeyMatchesItself() {

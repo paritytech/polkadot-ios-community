@@ -15,11 +15,12 @@ actor IncomingPaymentContext {
     private let maxConcurrent: Int
     private let logger: SDKLoggerProtocol?
 
+    private var lifeCycleTask: Task<Void, Never>?
     private var tasks: [CoinageTxGroupId: Task<Void, Never>] = [:]
     private var subjects: [CoinageTxGroupId: AsyncCurrentValueSubject<IncomingPaymentStatus>] = [:]
     private var pending: [Pending] = []
 
-    init(maxConcurrent: Int = 5, logger: SDKLoggerProtocol?) {
+    init(maxConcurrent: Int = .max, logger: SDKLoggerProtocol?) {
         self.maxConcurrent = maxConcurrent
         self.logger = logger
     }
@@ -28,6 +29,21 @@ actor IncomingPaymentContext {
 // MARK: - Scheduling
 
 extension IncomingPaymentContext {
+    func setup(_ setupClosure: () -> Task<Void, Never>?) {
+        lifeCycleTask?.cancel()
+        lifeCycleTask = nil
+        lifeCycleTask = setupClosure()
+    }
+
+    func throttleIfNeeded() {
+        lifeCycleTask?.cancel()
+        lifeCycleTask = nil
+
+        tasks.values.forEach { $0.cancel() }
+        tasks.removeAll()
+        pending.removeAll()
+    }
+
     /// Starts (or queues, when at capacity) the claim for `groupId`. Dedups by `groupId` and seeds the
     /// status subject `.detecting`, so a subscriber attaching before the task reports sees detecting.
     func process(groupId: CoinageTxGroupId, run: @escaping @Sendable () -> Task<Void, Never>) {
@@ -55,31 +71,29 @@ extension IncomingPaymentContext {
         tasks[groupId] = nil
         startNextIfPossible()
     }
-
-    func cancelAll() {
-        tasks.values.forEach { $0.cancel() }
-        tasks.removeAll()
-        pending.removeAll()
-    }
 }
 
 // MARK: - Status
 
 extension IncomingPaymentContext {
-    /// The live status stream for `groupId`, or `nil` when the context holds nothing for it (a cold
-    /// subscribe to a settled record — the service returns the stored verdict instead).
-    func liveStatusStream(for groupId: CoinageTxGroupId) -> AnyAsyncSequence<IncomingPaymentStatus>? {
-        subjects[groupId]?.eraseToAnyAsyncSequence()
-    }
+    func liveStatusStream(
+        for groupId: CoinageTxGroupId,
+        fallbackClosure: () async throws -> IncomingPaymentStatus
+    ) async throws -> AnyAsyncSequence<IncomingPaymentStatus> {
+        if let stream = subjects[groupId]?.eraseToAnyAsyncSequence() {
+            return stream
+        }
 
-    /// Seeds a subject with an externally supplied status (e.g. a stored terminal verdict) and returns
-    /// its stream.
-    func seededStatusStream(
-        _ status: IncomingPaymentStatus,
-        for groupId: CoinageTxGroupId
-    ) -> AnyAsyncSequence<IncomingPaymentStatus> {
+        let status = try await fallbackClosure()
+
+        // we might race and receive status while being suspended
+        if let subject = subjects[groupId]?.eraseToAnyAsyncSequence() {
+            return subject
+        }
+
         let subject = subject(for: groupId)
         subject.send(status)
+
         return subject.eraseToAnyAsyncSequence()
     }
 }

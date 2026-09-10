@@ -12,7 +12,7 @@ struct IncomingPaymentSweepTests {
         .coins(secretKeys: [Data([0x01])]),
         .coins(secretKeys: [Data([0x02]), Data([0x03])]),
         .privateKey(secretKey: Data([0x04])),
-        .productAccount(indexData: Data([0x00, 0x00, 0x00, 0x05]))
+        .productAccount(derivationPath: "//5")
     ]
 
     private static let outcomes: [IncomingPaymentTerminalOutcome] = [
@@ -89,7 +89,7 @@ struct IncomingPaymentSweepTests {
         switch Self.descriptors[index] {
         case .coins: .coins(secretKeys: [Data([salt])])
         case .privateKey: .privateKey(secretKey: Data([salt]))
-        case .productAccount: .productAccount(indexData: Data([salt]))
+        case .productAccount: .productAccount(derivationPath: "//\(salt)")
         }
     }
 
@@ -102,7 +102,7 @@ struct IncomingPaymentSweepTests {
         try await store.settle(groupId: "top up:prod:p", outcome: outcome)
 
         let service = makeService(store: store)
-        let stream = await service.subscribeStatus(for: "p", productId: "prod")
+        let stream = try await service.subscribeStatus(for: "p", productId: "prod")
 
         var observed: IncomingPaymentStatus?
         for try await status in stream {

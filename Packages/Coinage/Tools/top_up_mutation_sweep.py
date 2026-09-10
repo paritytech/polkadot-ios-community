@@ -43,7 +43,7 @@ ONLY_TESTING = [
     "CoinageTests/IncomingPaymentContextTests",
     "CoinageTests/IncomingPaymentServiceTests",
     "CoinageTests/IncomingPaymentSweepTests",
-    "ProductsTests/PaymentTopUpIdTests",
+    "ProductsTests/PaymentTopUpRequestDtoTests",
 ]
 
 # (label, file, exact source to replace, replacement). Each removes or weakens one rule.
@@ -76,8 +76,12 @@ MUTANTS = [
      "        _ = payment.groupId"),
 
     ("subscribe: a recorded verdict is re-derived", SERVICE,
-     "        let status = payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting",
-     "        let status = IncomingPaymentStatus.detecting"),
+     "            return payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting",
+     "            return IncomingPaymentStatus.detecting"),
+
+    ("subscribe: an unknown id is not reported as notFound", SERVICE,
+     "                throw IncomingPaymentError.notFound(paymentId)",
+     "                return .notClaimed"),
 
     ("isTerminal: an unfinalized claim is terminal", STATUS,
      "        case let .claimed(finalized):\n            finalized\n        case .claimedPartially,\n"

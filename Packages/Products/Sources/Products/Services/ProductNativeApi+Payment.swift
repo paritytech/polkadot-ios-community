@@ -43,6 +43,7 @@ public enum HostPaymentTopUpError: HostCallCodedError {
     case invalidSource
     case alreadyExists
     case sourceBusy
+    case notFound(String)
     case unknown(reason: String)
 
     public var code: String {
@@ -50,6 +51,7 @@ public enum HostPaymentTopUpError: HostCallCodedError {
         case .invalidSource: "InvalidSource"
         case .alreadyExists: "AlreadyExists"
         case .sourceBusy: "SourceBusy"
+        case .notFound: "NotFound"
         case .unknown: "Unknown"
         }
     }
@@ -59,6 +61,7 @@ public enum HostPaymentTopUpError: HostCallCodedError {
         case .invalidSource: "The source account was not found or is invalid"
         case .alreadyExists: "A top up for the given id already exists"
         case .sourceBusy: "The source is already used by another active top up"
+        case let .notFound(paymentId): "Top up with given payment id not found \(paymentId)"
         case let .unknown(reason): reason
         }
     }
@@ -70,7 +73,7 @@ public enum HostPaymentTopUpError: HostCallCodedError {
 /// fields, so `source` is decoded from the same container.
 public struct PaymentTopUpRequestDto: Decodable {
     @StringCodable public var amount: Balance
-    public let id: PaymentTopUpId
+    @HexCodable public var id: PaymentTopUpId
     public let source: PaymentTopUpSource
 
     private enum CodingKeys: String, CodingKey {
@@ -81,14 +84,16 @@ public struct PaymentTopUpRequestDto: Decodable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         _amount = try container.decode(StringCodable<Balance>.self, forKey: .amount)
-        id = try container.decode(PaymentTopUpId.self, forKey: .id)
+        _id = try container.decode(HexCodable<PaymentTopUpId>.self, forKey: .id)
+        // The source fields are flat siblings of `amount`/`id`, not a nested object, so `source`
+        // decodes from the top-level decoder rather than from a `source` key.
         source = try PaymentTopUpSource(from: decoder)
     }
 }
 
 /// Decoded request for `paymentTopUpStatusSubscribe`.
 public struct PaymentTopUpStatusSubscribeDto: Decodable {
-    public let id: PaymentTopUpId
+    @HexCodable public var id: PaymentTopUpId
 }
 
 /// Wire representation of ``HostPaymentTopUpStatus`` — a tagged struct (`tag` + the fields the tag

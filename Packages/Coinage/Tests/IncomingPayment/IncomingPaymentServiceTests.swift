@@ -176,7 +176,7 @@ struct IncomingPaymentServiceTests {
         let store = InMemoryIncomingPaymentStore(seed: [settled])
         let service = makeService(store: store)
 
-        let stream = await service.subscribeStatus(for: "p1", productId: "prod")
+        let stream = try await service.subscribeStatus(for: "p1", productId: "prod")
         var observed: IncomingPaymentStatus?
         for try await status in stream {
             observed = status
@@ -185,17 +185,13 @@ struct IncomingPaymentServiceTests {
         #expect(observed == .claimedPartially(actualClaimed: 42))
     }
 
-    @Test func coldSubscribeToUnknownPaymentReportsNotClaimed() async throws {
+    @Test func coldSubscribeToUnknownPaymentThrowsNotFound() async throws {
         let store = InMemoryIncomingPaymentStore()
         let service = makeService(store: store)
 
-        let stream = await service.subscribeStatus(for: "ghost", productId: "prod")
-        var observed: IncomingPaymentStatus?
-        for try await status in stream {
-            observed = status
-            break
-        }
-        #expect(observed == .notClaimed)
+        await #expect {
+            _ = try await service.subscribeStatus(for: "ghost", productId: "prod")
+        } throws: { ($0 as? IncomingPaymentError) == .notFound("ghost") }
     }
 
     @Test(.timeLimit(.minutes(1)))

@@ -19,7 +19,7 @@ public protocol IncomingPaymentServicing: Sendable {
     func subscribeStatus(
         for paymentId: IncomingPaymentId,
         productId: String
-    ) async -> AnyAsyncSequence<IncomingPaymentStatus>
+    ) async throws -> AnyAsyncSequence<IncomingPaymentStatus>
 
     /// Subscribes to active payments and (re)starts their claim tasks, using the resolved denomination
     /// context. Idempotent across restarts. Driven by `CoinageService.setup(with:)` once the context is

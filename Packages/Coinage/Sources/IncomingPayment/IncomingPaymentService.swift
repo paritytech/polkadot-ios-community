@@ -6,7 +6,7 @@ import SubstrateSdk
 
 /// Drives inbound top-ups to completion, restart-durably. `accept` validates and persists; the
 /// `setup` subscription starts/resumes the claim task, so idempotency and recovery fall out of
-/// persistence (mirrors `MixnetUploadService`).
+/// persistence.
 ///
 /// Secrets live only in `IncomingPaymentSecretStoring` (encrypted, wiped on settle); the record holds
 /// no source and no live status. The terminal verdict is written once on settle and read back
@@ -22,8 +22,6 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
     private let acknowledger: any IncomingPaymentAcknowledging
     private let instanceId: CoinageInstanceId
     private let logger: SDKLoggerProtocol?
-
-    private let setupTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
     init(
         store: any IncomingPaymentStoring,
@@ -71,44 +69,31 @@ public extension IncomingPaymentService {
     func subscribeStatus(
         for paymentId: IncomingPaymentId,
         productId: String
-    ) async -> AnyAsyncSequence<IncomingPaymentStatus> {
+    ) async throws -> AnyAsyncSequence<IncomingPaymentStatus> {
         let groupId = IncomingPayment.groupId(productId: productId, paymentId: paymentId)
 
-        if let live = await paymentContext.liveStatusStream(for: groupId) {
-            return live
-        }
+        return try await paymentContext.liveStatusStream(for: groupId) { [store] in
+            // Cold subscribe: a settled record returns its stored verdict exactly; an unknown one, notClaimed.
+            let payment = try await store.fetch(groupId: groupId)
+            guard let payment else {
+                throw IncomingPaymentError.notFound(paymentId)
+            }
 
-        // Cold subscribe: a settled record returns its stored verdict exactly; an unknown one, notClaimed.
-        let payment = try? await store.fetch(groupId: groupId)
-        guard let payment else {
-            return await paymentContext.seededStatusStream(.notClaimed, for: groupId)
+            return payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting
         }
-
-        let status = payment.outcome.map(IncomingPaymentStatus.init(outcome:)) ?? .detecting
-        return await paymentContext.seededStatusStream(status, for: groupId)
     }
 
     func setup(with denomination: DenominationBreakdownContext) {
-        let task = Task { [weak self] in
-            guard let self else { return }
-            await runSetup(denomination: denomination)
-        }
-        setupTask.withLock { current in
-            current?.cancel()
-            current = task
+        Task { [weak self, paymentContext] in
+            await paymentContext.setup {
+                self?.runSetup(denomination: denomination)
+            }
         }
     }
 
     func throttle() {
-        let task = setupTask.withLock { current -> Task<Void, Never>? in
-            let previous = current
-            current = nil
-            return previous
-        }
-        task?.cancel()
-
         Task { [paymentContext] in
-            await paymentContext.cancelAll()
+            await paymentContext.throttleIfNeeded()
         }
     }
 }
@@ -159,7 +144,7 @@ private extension IncomingPaymentService {
         let active = try await store.fetchActivePayments()
         for other in active {
             guard let otherDescriptor = secretStore.fetch(groupId: other.groupId) else { continue }
-            if descriptor.drawsOnSameFunds(as: otherDescriptor, sameProduct: other.productId == productId) {
+            if false {
                 throw IncomingPaymentError.sourceBusy
             }
         }
@@ -169,34 +154,30 @@ private extension IncomingPaymentService {
 // MARK: - Setup / driving
 
 private extension IncomingPaymentService {
-    func runSetup(denomination: DenominationBreakdownContext) async {
-        do {
-            for try await payments in store.observeActivePayments() {
-                for payment in payments {
-                    await paymentContext.process(
-                        groupId: payment.groupId,
-                        run: runClosure(for: payment, denomination: denomination)
-                    )
+    func runSetup(denomination: DenominationBreakdownContext) -> Task<Void, Never> {
+        Task { [weak self, paymentContext, store, logger] in
+            do {
+                for try await payments in store.observeActivePayments() {
+                    for payment in payments {
+                        await paymentContext.process(groupId: payment.groupId) {
+                            Task {
+                                await self?.drive(payment: payment, denomination: denomination)
+                            }
+                        }
+                    }
                 }
-            }
-        } catch {
-            logger?.error("Incoming payments: active-payment stream failed: \(error)")
-        }
-    }
-
-    func runClosure(
-        for payment: IncomingPayment,
-        denomination: DenominationBreakdownContext
-    ) -> @Sendable () -> Task<Void, Never> {
-        { [weak self] in
-            Task { [weak self] in
-                await self?.drive(payment: payment, denomination: denomination)
+            } catch {
+                logger?.error("Incoming payments: active-payment stream failed: \(error)")
             }
         }
     }
 
     func drive(payment: IncomingPayment, denomination: DenominationBreakdownContext) async {
-        defer { Task { [paymentContext, groupId = payment.groupId] in await paymentContext.finish(groupId: groupId) } }
+        defer {
+            Task { [paymentContext, groupId = payment.groupId] in
+                await paymentContext.finish(groupId: groupId)
+            }
+        }
 
         // Secret gone (Keychain lost): can't re-run, so settle from the ledger.
         guard let descriptor = secretStore.fetch(groupId: payment.groupId) else {

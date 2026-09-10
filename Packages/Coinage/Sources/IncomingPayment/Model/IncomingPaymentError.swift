@@ -8,6 +8,10 @@ public enum IncomingPaymentError: Error, Equatable {
     case invalidSource(reason: String)
     /// The same source material is already used by another active payment.
     case sourceBusy
+
+    /// no operation found for given payment id
+    case notFound(IncomingPaymentId)
+
     /// Any other failure. `reason` must be meaningful, never a bare type dump.
     case unknown(reason: String)
 }

@@ -10,7 +10,7 @@ struct IncomingPaymentContextTests {
         // A run that reports nothing — the subject should still be seeded `.detecting`.
         await context.process(groupId: "g1") { Task {} }
 
-        let stream = try #require(await context.liveStatusStream(for: "g1"))
+        let stream = try await context.liveStatusStream(for: "g1") { .notClaimed }
         for try await status in stream {
             #expect(status == .detecting)
             break
@@ -39,7 +39,7 @@ struct IncomingPaymentContextTests {
             }
         }
 
-        let stream = try #require(await context.liveStatusStream(for: "g1"))
+        let stream = try await context.liveStatusStream(for: "g1") { .notClaimed }
         var last: IncomingPaymentStatus?
         for try await status in stream {
             last = status
@@ -48,18 +48,23 @@ struct IncomingPaymentContextTests {
         #expect(last == .claimed(finalized: true))
     }
 
-    @Test func liveStreamIsNilForUnknownGroup() async {
-        let context = IncomingPaymentContext(logger: StubLogger())
-        #expect(await context.liveStatusStream(for: "never-seen") == nil)
-    }
-
-    @Test func seededStatusStreamReplaysValue() async throws {
+    @Test func fallbackSeedsStreamWhenNoLiveStreamExists() async throws {
         let context = IncomingPaymentContext(logger: StubLogger())
 
-        let stream = await context.seededStatusStream(.notClaimed, for: "g1")
+        // No task ran for this group, so the fallback value is seeded and returned.
+        let stream = try await context.liveStatusStream(for: "never-seen") { .notClaimed }
         for try await status in stream {
             #expect(status == .notClaimed)
             break
+        }
+    }
+
+    @Test func fallbackErrorPropagates() async {
+        struct Boom: Error {}
+        let context = IncomingPaymentContext(logger: StubLogger())
+
+        await #expect(throws: Boom.self) {
+            _ = try await context.liveStatusStream(for: "never-seen") { throw Boom() }
         }
     }
 

@@ -45,7 +45,6 @@ public extension CoinageService {
         externalPaymentStore: ExternalPaymentStoring,
         incomingPaymentStore: IncomingPaymentStoring,
         incomingPaymentSecretStore: IncomingPaymentSecretStoring,
-        incomingPaymentSourceResolver: IncomingPaymentSourceResolving,
         incomingPaymentAcknowledger: IncomingPaymentAcknowledging,
         backgroundExecutor: any BackgroundExecuting,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
@@ -358,7 +357,8 @@ public extension CoinageService {
             logger: logger
         )
 
-        // Owned by CoinageService and set up from its `setup(with:)`, mirroring externalPaymentService.
+        let incomingPaymentSourceResolver = IncomingPaymentSourceResolver(entropyManager: rootEntropyManager)
+
         let incomingPaymentService = IncomingPaymentService(
             store: incomingPaymentStore,
             secretStore: incomingPaymentSecretStore,

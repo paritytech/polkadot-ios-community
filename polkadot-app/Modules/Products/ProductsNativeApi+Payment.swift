@@ -68,7 +68,7 @@ extension ProductsNativeApi {
 
         let descriptor: IncomingPaymentSourceDescriptor
         do {
-            descriptor = try Self.descriptor(from: source)
+            descriptor = try Self.incomingPaymentDescriptor(from: source, productId: productId)
         } catch {
             logger.error("Top-up source could not be described: \(error)")
             throw HostPaymentTopUpError.invalidSource
@@ -78,7 +78,7 @@ extension ProductsNativeApi {
             try await incomingPaymentService.accept(
                 amount: amount,
                 descriptor: descriptor,
-                paymentId: id.asHex(),
+                paymentId: id.toHex(),
                 productId: productId
             )
         } catch let error as IncomingPaymentError {
@@ -91,11 +91,20 @@ extension ProductsNativeApi {
     func subscribePaymentTopUpStatus(
         id: PaymentTopUpId
     ) async throws -> AnyAsyncSequence<HostPaymentTopUpStatus> {
-        let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
+        do {
+            let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
 
-        return await incomingPaymentService.subscribeStatus(for: id.asHex(), productId: productId)
+            return try await incomingPaymentService.subscribeStatus(
+                for: id.toHex(),
+                productId: productId
+            )
             .map { HostPaymentTopUpStatus(status: $0) }
             .eraseToAnyAsyncSequence()
+        } catch let error as IncomingPaymentError {
+            throw error.asHostTopUpError
+        } catch {
+            throw HostPaymentTopUpError.unknown(reason: error.localizedDescription)
+        }
     }
 }
 
@@ -161,14 +170,22 @@ private extension ProductsNativeApi {
     /// Describes the product-facing source as the persisted bytes the claim is later resolved from —
     /// the derivation **index** for a product account (never a derived key), the raw key otherwise.
     /// Resolution + validation happen later, in `IncomingPaymentSourceResolver`.
-    static func descriptor(from source: PaymentTopUpSource) throws -> IncomingPaymentSourceDescriptor {
+    static func incomingPaymentDescriptor(
+        from source: PaymentTopUpSource,
+        productId: String
+    ) throws -> IncomingPaymentSourceDescriptor {
         switch source {
         case let .productAccount(derivationIndex):
-            try .productAccount(indexData: JSONEncoder().encode(derivationIndex))
+            let derivationPath = try ProductAccountId(
+                productId: productId,
+                derivationIndex: derivationIndex
+            ).derivationPath()
+
+            return .productAccount(derivationPath: derivationPath)
         case let .privateKey(secretKey):
-            .privateKey(secretKey: secretKey)
+            return .privateKey(secretKey: secretKey)
         case let .coins(secretKeys):
-            .coins(secretKeys: secretKeys)
+            return .coins(secretKeys: secretKeys)
         }
     }
 }
@@ -181,6 +198,7 @@ private extension IncomingPaymentError {
         case .alreadyExists: .alreadyExists
         case .invalidSource: .invalidSource
         case .sourceBusy: .sourceBusy
+        case let .notFound(paymentId): .notFound(paymentId)
         case let .unknown(reason): .unknown(reason: reason)
         }
     }
