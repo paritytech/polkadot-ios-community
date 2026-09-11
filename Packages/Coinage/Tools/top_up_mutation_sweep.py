@@ -4,10 +4,14 @@
 Adapted from `feature/products/impl/tools/top_up_mutation_sweep.py` in the Android repo. Same spirit:
 touch only the files that decide a top-up's fate and run only the top-up tests. Each mutant removes or
 weakens exactly one rule the host call's contract states — idempotency, one-claim-per-source, terminality,
-verdict immutability, group namespacing, and the translation from what coinage detected into what a product
-is told.
+verdict immutability, group namespacing, acknowledgement, and the translation from what coinage detected
+into what a product is told.
 
 Read a SURVIVED line as "no test distinguishes this rule's presence from its absence".
+
+The sweep first runs the suite unmutated and refuses to continue unless it passes: a broken simulator or
+a failing baseline would otherwise report every mutant as killed. Any run that ends without a clear
+xcodebuild verdict aborts the sweep for the same reason.
 
 iOS split note: on Android the coinage→product status translation lives in `ExecuteTopUpUseCase`, in scope
 for these tests. On iOS the amount/shortfall arithmetic lives one layer down, in the claim services
@@ -15,9 +19,11 @@ for these tests. On iOS the amount/shortfall arithmetic lives one layer down, in
 are covered by `ClaimAssetServiceTests` and swept here; the rest of the claim arithmetic is not.
 
 Usage, from the repository root:
-    python3 Packages/Coinage/tools/top_up_mutation_sweep.py
-    python3 Packages/Coinage/tools/top_up_mutation_sweep.py --list
-    python3 Packages/Coinage/tools/top_up_mutation_sweep.py --sim <simulator-udid>
+    python3 Packages/Coinage/Tools/top_up_mutation_sweep.py
+    python3 Packages/Coinage/Tools/top_up_mutation_sweep.py --list
+    python3 Packages/Coinage/Tools/top_up_mutation_sweep.py --check
+    python3 Packages/Coinage/Tools/top_up_mutation_sweep.py --sim <simulator-udid>
+    python3 Packages/Coinage/Tools/top_up_mutation_sweep.py --only "claim:" --only "window:"
 
 Sources are restored on every exit path — normal exit, Ctrl-C, SIGTERM — and the restore is verified before
 the script returns.
@@ -37,10 +43,11 @@ MODEL = f"{COINAGE}/Model/IncomingPayment.swift"
 CONTEXT = f"{COINAGE}/IncomingPaymentContext.swift"
 CLAIM_ASSET = "Packages/Coinage/Sources/Transfer/Claim/ClaimAssetService.swift"
 
-DEFAULT_SIM = "F6327B69-0673-48AE-9515-C22A4B8CE8CE"  # iPhone 16
+DEFAULT_SIM_NAME = "iPhone 16"
 ONLY_TESTING = [
     "CoinageTests/IncomingPaymentModelTests",
     "CoinageTests/IncomingPaymentSourceDescriptorTests",
+    "CoinageTests/IncomingPaymentSourceResolverTests",
     "CoinageTests/IncomingPaymentContextTests",
     "CoinageTests/IncomingPaymentServiceTests",
     "CoinageTests/IncomingPaymentSweepTests",
@@ -61,12 +68,16 @@ MUTANTS = [
 
     # --- one live claim per source ---
     ("accept: a busy source is accepted", SERVICE,
-     "            if descriptor.drawsOnSameFunds(as: otherDescriptor, sameProduct: other.productId == productId) {",
+     "            if descriptor.drawsOnSameFunds(as: otherDescriptor) {",
      "            if false {"),
 
-    ("busy: one product's account index blocks another's", DESCRIPTOR,
-     "            sameProduct && lhs == rhs",
-     "            lhs == rhs"),
+    ("accept: a corrupted secret aborts the busy check", SERVICE,
+     "secret corrupted; skipped in busy check\")\n                continue",
+     "secret corrupted; skipped in busy check\")\n                throw IncomingPaymentError.sourceBusy"),
+
+    ("busy: product-account paths are never the same source", DESCRIPTOR,
+     "        case let (.productAccount(lhs), .productAccount(rhs)):\n            lhs == rhs",
+     "        case (.productAccount, .productAccount):\n            false"),
 
     ("busy: overlapping coins are not the same source", DESCRIPTOR,
      "            !Set(lhs).isDisjoint(with: Set(rhs))",
@@ -87,8 +98,12 @@ MUTANTS = [
 
     # --- a secret that cannot be read is not a secret that is gone ---
     ("drive: an unreadable secret settles the payment", SERVICE,
-     "secret unreadable; left for next launch: \\(error)\")\n            return",
-     "secret unreadable; left for next launch: \\(error)\")\n            descriptor = nil"),
+     "            return .unreadable",
+     "            return .gone"),
+
+    ("drive: a corrupted secret is retried forever", SERVICE,
+     "secret corrupted; settling from durability group\")\n            return .gone",
+     "secret corrupted; settling from durability group\")\n            return .unreadable"),
 
     ("durability: an unobservable group is settled as notClaimed", SERVICE,
      "group unobservable; left for next launch: \\(error)\")",
@@ -117,6 +132,22 @@ MUTANTS = [
      "        case .claimedPartially,\n             .notClaimed:\n            true",
      "        case .claimedPartially,\n             .notClaimed:\n            false"),
 
+    # --- the user is told exactly once ---
+    ("acknowledge: a failed prompt is recorded as told", SERVICE,
+     "                try await acknowledger.acknowledge(",
+     "                try? await acknowledger.acknowledge("),
+
+    ("setup: verdicts still owed are not raised again", SERVICE,
+     "                group.addTask { await self.promptUnacknowledged() }",
+     "                group.addTask {}"),
+
+    ("acknowledge: a happy verdict prompts the user", SERVICE,
+     "            case .claimed:\n                break\n            }\n            try await store.markAcknowledged",
+     "            case .claimed:\n                try await acknowledger.acknowledge(\n"
+     "                    productId: payment.productId, paymentId: payment.paymentId,\n"
+     "                    requestedAmount: payment.amount, outcome: outcome\n                )\n            }\n"
+     "            try await store.markAcknowledged"),
+
     # --- scheduling: one runner per operation ---
     ("context: a running top-up is started a second time", CONTEXT,
      "        guard tasks[groupId] == nil, !pending.contains(where: { $0.groupId == groupId }) else {",
@@ -139,12 +170,16 @@ MUTANTS = [
 
     # --- the asset claim loop ends where the contract says ---
     ("claim: a closed window is still attempted", CLAIM_ASSET,
-     "            if Date() >= retryUntil {",
-     "            if false {"),
+     "        if Date() >= run.retryUntil {",
+     "        if false {"),
 
     ("claim: an unloadable remainder is attempted again", CLAIM_ASSET,
-     "            if context.breakdown(amountInPlanks: remaining).isEmpty {",
-     "            if false {"),
+     "        if run.context.breakdown(amountInPlanks: remaining).isEmpty {",
+     "        if false {"),
+
+    ("claim: an unreadable voucher store is valued as zero", CLAIM_ASSET,
+     "        } catch {\n            throw ClaimValuationError(underlying: error)\n        }",
+     "        } catch {\n            return 0\n        }"),
 
     # --- the retry window belongs to the operation ---
     ("window: the retry window is not the one the operation opened with", SERVICE,
@@ -153,7 +188,11 @@ MUTANTS = [
 ]
 
 
-def run_suite(sim):
+class SweepAborted(Exception):
+    pass
+
+
+def run_suite(destination):
     only = []
     for target in ONLY_TESTING:
         only += ["-only-testing:" + target]
@@ -162,23 +201,40 @@ def run_suite(sim):
         ["xcodebuild", "test",
          "-project", "polkadot-app.xcodeproj",
          "-scheme", "polkadot-app",
-         "-destination", f"platform=iOS Simulator,id={sim}"] + only,
+         "-destination", destination] + only,
         capture_output=True, text=True,
     )
     out = result.stdout + result.stderr
     if "** TEST SUCCEEDED **" in out:
-        return ("survived", None)
+        return ("passed", None)
     if "** TEST FAILED **" in out:
-        return ("killed", "test")
+        return ("failed", "test")
     if "** BUILD FAILED **" in out:
-        return ("killed", "compile")
-    return ("killed", f"other(exit={result.returncode})")
+        return ("failed", "compile")
+    # Neither verdict: the simulator is missing, xcodebuild crashed, or the destination is wrong. Counting
+    # this as a kill would make a broken environment look like perfect coverage.
+    raise SweepAborted(f"xcodebuild gave no verdict (exit={result.returncode}); last output:\n{out[-2000:]}")
+
+
+def check_patterns(originals):
+    """Every mutant must match its source exactly once, or the rule it names is no longer under test."""
+    stale = []
+    for label, path, old, _ in MUTANTS:
+        count = originals[path].count(old)
+        if count != 1:
+            stale.append((label, count))
+    return stale
 
 
 def main():
     parser = argparse.ArgumentParser(description="Mutation sweep over the top-up guards")
     parser.add_argument("--list", action="store_true", help="print the mutants and exit without running")
-    parser.add_argument("--sim", default=DEFAULT_SIM, help="simulator UDID to run the tests on")
+    parser.add_argument("--check", action="store_true",
+                        help="verify every mutant still matches its source exactly once, without running")
+    parser.add_argument("--sim", default=None,
+                        help=f"simulator UDID to run the tests on (default: the simulator named '{DEFAULT_SIM_NAME}')")
+    parser.add_argument("--only", action="append", default=[], metavar="SUBSTRING",
+                        help="run only mutants whose label contains SUBSTRING (repeatable); the rest are not counted")
     args = parser.parse_args()
 
     if not os.path.isfile("polkadot-app.xcodeproj/project.pbxproj") or not os.path.isfile(SERVICE):
@@ -189,7 +245,33 @@ def main():
             print(f"  {label}")
         return
 
+    mutants = [m for m in MUTANTS if not args.only or any(needle in m[0] for needle in args.only)]
+    if not mutants:
+        sys.exit("no mutant label matches --only")
+
     originals = {path: open(path).read() for _, path, _, _ in MUTANTS}
+
+    stale = check_patterns(originals)
+    if args.check:
+        for label, count in stale:
+            print(f"STALE    {label}  (pattern matched {count}x)")
+        print(f"{len(MUTANTS) - len(stale)}/{len(MUTANTS)} mutants apply cleanly")
+        sys.exit(1 if stale else 0)
+
+    destination = (
+        f"platform=iOS Simulator,id={args.sim}" if args.sim
+        else f"platform=iOS Simulator,name={DEFAULT_SIM_NAME}"
+    )
+
+    print("baseline (unmutated) ...", flush=True)
+    try:
+        verdict, reason = run_suite(destination)
+    except SweepAborted as error:
+        sys.exit(f"aborted: {error}")
+    if verdict != "passed":
+        sys.exit(f"aborted: the unmutated suite does not pass ({reason}); fix that before measuring mutants")
+    print("baseline passed", flush=True)
+
     survived, killed, skipped = [], [], []
 
     # Turn a kill signal into an exception so the restore in `finally` still runs. Without this a sweep
@@ -197,7 +279,7 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: sys.exit("terminated"))
 
     try:
-        for label, path, old, new in MUTANTS:
+        for label, path, old, new in mutants:
             original = originals[path]
             if original.count(old) != 1:
                 skipped.append(label)
@@ -205,15 +287,20 @@ def main():
                 continue
 
             open(path, "w").write(original.replace(old, new, 1))
-            verdict, reason = run_suite(args.sim)
-            open(path, "w").write(original)  # restore before the next mutant builds
+            try:
+                verdict, reason = run_suite(destination)
+            finally:
+                open(path, "w").write(original)  # restore before the next mutant builds
 
-            if verdict == "killed":
+            if verdict == "failed":
                 killed.append(label)
                 print(f"killed   {label}  ({reason})", flush=True)
             else:
                 survived.append(label)
                 print(f"SURVIVED {label}", flush=True)
+    except SweepAborted as error:
+        print(f"\naborted: {error}")
+        sys.exit(2)
     finally:
         for path, text in originals.items():
             open(path, "w").write(text)

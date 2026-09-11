@@ -7,6 +7,10 @@ import SubstrateSdk
 @testable import polkadot_app
 
 final class StubProductsNativeApi: ProductsNativeApiProtocol {
+    /// What `subscribePaymentTopUpStatus` answers: `.failure` throws on subscribe, `.success` replays
+    /// the stream. Unset keeps the call unsupported.
+    var paymentTopUpStatusResult: Result<AnyAsyncSequence<HostPaymentTopUpStatus>, Error>?
+
     func accountGet(_: Products.ProductAccountId) async throws -> ProductAccountResult { fatalError() }
 
     func accountGetAlias(
@@ -83,7 +87,8 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
     func subscribePaymentTopUpStatus(
         id _: PaymentTopUpId
     ) async throws -> AnyAsyncSequence<HostPaymentTopUpStatus> {
-        fatalError()
+        guard let paymentTopUpStatusResult else { fatalError() }
+        return try paymentTopUpStatusResult.get()
     }
 
     func pushNotification(_: ScheduledNotificationRequest) async throws -> UInt32 { fatalError() }

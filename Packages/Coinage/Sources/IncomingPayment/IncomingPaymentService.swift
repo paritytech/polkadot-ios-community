@@ -10,7 +10,9 @@ import SubstrateSdk
 ///
 /// Secrets live only in `IncomingPaymentSecretStoring` (encrypted, wiped on settle); the record holds
 /// no source and no live status. The terminal verdict is written once on settle and read back
-/// exactly, so a reorg after settlement can never change what a completed top-up reports.
+/// exactly, so a reorg after settlement can never change what a completed top-up reports. An unhappy
+/// verdict is surfaced to the user exactly once: the record is marked acknowledged only after the
+/// prompt was shown, and `setup` raises any verdict still owed.
 public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked Sendable {
     private let store: any IncomingPaymentStoring
     private let secretStore: any IncomingPaymentSecretStoring
@@ -90,7 +92,10 @@ public extension IncomingPaymentService {
             }
         }
     }
+}
 
+extension IncomingPaymentService {
+    /// Cancels the setup subscription and every in-flight claim task.
     func throttle() {
         Task { [paymentContext] in
             await paymentContext.throttleIfNeeded()
@@ -123,7 +128,7 @@ private extension IncomingPaymentService {
             throw IncomingPaymentError.invalidSource(reason: String(describing: error))
         }
 
-        try await ensureSourceFree(descriptor: descriptor, productId: productId)
+        try await ensureSourceFree(descriptor: descriptor)
 
         // Both recorded before a single transaction is built, so a resumed top-up can be picked up.
         try secretStore.save(groupId: groupId, descriptor: descriptor)
@@ -143,12 +148,21 @@ private extension IncomingPaymentService {
         }
     }
 
-    /// Throws `SourceBusy` when the descriptor draws on the same funds as an active payment's.
-    func ensureSourceFree(descriptor: IncomingPaymentSourceDescriptor, productId: String) async throws {
+    /// Throws `SourceBusy` when the descriptor draws on the same funds as an active payment's. An
+    /// active payment whose secret is corrupted can never claim, so it cannot hold funds busy; a
+    /// store that cannot be read at all still aborts, since nothing is known about those payments.
+    func ensureSourceFree(descriptor: IncomingPaymentSourceDescriptor) async throws {
         let active = try await store.fetchActivePayments()
         for other in active {
-            guard let otherDescriptor = try secretStore.fetch(groupId: other.groupId) else { continue }
-            if descriptor.drawsOnSameFunds(as: otherDescriptor, sameProduct: other.productId == productId) {
+            let otherDescriptor: IncomingPaymentSourceDescriptor?
+            do {
+                otherDescriptor = try secretStore.fetch(groupId: other.groupId)
+            } catch IncomingPaymentSecretStoreError.corrupted {
+                logger?.warning("Incoming payment \(other.paymentId) secret corrupted; skipped in busy check")
+                continue
+            }
+            guard let otherDescriptor else { continue }
+            if descriptor.drawsOnSameFunds(as: otherDescriptor) {
                 throw IncomingPaymentError.sourceBusy
             }
         }
@@ -159,20 +173,44 @@ private extension IncomingPaymentService {
 
 private extension IncomingPaymentService {
     func runSetup(denomination: DenominationBreakdownContext) -> Task<Void, Never> {
-        Task { [weak self, paymentContext, store, logger] in
-            do {
-                for try await payments in store.observeActivePayments() {
-                    for payment in payments {
-                        await paymentContext.process(groupId: payment.groupId) { [weak self] in
-                            Task { [weak self] in
-                                await self?.drive(payment: payment, denomination: denomination)
-                            }
-                        }
+        Task { [weak self] in
+            guard let self else { return }
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.promptUnacknowledged() }
+                group.addTask { await self.driveActivePayments(denomination: denomination) }
+            }
+        }
+    }
+
+    func driveActivePayments(denomination: DenominationBreakdownContext) async {
+        do {
+            for try await payments in store.observeActivePayments() {
+                for payment in payments {
+                    await paymentContext.process(groupId: payment.groupId) { [weak self] in
+                        guard let self else { return Task {} }
+                        return Task { await self.drive(payment: payment, denomination: denomination) }
                     }
                 }
-            } catch {
-                logger?.error("Incoming payments: active-payment stream failed: \(error)")
             }
+        } catch {
+            logger?.error("Incoming payments: active-payment stream failed: \(error)")
+        }
+    }
+
+    /// Raises every verdict the user was not told about — one whose prompt found no window, or one
+    /// settled on a launch that died before the sheet showed.
+    func promptUnacknowledged() async {
+        let owed: [IncomingPayment]
+        do {
+            owed = try await store.fetchUnacknowledgedSettled()
+        } catch {
+            logger?.error("Incoming payments: unacknowledged verdicts unreadable: \(error)")
+            return
+        }
+
+        for payment in owed {
+            guard !Task.isCancelled, let outcome = payment.outcome else { continue }
+            await acknowledge(payment: payment, outcome: outcome)
         }
     }
 
@@ -183,22 +221,47 @@ private extension IncomingPaymentService {
             }
         }
 
-        // A secret that cannot be read now is not a secret that is gone: leave the record for a launch
-        // that can read it, rather than settle a verdict the ledger may still be moving towards.
-        let descriptor: IncomingPaymentSourceDescriptor?
+        switch lookupSecret(for: payment) {
+        case .unreadable:
+            return
+        case .gone:
+            // Can't re-run without the source, so settle from the ledger alone.
+            await settleFromDurability(payment: payment, denomination: denomination)
+        case let .found(descriptor):
+            await runClaim(payment: payment, descriptor: descriptor, denomination: denomination)
+        }
+    }
+
+    enum SecretLookup {
+        case found(IncomingPaymentSourceDescriptor)
+        /// Lost (Keychain wiped) or corrupted: no launch will ever read it.
+        case gone
+        /// Not readable right now (the Keychain before first unlock, say). Not a secret that is gone:
+        /// settling it would be a verdict the ledger may still be moving towards, so the record is
+        /// left for a launch that can read it.
+        case unreadable
+    }
+
+    func lookupSecret(for payment: IncomingPayment) -> SecretLookup {
         do {
-            descriptor = try secretStore.fetch(groupId: payment.groupId)
+            guard let descriptor = try secretStore.fetch(groupId: payment.groupId) else {
+                return .gone
+            }
+            return .found(descriptor)
+        } catch IncomingPaymentSecretStoreError.corrupted {
+            logger?.error("Incoming payment \(payment.paymentId) secret corrupted; settling from durability group")
+            return .gone
         } catch {
             logger?.error("Incoming payment \(payment.paymentId) secret unreadable; left for next launch: \(error)")
-            return
+            return .unreadable
         }
+    }
 
-        // Secret gone (Keychain lost): can't re-run, so settle from the ledger.
-        guard let descriptor else {
-            await settleFromDurability(payment: payment, denomination: denomination)
-            return
-        }
-
+    func runClaim(
+        payment: IncomingPayment,
+        descriptor: IncomingPaymentSourceDescriptor,
+        denomination: DenominationBreakdownContext
+    ) async {
         let resolved: ResolvedIncomingSource
         do {
             resolved = try await sourceResolver.resolve(descriptor: descriptor)
@@ -263,17 +326,29 @@ private extension IncomingPaymentService {
         }
         secretStore.remove(groupId: payment.groupId)
 
-        switch outcome {
-        case .claimedPartially,
-             .notClaimed:
-            await acknowledger.acknowledge(
-                productId: payment.productId,
-                paymentId: payment.paymentId,
-                requestedAmount: payment.amount,
-                outcome: outcome
-            )
-        case .claimed:
-            break
+        await acknowledge(payment: payment, outcome: outcome)
+    }
+
+    /// Tells the user about an unhappy verdict and records that it was told. A happy verdict has
+    /// nothing to tell and is acknowledged on the spot. A prompt that could not be shown leaves the
+    /// record unacknowledged for the next `setup` to raise again.
+    func acknowledge(payment: IncomingPayment, outcome: IncomingPaymentTerminalOutcome) async {
+        do {
+            switch outcome {
+            case .claimedPartially,
+                 .notClaimed:
+                try await acknowledger.acknowledge(
+                    productId: payment.productId,
+                    paymentId: payment.paymentId,
+                    requestedAmount: payment.amount,
+                    outcome: outcome
+                )
+            case .claimed:
+                break
+            }
+            try await store.markAcknowledged(groupId: payment.groupId)
+        } catch {
+            logger?.warning("Incoming payment \(payment.paymentId) verdict not acknowledged; will re-prompt: \(error)")
         }
     }
 

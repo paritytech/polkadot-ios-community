@@ -10,9 +10,11 @@ final class IncomingPaymentKeychainSecretStore: IncomingPaymentSecretStoring, @u
     private static let keyPrefix = "topUpSource."
 
     private let keychain: KeystoreProtocol
+    private let logger: LoggerProtocol
 
-    init(keychain: KeystoreProtocol = Keychain()) {
+    init(keychain: KeystoreProtocol, logger: LoggerProtocol) {
         self.keychain = keychain
+        self.logger = logger
     }
 
     func save(groupId: CoinageTxGroupId, descriptor: IncomingPaymentSourceDescriptor) throws {
@@ -21,7 +23,9 @@ final class IncomingPaymentKeychainSecretStore: IncomingPaymentSecretStoring, @u
     }
 
     /// Only a missing item reads as `nil`; a Keychain that cannot be read (locked before first unlock
-    /// on a VoIP-push launch, say) throws, so the caller never mistakes it for a lost secret.
+    /// on a VoIP-push launch, say) throws its own error, so the caller never mistakes it for a lost
+    /// secret. An entry that no longer decodes is `corrupted`: no launch will read it, so the caller
+    /// treats it like a lost one rather than pinning the payment active forever.
     func fetch(groupId: CoinageTxGroupId) throws -> IncomingPaymentSourceDescriptor? {
         let data: Data
         do {
@@ -30,11 +34,20 @@ final class IncomingPaymentKeychainSecretStore: IncomingPaymentSecretStoring, @u
             return nil
         }
 
-        return try JSONDecoder().decode(IncomingPaymentSourceDescriptor.self, from: data)
+        do {
+            return try JSONDecoder().decode(IncomingPaymentSourceDescriptor.self, from: data)
+        } catch {
+            logger.error("Top-up secret for \(groupId) does not decode: \(error)")
+            throw IncomingPaymentSecretStoreError.corrupted
+        }
     }
 
     func remove(groupId: CoinageTxGroupId) {
-        try? keychain.deleteKeyIfExists(for: identifier(for: groupId))
+        do {
+            try keychain.deleteKeyIfExists(for: identifier(for: groupId))
+        } catch {
+            logger.error("Top-up secret for \(groupId) could not be removed: \(error)")
+        }
     }
 
     private func identifier(for groupId: CoinageTxGroupId) -> String {

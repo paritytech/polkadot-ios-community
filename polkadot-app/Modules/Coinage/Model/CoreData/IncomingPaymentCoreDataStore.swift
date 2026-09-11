@@ -7,28 +7,30 @@ import StructuredConcurrency
 
 /// CoreData-backed ``IncomingPaymentStoring``. Records are keyed by their `groupId`
 /// (`"top up:productId:paymentId"`) as `identifier`, hold no secrets, and are settled once with a
-/// terminal verdict; "active" means `outcomeTag == nil`.
+/// terminal verdict; "active" means `outcomeTag == nil`. Each partial update goes through its own
+/// write-only mapper so nothing fetch-modify-saves the whole record.
 final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sendable {
     private let storageFacade: StorageFacadeProtocol
     private let repository: AnyDataProviderRepository<IncomingPayment>
+    private let activeRepository: AnyDataProviderRepository<IncomingPayment>
+    private let unacknowledgedRepository: AnyDataProviderRepository<IncomingPayment>
     private let outcomeRepository: AnyDataProviderRepository<IncomingPaymentOutcomeUpdate>
+    private let acknowledgementRepository: AnyDataProviderRepository<IncomingPaymentAcknowledgementUpdate>
 
     init(storageFacade: StorageFacadeProtocol) {
         self.storageFacade = storageFacade
 
-        let fullRepository = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: AnyCoreDataMapper(IncomingPaymentMapper())
+        repository = Self.makeRepository(storageFacade, filter: nil, mapper: IncomingPaymentMapper())
+        activeRepository = Self.makeRepository(
+            storageFacade, filter: Self.activeFilter, mapper: IncomingPaymentMapper()
         )
-        repository = AnyDataProviderRepository(fullRepository)
-
-        let outcomeRepo = storageFacade.createRepository(
-            filter: nil,
-            sortDescriptors: [],
-            mapper: AnyCoreDataMapper(IncomingPaymentOutcomeMapper())
+        unacknowledgedRepository = Self.makeRepository(
+            storageFacade, filter: Self.unacknowledgedSettledFilter, mapper: IncomingPaymentMapper()
         )
-        outcomeRepository = AnyDataProviderRepository(outcomeRepo)
+        outcomeRepository = Self.makeRepository(storageFacade, filter: nil, mapper: IncomingPaymentOutcomeMapper())
+        acknowledgementRepository = Self.makeRepository(
+            storageFacade, filter: nil, mapper: IncomingPaymentAcknowledgementMapper()
+        )
     }
 
     func save(_ payment: IncomingPayment) async throws {
@@ -40,14 +42,21 @@ final class IncomingPaymentCoreDataStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     func fetchActivePayments() async throws -> [IncomingPayment] {
-        try await activeRepository()
-            .fetchAllOperation(with: RepositoryFetchOptions())
-            .asyncExecute()
+        try await activeRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
+    }
+
+    func fetchUnacknowledgedSettled() async throws -> [IncomingPayment] {
+        try await unacknowledgedRepository.fetchAllOperation(with: RepositoryFetchOptions()).asyncExecute()
     }
 
     func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
         let update = IncomingPaymentOutcomeUpdate(groupId: groupId, outcome: outcome)
         try await outcomeRepository.saveOperation({ [update] }, { [] }).asyncExecute()
+    }
+
+    func markAcknowledged(groupId: CoinageTxGroupId) async throws {
+        let update = IncomingPaymentAcknowledgementUpdate(groupId: groupId, acknowledgedAt: Date())
+        try await acknowledgementRepository.saveOperation({ [update] }, { [] }).asyncExecute()
     }
 
     func observeActivePayments() -> AnyAsyncSequence<[IncomingPayment]> {
@@ -65,12 +74,22 @@ private extension IncomingPaymentCoreDataStore {
         NSPredicate(format: "%K == nil", #keyPath(CDIncomingPayment.outcomeTag))
     }
 
-    func activeRepository() -> AnyDataProviderRepository<IncomingPayment> {
-        let repository = storageFacade.createRepository(
-            filter: Self.activeFilter,
-            sortDescriptors: [],
-            mapper: AnyCoreDataMapper(IncomingPaymentMapper())
+    static var unacknowledgedSettledFilter: NSPredicate {
+        NSPredicate(
+            format: "%K != nil AND %K == nil",
+            #keyPath(CDIncomingPayment.outcomeTag),
+            #keyPath(CDIncomingPayment.acknowledgedAt)
         )
-        return AnyDataProviderRepository(repository)
+    }
+
+    static func makeRepository<Mapper: CoreDataMapperProtocol>(
+        _ storageFacade: StorageFacadeProtocol,
+        filter: NSPredicate?,
+        mapper: Mapper
+    ) -> AnyDataProviderRepository<Mapper.DataProviderModel>
+        where Mapper.DataProviderModel: Operation_iOS.Identifiable, Mapper.CoreDataEntity == CDIncomingPayment {
+        AnyDataProviderRepository(
+            storageFacade.createRepository(filter: filter, sortDescriptors: [], mapper: AnyCoreDataMapper(mapper))
+        )
     }
 }

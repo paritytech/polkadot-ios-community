@@ -22,10 +22,8 @@ public protocol IncomingPaymentServicing: Sendable {
     ) async throws -> AnyAsyncSequence<IncomingPaymentStatus>
 
     /// Subscribes to active payments and (re)starts their claim tasks, using the resolved denomination
-    /// context. Idempotent across restarts. Driven by `CoinageService.setup(with:)` once the context is
-    /// available, mirroring `ExternalPaymentServicing`.
+    /// context, and raises any verdict the user has not been told about yet. Idempotent across
+    /// restarts. Driven by `CoinageService.setup(with:)` once the context is available, mirroring
+    /// `ExternalPaymentServicing`.
     func setup(with denomination: DenominationBreakdownContext)
-
-    /// Cancels in-flight claim tasks.
-    func throttle()
 }

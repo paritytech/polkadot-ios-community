@@ -357,7 +357,10 @@ public extension CoinageService {
             logger: logger
         )
 
-        let incomingPaymentSourceResolver = IncomingPaymentSourceResolver(entropyManager: rootEntropyManager)
+        let incomingPaymentSourceResolver = IncomingPaymentSourceResolver(
+            entropyManager: rootEntropyManager,
+            snKeyFactory: SNKeyFactory()
+        )
 
         let incomingPaymentService = IncomingPaymentService(
             store: incomingPaymentStore,

@@ -8,7 +8,6 @@ public typealias RenderWidgetHandler = (_ messageId: String, _ scaleHex: String)
 public enum ContainerBridgeHostApiError: Error {
     case missingRequiredParam(String)
     case invalidSignRawParams
-    case invalidPaymentTopUpAmount(String)
 
     public var errorDescription: String? {
         switch self {
@@ -16,8 +15,6 @@ public enum ContainerBridgeHostApiError: Error {
             "missing required param \(param)"
         case .invalidSignRawParams:
             "signRaw must have either data or payload"
-        case let .invalidPaymentTopUpAmount(value):
-            "invalid paymentTopUp amount: \(value)"
         }
     }
 }

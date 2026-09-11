@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import AsyncExtensions
+import os
 @testable import Coinage
 
 struct IncomingPaymentContextTests {
@@ -17,15 +18,16 @@ struct IncomingPaymentContextTests {
         }
     }
 
-    @Test func dedupsByGroupId() async throws {
+    @Test func dedupsByGroupId() async {
         let context = IncomingPaymentContext(logger: StubLogger())
-        let runs = Counter()
+        // `process` invokes the runner synchronously, so the count is exact once both calls return —
+        // no waiting that a dropped guard could slip past.
+        let runs = OSAllocatedUnfairLock(initialState: 0)
 
-        await context.process(groupId: "g1") { Task { await runs.increment() } }
-        await context.process(groupId: "g1") { Task { await runs.increment() } }
+        await context.process(groupId: "g1") { runs.withLock { $0 += 1 }; return Task {} }
+        await context.process(groupId: "g1") { runs.withLock { $0 += 1 }; return Task {} }
 
-        try await waitUntil { await runs.value() >= 1 }
-        #expect(await runs.value() == 1)
+        #expect(runs.withLock { $0 } == 1)
     }
 
     @Test(.timeLimit(.minutes(1)))

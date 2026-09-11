@@ -5,7 +5,8 @@ import SubstrateSdk
 /// A durable, restart-recoverable top-up. The record holds no secret material — the source lives in
 /// the encrypted `IncomingPaymentSecretStoring` — and no live status. It persists only what cannot be
 /// recomputed: the product-supplied id, the product it is bound to, the amount, when its retry window
-/// opened, and — once there is one — its terminal ``outcome`` (read back exactly, never re-derived).
+/// opened, and — once there is one — its terminal ``outcome`` (read back exactly, never re-derived)
+/// and when the user was told about it.
 public struct IncomingPayment: Equatable, Sendable {
     /// The product-supplied idempotency key. Unique only within a product.
     public let paymentId: IncomingPaymentId
@@ -17,19 +18,24 @@ public struct IncomingPayment: Equatable, Sendable {
     /// The immutable verdict, `nil` until nothing further will be attempted. Its presence is the
     /// "inactive/complete" signal — `setup()` never starts a task for a settled record.
     public let outcome: IncomingPaymentTerminalOutcome?
+    /// When the user was told the verdict (or there was nothing to tell). `nil` on a settled record
+    /// means the prompt is still owed and `setup()` raises it again.
+    public let acknowledgedAt: Date?
 
     public init(
         paymentId: IncomingPaymentId,
         productId: String,
         amount: Balance,
         createdAt: Date,
-        outcome: IncomingPaymentTerminalOutcome?
+        outcome: IncomingPaymentTerminalOutcome?,
+        acknowledgedAt: Date? = nil
     ) {
         self.paymentId = paymentId
         self.productId = productId
         self.amount = amount
         self.createdAt = createdAt
         self.outcome = outcome
+        self.acknowledgedAt = acknowledgedAt
     }
 }
 

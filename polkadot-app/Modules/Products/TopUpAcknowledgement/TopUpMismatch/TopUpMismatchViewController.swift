@@ -5,6 +5,7 @@ import UIKit_iOS
 
 final class TopUpMismatchViewController: UIHostingController<TopUpMismatchViewLayout> {
     let presenter: TopUpMismatchPresenterProtocol
+    var onDidDisappear: (() -> Void)?
 
     init(presenter: TopUpMismatchPresenterProtocol) {
         self.presenter = presenter
@@ -23,6 +24,13 @@ final class TopUpMismatchViewController: UIHostingController<TopUpMismatchViewLa
         view.backgroundColor = .clear
         presenter.setup()
     }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isBeingDismissed || presentingViewController == nil else { return }
+        onDidDisappear?()
+        onDidDisappear = nil
+    }
 }
 
 extension TopUpMismatchViewController: TopUpMismatchViewProtocol {
@@ -30,6 +38,8 @@ extension TopUpMismatchViewController: TopUpMismatchViewProtocol {
         rootView = TopUpMismatchViewLayout(viewModel: viewModel)
     }
 }
+
+extension TopUpMismatchViewController: TopUpAcknowledgementDismissObserving {}
 
 extension TopUpMismatchViewController: ModalPresenterDelegate {
     func presenterShouldHide(_: any ModalPresenterProtocol) -> Bool {

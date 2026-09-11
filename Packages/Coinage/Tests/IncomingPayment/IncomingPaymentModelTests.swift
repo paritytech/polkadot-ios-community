@@ -65,27 +65,28 @@ struct IncomingPaymentModelTests {
 }
 
 struct IncomingPaymentSourceDescriptorTests {
-    @Test func productAccountMatchesOnSameProductAndIndex() {
-        let a = IncomingPaymentSourceDescriptor.productAccount(derivationPath: "//1")
-        #expect(a.drawsOnSameFunds(as: .productAccount(derivationPath: "//1"), sameProduct: true))
-        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//1"), sameProduct: false))
-        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//9"), sameProduct: true))
+    @Test func productAccountMatchesOnTheFullPath() {
+        // The path embeds the product, so the same index under another product is another path.
+        let a = IncomingPaymentSourceDescriptor.productAccount(derivationPath: "//product//a/0x1")
+        #expect(a.drawsOnSameFunds(as: .productAccount(derivationPath: "//product//a/0x1")))
+        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//product//b/0x1")))
+        #expect(!a.drawsOnSameFunds(as: .productAccount(derivationPath: "//product//a/0x9")))
     }
 
     @Test func privateKeyMatchesItself() {
         let a = IncomingPaymentSourceDescriptor.privateKey(secretKey: Data([1]))
-        #expect(a.drawsOnSameFunds(as: .privateKey(secretKey: Data([1])), sameProduct: false))
-        #expect(!a.drawsOnSameFunds(as: .privateKey(secretKey: Data([2])), sameProduct: false))
+        #expect(a.drawsOnSameFunds(as: .privateKey(secretKey: Data([1]))))
+        #expect(!a.drawsOnSameFunds(as: .privateKey(secretKey: Data([2]))))
     }
 
     @Test func coinsMatchOnAnyOverlap() {
         let a = IncomingPaymentSourceDescriptor.coins(secretKeys: [Data([1]), Data([2])])
-        #expect(a.drawsOnSameFunds(as: .coins(secretKeys: [Data([2])]), sameProduct: false))
-        #expect(!a.drawsOnSameFunds(as: .coins(secretKeys: [Data([3])]), sameProduct: false))
+        #expect(a.drawsOnSameFunds(as: .coins(secretKeys: [Data([2])])))
+        #expect(!a.drawsOnSameFunds(as: .coins(secretKeys: [Data([3])])))
     }
 
     @Test func differentShapesNeverCollide() {
         let a = IncomingPaymentSourceDescriptor.privateKey(secretKey: Data([1]))
-        #expect(!a.drawsOnSameFunds(as: .coins(secretKeys: [Data([1])]), sameProduct: true))
+        #expect(!a.drawsOnSameFunds(as: .coins(secretKeys: [Data([1])])))
     }
 }

@@ -50,10 +50,13 @@ final class StubAssetsTracking: AssetsTracking, @unchecked Sendable {
 
 /// In-memory `VoucherServiceProtocol`: holds the vouchers a stub loader minted so a claim can value
 /// its group's outputs by key. `load` is the real loader's job and is not exercised here.
+/// `fetchError` makes every read fail, as a store that cannot be opened would.
 final class InMemoryVoucherService: VoucherServiceProtocol, @unchecked Sendable {
     struct Unsupported: Error {}
+    struct Unreadable: Error {}
 
     private let vouchers = OSAllocatedUnfairLock(initialState: [PublicKey: Voucher]())
+    var fetchError: Error?
 
     func save(_ minted: [Voucher]) {
         vouchers.withLock { store in
@@ -73,7 +76,8 @@ final class InMemoryVoucherService: VoucherServiceProtocol, @unchecked Sendable 
     func fetchAllTracked() async throws -> [TrackedVoucher] { [] }
 
     func fetchVouchers(publicKeys: Set<PublicKey>) async throws -> [Voucher] {
-        vouchers.withLock { store in publicKeys.compactMap { store[$0] } }
+        if let fetchError { throw fetchError }
+        return vouchers.withLock { store in publicKeys.compactMap { store[$0] } }
     }
 }
 

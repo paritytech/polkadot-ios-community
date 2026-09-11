@@ -81,10 +81,9 @@ extension ProductsNativeApi {
                 paymentId: id.toHex(),
                 productId: productId
             )
-        } catch let error as IncomingPaymentError {
-            throw error.asHostTopUpError
         } catch {
-            throw HostPaymentTopUpError.unknown(reason: String(describing: error))
+            logger.error("Top-up could not be registered: \(error)")
+            throw HostPaymentTopUpError(error, unknownReason: Self.topUpRegistrationFailed)
         }
     }
 
@@ -100,12 +99,20 @@ extension ProductsNativeApi {
             )
             .map { HostPaymentTopUpStatus(status: $0) }
             .eraseToAnyAsyncSequence()
-        } catch let error as IncomingPaymentError {
-            throw error.asHostTopUpError
         } catch {
-            throw HostPaymentTopUpError.unknown(reason: String(describing: error))
+            logger.error("Top-up status could not be observed: \(error)")
+            throw HostPaymentTopUpError(error, unknownReason: Self.topUpStatusUnavailable)
         }
     }
+}
+
+// MARK: - Wire reasons
+
+private extension ProductsNativeApi {
+    /// What a third-party product is told on an unclassified failure. The real error is logged; a
+    /// CoreData or Keychain dump is not for product scripts.
+    static let topUpRegistrationFailed = "top-up could not be registered"
+    static let topUpStatusUnavailable = "top-up status is unavailable"
 }
 
 // MARK: - Payment Request Checks
@@ -168,7 +175,7 @@ private extension ProductsNativeApi {
 
 private extension ProductsNativeApi {
     /// Describes the product-facing source as the persisted bytes the claim is later resolved from —
-    /// the derivation **index** for a product account (never a derived key), the raw key otherwise.
+    /// the full derivation **path** for a product account (never a derived key), the raw key otherwise.
     /// Resolution + validation happen later, in `IncomingPaymentSourceResolver`.
     static func incomingPaymentDescriptor(
         from source: PaymentTopUpSource,
@@ -192,15 +199,18 @@ private extension ProductsNativeApi {
 
 // MARK: - Wire Mapping
 
-private extension IncomingPaymentError {
-    var asHostTopUpError: HostPaymentTopUpError {
-        switch self {
-        case .alreadyExists: .alreadyExists
-        case .invalidSource: .invalidSource
-        case .sourceBusy: .sourceBusy
-        case .invalidAmount: .unknown(reason: "amount must be positive")
-        case let .notFound(paymentId): .notFound(paymentId)
-        case let .unknown(reason): .unknown(reason: reason)
+private extension HostPaymentTopUpError {
+    /// The coded error for `error`; anything that is not a classified `IncomingPaymentError` becomes
+    /// `unknown` with the generic `unknownReason` rather than the error's own description.
+    init(_ error: any Error, unknownReason: String) {
+        switch error as? IncomingPaymentError {
+        case .alreadyExists: self = .alreadyExists
+        case .invalidSource: self = .invalidSource
+        case .sourceBusy: self = .sourceBusy
+        case .invalidAmount: self = .unknown(reason: "amount must be positive")
+        case let .notFound(paymentId): self = .notFound(paymentId)
+        case .unknown,
+             .none: self = .unknown(reason: unknownReason)
         }
     }
 }

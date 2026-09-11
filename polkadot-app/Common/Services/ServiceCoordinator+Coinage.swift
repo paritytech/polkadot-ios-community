@@ -167,7 +167,7 @@ private extension ServiceCoordinator {
             storageFacade: UserDataStorageFacade.shared
         )
 
-        let incomingPaymentSecretStore = IncomingPaymentKeychainSecretStore()
+        let incomingPaymentSecretStore = IncomingPaymentKeychainSecretStore(keychain: Keychain(), logger: logger)
         let incomingPaymentAcknowledger = TopUpAcknowledgementPresenter()
 
         return CoinageService.make(

@@ -1,8 +1,9 @@
 import Foundation
 import SubstrateSdk
 
-/// Observable status of an incoming payment. Derived from the CoinageTx durability layer plus
-/// on-chain detection — never persisted on the record (the `groupId` is the source of truth).
+/// Observable status of an incoming payment. The live statuses are derived from the CoinageTx
+/// durability layer plus on-chain detection and never persisted; only the terminal verdict is
+/// written to the record, as `IncomingPaymentTerminalOutcome`, and read back exactly.
 ///
 /// Terminal statuses never advance: `claimed(finalized: true)`, `claimedPartially`, `notClaimed`.
 public enum IncomingPaymentStatus: Equatable, Sendable {
