@@ -85,6 +85,10 @@ xcuserdata
 
 .lavish/
 
+# Claude
+
+.claude/PLAN.md
+
 # Secrets
 polkadot-app/env-vars.sh
 polkadot-app/GoogleService-Info.plist

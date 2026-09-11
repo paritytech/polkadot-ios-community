@@ -25,9 +25,14 @@ extension ServiceCoordinator {
             storageFacade: UserDataStorageFacade.shared
         )
 
+        let incomingPaymentStore = IncomingPaymentCoreDataStore(
+            storageFacade: UserDataStorageFacade.shared
+        )
+
         guard let coinageService = createCoinageService(
             databaseFactory: databaseFactory,
-            externalPaymentStore: externalPaymentStore
+            externalPaymentStore: externalPaymentStore,
+            incomingPaymentStore: incomingPaymentStore
         ) else {
             return nil
         }
@@ -73,7 +78,8 @@ extension ServiceCoordinator {
 private extension ServiceCoordinator {
     static func createCoinageService(
         databaseFactory: DatabaseDependencyFactoring,
-        externalPaymentStore: ExternalPaymentStoring
+        externalPaymentStore: ExternalPaymentStoring,
+        incomingPaymentStore: IncomingPaymentStoring
     ) -> CoinageService? {
         let logger = Logger.shared
         let chainRegistry = ChainRegistryFacade.sharedRegistry
@@ -161,6 +167,9 @@ private extension ServiceCoordinator {
             storageFacade: UserDataStorageFacade.shared
         )
 
+        let incomingPaymentSecretStore = IncomingPaymentKeychainSecretStore(keychain: Keychain(), logger: logger)
+        let incomingPaymentAcknowledger = TopUpAcknowledgementPresenter()
+
         return CoinageService.make(
             chainResource: chainRegistry,
             chain: chain,
@@ -175,6 +184,9 @@ private extension ServiceCoordinator {
             txStore: coinageTxStore,
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
+            incomingPaymentStore: incomingPaymentStore,
+            incomingPaymentSecretStore: incomingPaymentSecretStore,
+            incomingPaymentAcknowledger: incomingPaymentAcknowledger,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
             recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,

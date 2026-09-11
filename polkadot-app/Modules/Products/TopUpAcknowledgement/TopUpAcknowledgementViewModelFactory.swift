@@ -3,14 +3,16 @@ import Products
 import SubstrateSdk
 import ChainRegistry
 
-protocol TopUpRequestViewModelMaking {
+protocol TopUpAcknowledgementViewModelMaking {
     func formatAmountValue(_ balance: Balance) -> String
     func tokenSymbol() -> String
     func amountMismatchWarning() -> String
     func amountMismatchTitle(productId: ProductId) -> String
+    func errorTitle(productId: ProductId) -> String
+    func errorMessage() -> String
 }
 
-final class TopUpRequestViewModelFactory {
+final class TopUpAcknowledgementViewModelFactory {
     private let chainAsset: ChainAsset
     private let formatterFactory: AssetBalanceFormatterFactoryProtocol
 
@@ -23,7 +25,7 @@ final class TopUpRequestViewModelFactory {
     }
 }
 
-extension TopUpRequestViewModelFactory: TopUpRequestViewModelMaking {
+extension TopUpAcknowledgementViewModelFactory: TopUpAcknowledgementViewModelMaking {
     func formatAmountValue(_ balance: Balance) -> String {
         let decimalAmount = balance.decimal(assetInfo: chainAsset.asset.digitalDollarDisplayInfo)
 
@@ -44,5 +46,13 @@ extension TopUpRequestViewModelFactory: TopUpRequestViewModelMaking {
 
     func amountMismatchWarning() -> String {
         String(localized: .Products.topUpAmountMismatchWarning)
+    }
+
+    func errorTitle(productId: ProductId) -> String {
+        String(localized: .Products.topUpErrorTitle(product: productId))
+    }
+
+    func errorMessage() -> String {
+        String(localized: .Products.topUpErrorMessage)
     }
 }
