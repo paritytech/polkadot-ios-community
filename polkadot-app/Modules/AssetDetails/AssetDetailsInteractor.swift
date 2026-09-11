@@ -42,10 +42,8 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     private var topUpProductTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
-        private let backgroundExecutor: BackgroundExecuting
-
-        let voucherRepository: AnyDataProviderRepository<Voucher>
-
+        var backgroundExecutor: BackgroundExecuting?
+        var voucherRepository: AnyDataProviderRepository<Voucher>?
         var topupService: TopUpService?
         var faucetTask: Task<Void, Error>?
     #endif
@@ -57,9 +55,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         coinageService: CoinageServicing,
         coinageBackupSyncService: any CoinageBackupSyncServicing,
         balanceSyncStateStorage: BalanceSyncStateStoring,
-        databaseFactory _: any DatabaseDependencyFactoring,
-        voucherRepository: AnyDataProviderRepository<Voucher>,
-        backgroundExecutor: BackgroundExecuting,
         hostProvider: ProductHostProviding,
         eventCenter: EventCenterProtocol = EventCenter.shared
     ) {
@@ -71,10 +66,6 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         self.balanceSyncStateStorage = balanceSyncStateStorage
         self.eventCenter = eventCenter
         self.hostProvider = hostProvider
-        #if TESTNET_FEATURE
-            self.backgroundExecutor = backgroundExecutor
-            self.voucherRepository = voucherRepository
-        #endif
     }
 
     deinit {
@@ -139,8 +130,8 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
     #if TESTNET_FEATURE
         func topUp() {
             faucetTask?.cancel()
-            faucetTask = Task { [weak presenter, topupService, coinageService] in
-                guard let topupService else {
+            faucetTask = Task { [weak presenter, topupService, backgroundExecutor, coinageService] in
+                guard let topupService, let backgroundExecutor else {
                     return
                 }
                 do {
@@ -167,7 +158,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
         func makeAllVouchersReady() {
             Task { [weak self] in
-                guard let self else { return }
+                guard let self, let voucherRepository else { return }
                 do {
                     let vouchers = try await voucherRepository
                         .fetchAllOperation(with: RepositoryFetchOptions())

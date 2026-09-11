@@ -1972,6 +1972,12 @@
             "state": "translated",
             "value": "Hide Details"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ocultar detalles"
+          }
         }
       }
     },
@@ -1982,6 +1988,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "How to read this"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo interpretar esto"
           }
         }
       }
@@ -1994,6 +2006,12 @@
             "state": "translated",
             "value": "Coins show one circle per past payment, oldest first. Dots are the other coins that moved with it: more dots, easier to trace."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las monedas muestran un círculo por cada pago anterior, del más antiguo al más reciente. Los puntos son las otras monedas que se movieron con ella: más puntos, más fácil de rastrear."
+          }
         }
       }
     },
@@ -2004,6 +2022,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "A single block means no past payments at all. The longer it is, the easier the coin is to trace."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un solo bloque significa que no hay pagos anteriores. Cuanto más largo sea, más fácil es rastrear la moneda."
           }
         }
       }
@@ -2016,6 +2040,12 @@
             "state": "translated",
             "value": "A thin red and orange line means we have no record for that part of the coin's past."
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una línea fina roja y naranja significa que no tenemos registro de esa parte del historial de la moneda."
+          }
         }
       }
     },
@@ -2026,6 +2056,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vouchers are coins that are loading. The block is how traceable they will still be at best; the striped part is how much loading is left."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los vales son monedas que están cargando. El bloque indica qué tan rastreables seguirán siendo en el mejor de los casos; la parte rayada indica cuánta carga queda."
           }
         }
       }
@@ -2038,6 +2074,12 @@
             "state": "translated",
             "value": "Loading"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cargando"
+          }
         }
       }
     },
@@ -2048,6 +2090,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show Details"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar detalles"
           }
         }
       }
@@ -2060,6 +2108,12 @@
             "state": "translated",
             "value": "Spendable"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disponible"
+          }
         }
       }
     },
@@ -2070,6 +2124,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Coinage Balance"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saldo de Coinage"
           }
         }
       }
@@ -2082,6 +2142,12 @@
             "state": "translated",
             "value": "Total balance"
           }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saldo total"
+          }
         }
       }
     },
@@ -2092,6 +2158,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unavailable"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No disponible"
           }
         }
       }

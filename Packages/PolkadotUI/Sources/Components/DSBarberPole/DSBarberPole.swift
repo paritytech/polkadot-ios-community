@@ -1,40 +1,56 @@
 import DesignSystem
 import SwiftUI
 
-/// Diagonal red-and-white stripes sliding leftwards — the depiction for value that is still
-/// gaining privacy in a recycler.
+/// Diagonal stripes sliding leftwards, for depicting work that is still in progress.
 ///
 /// The pattern repeats every `stripeWidth * 2`, so sliding by exactly one period and snapping back
 /// is seamless. Only a static layer is offset, which keeps the animation off the main thread even
-/// with a row per holding.
+/// with many of these on screen at once.
 ///
 /// Two things have to hold for the wrap to be invisible, and both are about coverage rather than
 /// timing: the drawn pattern must extend past the layer's own bounds — a leaning stripe's far
 /// corner is clipped, so drawing only to the edge leaves a wedge of bare background — and the
 /// layer must be wide enough to still cover the viewport after a full period of travel.
-struct BarberPole: View {
-    var stripeWidth: CGFloat = 5
-    /// Horizontal run per unit of height — the stripes' lean.
-    var slant: CGFloat = 0.7
-    var periodDuration: Double = 0.6
+public struct DSBarberPole: View {
+    private let stripeWidth: CGFloat
+    private let slant: CGFloat
+    private let periodDuration: Double
+    private let stripeColor: Color
+    private let backgroundColor: Color
 
     @State private var isSliding = false
 
-    var body: some View {
+    /// - Parameter slant: Horizontal run per unit of height — the stripes' lean.
+    public init(
+        stripeWidth: CGFloat = 5,
+        slant: CGFloat = 0.7,
+        periodDuration: Double = 0.6,
+        stripeColor: Color = .fgError,
+        backgroundColor: Color = .fgStaticWhite
+    ) {
+        self.stripeWidth = stripeWidth
+        self.slant = slant
+        self.periodDuration = periodDuration
+        self.stripeColor = stripeColor
+        self.backgroundColor = backgroundColor
+    }
+
+    public var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let period = Self.period(forStripeWidth: stripeWidth)
             let margin = period + size.height * slant
 
             ZStack(alignment: .leading) {
-                Color.fgStaticWhite
+                backgroundColor
 
                 Canvas { context, canvasSize in
                     Self.drawStripes(
                         in: &context,
                         size: canvasSize,
                         stripeWidth: stripeWidth,
-                        slant: slant
+                        slant: slant,
+                        color: stripeColor
                     )
                 }
                 .frame(width: size.width + margin * 2, height: size.height)
@@ -54,7 +70,7 @@ struct BarberPole: View {
     }
 }
 
-private extension BarberPole {
+private extension DSBarberPole {
     static func period(forStripeWidth stripeWidth: CGFloat) -> CGFloat {
         stripeWidth * 2
     }
@@ -69,7 +85,8 @@ private extension BarberPole {
         in context: inout GraphicsContext,
         size: CGSize,
         stripeWidth: CGFloat,
-        slant: CGFloat
+        slant: CGFloat,
+        color: Color
     ) {
         let period = period(forStripeWidth: stripeWidth)
         let lean = size.height * slant
@@ -80,7 +97,7 @@ private extension BarberPole {
         while origin < size.width + overshoot {
             context.fill(
                 stripe(at: origin, height: size.height, stripeWidth: stripeWidth, lean: lean),
-                with: .color(Color.fgError)
+                with: .color(color)
             )
             origin += period
         }
@@ -102,3 +119,19 @@ private extension BarberPole {
         return path
     }
 }
+
+#if DEBUG
+    #Preview("DSBarberPole") {
+        VStack(spacing: 16) {
+            DSBarberPole()
+                .frame(width: 200, height: 20)
+                .clipShape(Capsule())
+
+            DSBarberPole(stripeWidth: 10, slant: 0, periodDuration: 1.2)
+                .frame(width: 200, height: 20)
+                .clipShape(Capsule())
+        }
+        .padding()
+        .background(Color.bgSurfaceContainer)
+    }
+#endif

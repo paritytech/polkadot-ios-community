@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Swatch keying one summary figure to its section of the bar above.
 ///
-/// The gaining-privacy swatch is the same ``BarberPole`` the bar and the voucher rows use, so
+/// The gaining-privacy swatch is the same ``DSBarberPole`` the bar and the voucher rows use, so
 /// there is one striped thing in the screen rather than three that merely resemble each other.
 struct CoinageLegendSwatch: View {
     enum Kind {
@@ -38,7 +38,7 @@ struct CoinageLegendSwatch: View {
     private var shape: some View {
         switch kind {
         case .availableNow: Color.fgStaticWhite
-        case .gainingPrivacy: BarberPole()
+        case .gainingPrivacy: DSBarberPole()
         case .unavailable: Color.fgError
         }
     }

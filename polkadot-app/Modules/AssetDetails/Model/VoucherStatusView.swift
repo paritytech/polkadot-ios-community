@@ -1,5 +1,6 @@
 import Coinage
 import DesignSystem
+import PolkadotUI
 import SwiftUI
 
 /// A voucher's recycler status: a solid bar for the anonymity its recycler can ever reach,
@@ -39,7 +40,7 @@ struct VoucherStatusView: View {
                         )
                     )
 
-                BarberPole()
+                DSBarberPole()
                     .frame(width: layout.poleWidth, height: height)
                     .clipShape(Capsule())
                     .overlay(
