@@ -115,6 +115,9 @@ extension VoucherLocationService {
         let memberReqs = try memberRequests(vouchers)
         guard !memberReqs.isEmpty else { return }
 
+        // A runtime constant rather than storage, so it is read once per subscription, not per emission.
+        let keysPerPage = try await runtimeService.fetchRingKeysPageSize()
+
         let memberStream: AnyAsyncSequence<MemberStatusResult> = CallbackBatchStorageSubscription
             .asyncStream(
                 requests: memberReqs,
@@ -140,7 +143,11 @@ extension VoucherLocationService {
                 guard let self else {
                     return AsyncEmptySequence().eraseToAnyAsyncSequence()
                 }
-                return resolvedLocationsStream(positions: positions, vouchers: vouchers)
+                return resolvedLocationsStream(
+                    positions: positions,
+                    vouchers: vouchers,
+                    keysPerPage: keysPerPage
+                )
             }
             .removeDuplicates { $0 == $1 }
 
@@ -155,13 +162,14 @@ extension VoucherLocationService {
     /// placed in a ring, emits the onboarding-only resolution once so those writes still happen.
     private func resolvedLocationsStream(
         positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        vouchers: [Voucher]
+        vouchers: [Voucher],
+        keysPerPage: Int
     ) -> AnyAsyncSequence<[DerivationIndex: Voucher.OnChainState]> {
         let voucherByIndex = Dictionary(uniqueKeysWithValues: vouchers.map { ($0.derivationIndex, $0) })
         let requests = ringStatusRequests(positions: positions, voucherByIndex: voucherByIndex)
 
         guard !requests.isEmpty else {
-            let resolved = Self.resolveLocations(positions: positions, statuses: [:])
+            let resolved = Self.resolveLocations(positions: positions, statuses: [:], keysPerPage: keysPerPage)
             return AsyncJustSequence(resolved).eraseToAnyAsyncSequence()
         }
 
@@ -181,7 +189,7 @@ extension VoucherLocationService {
                 }
                 return statuses
             }
-            .map { Self.resolveLocations(positions: positions, statuses: $0) }
+            .map { Self.resolveLocations(positions: positions, statuses: $0, keysPerPage: keysPerPage) }
             .eraseToAnyAsyncSequence()
     }
 }
@@ -262,6 +270,7 @@ extension VoucherLocationService {
     static func resolveLocations(
         positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
         statuses: [DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>],
+        keysPerPage: Int,
         observedAt: Date = .now
     ) -> [DerivationIndex: Voucher.OnChainState] {
         positions.reduce(into: [:]) { resolved, entry in
@@ -290,7 +299,7 @@ extension VoucherLocationService {
                 // The ring status was delivered empty (ring retracted): fall back to onboarding.
                 resolved[derivationIndex] = .onboarding
             case let .defined(.some(status))?:
-                guard status.includesKey(from: position) else { return }
+                guard status.includesKey(from: position, keysPerPage: keysPerPage) else { return }
                 resolved[derivationIndex] = .inRecycler(
                     Voucher.Recycler(index: ringIndex, membersCount: status.included, enteredAt: observedAt)
                 )
