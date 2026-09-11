@@ -1,5 +1,4 @@
 import TipKit
-import UIKit
 
 struct TabBarTipStep {
     let tip: AnyTip

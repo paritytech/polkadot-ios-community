@@ -1,5 +1,4 @@
 import TipKit
-import UIKit
 
 /// Answers which tip should be on screen and signals when that answer may have changed.
 /// Two implementations: TipGroup on iOS 18+, ordered availability below it.

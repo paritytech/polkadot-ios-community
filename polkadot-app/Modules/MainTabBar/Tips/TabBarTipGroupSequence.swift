@@ -1,5 +1,4 @@
 import TipKit
-import UIKit
 
 @available(iOS 18, *)
 @MainActor

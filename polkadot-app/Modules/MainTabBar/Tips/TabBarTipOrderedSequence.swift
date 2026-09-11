@@ -1,5 +1,4 @@
 import TipKit
-import UIKit
 
 @MainActor
 final class TabBarTipOrderedSequence: TabBarTipSequenceProtocol {

@@ -177,7 +177,7 @@ final class TabBarBottomChromeController: UIViewController {
 
     /// Selecting a different action closes the open panel before opening the new one, so the
     /// change reads as a close followed by an open instead of a silent content swap.
-    func togglePanel(_ kind: TabBarPanelKind) {
+    private func togglePanel(_ kind: TabBarPanelKind) {
         panelController.togglePanel(kind)
     }
 
@@ -290,12 +290,6 @@ private extension TabBarBottomChromeController {
 
     func updateActiveActionIndex() {
         barView.activeActionIndex = panelController.open.flatMap { slotMap.itemIndex(for: $0.action) }
-    }
-
-    func clearContentPanel() {
-        detachHostedController()
-        chromeSurface.setContentHostedView(nil)
-        chromeSurface.setContentConfiguration(nil)
     }
 
     func detachHostedController() {
@@ -487,46 +481,5 @@ private extension TabBarBottomChromeController {
 extension TabBarBottomChromeController: UIGestureRecognizerDelegate {
     func gestureRecognizer(_: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         touch.view === view
-    }
-}
-
-private final class TabBarChromePassthroughView: UIView {
-    var isOutsideTapEnabled = false
-    var foldGrabZone: CGRect = .zero
-
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let hitView = super.hitTest(point, with: event)
-
-        guard hitView === self else {
-            return hitView
-        }
-
-        if !foldGrabZone.isEmpty, foldGrabZone.contains(point) {
-            return self
-        }
-        return isOutsideTapEnabled ? self : nil
-    }
-}
-
-private final class MainTabBarFloatingWidgetStackView: UIStackView {
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-
-        axis = .vertical
-        alignment = .fill
-        distribution = .fill
-        spacing = 0
-        setContentHuggingPriority(.required, for: .vertical)
-        setContentCompressionResistancePriority(.required, for: .vertical)
-    }
-
-    @available(*, unavailable)
-    required init(coder _: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        let hitView = super.hitTest(point, with: event)
-        return hitView === self ? nil : hitView
     }
 }

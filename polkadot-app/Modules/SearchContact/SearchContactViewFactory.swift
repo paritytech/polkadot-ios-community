@@ -2,9 +2,7 @@ import Foundation
 
 @MainActor
 enum SearchContactViewFactory {
-    static func createView(
-        with model: SearchContactModel
-    ) -> SearchContactViewProtocol? {
+    static func createView(with model: SearchContactModel) -> SearchContactViewProtocol? {
         let walletRepo: WalletManagerRepositoryProtocol = .shared
         guard let ownAccountId = try? walletRepo.main().getRawPublicKey() else {
             assertionFailure()

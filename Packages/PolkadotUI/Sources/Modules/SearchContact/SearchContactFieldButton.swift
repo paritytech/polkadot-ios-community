@@ -7,6 +7,7 @@ public final class SearchContactFieldButton: UIControl {
     private let iconImageView: UIImageView = create {
         $0.image = UIImage(resource: .search18).withRenderingMode(.alwaysTemplate)
         $0.tintColor = .fgSecondary
+        $0.isUserInteractionEnabled = false
         $0.snp.makeConstraints {
             $0.width.height.equalTo(18)
         }
@@ -15,6 +16,7 @@ public final class SearchContactFieldButton: UIControl {
     private let label: Label = create {
         $0.style = .body14Regular()
         $0.textColor = .fgDisabled
+        $0.isUserInteractionEnabled = false
         $0.text = String(localized: .searchContactFieldPlaceholder)
     }
 
@@ -22,26 +24,36 @@ public final class SearchContactFieldButton: UIControl {
 
     public init() {
         super.init(frame: .zero)
-        setupViews()
+
+        setupStyle()
+        setupLayout()
+        setupAccessibility()
+
+        addTarget(self, action: #selector(didTap), for: .touchUpInside)
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
+}
 
-    private func setupViews() {
-        addSubview(iconImageView)
-        addSubview(label)
-
+private extension SearchContactFieldButton {
+    func setupStyle() {
         layer.cornerRadius = 24
         layer.cornerCurve = .continuous
         layer.borderWidth = 0.8
         backgroundColor = .bgSurfaceNested
         applyLayerColors()
 
-        iconImageView.isUserInteractionEnabled = false
-        label.isUserInteractionEnabled = false
+        registerForTraitChanges([DSThemeTrait.self]) { (view: SearchContactFieldButton, _) in
+            view.applyLayerColors()
+        }
+    }
+
+    func setupLayout() {
+        addSubview(iconImageView)
+        addSubview(label)
 
         snp.makeConstraints {
             $0.height.equalTo(48)
@@ -57,25 +69,19 @@ public final class SearchContactFieldButton: UIControl {
             $0.trailing.equalToSuperview().inset(16)
             $0.centerY.equalToSuperview()
         }
+    }
 
-        addTarget(self, action: #selector(didTap), for: .touchUpInside)
-
+    func setupAccessibility() {
         isAccessibilityElement = true
         accessibilityTraits = .button
         accessibilityLabel = String(localized: .searchContactFieldPlaceholder)
-
-        registerForTraitChanges([DSThemeTrait.self]) { (view: SearchContactFieldButton, _) in
-            view.applyLayerColors()
-        }
     }
 
-    @objc private func didTap() {
-        onTap?()
-    }
-}
-
-private extension SearchContactFieldButton {
     func applyLayerColors() {
         layer.borderColor = UIColor.strokePrimary.resolvedColor(with: traitCollection).cgColor
+    }
+
+    @objc func didTap() {
+        onTap?()
     }
 }

@@ -49,7 +49,10 @@ final class TabFactory: TabFactoryProtocol {
         guard let scanner = WalletQRScanViewFactory.createView(
             for: scanResultHandler,
             presentation: .embedded
-        )?.controller else { return nil }
+        )?.controller else {
+            return nil
+        }
+
         return ScanPanelViewController(scannerController: scanner, onSearchTap: onSearchTap)
     }
 }

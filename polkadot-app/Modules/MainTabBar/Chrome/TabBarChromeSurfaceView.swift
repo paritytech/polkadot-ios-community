@@ -14,6 +14,10 @@ final class TabBarChromeSurfaceView: UIView {
     private var glassContainerHeightConstraint: Constraint?
     private var appliedGlassContainerHeight: CGFloat = 0
 
+    var capsuleLayoutReference: UIView {
+        glassContainer.contentView
+    }
+
     var availablePanelHeight: CGFloat {
         bounds.height
             - safeAreaInsets.top
@@ -43,10 +47,6 @@ final class TabBarChromeSurfaceView: UIView {
 
     func addBar(_ bar: UIView) {
         addSubview(bar)
-    }
-
-    var capsuleLayoutReference: UIView {
-        glassContainer.contentView
     }
 
     func setPanelsOpen(_ kind: TabBarPanelKind?, animator: UIViewPropertyAnimator?) {
@@ -106,24 +106,22 @@ private extension TabBarChromeSurfaceView {
     }
 
     func installTabsPanel() {
-        addSubview(tabsPanelView)
-
-        tabsPanelView.snp.makeConstraints { make in
-            make.top.equalTo(glassContainer.contentView)
-            make.leading.trailing.equalTo(glassContainer.contentView)
-            make.bottom.equalTo(glassContainer.contentView).offset(-DSTabBarView.capsuleHeight)
-        }
+        installPanel(tabsPanelView)
 
         tabsPanelView.onChipTapped = { [weak self] id in self?.onChipTapped?(id) }
         tabsPanelView.onChipCloseRequested = { [weak self] id in self?.onChipCloseRequested?(id) }
     }
 
     func installContentPanel() {
-        addSubview(contentPanelView)
+        installPanel(contentPanelView)
+    }
 
-        contentPanelView.snp.makeConstraints { make in
-            make.top.equalTo(glassContainer.contentView)
-            make.leading.trailing.equalTo(glassContainer.contentView)
+    /// Both panels fill the glass above the capsule, which stays uncovered at the bottom.
+    func installPanel(_ panel: UIView) {
+        addSubview(panel)
+
+        panel.snp.makeConstraints { make in
+            make.top.leading.trailing.equalTo(glassContainer.contentView)
             make.bottom.equalTo(glassContainer.contentView).offset(-DSTabBarView.capsuleHeight)
         }
     }
