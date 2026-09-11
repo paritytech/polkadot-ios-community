@@ -14,36 +14,36 @@ extension TabBarTip {
 }
 
 struct ChainStatusStripTip: TabBarTip {
-    var title: Text { Text(verbatim: "Network status") }
-    var message: Text? { Text(verbatim: "These rings track your connection to each chain.") }
+    var title: Text { Text(.Tips.chainStatusTitle) }
+    var message: Text? { Text(.Tips.chainStatusMessage) }
 }
 
 struct ChatTabTip: TabBarTip {
-    var title: Text { Text(verbatim: "Chats live here") }
-    var message: Text? { Text(verbatim: "Messages, calls, and contacts.") }
+    var title: Text { Text(.Tips.chatTitle) }
+    var message: Text? { Text(.Tips.chatMessage) }
 }
 
 struct WalletTabTip: TabBarTip {
-    var title: Text { Text(verbatim: "Your wallet") }
-    var message: Text? { Text(verbatim: "Balances and transfers.") }
+    var title: Text { Text(.Tips.walletTitle) }
+    var message: Text? { Text(.Tips.walletMessage) }
 }
 
 struct ScanActionTip: TabBarTip {
-    var title: Text { Text(verbatim: "Scan a QR code") }
-    var message: Text? { Text(verbatim: "Scan to pay or add a contact.") }
+    var title: Text { Text(.Tips.scanTitle) }
+    var message: Text? { Text(.Tips.scanMessage) }
 }
 
 struct BrowseTabTip: TabBarTip {
-    var title: Text { Text(verbatim: "Browse apps") }
-    var message: Text? { Text(verbatim: "Discover dApps and open them in a tab.") }
+    var title: Text { Text(.Tips.browseTitle) }
+    var message: Text? { Text(.Tips.browseMessage) }
 }
 
 struct SettingsTabTip: TabBarTip {
-    var title: Text { Text(verbatim: "Settings") }
-    var message: Text? { Text(verbatim: "Accounts, security, and preferences.") }
+    var title: Text { Text(.Tips.settingsTitle) }
+    var message: Text? { Text(.Tips.settingsMessage) }
 }
 
 struct ConnectionStatusActionTip: TabBarTip {
-    var title: Text { Text(verbatim: "Connection details") }
-    var message: Text? { Text(verbatim: "Tap for per-chain connection details.") }
+    var title: Text { Text(.Tips.connectionStatusTitle) }
+    var message: Text? { Text(.Tips.connectionStatusMessage) }
 }
