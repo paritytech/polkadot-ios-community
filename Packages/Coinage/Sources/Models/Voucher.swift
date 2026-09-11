@@ -41,10 +41,14 @@ public struct Voucher: Equatable, CoinageDerivable, Sendable {
     public struct Recycler: Equatable, Sendable {
         public let index: UInt32
         public let membersCount: UInt32
+        /// First locally confirmed inclusion in this ring.
+        /// Nil until confirmed. Saved across restarts and reset on restore.
+        public let enteredAt: Date?
 
-        public init(index: UInt32, membersCount: UInt32) {
+        public init(index: UInt32, membersCount: UInt32, enteredAt: Date? = nil) {
             self.index = index
             self.membersCount = membersCount
+            self.enteredAt = enteredAt
         }
     }
 
