@@ -63,6 +63,40 @@ The HostApi allows web products to:
     / `ProductDerivationPath` (KeyDerivation) — never hand-format the index segment or feed a
     numeric index into a path.
 
+## Payments: `paymentRequest` / `paymentStatusSubscribe`
+
+Contract (`Packages/Products/.../ProductNativeApi+Payment.swift`, handlers in `ContainerBridge+HostApi.swift`):
+
+- `paymentRequest { id: hex32, amount: string, destinationHex: hex32 } → {}` — the **product supplies the
+  id** (`PaymentRequestId = Data`, 32 bytes, validated at DTO decode), exactly like `paymentTopUp`.
+  Nothing is returned; the id is the handle.
+- `paymentStatusSubscribe { paymentId: hex32 } → { tag: Processing | Completed | Failed, value? }`.
+  An unknown `(product, id)` emits `Failed("unknown payment")` once and ends; `PartiallyCompleted`
+  reports as `Completed` (money moved); `Rescheduled` reports as `Processing`.
+- Coded errors (`HostPaymentRequestError`): `Rejected`, `InsufficientBalance`, `AlreadyExists`, `Unknown`.
+  Messages keep the legacy strings the shipped container.js matches on.
+
+Native order in `ProductsNativeApi+Payment.swift`: balance check (non-prompting `check(.balanceAccess)`
+only shapes `InsufficientBalance` vs `Rejected`) → approval → `initiateExternalPayment`. Identity is
+`(origin = productId, paymentId)`; the coinage service validates uniqueness at registration, so a
+replayed call ends in `AlreadyExists` after those two steps. Products must treat any error on a retry
+as "subscribe to status", not as a failed payment.
+
+Approval goes through `PaymentApprovalRequesting`. `AutoAllowPaymentApprovalRequester` skips the sheet
+for the labels in `ProductAutoAllowList` (the funding product outside `FEATURE_PRODUCTS` builds) —
+the same wrapper shape and allowlist as `AutoAllowProductPermissionRequester`. Everyone else sees
+`PaymentRequestViewFactory`'s sheet via the app-side `PaymentApprovalRequester`.
+
+Offramp worker flow (getcash): the **worker** calls `workerBeginOperation` first, the SPA page calls
+`paymentRequest(id)`, the worker subscribes `paymentStatusSubscribe(id)` and calls
+`workerEndOperation` on the terminal status. Native drives the payment independently of the worker;
+on relaunch the operation reconciler restores the worker, `coinageService.setup` resumes the payment,
+and the re-subscription replays the stored status. Begin-first means a kill between begin and
+request leaves a restored worker that subscribes to an unknown id, gets `Failed`, and ends cleanly.
+
+Interim: the shipped `container.js` does not send `id` yet; the native handler rejects its params
+with a decode error until the host-api regeneration lands (same state as `paymentTopUp`).
+
 ## Product Runtimes
 
 A product runs in one of two runtime modes: **native** (Swift handlers behind the
@@ -179,6 +213,7 @@ Rules:
 | Seam                          | Where                                    | When to touch                        |
 |-------------------------------|------------------------------------------|--------------------------------------|
 | Product container bridge      | `Packages/Products/`                     | Adding new JS↔Swift bridge methods   |
+| Payment approval              | `Modules/Products/PaymentRequest/`       | Changing who sees the payment sheet (allowlist lives in `ProductAutoAllowList`) |
 | Product module sub-modules    | `polkadot-app/Modules/Products/`         | Adding new product screens           |
 | Deep link handlers            | `AppConfig/AppConfig.swift`              | Adding product deep links            |
 | SPA module                    | `polkadot-app/Modules/SPA/`             | Smart Proposal Agent changes         |

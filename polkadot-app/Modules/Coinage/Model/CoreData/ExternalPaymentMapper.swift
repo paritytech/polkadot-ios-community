@@ -24,12 +24,15 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
 
         let amount = BigUInt(amountString) ?? 0
         let stage = ExternalPayment.Stage(rawValue: Int(entity.stage)) ?? .plan
+        // Rows written before v46 carry the default 0; an unknown raw value is never widened.
+        let spendScope = SpendScope(rawValue: Int(entity.spendScope)) ?? .spendable
 
         return ExternalPayment(
             id: identifier,
             origin: origin,
             amountInPlanks: amount,
             destination: destination,
+            spendScope: spendScope,
             stage: stage,
             failureReason: entity.failureReason,
             readyAt: readyAt,
@@ -47,6 +50,7 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
         entity.origin = model.origin
         entity.amountInPlanks = String(model.amountInPlanks)
         entity.destination = model.destination
+        entity.spendScope = Int16(model.spendScope.rawValue)
         entity.stage = Int16(model.stage.rawValue)
         entity.failureReason = model.failureReason
         entity.readyAt = model.readyAt

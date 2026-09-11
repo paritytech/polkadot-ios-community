@@ -12,9 +12,9 @@ import SubstrateOperation
 final class ExternalPaymentStateFactory {
     let instanceId: CoinageInstanceId
     let planner: ExternalPaymentPlanning
+    let spendableAssets: any SpendableAssetsProviding
     let context: DenominationBreakdownContext
     let recycler: CoinageRecyclingServicing
-    let voucherService: VoucherServiceProtocol
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -27,9 +27,9 @@ final class ExternalPaymentStateFactory {
     init(
         instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
+        spendableAssets: any SpendableAssetsProviding,
         context: DenominationBreakdownContext,
         recycler: CoinageRecyclingServicing,
-        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -41,9 +41,9 @@ final class ExternalPaymentStateFactory {
     ) {
         self.instanceId = instanceId
         self.planner = planner
+        self.spendableAssets = spendableAssets
         self.context = context
         self.recycler = recycler
-        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -92,6 +92,11 @@ extension ExternalPaymentStateFactory {
 
     func makeRescheduledState(payment: ExternalPayment, until: Date) -> ErasedState {
         AnyStateMachineState(RescheduledPaymentState(payment: payment, until: until))
+    }
+
+    /// Transient failure: keeps `stage` persisted as-is so the service can retry from it.
+    func makeRetryState(payment: ExternalPayment, stage: ExternalPayment.Stage, error: Error) -> ErasedState {
+        AnyStateMachineState(RetryPaymentState(payment: payment, stage: stage, error: error))
     }
 
     /// Restores a state from a persisted ``ExternalPayment`` memo.

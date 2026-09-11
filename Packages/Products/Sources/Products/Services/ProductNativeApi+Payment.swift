@@ -18,12 +18,115 @@ public enum HostPaymentStatus: Sendable, Equatable {
     case failed(reason: String)
 }
 
-/// Receipt returned to the product after initiating a payment.
-public struct PaymentReceipt: Sendable {
-    public let paymentId: String
+/// Coded `paymentRequest` errors. Messages keep the legacy strings the current
+/// container.js matches on.
+public enum HostPaymentRequestError: Error, Hashable {
+    case rejected
+    case insufficientBalance
+    case alreadyExists
+    case unknown(String)
 
-    public init(paymentId: String) {
-        self.paymentId = paymentId
+    public var code: String {
+        switch self {
+        case .rejected: "Rejected"
+        case .insufficientBalance: "InsufficientBalance"
+        case .alreadyExists: "AlreadyExists"
+        case .unknown: "Unknown"
+        }
+    }
+
+    public var message: String {
+        switch self {
+        case .rejected: "payment rejected"
+        case .insufficientBalance: "insufficient balance"
+        case .alreadyExists: "A payment for the given id already exists"
+        case let .unknown(reason): reason
+        }
+    }
+
+    public static func wrapping(_ error: Error) -> HostPaymentRequestError {
+        error as? HostPaymentRequestError ?? .unknown(error.localizedDescription)
+    }
+}
+
+extension HostPaymentRequestError: HostCallCodedError {}
+
+// MARK: - Wire DTOs
+
+/// Decoded request for `paymentRequest`. Both byte fields are hex strings on the wire
+/// and must be exactly 32 bytes.
+public struct PaymentRequestDto: Decodable {
+    public let id: PaymentRequestId
+    @StringCodable public var amount: Balance
+    public let destination: AccountId
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case amount
+        case destination = "destinationHex"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeFixedHexBytes(forKey: .id)
+        _amount = try container.decode(StringCodable<Balance>.self, forKey: .amount)
+        destination = try container.decodeFixedHexBytes(forKey: .destination)
+    }
+}
+
+/// Decoded request for `paymentStatusSubscribe`.
+public struct PaymentStatusSubscribeDto: Decodable {
+    public let paymentId: PaymentRequestId
+
+    private enum CodingKeys: String, CodingKey {
+        case paymentId
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        paymentId = try container.decodeFixedHexBytes(forKey: .paymentId)
+    }
+}
+
+/// Wire representation of ``HostPaymentStatus``: a tagged struct encoded via `toScaleCompatibleJSON()`.
+public struct HostPaymentStatusDto: Encodable {
+    public let tag: String
+    public let value: String?
+
+    public init(status: HostPaymentStatus) {
+        switch status {
+        case .processing:
+            tag = "Processing"
+            value = nil
+        case .completed:
+            tag = "Completed"
+            value = nil
+        case let .failed(reason):
+            tag = "Failed"
+            value = reason
+        }
+    }
+}
+
+// MARK: - Fixed-length hex decoding
+
+enum PaymentWireBytes {
+    static let length = 32
+}
+
+private extension KeyedDecodingContainer {
+    func decodeFixedHexBytes(forKey key: Key) throws -> Data {
+        let bytes = try decode(HexCodable<Data>.self, forKey: key).wrappedValue
+
+        guard bytes.count == PaymentWireBytes.length else {
+            throw DecodingError.dataCorruptedError(
+                forKey: key,
+                in: self,
+                debugDescription: "expected \(PaymentWireBytes.length) bytes, got \(bytes.count)"
+            )
+        }
+
+        return bytes
     }
 }
 

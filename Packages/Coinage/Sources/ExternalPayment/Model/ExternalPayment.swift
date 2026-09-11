@@ -28,10 +28,14 @@ public struct ExternalPayment: Equatable {
         }
     }
 
+    /// Storage identifier, always ``identifier(origin:paymentId:)`` for new records. Legacy rows
+    /// carry a bare UUID; the format is opaque to the state machine.
     public let id: String
     public let origin: String
+    public let paymentId: String
     public let amountInPlanks: Balance
     public let destination: AccountId
+    public let spendScope: SpendScope
     public var stage: Stage
     public var failureReason: String?
     public var readyAt: Date
@@ -39,10 +43,38 @@ public struct ExternalPayment: Equatable {
     public var updatedAt: Date
 
     public init(
+        origin: String,
+        paymentId: String,
+        amountInPlanks: Balance,
+        destination: AccountId,
+        spendScope: SpendScope = .spendable,
+        stage: Stage = .plan,
+        failureReason: String? = nil,
+        readyAt: Date = .init(),
+        createdAt: Date = .init(),
+        updatedAt: Date = .init()
+    ) {
+        self.init(
+            id: Self.identifier(origin: origin, paymentId: paymentId),
+            origin: origin,
+            amountInPlanks: amountInPlanks,
+            destination: destination,
+            spendScope: spendScope,
+            stage: stage,
+            failureReason: failureReason,
+            readyAt: readyAt,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    /// Storage-side initializer: rebuilds the payment from its persisted identifier.
+    public init(
         id: String,
         origin: String,
         amountInPlanks: Balance,
         destination: AccountId,
+        spendScope: SpendScope = .spendable,
         stage: Stage = .plan,
         failureReason: String? = nil,
         readyAt: Date = .init(),
@@ -51,13 +83,27 @@ public struct ExternalPayment: Equatable {
     ) {
         self.id = id
         self.origin = origin
+        paymentId = Self.paymentId(fromIdentifier: id, origin: origin)
         self.amountInPlanks = amountInPlanks
         self.destination = destination
+        self.spendScope = spendScope
         self.stage = stage
         self.failureReason = failureReason
         self.readyAt = readyAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+}
+
+public extension ExternalPayment {
+    /// Identity is `(origin, paymentId)`: the same product-supplied id under two origins is two payments.
+    static func identifier(origin: String, paymentId: String) -> String {
+        "\(origin):\(paymentId)"
+    }
+
+    static func paymentId(fromIdentifier id: String, origin: String) -> String {
+        let prefix = "\(origin):"
+        return id.hasPrefix(prefix) ? String(id.dropFirst(prefix.count)) : id
     }
 }
 

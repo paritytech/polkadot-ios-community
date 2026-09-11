@@ -313,10 +313,20 @@ public extension CoinageService {
         let recyclingStrategyResolver = RecyclingStrategyProvider(quotaTracker: quotaTracker)
         let preClassificator = CoinageAssetPreClassificator()
 
-        let externalPaymentDependency = ExternalPaymentDependency(
-            instanceId: instanceId,
+        // Strategy-aware selection for product payments; reads verdicts through the coinage service
+        // once it exists (set below), so before the first evaluation the planner reschedules.
+        let spendableAssetsProvider = RecyclingAwareSpendableAssetsProvider(
             coinService: coinService,
             voucherService: voucherService,
+            settings: recyclingStrategySettings,
+            strategyResolver: recyclingStrategyResolver,
+            ringCapacityProvider: ringCapacityProvider,
+            preClassificator: preClassificator
+        )
+
+        let externalPaymentDependency = ExternalPaymentDependency(
+            instanceId: instanceId,
+            spendableAssets: spendableAssetsProvider,
             recycler: recyclingService,
             voucherKeyFactory: voucherKeypairFactory,
             voucherMinter: coinageMinter,
@@ -403,6 +413,8 @@ public extension CoinageService {
             incomingPaymentService: incomingPaymentService,
             logger: logger
         )
+
+        spendableAssetsProvider.setVerdictsReader(coinageService)
 
         return coinageService
     }

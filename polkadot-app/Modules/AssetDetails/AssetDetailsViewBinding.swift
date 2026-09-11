@@ -63,6 +63,10 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
             presenter?.onTopUp()
         }
 
+        viewModel.onWithdraw = { [weak presenter] in
+            presenter?.onWithdraw()
+        }
+
         #if TESTNET_FEATURE
             viewModel.onTestnetTopUp = { [weak presenter] in
                 presenter?.onTestnetTopUp()
@@ -136,8 +140,11 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         }
     }
 
-    func didReceive(topUpLoading: Bool) {
-        viewModel.isTopUpInProgress = topUpLoading
+    func didReceive(rampLoading action: RampAction, isLoading: Bool) {
+        switch action {
+        case .topUp: viewModel.isTopUpInProgress = isLoading
+        case .withdraw: viewModel.isWithdrawInProgress = isLoading
+        }
     }
 
     private func emitCardUpdate() {

@@ -100,38 +100,34 @@ struct AssetDetailsView: View {
     }
 
     private func actions() -> some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
-                    viewModel.onSendMoney?()
-                }
-                .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
-
-                topUpButton()
+        HStack(spacing: 12) {
+            DSButton(.actionSend, leadingIcon: .iconArrowUp16, expands: true) {
+                viewModel.onSendMoney?()
             }
-        }
-    }
+            .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
 
-    private func topUpButton() -> some View {
-        Button {
-            viewModel.onTopUp?()
-        } label: {
-            Group {
-                if viewModel.isTopUpInProgress {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .tint(.fgPrimaryInverted)
-                } else {
-                    Image(.add24)
-                        .renderingMode(.template)
-                }
+            DSButton(
+                .actionWithdraw,
+                style: .secondary,
+                leadingIcon: .iconArrowDown16,
+                expands: true,
+                isLoading: viewModel.isWithdrawInProgress
+            ) {
+                viewModel.onWithdraw?()
             }
-            .frame(width: 56, height: 56)
-            .foregroundStyle(Color.fgPrimaryInverted)
-            .background(.bgActionPrimary, in: Circle())
+            .accessibilityId(AccessibilityID.Wallet.withdrawButton)
+
+            DSButton(
+                .actionTopUp,
+                style: .secondary,
+                leadingIcon: .add24,
+                expands: true,
+                isLoading: viewModel.isTopUpInProgress
+            ) {
+                viewModel.onTopUp?()
+            }
+            .accessibilityId(AccessibilityID.Wallet.addFundsButton)
         }
-        .disabled(viewModel.isTopUpInProgress)
-        .accessibilityId(AccessibilityID.Wallet.addFundsButton)
     }
 
     #if TESTNET_FEATURE

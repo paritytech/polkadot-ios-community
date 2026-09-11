@@ -175,17 +175,24 @@ private extension TransferAmountInteractor {
 // MARK: - External Payment
 
 private extension TransferAmountInteractor {
+    /// The preview's scope is the consent: `.withConfirmation` only reaches here after the
+    /// presenter's privacy confirmation, and it is persisted with the record.
     func confirmExternalPayment(preview: ExternalPaymentPreview) async throws {
-        let paymentId = try await coinageService.initiateExternalPayment(
-            origin: recipient.accountId.toAddress(using: .genericFormat),
+        let origin = try recipient.accountId.toAddress(using: .genericFormat)
+        let paymentId = try Data.randomOrError(of: 32).toHex(includePrefix: true)
+
+        try await coinageService.initiateExternalPayment(
+            origin: origin,
+            paymentId: paymentId,
             amountInPlanks: preview.fullAmount,
-            destination: recipient.accountId
+            destination: recipient.accountId,
+            spendScope: preview.scope
         )
 
         // Completion and failure are observed by the presenter through the
         // lifecycle stream — initiation success is enough to return here.
         lifecycleReporter.start(
-            with: .externalPayment(paymentId: paymentId, amountInPlanks: preview.fullAmount)
+            with: .externalPayment(origin: origin, paymentId: paymentId, amountInPlanks: preview.fullAmount)
         )
     }
 }

@@ -28,36 +28,43 @@ extension ProductsNativeApi {
             .eraseToAnyAsyncSequence()
     }
 
-    func requestPayment(amountInPlanks: String, destination: AccountId) async throws -> PaymentReceipt {
-        guard let amount = BigUInt(amountInPlanks) else {
-            throw ProductNativeApiError.invalidParam("amountInPlanks")
-        }
-
+    /// Balance → approval → register. Uniqueness of `(product, id)` is validated by the coinage
+    /// service at registration, so a replay surfaces as `AlreadyExists` after those two steps.
+    func requestPayment(amount: Balance, destination: AccountId, id: PaymentRequestId) async throws {
         let externalPaymentService = try requirePaymentsSupport().externalPaymentService
 
         try await checkSufficientBalance(amount: amount)
         try await awaitUserApproval(amount: amount, destination: destination)
 
-        let paymentId = try await externalPaymentService.initiatePayment(
-            origin: productId,
-            amountInPlanks: amount,
-            destination: destination
-        )
-
-        return PaymentReceipt(paymentId: paymentId)
+        do {
+            try await externalPaymentService.initiatePayment(
+                origin: productId,
+                paymentId: id.toHex(includePrefix: true),
+                amountInPlanks: amount,
+                destination: destination,
+                spendScope: .spendable
+            )
+        } catch ExternalPaymentError.alreadyExists {
+            throw HostPaymentRequestError.alreadyExists
+        } catch {
+            throw HostPaymentRequestError.wrapping(error)
+        }
     }
 
-    func subscribePaymentStatus(paymentId: String) async throws -> AnyAsyncSequence<HostPaymentStatus> {
+    func subscribePaymentStatus(id: PaymentRequestId) async throws -> AnyAsyncSequence<HostPaymentStatus> {
         let externalPaymentService = try requirePaymentsSupport().externalPaymentService
-        return try externalPaymentService.subscribePaymentStatus(paymentId: paymentId)
-            .map { status in
-                switch status {
-                case .processing: .processing
-                case .completed: .completed
-                case let .failed(reason): .failed(reason: reason)
-                }
+        return try externalPaymentService.subscribePaymentStatus(
+            origin: productId,
+            paymentId: id.toHex(includePrefix: true)
+        )
+        .map { status in
+            switch status {
+            case .processing: .processing
+            case .completed: .completed
+            case let .failed(reason): .failed(reason: reason)
             }
-            .eraseToAnyAsyncSequence()
+        }
+        .eraseToAnyAsyncSequence()
     }
 
     /// Registers an idempotent top-up bound to `(productId, id)` and returns once initialization has
@@ -127,20 +134,10 @@ private extension ProductsNativeApi {
         return paymentsSupport
     }
 
-    /// Validates spendable balance covers the requested amount.
-    ///
-    /// If the product has `balanceAccess` permission, returns `insufficientBalance`
-    /// (the product already knows balances). Otherwise returns `rejected`
-    /// to avoid leaking balance information.
+    /// Validates spendable balance covers the requested amount. The permission is only read, never
+    /// prompted: with `balanceAccess` the product already knows balances and gets
+    /// `insufficientBalance`; without it the shortfall is reported as `rejected` so nothing leaks.
     func checkSufficientBalance(amount: Balance) async throws {
-        guard
-            try await permissionGuard.consumePermission(
-                productId: productId,
-                permission: .balanceAccess
-            ) else {
-            throw PaymentRequestError.rejected
-        }
-
         let coinageService = try requirePaymentsSupport().coinageService
         let balanceService = try await coinageService.coinageBalanceService()
 
@@ -149,24 +146,22 @@ private extension ProductsNativeApi {
             spendable = value.availablePrivate
         }
 
-        if spendable < amount {
-            throw PaymentRequestError.insufficientBalance
-        }
+        guard spendable < amount else { return }
+
+        let knowsBalance = try await permissionGuard.check(productId: productId, permission: .balanceAccess)
+        throw knowsBalance ? HostPaymentRequestError.insufficientBalance : HostPaymentRequestError.rejected
     }
 
-    /// Shows the payment request approval sheet and suspends until the user decides.
+    /// Auto-approved for allowlisted products; everyone else sees the payment request sheet.
     func awaitUserApproval(amount: Balance, destination: AccountId) async throws {
-        let context = PaymentRequestContext(
+        let decision = await paymentApprovalRequester.requestApproval(
             productId: productId,
-            amountInPlanks: amount,
+            amount: amount,
             destination: destination
         )
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            context.setContinuation(continuation)
-            Task { @MainActor [productsRouter] in
-                productsRouter.showPaymentRequest(context: context)
-            }
+        guard decision == .approved else {
+            throw HostPaymentRequestError.rejected
         }
     }
 }

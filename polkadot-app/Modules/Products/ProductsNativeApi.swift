@@ -25,6 +25,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let entropyDeriver: ProductRootEntropyDeriving
     let substrateStorageFacade: StorageFacadeProtocol
     let permissionGuard: ProductPermissionGuarding
+    let paymentApprovalRequester: PaymentApprovalRequesting
     let paymentsSupport: PaymentsSupport?
     let accountManager: ProductsAccountManaging
     let createProofHandler: APCreateProofHandling
@@ -66,6 +67,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         entropyDeriver: ProductRootEntropyDeriving,
         substrateStorageFacade: StorageFacadeProtocol,
         permissionGuard: ProductPermissionGuarding,
+        paymentApprovalRequester: PaymentApprovalRequesting,
         paymentsSupport: PaymentsSupport?,
         accountManager: ProductsAccountManaging,
         createProofHandler: APCreateProofHandling,
@@ -93,6 +95,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.entropyDeriver = entropyDeriver
         self.substrateStorageFacade = substrateStorageFacade
         self.permissionGuard = permissionGuard
+        self.paymentApprovalRequester = paymentApprovalRequester
         self.paymentsSupport = paymentsSupport
         self.accountManager = accountManager
         self.createProofHandler = createProofHandler

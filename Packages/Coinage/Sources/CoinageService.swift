@@ -60,15 +60,19 @@ public protocol CoinageServicing: Actor {
     /// Preview an external payment for UI validation (degraded privacy check).
     func previewExternalPayment(for amount: BigUInt) async throws -> ExternalPaymentPreview
 
-    /// Initiate an external payment. Saves to store and returns the payment id.
+    /// Register an external payment identified by `(origin, paymentId)`.
+    /// Throws `ExternalPaymentError.alreadyExists` on replay.
     func initiateExternalPayment(
         origin: String,
+        paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId
-    ) async throws -> String
+        destination: AccountId,
+        spendScope: SpendScope
+    ) async throws
 
-    /// Subscribe to the status of an external payment.
+    /// Subscribe to the status of an external payment identified by `(origin, paymentId)`.
     func subscribeExternalPaymentStatus(
+        origin: String,
         paymentId: String
     ) throws -> AnyAsyncSequence<ExternalPaymentStatus>
 
@@ -227,20 +231,25 @@ extension CoinageService: CoinageServicing {
 
     public func initiateExternalPayment(
         origin: String,
+        paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId
-    ) async throws -> String {
+        destination: AccountId,
+        spendScope: SpendScope
+    ) async throws {
         try await externalPaymentService.initiatePayment(
             origin: origin,
+            paymentId: paymentId,
             amountInPlanks: amountInPlanks,
-            destination: destination
+            destination: destination,
+            spendScope: spendScope
         )
     }
 
     public func subscribeExternalPaymentStatus(
+        origin: String,
         paymentId: String
     ) throws -> AnyAsyncSequence<ExternalPaymentStatus> {
-        try externalPaymentService.subscribePaymentStatus(paymentId: paymentId)
+        try externalPaymentService.subscribePaymentStatus(origin: origin, paymentId: paymentId)
     }
 
     // MARK: Denomination Context
@@ -454,6 +463,15 @@ private extension CoinageService {
             return try result.get()
         }
         throw CancellationError()
+    }
+}
+
+// MARK: - RecyclingVerdictsReading
+
+extension CoinageService: RecyclingVerdictsReading {
+    /// The evaluator's latest verdicts, or `nil` before the first evaluation lands.
+    public func currentRecyclingVerdicts() -> RecyclingVerdicts? {
+        recyclingEvaluator?.currentVerdicts()
     }
 }
 

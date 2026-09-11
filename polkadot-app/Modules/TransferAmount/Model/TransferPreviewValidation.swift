@@ -13,11 +13,10 @@ enum TransferPreviewValidation {
     }
 
     /// Whether the plan spends gaining-privacy funds, so the user must confirm before it is submitted.
-    /// External payments require the exact amount and never make the offer.
     var requiresPrivacyConfirmation: Bool {
         switch self {
         case let .coinage(preview): preview.scope == .withConfirmation
-        case .externalPayment: false
+        case let .externalPayment(preview): preview.scope == .withConfirmation
         }
     }
 }

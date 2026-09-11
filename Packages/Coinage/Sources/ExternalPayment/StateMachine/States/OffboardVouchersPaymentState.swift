@@ -5,6 +5,7 @@ import StateMachine
 /// Unloads vouchers to external asset and transfers to destination.
 ///
 /// Delegates to ``OffboardVouchersForPaymentService``; durability tracks the resulting asset state.
+/// Unload verdicts (`.failed` outcome) persist `failed`; thrown errors keep the stage and retry.
 struct OffboardVouchersPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
@@ -31,13 +32,13 @@ struct OffboardVouchersPaymentState: StateMachineState {
 
         do {
             // Before committing, pick the path:
-            // - a group is already registered (crash re-entry): re-join and await it; the
+            // - a group is already registered (crash or retry re-entry): re-join and await it; the
             //   plan-carried vouchers are irrelevant since the inputs are already claimed.
             // - nothing registered yet: we must register, so the plan must still be valid — every
-            //   selected voucher still selectable. A stale or crash-lost plan re-plans instead of
-            //   failing, because the funds are still there.
+            //   selected voucher still spendable under the payment's scope. A stale or crash-lost
+            //   plan re-plans instead of failing, because the funds are still there.
             if try await !service.hasPendingGroup(for: payment) {
-                guard !vouchers.isEmpty, try await allSelectable(vouchers, factory: factory) else {
+                guard !vouchers.isEmpty, try await allSpendable(vouchers, factory: factory) else {
                     return factory.makePlanState(payment: payment)
                 }
             }
@@ -61,10 +62,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
                 )
             }
         } catch {
-            return factory.makeFailedState(
-                payment: payment,
-                reason: error.localizedDescription
-            )
+            return factory.makeRetryState(payment: payment, stage: .offboardVouchers, error: error)
         }
     }
 
@@ -75,17 +73,18 @@ struct OffboardVouchersPaymentState: StateMachineState {
         return currentPayment
     }
 
-    /// Whether every planned voucher is still selectable right now — the plan may have gone stale
-    /// (a voucher spent or recycled) since it was picked.
-    private func allSelectable(
+    /// Whether every planned voucher is still spendable under the payment's scope — the plan may
+    /// have gone stale (a voucher spent, recycled, or held back by a strategy change) since it was
+    /// picked. No verdicts yet means nothing is provably spendable.
+    private func allSpendable(
         _ vouchers: [Voucher],
         factory: ExternalPaymentStateFactory
     ) async throws -> Bool {
-        let selectable = try await Set(
-            factory.voucherService.fetchAllTracked()
-                .filter(\.isSelectable)
-                .map(\.voucher.derivationIndex)
-        )
-        return vouchers.allSatisfy { selectable.contains($0.derivationIndex) }
+        guard let assets = try await factory.spendableAssets.spendableAssets(scope: payment.spendScope) else {
+            return false
+        }
+
+        let spendable = Set(assets.spendableVouchers.map(\.derivationIndex))
+        return vouchers.allSatisfy { spendable.contains($0.derivationIndex) }
     }
 }

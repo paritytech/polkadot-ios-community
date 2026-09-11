@@ -116,9 +116,11 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
     }
 
     func onTopUp() {
-        view?.didReceive(topUpLoading: true)
+        openRampProduct(.topUp)
+    }
 
-        interactor?.openTopUpProduct()
+    func onWithdraw() {
+        openRampProduct(.withdraw)
     }
 
     #if TESTNET_FEATURE
@@ -135,8 +137,8 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
 }
 
 extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
-    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>) {
-        view?.didReceive(topUpLoading: false)
+    func didResolveRampProduct(_ action: RampAction, result: Result<ProductPage, Error>) {
+        view?.didReceive(rampLoading: action, isLoading: false)
 
         switch result {
         case let .success(page):
@@ -364,3 +366,11 @@ private extension AssetDetailsPresenter {
         }
     }
 #endif
+
+private extension AssetDetailsPresenter {
+    func openRampProduct(_ action: RampAction) {
+        view?.didReceive(rampLoading: action, isLoading: true)
+
+        interactor?.openRampProduct(action)
+    }
+}

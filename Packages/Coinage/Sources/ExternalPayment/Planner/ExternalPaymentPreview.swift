@@ -29,15 +29,20 @@ public extension ExternalPaymentPreview {
         public let coins: [Coin]
         /// The originally requested transfer amount.
         public let fullAmount: BigUInt
+        /// The scope the plan drew on. `.withConfirmation` means it spends gaining-privacy funds,
+        /// so the caller must confirm before initiating.
+        public let scope: SpendScope
 
         public init(
             vouchers: [Voucher],
             coins: [Coin],
-            fullAmount: BigUInt
+            fullAmount: BigUInt,
+            scope: SpendScope
         ) {
             self.vouchers = vouchers
             self.coins = coins
             self.fullAmount = fullAmount
+            self.scope = scope
         }
     }
 }
@@ -57,6 +62,9 @@ public extension ExternalPaymentPreview {
     }
 
     var fullAmount: BigUInt { selection?.fullAmount ?? .zero }
+
+    /// `.spendable` when there is no selection: nothing widened was offered.
+    var scope: SpendScope { selection?.scope ?? .spendable }
 
     var isExecutable: Bool {
         switch self {

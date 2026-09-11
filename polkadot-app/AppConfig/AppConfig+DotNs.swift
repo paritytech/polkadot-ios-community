@@ -37,6 +37,9 @@ extension AppConfig {
             AppConfigProvider.shared.getRemoteConfig()!.fundingDomain!
         }
 
+        // TODO(Products): confirm the withdraw sub-path with getcash.
+        static let getCashWithdrawPage = "/withdraw"
+
         static let dotNsGameWebview = "game-webview"
         static let dotNsCollectibles = "collectibles-webview"
 

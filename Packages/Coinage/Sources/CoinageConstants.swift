@@ -17,6 +17,17 @@ public enum CoinageConstants {
     /// top-up finishes the window it was given.
     public static let topUpRetryWindow: TimeInterval = 60 * 60
 
+    /// How long an external payment keeps retrying transient failures, measured from `createdAt`
+    /// (1 hour). Bounded because the user is waiting inside the product; Android retries without
+    /// bound via WorkManager.
+    public static let externalPaymentRetryWindow: TimeInterval = 60 * 60
+
+    /// Linear retry backoff step for external payments (30 s × attempt).
+    public static let externalPaymentRetryBackoff: TimeInterval = 30
+
+    /// Cap for the external payment retry backoff (5 minutes).
+    public static let externalPaymentMaxRetryBackoff: TimeInterval = 5 * 60
+
     /// Coin age threshold at which coin is still operatable
     public static let coinMaxAge: Int16 = 16
 

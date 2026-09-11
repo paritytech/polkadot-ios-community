@@ -7,7 +7,7 @@ final class PaymentRequestContext {
     let amountInPlanks: Balance
     let destination: AccountId
 
-    private var continuation: CheckedContinuation<Void, Error>?
+    private var continuation: CheckedContinuation<PaymentApprovalDecision, Never>?
 
     init(productId: ProductId, amountInPlanks: Balance, destination: AccountId) {
         self.productId = productId
@@ -15,34 +15,17 @@ final class PaymentRequestContext {
         self.destination = destination
     }
 
-    func setContinuation(_ continuation: CheckedContinuation<Void, Error>) {
+    func setContinuation(_ continuation: CheckedContinuation<PaymentApprovalDecision, Never>) {
         self.continuation = continuation
     }
 
     func deliverApproved() {
-        continuation?.resume()
+        continuation?.resume(returning: .approved)
         continuation = nil
     }
 
     func deliverRejected() {
-        continuation?.resume(throwing: PaymentRequestError.rejected)
+        continuation?.resume(returning: .rejected)
         continuation = nil
-    }
-}
-
-enum PaymentRequestError: Error, LocalizedError {
-    case rejected
-    case insufficientBalance
-    case presentationFailed
-
-    var errorDescription: String? {
-        switch self {
-        case .rejected:
-            "payment rejected"
-        case .insufficientBalance:
-            "insufficient balance"
-        case .presentationFailed:
-            "Failed to present the payment request sheet"
-        }
     }
 }

@@ -549,39 +549,25 @@ private extension ContainerBridge {
 
     func registerHostPaymentRequest(nativeApi: ProductsNativeApiProtocol) {
         registerRequestHandler(method: "paymentRequest") { params in
-            let amount = try params.mapOrMissing(for: "amount") { $0.stringValue }
-            let destHex = try params.mapOrMissing(for: "destinationHex") { $0.stringValue }
-            let destination = try AccountId(hexString: destHex)
+            // TODO(Products): the shipped container.js still sends no `id`; regenerate with the host-api bump.
+            let request = try params.map(to: PaymentRequestDto.self)
 
-            let receipt = try await nativeApi.requestPayment(
-                amountInPlanks: amount,
-                destination: destination
+            try await nativeApi.requestPayment(
+                amount: request.amount,
+                destination: request.destination,
+                id: request.id
             )
 
-            return JSON.dictionaryValue([
-                "id": .stringValue(receipt.paymentId)
-            ])
+            return JSON.dictionaryValue([:])
         }
     }
 
     func registerHostPaymentStatusSubscribe(nativeApi: ProductsNativeApiProtocol) {
         registerSubscriptionHandler(method: "paymentStatusSubscribe") { params in
-            let paymentId = try params.mapOrMissing(for: "paymentId") { $0.stringValue }
+            let request = try params.map(to: PaymentStatusSubscribeDto.self)
 
-            return try await nativeApi.subscribePaymentStatus(paymentId: paymentId)
-                .map { status -> JSON in
-                    switch status {
-                    case .processing:
-                        JSON.dictionaryValue(["tag": .stringValue("Processing")])
-                    case .completed:
-                        JSON.dictionaryValue(["tag": .stringValue("Completed")])
-                    case let .failed(reason):
-                        JSON.dictionaryValue([
-                            "tag": .stringValue("Failed"),
-                            "value": .stringValue(reason)
-                        ])
-                    }
-                }
+            return try await nativeApi.subscribePaymentStatus(id: request.paymentId)
+                .map { try HostPaymentStatusDto(status: $0).toScaleCompatibleJSON() }
                 .eraseToAnyAsyncSequence()
         }
     }

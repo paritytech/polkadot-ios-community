@@ -2,100 +2,73 @@ import BigInt
 import Foundation
 import SubstrateSdk
 
-/// Plans how to fulfill an external payment from available coins and vouchers.
+/// Plans how to fulfill an external payment from the strategy buckets of ``SpendableAssetsProviding``.
 ///
 /// Algorithm (greedy, largest-value-first):
-/// 1. Fetch vouchers, evaluate readiness, partition into ready/waiting
-/// 2. If ready vouchers cover the amount → `.ready`
-/// 3. If total vouchers (ready + waiting) cover it → `.needsReschedule`
-/// 4. Calculate deficit, check available coins
-/// 5. If coins cover deficit → `.loadCoins`
-/// 6. If total coins cover deficit → `.needsReschedule`
-/// 7. Otherwise → `.notEnoughBalance`
+/// 1. No verdicts yet → `.needsReschedule` (never fall back to raw structural readiness)
+/// 2. Spendable vouchers cover the amount → `.ready`
+/// 3. Spendable + gaining-privacy + pending vouchers cover it → `.needsReschedule` (at the earliest
+///    gaining `readyAt`, not before the base delay)
+/// 4. Deficit against all vouchers; spendable coins cover it → `.loadCoins`
+/// 5. Spendable + gaining + pending coins cover it → `.needsReschedule`
+/// 6. Otherwise → `.notEnoughBalance`
 struct ExternalPaymentPlanner: ExternalPaymentPlanning {
-    private let coinService: CoinServiceProtocol
-    private let voucherService: VoucherServiceProtocol
+    private let spendableAssets: any SpendableAssetsProviding
+    private let rescheduleDelay: TimeInterval
 
-    private let rescheduleDelay: TimeInterval = 6
-
-    init(
-        coinService: CoinServiceProtocol,
-        voucherService: VoucherServiceProtocol
-    ) {
-        self.coinService = coinService
-        self.voucherService = voucherService
+    init(spendableAssets: any SpendableAssetsProviding, rescheduleDelay: TimeInterval = 6) {
+        self.spendableAssets = spendableAssets
+        self.rescheduleDelay = rescheduleDelay
     }
 
     func plan(
         amount: Balance,
-        context: DenominationBreakdownContext
+        context: DenominationBreakdownContext,
+        scope: SpendScope
     ) async throws -> ExternalPaymentPreview {
-        let trackedVouchers = try await voucherService.fetchAllTracked()
-
-        let readyVouchers = trackedVouchers.filter(\.isSelectable).map(\.voucher)
-        let waitingVouchers = trackedVouchers
-            .filter { $0.isOnboarding || $0.isMinting }
-            .map(\.voucher)
-
-        // Try ready vouchers first
-        let readyTotal = totalValue(of: readyVouchers, context: context)
-        if readyTotal >= amount {
-            let selected = selectVouchers(from: readyVouchers, target: amount, context: context)
-            let selection = ExternalPaymentPreview.Selection(
-                vouchers: selected,
-                coins: [],
-                fullAmount: amount
+        guard let assets = try await spendableAssets.spendableAssets(scope: scope) else {
+            return .needsReschedule(
+                after: Date(timeIntervalSinceNow: rescheduleDelay),
+                selection(vouchers: [], coins: [], amount: amount, scope: scope)
             )
-            return .ready(selection)
         }
 
-        // Check if total vouchers (ready + waiting) would be enough
-        let totalVoucherValue = readyTotal + totalValue(of: waitingVouchers, context: context)
+        let spendableVoucherTotal = totalValue(of: assets.spendableVouchers, context: context)
+        if spendableVoucherTotal >= amount {
+            let selected = selectVouchers(from: assets.spendableVouchers, target: amount, context: context)
+            return .ready(selection(vouchers: selected, coins: [], amount: amount, scope: scope))
+        }
+
+        let waitingVouchers = assets.gainingPrivacyVouchers + assets.pendingVouchers
+        let totalVoucherValue = spendableVoucherTotal + totalValue(of: waitingVouchers, context: context)
         if totalVoucherValue >= amount {
-            let selection = ExternalPaymentPreview.Selection(
-                vouchers: readyVouchers,
-                coins: [],
-                fullAmount: amount
-            )
             return .needsReschedule(
-                after: Date(timeIntervalSinceNow: rescheduleDelay),
-                selection
+                after: rescheduleDate(for: assets.gainingPrivacyVouchers),
+                selection(vouchers: assets.spendableVouchers, coins: [], amount: amount, scope: scope)
             )
         }
 
-        // Calculate deficit and check coins
         let deficit = amount - totalVoucherValue
-
-        let trackedCoins = try await coinService.fetchAllTrackedCoins()
-        let spendableCoins = trackedCoins.filter(\.isSelectable).map(\.coin)
-        let spendableTotal = totalValue(of: spendableCoins, context: context)
-
-        if spendableTotal >= deficit {
-            let selectedCoins = selectCoins(from: spendableCoins, target: deficit, context: context)
-            let selection = ExternalPaymentPreview.Selection(
-                vouchers: readyVouchers,
-                coins: selectedCoins,
-                fullAmount: amount
+        let spendableCoinTotal = totalValue(of: assets.spendableCoins, context: context)
+        if spendableCoinTotal >= deficit {
+            let selectedCoins = selectCoins(from: assets.spendableCoins, target: deficit, context: context)
+            return .loadCoins(
+                selection(vouchers: assets.spendableVouchers, coins: selectedCoins, amount: amount, scope: scope)
             )
-            return .loadCoins(selection)
         }
 
-        // Coins not spendable yet but on their way — minting (will land) or aged past recycling
-        // (will be recycled into fresh spendable coins). If they would cover the deficit, wait for
-        // them rather than declaring insufficient funds.
-        let maturingCoins = trackedCoins
-            .filter { $0.isMinting || $0.isAwaitingRecycling() }
-            .map(\.coin)
-        let reachableTotal = spendableTotal + totalValue(of: maturingCoins, context: context)
-        if reachableTotal >= deficit {
-            let selection = ExternalPaymentPreview.Selection(
-                vouchers: readyVouchers,
-                coins: spendableCoins + maturingCoins,
-                fullAmount: amount
-            )
+        // Gaining coins are recycled into vouchers by the recycling service on its own; pending
+        // coins are minting or awaiting mandatory recycling. Wait for them rather than failing.
+        let waitingCoins = assets.gainingPrivacyCoins + assets.pendingCoins
+        if spendableCoinTotal + totalValue(of: waitingCoins, context: context) >= deficit {
             return .needsReschedule(
                 after: Date(timeIntervalSinceNow: rescheduleDelay),
-                selection
+                selection(
+                    vouchers: assets.spendableVouchers,
+                    coins: assets.spendableCoins + waitingCoins,
+                    amount: amount,
+                    scope: scope
+                )
             )
         }
 
@@ -106,6 +79,22 @@ struct ExternalPaymentPlanner: ExternalPaymentPlanning {
 // MARK: - Selection Helpers
 
 private extension ExternalPaymentPlanner {
+    func selection(
+        vouchers: [Voucher],
+        coins: [Coin],
+        amount: Balance,
+        scope: SpendScope
+    ) -> ExternalPaymentPreview.Selection {
+        ExternalPaymentPreview.Selection(vouchers: vouchers, coins: coins, fullAmount: amount, scope: scope)
+    }
+
+    /// Never earlier than the base delay; otherwise the earliest moment a gaining voucher matures.
+    func rescheduleDate(for gainingVouchers: [Voucher]) -> Date {
+        let base = Date(timeIntervalSinceNow: rescheduleDelay)
+        guard let earliest = gainingVouchers.map(\.readyAt).min() else { return base }
+        return max(base, earliest)
+    }
+
     func totalValue(of vouchers: [Voucher], context: DenominationBreakdownContext) -> Balance {
         vouchers.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.exponent) }
     }

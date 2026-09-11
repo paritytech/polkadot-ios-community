@@ -118,6 +118,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             entropyDeriver: entropyDeriver,
             substrateStorageFacade: substrateStorageFacade,
             permissionGuard: permissionGuard,
+            paymentApprovalRequester: PaymentApprovalRequesterFactory.create(router: routers.productsRouter),
             paymentsSupport: paymentsSupport,
             accountManager: accountManager,
             createProofHandler: personhoodHandlerFactory.makeCreateProofHandler(callingProductId: productId),

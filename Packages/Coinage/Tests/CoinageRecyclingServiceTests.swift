@@ -95,32 +95,3 @@ private extension CoinageRecyclingServiceTests {
         Coin(exponent: 3, derivationIndex: index, age: 14, isOnchain: true, publicKey: key(index))
     }
 }
-
-// MARK: - Stubs
-
-private func stubKey(_ index: DerivationIndex) -> Data {
-    Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
-}
-
-private actor StubVoucherMinter: VoucherMinting {
-    private var nextIndex: UInt64 = 500
-    private let error: Error?
-
-    init(error: Error?) {
-        self.error = error
-    }
-
-    func mintVoucher(exponent: Int16) async throws -> Voucher {
-        if let error { throw error }
-        let index = nextIndex
-        nextIndex += 1
-        return Voucher(
-            exponent: exponent,
-            derivationIndex: index,
-            allocatedAt: Date(),
-            readyAt: Date.distantPast,
-            remoteState: .unlocated,
-            publicKey: stubKey(index)
-        )
-    }
-}

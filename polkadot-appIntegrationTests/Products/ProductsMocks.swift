@@ -230,11 +230,9 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         AsyncStream<HostPaymentTopUpStatus> { $0.finish() }.eraseToAnyAsyncSequence()
     }
 
-    func requestPayment(amountInPlanks _: String, destination _: AccountId) async throws -> PaymentReceipt {
-        PaymentReceipt(paymentId: UUID().uuidString)
-    }
+    func requestPayment(amount _: Balance, destination _: AccountId, id _: PaymentRequestId) async throws {}
 
-    func subscribePaymentStatus(paymentId _: String) async throws -> AsyncExtensions
+    func subscribePaymentStatus(id _: PaymentRequestId) async throws -> AsyncExtensions
         .AnyAsyncSequence<HostPaymentStatus> {
         AsyncStream<HostPaymentStatus> { $0.finish() }.eraseToAnyAsyncSequence()
     }

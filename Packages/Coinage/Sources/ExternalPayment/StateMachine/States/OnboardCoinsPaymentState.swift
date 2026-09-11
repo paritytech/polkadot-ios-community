@@ -17,10 +17,7 @@ struct OnboardCoinsPaymentState: StateMachineState {
             try await factory.recycler.recycleCoins(coins)
             return factory.makePlanState(payment: payment)
         } catch {
-            return factory.makeFailedState(
-                payment: payment,
-                reason: error.localizedDescription
-            )
+            return factory.makeRetryState(payment: payment, stage: .onboardCoins, error: error)
         }
     }
 

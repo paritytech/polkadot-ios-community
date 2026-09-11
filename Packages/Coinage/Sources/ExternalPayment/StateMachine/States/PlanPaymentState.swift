@@ -2,6 +2,9 @@ import Foundation
 import StateMachine
 
 /// Invokes the planner and decides the next state.
+///
+/// Planner verdicts are final for this run (`notEnoughBalance` → failed); a thrown error is
+/// transient and yields ``RetryPaymentState`` with the stage kept at `.plan`.
 struct PlanPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
@@ -15,7 +18,8 @@ struct PlanPaymentState: StateMachineState {
         do {
             let plan = try await factory.planner.plan(
                 amount: payment.amountInPlanks,
-                context: factory.context
+                context: factory.context,
+                scope: payment.spendScope
             )
 
             switch plan {
@@ -35,10 +39,7 @@ struct PlanPaymentState: StateMachineState {
                 )
             }
         } catch {
-            return factory.makeFailedState(
-                payment: payment,
-                reason: error.localizedDescription
-            )
+            return factory.makeRetryState(payment: payment, stage: .plan, error: error)
         }
     }
 

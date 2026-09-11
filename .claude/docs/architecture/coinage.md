@@ -60,12 +60,48 @@ Transfer plans determine how coins are spent:
 - Integrates with chat for payment request/confirmation messages
 - See `architecture/chat-extension.md` for chat integration
 
+## External Payments (offramp)
+
+`Packages/Coinage/Sources/ExternalPayment/` moves CASH out of the wallet on behalf of a product
+(`getcash` withdraw) or the in-app pay deeplink. Persisted as `ExternalPayment` rows
+(`CDExternalPayment`, `ExternalPaymentMapper`) and driven by a persist-per-transition state machine
+(`Plan → OnboardCoins → Plan → OffboardVouchers → Completed/PartiallyCompleted/Failed`, or
+`Rescheduled` with a `readyAt` wakeup).
+
+- **Identity** is `(origin, paymentId)`; the record id is `"<origin>:<paymentId>"`
+  (`ExternalPayment.identifier(origin:paymentId:)`), so the same product-supplied id under two origins
+  is two payments and the durability group id `external-payment:<id>` stays unique. Registration
+  (`initiatePayment`) validates uniqueness and throws `ExternalPaymentError.alreadyExists`; there is
+  no separate pre-check.
+- **Spend scope is persisted** (`spendScope`, CoreData v46). Products always register `.spendable`.
+  The in-app flow previews two-pass like `previewTransfer` (spendable, then `.withConfirmation`) and
+  persists the widened scope only after the presenter's privacy confirmation — the record carries the
+  consent, so a restart plans with it.
+- **Planner reads strategy buckets**, never raw structural readiness: `SpendableAssetsProviding`
+  (`RecyclingAwareSpendableAssetsProvider` over `CoinageAssetSelector` + evaluator verdicts + voucher
+  usability). No verdicts yet → reschedule. Gaining-privacy funds outside the scope reschedule at the
+  earliest `readyAt`; they are never spent or recycled early by a payment.
+- **Verdict vs transient**: planner `notEnoughBalance` and an unload outcome of `.failed` persist
+  `failed` immediately. A thrown error (RPC, planner, cancellation) yields `RetryPaymentState`, which
+  persists the failing stage unchanged with the error as `failureReason`; `ExternalPaymentService`
+  detects "machine returned but stage is non-terminal" and re-runs under `ExternalPaymentRetryPolicy`
+  (30 s × attempt, capped at 5 min, within 1 h of `createdAt`; then `failed` with the last error).
+  Cancellation never persists `failed`. Retries re-enter offboarding through the durability group
+  re-join exactly like crash re-entry, so a group is registered once.
+- **Status semantics** (`subscribePaymentStatus`): unknown id → `.failed("unknown payment")` once,
+  then end; `partiallyCompleted` → `.completed`; `rescheduled` → `.processing`; duplicates collapse;
+  the stream ends after the first terminal status.
+- Tests: `Packages/Coinage/Tests/ExternalPayment/` (real service + state machine over an in-memory
+  store and a group-aware durability double); mutation sweep
+  `Packages/Coinage/Tools/external_payment_mutation_sweep.py`.
+
 ## Seams
 
 | Seam                    | Where                          | When to touch                    |
 |-------------------------|--------------------------------|----------------------------------|
 | Coin models             | `Packages/Coinage/`           | Coin structure changes           |
 | Transfer planning       | `Packages/Coinage/`           | New transfer strategies          |
+| External payments       | `Packages/Coinage/Sources/ExternalPayment/` | Offramp identity, retry, status, planner scope |
 | Coinage UI              | `Modules/Coinage/`            | Coinage screen changes           |
 | Backup sync             | ServiceCoordinator             | Backup/restore flow changes      |
 | Instance ID config      | `AppConfig.Coinage.instanceId` | Remote config schema or app instance strategy changes |
