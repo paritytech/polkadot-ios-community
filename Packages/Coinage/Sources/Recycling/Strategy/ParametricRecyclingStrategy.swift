@@ -49,20 +49,22 @@ public struct ParametricRecyclingStrategy: CoinRecyclingStrategyProtocol {
     public func isVoucherUsable(_ voucher: Voucher, context: VoucherUsabilityContext) -> Bool {
         guard case let .inRecycler(recycler) = voucher.remoteState else { return false }
 
-        let readiness = params.voucherReadiness
-        guard readiness.requiredRingFill > .withInt(0) else { return true }
+        switch params.voucherReadiness {
+        case .immediate:
+            return true
+        case let .ringFillOrMembersAndAge(requiredRingFill, _, _):
+            let ringFilled =
+                if let capacity = context.capacity(for: voucher.exponent), capacity > 0 {
+                    BigRational(numerator: BigUInt(recycler.membersCount), denominator: BigUInt(capacity))
+                        >= requiredRingFill
+                } else {
+                    false
+                }
 
-        let ringFilled =
-            if let capacity = context.capacity(for: voucher.exponent), capacity > 0 {
-                BigRational(numerator: BigUInt(recycler.membersCount), denominator: BigUInt(capacity))
-                    >= readiness.requiredRingFill
-            } else {
-                false
-            }
+            let delayElapsed = params.voucherReadiness.readyAt(for: voucher).map { context.now >= $0 } ?? false
 
-        let delayElapsed = readiness.readyAt(for: voucher).map { context.now >= $0 } ?? false
-
-        return ringFilled || delayElapsed
+            return ringFilled || delayElapsed
+        }
     }
 
     public func allowsConfirmedSpend() -> Bool {

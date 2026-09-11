@@ -30,35 +30,21 @@ public struct RecyclingParams: Equatable {
     }
 }
 
-/// A voucher is ready when either the ring fill or the member-and-age requirements are satisfied.
-public struct VoucherReadiness: Equatable {
-    /// Ring fill required for immediate readiness.
-    public let requiredRingFill: BigRational
-    /// Nil means readiness depends on ring fill alone.
-    public let memberAndAgeRequirements: MemberAndAgeRequirements?
-
-    public init(requiredRingFill: BigRational, memberAndAgeRequirements: MemberAndAgeRequirements?) {
-        self.requiredRingFill = requiredRingFill
-        self.memberAndAgeRequirements = memberAndAgeRequirements
-    }
+/// Readiness requirements for vouchers included in a recycler ring.
+public enum VoucherReadiness: Equatable {
+    case immediate
+    case ringFillOrMembersAndAge(
+        requiredRingFill: BigRational,
+        minimumMembers: UInt32,
+        minimumAge: TimeInterval
+    )
 
     func readyAt(for voucher: Voucher) -> Date? {
-        guard let requirements = memberAndAgeRequirements,
+        guard case let .ringFillOrMembersAndAge(_, minimumMembers, minimumAge) = self,
               let recycler = voucher.recycler,
-              recycler.membersCount >= requirements.minimumMembers,
+              recycler.membersCount >= minimumMembers,
               let enteredAt = recycler.enteredAt else { return nil }
 
-        return enteredAt.addingTimeInterval(requirements.delay)
-    }
-}
-
-/// Both the member minimum and time since confirmed inclusion must be satisfied.
-public struct MemberAndAgeRequirements: Equatable, Sendable {
-    public let minimumMembers: UInt32
-    public let delay: TimeInterval
-
-    public init(minimumMembers: UInt32, delay: TimeInterval) {
-        self.minimumMembers = minimumMembers
-        self.delay = delay
+        return enteredAt.addingTimeInterval(minimumAge)
     }
 }
