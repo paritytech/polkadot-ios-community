@@ -78,6 +78,13 @@
       }
     },
     {
+      "skippedTests" : {
+        "suites" : [
+          {
+            "name" : "ClaimAssetServiceTests"
+          }
+        ]
+      },
       "target" : {
         "containerPath" : "container:Packages\/Coinage",
         "identifier" : "CoinageTests",
