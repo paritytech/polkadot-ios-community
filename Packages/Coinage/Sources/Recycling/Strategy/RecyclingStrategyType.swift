@@ -13,6 +13,7 @@ public extension RecyclingStrategyType {
     static let minRecyclableAge: Int16 = 1
 
     private static let balancedAgeDivisor: Int16 = 3
+    private static let memberAndAgeRequirements = MemberAndAgeRequirements(minimumMembers: 32, delay: 10 * 60)
 
     /// Resolves the preset into concrete parameters. `forcedRecyclingAge` is the chain ceiling
     /// (`getCoinRecyclingAge()` = `coinMaxAge - 2`), the anchor the presets are expressed against.
@@ -24,14 +25,17 @@ public extension RecyclingStrategyType {
             RecyclingParams(
                 maxUnavailableBalance: .percent(of: 0),
                 minRecyclingAge: forcedRecyclingAge,
-                requiredRingFill: .percent(of: 0),
+                voucherReadiness: VoucherReadiness(requiredRingFill: .percent(of: 0), memberAndAgeRequirements: nil),
                 allowsConfirmedSpend: true
             )
         case .balanced:
             RecyclingParams(
                 maxUnavailableBalance: .percent(of: 20),
                 minRecyclingAge: max(Self.minRecyclableAge, forcedRecyclingAge / Self.balancedAgeDivisor),
-                requiredRingFill: .percent(of: 50),
+                voucherReadiness: VoucherReadiness(
+                    requiredRingFill: .percent(of: 20),
+                    memberAndAgeRequirements: Self.memberAndAgeRequirements
+                ),
                 allowsConfirmedSpend: true
             )
         case .maxPrivacy:
@@ -40,7 +44,10 @@ public extension RecyclingStrategyType {
             RecyclingParams(
                 maxUnavailableBalance: .percent(of: 100),
                 minRecyclingAge: Self.minRecyclableAge,
-                requiredRingFill: .percent(of: 100),
+                voucherReadiness: VoucherReadiness(
+                    requiredRingFill: .percent(of: 90),
+                    memberAndAgeRequirements: Self.memberAndAgeRequirements
+                ),
                 allowsConfirmedSpend: false
             )
         }
