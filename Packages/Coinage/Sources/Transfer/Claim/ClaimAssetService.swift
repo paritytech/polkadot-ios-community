@@ -27,15 +27,26 @@ public protocol ClaimAssetServicing: Sendable {
 }
 
 public final class ClaimAssetService: ClaimAssetServicing, @unchecked Sendable {
-    /// The pacing of one claim. Injected so tests need not wait out production delays.
+    /// The pacing of one claim and the time it runs on. Injected so tests drive every timeout, delay,
+    /// and window from a test clock instead of waiting on the wall clock.
     struct Timing: Sendable {
         /// How long one pass waits for a fresh balance look before loading against the last one seen.
         /// This is the only pacing between attempts, so a failing load retries at this cadence.
         let detectionTimeout: Duration
         /// How long a dropped balance subscription waits before it is opened again.
         let resubscribeDelay: Duration
+        /// Paces the timeout and the delay above.
+        let clock: any Clock<Duration>
+        /// The wall-clock time the retry window is checked against. Kept as a date rather than a clock
+        /// instant so a window opened on one launch means the same thing on the next.
+        let now: @Sendable () -> Date
 
-        static let production = Timing(detectionTimeout: .seconds(30), resubscribeDelay: .seconds(1))
+        static let production = Timing(
+            detectionTimeout: .seconds(30),
+            resubscribeDelay: .seconds(1),
+            clock: ContinuousClock(),
+            now: { Date() }
+        )
     }
 
     private let assetsTracking: any AssetsTracking
@@ -176,7 +187,7 @@ private extension ClaimAssetService {
             return nil
         }
 
-        if Date() >= run.retryUntil {
+        if timing.now() >= run.retryUntil {
             logger?.debug("Claim asset: window closed group=\(run.groupId) claimed=\(claimed)")
             return nil
         }
@@ -242,7 +253,7 @@ private extension ClaimAssetService {
                 logger?.error("Claim asset: balance tracking failed for instance=\(instanceId): \(error)")
             }
 
-            guard await (try? Task.sleep(for: timing.resubscribeDelay)) != nil else { break }
+            guard await (try? timing.clock.sleep(for: timing.resubscribeDelay)) != nil else { break }
         }
         channel.finish()
     }
@@ -256,7 +267,7 @@ private extension ClaimAssetService {
         target: Balance
     ) async -> Balance {
         let latest = OSAllocatedUnfairLock<Balance>(initialState: lastSeen)
-        _ = try? await withTimeout(timing.detectionTimeout) {
+        _ = try? await withTimeout(timing.detectionTimeout, clock: timing.clock) {
             while let balance = await looks.next() {
                 latest.withLock { $0 = balance }
                 if balance >= target { break }

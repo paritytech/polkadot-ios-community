@@ -170,7 +170,7 @@ MUTANTS = [
 
     # --- the asset claim loop ends where the contract says ---
     ("claim: a closed window is still attempted", CLAIM_ASSET,
-     "        if Date() >= run.retryUntil {",
+     "        if timing.now() >= run.retryUntil {",
      "        if false {"),
 
     ("claim: an unloadable remainder is attempted again", CLAIM_ASSET,

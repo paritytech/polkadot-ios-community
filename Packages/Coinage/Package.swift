@@ -50,6 +50,10 @@ let package = Package(
             url: "https://github.com/sideeffect-io/AsyncExtensions",
             exact: "0.5.4"
         ),
+        .package(
+            url: "https://github.com/pointfreeco/swift-clocks",
+            from: "1.0.6"
+        ),
         .package(path: "../KeyDerivation"),
         .package(path: "../StructuredConcurrency"),
         .package(path: "../CommonService"),
@@ -95,7 +99,12 @@ let package = Package(
         ),
         .testTarget(
             name: "CoinageTests",
-            dependencies: ["Coinage", "BackgroundExecution", "ExtrinsicServiceExt"],
+            dependencies: [
+                "Coinage",
+                "BackgroundExecution",
+                "ExtrinsicServiceExt",
+                .product(name: "Clocks", package: "swift-clocks")
+            ],
             path: "Tests"
         )
     ]
