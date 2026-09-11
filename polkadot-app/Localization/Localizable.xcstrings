@@ -4432,6 +4432,40 @@
         }
       }
     },
+    "transaction.search.all.users": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All users"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todos los usuarios"
+          }
+        }
+      }
+    },
+    "transaction.search.my.contacts": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My contacts"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mis contactos"
+          }
+        }
+      }
+    },
     "transaction.success.title": {
       "extractionState": "manual",
       "localizations": {

@@ -1,8 +1,8 @@
 import Foundation
-import Operation_iOS
 import Foundation_iOS
 import UIKitExt
 import ChainRegistry
+import SubstrateSdk
 
 protocol SearchAccountViewProtocol: ControllerBackedProtocol {
     var viewModel: SearchAccountViewModel { get }
@@ -23,16 +23,16 @@ protocol SearchAccountPresenterProtocol: AnyObject {
 
 protocol SearchAccountInteractorInputProtocol: AnyObject {
     func setup()
-    func subscribeToRecentContacts(for chainAsset: ChainAsset)
-    func searchAccount(for input: String)
+    func subscribeToRecentContacts()
+    func searchAccount(for input: String?)
+    func resolveChat(for address: AccountAddress)
 }
 
 @MainActor
 protocol SearchAccountInteractorOutputProtocol: AnyObject {
-    func didFetchAllContacts(_ accounts: [UsernameResponseModel])
-    func didFindSearchResults(_ accounts: [UsernameResponseModel])
+    func didReceive(_ result: SearchAccountResult)
+    func didResolveChat(_ model: ChatOpenModel)
     func didReceiveSearchError(message: String?)
-    func didReceiveRecentContacts(_ contacts: [DataProviderChange<RecentContactModelWithUsername>])
 }
 
 @MainActor
@@ -43,4 +43,5 @@ protocol SearchAccountWireframeProtocol: AnyObject, WalletQRScanPresentable, Ale
         recipient: RecipientModel,
         chainAsset: ChainAsset
     )
+    func showChat(_ model: ChatOpenModel)
 }
