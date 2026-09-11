@@ -6,7 +6,7 @@ import SnapKit
 final class TabBarChromeSurfaceView: UIView {
     private let glassContainer = DSGlassContainerView(
         shape: .rounded(32),
-        tint: UIColor.bgSurfaceContainer
+        tint: nil
     )
     private let tabsPanelView = DSTabBarTabsPanelView()
     private let contentPanelView = DSTabBarContentPanelView()

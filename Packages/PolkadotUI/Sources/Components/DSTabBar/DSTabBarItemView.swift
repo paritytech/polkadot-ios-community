@@ -136,5 +136,6 @@ private extension DSTabBarItemView {
         iconView.tintColor = color
         titleLabel.textColor = color
         tabsGlyphView.glyphColor = color
+        glassBackground?.tint = isActive ? .bgActionPrimary.withAlphaComponent(0.2) : .bgSurfaceMain
     }
 }
