@@ -174,7 +174,7 @@ private extension ClaimAssetService {
     /// What is still owed, or `nil` once nothing further will be attempted: the amount is covered, the
     /// remainder is below the smallest denomination (nothing can ever load it, however much more
     /// arrives), or the window closed. The window is checked before attempting: the funds are the
-    /// caller's own and nothing else will spend them, so a closed window is the end of it (mirrors Android).
+    /// caller's own and nothing else will spend them, so a closed window is the end of it.
     func remainder(after claimed: Balance, run: ClaimRun) -> Balance? {
         let remaining = run.amount > claimed ? run.amount - claimed : 0
 
