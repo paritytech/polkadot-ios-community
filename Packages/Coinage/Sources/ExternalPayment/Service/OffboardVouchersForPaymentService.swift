@@ -94,12 +94,8 @@ private extension OffboardVouchersForPaymentService {
         return try await awaitGroupOutcome(groupId: groupId)
     }
 
-    /// Round 0 keeps the legacy shape so rows in flight across an upgrade still re-join their group;
-    /// every later round gets its own group, or the re-join path would adopt the settled entries.
     func groupId(for payment: ExternalPayment) -> CoinageTxGroupId {
-        payment.round == 0
-            ? "external-payment:\(payment.id)"
-            : "external-payment:\(payment.id):r\(payment.round)"
+        "external-payment:\(payment.id)"
     }
 
     /// Registers the whole payment as one atomic durability group, or re-joins the group a prior
@@ -163,7 +159,7 @@ private extension OffboardVouchersForPaymentService {
     ) async throws -> [CoinageTxRequest] {
         let details = try await buildGroupDetails(
             groups: groupVouchers(vouchers),
-            paymentAmount: payment.remainingInPlanks
+            paymentAmount: payment.amountInPlanks
         )
 
         let blockHash = try await blockNumberProvider.fetchCurrentHash()

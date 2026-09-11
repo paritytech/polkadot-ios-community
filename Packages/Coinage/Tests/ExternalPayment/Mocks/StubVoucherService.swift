@@ -10,9 +10,16 @@ final class StubVoucherService: VoucherServiceProtocol, @unchecked Sendable {
     struct NotSupported: Error {}
 
     private let vouchers = OSAllocatedUnfairLock(initialState: [Voucher]())
+    private let states = OSAllocatedUnfairLock(initialState: [DerivationIndex: CoinageAssetState]())
 
-    init(vouchers: [Voucher] = []) {
+    /// `states` overrides the free default for the listed vouchers (consumed, reserved, …).
+    init(vouchers: [Voucher] = [], states: [TrackedVoucher] = []) {
         set(vouchers: vouchers)
+        self.states.withLock { table in
+            for tracked in states {
+                table[tracked.voucher.derivationIndex] = tracked.state
+            }
+        }
     }
 
     func set(vouchers: [Voucher]) {
@@ -33,10 +40,12 @@ final class StubVoucherService: VoucherServiceProtocol, @unchecked Sendable {
     }
 
     func fetchAllTracked() async throws -> [TrackedVoucher] {
-        vouchers.withLock { $0 }.map {
+        let overrides = states.withLock { $0 }
+        return vouchers.withLock { $0 }.map {
             TrackedVoucher(
                 voucher: $0,
-                state: CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
+                state: overrides[$0.derivationIndex]
+                    ?? CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
             )
         }
     }

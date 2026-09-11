@@ -26,6 +26,7 @@ struct TransferAmountDependency {
     let transferMethod: () -> TransferMethod
     let chatSubmitter: () -> TransferSubmitting
     var lifecycleReporter: () -> TransferLifecycleReporting = { NoOpTransferLifecycleReporter() }
+    var recyclingStrategy: () -> any CoinageRecyclingStrategyProviding = { CoinageRecyclingStrategyStore.shared }
 }
 
 final class TransferAmountInteractor {
@@ -43,6 +44,7 @@ final class TransferAmountInteractor {
     let transferMethod: TransferMethod
     let transferSubmitter: TransferSubmitting
     let lifecycleReporter: TransferLifecycleReporting
+    let recyclingStrategy: any CoinageRecyclingStrategyProviding
 
     private var coinageBalanceTask: Task<Void, Never>?
     /// Coalesces concurrent confirmations (e.g. double-tap): late callers join
@@ -63,6 +65,7 @@ final class TransferAmountInteractor {
         transferMethod = dependencies.transferMethod()
         transferSubmitter = dependencies.chatSubmitter()
         lifecycleReporter = dependencies.lifecycleReporter()
+        recyclingStrategy = dependencies.recyclingStrategy()
         self.logger = logger
     }
 }
@@ -97,7 +100,12 @@ extension TransferAmountInteractor: TransferAmountInteractorInputProtocol {
             return .coinage(preview)
         case .externalPayment:
             let preview = try await coinageService.previewExternalPayment(for: planks)
-            return .externalPayment(preview)
+            return .externalPayment(
+                preview,
+                requiresPrivacyConfirmation: PaymentPrivacyGate.requiresPrivacyConfirmation(
+                    strategy: recyclingStrategy.strategy
+                )
+            )
         }
     }
 
@@ -110,7 +118,7 @@ extension TransferAmountInteractor: TransferAmountInteractorInputProtocol {
                 switch validation {
                 case let .coinage(preview):
                     try await confirmCoinageTransfer(preview: preview)
-                case let .externalPayment(preview):
+                case let .externalPayment(preview, _):
                     try await confirmExternalPayment(preview: preview)
                 }
             } catch {
@@ -175,8 +183,7 @@ private extension TransferAmountInteractor {
 // MARK: - External Payment
 
 private extension TransferAmountInteractor {
-    /// The preview's scope is the consent: `.withConfirmation` only reaches here after the
-    /// presenter's privacy confirmation, and it is persisted with the record.
+    /// Reaches here only after the presenter's privacy confirmation when the preset requires one.
     func confirmExternalPayment(preview: ExternalPaymentPreview) async throws {
         let origin = try recipient.accountId.toAddress(using: .genericFormat)
         let paymentId = try Data.randomOrError(of: 32).toHex(includePrefix: true)
@@ -185,8 +192,7 @@ private extension TransferAmountInteractor {
             origin: origin,
             paymentId: paymentId,
             amountInPlanks: preview.fullAmount,
-            destination: recipient.accountId,
-            spendScope: preview.scope
+            destination: recipient.accountId
         )
 
         // Completion and failure are observed by the presenter through the

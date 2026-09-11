@@ -11,7 +11,6 @@ public struct DSButton: View {
     private let leadingIcon: ImageResource?
     private let trailingIcon: ImageResource?
     private let expands: Bool
-    private let isLoading: Bool
     private let action: () -> Void
 
     public init(
@@ -22,7 +21,6 @@ public struct DSButton: View {
         leadingIcon: ImageResource? = nil,
         trailingIcon: ImageResource? = nil,
         expands: Bool = false,
-        isLoading: Bool = false,
         action: @escaping () -> Void
     ) {
         title = String(localized: localized)
@@ -32,7 +30,6 @@ public struct DSButton: View {
         self.leadingIcon = leadingIcon
         self.trailingIcon = trailingIcon
         self.expands = expands
-        self.isLoading = isLoading
         self.action = action
     }
 
@@ -44,7 +41,6 @@ public struct DSButton: View {
         leadingIcon: ImageResource? = nil,
         trailingIcon: ImageResource? = nil,
         expands: Bool = false,
-        isLoading: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -54,7 +50,6 @@ public struct DSButton: View {
         self.leadingIcon = leadingIcon
         self.trailingIcon = trailingIcon
         self.expands = expands
-        self.isLoading = isLoading
         self.action = action
     }
 
@@ -70,17 +65,8 @@ public struct DSButton: View {
                 }
             }
             .frame(maxWidth: expands ? .infinity : nil)
-            // Keep the label laid out so the width does not jump while loading.
-            .opacity(isLoading ? 0 : 1)
-            .overlay {
-                if isLoading {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                }
-            }
         }
         .buttonStyle(.ds(style: style, shape: shape, size: size))
-        .disabled(isLoading)
     }
 
     private func icon(_ resource: ImageResource) -> some View {

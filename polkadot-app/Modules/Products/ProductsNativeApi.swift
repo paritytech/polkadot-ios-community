@@ -27,6 +27,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let permissionGuard: ProductPermissionGuarding
     let paymentApprovalRequester: PaymentApprovalRequesting
     let paymentPrivacyConfirmer: PaymentPrivacyConfirming
+    let recyclingStrategy: any CoinageRecyclingStrategyProviding
     let paymentsSupport: PaymentsSupport?
     let accountManager: ProductsAccountManaging
     let createProofHandler: APCreateProofHandling
@@ -70,6 +71,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         permissionGuard: ProductPermissionGuarding,
         paymentApprovalRequester: PaymentApprovalRequesting,
         paymentPrivacyConfirmer: PaymentPrivacyConfirming,
+        recyclingStrategy: any CoinageRecyclingStrategyProviding,
         paymentsSupport: PaymentsSupport?,
         accountManager: ProductsAccountManaging,
         createProofHandler: APCreateProofHandling,
@@ -99,6 +101,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.permissionGuard = permissionGuard
         self.paymentApprovalRequester = paymentApprovalRequester
         self.paymentPrivacyConfirmer = paymentPrivacyConfirmer
+        self.recyclingStrategy = recyclingStrategy
         self.paymentsSupport = paymentsSupport
         self.accountManager = accountManager
         self.createProofHandler = createProofHandler

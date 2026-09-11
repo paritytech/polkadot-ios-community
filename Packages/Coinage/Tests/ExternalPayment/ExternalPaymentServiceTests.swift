@@ -1,6 +1,6 @@
-import SubstrateSdk
 import AsyncExtensions
 import Foundation
+import SubstrateSdk
 import Testing
 @testable import Coinage
 
@@ -9,8 +9,7 @@ struct ExternalPaymentServiceTests {
 
     private struct StreamDidNotEnd: Error {}
 
-    /// Drains the stream to its end, failing if it has not ended within `timeout` — a status stream
-    /// that never terminates is itself a defect the contract rules out.
+    /// Drains the stream to its end, failing if it has not ended within `timeout`.
     private func collect(
         _ sequence: AnyAsyncSequence<ExternalPaymentStatus>,
         timeout: TimeInterval = 2
@@ -35,53 +34,44 @@ struct ExternalPaymentServiceTests {
 
     // MARK: - Initiation
 
-    @Test func initiatePersistsPlanWithScopeUnderScopedId() async throws {
+    @Test func initiatePersistsPlanUnderScopedId() async throws {
         let harness = Factory.makeHarness()
 
         try await harness.service.initiatePayment(
-            origin: "getcash.dot",
-            paymentId: "0xab",
-            amountInPlanks: 8,
-            destination: Factory.destination,
-            spendScope: .withConfirmation
+            origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 8, destination: Factory.destination
         )
 
         let stored = try #require(harness.store.payment(id: "getcash.dot:0xab"))
         #expect(stored.stage == .plan)
-        #expect(stored.spendScope == .withConfirmation)
         #expect(stored.origin == "getcash.dot")
         #expect(stored.paymentId == "0xab")
         #expect(stored.amountInPlanks == 8)
+        #expect(stored.settledInPlanks == 0)
     }
 
     @Test func initiateRejectsReplayAndKeepsOriginalRow() async throws {
         let harness = Factory.makeHarness()
         try await harness.service.initiatePayment(
-            origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 8,
-            destination: Factory.destination, spendScope: .withConfirmation
+            origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 8, destination: Factory.destination
         )
 
         await #expect(throws: ExternalPaymentError.alreadyExists) {
             try await harness.service.initiatePayment(
-                origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 99,
-                destination: Factory.destination, spendScope: .spendable
+                origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 99, destination: Factory.destination
             )
         }
 
         #expect(harness.store.all().count == 1)
-        #expect(harness.store.payment(id: "getcash.dot:0xab")?.spendScope == .withConfirmation)
         #expect(harness.store.payment(id: "getcash.dot:0xab")?.amountInPlanks == 8)
     }
 
     @Test func sameIdUnderAnotherOriginIsADifferentPayment() async throws {
         let harness = Factory.makeHarness()
         try await harness.service.initiatePayment(
-            origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 8,
-            destination: Factory.destination, spendScope: .spendable
+            origin: "getcash.dot", paymentId: "0xab", amountInPlanks: 8, destination: Factory.destination
         )
         try await harness.service.initiatePayment(
-            origin: "other.dot", paymentId: "0xab", amountInPlanks: 8,
-            destination: Factory.destination, spendScope: .spendable
+            origin: "other.dot", paymentId: "0xab", amountInPlanks: 8, destination: Factory.destination
         )
 
         #expect(harness.store.all().count == 2)
@@ -92,8 +82,7 @@ struct ExternalPaymentServiceTests {
 
         await #expect(throws: ExternalPaymentError.invalidPaymentId) {
             try await harness.service.initiatePayment(
-                origin: "getcash.dot", paymentId: "", amountInPlanks: 8,
-                destination: Factory.destination, spendScope: .spendable
+                origin: "getcash.dot", paymentId: "", amountInPlanks: 8, destination: Factory.destination
             )
         }
         #expect(harness.store.all().isEmpty)
@@ -113,14 +102,14 @@ struct ExternalPaymentServiceTests {
 
     @Test(arguments: [
         (ExternalPayment.Stage.completed, ExternalPaymentStatus.completed),
-        (.partiallyCompleted, .partiallyCompleted(settledInPlanks: 0)),
+        (.partiallyCompleted, .partiallyCompleted(settledInPlanks: 5)),
         (.failed, .failed(reason: "boom"))
     ])
     func coldSubscribeOnTerminalRowEmitsOnceThenEnds(
         stage: ExternalPayment.Stage,
         expected: ExternalPaymentStatus
     ) async throws {
-        var payment = Factory.payment(stage: stage)
+        var payment = Factory.payment(settled: 5, stage: stage)
         payment.failureReason = "boom"
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
 
@@ -131,8 +120,8 @@ struct ExternalPaymentServiceTests {
         #expect(statuses == [expected])
     }
 
-    @Test func rescheduledReportsProcessing() async throws {
-        let payment = Factory.payment(stage: .rescheduled, readyAt: .distantFuture)
+    @Test func legacyRescheduledReportsProcessing() async throws {
+        let payment = Factory.payment(stage: .rescheduled)
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
 
         var iterator = try harness.service
@@ -145,10 +134,9 @@ struct ExternalPaymentServiceTests {
     @Test func processingDuplicatesCollapseAndStreamEndsOnCompletion() async throws {
         var payment = Factory.payment()
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
-        let sequence = try harness.service.subscribePaymentStatus(
-            origin: payment.origin, paymentId: payment.paymentId
-        )
-        var iterator = sequence.makeAsyncIterator()
+        var iterator = try harness.service
+            .subscribePaymentStatus(origin: payment.origin, paymentId: payment.paymentId)
+            .makeAsyncIterator()
         #expect(try await iterator.next() == .processing)
 
         payment.stage = .onboardCoins
@@ -167,66 +155,47 @@ struct ExternalPaymentServiceTests {
 
     // MARK: - Preview
 
-    @Test func previewWidensToConfirmationOnlyWhenSpendableCannotExecute() async throws {
-        let harness = Factory.makeHarness()
-        let widened = Factory.selection(vouchers: [Factory.voucher(index: 1)], scope: .withConfirmation)
-        harness.planner.script([.success(.notEnoughBalance), .success(.ready(widened))])
-
-        let preview = try await harness.service.previewPayment(for: 8, context: Factory.denomination)
-
-        guard case let .ready(selection) = preview else {
-            Issue.record("expected ready, got \(preview)")
-            return
-        }
-        #expect(selection.scope == .withConfirmation)
-        #expect(harness.planner.scopes == [.spendable, .withConfirmation])
-    }
-
-    @Test func previewKeepsSpendableResultWhenWideningDoesNotHelp() async throws {
-        let harness = Factory.makeHarness()
-        let spendable = ExternalPaymentPreview.needsReschedule(after: Date(), Factory.selection())
-        harness.planner.script([.success(spendable), .success(.notEnoughBalance)])
-
-        let preview = try await harness.service.previewPayment(for: 8, context: Factory.denomination)
-
-        guard case .needsReschedule = preview else {
-            Issue.record("expected the spendable reschedule verdict, got \(preview)")
-            return
-        }
-        #expect(harness.planner.scopes == [.spendable, .withConfirmation])
-    }
-
-    @Test func previewDoesNotWidenWhenSpendableExecutes() async throws {
+    @Test func previewIsASinglePlannerPass() async throws {
         let harness = Factory.makeHarness()
         harness.planner.script([.success(.ready(Factory.selection(vouchers: [Factory.voucher(index: 1)])))])
 
-        _ = try await harness.service.previewPayment(for: 8, context: Factory.denomination)
+        let preview = try await harness.service.previewPayment(for: 8, context: Factory.denomination)
 
-        #expect(harness.planner.scopes == [.spendable])
+        #expect(preview.isExecutable)
+        #expect(harness.planner.calls.count == 1)
+        #expect(harness.planner.calls.first?.mustInclude.isEmpty == true)
     }
 
     // MARK: - Processing
 
-    @Test func transientPlannerErrorKeepsStageRetriesThenCompletes() async throws {
+    @Test func readyPlanCompletesInOneRun() async throws {
         let payment = Factory.payment()
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
-        let voucher = Factory.voucher(index: 1)
-        harness.planner.script([
-            .failure(StubExternalPaymentPlanner.Failure("rpc down")),
-            .success(.ready(Factory.selection(vouchers: [voucher])))
-        ])
-        harness.assets.set(.make(spendableVouchers: [voucher]), for: .spendable)
+        harness.planner.setDefault(.success(.ready(Factory.selection(vouchers: [Factory.voucher(index: 1)]))))
 
         harness.service.setup(with: Factory.denomination)
         defer { harness.service.throttle() }
 
         await Factory.waitUntil { harness.store.payment(id: payment.id)?.stage == .completed }
-        #expect(harness.sleeper.recorded == [30])
-        #expect(harness.planner.calls.count == 2)
-        #expect(harness.txService.registrations.count == 1)
+        #expect(harness.store.payment(id: payment.id)?.settledInPlanks == payment.amountInPlanks)
+        #expect(harness.txService.registrations == [Factory.unloadGroupId(for: payment)])
     }
 
-    @Test func partialUnloadSettlesAndPaysTheRemainderInANewRound() async throws {
+    @Test func plannerErrorFailsTheRunWithoutRetry() async throws {
+        let payment = Factory.payment()
+        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
+        harness.planner.setDefault(.failure(StubExternalPaymentPlanner.Failure("rpc down")))
+
+        harness.service.setup(with: Factory.denomination)
+        defer { harness.service.throttle() }
+
+        await Factory.waitUntil { harness.store.payment(id: payment.id)?.stage == .failed }
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(harness.store.payment(id: payment.id)?.failureReason == "rpc down")
+        #expect(harness.planner.calls.count == 1)
+    }
+
+    @Test func partialUnloadIsTerminalAndReportsTheSettledAmount() async throws {
         let large = Factory.voucher(index: 1, exponent: 3)
         let small = Factory.voucher(index: 2, exponent: 2)
         let amount = Factory.planks(3) + Factory.planks(2)
@@ -234,96 +203,42 @@ struct ExternalPaymentServiceTests {
         let store = InMemoryExternalPaymentStore(seed: [payment])
         let harness = Factory.makeHarness(store: store)
         harness.vouchers.set(vouchers: [large, small])
-        harness.assets.set(.make(spendableVouchers: [large, small]), for: .spendable)
-        harness.txService.setOutcomes([.partial, .success])
-        harness.planner.setHandler { remaining, _ in
-            let selection = remaining == amount ? [large, small] : [remaining == Factory.planks(3) ? large : small]
-            return .success(.ready(Factory.selection(vouchers: selection, amount: remaining)))
-        }
+        harness.txService.setOutcome(.partial)
+        harness.planner.setDefault(.success(.ready(Factory.selection(vouchers: [large, small], amount: amount))))
 
         harness.service.setup(with: Factory.denomination)
         defer { harness.service.throttle() }
 
-        await Factory.waitUntil { store.payment(id: payment.id)?.stage == .completed }
+        await Factory.waitUntil { store.payment(id: payment.id)?.stage == .partiallyCompleted }
         let final = try #require(store.payment(id: payment.id))
-        #expect(final.settledInPlanks == amount)
-        #expect(final.round == 1)
-        #expect(harness.txService.registrations == [
-            "external-payment:\(payment.id)", "external-payment:\(payment.id):r1"
-        ])
-        #expect(harness.planner.amounts.count == 2)
-        #expect(harness.planner.amounts.last.map { $0 < amount } == true)
-        #expect(harness.sleeper.recorded.isEmpty)
-    }
-
-    @Test func retryWindowElapsedAfterASettledRoundIsPartiallyCompleted() async throws {
-        let payment = Factory.payment(round: 1, settled: 4, createdAt: Date(timeIntervalSinceNow: -10))
-        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]), retryWindow: 5)
-        harness.planner.setDefault(.failure(StubExternalPaymentPlanner.Failure("still down")))
-
-        harness.service.setup(with: Factory.denomination)
-        defer { harness.service.throttle() }
-
-        await Factory.waitUntil { store(harness).payment(id: payment.id)?.stage.isTerminal == true }
-        #expect(store(harness).payment(id: payment.id)?.stage == .partiallyCompleted)
-    }
-
-    private func store(_ harness: ExternalPaymentHarness) -> InMemoryExternalPaymentStore { harness.store }
-
-    @Test func partialCompletionReportsTheSettledAmount() async throws {
-        let payment = Factory.payment(amount: 12, round: 1, settled: 8, stage: .partiallyCompleted)
-        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
+        #expect([Factory.planks(3), Factory.planks(2)].contains(final.settledInPlanks))
+        #expect(harness.txService.registrations.count == 1)
+        #expect(harness.planner.calls.count == 1)
 
         let statuses = try await collect(
             harness.service.subscribePaymentStatus(origin: payment.origin, paymentId: payment.paymentId)
         )
-
-        #expect(statuses == [.partiallyCompleted(settledInPlanks: 8)])
+        #expect(statuses == [.partiallyCompleted(settledInPlanks: final.settledInPlanks)])
     }
 
-    @Test func backoffReleasesTheProcessingSlotForOtherPayments() async throws {
+    @Test func setupProcessesRowsInCreationOrder() async throws {
         let now = Date()
-        let stuck = Factory.payment(paymentId: "0xa", amount: 8, createdAt: now.addingTimeInterval(-20))
-        let next = Factory.payment(paymentId: "0xb", amount: 16, createdAt: now.addingTimeInterval(-10))
-        let store = InMemoryExternalPaymentStore(seed: [stuck, next])
+        let older = Factory.payment(paymentId: "0xa", amount: 8, createdAt: now.addingTimeInterval(-20))
+        let newer = Factory.payment(paymentId: "0xb", amount: 16, createdAt: now.addingTimeInterval(-10))
+        let store = InMemoryExternalPaymentStore(seed: [newer, older])
         let harness = Factory.makeHarness(store: store)
-        let voucher = Factory.voucher(index: 1, exponent: 4)
-        harness.assets.set(.make(spendableVouchers: [voucher]), for: .spendable)
-        harness.planner.setHandler { amount, _ in
-            amount == 8
-                ? .failure(StubExternalPaymentPlanner.Failure("rpc down"))
-                : .success(.ready(Factory.selection(vouchers: [voucher], amount: amount)))
+        harness.planner.setDefault(.success(.notEnoughBalance))
+
+        harness.service.setup(with: Factory.denomination)
+        defer { harness.service.throttle() }
+
+        await Factory.waitUntil {
+            store.payment(id: older.id)?.stage == .failed && store.payment(id: newer.id)?.stage == .failed
         }
-        harness.sleeper.hold()
-
-        harness.service.setup(with: Factory.denomination)
-        defer { harness.service.throttle() }
-
-        await Factory.waitUntil { store.payment(id: next.id)?.stage == .completed }
-        #expect(store.payment(id: stuck.id)?.stage == .plan)
-        #expect(harness.sleeper.recorded == [30])
         #expect(harness.planner.amounts == [8, 16])
-
-        harness.sleeper.release()
-        await Factory.waitUntil { harness.planner.amounts.count >= 3 }
-        #expect(harness.planner.amounts.dropFirst(2).allSatisfy { $0 == 8 })
     }
 
-    @Test func retryWindowElapsedPersistsFailedWithLastError() async throws {
-        let payment = Factory.payment(createdAt: Date(timeIntervalSinceNow: -10))
-        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]), retryWindow: 5)
-        harness.planner.setDefault(.failure(StubExternalPaymentPlanner.Failure("still down")))
-
-        harness.service.setup(with: Factory.denomination)
-        defer { harness.service.throttle() }
-
-        await Factory.waitUntil { harness.store.payment(id: payment.id)?.stage == .failed }
-        #expect(harness.store.payment(id: payment.id)?.failureReason == "still down")
-        #expect(harness.sleeper.recorded.isEmpty)
-        #expect(harness.planner.calls.count == 1)
-    }
-
-    @Test func cancellationNeverPersistsFailed() async throws {
+    @Test func cancellationLeavesTheStageUntouched() async throws {
         let payment = Factory.payment()
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
         harness.planner.blockUntilCancelled()
@@ -335,25 +250,6 @@ struct ExternalPaymentServiceTests {
         try await Task.sleep(for: .milliseconds(100))
 
         #expect(harness.store.payment(id: payment.id)?.stage == .plan)
-        #expect(harness.sleeper.recorded.isEmpty)
-    }
-
-    @Test func setupProcessesReadyRowsInCreationOrderAndSkipsFutureReadyAt() async throws {
-        let now = Date()
-        let older = Factory.payment(paymentId: "0xa", amount: 8, createdAt: now.addingTimeInterval(-20))
-        let newer = Factory.payment(paymentId: "0xb", amount: 16, createdAt: now.addingTimeInterval(-10))
-        let notYet = Factory.payment(paymentId: "0xc", amount: 32, readyAt: .distantFuture, createdAt: now)
-        let store = InMemoryExternalPaymentStore(seed: [newer, notYet, older])
-        let harness = Factory.makeHarness(store: store, retryWindow: 0)
-        harness.planner.setDefault(.success(.notEnoughBalance))
-
-        harness.service.setup(with: Factory.denomination)
-        defer { harness.service.throttle() }
-
-        await Factory.waitUntil {
-            store.payment(id: older.id)?.stage == .failed && store.payment(id: newer.id)?.stage == .failed
-        }
-        #expect(harness.planner.amounts == [8, 16])
-        #expect(store.payment(id: notYet.id)?.stage == .plan)
+        #expect(harness.store.payment(id: payment.id)?.failureReason == nil)
     }
 }

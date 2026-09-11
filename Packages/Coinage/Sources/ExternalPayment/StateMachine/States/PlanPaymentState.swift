@@ -1,10 +1,8 @@
 import Foundation
 import StateMachine
 
-/// Invokes the planner and decides the next state.
-///
-/// Planner verdicts are final for this run (`notEnoughBalance` → failed); a thrown error is
-/// transient and yields ``RetryPaymentState`` with the stage kept at `.plan`.
+/// Invokes the planner and decides the next state. Every outcome is a verdict: an unreachable amount
+/// and any thrown error both persist `failed`; only a cancelled task keeps the stage.
 struct PlanPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
@@ -17,26 +15,25 @@ struct PlanPaymentState: StateMachineState {
     ) async -> AnyStateMachineState<ExternalPaymentStateFactory, ExternalPayment> {
         do {
             let plan = try await factory.planner.plan(
-                amount: payment.remainingInPlanks,
+                amount: payment.amountInPlanks,
                 context: factory.context,
-                scope: payment.spendScope
+                mustInclude: []
             )
 
             switch plan {
             case let .ready(selection):
-                return factory.makeOffboardVouchersState(
-                    payment: payment,
-                    vouchers: selection.vouchers
-                )
+                return factory.makeOffboardVouchersState(payment: payment, vouchers: selection.vouchers)
             case let .loadCoins(selection):
-                return factory.makeOnboardCoinsState(payment: payment, coins: selection.coins)
-            case let .needsReschedule(after, _):
-                return factory.makeRescheduledState(payment: payment, until: after)
+                return factory.makeOnboardCoinsState(
+                    payment: payment,
+                    coins: selection.coins,
+                    exactVouchers: selection.vouchers
+                )
             case .notEnoughBalance:
-                return factory.makeFailedOrPartial(payment: payment, reason: "Insufficient balance")
+                return factory.makeFailedState(payment: payment, reason: "Insufficient balance")
             }
         } catch {
-            return factory.makeRetryState(payment: payment, stage: .plan, error: error)
+            return factory.makeFailedState(payment: payment, stage: .plan, error: error)
         }
     }
 

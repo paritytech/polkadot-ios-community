@@ -11,32 +11,31 @@ struct ExternalPaymentMapperTests {
         ExternalPaymentCoreDataStore(storageFacade: UserDataStorageTestFacade())
     }
 
-    @Test("round-trips the persisted spend scope and origin-scoped identity", arguments: [
-        SpendScope.spendable, SpendScope.withConfirmation
-    ])
-    func roundTripsSpendScope(scope: SpendScope) async throws {
+    @Test("round-trips the origin-scoped identity and settled value")
+    func roundTripsIdentityAndSettledValue() async throws {
         let store = makeStore()
-        let payment = ExternalPayment(
+        var payment = ExternalPayment(
             origin: "getcash.dot",
             paymentId: "0xab",
             amountInPlanks: 1_500,
-            destination: destination,
-            spendScope: scope
+            destination: destination
         )
-
         try await store.save(payment: payment)
-        let fetched = try #require(try await store.fetchPayment(byId: payment.id))
 
-        #expect(fetched.spendScope == scope)
-        #expect(fetched.settledInPlanks == 0)
-        #expect(fetched.round == 0)
+        payment.stage = .partiallyCompleted
+        payment.settledInPlanks = 1_000
+        try await store.save(payment: payment)
+
+        let fetched = try #require(try await store.fetchPayment(byId: payment.id))
         #expect(fetched.id == "getcash.dot:0xab")
         #expect(fetched.origin == "getcash.dot")
         #expect(fetched.paymentId == "0xab")
         #expect(fetched.amountInPlanks == 1_500)
+        #expect(fetched.stage == .partiallyCompleted)
+        #expect(fetched.settledInPlanks == 1_000)
     }
 
-    @Test("legacy rows without an origin prefix read back as spendable with the whole id as paymentId")
+    @Test("legacy rows without an origin prefix read the whole id as paymentId with nothing settled")
     func legacyRowDefaults() async throws {
         let store = makeStore()
         let legacy = ExternalPayment(
@@ -49,31 +48,24 @@ struct ExternalPaymentMapperTests {
         try await store.save(payment: legacy)
         let fetched = try #require(try await store.fetchPayment(byId: legacy.id))
 
-        #expect(fetched.spendScope == .spendable)
         #expect(fetched.paymentId == "6F1E4A0C-LEGACY")
+        #expect(fetched.settledInPlanks == 0)
     }
 
-    @Test("re-saving a later round keeps the scope and persists settled value and round")
-    func stageUpdateKeepsScope() async throws {
+    @Test("a legacy rescheduled row reads back as rescheduled so the service can resume it as plan")
+    func legacyRescheduledRowIsPreserved() async throws {
         let store = makeStore()
-        var payment = ExternalPayment(
+        let legacy = ExternalPayment(
             origin: "getcash.dot",
             paymentId: "0xcd",
             amountInPlanks: 5,
             destination: destination,
-            spendScope: .withConfirmation
+            stage: .rescheduled
         )
-        try await store.save(payment: payment)
 
-        payment.stage = .plan
-        payment.settledInPlanks = 3
-        payment.round = 1
-        try await store.save(payment: payment)
+        try await store.save(payment: legacy)
+        let fetched = try #require(try await store.fetchPayment(byId: legacy.id))
 
-        let fetched = try #require(try await store.fetchPayment(byId: payment.id))
-        #expect(fetched.stage == .plan)
-        #expect(fetched.spendScope == .withConfirmation)
-        #expect(fetched.settledInPlanks == 3)
-        #expect(fetched.round == 1)
+        #expect(fetched.stage == .rescheduled)
     }
 }

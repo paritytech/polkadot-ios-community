@@ -64,48 +64,46 @@ Transfer plans determine how coins are spent:
 
 `Packages/Coinage/Sources/ExternalPayment/` moves CASH out of the wallet on behalf of a product
 (`getcash` withdraw) or the in-app pay deeplink. Persisted as `ExternalPayment` rows
-(`CDExternalPayment`, `ExternalPaymentMapper`) and driven by a persist-per-transition state machine
-(`Plan → OnboardCoins → Plan → OffboardVouchers → Completed/PartiallyCompleted/Failed`, or
-`Rescheduled` with a `readyAt` wakeup).
+(`CDExternalPayment`, `ExternalPaymentMapper`, CoreData v47 adds `settledInPlanks`) and driven by a
+persist-per-transition state machine: `Plan → OffboardVouchers` when spendable vouchers cover the
+amount, `Plan → OnboardCoins → OffboardVouchers` when coins must be recycled first, ending in
+`Completed / PartiallyCompleted / Failed`.
 
 - **Identity** is `(origin, paymentId)`; the record id is `"<origin>:<paymentId>"`
   (`ExternalPayment.identifier(origin:paymentId:)`), so the same product-supplied id under two origins
-  is two payments and the durability group id `external-payment:<id>` stays unique. Registration
-  (`initiatePayment`) validates uniqueness and throws `ExternalPaymentError.alreadyExists`; there is
-  no separate pre-check.
-- **Spend scope is persisted** (`spendScope`, CoreData v46). Both callers widen the same way transfers
-  do: spendable funds first, gaining-privacy funds only when the strategy allows confirmed spends and
-  only after the user confirms. The in-app flow previews two-pass like `previewTransfer`; a product
-  payment resolves the scope from one balance snapshot (`PaymentSpendScopeResolver`) and shows the
-  same gaining-privacy sheet through `PaymentPrivacyConfirming` (never allowlisted). The record carries
-  the consent, so a restart plans with it.
-- **Partial unloads settle and retry** (`settledInPlanks`, `round`, CoreData v46). When some unload
-  groups finalize and others fail, `OffboardVouchersPaymentState` books the delivered value (finalized
-  entries' voucher inputs minus their surplus outputs), advances `round`, and re-plans
-  `remainingInPlanks` under a fresh durability group (`external-payment:<id>:r<round>`; round 0 keeps
-  the legacy id so in-flight rows re-join after an upgrade). A verdict after something settled is
-  `partiallyCompleted`, never `failed`.
-- **Planner reads strategy buckets**, never raw structural readiness: `SpendableAssetsProviding`
-  (`RecyclingAwareSpendableAssetsProvider` over `CoinageAssetSelector` + evaluator verdicts + voucher
-  usability). No verdicts yet → reschedule. Gaining-privacy funds outside the scope reschedule at the
-  earliest `readyAt`; they are never spent or recycled early by a payment.
-- **Verdict vs transient**: planner `notEnoughBalance` and an unload outcome of `.failed` persist
-  `failed` immediately. A thrown error (RPC, planner, cancellation) yields `RetryPaymentState`, which
-  persists the failing stage unchanged with the error as `failureReason`; `ExternalPaymentService`
-  detects "machine returned but stage is non-terminal" and re-runs under `ExternalPaymentRetryPolicy`
-  (30 s × attempt, capped at 5 min, within 1 h of `createdAt`; then `failed`, or `partiallyCompleted`
-  once something settled). The backoff releases the single-flight slot (`ExternalPaymentContext.scheduleRetry`)
-  so other payments keep flowing. The window bounds only stages the machine leaves non-terminal:
-  `rescheduled` rows (funds maturing) are woken by their `readyAt` and are not aged out by it.
-  Cancellation never persists `failed`. Retries re-enter offboarding through the durability group
-  re-join exactly like crash re-entry, so a group is registered once.
-- **Status semantics** (`subscribePaymentStatus`): unknown id → `.failed("unknown payment")` once,
-  then end; `partiallyCompleted` → `.partiallyCompleted(settledInPlanks:)`, which the host reports as
-  `Completed` with the delivered amount in `value` (legacy products keep the parity behaviour, reconciling
-  ones can read the shortfall); `rescheduled` → `.processing`; duplicates collapse;
-  the stream ends after the first terminal status.
+  is two payments and the durability group ids stay unique. Registration (`initiatePayment`) validates
+  uniqueness through a serialized registrar and throws `ExternalPaymentError.alreadyExists`.
+- **Consent happens before registration, not in the worker.** The caller (host API or the in-app
+  flow) shows the gaining-privacy sheet whenever the recycling strategy is not `minPrivacy`
+  (`PaymentPrivacyGate`). Because the user has consented, the worker may spend anything spendable
+  on-chain: the planner is **structural** (`TrackedVoucher.isSelectable`, `TrackedCoin.isSelectable`)
+  and reads no strategy buckets, verdicts or `readyAt`. There is no persisted spend scope.
+- **Planning** (`ExternalPaymentPlanner.plan(amount:context:mustInclude:)`): `mustInclude` vouchers
+  first, then spendable vouchers largest-first → `.ready(Selection)`; else the deficit from spendable
+  coins → `.loadCoins(Selection)` (the selection carries the exact vouchers the coins top up); else
+  `.notEnoughBalance`.
+- **Onboarding** recycles the chosen coins under the payment's own group
+  (`external-payment:<id>:recycle`) and awaits `CoinageRecyclingServicing.observeRecycling(groupId:)`:
+  `pending` keeps waiting, `allRecycled(vouchers:finalized:)` (best-block inclusion is enough) checks
+  that `exactVouchers + recycled` cover the amount and moves to offboarding, `incomplete` or a
+  shortfall fails the payment. `recycleCoins(_:groupId:)` re-joins a group that already has entries,
+  so a relaunch never recycles twice; the re-entered state (exact selection unknown) re-plans with
+  the recycled vouchers as `mustInclude`.
+- **Offboarding** submits the plan straight to `OffboardVouchersForPaymentService` under
+  `external-payment:<id>` (re-joining an existing group on relaunch) and awaits one verdict:
+  `.success` completes with `settledInPlanks = amount`; `.partialSuccess` persists the delivered
+  value as `partiallyCompleted` and is terminal; `.failed`, a submission error and any thrown error
+  persist `failed`. There are no retries, rounds or reschedules.
+- **Cancellation is the one non-verdict.** `CancellationError` (the observation task is cancelled by
+  `throttle()`) persists the stage unchanged via `InterruptedPaymentState`; the next `setup` re-runs the
+  row. Every other thrown error fails the payment in that run.
+- **Status semantics** (`subscribePaymentStatus(origin:paymentId:)`): unknown id →
+  `.failed("unknown payment")` once, then end; `partiallyCompleted` → `.partiallyCompleted(settledInPlanks:)`
+  (the host reports `PartiallyClaimed` with the value); legacy `rescheduled` rows report `.processing`
+  and resume as `plan`; duplicates collapse; the stream ends after the first terminal status.
 - Tests: `Packages/Coinage/Tests/ExternalPayment/` (real service + state machine over an in-memory
-  store and a group-aware durability double); mutation sweep
+  store, a scripted recycler and a group-aware durability double) and
+  `Tests/Recycling/RecyclingStatusFoldingTests.swift`; mutation sweep
   `Packages/Coinage/Tools/external_payment_mutation_sweep.py`.
 
 ## Seams

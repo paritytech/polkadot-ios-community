@@ -3,9 +3,10 @@
 
 Same shape as `coinage_rule_mutation_sweep.py` / `top_up_mutation_sweep.py`: touch only the files that
 decide an external payment's fate and run only the external payment tests. Each mutant removes or
-weakens exactly one rule the contract states — origin-scoped identity, idempotent registration, the
-verdict-vs-transient split, the bounded retry loop, cancellation safety, status semantics, the persisted
-spend scope, and strategy-aware planning.
+weakens exactly one rule the contract states — origin-scoped identity, idempotent registration, every
+error is a verdict except cancellation, recycling awaited and checked for sufficiency, one durability
+group per payment, partial unloads terminal with the settled value, status semantics, and structural
+planning with forced vouchers.
 
 Read a SURVIVED line as "no test distinguishes this rule's presence from its absence".
 
@@ -25,156 +26,117 @@ import sys
 
 ROOT = "Packages/Coinage/Sources/ExternalPayment"
 SERVICE = f"{ROOT}/Service/ExternalPaymentService.swift"
-POLICY = f"{ROOT}/Service/ExternalPaymentRetryPolicy.swift"
 CONTEXT = f"{ROOT}/Service/ExternalPaymentContext.swift"
-RESCHEDULER = f"{ROOT}/Service/ExternalPaymentRescheduler.swift"
 MODEL = f"{ROOT}/Model/ExternalPayment.swift"
 FACTORY = f"{ROOT}/StateMachine/ExternalPaymentStateFactory.swift"
 PLAN_STATE = f"{ROOT}/StateMachine/States/PlanPaymentState.swift"
+ONBOARD_STATE = f"{ROOT}/StateMachine/States/OnboardCoinsPaymentState.swift"
 OFFBOARD_STATE = f"{ROOT}/StateMachine/States/OffboardVouchersPaymentState.swift"
-RETRY_STATE = f"{ROOT}/StateMachine/States/RetryPaymentState.swift"
 PLANNER = f"{ROOT}/Planner/ExternalPaymentPlanner.swift"
+RECYCLER = "Packages/Coinage/Sources/Recycling/CoinageRecyclingService.swift"
 
 DEFAULT_SIM = "F6327B69-0673-48AE-9515-C22A4B8CE8CE"  # iPhone 16
 ONLY_TESTING = [
     "CoinageTests/ExternalPaymentModelTests",
     "CoinageTests/ExternalPaymentServiceTests",
     "CoinageTests/ExternalPaymentContextTests",
-    "CoinageTests/ExternalPaymentReschedulerTests",
     "CoinageTests/ExternalPaymentStateTests",
     "CoinageTests/ExternalPaymentRestartTests",
     "CoinageTests/ExternalPaymentPlannerTests",
+    "CoinageTests/RecyclingStatusFoldingTests",
+    "CoinageTests/CoinageRecyclingServiceTests",
 ]
 
 # (label, file, exact source to replace, replacement). Each removes or weakens one rule.
 MUTANTS = [
-    # --- identity & registration ---
     ("identity: the origin is dropped from the identifier", MODEL,
      '        "\\(origin):\\(paymentId)"',
-     '        "\\(paymentId)"'),
-
+     '        paymentId'),
     ("register: a known (origin, paymentId) is registered again", SERVICE,
-     "        guard try await store.fetchPayment(byId: payment.id) == nil else {",
-     "        guard true else {"),
-
-    ("register: the requested spend scope is not persisted", SERVICE,
-     "            spendScope: spendScope\n        )\n\n        try await registrar.register(payment)",
-     "            spendScope: .spendable\n        )\n\n        try await registrar.register(payment)"),
-
-    # --- verdict vs transient ---
-    ("plan: a thrown error is a verdict", PLAN_STATE,
-     "            return factory.makeRetryState(payment: payment, stage: .plan, error: error)",
-     "            return factory.makeFailedState(payment: payment, reason: error.localizedDescription)"),
-
-    ("plan: insufficient balance is retried instead of failed", PLAN_STATE,
-     "                return factory.makeFailedOrPartial(payment: payment, reason: \"Insufficient balance\")",
-     "                return factory.makeRescheduledState(payment: payment, until: Date())"),
-
-    ("retry: the failing stage is not the one persisted", RETRY_STATE,
-     "        currentPayment.stage = stage",
-     "        currentPayment.stage = .plan"),
-
-    ("offboard: a stale plan fails instead of re-planning", OFFBOARD_STATE,
-     "                guard !vouchers.isEmpty, try await allSpendable(vouchers, factory: factory) else {\n"
-     "                    return factory.makePlanState(payment: payment)",
-     "                guard !vouchers.isEmpty, try await allSpendable(vouchers, factory: factory) else {\n"
-     "                    return factory.makeFailedState(payment: payment, reason: \"stale\")"),
-
-    ("memo: offboarding is restored as plan (rejoin dropped)", FACTORY,
-     "            makeOffboardVouchersState(payment: payment, vouchers: [])",
-     "            makePlanState(payment: payment)"),
-
-    # --- the bounded retry loop ---
-    ("loop: the retry window is never checked", SERVICE,
-     "        if retryPolicy.hasWindowElapsed(since: payment.createdAt) {",
-     "        if false {"),
-
-    ("loop: cancellation persists failed", SERVICE,
-     "        guard !Task.isCancelled else { return }",
-     "        if Task.isCancelled {\n            await persistRetryWindowElapsed(payment)\n            return\n        }"),
-
-    ("loop: the backoff holds the processing slot", SERVICE,
-     "        await context.onComplete(paymentId: id)\n        await context.scheduleRetry(",
-     "        await context.scheduleRetry("),
-
-    ("backoff: every retry is immediate", POLICY,
-     "        min(TimeInterval(attempt) * backoff, maxBackoff)",
-     "        0"),
-
-    ("observe: rows with a future readyAt are processed", SERVICE,
-     "                        .filter { $0.readyAt <= Date() }",
-     "                        .filter { _ in true }"),
-
-    ("context: a scheduled payment is started a second time", CONTEXT,
-     "        guard paymentId != currentPaymentId,\n              retryTasks[paymentId] == nil,\n"
-     "              !pendingTasks.contains(where: { $0.paymentId == paymentId })\n        else {",
-     "        guard true else {"),
-
-    ("context: a backing-off payment is re-entered by the next snapshot", CONTEXT,
-     "              retryTasks[paymentId] == nil,\n",
+     "        guard try await store.fetchPayment(byId: payment.id) == nil else {\n"
+     "            throw ExternalPaymentError.alreadyExists\n"
+     "        }\n",
      ""),
-
-    ("rescheduler: the wakeup leaves the stage rescheduled", RESCHEDULER,
-     "            updated.stage = .plan",
-     "            updated.stage = .rescheduled"),
-
-    # --- what the product is told ---
+    ("plan: a thrown error keeps the stage instead of failing", PLAN_STATE,
+     "            return factory.makeFailedState(payment: payment, stage: .plan, error: error)",
+     "            return factory.makeInterruptedState(payment: payment, stage: .plan)"),
+    ("plan: insufficient balance is not a verdict", PLAN_STATE,
+     '                return factory.makeFailedState(payment: payment, reason: "Insufficient balance")',
+     '                return factory.makeInterruptedState(payment: payment, stage: .plan)'),
+    ("cancel: cancellation persists failed", FACTORY,
+     "        error is CancellationError",
+     "        false"),
+    ("onboard: recycling continues on incomplete", ONBOARD_STATE,
+     '                case .incomplete:\n'
+     '                    return factory.makeFailedState(payment: payment, reason: "recycling incomplete")',
+     '                case .incomplete:\n'
+     '                    continue'),
+    ("onboard: pending is treated as recycled (never awaits)", ONBOARD_STATE,
+     "                case .pending:\n                    continue",
+     "                case .pending:\n                    return try await continueWithRecycled([], factory: factory)"),
+    ("onboard: the sufficiency check is dropped", ONBOARD_STATE,
+     "        guard covered >= payment.amountInPlanks else {",
+     "        guard covered >= 0 else {"),
+    ("onboard: re-entry offboards the recycled vouchers alone instead of re-planning", ONBOARD_STATE,
+     "        guard !exactVouchers.isEmpty else {\n"
+     "            return try await replan(including: recycled, factory: factory)\n"
+     "        }\n",
+     ""),
+    ("recycler: a re-joined group is submitted again", RECYCLER,
+     "        if let groupId, try await !txService.getOperationGroupStatuses(groupId).isEmpty {\n"
+     '            logger.debug("Recycling group \\(groupId) already registered, re-joining")\n'
+     "            return 0\n"
+     "        }\n",
+     ""),
+    ("fold: a failed entry still counts as recycled", RECYCLER,
+     "        guard !entries.contains(where: { $0.status == .failure }) else {\n"
+     "            return .incomplete\n"
+     "        }\n",
+     ""),
+    ("fold: a live entry is reported as recycled", RECYCLER,
+     "        guard !entries.isEmpty, entries.allSatisfy(\\.status.isArrived) else {",
+     "        guard !entries.isEmpty else {"),
+    ("offboard: a partial unload is reported as completed", OFFBOARD_STATE,
+     '                return factory.makePartiallyCompletedState(\n'
+     '                    payment: settled,\n'
+     '                    reason: "\\(executed) of \\(total) unload transactions executed"\n'
+     '                )',
+     '                _ = (executed, total)\n'
+     '                return factory.makeCompletedState(payment: settled)'),
+    ("offboard: the settled value is not persisted", OFFBOARD_STATE,
+     "                settled.settledInPlanks = settledInPlanks",
+     "                settled.settledInPlanks = 0"),
+    ("offboard: a failed unload keeps the stage", OFFBOARD_STATE,
+     '                return factory.makeFailedState(payment: payment, reason: "no unload transaction executed")',
+     '                return factory.makeInterruptedState(payment: payment, stage: .offboardVouchers)'),
     ("status: an unknown id is silently dropped", SERVICE,
-     "            .map { payment -> ExternalPaymentStatus in\n"
-     "                guard let payment else { return .failed(reason: \"unknown payment\") }",
-     "            .compactMap { payment -> ExternalPaymentStatus? in\n"
-     "                guard let payment else { return nil }"),
-
+     '                guard let payment else { return .failed(reason: "unknown payment") }',
+     '                guard let payment else { return .processing }'),
     ("status: partially completed hides the settled amount", SERVICE,
      "            .partiallyCompleted(settledInPlanks: settledInPlanks)",
      "            .partiallyCompleted(settledInPlanks: 0)"),
-
     ("status: the stream never ends after a terminal status", SERVICE,
-     "                        if status.isTerminal { break }",
-     "                        _ = status.isTerminal"),
-
-    # --- partial unloads: settle and retry the remainder ---
-    ("partial: a partial unload is terminal instead of re-planned", OFFBOARD_STATE,
-     "        return factory.makePlanState(payment: next)",
-     "        return factory.makePartiallyCompletedState(payment: next, reason: \"partial\")"),
-
-    ("partial: the next round reuses the settled group", OFFBOARD_STATE,
-     "        next.round += 1",
-     "        next.round += 0"),
-
-    ("partial: the remainder is planned as the full amount", PLAN_STATE,
-     "                amount: payment.remainingInPlanks,",
-     "                amount: payment.amountInPlanks,"),
-
-    ("partial: nothing delivered after a settled round is called failed", FACTORY,
-     "        guard payment.settledInPlanks > 0 else {",
-     "        guard false else {"),
-
-    # --- strategy-aware planning & the persisted scope ---
-    ("planner: no verdicts yet is treated as no funds", PLANNER,
-     "            return .needsReschedule(\n                after: Date(timeIntervalSinceNow: rescheduleDelay),\n"
-     "                selection(vouchers: [], coins: [], amount: amount, scope: scope)\n            )\n        }\n\n"
-     "        let spendableVoucherTotal",
-     "            return .notEnoughBalance\n        }\n\n        let spendableVoucherTotal"),
-
-    ("planner: gaining-privacy vouchers are spent as if spendable", PLANNER,
-     "        let spendableVoucherTotal = totalValue(of: assets.spendableVouchers, context: context)",
-     "        let spendableVoucherTotal = totalValue(\n"
-     "            of: assets.spendableVouchers + assets.gainingPrivacyVouchers,\n            context: context\n        )"),
-
-    ("planner: the record's scope is ignored when planning", PLAN_STATE,
-     "                scope: payment.spendScope",
-     "                scope: .spendable"),
-
-    ("offboard: re-validation ignores the record's scope", OFFBOARD_STATE,
-     "        guard let assets = try await factory.spendableAssets.spendableAssets(scope: payment.spendScope) else {",
-     "        guard let assets = try await factory.spendableAssets.spendableAssets(scope: .spendable) else {"),
-
-    ("preview: the second pass never widens", SERVICE,
-     "        guard !spendable.isExecutable else { return spendable }",
-     "        return spendable"),
+     "            .removeDuplicates()\n            .endAfterTerminal()",
+     "            .removeDuplicates()\n            .eraseToAnyAsyncSequence()"),
+    ("memo: a legacy rescheduled row is restored as failed", FACTORY,
+     "        case .plan,\n             .rescheduled:\n            makePlanState(payment: payment)",
+     "        case .plan:\n            makePlanState(payment: payment)\n"
+     "        case .rescheduled:\n            makeFailedState(payment: payment, reason: \"legacy\")"),
+    ("context: a queued payment is started a second time", CONTEXT,
+     "              !pendingTasks.contains(where: { $0.paymentId == paymentId })",
+     "              true"),
+    ("planner: non-selectable vouchers are spent", PLANNER,
+     "            .filter { $0.isSelectable && !forced.contains($0.voucher.derivationIndex) }",
+     "            .filter { !forced.contains($0.voucher.derivationIndex) }"),
+    ("planner: non-selectable coins are recycled", PLANNER,
+     "            .filter(\\.isSelectable)\n            .map(\\.coin)",
+     "            .map(\\.coin)"),
+    ("planner: mustInclude is not forced into the selection", PLANNER,
+     "            let selected = mustInclude + select(from: spendableVouchers, target: amount, context: context) {\n"
+     "                totalValue(of: mustInclude, context: context)\n"
+     "            }",
+     "            let selected = select(from: spendableVouchers, target: amount, context: context) { 0 }"),
 ]
-
 
 def run_suite(sim):
     only = []

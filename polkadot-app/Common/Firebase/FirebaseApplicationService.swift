@@ -107,7 +107,9 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             dotNsResolver: dotNsResolverAddress(),
             dotNsNameRegistry: dotNsNameRegistryAddress(),
             coinageInstanceId: coinageInstanceId(),
-            fundingDomain: nonEmptyString(for: .fundingDomain)
+            fundingDomain: nonEmptyString(for: .fundingDomain),
+            fundingUrl: url(for: .fundingUrl),
+            offrampUrl: url(for: .offrampUrl)
         )
     }
 
@@ -248,4 +250,6 @@ private extension String {
     static let dotNsResolver = "dot_ns_config"
     static let coinageInstanceId = "coinage_instance_id"
     static let fundingDomain = "funding_domain"
+    static let fundingUrl = "funding_url"
+    static let offrampUrl = "offramp_url"
 }

@@ -44,12 +44,6 @@ final class InMemoryExternalPaymentStore: ExternalPaymentStoring, @unchecked Sen
             .eraseToAnyAsyncSequence()
     }
 
-    func observeRescheduledPayments() -> AnyAsyncSequence<[ExternalPayment]> {
-        subject
-            .map { $0.filter { $0.stage == .rescheduled } }
-            .eraseToAnyAsyncSequence()
-    }
-
     // MARK: - Test inspection
 
     func payment(id: String) -> ExternalPayment? {

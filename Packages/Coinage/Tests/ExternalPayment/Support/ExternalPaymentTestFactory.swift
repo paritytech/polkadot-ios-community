@@ -1,48 +1,20 @@
-import SubstrateSdk
 import BigInt
 import Foundation
 import os
+import SubstrateSdk
 import Testing
 @testable import Coinage
 
-/// Records the delays the retry loop asked for instead of sleeping.
-final class RecordingSleeper: @unchecked Sendable {
-    private let delays = OSAllocatedUnfairLock(initialState: [TimeInterval]())
-    private let held = OSAllocatedUnfairLock(initialState: false)
-
-    var recorded: [TimeInterval] {
-        delays.withLock { $0 }
-    }
-
-    /// While held, every sleep suspends until `release()`; lets a test observe what happens
-    /// during a backoff instead of after it.
-    func hold() {
-        held.withLock { $0 = true }
-    }
-
-    func release() {
-        held.withLock { $0 = false }
-    }
-
-    func sleep(_ delay: TimeInterval) async throws {
-        delays.withLock { $0.append(delay) }
-        while held.withLock({ $0 }) {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        try Task.checkCancellation()
-    }
-}
-
 /// Real `ExternalPaymentService` and state machine over an in-memory store and the stubbed lowest
-/// seams: planner or spendable-assets provider, recycler, and a group-aware durability double.
+/// seams: scripted planner, scripted recycler, tracked coins/vouchers, and a group-aware durability
+/// double.
 struct ExternalPaymentHarness {
     let store: InMemoryExternalPaymentStore
     let txService: StubGroupTxService
     let recycler: StubCoinageRecyclingService
     let planner: StubExternalPaymentPlanner
-    let assets: StubSpendableAssetsProvider
+    let coins: StubCoinService
     let vouchers: StubVoucherService
-    let sleeper: RecordingSleeper
     let service: ExternalPaymentService
 }
 
@@ -55,41 +27,47 @@ enum ExternalPaymentTestFactory {
     )
 
     static let destination = Data(repeating: 7, count: 32)
+    static let freeState = CoinageAssetState(handedOff: false, consumerStatus: nil, minterStatus: nil)
 
     static func planks(_ exponent: Int16) -> Balance {
         denomination.valueInPlanks(for: exponent)
     }
 
-    static func voucher(index: UInt64, exponent: Int16 = 3, readyAt: Date = .distantPast) -> Voucher {
+    static func voucher(index: UInt64, exponent: Int16 = 3, inRecycler: Bool = true) -> Voucher {
         Voucher(
             exponent: exponent,
             derivationIndex: index,
             allocatedAt: Date(timeIntervalSince1970: 0),
-            readyAt: readyAt,
-            remoteState: .inRecycler(Voucher.Recycler(index: 1, membersCount: 8)),
+            readyAt: .distantPast,
+            remoteState: inRecycler ? .inRecycler(Voucher.Recycler(index: 1, membersCount: 8)) : .unlocated,
             publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
         )
     }
 
-    static func coin(index: UInt64, exponent: Int16 = 3) -> Coin {
+    static func tracked(_ voucher: Voucher, state: CoinageAssetState = freeState) -> TrackedVoucher {
+        TrackedVoucher(voucher: voucher, state: state)
+    }
+
+    static func coin(index: UInt64, exponent: Int16 = 3, age: Int16? = 4, isOnchain: Bool = true) -> Coin {
         Coin(
             exponent: exponent,
             derivationIndex: index,
-            age: 4,
-            isOnchain: true,
+            age: age,
+            isOnchain: isOnchain,
             publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
         )
+    }
+
+    static func tracked(_ coin: Coin, state: CoinageAssetState = freeState) -> TrackedCoin {
+        TrackedCoin(coin: coin, state: state)
     }
 
     static func payment(
         origin: String = "getcash.dot",
         paymentId: String = "0xaa",
         amount: Balance = planks(3),
-        spendScope: SpendScope = .spendable,
-        round: Int = 0,
         settled: Balance = 0,
         stage: ExternalPayment.Stage = .plan,
-        readyAt: Date = .distantPast,
         createdAt: Date = Date()
     ) -> ExternalPayment {
         ExternalPayment(
@@ -97,11 +75,8 @@ enum ExternalPaymentTestFactory {
             paymentId: paymentId,
             amountInPlanks: amount,
             destination: destination,
-            spendScope: spendScope,
             settledInPlanks: settled,
-            round: round,
             stage: stage,
-            readyAt: readyAt,
             createdAt: createdAt
         )
     }
@@ -109,15 +84,21 @@ enum ExternalPaymentTestFactory {
     static func selection(
         vouchers: [Voucher] = [],
         coins: [Coin] = [],
-        amount: Balance = planks(3),
-        scope: SpendScope = .spendable
+        amount: Balance = planks(3)
     ) -> ExternalPaymentPreview.Selection {
-        ExternalPaymentPreview.Selection(vouchers: vouchers, coins: coins, fullAmount: amount, scope: scope)
+        ExternalPaymentPreview.Selection(vouchers: vouchers, coins: coins, fullAmount: amount)
+    }
+
+    static func recycleGroupId(for payment: ExternalPayment) -> CoinageTxGroupId {
+        OnboardCoinsPaymentState.recyclingGroupId(for: payment)
+    }
+
+    static func unloadGroupId(for payment: ExternalPayment) -> CoinageTxGroupId {
+        "external-payment:\(payment.id)"
     }
 
     static func makeStateFactory(
         planner: any ExternalPaymentPlanning,
-        assets: any SpendableAssetsProviding = StubSpendableAssetsProvider(),
         recycler: StubCoinageRecyclingService = StubCoinageRecyclingService(),
         txService: StubGroupTxService = StubGroupTxService(),
         vouchers: [Voucher] = []
@@ -125,10 +106,9 @@ enum ExternalPaymentTestFactory {
         ExternalPaymentStateFactory(
             instanceId: 0,
             planner: planner,
-            spendableAssets: assets,
             context: denomination,
-            recycler: recycler,
             voucherService: StubVoucherService(vouchers: vouchers),
+            recycler: recycler,
             voucherKeyFactory: StubVoucherKeyFactory(),
             voucherMinter: StubVoucherMinter(),
             recyclerLoader: StubRecyclerReadinessLoader(),
@@ -140,25 +120,20 @@ enum ExternalPaymentTestFactory {
         )
     }
 
-    /// Real service and state machine over the scripted stub planner.
     static func makeHarness(
-        store: InMemoryExternalPaymentStore = InMemoryExternalPaymentStore(),
-        retryWindow: TimeInterval = 3_600
+        store: InMemoryExternalPaymentStore = InMemoryExternalPaymentStore()
     ) -> ExternalPaymentHarness {
         let txService = StubGroupTxService()
         let recycler = StubCoinageRecyclingService()
-        let stubPlanner = StubExternalPaymentPlanner()
-        let assets = StubSpendableAssetsProvider()
+        let planner = StubExternalPaymentPlanner()
+        let coins = StubCoinService()
         let vouchers = StubVoucherService()
-        let sleeper = RecordingSleeper()
-        let planner: any ExternalPaymentPlanning = stubPlanner
 
         let machineFactory = ExternalPaymentStateMachineFactory(
             instanceId: 0,
             planner: planner,
-            spendableAssets: assets,
-            recycler: recycler,
             voucherService: vouchers,
+            recycler: recycler,
             voucherKeyFactory: StubVoucherKeyFactory(),
             voucherMinter: StubVoucherMinter(),
             recyclerLoader: StubRecyclerReadinessLoader(),
@@ -170,18 +145,10 @@ enum ExternalPaymentTestFactory {
             logger: nil
         )
 
-        let policy = ExternalPaymentRetryPolicy(
-            window: retryWindow,
-            backoff: 30,
-            maxBackoff: 300,
-            sleep: { try await sleeper.sleep($0) }
-        )
-
         let service = ExternalPaymentService(
             store: store,
             planner: planner,
             stateMachineFactory: machineFactory,
-            retryPolicy: policy,
             logger: nil
         )
 
@@ -189,10 +156,9 @@ enum ExternalPaymentTestFactory {
             store: store,
             txService: txService,
             recycler: recycler,
-            planner: stubPlanner,
-            assets: assets,
+            planner: planner,
+            coins: coins,
             vouchers: vouchers,
-            sleeper: sleeper,
             service: service
         )
     }

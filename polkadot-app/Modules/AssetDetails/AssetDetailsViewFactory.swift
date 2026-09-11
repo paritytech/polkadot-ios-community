@@ -35,7 +35,7 @@ enum AssetDetailsViewFactory {
             databaseFactory: databaseFactory,
             voucherRepository: databaseFactory.makeVoucherRepository(),
             backgroundExecutor: ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry),
-            hostProvider: context.flowState.hostProvider
+            fundingDomainProvider: FundingDomainProvider(hostProvider: context.flowState.hostProvider)
         )
 
         #if TESTNET_FEATURE

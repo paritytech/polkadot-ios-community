@@ -5,8 +5,8 @@ import SubstrateSdk
 
 /// Public interface for previewing, initiating and monitoring external payments.
 public protocol ExternalPaymentServicing {
-    /// Two-pass preview: `.spendable` first, widened to `.withConfirmation` only when spendable
-    /// funds cannot execute the payment. The returned selection carries the scope it drew on.
+    /// Plans over everything spendable on-chain right now; the caller has already obtained the user's
+    /// privacy consent, so no scope is involved.
     func previewPayment(
         for amount: Balance,
         context: DenominationBreakdownContext
@@ -18,8 +18,7 @@ public protocol ExternalPaymentServicing {
         origin: String,
         paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId,
-        spendScope: SpendScope
+        destination: AccountId
     ) async throws
 
     /// Unknown `(origin, paymentId)` emits `.failed(reason: "unknown payment")` once, then ends.

@@ -34,7 +34,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
 
     private var recoveryStateTask: Task<Void, Error>?
 
-    private let hostProvider: ProductHostProviding
+    private let fundingDomainProvider: FundingDomainProviding
     private var rampProductTasks: [RampAction: Task<Void, Never>] = [:]
 
     #if TESTNET_FEATURE
@@ -58,7 +58,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         databaseFactory: any DatabaseDependencyFactoring,
         voucherRepository: AnyDataProviderRepository<Voucher>,
         backgroundExecutor: BackgroundExecuting,
-        hostProvider: ProductHostProviding,
+        fundingDomainProvider: FundingDomainProviding,
         eventCenter: EventCenterProtocol = EventCenter.shared
     ) {
         self.priceLocalSubscriptionFactory = priceLocalSubscriptionFactory
@@ -68,7 +68,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         self.coinageBackupSyncService = coinageBackupSyncService
         self.balanceSyncStateStorage = balanceSyncStateStorage
         self.eventCenter = eventCenter
-        self.hostProvider = hostProvider
+        self.fundingDomainProvider = fundingDomainProvider
         #if TESTNET_FEATURE
             self.backgroundExecutor = backgroundExecutor
             self.databaseFactory = databaseFactory
@@ -126,12 +126,9 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
     func openRampProduct(_ action: RampAction) {
         rampProductTasks[action]?.cancel()
-        rampProductTasks[action] = Task { [weak presenter, hostProvider] in
+        rampProductTasks[action] = Task { [weak presenter, fundingDomainProvider] in
             do {
-                let page = try await action.resolvePage(
-                    label: AppConfig.DotNs.dotNsGetSome,
-                    using: hostProvider
-                )
+                let page = try await action.resolvePage(using: fundingDomainProvider)
                 await presenter?.didResolveRampProduct(action, result: .success(page))
             } catch {
                 await presenter?.didResolveRampProduct(action, result: .failure(error))
@@ -316,7 +313,7 @@ extension AssetDetailsInteractor: AppEventVisiting {
     }
 }
 
-extension RampAction.ResolveError: ErrorContentConvertible {
+extension FundingDomainError: ErrorContentConvertible {
     func toErrorContent() -> ErrorContent {
         ErrorContent(
             title: String(localized: .Common.error),

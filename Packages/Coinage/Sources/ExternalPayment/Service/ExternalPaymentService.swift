@@ -11,9 +11,9 @@ import SubstrateOperation
 /// Dependencies needed to construct the external payment processing pipeline.
 struct ExternalPaymentDependency {
     let instanceId: CoinageInstanceId
-    let spendableAssets: any SpendableAssetsProviding
-    let recycler: CoinageRecyclingServicing
+    let coinService: CoinServiceProtocol
     let voucherService: VoucherServiceProtocol
+    let recycler: CoinageRecyclingServicing
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -25,9 +25,9 @@ struct ExternalPaymentDependency {
 
     init(
         instanceId: CoinageInstanceId,
-        spendableAssets: any SpendableAssetsProviding,
-        recycler: CoinageRecyclingServicing,
+        coinService: CoinServiceProtocol,
         voucherService: VoucherServiceProtocol,
+        recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -38,9 +38,9 @@ struct ExternalPaymentDependency {
         blockNumberProvider: BlockInfoProviding
     ) {
         self.instanceId = instanceId
-        self.spendableAssets = spendableAssets
-        self.recycler = recycler
+        self.coinService = coinService
         self.voucherService = voucherService
+        self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -55,16 +55,13 @@ struct ExternalPaymentDependency {
 /// Manages the lifecycle of external payments.
 ///
 /// Previews payments via the planner, initiates by persisting to the store, and processes
-/// non-terminal payments sequentially via the state machine. Thrown errors inside a state leave the
-/// persisted stage untouched (``RetryPaymentState``) and are retried here under
-/// ``ExternalPaymentRetryPolicy``; explicit verdicts persist `failed` immediately.
+/// non-terminal payments sequentially via the state machine. Every run ends in a persisted verdict:
+/// there is no retry and no reschedule — the product gets a terminal answer from one pass.
 final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendable {
     let store: ExternalPaymentStoring
     let planner: ExternalPaymentPlanning
     let stateMachineFactory: ExternalPaymentStateMachineCreating
     let context: ExternalPaymentContext
-    let rescheduler: ExternalPaymentRescheduler
-    let retryPolicy: ExternalPaymentRetryPolicy
     let logger: SDKLoggerProtocol?
 
     private let registrar: ExternalPaymentRegistrar
@@ -73,16 +70,17 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
     convenience init(
         store: ExternalPaymentStoring,
         dependency: ExternalPaymentDependency,
-        retryPolicy: ExternalPaymentRetryPolicy = .production,
         logger: SDKLoggerProtocol? = nil
     ) {
-        let planner = ExternalPaymentPlanner(spendableAssets: dependency.spendableAssets)
+        let planner = ExternalPaymentPlanner(
+            coinService: dependency.coinService,
+            voucherService: dependency.voucherService
+        )
         let stateMachineFactory = ExternalPaymentStateMachineFactory(
             instanceId: dependency.instanceId,
             planner: planner,
-            spendableAssets: dependency.spendableAssets,
-            recycler: dependency.recycler,
             voucherService: dependency.voucherService,
+            recycler: dependency.recycler,
             voucherKeyFactory: dependency.voucherKeyFactory,
             voucherMinter: dependency.voucherMinter,
             recyclerLoader: dependency.recyclerLoader,
@@ -94,29 +92,20 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             logger: logger
         )
 
-        self.init(
-            store: store,
-            planner: planner,
-            stateMachineFactory: stateMachineFactory,
-            retryPolicy: retryPolicy,
-            logger: logger
-        )
+        self.init(store: store, planner: planner, stateMachineFactory: stateMachineFactory, logger: logger)
     }
 
     init(
         store: ExternalPaymentStoring,
         planner: ExternalPaymentPlanning,
         stateMachineFactory: ExternalPaymentStateMachineCreating,
-        retryPolicy: ExternalPaymentRetryPolicy = .production,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.store = store
         self.planner = planner
         self.stateMachineFactory = stateMachineFactory
-        self.retryPolicy = retryPolicy
         self.logger = logger
         context = ExternalPaymentContext(logger: logger)
-        rescheduler = ExternalPaymentRescheduler(store: store, logger: logger)
         registrar = ExternalPaymentRegistrar(store: store)
     }
 
@@ -124,21 +113,14 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
         for amount: Balance,
         context: DenominationBreakdownContext
     ) async throws -> ExternalPaymentPreview {
-        let spendable = try await planner.plan(amount: amount, context: context, scope: .spendable)
-
-        guard !spendable.isExecutable else { return spendable }
-
-        let widened = try await planner.plan(amount: amount, context: context, scope: .withConfirmation)
-
-        return widened.isExecutable ? widened : spendable
+        try await planner.plan(amount: amount, context: context, mustInclude: [])
     }
 
     func initiatePayment(
         origin: String,
         paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId,
-        spendScope: SpendScope
+        destination: AccountId
     ) async throws {
         guard !paymentId.isEmpty else {
             throw ExternalPaymentError.invalidPaymentId
@@ -148,8 +130,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             origin: origin,
             paymentId: paymentId,
             amountInPlanks: amountInPlanks,
-            destination: destination,
-            spendScope: spendScope
+            destination: destination
         )
 
         try await registrar.register(payment)
@@ -172,14 +153,12 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
 
     func setup(with context: DenominationBreakdownContext) {
         startObservation(with: context)
-        rescheduler.setup()
     }
 
     func throttle() {
         observeTask?.cancel()
         observeTask = nil
         Task { [context] in await context.cancelAll() }
-        rescheduler.throttle()
     }
 }
 
@@ -209,17 +188,10 @@ private extension ExternalPaymentService {
         observeTask = Task { [store, context, logger, weak self] in
             do {
                 for try await payments in store.observeNonTerminalPayments() {
-                    let ready = payments
-                        .filter { $0.readyAt <= Date() }
-                        .sorted { $0.createdAt < $1.createdAt }
-
-                    for payment in ready {
+                    for payment in payments.sorted(by: { $0.createdAt < $1.createdAt }) {
                         await context.scheduleIfNeeded(paymentId: payment.id) { [weak self] in
                             Task { [weak self] in
-                                await self?.processPayment(
-                                    id: payment.id,
-                                    denominationContext: denominationContext
-                                )
+                                await self?.processPayment(id: payment.id, denominationContext: denominationContext)
                             }
                         }
                     }
@@ -234,41 +206,10 @@ private extension ExternalPaymentService {
         }
     }
 
-    /// One machine run per slot occupancy. A transient failure (stage still non-terminal afterwards)
-    /// releases the slot first and re-enters through the queue after the backoff, so a payment that
-    /// is backing off never blocks the ones behind it. Attempts are in-memory; a relaunch resets them
-    /// and the window from `createdAt` still bounds the total.
-    func processPayment(id: String, denominationContext: DenominationBreakdownContext, attempt: Int = 0) async {
-        logger?.debug("Processing payment \(id), attempt \(attempt)")
+    /// One machine run per payment; every state persists its own verdict, so nothing is retried here.
+    func processPayment(id: String, denominationContext: DenominationBreakdownContext) async {
+        logger?.debug("Processing payment \(id)")
 
-        await runStateMachine(id: id, denominationContext: denominationContext)
-
-        guard let payment = await reloadPayment(id: id), !payment.stage.isTerminal else {
-            await context.onComplete(paymentId: id)
-            return
-        }
-
-        guard !Task.isCancelled else { return }
-
-        if retryPolicy.hasWindowElapsed(since: payment.createdAt) {
-            await persistRetryWindowElapsed(payment)
-            await context.onComplete(paymentId: id)
-            return
-        }
-
-        let nextAttempt = attempt + 1
-        let delay = retryPolicy.delay(forAttempt: nextAttempt)
-        logger?.debug("Payment \(id) retry #\(nextAttempt) in \(delay)s: \(payment.failureReason ?? "-")")
-
-        await context.onComplete(paymentId: id)
-        await context.scheduleRetry(paymentId: id, after: delay, sleep: retryPolicy.sleep) { [weak self] in
-            Task { [weak self] in
-                await self?.processPayment(id: id, denominationContext: denominationContext, attempt: nextAttempt)
-            }
-        }
-    }
-
-    func runStateMachine(id: String, denominationContext: DenominationBreakdownContext) async {
         do {
             let machine = try await stateMachineFactory.createStateMachine(
                 for: id,
@@ -279,32 +220,8 @@ private extension ExternalPaymentService {
         } catch {
             logger?.error("Payment \(id) run failed: \(error)")
         }
-    }
 
-    func reloadPayment(id: String) async -> ExternalPayment? {
-        do {
-            return try await store.fetchPayment(byId: id)
-        } catch {
-            logger?.error("Payment \(id) reload failed: \(error)")
-            return nil
-        }
-    }
-
-    func persistRetryWindowElapsed(_ payment: ExternalPayment) async {
-        var failed = payment
-        failed.stage = payment.settledInPlanks > 0 ? .partiallyCompleted : .failed
-        failed.failureReason = payment.failureReason ?? "retry window elapsed"
-        failed.updatedAt = Date()
-
-        do {
-            try await store.save(payment: failed)
-            logger?.error(
-                "Payment \(payment.id) gave up after retry window: \(failed.failureReason ?? ""), " +
-                    "settled \(payment.settledInPlanks) of \(payment.amountInPlanks)"
-            )
-        } catch {
-            logger?.error("Payment \(payment.id) could not persist failure: \(error)")
-        }
+        await context.onComplete(paymentId: id)
     }
 }
 
@@ -315,7 +232,8 @@ private extension ExternalPayment {
         switch stage {
         case .plan,
              .onboardCoins,
-             .offboardVouchers:
+             .offboardVouchers,
+             .rescheduled:
             .processing
         case .completed:
             .completed
@@ -323,8 +241,6 @@ private extension ExternalPayment {
             .partiallyCompleted(settledInPlanks: settledInPlanks)
         case .failed:
             .failed(reason: failureReason ?? "Unknown")
-        case .rescheduled:
-            .processing
         }
     }
 }

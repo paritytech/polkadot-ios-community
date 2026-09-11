@@ -120,6 +120,7 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             permissionGuard: permissionGuard,
             paymentApprovalRequester: PaymentApprovalRequesterFactory.create(router: routers.productsRouter),
             paymentPrivacyConfirmer: PaymentPrivacyConfirmer(router: routers.productsRouter),
+            recyclingStrategy: CoinageRecyclingStrategyStore.shared,
             paymentsSupport: paymentsSupport,
             accountManager: accountManager,
             createProofHandler: personhoodHandlerFactory.makeCreateProofHandler(callingProductId: productId),

@@ -1,48 +1,35 @@
 import BigInt
 import Foundation
 
-/// The result of external payment planning, doubling as a preview
-/// that exposes privacy information before execution.
+/// The result of external payment planning, doubling as a preview before execution.
 public enum ExternalPaymentPreview {
-    /// Enough ready vouchers to cover the amount.
+    /// Enough spendable vouchers to cover the amount.
     case ready(Selection)
 
-    /// Not enough ready vouchers but coins are available for recycling.
+    /// Not enough spendable vouchers, but spendable coins cover the deficit once recycled.
     case loadCoins(Selection)
 
-    /// Vouchers or coins exist but aren't mature yet — retry after the given date.
-    case needsReschedule(after: Date, Selection)
-
-    /// Permanent failure — total available value is insufficient.
+    /// Permanent failure — what is spendable on-chain cannot cover the amount.
     case notEnoughBalance
 }
 
 // MARK: - Selection
 
 public extension ExternalPaymentPreview {
-    /// Pre-computed selection of vouchers/coins with amount breakdowns.
+    /// Pre-computed selection of vouchers/coins.
     struct Selection {
-        /// Vouchers selected for this payment (offboarding candidates for `.ready`,
-        /// ready pool for `.loadCoins`/`.needsReschedule`).
+        /// Vouchers selected for this payment (offboarding candidates for `.ready`; the exact
+        /// vouchers that must join the recycled ones for `.loadCoins`).
         public let vouchers: [Voucher]
         /// Coins selected for recycling (empty for `.ready`).
         public let coins: [Coin]
         /// The originally requested transfer amount.
         public let fullAmount: BigUInt
-        /// The scope the plan drew on. `.withConfirmation` means it spends gaining-privacy funds,
-        /// so the caller must confirm before initiating.
-        public let scope: SpendScope
 
-        public init(
-            vouchers: [Voucher],
-            coins: [Coin],
-            fullAmount: BigUInt,
-            scope: SpendScope
-        ) {
+        public init(vouchers: [Voucher], coins: [Coin], fullAmount: BigUInt) {
             self.vouchers = vouchers
             self.coins = coins
             self.fullAmount = fullAmount
-            self.scope = scope
         }
     }
 }
@@ -53,8 +40,7 @@ public extension ExternalPaymentPreview {
     var selection: Selection? {
         switch self {
         case let .ready(selection),
-             let .loadCoins(selection),
-             let .needsReschedule(_, selection):
+             let .loadCoins(selection):
             selection
         case .notEnoughBalance:
             nil
@@ -63,16 +49,12 @@ public extension ExternalPaymentPreview {
 
     var fullAmount: BigUInt { selection?.fullAmount ?? .zero }
 
-    /// `.spendable` when there is no selection: nothing widened was offered.
-    var scope: SpendScope { selection?.scope ?? .spendable }
-
     var isExecutable: Bool {
         switch self {
         case .ready,
              .loadCoins:
             true
-        case .needsReschedule,
-             .notEnoughBalance:
+        case .notEnoughBalance:
             false
         }
     }

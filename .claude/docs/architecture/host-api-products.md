@@ -70,29 +70,35 @@ Contract (`Packages/Products/.../ProductNativeApi+Payment.swift`, handlers in `C
 - `paymentRequest { id: hex32, amount: string, destinationHex: hex32 } → {}` — the **product supplies the
   id** (`PaymentRequestId = Data`, 32 bytes, validated at DTO decode), exactly like `paymentTopUp`.
   Nothing is returned; the id is the handle.
-- `paymentStatusSubscribe { paymentId: hex32 } → { tag: Processing | Completed | Failed, value? }`.
-  An unknown `(product, id)` emits `Failed("unknown payment")` once and ends; `Rescheduled` reports as
-  `Processing`. A payment that gave up after delivering part of the amount reports `Completed` with
-  `value` = delivered planks (decimal string): products that reconcile must read it, legacy products see
-  plain `Completed` (Android parity). `Failed` carries the reason in `value`.
+- `paymentStatusSubscribe { paymentId: hex32 } → { tag: Processing | Completed | PartiallyClaimed | Failed, value? }`.
+  An unknown `(product, id)` emits `Failed("unknown payment")` once and ends. A payment that delivered
+  only part of the amount ends as `PartiallyClaimed` with `value` = delivered planks (decimal string).
+  `Completed` carries no value; `Failed` carries the reason.
 - Malformed params (missing key, wrong hex length) fail with `ContainerBridgeHostApiError.invalidPaymentRequestParams`.
-- Coded errors (`HostPaymentRequestError`): `Rejected`, `InsufficientBalance`, `AlreadyExists`, `Unknown`.
-  Messages keep the legacy strings the shipped container.js matches on.
+- Coded errors (`HostPaymentRequestError`): `Rejected`, `InsufficientBalance`, `AlreadyExists` — there
+  is no `Unknown`; any unexpected native error propagates uncoded. Messages keep the legacy strings the
+  shipped container.js matches on.
+- `payment.balance` reports the **total** CASH balance (`CoinageBalance.total`); the request check
+  compares the amount against what is spendable on-chain (`availablePrivate + gainingPrivacy`).
 
-Native order in `ProductsNativeApi+Payment.swift`: scope resolution from one balance snapshot
-(`PaymentSpendScopeResolver`: `.spendable` when private funds cover the amount, `.withConfirmation`
-when the strategy's gaining-privacy funds cover the shortfall, otherwise a permission-shaped
-`InsufficientBalance` / `Rejected` from a non-prompting `check(.balanceAccess)`) → approval → for a
-widened scope the gaining-privacy sheet (`PaymentPrivacyConfirming`, the same sheet transfers show;
-declining is `Rejected`) → `initiateExternalPayment` with the persisted scope. Identity is
-`(origin = productId, paymentId)`; the coinage service validates uniqueness at registration, so a
-replayed call ends in `AlreadyExists` after those two steps. Products must treat any error on a retry
-as "subscribe to status", not as a failed payment.
+Native order in `ProductsNativeApi+Payment.swift`: balance check (a shortfall is `InsufficientBalance`
+when the product may read the balance, otherwise `Rejected`, from a non-prompting `check(.balanceAccess)`)
+→ approval → the gaining-privacy sheet whenever the recycling strategy is not `minPrivacy`
+(`PaymentPrivacyGate`, shown through `PaymentPrivacyConfirming`, the same sheet transfers use; declining
+is `Rejected`; never allowlisted) → `initiateExternalPayment`. Identity is `(origin = productId,
+paymentId)`; the coinage service validates uniqueness at registration, so a replayed call ends in
+`AlreadyExists` after those steps. Products must treat any error on a retry as "subscribe to status",
+not as a failed payment. The in-app pay deeplink follows the same consent rule.
 
 Approval goes through `PaymentApprovalRequesting`. `AutoAllowPaymentApprovalRequester` skips the sheet
 for the labels in `ProductAutoAllowList` (the funding product outside `FEATURE_PRODUCTS` builds) —
 the same wrapper shape and allowlist as `AutoAllowProductPermissionRequester`. Everyone else sees
 `PaymentRequestViewFactory`'s sheet via the app-side `PaymentApprovalRequester`.
+
+Funding entry points: `FundingDomainProvider` (`Modules/Products/`) resolves the CASH card's top-up
+and withdraw pages from the remote keys `funding_url` / `offramp_url` (full product URLs with the
+chain TLD, optional path → `ProductPage`); `RampAction` maps the two buttons to them. The legacy
+`funding_domain` key remains only as the allowlist-label fallback.
 
 Offramp worker flow (getcash): the **worker** calls `workerBeginOperation` first, the SPA page calls
 `paymentRequest(id)`, the worker subscribes `paymentStatusSubscribe(id)` and calls

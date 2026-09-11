@@ -66,8 +66,7 @@ public protocol CoinageServicing: Actor {
         origin: String,
         paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId,
-        spendScope: SpendScope
+        destination: AccountId
     ) async throws
 
     /// Subscribe to the status of an external payment identified by `(origin, paymentId)`.
@@ -233,15 +232,13 @@ extension CoinageService: CoinageServicing {
         origin: String,
         paymentId: String,
         amountInPlanks: Balance,
-        destination: AccountId,
-        spendScope: SpendScope
+        destination: AccountId
     ) async throws {
         try await externalPaymentService.initiatePayment(
             origin: origin,
             paymentId: paymentId,
             amountInPlanks: amountInPlanks,
-            destination: destination,
-            spendScope: spendScope
+            destination: destination
         )
     }
 
@@ -463,15 +460,6 @@ private extension CoinageService {
             return try result.get()
         }
         throw CancellationError()
-    }
-}
-
-// MARK: - RecyclingVerdictsReading
-
-extension CoinageService: RecyclingVerdictsReading {
-    /// The evaluator's latest verdicts, or `nil` before the first evaluation lands.
-    public func currentRecyclingVerdicts() -> RecyclingVerdicts? {
-        recyclingEvaluator?.currentVerdicts()
     }
 }
 

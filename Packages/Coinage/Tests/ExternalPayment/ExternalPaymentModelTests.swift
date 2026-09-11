@@ -12,33 +12,19 @@ struct ExternalPaymentModelTests {
         #expect(first.id == "getcash.dot:0x01")
         #expect(first.id != second.id)
         #expect(first.paymentId == second.paymentId)
-        #expect(ExternalPayment.identifier(origin: "a", paymentId: "b:c") == "a:b:c")
     }
 
     @Test func paymentIdIsRecoveredFromIdentifier() {
         let restored = ExternalPayment(
-            id: "getcash.dot:0x01",
-            origin: "getcash.dot",
-            amountInPlanks: 1,
-            destination: Factory.destination
+            id: "getcash.dot:0x01", origin: "getcash.dot", amountInPlanks: 1, destination: Factory.destination
         )
         let legacy = ExternalPayment(
-            id: "6F1E4A0C-LEGACY",
-            origin: "5Recipient",
-            amountInPlanks: 1,
-            destination: Factory.destination
+            id: "6F1E4A0C-LEGACY", origin: "5Recipient", amountInPlanks: 1, destination: Factory.destination
         )
 
         #expect(restored.paymentId == "0x01")
         #expect(legacy.paymentId == "6F1E4A0C-LEGACY")
-        #expect(legacy.spendScope == .spendable)
-    }
-
-    @Test func remainingNeverGoesNegative() {
-        var payment = Factory.payment(amount: 10, settled: 4)
-        #expect(payment.remainingInPlanks == 6)
-        payment.settledInPlanks = 12
-        #expect(payment.remainingInPlanks == 0)
+        #expect(legacy.settledInPlanks == 0)
     }
 
     @Test func terminalStages() {
@@ -50,14 +36,12 @@ struct ExternalPaymentModelTests {
         }
     }
 
-    @Test func retryPolicyBackoffIsLinearAndCapped() {
-        let policy = ExternalPaymentRetryPolicy(window: 60, backoff: 30, maxBackoff: 100, sleep: { _ in })
+    @Test func legacyRescheduledRowRestoresAsPlan() async {
+        let factory = Factory.makeStateFactory(planner: StubExternalPaymentPlanner())
 
-        #expect(policy.delay(forAttempt: 1) == 30)
-        #expect(policy.delay(forAttempt: 3) == 90)
-        #expect(policy.delay(forAttempt: 4) == 100)
-        let createdAt = Date(timeIntervalSince1970: 1_000)
-        #expect(!policy.hasWindowElapsed(since: createdAt, now: createdAt.addingTimeInterval(59)))
-        #expect(policy.hasWindowElapsed(since: createdAt, now: createdAt.addingTimeInterval(60)))
+        let restored = factory.stateFromMemo(payment: Factory.payment(stage: .rescheduled))
+
+        #expect(!restored.isTerminal)
+        #expect(await restored.memo().stage == .plan)
     }
 }

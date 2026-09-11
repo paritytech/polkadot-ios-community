@@ -18,53 +18,19 @@
         }
       }
     },
-    "action.send": {
+    "action.send.cash": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Send"
+            "value": "Send CASH"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Enviar"
-          }
-        }
-      }
-    },
-    "action.top.up": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top up"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recargar"
-          }
-        }
-      }
-    },
-    "action.withdraw": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Withdraw"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Retirar"
+            "value": "Enviar CASH"
           }
         }
       }

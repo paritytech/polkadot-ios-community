@@ -11,30 +11,27 @@ public struct PaymentBalance: Encodable {
     }
 }
 
-/// Payment status as seen by product scripts.
+/// Payment status as seen by product scripts. `completed`, `partiallyClaimed` and `failed` are terminal.
 public enum HostPaymentStatus: Sendable, Equatable {
     case processing
     case completed
-    /// Money moved, but less than requested. Reported on the wire as `Completed` with the delivered
-    /// amount in `value`, so products that reconcile can, and legacy ones keep the parity behaviour.
-    case partiallyCompleted(settledInPlanks: Balance)
+    /// Money moved, but less than requested: `settledInPlanks` reached the destination, the rest never will.
+    case partiallyClaimed(settledInPlanks: Balance)
     case failed(reason: String)
 }
 
 /// Coded `paymentRequest` errors. Messages keep the legacy strings the current
-/// container.js matches on.
+/// container.js matches on. Anything else the host throws reaches the product uncoded.
 public enum HostPaymentRequestError: Error, Hashable {
     case rejected
     case insufficientBalance
     case alreadyExists
-    case unknown(String)
 
     public var code: String {
         switch self {
         case .rejected: "Rejected"
         case .insufficientBalance: "InsufficientBalance"
         case .alreadyExists: "AlreadyExists"
-        case .unknown: "Unknown"
         }
     }
 
@@ -43,12 +40,7 @@ public enum HostPaymentRequestError: Error, Hashable {
         case .rejected: "payment rejected"
         case .insufficientBalance: "insufficient balance"
         case .alreadyExists: "A payment for the given id already exists"
-        case let .unknown(reason): reason
         }
-    }
-
-    public static func wrapping(_ error: Error) -> HostPaymentRequestError {
-        error as? HostPaymentRequestError ?? .unknown(error.localizedDescription)
     }
 }
 
@@ -104,8 +96,8 @@ public struct HostPaymentStatusDto: Encodable {
         case .completed:
             tag = "Completed"
             value = nil
-        case let .partiallyCompleted(settledInPlanks):
-            tag = "Completed"
+        case let .partiallyClaimed(settledInPlanks):
+            tag = "PartiallyClaimed"
             value = String(settledInPlanks)
         case let .failed(reason):
             tag = "Failed"

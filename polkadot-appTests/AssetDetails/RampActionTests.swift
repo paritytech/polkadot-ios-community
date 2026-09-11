@@ -7,49 +7,42 @@ import Testing
 struct RampActionTests {
     private struct ResolveFailure: Error {}
 
-    private func makeHost() throws -> ProductHost {
-        try #require(ProductHost.parse("getcash.dot", tld: "dot"))
+    private func page(_ path: String?) throws -> ProductPage {
+        try ProductPage(host: #require(ProductHost.parse("getcash.dot", tld: "dot")), page: path)
     }
 
-    @Test("top up opens the funding host root")
-    func topUpOpensRoot() async throws {
-        let host = try makeHost()
-        let provider = StubProductHostProvider(syncHostResult: nil, asyncHostResult: .success(host))
+    @Test("top up opens the funding page only")
+    func topUpOpensFundingPage() async throws {
+        let provider = try StubFundingDomainProvider(fundingResult: .success(page(nil)))
 
-        let page = try await RampAction.topUp.resolvePage(label: "funding", using: provider)
+        let resolved = try await RampAction.topUp.resolvePage(using: provider)
 
-        #expect(page.host.name == host.name)
-        #expect(page.page == nil)
-        #expect(provider.lastLabel == "funding")
+        #expect(resolved.host.name == "getcash")
+        #expect(resolved.page == nil)
+        #expect(provider.fundingCalls == 1)
+        #expect(provider.offrampCalls == 0)
     }
 
-    @Test("withdraw opens the getcash withdraw sub-path on the same host")
-    func withdrawOpensSubPath() async throws {
-        let host = try makeHost()
-        let provider = StubProductHostProvider(syncHostResult: nil, asyncHostResult: .success(host))
+    @Test("withdraw opens the offramp page only")
+    func withdrawOpensOfframpPage() async throws {
+        let provider = try StubFundingDomainProvider(offrampResult: .success(page("/offramp")))
 
-        let page = try await RampAction.withdraw.resolvePage(label: "funding", using: provider)
+        let resolved = try await RampAction.withdraw.resolvePage(using: provider)
 
-        #expect(page.host.name == host.name)
-        #expect(page.page == AppConfig.DotNs.getCashWithdrawPage)
-        #expect(provider.resolveHostCallCount == 1)
+        #expect(resolved.page == "/offramp")
+        #expect(provider.offrampCalls == 1)
+        #expect(provider.fundingCalls == 0)
     }
 
-    @Test("unresolved host fails with the ramp error", arguments: RampAction.allCases)
-    func unresolvedHostFails(action: RampAction) async {
-        let provider = StubProductHostProvider(syncHostResult: nil, asyncHostResult: .success(nil))
-
-        await #expect(throws: RampAction.ResolveError.unresolvedHost) {
-            try await action.resolvePage(label: "funding", using: provider)
-        }
-    }
-
-    @Test("provider errors propagate")
-    func providerErrorPropagates() async {
-        let provider = StubProductHostProvider(syncHostResult: nil, asyncHostResult: .failure(ResolveFailure()))
+    @Test("provider errors propagate", arguments: RampAction.allCases)
+    func providerErrorPropagates(action: RampAction) async {
+        let provider = StubFundingDomainProvider(
+            fundingResult: .failure(ResolveFailure()),
+            offrampResult: .failure(ResolveFailure())
+        )
 
         await #expect(throws: ResolveFailure.self) {
-            try await RampAction.withdraw.resolvePage(label: "funding", using: provider)
+            try await action.resolvePage(using: provider)
         }
     }
 }

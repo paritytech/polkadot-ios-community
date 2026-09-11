@@ -24,8 +24,6 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
 
         let amount = BigUInt(amountString) ?? 0
         let stage = ExternalPayment.Stage(rawValue: Int(entity.stage)) ?? .plan
-        // Rows written before v46 carry the default 0; an unknown raw value is never widened.
-        let spendScope = SpendScope(rawValue: Int(entity.spendScope)) ?? .spendable
         let settled = entity.settledInPlanks.flatMap { BigUInt($0) } ?? 0
 
         return ExternalPayment(
@@ -33,9 +31,7 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
             origin: origin,
             amountInPlanks: amount,
             destination: destination,
-            spendScope: spendScope,
             settledInPlanks: settled,
-            round: Int(entity.round),
             stage: stage,
             failureReason: entity.failureReason,
             readyAt: readyAt,
@@ -53,9 +49,7 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
         entity.origin = model.origin
         entity.amountInPlanks = String(model.amountInPlanks)
         entity.destination = model.destination
-        entity.spendScope = Int16(model.spendScope.rawValue)
         entity.settledInPlanks = String(model.settledInPlanks)
-        entity.round = Int16(model.round)
         entity.stage = Int16(model.stage.rawValue)
         entity.failureReason = model.failureReason
         entity.readyAt = model.readyAt
@@ -91,7 +85,6 @@ final class ExternalPaymentStageMapper: CoreDataMapperProtocol {
         }
         entity.stage = Int16(model.stage.rawValue)
         entity.settledInPlanks = String(model.settledInPlanks)
-        entity.round = Int16(model.round)
         entity.failureReason = model.failureReason
         entity.readyAt = model.readyAt
         entity.updatedAt = model.updatedAt

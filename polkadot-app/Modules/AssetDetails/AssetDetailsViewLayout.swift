@@ -101,33 +101,44 @@ struct AssetDetailsView: View {
 
     private func actions() -> some View {
         HStack(spacing: 12) {
-            DSButton(.actionSend, leadingIcon: .iconArrowUp16, expands: true) {
+            DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
                 viewModel.onSendMoney?()
             }
             .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
 
-            DSButton(
-                .actionWithdraw,
-                style: .secondary,
-                leadingIcon: .iconArrowDown16,
-                expands: true,
-                isLoading: viewModel.isWithdrawInProgress
-            ) {
+            circleButton(.iconArrowUpRight24, isLoading: viewModel.isWithdrawInProgress) {
                 viewModel.onWithdraw?()
             }
             .accessibilityId(AccessibilityID.Wallet.withdrawButton)
 
-            DSButton(
-                .actionTopUp,
-                style: .secondary,
-                leadingIcon: .add24,
-                expands: true,
-                isLoading: viewModel.isTopUpInProgress
-            ) {
+            circleButton(.add24, isLoading: viewModel.isTopUpInProgress) {
                 viewModel.onTopUp?()
             }
             .accessibilityId(AccessibilityID.Wallet.addFundsButton)
         }
+    }
+
+    private func circleButton(
+        _ icon: ImageResource,
+        isLoading: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Group {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.fgPrimaryInverted)
+                } else {
+                    Image(icon)
+                        .renderingMode(.template)
+                }
+            }
+            .frame(width: 56, height: 56)
+            .foregroundStyle(Color.fgPrimaryInverted)
+            .background(.bgActionPrimary, in: Circle())
+        }
+        .disabled(isLoading)
     }
 
     #if TESTNET_FEATURE

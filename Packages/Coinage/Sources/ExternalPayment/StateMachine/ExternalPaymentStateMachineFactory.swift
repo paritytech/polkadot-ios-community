@@ -12,9 +12,8 @@ import SubstrateOperation
 final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreating {
     private let instanceId: CoinageInstanceId
     private let planner: ExternalPaymentPlanning
-    private let spendableAssets: any SpendableAssetsProviding
-    private let recycler: CoinageRecyclingServicing
     private let voucherService: VoucherServiceProtocol
+    private let recycler: CoinageRecyclingServicing
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
@@ -28,9 +27,8 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     init(
         instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
-        spendableAssets: any SpendableAssetsProviding,
-        recycler: CoinageRecyclingServicing,
         voucherService: VoucherServiceProtocol,
+        recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -43,9 +41,8 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     ) {
         self.instanceId = instanceId
         self.planner = planner
-        self.spendableAssets = spendableAssets
-        self.recycler = recycler
         self.voucherService = voucherService
+        self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -76,16 +73,13 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
 }
 
 private extension ExternalPaymentStateMachineFactory {
-    func makeStateFactory(
-        context: DenominationBreakdownContext
-    ) -> ExternalPaymentStateFactory {
+    func makeStateFactory(context: DenominationBreakdownContext) -> ExternalPaymentStateFactory {
         ExternalPaymentStateFactory(
             instanceId: instanceId,
             planner: planner,
-            spendableAssets: spendableAssets,
             context: context,
-            recycler: recycler,
             voucherService: voucherService,
+            recycler: recycler,
             voucherKeyFactory: voucherKeyFactory,
             voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,

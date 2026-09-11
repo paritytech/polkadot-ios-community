@@ -1,10 +1,10 @@
 import ExtrinsicService
-import SubstrateSdk
 import Foundation
 import KeyDerivation
 import SDKLogger
 import StateMachine
 import SubstrateOperation
+import SubstrateSdk
 
 /// Factory providing all dependencies and methods to create external payment states.
 ///
@@ -13,10 +13,9 @@ import SubstrateOperation
 final class ExternalPaymentStateFactory {
     let instanceId: CoinageInstanceId
     let planner: ExternalPaymentPlanning
-    let spendableAssets: any SpendableAssetsProviding
     let context: DenominationBreakdownContext
-    let recycler: CoinageRecyclingServicing
     let voucherService: VoucherServiceProtocol
+    let recycler: CoinageRecyclingServicing
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -29,10 +28,9 @@ final class ExternalPaymentStateFactory {
     init(
         instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
-        spendableAssets: any SpendableAssetsProviding,
         context: DenominationBreakdownContext,
-        recycler: CoinageRecyclingServicing,
         voucherService: VoucherServiceProtocol,
+        recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -44,10 +42,9 @@ final class ExternalPaymentStateFactory {
     ) {
         self.instanceId = instanceId
         self.planner = planner
-        self.spendableAssets = spendableAssets
         self.context = context
-        self.recycler = recycler
         self.voucherService = voucherService
+        self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -68,18 +65,12 @@ extension ExternalPaymentStateFactory {
         AnyStateMachineState(PlanPaymentState(payment: payment))
     }
 
-    func makeOnboardCoinsState(payment: ExternalPayment, coins: [Coin]) -> ErasedState {
-        AnyStateMachineState(OnboardCoinsPaymentState(payment: payment, coins: coins))
+    func makeOnboardCoinsState(payment: ExternalPayment, coins: [Coin], exactVouchers: [Voucher]) -> ErasedState {
+        AnyStateMachineState(OnboardCoinsPaymentState(payment: payment, coins: coins, exactVouchers: exactVouchers))
     }
 
-    func makeOffboardVouchersState(
-        payment: ExternalPayment,
-        vouchers: [Voucher]
-    ) -> ErasedState {
-        AnyStateMachineState(OffboardVouchersPaymentState(
-            payment: payment,
-            vouchers: vouchers
-        ))
+    func makeOffboardVouchersState(payment: ExternalPayment, vouchers: [Voucher]) -> ErasedState {
+        AnyStateMachineState(OffboardVouchersPaymentState(payment: payment, vouchers: vouchers))
     }
 
     func makeCompletedState(payment: ExternalPayment) -> ErasedState {
@@ -87,55 +78,49 @@ extension ExternalPaymentStateFactory {
     }
 
     func makeFailedState(payment: ExternalPayment, reason: String) -> ErasedState {
-        AnyStateMachineState(FailedPaymentState(payment: payment, reason: reason))
+        logger?.error("Payment \(payment.id) failed: \(reason)")
+        return AnyStateMachineState(FailedPaymentState(payment: payment, reason: reason))
     }
 
     func makePartiallyCompletedState(payment: ExternalPayment, reason: String) -> ErasedState {
-        AnyStateMachineState(PartiallyCompletedPaymentState(payment: payment, reason: reason))
+        logger?
+            .error(
+                "Payment \(payment.id) short: settled \(payment.settledInPlanks) of \(payment.amountInPlanks) (\(reason))"
+            )
+        return AnyStateMachineState(PartiallyCompletedPaymentState(payment: payment, reason: reason))
     }
 
-    func makeRescheduledState(payment: ExternalPayment, until: Date) -> ErasedState {
-        AnyStateMachineState(RescheduledPaymentState(payment: payment, until: until))
+    /// Cancellation is not a verdict: keep `stage` so the next launch resumes the payment.
+    func makeInterruptedState(payment: ExternalPayment, stage: ExternalPayment.Stage) -> ErasedState {
+        AnyStateMachineState(InterruptedPaymentState(payment: payment, stage: stage))
     }
 
-    /// A permanent verdict: `failed` for a payment that delivered nothing, `partiallyCompleted` once an
-    /// earlier round settled part of the amount — money moved, and the product is told so.
-    func makeFailedOrPartial(payment: ExternalPayment, reason: String) -> ErasedState {
-        guard payment.settledInPlanks > 0 else {
-            return makeFailedState(payment: payment, reason: reason)
-        }
-
-        logger?.error(
-            "Payment \(payment.id) short: settled \(payment.settledInPlanks) of \(payment.amountInPlanks) (\(reason))"
-        )
-        return makePartiallyCompletedState(payment: payment, reason: reason)
-    }
-
-    /// Transient failure: keeps `stage` persisted as-is so the service can retry from it.
-    func makeRetryState(payment: ExternalPayment, stage: ExternalPayment.Stage, error: Error) -> ErasedState {
-        AnyStateMachineState(RetryPaymentState(payment: payment, stage: stage, error: error))
+    /// Failure verdict, except for cancellation, which keeps the stage for the next launch.
+    func makeFailedState(payment: ExternalPayment, stage: ExternalPayment.Stage, error: Error) -> ErasedState {
+        error is CancellationError
+            ? makeInterruptedState(payment: payment, stage: stage)
+            : makeFailedState(payment: payment, reason: error.localizedDescription)
     }
 
     /// Restores a state from a persisted ``ExternalPayment`` memo.
     func stateFromMemo(payment: ExternalPayment) -> ErasedState {
         switch payment.stage {
-        case .plan:
+        case .plan,
+             .rescheduled:
             makePlanState(payment: payment)
         case .onboardCoins:
-            // we don't have information about coins in the memo since the whole coinage state might be changed
-            // as actual spending have not been started yet we fallback to planing again
-            makePlanState(payment: payment)
+            // The first run's exact selection is not persisted: the state re-joins the recycling group
+            // it registered (or re-plans if nothing was registered) and re-plans around the recycled
+            // vouchers once they land.
+            makeOnboardCoinsState(payment: payment, coins: [], exactVouchers: [])
         case .offboardVouchers:
-            // Re-enter offboarding with no plan-carried vouchers: the state re-joins the durability
-            // group this payment already registered (keyed by payment id) and awaits its real
-            // outcome, or re-plans if nothing was registered before the crash.
+            // Re-enter offboarding with no plan-carried vouchers: the service re-joins the durability
+            // group this payment already registered and awaits its real outcome.
             makeOffboardVouchersState(payment: payment, vouchers: [])
         case .completed:
             makeCompletedState(payment: payment)
         case .failed:
             makeFailedState(payment: payment, reason: payment.failureReason ?? "Unknown")
-        case .rescheduled:
-            makeRescheduledState(payment: payment, until: payment.readyAt)
         case .partiallyCompleted:
             makePartiallyCompletedState(payment: payment, reason: payment.failureReason ?? "Partial")
         }

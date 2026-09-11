@@ -2,98 +2,59 @@ import BigInt
 import Foundation
 import SubstrateSdk
 
-/// Plans how to fulfill an external payment from the strategy buckets of ``SpendableAssetsProviding``.
+/// Plans an external payment from structural on-chain spendability: free vouchers in a recycler and
+/// free, on-chain, age-valid coins. Recycling verdicts and ring usability are deliberately ignored —
+/// the user consented to a privacy-leaking spend before the payment was registered.
 ///
 /// Algorithm (greedy, largest-value-first):
-/// 1. No verdicts yet → `.needsReschedule` (never fall back to raw structural readiness)
-/// 2. Spendable vouchers cover the amount → `.ready`
-/// 3. Spendable + gaining-privacy + pending vouchers cover it → `.needsReschedule` (at the earliest
-///    gaining `readyAt`, not before the base delay)
-/// 4. Deficit against all vouchers; spendable coins cover it → `.loadCoins`
-/// 5. Spendable + gaining + pending coins cover it → `.needsReschedule`
-/// 6. Otherwise → `.notEnoughBalance`
+/// 1. `mustInclude` first, then spendable vouchers until they cover the amount → `.ready`
+/// 2. Deficit against all spendable vouchers; spendable coins cover it → `.loadCoins`
+/// 3. Otherwise → `.notEnoughBalance`
 struct ExternalPaymentPlanner: ExternalPaymentPlanning {
-    private let spendableAssets: any SpendableAssetsProviding
-    private let rescheduleDelay: TimeInterval
+    private let coinService: CoinServiceProtocol
+    private let voucherService: VoucherServiceProtocol
 
-    init(spendableAssets: any SpendableAssetsProviding, rescheduleDelay: TimeInterval = 6) {
-        self.spendableAssets = spendableAssets
-        self.rescheduleDelay = rescheduleDelay
+    init(coinService: CoinServiceProtocol, voucherService: VoucherServiceProtocol) {
+        self.coinService = coinService
+        self.voucherService = voucherService
     }
 
     func plan(
         amount: Balance,
         context: DenominationBreakdownContext,
-        scope: SpendScope
+        mustInclude: [Voucher]
     ) async throws -> ExternalPaymentPreview {
-        guard let assets = try await spendableAssets.spendableAssets(scope: scope) else {
-            return .needsReschedule(
-                after: Date(timeIntervalSinceNow: rescheduleDelay),
-                selection(vouchers: [], coins: [], amount: amount, scope: scope)
-            )
+        let forced = Set(mustInclude.map(\.derivationIndex))
+        let spendableVouchers = try await voucherService.fetchAllTracked()
+            .filter { $0.isSelectable && !forced.contains($0.voucher.derivationIndex) }
+            .map(\.voucher)
+
+        let voucherTotal = totalValue(of: mustInclude + spendableVouchers, context: context)
+        if voucherTotal >= amount {
+            let selected = mustInclude + select(from: spendableVouchers, target: amount, context: context) {
+                totalValue(of: mustInclude, context: context)
+            }
+            return .ready(Selection(vouchers: selected, coins: [], fullAmount: amount))
         }
 
-        let spendableVoucherTotal = totalValue(of: assets.spendableVouchers, context: context)
-        if spendableVoucherTotal >= amount {
-            let selected = selectVouchers(from: assets.spendableVouchers, target: amount, context: context)
-            return .ready(selection(vouchers: selected, coins: [], amount: amount, scope: scope))
+        let deficit = amount - voucherTotal
+        let spendableCoins = try await coinService.fetchAllTrackedCoins()
+            .filter(\.isSelectable)
+            .map(\.coin)
+
+        guard totalValue(of: spendableCoins, context: context) >= deficit else {
+            return .notEnoughBalance
         }
 
-        let waitingVouchers = assets.gainingPrivacyVouchers + assets.pendingVouchers
-        let totalVoucherValue = spendableVoucherTotal + totalValue(of: waitingVouchers, context: context)
-        if totalVoucherValue >= amount {
-            return .needsReschedule(
-                after: rescheduleDate(for: assets.gainingPrivacyVouchers),
-                selection(vouchers: assets.spendableVouchers, coins: [], amount: amount, scope: scope)
-            )
-        }
-
-        let deficit = amount - totalVoucherValue
-        let spendableCoinTotal = totalValue(of: assets.spendableCoins, context: context)
-        if spendableCoinTotal >= deficit {
-            let selectedCoins = selectCoins(from: assets.spendableCoins, target: deficit, context: context)
-            return .loadCoins(
-                selection(vouchers: assets.spendableVouchers, coins: selectedCoins, amount: amount, scope: scope)
-            )
-        }
-
-        // Gaining coins are recycled into vouchers by the recycling service on its own; pending
-        // coins are minting or awaiting mandatory recycling. Wait for them rather than failing.
-        let waitingCoins = assets.gainingPrivacyCoins + assets.pendingCoins
-        if spendableCoinTotal + totalValue(of: waitingCoins, context: context) >= deficit {
-            return .needsReschedule(
-                after: Date(timeIntervalSinceNow: rescheduleDelay),
-                selection(
-                    vouchers: assets.spendableVouchers,
-                    coins: assets.spendableCoins + waitingCoins,
-                    amount: amount,
-                    scope: scope
-                )
-            )
-        }
-
-        return .notEnoughBalance
+        let coins = select(from: spendableCoins, target: deficit, context: context) { 0 }
+        return .loadCoins(Selection(vouchers: mustInclude + spendableVouchers, coins: coins, fullAmount: amount))
     }
 }
 
 // MARK: - Selection Helpers
 
 private extension ExternalPaymentPlanner {
-    func selection(
-        vouchers: [Voucher],
-        coins: [Coin],
-        amount: Balance,
-        scope: SpendScope
-    ) -> ExternalPaymentPreview.Selection {
-        ExternalPaymentPreview.Selection(vouchers: vouchers, coins: coins, fullAmount: amount, scope: scope)
-    }
-
-    /// Never earlier than the base delay; otherwise the earliest moment a gaining voucher matures.
-    func rescheduleDate(for gainingVouchers: [Voucher]) -> Date {
-        let base = Date(timeIntervalSinceNow: rescheduleDelay)
-        guard let earliest = gainingVouchers.map(\.readyAt).min() else { return base }
-        return max(base, earliest)
-    }
+    typealias Selection = ExternalPaymentPreview.Selection
 
     func totalValue(of vouchers: [Voucher], context: DenominationBreakdownContext) -> Balance {
         vouchers.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.exponent) }
@@ -103,44 +64,34 @@ private extension ExternalPaymentPlanner {
         coins.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.exponent) }
     }
 
-    /// Greedy voucher selection: sort by value descending, accumulate until >= target.
-    func selectVouchers(
-        from vouchers: [Voucher],
+    /// Greedy largest-first accumulation until `target` is reached, starting from `seed()`.
+    func select<Asset: DenominatedAsset>(
+        from assets: [Asset],
         target: Balance,
-        context: DenominationBreakdownContext
-    ) -> [Voucher] {
-        let sorted = vouchers
-            .sorted { context.valueInPlanks(for: $0.exponent) > context.valueInPlanks(for: $1.exponent) }
-
-        var selected: [Voucher] = []
-        var accumulated = Balance(0)
-
-        for voucher in sorted {
-            if accumulated >= target { break }
-            selected.append(voucher)
-            accumulated += context.valueInPlanks(for: voucher.exponent)
+        context: DenominationBreakdownContext,
+        seed: () -> Balance
+    ) -> [Asset] {
+        let sorted = assets.sorted {
+            context.valueInPlanks(for: $0.exponent) > context.valueInPlanks(for: $1.exponent)
         }
 
-        return selected
-    }
+        var selected: [Asset] = []
+        var accumulated = seed()
 
-    /// Greedy coin selection: sort by value descending, accumulate until >= target.
-    func selectCoins(
-        from coins: [Coin],
-        target: Balance,
-        context: DenominationBreakdownContext
-    ) -> [Coin] {
-        let sorted = coins.sorted { context.valueInPlanks(for: $0.exponent) > context.valueInPlanks(for: $1.exponent) }
-
-        var selected: [Coin] = []
-        var accumulated = Balance(0)
-
-        for coin in sorted {
+        for asset in sorted {
             if accumulated >= target { break }
-            selected.append(coin)
-            accumulated += context.valueInPlanks(for: coin.exponent)
+            selected.append(asset)
+            accumulated += context.valueInPlanks(for: asset.exponent)
         }
 
         return selected
     }
 }
+
+/// The two asset kinds the greedy picker ranks by value.
+private protocol DenominatedAsset {
+    var exponent: Int16 { get }
+}
+
+extension Coin: DenominatedAsset {}
+extension Voucher: DenominatedAsset {}

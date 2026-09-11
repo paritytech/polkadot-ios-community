@@ -1,16 +1,15 @@
 import Foundation
 import StateMachine
 
-/// Terminal for the machine run, not for the payment: persists the stage that threw, unchanged,
-/// with the error as `failureReason`. ``ExternalPaymentService`` detects "machine returned but the
-/// persisted stage is still non-terminal" and re-runs under its retry policy.
-struct RetryPaymentState: StateMachineState {
+/// Terminal for the run, not for the payment: the task was cancelled (app throttled) mid-transition,
+/// so the stage is persisted unchanged and the next `setup` picks the row up again. Every other
+/// error is a verdict; only cancellation is not.
+struct InterruptedPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
 
     let payment: ExternalPayment
     let stage: ExternalPayment.Stage
-    let error: Error
     let isTerminal = true
 
     func transit(
@@ -22,7 +21,6 @@ struct RetryPaymentState: StateMachineState {
     func memo() async -> ExternalPayment {
         var currentPayment = payment
         currentPayment.stage = stage
-        currentPayment.failureReason = error.localizedDescription
         currentPayment.updatedAt = Date()
         return currentPayment
     }

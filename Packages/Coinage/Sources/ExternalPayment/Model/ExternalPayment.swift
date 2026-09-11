@@ -10,6 +10,7 @@ public struct ExternalPayment: Equatable {
         case offboardVouchers = 2
         case completed = 3
         case failed = 4
+        /// Legacy (pre-v2 builds persisted a wakeup stage). Never written any more; restored as `plan`.
         case rescheduled = 5
         case partiallyCompleted = 6
 
@@ -35,12 +36,8 @@ public struct ExternalPayment: Equatable {
     public let paymentId: String
     public let amountInPlanks: Balance
     public let destination: AccountId
-    public let spendScope: SpendScope
-    /// Value already delivered to `destination` by finalized unloads of earlier rounds.
+    /// Value delivered to `destination` by finalized unloads; set on completion and partial completion.
     public var settledInPlanks: Balance
-    /// Offboarding round: each partial outcome settles what finalized and re-plans the remainder under
-    /// a fresh durability group, so round 0's entries are never mistaken for the retry.
-    public var round: Int
     public var stage: Stage
     public var failureReason: String?
     public var readyAt: Date
@@ -52,9 +49,7 @@ public struct ExternalPayment: Equatable {
         paymentId: String,
         amountInPlanks: Balance,
         destination: AccountId,
-        spendScope: SpendScope = .spendable,
         settledInPlanks: Balance = 0,
-        round: Int = 0,
         stage: Stage = .plan,
         failureReason: String? = nil,
         readyAt: Date = .init(),
@@ -66,9 +61,7 @@ public struct ExternalPayment: Equatable {
             origin: origin,
             amountInPlanks: amountInPlanks,
             destination: destination,
-            spendScope: spendScope,
             settledInPlanks: settledInPlanks,
-            round: round,
             stage: stage,
             failureReason: failureReason,
             readyAt: readyAt,
@@ -83,9 +76,7 @@ public struct ExternalPayment: Equatable {
         origin: String,
         amountInPlanks: Balance,
         destination: AccountId,
-        spendScope: SpendScope = .spendable,
         settledInPlanks: Balance = 0,
-        round: Int = 0,
         stage: Stage = .plan,
         failureReason: String? = nil,
         readyAt: Date = .init(),
@@ -97,9 +88,7 @@ public struct ExternalPayment: Equatable {
         paymentId = Self.paymentId(fromIdentifier: id, origin: origin)
         self.amountInPlanks = amountInPlanks
         self.destination = destination
-        self.spendScope = spendScope
         self.settledInPlanks = settledInPlanks
-        self.round = round
         self.stage = stage
         self.failureReason = failureReason
         self.readyAt = readyAt
@@ -109,11 +98,6 @@ public struct ExternalPayment: Equatable {
 }
 
 public extension ExternalPayment {
-    /// What is still owed to `destination`.
-    var remainingInPlanks: Balance {
-        amountInPlanks > settledInPlanks ? amountInPlanks - settledInPlanks : 0
-    }
-
     /// Identity is `(origin, paymentId)`: the same product-supplied id under two origins is two payments.
     static func identifier(origin: String, paymentId: String) -> String {
         "\(origin):\(paymentId)"

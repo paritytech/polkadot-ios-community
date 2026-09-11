@@ -23,38 +23,30 @@ extension ProductsNativeApi {
         let balanceService = try await coinageService.coinageBalanceService()
         return balanceService.balanceStream
             .map { balance in
-                PaymentBalance(available: balance.availablePrivate)
+                PaymentBalance(available: balance.total)
             }
             .eraseToAnyAsyncSequence()
     }
 
-    /// Scope → approval → privacy confirmation (widened spends only) → register. Uniqueness of
+    /// Balance → approval → privacy consent (any preset but minPrivacy) → register. Uniqueness of
     /// `(product, id)` is validated by the coinage service at registration, so a replay surfaces as
-    /// `AlreadyExists` after those steps.
+    /// `AlreadyExists` after those steps; anything else the host throws reaches the product uncoded.
     func requestPayment(amount: Balance, destination: AccountId, id: PaymentRequestId) async throws {
         let externalPaymentService = try requirePaymentsSupport().externalPaymentService
 
-        let spendScope = try await resolveSpendScope(amount: amount)
+        try await checkSufficientBalance(amount: amount)
         try await awaitUserApproval(amount: amount, destination: destination)
-
-        if spendScope == .withConfirmation {
-            guard await paymentPrivacyConfirmer.confirmGainingPrivacySpend(amount: amount) else {
-                throw HostPaymentRequestError.rejected
-            }
-        }
+        try await awaitPrivacyConsentIfNeeded(amount: amount)
 
         do {
             try await externalPaymentService.initiatePayment(
                 origin: productId,
                 paymentId: id.toHex(includePrefix: true),
                 amountInPlanks: amount,
-                destination: destination,
-                spendScope: spendScope
+                destination: destination
             )
         } catch ExternalPaymentError.alreadyExists {
             throw HostPaymentRequestError.alreadyExists
-        } catch {
-            throw HostPaymentRequestError.wrapping(error)
         }
     }
 
@@ -68,7 +60,7 @@ extension ProductsNativeApi {
             switch status {
             case .processing: .processing
             case .completed: .completed
-            case let .partiallyCompleted(settled): .partiallyCompleted(settledInPlanks: settled)
+            case let .partiallyCompleted(settled): .partiallyClaimed(settledInPlanks: settled)
             case let .failed(reason): .failed(reason: reason)
             }
         }
@@ -142,11 +134,11 @@ private extension ProductsNativeApi {
         return paymentsSupport
     }
 
-    /// Picks the scope the payment may draw on — the same widening rule as transfers — or fails when the
-    /// amount is unreachable. The permission is only read, never prompted: with `balanceAccess` the
-    /// product already knows balances and gets `insufficientBalance`; without it the shortfall is
-    /// reported as `rejected` so nothing leaks.
-    func resolveSpendScope(amount: Balance) async throws -> SpendScope {
+    /// Checks the amount against what is spendable on-chain right now (private plus gaining-privacy
+    /// funds; minting funds cannot be waited for). The permission is only read, never prompted: with
+    /// `balanceAccess` the product already knows balances and gets `insufficientBalance`; without it
+    /// the shortfall is reported as `rejected` so nothing leaks.
+    func checkSufficientBalance(amount: Balance) async throws {
         let coinageService = try requirePaymentsSupport().coinageService
         let balanceService = try await coinageService.coinageBalanceService()
 
@@ -155,12 +147,20 @@ private extension ProductsNativeApi {
             balance = value
         }
 
-        if let scope = PaymentSpendScopeResolver.resolve(balance: balance, amount: amount) {
-            return scope
-        }
+        guard balance.availablePrivate + balance.gainingPrivacy.amount < amount else { return }
 
         let knowsBalance = try await permissionGuard.check(productId: productId, permission: .balanceAccess)
         throw knowsBalance ? HostPaymentRequestError.insufficientBalance : HostPaymentRequestError.rejected
+    }
+
+    /// Blanket consent to a privacy-leaking spend, shown for every preset but `minPrivacy` and never
+    /// allowlisted: after it the worker may use anything spendable on-chain.
+    func awaitPrivacyConsentIfNeeded(amount: Balance) async throws {
+        guard PaymentPrivacyGate.requiresPrivacyConfirmation(strategy: recyclingStrategy.strategy) else { return }
+
+        guard await paymentPrivacyConfirmer.confirmGainingPrivacySpend(amount: amount) else {
+            throw HostPaymentRequestError.rejected
+        }
     }
 
     /// Auto-approved for allowlisted products; everyone else sees the payment request sheet.
