@@ -27,14 +27,16 @@ struct PaymentPrivacyModeCard: View {
     @State private var lastDragTime: Date?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DSSpacings.mediumIncreased) {
+        VStack(alignment: .leading, spacing: 0) {
             header
-            selector
-            descriptionCard
+
+            VStack(spacing: DSSpacings.small) {
+                selector
+                descriptionCard
+            }
         }
         .padding(.horizontal, DSSpacings.mediumIncreased)
-        .padding(.top, DSSpacings.small)
-        .padding(.bottom, DSSpacings.mediumIncreased)
+        .padding(.bottom, DSSpacings.small)
         .sensoryFeedback(.selection, trigger: selected)
         .sensoryFeedback(.selection, trigger: markIndex)
     }
@@ -55,6 +57,7 @@ private extension PaymentPrivacyModeCard {
                 .foregroundStyle(.fgPrimary)
         }
         .padding(.vertical, DSSpacings.small)
+        .frame(minHeight: PrivacyModeMetrics.headerMinHeight)
     }
 }
 
@@ -62,27 +65,18 @@ private extension PaymentPrivacyModeCard {
 
 private extension PaymentPrivacyModeCard {
     var selector: some View {
-        VStack(spacing: DSSpacings.small) {
-            GeometryReader { geo in
-                let width = geo.size.width
-                ZStack {
-                    trackGroove(width: width)
-                    TickScale(start: centerX(0, width: width), end: centerX(lastIndex, width: width))
-                    circles(width: width)
-                }
-                .frame(width: width, height: PrivacyModeMetrics.boxHeight)
-                .contentShape(Rectangle())
-                .gesture(dragGesture(width: width))
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack {
+                trackGroove(width: width)
+                TickScale(start: centerX(0, width: width), end: centerX(lastIndex, width: width))
+                circles(width: width)
             }
-            .frame(height: PrivacyModeMetrics.boxHeight)
-
-            GeometryReader { geo in
-                markersRow(width: geo.size.width)
-            }
-            .frame(height: PrivacyModeMetrics.selectedMarker + PrivacyModeMetrics.markerGlowBlur)
-
-            labelsRow
+            .frame(width: width, height: PrivacyModeMetrics.boxHeight)
+            .contentShape(Rectangle())
+            .gesture(dragGesture(width: width))
         }
+        .frame(height: PrivacyModeMetrics.boxHeight)
     }
 
     func trackGroove(width: CGFloat) -> some View {
@@ -133,41 +127,6 @@ private extension PaymentPrivacyModeCard {
         .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
         .animation(.easeInOut(duration: 0.2), value: dragFraction == nil)
     }
-
-    /// Triangles pinned under their spheres at the inset-based centres, so a marker stays under its mode.
-    func markersRow(width: CGFloat) -> some View {
-        ZStack {
-            ForEach(Array(modes.enumerated()), id: \.element) { index, mode in
-                ModeMarkerView(mode: mode, isSelected: index == highlightedIndex)
-                    .position(x: centerX(CGFloat(index), width: width), y: PrivacyModeMetrics.selectedMarker / 2)
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
-    }
-
-    /// Equal-width label columns; the outer labels hug the track ends the way their spheres do, only the
-    /// middle one is free to centre.
-    var labelsRow: some View {
-        HStack(spacing: 0) {
-            ForEach(Array(modes.enumerated()), id: \.element) { index, mode in
-                Text(mode.displayTitle)
-                    .typography(.bodySmallEmphasized)
-                    .foregroundStyle(index == highlightedIndex ? .fgPrimary : .fgSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .frame(maxWidth: .infinity, alignment: labelAlignment(index))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
-    }
-
-    func labelAlignment(_ index: Int) -> Alignment {
-        switch index {
-        case 0: .leading
-        case modes.count - 1: .trailing
-        default: .center
-        }
-    }
 }
 
 // MARK: - Description
@@ -203,8 +162,8 @@ private extension PaymentPrivacyModeCard {
         return Int(fraction.rounded())
     }
 
-    /// Centre of a (possibly fractional) mode position: inset from each edge by half a sphere, then evenly
-    /// spread — so the outer modes sit `inset` from the track ends, not a full column-width in.
+    /// Centre of a (possibly fractional) mode position: the design's `inset` from each track end, then evenly
+    /// spread — so the outer modes hug the ends rather than sitting a full column-width in.
     func centerX(_ position: CGFloat, width: CGFloat) -> CGFloat {
         PrivacyModeMetrics.inset + position * trackStep(width: width)
     }
