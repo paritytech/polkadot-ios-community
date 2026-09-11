@@ -138,18 +138,22 @@ struct CoinageBalanceTests {
 
     @Test(arguments: [RecyclingStrategyType.balanced, .maxPrivacy])
     func maturityMovesVoucherBalanceToAvailable(_ type: RecyclingStrategyType) {
+        let minimumMembers: UInt32 = 32
+        let tenMinutes: TimeInterval = 10 * 60
+        let ringCapacity = 767
+        let exponent: Int16 = 1
         let enteredAt = Date(timeIntervalSince1970: 1_000)
         let trackedVoucher = tracked(voucher(
-            exponent: 1,
-            state: .inRecycler(.init(index: 1, membersCount: 32, enteredAt: enteredAt))
+            exponent: exponent,
+            state: .inRecycler(.init(index: 1, membersCount: minimumMembers, enteredAt: enteredAt))
         ))
         let strategy = ParametricRecyclingStrategy(
             params: type.params(forcedRecyclingAge: CoinageConstants.recycleAtAge)
         )
         let preClassificator = CoinageAssetPreClassificator()
-        let balances = [599.0, 600.0].map { elapsed in
+        let balances = [tenMinutes - 1, tenMinutes].map { elapsed in
             let usability = VoucherUsabilityContext(
-                ringCapacities: [1: 767],
+                ringCapacities: [exponent: ringCapacity],
                 now: enteredAt.addingTimeInterval(elapsed)
             )
             return CoinageBalanceService.calculateBalance(
@@ -168,11 +172,11 @@ struct CoinageBalanceTests {
         #expect(balances == [
             CoinageBalance(
                 availablePrivate: 0,
-                gainingPrivacy: .init(amount: planks(1), canSpendWithConfirmation: type == .balanced),
+                gainingPrivacy: .init(amount: planks(exponent), canSpendWithConfirmation: type == .balanced),
                 pending: 0
             ),
             CoinageBalance(
-                availablePrivate: planks(1),
+                availablePrivate: planks(exponent),
                 gainingPrivacy: .init(amount: 0, canSpendWithConfirmation: type == .balanced),
                 pending: 0
             )

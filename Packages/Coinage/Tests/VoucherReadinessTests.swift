@@ -54,9 +54,12 @@ struct VoucherReadinessTests {
 
     @Test
     func ringFillCanReleaseBeforeEitherWaitingRequirement() {
+        let capacity = 10
+        let ninetyPercentMembers = UInt32((Double(capacity) * 0.9).rounded(.up))
+
         #expect(strategy(.maxPrivacy).isVoucherUsable(
-            voucher(members: 9, enteredAt: nil),
-            context: context(capacity: 10)
+            voucher(members: ninetyPercentMembers, enteredAt: nil),
+            context: context(capacity: capacity)
         ))
     }
 }

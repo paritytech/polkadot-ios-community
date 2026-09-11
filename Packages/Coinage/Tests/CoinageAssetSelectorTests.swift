@@ -55,14 +55,23 @@ struct CoinageAssetSelectorTests {
 
     @Test(arguments: [RecyclingStrategyType.balanced, .maxPrivacy])
     func maturityMakesVouchersSpendableWithoutConfirmation(_ type: RecyclingStrategyType) {
+        let minimumMembers: UInt32 = 32
+        let tenMinutes: TimeInterval = 10 * 60
+        let ringCapacity = 767
         let enteredAt = Date(timeIntervalSince1970: 1_000)
         let voucher = gainingPrivacyVoucher.voucher.adjusting(
-            state: .inRecycler(.init(index: 1, membersCount: 32, enteredAt: enteredAt))
+            state: .inRecycler(.init(index: 1, membersCount: minimumMembers, enteredAt: enteredAt))
         )
         let tracked = TrackedVoucher(voucher: voucher, state: free)
         let policy = strategy(type)
-        let before = VoucherUsabilityContext(ringCapacities: [1: 767], now: enteredAt.addingTimeInterval(599))
-        let after = VoucherUsabilityContext(ringCapacities: [1: 767], now: enteredAt.addingTimeInterval(600))
+        let before = VoucherUsabilityContext(
+            ringCapacities: [voucher.exponent: ringCapacity],
+            now: enteredAt.addingTimeInterval(tenMinutes - 1)
+        )
+        let after = VoucherUsabilityContext(
+            ringCapacities: [voucher.exponent: ringCapacity],
+            now: enteredAt.addingTimeInterval(tenMinutes)
+        )
 
         #expect(selector.selectableVouchers([tracked], strategy: policy, context: before, scope: .spendable).isEmpty)
         #expect(selector.selectableVouchers(
