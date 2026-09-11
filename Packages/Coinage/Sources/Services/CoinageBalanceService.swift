@@ -147,11 +147,10 @@ private extension CoinageBalanceService {
         scheduleUnlockTimer(for: nextUnlock(among: voucherBuckets.gainingPrivacy, now: now))
     }
 
-    /// The earliest future `readyAt` among gaining-privacy vouchers, so the delay-exit is re-evaluated
-    /// the moment a voucher's unload delay elapses.
     func nextUnlock(among gainingPrivacy: [TrackedVoucher], now: Date) -> Date? {
-        gainingPrivacy
-            .map(\.voucher.readyAt)
+        let readiness = settings.strategy.params(forcedRecyclingAge: CoinageConstants.recycleAtAge).voucherReadiness
+        return gainingPrivacy
+            .compactMap { readiness.readyAt(for: $0.voucher) }
             .filter { $0 > now }
             .min()
     }

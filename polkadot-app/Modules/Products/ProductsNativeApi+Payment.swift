@@ -7,23 +7,6 @@ import SubstrateSdk
 import AsyncExtensions
 import StructuredConcurrency
 
-enum PaymentTopUpError: Error, LocalizedError {
-    case coinsNotOnChain
-    case noCoinsClaimed
-    case partialPayment(amount: Balance)
-
-    var errorDescription: String? {
-        switch self {
-        case .coinsNotOnChain:
-            "Top-up coins did not appear on-chain in time"
-        case .noCoinsClaimed:
-            "No coins were claimed from the provided secret keys"
-        case let .partialPayment(amount):
-            "PartialPayment:\(amount)"
-        }
-    }
-}
-
 // MARK: - Payments
 
 extension ProductsNativeApi {
@@ -77,42 +60,59 @@ extension ProductsNativeApi {
             .eraseToAnyAsyncSequence()
     }
 
-    func paymentTopUp(amount: Balance, source: PaymentTopUpSource) async throws {
-        let coinageService = try requirePaymentsSupport().coinageService
-        let contextSource = try resolveTopUpSource(source: source, callingProductId: productId)
-        let context = TopUpRequestContext(
-            productId: productId,
-            amount: amount,
-            source: contextSource
-        )
+    /// Registers an idempotent top-up bound to `(productId, id)` and returns once initialization has
+    /// concluded. The claim is driven by `IncomingPaymentService`; the product observes progress via
+    /// ``subscribePaymentTopUpStatus(id:)``.
+    func paymentTopUp(amount: Balance, source: PaymentTopUpSource, id: PaymentTopUpId) async throws {
+        let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
 
-        try await markStallActivity("Topup") {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                context.setContinuation(continuation)
+        let descriptor: IncomingPaymentSourceDescriptor
+        do {
+            descriptor = try Self.incomingPaymentDescriptor(from: source, productId: productId)
+        } catch {
+            logger.error("Top-up source could not be described: \(error)")
+            throw HostPaymentTopUpError.invalidSource
+        }
 
-                switch contextSource {
-                case let .wallet(wallet):
-                    Task { [coinageService] in
-                        await self.runWalletTopUp(
-                            context: context,
-                            wallet: wallet,
-                            amount: amount,
-                            coinageService: coinageService
-                        )
-                    }
-                case let .coins(secretKeys):
-                    Task { [coinageService] in
-                        await self.runCoinsTopUp(
-                            context: context,
-                            secretKeys: secretKeys,
-                            amount: amount,
-                            coinageService: coinageService
-                        )
-                    }
-                }
-            }
+        do {
+            try await incomingPaymentService.accept(
+                amount: amount,
+                descriptor: descriptor,
+                paymentId: id.toHex(),
+                productId: productId
+            )
+        } catch {
+            logger.error("Top-up could not be registered: \(error)")
+            throw HostPaymentTopUpError(error, unknownReason: Self.topUpRegistrationFailed)
         }
     }
+
+    func subscribePaymentTopUpStatus(
+        id: PaymentTopUpId
+    ) async throws -> AnyAsyncSequence<HostPaymentTopUpStatus> {
+        do {
+            let incomingPaymentService = try requirePaymentsSupport().incomingPaymentService
+
+            return try await incomingPaymentService.subscribeStatus(
+                for: id.toHex(),
+                productId: productId
+            )
+            .map { HostPaymentTopUpStatus(status: $0) }
+            .eraseToAnyAsyncSequence()
+        } catch {
+            logger.error("Top-up status could not be observed: \(error)")
+            throw HostPaymentTopUpError(error, unknownReason: Self.topUpStatusUnavailable)
+        }
+    }
+}
+
+// MARK: - Wire reasons
+
+private extension ProductsNativeApi {
+    /// What a third-party product is told on an unclassified failure. The real error is logged; a
+    /// CoreData or Keychain dump is not for product scripts.
+    static let topUpRegistrationFailed = "top-up could not be registered"
+    static let topUpStatusUnavailable = "top-up status is unavailable"
 }
 
 // MARK: - Payment Request Checks
@@ -171,133 +171,58 @@ private extension ProductsNativeApi {
     }
 }
 
-// MARK: - Top-Up Helpers
+// MARK: - Top-Up Source Description
 
 private extension ProductsNativeApi {
-    func claimWalletTopUp(
-        wallet: any WalletManaging,
-        amount: Balance,
-        coinageService: any CoinageServicing
-    ) async throws {
-        let loaded = try await coinageService.loadVouchers(
-            amount: amount,
-            externalAssetHolder: wallet
-        )
-
-        if loaded < amount {
-            throw PaymentTopUpError.partialPayment(amount: loaded)
-        }
-    }
-
-    func runWalletTopUp(
-        context: TopUpRequestContext,
-        wallet: any WalletManaging,
-        amount: Balance,
-        coinageService: any CoinageServicing
-    ) async {
-        do {
-            try await claimWalletTopUp(
-                wallet: wallet,
-                amount: amount,
-                coinageService: coinageService
-            )
-            context.deliverClaimed()
-        } catch let PaymentTopUpError.partialPayment(loaded) {
-            await productsRouter.showTopUpMismatch(
-                context: context,
-                claimedAmount: loaded,
-                requestedAmount: amount
-            )
-        } catch {
-            logger.error("Wallet topup claim failed: \(error)")
-            await productsRouter.showTopUpError(
-                context: context,
-                error: error
-            )
-        }
-    }
-
-    func claimCoinsTopUp(
-        secretKeys: [Data],
-        amount: Balance,
-        coinageService: any CoinageServicing
-    ) async throws {
-        let memo = TransferMemo(entries: secretKeys, totalValue: amount)
-        let topUpCoinsBlockTimeout: UInt32 = 15
-
-        do {
-            try await coinageService.ongoingTransferService.awaitSendOnChain(
-                memo: memo,
-                blockTimeout: topUpCoinsBlockTimeout
-            )
-        } catch {
-            logger.error(
-                "Top-up coins not on-chain within \(topUpCoinsBlockTimeout) blocks: \(error)"
-            )
-            throw PaymentTopUpError.coinsNotOnChain
-        }
-
-        let claimed = try await coinageService.transferCoinsFromSecretKeys(
-            secretKeys: secretKeys,
-            transferCoins: true
-        )
-
-        guard claimed > 0 else {
-            throw PaymentTopUpError.noCoinsClaimed
-        }
-
-        if claimed < amount {
-            throw PaymentTopUpError.partialPayment(amount: claimed)
-        }
-    }
-
-    func runCoinsTopUp(
-        context: TopUpRequestContext,
-        secretKeys: [Data],
-        amount: Balance,
-        coinageService: any CoinageServicing
-    ) async {
-        do {
-            try await claimCoinsTopUp(
-                secretKeys: secretKeys,
-                amount: amount,
-                coinageService: coinageService
-            )
-            context.deliverClaimed()
-        } catch let PaymentTopUpError.partialPayment(claimed) {
-            await productsRouter.showTopUpMismatch(
-                context: context,
-                claimedAmount: claimed,
-                requestedAmount: amount
-            )
-        } catch {
-            logger.error("Topup claim failed: \(error)")
-            await productsRouter.showTopUpError(
-                context: context,
-                error: error
-            )
-        }
-    }
-
-    func resolveTopUpSource(
-        source: PaymentTopUpSource,
-        callingProductId: ProductId
-    ) throws -> TopUpRequestContext.Source {
+    /// Describes the product-facing source as the persisted bytes the claim is later resolved from —
+    /// the full derivation **path** for a product account (never a derived key), the raw key otherwise.
+    /// Resolution + validation happen later, in `IncomingPaymentSourceResolver`.
+    static func incomingPaymentDescriptor(
+        from source: PaymentTopUpSource,
+        productId: String
+    ) throws -> IncomingPaymentSourceDescriptor {
         switch source {
         case let .productAccount(derivationIndex):
-            let accountId = ProductAccountId(
-                productId: callingProductId,
+            let derivationPath = try ProductAccountId(
+                productId: productId,
                 derivationIndex: derivationIndex
-            )
-            let wallet = try DynamicDerivedWallet(
-                derivationPath: accountId.derivationPath(),
-                entropyManager: entropyManager
-            )
-            return .wallet(wallet)
+            ).derivationPath()
+
+            return .productAccount(derivationPath: derivationPath)
         case let .privateKey(secretKey):
-            return .wallet(DynamicDerivedWallet(secretKeyProvider: { secretKey }))
+            return .privateKey(secretKey: secretKey)
         case let .coins(secretKeys):
             return .coins(secretKeys: secretKeys)
+        }
+    }
+}
+
+// MARK: - Wire Mapping
+
+private extension HostPaymentTopUpError {
+    /// The coded error for `error`; anything that is not a classified `IncomingPaymentError` becomes
+    /// `unknown` with the generic `unknownReason` rather than the error's own description.
+    init(_ error: any Error, unknownReason: String) {
+        switch error as? IncomingPaymentError {
+        case .alreadyExists: self = .alreadyExists
+        case .invalidSource: self = .invalidSource
+        case .sourceBusy: self = .sourceBusy
+        case .invalidAmount: self = .unknown(reason: "amount must be positive")
+        case let .notFound(paymentId): self = .notFound(paymentId)
+        case .unknown,
+             .none: self = .unknown(reason: unknownReason)
+        }
+    }
+}
+
+private extension HostPaymentTopUpStatus {
+    init(status: IncomingPaymentStatus) {
+        switch status {
+        case .detecting: self = .detecting
+        case .claiming: self = .claiming
+        case let .claimed(finalized): self = .claimed(finalized: finalized)
+        case let .claimedPartially(actualClaimed): self = .claimedPartially(actualClaimed: actualClaimed)
+        case .notClaimed: self = .notClaimed
         }
     }
 }

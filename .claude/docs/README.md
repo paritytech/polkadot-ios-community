@@ -28,7 +28,7 @@
 | WebRTC, P2P transport, data channels           | architecture/data-transport.md                             |
 | Cross-cutting design questions                 | architecture/maintainability.md                            |
 | Error handling, Result types                   | code/error-handling.md                                     |
-| async/await, Operations, streams               | code/concurrency.md                                        |
+| async/await, Operations, streams, actor/lock state | code/concurrency.md                                    |
 | UIKit, SwiftUI, SnapKit, layout, @Observable    | code/ui-uikit.md                                           |
 | Naming, comments, logging, hygiene             | code/naming-and-hygiene.md                                 |
 | ServiceCoordinator, DI, service wiring         | code/di-and-services.md                                    |

@@ -71,7 +71,9 @@ public protocol ProductsNativeApiProtocol: AnyObject {
     func requestPayment(amountInPlanks: String, destination: AccountId) async throws -> PaymentReceipt
     func subscribePaymentStatus(paymentId: String) async throws -> AnyAsyncSequence<HostPaymentStatus>
 
-    func paymentTopUp(amount: Balance, source: PaymentTopUpSource) async throws
+    func paymentTopUp(amount: Balance, source: PaymentTopUpSource, id: PaymentTopUpId) async throws
+
+    func subscribePaymentTopUpStatus(id: PaymentTopUpId) async throws -> AnyAsyncSequence<HostPaymentTopUpStatus>
 
     // Push Notification
     func pushNotification(_ request: ScheduledNotificationRequest) async throws -> UInt32
