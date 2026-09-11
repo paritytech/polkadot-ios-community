@@ -286,6 +286,7 @@
     <entity name="CDVoucher" representedClassName="CDVoucher" syncable="YES" codeGenerationType="class">
         <attribute name="allocatedAt" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="derivationIndex" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="enteredAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="onChainState" optional="YES" attributeType="Integer 16" usesScalarValueType="YES"/>
