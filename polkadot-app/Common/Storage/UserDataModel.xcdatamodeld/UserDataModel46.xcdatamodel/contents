@@ -126,7 +126,6 @@
         <relationship name="contacts" optional="YES" toMany="YES" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="game" inverseEntity="CDChatContact"/>
     </entity>
     <entity name="CDIncomingPayment" representedClassName="CDIncomingPayment" syncable="YES" codeGenerationType="class">
-        <attribute name="acknowledgedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="actualClaimed" optional="YES" attributeType="String"/>
         <attribute name="amount" attributeType="String"/>
         <attribute name="createdAt" attributeType="Date" usesScalarValueType="NO"/>

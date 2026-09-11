@@ -10,9 +10,7 @@ import SubstrateSdk
 ///
 /// Secrets live only in `IncomingPaymentSecretStoring` (encrypted, wiped on settle); the record holds
 /// no source and no live status. The terminal verdict is written once on settle and read back
-/// exactly, so a reorg after settlement can never change what a completed top-up reports. An unhappy
-/// verdict is surfaced to the user exactly once: the record is marked acknowledged only after the
-/// prompt was shown, and `setup` raises any verdict still owed.
+/// exactly, so a reorg after settlement can never change what a completed top-up reports.
 public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked Sendable {
     private let store: any IncomingPaymentStoring
     private let secretStore: any IncomingPaymentSecretStoring
@@ -175,10 +173,7 @@ private extension IncomingPaymentService {
     func runSetup(denomination: DenominationBreakdownContext) -> Task<Void, Never> {
         Task { [weak self] in
             guard let self else { return }
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await self.promptUnacknowledged() }
-                group.addTask { await self.driveActivePayments(denomination: denomination) }
-            }
+            await driveActivePayments(denomination: denomination)
         }
     }
 
@@ -194,23 +189,6 @@ private extension IncomingPaymentService {
             }
         } catch {
             logger?.error("Incoming payments: active-payment stream failed: \(error)")
-        }
-    }
-
-    /// Raises every verdict the user was not told about — one whose prompt found no window, or one
-    /// settled on a launch that died before the sheet showed.
-    func promptUnacknowledged() async {
-        let owed: [IncomingPayment]
-        do {
-            owed = try await store.fetchUnacknowledgedSettled()
-        } catch {
-            logger?.error("Incoming payments: unacknowledged verdicts unreadable: \(error)")
-            return
-        }
-
-        for payment in owed {
-            guard !Task.isCancelled, let outcome = payment.outcome else { continue }
-            await acknowledge(payment: payment, outcome: outcome)
         }
     }
 
@@ -329,26 +307,19 @@ private extension IncomingPaymentService {
         await acknowledge(payment: payment, outcome: outcome)
     }
 
-    /// Tells the user about an unhappy verdict and records that it was told. A happy verdict has
-    /// nothing to tell and is acknowledged on the spot. A prompt that could not be shown leaves the
-    /// record unacknowledged for the next `setup` to raise again.
+    /// Tells the user about an unhappy verdict. A happy verdict has nothing to tell.
     func acknowledge(payment: IncomingPayment, outcome: IncomingPaymentTerminalOutcome) async {
-        do {
-            switch outcome {
-            case .claimedPartially,
-                 .notClaimed:
-                try await acknowledger.acknowledge(
-                    productId: payment.productId,
-                    paymentId: payment.paymentId,
-                    requestedAmount: payment.amount,
-                    outcome: outcome
-                )
-            case .claimed:
-                break
-            }
-            try await store.markAcknowledged(groupId: payment.groupId)
-        } catch {
-            logger?.warning("Incoming payment \(payment.paymentId) verdict not acknowledged; will re-prompt: \(error)")
+        switch outcome {
+        case .claimedPartially,
+             .notClaimed:
+            await acknowledger.acknowledge(
+                productId: payment.productId,
+                paymentId: payment.paymentId,
+                requestedAmount: payment.amount,
+                outcome: outcome
+            )
+        case .claimed:
+            break
         }
     }
 

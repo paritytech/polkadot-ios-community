@@ -76,7 +76,7 @@ final class StubSourceResolver: IncomingPaymentSourceResolving, @unchecked Senda
     }
 }
 
-/// Acknowledger stub — records what it was asked to surface; `acknowledgeError` makes every prompt fail.
+/// Acknowledger stub — records what it was asked to surface.
 final class StubAcknowledger: IncomingPaymentAcknowledging, @unchecked Sendable {
     struct Call: Equatable {
         let productId: String
@@ -85,17 +85,14 @@ final class StubAcknowledger: IncomingPaymentAcknowledging, @unchecked Sendable 
         let outcome: IncomingPaymentTerminalOutcome
     }
 
-    struct Failure: Error {}
-
     private let lock = OSAllocatedUnfairLock(initialState: [Call]())
-    var acknowledgeError: Error?
 
     func acknowledge(
         productId: String,
         paymentId: IncomingPaymentId,
         requestedAmount: Balance,
         outcome: IncomingPaymentTerminalOutcome
-    ) async throws {
+    ) async {
         lock.withLock {
             $0.append(Call(
                 productId: productId,
@@ -104,7 +101,6 @@ final class StubAcknowledger: IncomingPaymentAcknowledging, @unchecked Sendable 
                 outcome: outcome
             ))
         }
-        if let acknowledgeError { throw acknowledgeError }
     }
 
     func calls() -> [Call] { lock.withLock { $0 } }

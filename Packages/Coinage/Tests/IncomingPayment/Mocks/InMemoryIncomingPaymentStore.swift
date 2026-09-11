@@ -4,8 +4,7 @@ import os
 @testable import Coinage
 
 /// In-memory `IncomingPaymentStoring` for tests. Records hold no secret material; `settle` writes the
-/// terminal verdict and `markAcknowledged` the acknowledgement. `saveError`/`fetchError`/
-/// `settleError`/`markAcknowledgedError` inject failures.
+/// terminal verdict. `saveError`/`fetchError` inject failures.
 final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sendable {
     struct Failure: Error {}
 
@@ -20,7 +19,6 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     var saveError: Error?
     var fetchError: Error?
     var settleError: Error?
-    var markAcknowledgedError: Error?
 
     init(seed: [IncomingPayment] = []) {
         state.withLock { state in
@@ -43,27 +41,24 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     func fetchActivePayments() async throws -> [IncomingPayment] {
-        state.withLock { Array($0.payments.values.filter(\.isActive)) }
-    }
-
-    func fetchUnacknowledgedSettled() async throws -> [IncomingPayment] {
-        state.withLock { Array($0.payments.values.filter { !$0.isActive && $0.acknowledgedAt == nil }) }
+        state.withLock { Array($0.payments.values.filter { $0.outcome == nil }) }
     }
 
     func settle(groupId: CoinageTxGroupId, outcome: IncomingPaymentTerminalOutcome) async throws {
         if let settleError { throw settleError }
         state.withLock { state in
             state.settledGroupIds.append(groupId)
-            state.payments[groupId] = state.payments[groupId].map { $0.with(outcome: outcome) }
+            if let existing = state.payments[groupId] {
+                state.payments[groupId] = IncomingPayment(
+                    paymentId: existing.paymentId,
+                    productId: existing.productId,
+                    amount: existing.amount,
+                    createdAt: existing.createdAt,
+                    outcome: outcome
+                )
+            }
         }
         publishActive()
-    }
-
-    func markAcknowledged(groupId: CoinageTxGroupId) async throws {
-        if let markAcknowledgedError { throw markAcknowledgedError }
-        state.withLock { state in
-            state.payments[groupId] = state.payments[groupId].map { $0.with(acknowledgedAt: Date()) }
-        }
     }
 
     func observeActivePayments() -> AnyAsyncSequence<[IncomingPayment]> {
@@ -81,31 +76,7 @@ final class InMemoryIncomingPaymentStore: IncomingPaymentStoring, @unchecked Sen
     }
 
     private func publishActive() {
-        let active = state.withLock { Array($0.payments.values.filter(\.isActive)) }
+        let active = state.withLock { Array($0.payments.values.filter { $0.outcome == nil }) }
         activeSubject.send(active)
-    }
-}
-
-private extension IncomingPayment {
-    func with(outcome: IncomingPaymentTerminalOutcome) -> IncomingPayment {
-        IncomingPayment(
-            paymentId: paymentId,
-            productId: productId,
-            amount: amount,
-            createdAt: createdAt,
-            outcome: outcome,
-            acknowledgedAt: acknowledgedAt
-        )
-    }
-
-    func with(acknowledgedAt: Date) -> IncomingPayment {
-        IncomingPayment(
-            paymentId: paymentId,
-            productId: productId,
-            amount: amount,
-            createdAt: createdAt,
-            outcome: outcome,
-            acknowledgedAt: acknowledgedAt
-        )
     }
 }

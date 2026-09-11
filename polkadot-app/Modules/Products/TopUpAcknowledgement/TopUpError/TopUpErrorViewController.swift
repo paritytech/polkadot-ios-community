@@ -5,7 +5,6 @@ import UIKit_iOS
 
 final class TopUpErrorViewController: UIHostingController<TopUpErrorViewLayout> {
     let presenter: TopUpErrorPresenterProtocol
-    var onDidDisappear: (() -> Void)?
 
     init(presenter: TopUpErrorPresenterProtocol) {
         self.presenter = presenter
@@ -25,13 +24,6 @@ final class TopUpErrorViewController: UIHostingController<TopUpErrorViewLayout> 
         presenter.setup()
     }
 
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        guard isBeingDismissed || presentingViewController == nil else { return }
-        onDidDisappear?()
-        onDidDisappear = nil
-    }
-
     private func setupHandlers() {
         rootView.onCloseTapped = { [weak presenter] in
             presenter?.didTapClose()
@@ -46,8 +38,6 @@ extension TopUpErrorViewController: TopUpErrorViewProtocol {
         rootView.closeButtonTitle = closeButtonTitle
     }
 }
-
-extension TopUpErrorViewController: TopUpAcknowledgementDismissObserving {}
 
 extension TopUpErrorViewController: ModalPresenterDelegate {
     func presenterShouldHide(_: any ModalPresenterProtocol) -> Bool {

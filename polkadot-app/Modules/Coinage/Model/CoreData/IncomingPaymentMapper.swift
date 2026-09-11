@@ -8,7 +8,7 @@ import Operation_iOS
 ///
 /// The record holds no secret material (that lives in the Keychain via `IncomingPaymentSecretStoring`)
 /// and no live status — only the identity, amount, window start, and, once settled, the terminal
-/// verdict (`outcomeTag` + `actualClaimed`) and when the user was told (`acknowledgedAt`).
+/// verdict (`outcomeTag` + `actualClaimed`).
 final class IncomingPaymentMapper: CoreDataMapperProtocol {
     typealias DataProviderModel = IncomingPayment
     typealias CoreDataEntity = CDIncomingPayment
@@ -33,8 +33,7 @@ final class IncomingPaymentMapper: CoreDataMapperProtocol {
             outcome: IncomingPaymentOutcomeSerialization.outcome(
                 tag: entity.outcomeTag,
                 actualClaimed: entity.actualClaimed
-            ),
-            acknowledgedAt: entity.acknowledgedAt
+            )
         )
     }
 
@@ -52,7 +51,6 @@ final class IncomingPaymentMapper: CoreDataMapperProtocol {
         let serialized = IncomingPaymentOutcomeSerialization.columns(for: model.outcome)
         entity.outcomeTag = serialized.tag
         entity.actualClaimed = serialized.actualClaimed
-        entity.acknowledgedAt = model.acknowledgedAt
     }
 }
 
@@ -83,34 +81,6 @@ final class IncomingPaymentOutcomeMapper: CoreDataMapperProtocol {
         let serialized = IncomingPaymentOutcomeSerialization.columns(for: model.outcome)
         entity.outcomeTag = serialized.tag
         entity.actualClaimed = serialized.actualClaimed
-    }
-}
-
-/// Write-only mapper that records when the user was told a settled payment's verdict, touching
-/// nothing else on the record.
-final class IncomingPaymentAcknowledgementMapper: CoreDataMapperProtocol {
-    enum MappingError: Error {
-        case missingPayment
-    }
-
-    typealias DataProviderModel = IncomingPaymentAcknowledgementUpdate
-    typealias CoreDataEntity = CDIncomingPayment
-
-    var entityIdentifierFieldName: String { #keyPath(CDIncomingPayment.identifier) }
-
-    func transform(entity _: CDIncomingPayment) throws -> IncomingPaymentAcknowledgementUpdate {
-        throw CoreDataMapperError.unsupported
-    }
-
-    func populate(
-        entity: CDIncomingPayment,
-        from model: IncomingPaymentAcknowledgementUpdate,
-        using _: NSManagedObjectContext
-    ) throws {
-        guard entity.identifier != nil else {
-            throw MappingError.missingPayment
-        }
-        entity.acknowledgedAt = model.acknowledgedAt
     }
 }
 

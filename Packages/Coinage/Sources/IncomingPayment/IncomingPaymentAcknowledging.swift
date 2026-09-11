@@ -8,14 +8,11 @@ import SubstrateSdk
 /// nothing — so the service calls this only for `.claimedPartially` / `.notClaimed`. Implemented
 /// app-side (routes to the top-up acknowledgement screens). `requestedAmount` is the top-up's
 /// original amount, shown against the credited figure on the mismatch screen.
-///
-/// Returns once the user has seen the prompt; throws when it could not be shown, in which case the
-/// service leaves the verdict unacknowledged and raises it again on the next `setup`.
 public protocol IncomingPaymentAcknowledging: Sendable {
     func acknowledge(
         productId: String,
         paymentId: IncomingPaymentId,
         requestedAmount: Balance,
         outcome: IncomingPaymentTerminalOutcome
-    ) async throws
+    ) async
 }

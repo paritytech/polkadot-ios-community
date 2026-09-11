@@ -5,8 +5,8 @@ import SubstrateSdk
 import Testing
 @testable import polkadot_app
 
-/// Exercises the store through its real mappers — the full record mapper on save/fetch and the two
-/// write-only partial mappers on settle/acknowledge — against an in-memory Core Data stack.
+/// Exercises the store through its real mappers — the full record mapper on save/fetch and the
+/// write-only partial mapper on settle — against an in-memory Core Data stack.
 struct IncomingPaymentCoreDataStoreTests {
     private let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
 
@@ -50,7 +50,6 @@ struct IncomingPaymentCoreDataStoreTests {
         #expect(settled.outcome == .claimedPartially(actualClaimed: 40))
         #expect(settled.amount == 250)
         #expect(settled.createdAt == createdAt)
-        #expect(settled.acknowledgedAt == nil)
     }
 
     @Test func settlingAnUnknownRecordThrows() async throws {
@@ -58,31 +57,6 @@ struct IncomingPaymentCoreDataStoreTests {
 
         await #expect(throws: (any Error).self) {
             try await store.settle(groupId: "top up:prod:ghost", outcome: .notClaimed)
-        }
-    }
-
-    @Test func unacknowledgedSettledIsTheRepromptSet() async throws {
-        let store = makeStore()
-        try await store.save(payment("active"))
-        try await store.save(payment("owed"))
-        try await store.save(payment("told"))
-        try await store.settle(groupId: "top up:prod:owed", outcome: .notClaimed)
-        try await store.settle(groupId: "top up:prod:told", outcome: .notClaimed)
-
-        try await store.markAcknowledged(groupId: "top up:prod:told")
-
-        let owed = try await store.fetchUnacknowledgedSettled()
-        #expect(owed.map(\.paymentId) == ["owed"])
-        let told = try #require(try await store.fetch(groupId: "top up:prod:told"))
-        #expect(told.acknowledgedAt != nil)
-        #expect(told.outcome == .notClaimed)
-    }
-
-    @Test func acknowledgingAnUnknownRecordThrows() async throws {
-        let store = makeStore()
-
-        await #expect(throws: (any Error).self) {
-            try await store.markAcknowledged(groupId: "top up:prod:ghost")
         }
     }
 

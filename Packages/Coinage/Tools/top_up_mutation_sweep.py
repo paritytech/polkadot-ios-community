@@ -4,7 +4,7 @@
 Adapted from `feature/products/impl/tools/top_up_mutation_sweep.py` in the Android repo. Same spirit:
 touch only the files that decide a top-up's fate and run only the top-up tests. Each mutant removes or
 weakens exactly one rule the host call's contract states — idempotency, one-claim-per-source, terminality,
-verdict immutability, group namespacing, acknowledgement, and the translation from what coinage detected
+verdict immutability, group namespacing, and the translation from what coinage detected
 into what a product is told.
 
 Read a SURVIVED line as "no test distinguishes this rule's presence from its absence".
@@ -132,21 +132,12 @@ MUTANTS = [
      "        case .claimedPartially,\n             .notClaimed:\n            true",
      "        case .claimedPartially,\n             .notClaimed:\n            false"),
 
-    # --- the user is told exactly once ---
-    ("acknowledge: a failed prompt is recorded as told", SERVICE,
-     "                try await acknowledger.acknowledge(",
-     "                try? await acknowledger.acknowledge("),
-
-    ("setup: verdicts still owed are not raised again", SERVICE,
-     "                group.addTask { await self.promptUnacknowledged() }",
-     "                group.addTask {}"),
-
+    # --- the user is told of an unhappy verdict, and only of those ---
     ("acknowledge: a happy verdict prompts the user", SERVICE,
-     "            case .claimed:\n                break\n            }\n            try await store.markAcknowledged",
-     "            case .claimed:\n                try await acknowledger.acknowledge(\n"
-     "                    productId: payment.productId, paymentId: payment.paymentId,\n"
-     "                    requestedAmount: payment.amount, outcome: outcome\n                )\n            }\n"
-     "            try await store.markAcknowledged"),
+     "        case .claimed:\n            break\n        }\n    }",
+     "        case .claimed:\n            await acknowledger.acknowledge(\n"
+     "                productId: payment.productId, paymentId: payment.paymentId,\n"
+     "                requestedAmount: payment.amount, outcome: outcome\n            )\n        }\n    }"),
 
     # --- scheduling: one runner per operation ---
     ("context: a running top-up is started a second time", CONTEXT,
