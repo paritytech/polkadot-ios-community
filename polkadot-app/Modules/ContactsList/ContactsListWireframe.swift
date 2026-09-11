@@ -21,22 +21,6 @@ private extension ContactsListWireframe {
 }
 
 extension ContactsListWireframe: ContactsListWireframeProtocol {
-    func showSearchContact(from view: ContactsListViewProtocol?) {
-        let searchModel = SearchContactModel { [weak self] openModel in
-            self?.performChatShow(from: view, for: openModel)
-        }
-
-        guard let search = SearchContactViewFactory.createView(
-            with: searchModel,
-            coinageService: flowState.coinageService
-        ) else {
-            return
-        }
-        search.controller.modalPresentationStyle = .fullScreen
-        search.controller.modalTransitionStyle = .crossDissolve
-        view?.controller.present(search.controller, animated: true)
-    }
-
     func showChat(from view: ContactsListViewProtocol?, for model: ChatOpenModel) {
         performChatShow(from: view, for: model)
     }

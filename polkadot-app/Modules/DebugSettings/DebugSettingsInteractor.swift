@@ -91,8 +91,14 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
     }
 
     func restartApp() {
-        Logger.shared.info("TrUAPI runtime changed — terminating for restart")
+        Logger.shared.info("Debug settings changed — terminating for restart")
         exit(0)
+    }
+
+    func resetTips() {
+        #if TESTNET_FEATURE
+            SettingsManager.shared.set(value: true, for: .tipsResetPending)
+        #endif
     }
 }
 

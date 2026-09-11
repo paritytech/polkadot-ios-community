@@ -1,12 +1,8 @@
 import Foundation
-import Coinage
 
 @MainActor
 enum SearchContactViewFactory {
-    static func createView(
-        with model: SearchContactModel,
-        coinageService: CoinageServicing
-    ) -> SearchContactViewProtocol? {
+    static func createView(with model: SearchContactModel) -> SearchContactViewProtocol? {
         let walletRepo: WalletManagerRepositoryProtocol = .shared
         guard let ownAccountId = try? walletRepo.main().getRawPublicKey() else {
             assertionFailure()
@@ -14,7 +10,7 @@ enum SearchContactViewFactory {
         }
 
         let interactor = SearchContactInteractor(ownAccountId: ownAccountId)
-        let wireframe = SearchContactWireframe(model: model, coinageService: coinageService)
+        let wireframe = SearchContactWireframe(model: model)
 
         let presenter = SearchContactPresenter(
             interactor: interactor,

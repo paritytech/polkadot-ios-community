@@ -1,0 +1,258 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "browse.message": {
+      "comment": "Message of the tab bar tip pointing at the Browse tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discover dApps and open them in a tab."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descubre dApps y ábrelas en una pestaña."
+          }
+        }
+      }
+    },
+    "browse.title": {
+      "comment": "Title of the tab bar tip pointing at the Browse tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browse apps"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Explorar apps"
+          }
+        }
+      }
+    },
+    "chainStatus.message": {
+      "comment": "Message of the tip pointing at the chain status strip",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These rings track your connection to each chain."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos anillos muestran tu conexión con cada cadena."
+          }
+        }
+      }
+    },
+    "chainStatus.title": {
+      "comment": "Title of the tip pointing at the chain status strip",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Network status"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estado de la red"
+          }
+        }
+      }
+    },
+    "chat.message": {
+      "comment": "Message of the tab bar tip pointing at the Chat tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages, calls, and contacts."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensajes, llamadas y contactos."
+          }
+        }
+      }
+    },
+    "chat.title": {
+      "comment": "Title of the tab bar tip pointing at the Chat tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chats live here"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aquí están tus chats"
+          }
+        }
+      }
+    },
+    "connectionStatus.message": {
+      "comment": "Message of the tab bar tip pointing at the connection status action",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap for per-chain connection details."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca para ver los detalles de conexión de cada cadena."
+          }
+        }
+      }
+    },
+    "connectionStatus.title": {
+      "comment": "Title of the tab bar tip pointing at the connection status action",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection details"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detalles de conexión"
+          }
+        }
+      }
+    },
+    "scan.message": {
+      "comment": "Message of the tab bar tip pointing at the scan action",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan to pay or add a contact."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea para pagar o agregar un contacto."
+          }
+        }
+      }
+    },
+    "scan.title": {
+      "comment": "Title of the tab bar tip pointing at the scan action",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan a QR code"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear código QR"
+          }
+        }
+      }
+    },
+    "settings.message": {
+      "comment": "Message of the tab bar tip pointing at the Settings tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accounts, security, and preferences."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuentas, seguridad y preferencias."
+          }
+        }
+      }
+    },
+    "settings.title": {
+      "comment": "Title of the tab bar tip pointing at the Settings tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración"
+          }
+        }
+      }
+    },
+    "wallet.message": {
+      "comment": "Message of the tab bar tip pointing at the Wallet tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balances and transfers."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saldos y transferencias."
+          }
+        }
+      }
+    },
+    "wallet.title": {
+      "comment": "Title of the tab bar tip pointing at the Wallet tab",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your wallet"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu cartera"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.1"
+}

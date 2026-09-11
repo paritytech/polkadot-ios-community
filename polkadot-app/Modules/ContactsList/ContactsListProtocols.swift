@@ -13,7 +13,6 @@ protocol ContactsListPresenterProtocol: AnyObject {
     func setup()
     func viewWillAppear()
     func viewWillDisappear()
-    func showSearchContact()
     func openChat(contactIdentifier: String)
     func showIncomingRequests()
 }
@@ -34,7 +33,6 @@ protocol ContactsListInteractorOutputProtocol: AnyObject {
 
 @MainActor
 protocol ContactsListWireframeProtocol: AlertPresentable, ErrorPresentable {
-    func showSearchContact(from view: ContactsListViewProtocol?)
     func showChat(from view: ContactsListViewProtocol?, for model: ChatOpenModel)
     func open(url: URL)
     func showIncomingRequests(from view: ContactsListViewProtocol?)

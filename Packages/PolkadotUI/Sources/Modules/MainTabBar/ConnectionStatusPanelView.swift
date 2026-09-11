@@ -15,19 +15,19 @@ public struct ConnectionStatusPanelView: View, Hashable {
         // entirely. Block age therefore ticks on a view-local timeline rather than on emissions,
         // otherwise it would freeze exactly when the panel is opened to diagnose the stall.
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            VStack(alignment: .leading, spacing: DSSpacings.extraMedium) {
+            VStack(alignment: .leading, spacing: DSSpacings.mediumIncreased) {
                 Text(.Common.connectionStatusPanelTitle)
                     .typography(.titleLarge)
                     .foregroundStyle(Color.fgPrimary)
                     .lineLimit(1)
-                    .padding(.bottom, DSSpacings.extraMedium)
+                    .padding(.bottom, DSSpacings.small)
 
                 ForEach(rows) { row in
                     rowView(row, now: context.date)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding([.top, .horizontal], DSSpacings.large)
+            .padding(DSSpacings.mediumIncreased)
         }
     }
 }

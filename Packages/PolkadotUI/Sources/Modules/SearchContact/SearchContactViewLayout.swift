@@ -50,17 +50,17 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
 
         centeringLayoutGuide.snp.makeConstraints {
             $0.leading.trailing.equalToSuperview()
-            $0.top.equalTo(searchHeader.snp.bottom)
-            $0.bottom.equalTo(keyboardLayoutGuide.snp.top)
+            $0.top.equalTo(safeAreaLayoutGuide.snp.top)
+            $0.bottom.equalTo(searchHeader.snp.top)
         }
 
         searchHeader.snp.makeConstraints {
             $0.leading.trailing.equalToSuperview()
-            $0.top.equalTo(safeAreaLayoutGuide.snp.top).offset(0)
+            $0.bottom.equalTo(keyboardLayoutGuide.snp.top)
         }
 
         searchHintLabel.snp.makeConstraints {
-            $0.top.equalTo(searchHeader.snp.bottom).offset(12)
+            $0.bottom.equalTo(searchHeader.snp.top).offset(-12)
             $0.leading.equalToSuperview().offset(24)
             $0.trailing.equalToSuperview().inset(24)
         }
@@ -77,8 +77,9 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
         }
 
         collectionView.snp.makeConstraints {
-            $0.top.equalTo(searchHeader.snp.bottom)
-            $0.leading.trailing.bottom.equalToSuperview()
+            $0.top.equalTo(safeAreaLayoutGuide.snp.top)
+            $0.leading.trailing.equalToSuperview()
+            $0.bottom.equalTo(searchHeader.snp.top)
         }
     }
 
@@ -130,11 +131,6 @@ public extension SearchContactViewLayout {
     var cancelHandler: (() -> Void)? {
         get { searchHeader.cancelHandler }
         set { searchHeader.cancelHandler = newValue }
-    }
-
-    var scanHandler: (() -> Void)? {
-        get { searchHeader.scanHandler }
-        set { searchHeader.scanHandler = newValue }
     }
 
     func bind(viewModel: ViewModel) {

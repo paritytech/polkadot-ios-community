@@ -56,6 +56,10 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
             showConnectionStatusPanel()
         }
     }
+
+    func didRequestContactSearch() {
+        wireframe.showSearchContact(from: view)
+    }
 }
 
 extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
