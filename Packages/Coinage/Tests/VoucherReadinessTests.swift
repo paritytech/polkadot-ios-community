@@ -7,22 +7,48 @@ struct VoucherReadinessTests {
 
     @Test(arguments: [RecyclingStrategyType.balanced, .maxPrivacy])
     func waitingRequiresBothMembersAndConfirmedAge(_ type: RecyclingStrategyType) {
+        let minimumMembers: UInt32 = 32
+        let tenMinutes: TimeInterval = 10 * 60
         let strategy = strategy(type)
-        let vouchers = [
-            voucher(members: 31, enteredAt: now.addingTimeInterval(-600)),
-            voucher(members: 32, enteredAt: now.addingTimeInterval(-599.999)),
-            voucher(members: 32, enteredAt: now.addingTimeInterval(-600)),
-            voucher(members: 32, enteredAt: nil)
+        let testCases: [(members: UInt32, age: TimeInterval?, expected: Bool)] = [
+            (minimumMembers - 1, tenMinutes, false),
+            (minimumMembers, tenMinutes - 1, false),
+            (minimumMembers, tenMinutes, true),
+            (minimumMembers, nil, false)
         ]
 
-        #expect(vouchers.map { strategy.isVoucherUsable($0, context: context()) } == [false, false, true, false])
+        for testCase in testCases {
+            let candidate = voucher(
+                members: testCase.members,
+                enteredAt: testCase.age.map { now.addingTimeInterval(-$0) }
+            )
+            #expect(strategy.isVoucherUsable(candidate, context: context()) == testCase.expected)
+        }
     }
 
     @Test
     func ringFillUsesNinetyAndTwentyPercentWithoutRoundingDown() {
-        for (type, threshold) in [(RecyclingStrategyType.maxPrivacy, 691), (.balanced, 154)] {
-            let vouchers = [threshold - 1, threshold].map { voucher(members: UInt32($0), enteredAt: nil) }
-            #expect(vouchers.map { strategy(type).isVoucherUsable($0, context: context()) } == [false, true])
+        let capacity = 767
+        let ninetyPercentMembers: UInt32 = 691
+        let twentyPercentMembers: UInt32 = 154
+
+        for (type, minimumMembers) in [
+            (RecyclingStrategyType.maxPrivacy, ninetyPercentMembers),
+            (.balanced, twentyPercentMembers)
+        ] {
+            let strategy = strategy(type)
+            let testCases = [
+                (members: minimumMembers - 1, expected: false),
+                (members: minimumMembers, expected: true)
+            ]
+
+            for testCase in testCases {
+                let candidate = voucher(members: testCase.members, enteredAt: nil)
+                #expect(
+                    strategy.isVoucherUsable(candidate, context: context(capacity: capacity))
+                        == testCase.expected
+                )
+            }
         }
     }
 
