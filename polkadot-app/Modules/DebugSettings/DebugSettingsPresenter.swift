@@ -107,6 +107,19 @@ extension DebugSettingsPresenter: DebugSettingsPresenterProtocol {
 
     func resetTips() {
         interactor.resetTips()
+
+        let viewModel = AlertPresentableViewModel(
+            title: "Restart Required",
+            message: "Tips reset on the next launch. Restart the app to see them again.",
+            actions: [
+                AlertPresentableAction(title: "Restart") { [weak self] in
+                    self?.interactor.restartApp()
+                },
+                AlertPresentableAction(title: "Later", style: .cancel)
+            ]
+        )
+
+        wireframe.present(viewModel: viewModel, style: .alert, from: view)
     }
 }
 
