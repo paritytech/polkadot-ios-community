@@ -136,6 +136,49 @@ struct CoinageBalanceTests {
 
     // MARK: - Combined
 
+    @Test(arguments: [RecyclingStrategyType.balanced, .maxPrivacy])
+    func maturityMovesVoucherBalanceToAvailable(_ type: RecyclingStrategyType) {
+        let enteredAt = Date(timeIntervalSince1970: 1_000)
+        let trackedVoucher = tracked(voucher(
+            exponent: 1,
+            state: .inRecycler(.init(index: 1, membersCount: 32, enteredAt: enteredAt))
+        ))
+        let strategy = ParametricRecyclingStrategy(
+            params: type.params(forcedRecyclingAge: CoinageConstants.recycleAtAge)
+        )
+        let preClassificator = CoinageAssetPreClassificator()
+        let balances = [599.0, 600.0].map { elapsed in
+            let usability = VoucherUsabilityContext(
+                ringCapacities: [1: 767],
+                now: enteredAt.addingTimeInterval(elapsed)
+            )
+            return CoinageBalanceService.calculateBalance(
+                coinBuckets: preClassificator.preClassifyCoins([]),
+                voucherBuckets: preClassificator.preClassifyVouchers(
+                    [trackedVoucher],
+                    strategy: strategy,
+                    context: usability
+                ),
+                verdicts: [:],
+                canSpendWithConfirmation: strategy.allowsConfirmedSpend(),
+                context: context
+            )
+        }
+
+        #expect(balances == [
+            CoinageBalance(
+                availablePrivate: 0,
+                gainingPrivacy: .init(amount: planks(1), canSpendWithConfirmation: type == .balanced),
+                pending: 0
+            ),
+            CoinageBalance(
+                availablePrivate: planks(1),
+                gainingPrivacy: .init(amount: 0, canSpendWithConfirmation: type == .balanced),
+                pending: 0
+            )
+        ])
+    }
+
     @Test("Buckets a mix of coins and vouchers correctly")
     func combined() {
         expect(
