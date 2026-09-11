@@ -2,6 +2,7 @@ import AsyncExtensions
 import Foundation
 import os
 import SDKLogger
+import StructuredConcurrency
 import SubstrateSdk
 
 /// Drives inbound top-ups to completion, restart-durably. `accept` validates and persists; the
@@ -22,6 +23,7 @@ public final class IncomingPaymentService: IncomingPaymentServicing, @unchecked 
     private let acknowledger: any IncomingPaymentAcknowledging
     private let instanceId: CoinageInstanceId
     private let logger: SDKLoggerProtocol?
+    private let acceptQueue = SerialOperationQueue()
 
     init(
         store: any IncomingPaymentStoring,
@@ -58,7 +60,11 @@ public extension IncomingPaymentService {
         productId: String
     ) async throws {
         do {
-            try await performAccept(amount: amount, descriptor: descriptor, paymentId: paymentId, productId: productId)
+            try await acceptQueue.run { [self] in
+                try await performAccept(
+                    amount: amount, descriptor: descriptor, paymentId: paymentId, productId: productId
+                )
+            }
         } catch let error as IncomingPaymentError {
             throw error
         } catch {
