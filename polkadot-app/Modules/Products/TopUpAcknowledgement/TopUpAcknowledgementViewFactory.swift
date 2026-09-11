@@ -1,30 +1,23 @@
 import Foundation
+import Products
 import SubstrateSdk
 import ChainRegistry
 
 @MainActor
-enum TopUpRequestViewFactory {
+enum TopUpAcknowledgementViewFactory {
     static func createMismatchView(
-        context: TopUpRequestContext,
+        productId: ProductId,
         claimedAmount: Balance,
         requestedAmount: Balance
     ) -> TopUpMismatchViewProtocol? {
-        let chainRegistry = ChainRegistryFacade.sharedRegistry
-        let chainAssetId = AppConfig.Assets.mainAsset
-
-        guard
-            let chain = chainRegistry.getChain(for: chainAssetId.chainId),
-            let chainAsset = chain.chainAsset(for: chainAssetId.assetId)
-        else {
+        guard let viewModelFactory = makeViewModelFactory() else {
             return nil
         }
-
-        let viewModelFactory = TopUpRequestViewModelFactory(chainAsset: chainAsset)
 
         let wireframe = TopUpMismatchWireframe()
         let presenter = TopUpMismatchPresenter(
             wireframe: wireframe,
-            context: context,
+            productId: productId,
             claimedAmount: claimedAmount,
             requestedAmount: requestedAmount,
             viewModelFactory: viewModelFactory
@@ -36,19 +29,16 @@ enum TopUpRequestViewFactory {
         return view
     }
 
-    static func createErrorView(
-        context: TopUpRequestContext,
-        error: Error
-    ) -> TopUpErrorViewProtocol {
-        let message = String(localized: .Products.topUpErrorMessage)
+    static func createErrorView(productId: ProductId) -> TopUpErrorViewProtocol? {
+        guard let viewModelFactory = makeViewModelFactory() else {
+            return nil
+        }
 
         let wireframe = TopUpErrorWireframe()
         let presenter = TopUpErrorPresenter(
             wireframe: wireframe,
-            context: context,
-            error: error,
-            title: String(localized: .Products.topUpErrorTitle(product: context.productId)),
-            message: message,
+            title: viewModelFactory.errorTitle(productId: productId),
+            message: viewModelFactory.errorMessage(),
             closeButtonTitle: String(localized: .Common.close)
         )
         let view = TopUpErrorViewController(presenter: presenter)
@@ -56,5 +46,19 @@ enum TopUpRequestViewFactory {
 
         BottomSheetViewFacade.setupNonNavigatingSheet(from: view, preferredHeight: nil)
         return view
+    }
+
+    private static func makeViewModelFactory() -> TopUpAcknowledgementViewModelMaking? {
+        let chainRegistry = ChainRegistryFacade.sharedRegistry
+        let chainAssetId = AppConfig.Assets.mainAsset
+
+        guard
+            let chain = chainRegistry.getChain(for: chainAssetId.chainId),
+            let chainAsset = chain.chainAsset(for: chainAssetId.assetId)
+        else {
+            return nil
+        }
+
+        return TopUpAcknowledgementViewModelFactory(chainAsset: chainAsset)
     }
 }

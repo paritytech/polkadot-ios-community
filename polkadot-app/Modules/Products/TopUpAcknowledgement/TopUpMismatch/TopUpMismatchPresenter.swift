@@ -1,25 +1,29 @@
 import Foundation
 import PolkadotUI
+import Products
 import SubstrateSdk
 
+/// Shows the credited amount against the requested one when a top-up settled partially. Purely
+/// informational — closing simply dismisses (the `paymentTopUp` host call returned long ago; the
+/// product already learned the outcome via the status subscription).
 final class TopUpMismatchPresenter {
     weak var view: TopUpMismatchViewProtocol?
     let wireframe: TopUpMismatchWireframeProtocol
 
-    private let context: TopUpRequestContext
+    private let productId: ProductId
     private let claimedAmount: Balance
     private let requestedAmount: Balance
-    private let viewModelFactory: TopUpRequestViewModelMaking
+    private let viewModelFactory: TopUpAcknowledgementViewModelMaking
 
     init(
         wireframe: TopUpMismatchWireframeProtocol,
-        context: TopUpRequestContext,
+        productId: ProductId,
         claimedAmount: Balance,
         requestedAmount: Balance,
-        viewModelFactory: TopUpRequestViewModelMaking
+        viewModelFactory: TopUpAcknowledgementViewModelMaking
     ) {
         self.wireframe = wireframe
-        self.context = context
+        self.productId = productId
         self.claimedAmount = claimedAmount
         self.requestedAmount = requestedAmount
         self.viewModelFactory = viewModelFactory
@@ -29,7 +33,7 @@ final class TopUpMismatchPresenter {
 extension TopUpMismatchPresenter: TopUpMismatchPresenterProtocol {
     func setup() {
         let viewModel = TopUpMismatchViewModel(
-            title: viewModelFactory.amountMismatchTitle(productId: context.productId),
+            title: viewModelFactory.amountMismatchTitle(productId: productId),
             claimedAmount: viewModelFactory.formatAmountValue(claimedAmount),
             originalAmount: viewModelFactory.formatAmountValue(requestedAmount),
             tokenSymbol: viewModelFactory.tokenSymbol(),
@@ -44,6 +48,5 @@ extension TopUpMismatchPresenter: TopUpMismatchPresenterProtocol {
 
     func didTapClose() {
         wireframe.dismiss(view: view)
-        context.deliverFailed(PaymentTopUpError.partialPayment(amount: claimedAmount))
     }
 }

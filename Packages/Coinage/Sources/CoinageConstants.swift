@@ -15,6 +15,11 @@ public enum CoinageConstants {
     /// Shorter than ``claimRetryWindow`` — these callers await the outcome inline.
     public static let secretKeyClaimTimeout: TimeInterval = 60
 
+    /// How long an incoming top-up keeps trying before whatever it has is all it will ever have (1
+    /// hour). Measured from when the operation opened, not from an individual attempt, so a resumed
+    /// top-up finishes the window it was given.
+    public static let topUpRetryWindow: TimeInterval = 60 * 60
+
     /// Coin age threshold at which coin is still operatable
     public static let coinMaxAge: Int16 = 16
 

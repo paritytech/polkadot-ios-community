@@ -26,6 +26,10 @@ public protocol CoinageServicing: Actor {
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
     nonisolated var externalPaymentService: any ExternalPaymentServicing { get }
 
+    /// The incoming-payment (top-up) service — exposed for dependency registration.
+    /// Lifecycle (setup/throttle) is managed internally by CoinageService.
+    nonisolated var incomingPaymentService: any IncomingPaymentServicing { get }
+
     /// Suspends until the denomination context is ready, then returns it.
     /// Throws if `setup(with:)` has not been called or if setup failed.
     func denominationContext() async throws -> DenominationBreakdownContext
@@ -134,6 +138,10 @@ public actor CoinageService {
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
 
+    // Incoming payments (top-ups) — lifecycle managed internally (setup driven by `setup(with:)`),
+    // exposed for dependency registration. Mirrors `externalPaymentService`.
+    public nonisolated let incomingPaymentService: any IncomingPaymentServicing
+
     private let contextLoader: DenominationContextLoaderProtocol
 
     // Balance observation — the factory builds the tracked-asset snapshot streams on demand
@@ -179,6 +187,7 @@ public actor CoinageService {
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
+        incomingPaymentService: any IncomingPaymentServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinService = coinService
@@ -201,6 +210,7 @@ public actor CoinageService {
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
+        self.incomingPaymentService = incomingPaymentService
         self.logger = logger
     }
 }
@@ -272,6 +282,7 @@ extension CoinageService: CoinageServicing {
             coinStateSyncService.setup()
             voucherLocationService.setup()
             externalPaymentService.setup(with: context)
+            incomingPaymentService.setup(with: context)
 
             ensureRecyclingEvaluator(context: context)
 
@@ -367,7 +378,8 @@ extension CoinageService: CoinageServicing {
             let vouchers = try await voucherService.load(
                 amount: amount,
                 externalAssetHolder: externalAssetHolder,
-                breakdownContext: context
+                breakdownContext: context,
+                groupId: nil
             )
             return vouchers.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
         }

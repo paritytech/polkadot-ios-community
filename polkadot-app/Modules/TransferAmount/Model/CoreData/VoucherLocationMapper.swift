@@ -3,13 +3,14 @@ import CoreData
 import Coinage
 import Operation_iOS
 
-/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers` and the
-/// two fungibility scores) onto an existing `CDVoucher`, leaving every other column untouched.
+/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers`,
+/// `enteredAt` and the two fungibility scores) onto an existing `CDVoucher`, leaving every other
+/// column untouched.
 ///
 /// Write-only in the sense that it never transforms an entity back into a model. It does read
-/// `recyclerIndex` and `maxFungibilityCaptured` — the ceiling is frozen for as long as the voucher
-/// stays in one ring, so the write has to know which ring was stored before it and whether a
-/// ceiling has actually been recorded for that ring yet.
+/// `recyclerIndex`, `enteredAt` and `maxFungibilityCaptured`: both the first confirmed inclusion
+/// time and the frozen ceiling are held for as long as the voucher stays in one ring, so the write
+/// has to know which ring was stored before it.
 final class VoucherLocationMapper {
     enum MappingError: Error {
         case missingVoucher
@@ -37,7 +38,19 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             throw MappingError.missingVoucher
         }
 
+        // Read before any write below: both the inclusion time and the ceiling are keyed on
+        // whether this is the same ring the entity already held.
         let previousRecyclerIndex = entity.recyclerIndex
+
+        entity.enteredAt =
+            switch model.remoteState {
+            case let .inRecycler(recycler):
+                previousRecyclerIndex == Int64(recycler.index)
+                    ? entity.enteredAt ?? recycler.enteredAt
+                    : recycler.enteredAt
+            case .unlocated,
+                 .onboarding: nil
+            }
 
         entity.recyclerIndex =
             switch model.remoteState {
