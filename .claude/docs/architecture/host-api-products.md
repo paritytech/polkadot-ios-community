@@ -163,6 +163,16 @@ Rules:
    is implemented by `ChatNativeRuntimeScriptsFactory` and `ChatRustRuntimeScriptsFactory`.
    Rust factories load the TrUAPI bundle directly — no adapter types.
    Bootstrap-before-container script ordering is load-bearing.
+8. **Bridge params/results go through Codable DTOs, not hand-rolled JSON.** In a
+   `registerRequestHandler`/`registerSubscriptionHandler`, decode the whole `params` with
+   `params.map(to: SomeRequestDto.self)` and encode results with `result.toScaleCompatibleJSON()` —
+   do not pull individual fields via `params.mapOrMissing(for:)` or assemble
+   `JSON.dictionaryValue([...])` by hand. Model requests/results as `Codable` structs using the
+   SubstrateSdk property wrappers (`@StringCodable`, `@HexCodable`, `@OptionStringCodable`,
+   `@OptionHexCodable`); encode tagged unions as a `tag: String` struct plus the fields that tag
+   carries (see `StatementProofDto`, `CreateStatementProofAuthorizedDto`,
+   `PaymentTopUpRequestDto`/`HostPaymentTopUpStatusDto`). Keeps the wire contract in one typed place,
+   off the handler bodies.
 
 ## Seams
 
@@ -182,3 +192,4 @@ Rules:
 | Adding host API methods without review    | RFC-first approach for new bridge methods     |
 | Hardcoding product URLs                   | Use configuration/remote config               |
 | Direct native calls from JS              | Go through the HostApi bridge layer            |
+| Hand-parsing/encoding bridge JSON fields | Decode/encode Codable DTOs (`params.map(to:)` / `toScaleCompatibleJSON()`) |

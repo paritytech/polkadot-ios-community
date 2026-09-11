@@ -55,16 +55,16 @@ actor MockCoinageTxService: CoinageTxServicing {
     @discardableResult
     func submitTransactions(
         _ requests: [CoinageTxRequest],
-        groupId _: CoinageTxGroupId?
+        groupId: CoinageTxGroupId?
     ) async throws -> [CoinageTxId] {
         var ids: [CoinageTxId] = []
         for request in requests {
-            try await ids.append(recordSubmission(request))
+            try await ids.append(recordSubmission(request, groupId: groupId))
         }
         return ids
     }
 
-    private func recordSubmission(_ request: CoinageTxRequest) async throws -> CoinageTxId {
+    private func recordSubmission(_ request: CoinageTxRequest, groupId: CoinageTxGroupId?) async throws -> CoinageTxId {
         submittedInputs.append(request.inputs)
         submittedOutputs.append(request.outputs)
         callJournal.record("submit")
@@ -76,6 +76,7 @@ actor MockCoinageTxService: CoinageTxServicing {
         let entry = CoinageTxEntry(
             inputs: request.inputs,
             outputs: request.outputs,
+            groupId: groupId,
             txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: BlockRef(number: 0, hash: Data(repeating: 0, count: 32)),
             mortality: 300

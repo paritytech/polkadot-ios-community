@@ -60,12 +60,14 @@ extension CoinageTxEntry {
         inputs: [CoinageTxInput] = [],
         outputs: [OwnAsset] = [],
         checkpoint: BlockRef = .fixture(100),
-        status: CoinageTxStatus = .pending
+        status: CoinageTxStatus = .pending,
+        groupId: CoinageTxGroupId? = nil
     ) -> CoinageTxEntry {
         CoinageTxEntry(
             id: id,
             inputs: inputs,
             outputs: outputs,
+            groupId: groupId,
             txHash: Data(repeating: 0xAB, count: 32),
             checkpoint: checkpoint,
             mortality: 60,
