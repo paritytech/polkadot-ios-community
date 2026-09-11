@@ -32,7 +32,9 @@ public struct RecyclingParams: Equatable {
 
 /// Readiness requirements for vouchers included in a recycler ring.
 public enum VoucherReadiness: Equatable {
+    /// Ready once inclusion in a recycler ring is confirmed.
     case immediate
+    /// Ready at the required ring fill, or with enough members and enough time since confirmed inclusion.
     case ringFillOrMembersAndAge(
         requiredRingFill: BigRational,
         minimumMembers: UInt32,
