@@ -41,7 +41,7 @@ final class TabBarBottomChromeController: UIViewController {
     private lazy var tipController = TabBarTipController(
         host: self,
         barView: barView,
-        sequence: TabBarTipSequenceFactory.make(steps: TabBarTips.steps),
+        sequence: TabBarTipOrderedSequence(steps: TabBarTips.steps),
         itemIndex: { [weak self] slot in self?.slotMap.itemIndex(for: slot) },
         statusStripAnchor: { [weak self] in self?.statusStripAnchorProvider?() }
     )
