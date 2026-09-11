@@ -5,14 +5,14 @@ enum DSTabBarMetrics {
     static let itemHeight: CGFloat = 54
     static let innerInset: CGFloat = 4
     static let rowPadding: CGFloat = 2
-    static let itemOverlap: CGFloat = 8
+    static let itemOverlap: CGFloat = 0
     static let horizontalMargin: CGFloat = 21
     static let bottomGap: CGFloat = 21
     static let maxWidth: CGFloat = 500
     static let iconSize: CGFloat = 28
     static let itemTopPadding: CGFloat = 6
     static let itemBottomPadding: CGFloat = 7
-    static let pillHorizontalInset: CGFloat = 2
+    static let pillHorizontalInset: CGFloat = 0
     static let badgeDiameter: CGFloat = 8
     static let liftedScaleX: CGFloat = 1.08
     static let liftedScaleY: CGFloat = 1.3
