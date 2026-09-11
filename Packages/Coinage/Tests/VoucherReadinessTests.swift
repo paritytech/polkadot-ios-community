@@ -29,8 +29,8 @@ struct VoucherReadinessTests {
     @Test
     func ringFillUsesNinetyAndTwentyPercentWithoutRoundingDown() {
         let capacity = 767
-        let ninetyPercentMembers: UInt32 = 691
-        let twentyPercentMembers: UInt32 = 154
+        let ninetyPercentMembers = UInt32((Double(capacity) * 0.9).rounded(.up))
+        let twentyPercentMembers = UInt32((Double(capacity) * 0.2).rounded(.up))
 
         for (type, minimumMembers) in [
             (RecyclingStrategyType.maxPrivacy, ninetyPercentMembers),
