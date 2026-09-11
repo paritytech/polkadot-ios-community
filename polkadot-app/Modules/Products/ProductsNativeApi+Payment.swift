@@ -28,13 +28,20 @@ extension ProductsNativeApi {
             .eraseToAnyAsyncSequence()
     }
 
-    /// Balance → approval → register. Uniqueness of `(product, id)` is validated by the coinage
-    /// service at registration, so a replay surfaces as `AlreadyExists` after those two steps.
+    /// Scope → approval → privacy confirmation (widened spends only) → register. Uniqueness of
+    /// `(product, id)` is validated by the coinage service at registration, so a replay surfaces as
+    /// `AlreadyExists` after those steps.
     func requestPayment(amount: Balance, destination: AccountId, id: PaymentRequestId) async throws {
         let externalPaymentService = try requirePaymentsSupport().externalPaymentService
 
-        try await checkSufficientBalance(amount: amount)
+        let spendScope = try await resolveSpendScope(amount: amount)
         try await awaitUserApproval(amount: amount, destination: destination)
+
+        if spendScope == .withConfirmation {
+            guard await paymentPrivacyConfirmer.confirmGainingPrivacySpend(amount: amount) else {
+                throw HostPaymentRequestError.rejected
+            }
+        }
 
         do {
             try await externalPaymentService.initiatePayment(
@@ -42,7 +49,7 @@ extension ProductsNativeApi {
                 paymentId: id.toHex(includePrefix: true),
                 amountInPlanks: amount,
                 destination: destination,
-                spendScope: .spendable
+                spendScope: spendScope
             )
         } catch ExternalPaymentError.alreadyExists {
             throw HostPaymentRequestError.alreadyExists
@@ -134,19 +141,22 @@ private extension ProductsNativeApi {
         return paymentsSupport
     }
 
-    /// Validates spendable balance covers the requested amount. The permission is only read, never
-    /// prompted: with `balanceAccess` the product already knows balances and gets
-    /// `insufficientBalance`; without it the shortfall is reported as `rejected` so nothing leaks.
-    func checkSufficientBalance(amount: Balance) async throws {
+    /// Picks the scope the payment may draw on — the same widening rule as transfers — or fails when the
+    /// amount is unreachable. The permission is only read, never prompted: with `balanceAccess` the
+    /// product already knows balances and gets `insufficientBalance`; without it the shortfall is
+    /// reported as `rejected` so nothing leaks.
+    func resolveSpendScope(amount: Balance) async throws -> SpendScope {
         let coinageService = try requirePaymentsSupport().coinageService
         let balanceService = try await coinageService.coinageBalanceService()
 
-        var spendable = Balance(0)
+        var balance = CoinageBalance.empty
         for try await value in balanceService.balanceStream.prefix(1) {
-            spendable = value.availablePrivate
+            balance = value
         }
 
-        guard spendable < amount else { return }
+        if let scope = PaymentSpendScopeResolver.resolve(balance: balance, amount: amount) {
+            return scope
+        }
 
         let knowsBalance = try await permissionGuard.check(productId: productId, permission: .balanceAccess)
         throw knowsBalance ? HostPaymentRequestError.insufficientBalance : HostPaymentRequestError.rejected

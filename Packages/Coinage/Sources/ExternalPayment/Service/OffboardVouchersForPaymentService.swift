@@ -21,6 +21,7 @@ import SubstrateSdkExt
 final class OffboardVouchersForPaymentService {
     private let instanceId: CoinageInstanceId
     private let voucherKeyFactory: any VoucherKeyDeriving
+    private let voucherService: VoucherServiceProtocol
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let txService: any CoinageTxServicing
@@ -33,6 +34,7 @@ final class OffboardVouchersForPaymentService {
     init(
         instanceId: CoinageInstanceId,
         voucherKeyFactory: any VoucherKeyDeriving,
+        voucherService: VoucherServiceProtocol,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         txService: any CoinageTxServicing,
@@ -44,6 +46,7 @@ final class OffboardVouchersForPaymentService {
     ) {
         self.instanceId = instanceId
         self.voucherKeyFactory = voucherKeyFactory
+        self.voucherService = voucherService
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.txService = txService
@@ -69,10 +72,11 @@ final class OffboardVouchersForPaymentService {
 }
 
 /// The unload's single verdict, folded from its per-group entries. `partialSuccess` is not a
-/// failure — money did move, just not all of it.
+/// failure — money did move, just not all of it: `settledInPlanks` is what the finalized groups
+/// delivered, so the caller can settle it and re-plan the remainder.
 enum OffboardOutcome: Equatable {
     case success
-    case partialSuccess(executed: Int, total: Int)
+    case partialSuccess(settledInPlanks: Balance, executed: Int, total: Int)
     case failed
 }
 
@@ -90,8 +94,12 @@ private extension OffboardVouchersForPaymentService {
         return try await awaitGroupOutcome(groupId: groupId)
     }
 
+    /// Round 0 keeps the legacy shape so rows in flight across an upgrade still re-join their group;
+    /// every later round gets its own group, or the re-join path would adopt the settled entries.
     func groupId(for payment: ExternalPayment) -> CoinageTxGroupId {
-        "external-payment:\(payment.id)"
+        payment.round == 0
+            ? "external-payment:\(payment.id)"
+            : "external-payment:\(payment.id):r\(payment.round)"
     }
 
     /// Registers the whole payment as one atomic durability group, or re-joins the group a prior
@@ -130,13 +138,17 @@ private extension OffboardVouchersForPaymentService {
                 continue
             }
 
-            let executed = entries.filter { $0.status == .finalizedSuccess }.count
+            let finalized = entries.filter { $0.status == .finalizedSuccess }
             let total = entries.count
 
-            if executed == total {
+            if finalized.count == total {
                 return .success
-            } else if executed > 0 {
-                return .partialSuccess(executed: executed, total: total)
+            } else if !finalized.isEmpty {
+                return try await .partialSuccess(
+                    settledInPlanks: settledValue(of: finalized),
+                    executed: finalized.count,
+                    total: total
+                )
             } else {
                 return .failed
             }
@@ -151,7 +163,7 @@ private extension OffboardVouchersForPaymentService {
     ) async throws -> [CoinageTxRequest] {
         let details = try await buildGroupDetails(
             groups: groupVouchers(vouchers),
-            paymentAmount: payment.amountInPlanks
+            paymentAmount: payment.remainingInPlanks
         )
 
         let blockHash = try await blockNumberProvider.fetchCurrentHash()
@@ -178,6 +190,39 @@ private extension OffboardVouchersForPaymentService {
                 destination: payment.destination,
                 origin: origin
             ))
+        }
+    }
+}
+
+// MARK: - Settled Value
+
+private extension OffboardVouchersForPaymentService {
+    /// What the finalized groups delivered to the destination: each group's voucher inputs minus the
+    /// surplus vouchers it minted back. Read from the tracked vouchers because entries carry only
+    /// derivation indices.
+    func settledValue(of entries: [CoinageTxEntry]) async throws -> Balance {
+        let exponents = try await Dictionary(
+            voucherService.fetchAllTracked().map { ($0.voucher.derivationIndex, $0.voucher.exponent) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        func value(of index: DerivationIndex) throws -> Balance {
+            guard let exponent = exponents[index] else {
+                throw OffboardVouchersForPaymentError.unknownVoucher(index)
+            }
+            return denominationContext.valueInPlanks(for: exponent)
+        }
+
+        return try entries.reduce(Balance(0)) { partial, entry in
+            let inputs = try entry.inputs.reduce(Balance(0)) { sum, input in
+                guard case let .recyclerVoucher(index, _) = input else { return sum }
+                return try sum + value(of: index)
+            }
+            let outputs = try entry.outputs.reduce(Balance(0)) { sum, output in
+                guard case let .recyclerVoucher(index, _) = output else { return sum }
+                return try sum + value(of: index)
+            }
+            return partial + (inputs > outputs ? inputs - outputs : 0)
         }
     }
 }

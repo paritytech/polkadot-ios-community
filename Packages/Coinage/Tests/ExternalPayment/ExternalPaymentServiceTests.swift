@@ -226,6 +226,50 @@ struct ExternalPaymentServiceTests {
         #expect(harness.txService.registrations.count == 1)
     }
 
+    @Test func partialUnloadSettlesAndPaysTheRemainderInANewRound() async throws {
+        let large = Factory.voucher(index: 1, exponent: 3)
+        let small = Factory.voucher(index: 2, exponent: 2)
+        let amount = Factory.planks(3) + Factory.planks(2)
+        let payment = Factory.payment(amount: amount)
+        let store = InMemoryExternalPaymentStore(seed: [payment])
+        let harness = Factory.makeHarness(store: store)
+        harness.vouchers.set(vouchers: [large, small])
+        harness.assets.set(.make(spendableVouchers: [large, small]), for: .spendable)
+        harness.txService.setOutcomes([.partial, .success])
+        harness.planner.setHandler { remaining, _ in
+            let selection = remaining == amount ? [large, small] : [remaining == Factory.planks(3) ? large : small]
+            return .success(.ready(Factory.selection(vouchers: selection, amount: remaining)))
+        }
+
+        harness.service.setup(with: Factory.denomination)
+        defer { harness.service.throttle() }
+
+        await Factory.waitUntil { store.payment(id: payment.id)?.stage == .completed }
+        let final = try #require(store.payment(id: payment.id))
+        #expect(final.settledInPlanks == amount)
+        #expect(final.round == 1)
+        #expect(harness.txService.registrations == [
+            "external-payment:\(payment.id)", "external-payment:\(payment.id):r1"
+        ])
+        #expect(harness.planner.amounts.count == 2)
+        #expect(harness.planner.amounts.last.map { $0 < amount } == true)
+        #expect(harness.sleeper.recorded.isEmpty)
+    }
+
+    @Test func retryWindowElapsedAfterASettledRoundIsPartiallyCompleted() async throws {
+        let payment = Factory.payment(round: 1, settled: 4, createdAt: Date(timeIntervalSinceNow: -10))
+        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]), retryWindow: 5)
+        harness.planner.setDefault(.failure(StubExternalPaymentPlanner.Failure("still down")))
+
+        harness.service.setup(with: Factory.denomination)
+        defer { harness.service.throttle() }
+
+        await Factory.waitUntil { store(harness).payment(id: payment.id)?.stage.isTerminal == true }
+        #expect(store(harness).payment(id: payment.id)?.stage == .partiallyCompleted)
+    }
+
+    private func store(_ harness: ExternalPaymentHarness) -> InMemoryExternalPaymentStore { harness.store }
+
     @Test func retryWindowElapsedPersistsFailedWithLastError() async throws {
         let payment = Factory.payment(createdAt: Date(timeIntervalSinceNow: -10))
         let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]), retryWindow: 5)

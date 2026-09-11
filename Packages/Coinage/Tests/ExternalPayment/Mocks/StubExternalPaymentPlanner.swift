@@ -22,6 +22,7 @@ final class StubExternalPaymentPlanner: ExternalPaymentPlanning, @unchecked Send
         var defaultResult: Result<ExternalPaymentPreview, Error>
         var calls: [(amount: Balance, scope: SpendScope)] = []
         var blockUntilCancelled = false
+        var handler: (@Sendable (Balance, SpendScope) -> Result<ExternalPaymentPreview, Error>)?
     }
 
     private let state: OSAllocatedUnfairLock<State>
@@ -36,6 +37,11 @@ final class StubExternalPaymentPlanner: ExternalPaymentPlanning, @unchecked Send
 
     func setDefault(_ result: Result<ExternalPaymentPreview, Error>) {
         state.withLock { $0.defaultResult = result }
+    }
+
+    /// Answers every call from `handler` (takes precedence over the queue and default).
+    func setHandler(_ handler: @escaping @Sendable (Balance, SpendScope) -> Result<ExternalPaymentPreview, Error>) {
+        state.withLock { $0.handler = handler }
     }
 
     /// Every plan call suspends until the surrounding task is cancelled.
@@ -57,6 +63,9 @@ final class StubExternalPaymentPlanner: ExternalPaymentPlanning, @unchecked Send
     ) async throws -> ExternalPaymentPreview {
         let (result, blocks) = state.withLock { state -> (Result<ExternalPaymentPreview, Error>, Bool) in
             state.calls.append((amount, scope))
+            if let handler = state.handler {
+                return (handler(amount, scope), state.blockUntilCancelled)
+            }
             let next = state.queue.isEmpty ? state.defaultResult : state.queue.removeFirst()
             return (next, state.blockUntilCancelled)
         }

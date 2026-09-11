@@ -164,20 +164,83 @@ struct ExternalPaymentStateTests {
         #expect(txService.registrations.count == 1)
     }
 
-    @Test func offboardPartialOutcomeIsPartiallyCompleted() async {
+    @Test func offboardPartialOutcomeSettlesAndReplansTheRemainder() async {
         let txService = StubGroupTxService()
         txService.setOutcome(.partial)
-        let vouchers = [Factory.voucher(index: 1), Factory.voucher(index: 2, exponent: 2)]
+        let vouchers = [Factory.voucher(index: 1, exponent: 3), Factory.voucher(index: 2, exponent: 2)]
         let factory = Factory.makeStateFactory(
-            planner: StubExternalPaymentPlanner(), assets: assets(spendable: vouchers), txService: txService
+            planner: StubExternalPaymentPlanner(),
+            assets: assets(spendable: vouchers),
+            txService: txService,
+            vouchers: vouchers
         )
-        let payment = Factory.payment(amount: Factory.planks(3) + Factory.planks(2))
+        let amount = Factory.planks(3) + Factory.planks(2)
+        let payment = Factory.payment(amount: amount)
 
         let next = await OffboardVouchersPaymentState(payment: payment, vouchers: vouchers).transit(with: factory)
         let memo = await next.memo()
 
+        #expect(memo.stage == .plan)
+        #expect(!next.isTerminal)
+        #expect(memo.round == 1)
+        #expect([Factory.planks(3), Factory.planks(2)].contains(memo.settledInPlanks))
+        #expect(memo.remainingInPlanks == amount - memo.settledInPlanks)
+        #expect(txService.registrations == ["external-payment:\(payment.id)"])
+    }
+
+    @Test func laterRoundsRegisterUnderTheirOwnGroup() async {
+        let txService = StubGroupTxService()
+        let factory = Factory.makeStateFactory(
+            planner: StubExternalPaymentPlanner(), assets: assets(spendable: [voucher]), txService: txService
+        )
+        let payment = Factory.payment(
+            amount: Factory.planks(3) + Factory.planks(2),
+            round: 1,
+            settled: Factory.planks(2)
+        )
+
+        let next = await OffboardVouchersPaymentState(payment: payment, vouchers: [voucher]).transit(with: factory)
+        let memo = await next.memo()
+
+        #expect(memo.stage == .completed)
+        #expect(memo.settledInPlanks == payment.amountInPlanks)
+        #expect(txService.registrations == ["external-payment:\(payment.id):r1"])
+    }
+
+    @Test func offboardFailureAfterASettledRoundIsPartiallyCompleted() async {
+        let txService = StubGroupTxService()
+        txService.setOutcome(.failure)
+        let factory = Factory.makeStateFactory(
+            planner: StubExternalPaymentPlanner(), assets: assets(spendable: [voucher]), txService: txService
+        )
+        let payment = Factory.payment(
+            amount: Factory.planks(3) + Factory.planks(2),
+            round: 1,
+            settled: Factory.planks(2)
+        )
+
+        let next = await OffboardVouchersPaymentState(payment: payment, vouchers: [voucher]).transit(with: factory)
+        let memo = await next.memo()
+
         #expect(memo.stage == .partiallyCompleted)
-        #expect(memo.failureReason == "1 of 2 unload transactions executed")
+        #expect(memo.settledInPlanks == Factory.planks(2))
+    }
+
+    @Test func planPlansOnlyTheRemainder() async {
+        let planner = StubExternalPaymentPlanner(defaultResult: .success(.notEnoughBalance))
+        let factory = Factory.makeStateFactory(planner: planner)
+        let payment = Factory.payment(
+            amount: Factory.planks(3) + Factory.planks(2),
+            round: 1,
+            settled: Factory.planks(2)
+        )
+
+        let next = await PlanPaymentState(payment: payment).transit(with: factory)
+        let memo = await next.memo()
+
+        #expect(planner.amounts == [Factory.planks(3)])
+        #expect(memo.stage == .partiallyCompleted)
+        #expect(memo.failureReason == "Insufficient balance")
     }
 
     @Test func offboardFailedOutcomeIsAVerdict() async {

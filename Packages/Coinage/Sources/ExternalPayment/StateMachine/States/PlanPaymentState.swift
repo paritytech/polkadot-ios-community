@@ -17,7 +17,7 @@ struct PlanPaymentState: StateMachineState {
     ) async -> AnyStateMachineState<ExternalPaymentStateFactory, ExternalPayment> {
         do {
             let plan = try await factory.planner.plan(
-                amount: payment.amountInPlanks,
+                amount: payment.remainingInPlanks,
                 context: factory.context,
                 scope: payment.spendScope
             )
@@ -33,10 +33,7 @@ struct PlanPaymentState: StateMachineState {
             case let .needsReschedule(after, _):
                 return factory.makeRescheduledState(payment: payment, until: after)
             case .notEnoughBalance:
-                return factory.makeFailedState(
-                    payment: payment,
-                    reason: "Insufficient balance"
-                )
+                return factory.makeFailedOrPartial(payment: payment, reason: "Insufficient balance")
             }
         } catch {
             return factory.makeRetryState(payment: payment, stage: .plan, error: error)

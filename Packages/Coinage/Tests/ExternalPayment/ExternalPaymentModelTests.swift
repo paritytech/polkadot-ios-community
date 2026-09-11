@@ -34,6 +34,13 @@ struct ExternalPaymentModelTests {
         #expect(legacy.spendScope == .spendable)
     }
 
+    @Test func remainingNeverGoesNegative() {
+        var payment = Factory.payment(amount: 10, settled: 4)
+        #expect(payment.remainingInPlanks == 6)
+        payment.settledInPlanks = 12
+        #expect(payment.remainingInPlanks == 0)
+    }
+
     @Test func terminalStages() {
         let terminal: Set<ExternalPayment.Stage> = [.completed, .failed, .rescheduled, .partiallyCompleted]
 

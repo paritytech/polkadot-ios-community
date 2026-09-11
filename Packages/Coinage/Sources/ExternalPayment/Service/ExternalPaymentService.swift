@@ -13,6 +13,7 @@ struct ExternalPaymentDependency {
     let instanceId: CoinageInstanceId
     let spendableAssets: any SpendableAssetsProviding
     let recycler: CoinageRecyclingServicing
+    let voucherService: VoucherServiceProtocol
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -26,6 +27,7 @@ struct ExternalPaymentDependency {
         instanceId: CoinageInstanceId,
         spendableAssets: any SpendableAssetsProviding,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -38,6 +40,7 @@ struct ExternalPaymentDependency {
         self.instanceId = instanceId
         self.spendableAssets = spendableAssets
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -79,6 +82,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
             planner: planner,
             spendableAssets: dependency.spendableAssets,
             recycler: dependency.recycler,
+            voucherService: dependency.voucherService,
             voucherKeyFactory: dependency.voucherKeyFactory,
             voucherMinter: dependency.voucherMinter,
             recyclerLoader: dependency.recyclerLoader,
@@ -284,7 +288,7 @@ private extension ExternalPaymentService {
 
     func persistRetryWindowElapsed(_ payment: ExternalPayment) async {
         var failed = payment
-        failed.stage = .failed
+        failed.stage = payment.settledInPlanks > 0 ? .partiallyCompleted : .failed
         failed.failureReason = payment.failureReason ?? "retry window elapsed"
         failed.updatedAt = Date()
 

@@ -21,6 +21,7 @@ final class StubGroupTxService: CoinageTxServicing, @unchecked Sendable {
         var subjects: [CoinageTxGroupId: AsyncCurrentValueSubject<[CoinageTxEntry]>] = [:]
         var registrations: [CoinageTxGroupId] = []
         var outcome: Outcome = .success
+        var outcomeQueue: [Outcome] = []
         var submitError: Error?
     }
 
@@ -32,6 +33,11 @@ final class StubGroupTxService: CoinageTxServicing, @unchecked Sendable {
 
     func setOutcome(_ outcome: Outcome) {
         state.withLock { $0.outcome = outcome }
+    }
+
+    /// One outcome per registration, in order; falls back to `setOutcome` once drained.
+    func setOutcomes(_ outcomes: [Outcome]) {
+        state.withLock { $0.outcomeQueue = outcomes }
     }
 
     func setSubmitError(_ error: Error?) {
@@ -59,7 +65,10 @@ final class StubGroupTxService: CoinageTxServicing, @unchecked Sendable {
         _ requests: [CoinageTxRequest],
         groupId: CoinageTxGroupId?
     ) async throws -> [CoinageTxId] {
-        let (error, outcome) = state.withLock { ($0.submitError, $0.outcome) }
+        let (error, outcome) = state.withLock { state -> (Error?, Outcome) in
+            let next = state.outcomeQueue.isEmpty ? state.outcome : state.outcomeQueue.removeFirst()
+            return (state.submitError, next)
+        }
         if let error { throw error }
 
         let entries = requests.enumerated().map { index, request in

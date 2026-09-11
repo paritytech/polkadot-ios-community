@@ -67,9 +67,8 @@ MUTANTS = [
      "            return factory.makeFailedState(payment: payment, reason: error.localizedDescription)"),
 
     ("plan: insufficient balance is retried instead of failed", PLAN_STATE,
-     "            case .notEnoughBalance:\n                return factory.makeFailedState(\n"
-     "                    payment: payment,\n                    reason: \"Insufficient balance\"\n                )",
-     "            case .notEnoughBalance:\n                return factory.makeRescheduledState(payment: payment, until: Date())"),
+     "                return factory.makeFailedOrPartial(payment: payment, reason: \"Insufficient balance\")",
+     "                return factory.makeRescheduledState(payment: payment, until: Date())"),
 
     ("retry: the failing stage is not the one persisted", RETRY_STATE,
      "        currentPayment.stage = stage",
@@ -126,6 +125,23 @@ MUTANTS = [
     ("status: the stream never ends after a terminal status", SERVICE,
      "                        if status.isTerminal { break }",
      "                        _ = status.isTerminal"),
+
+    # --- partial unloads: settle and retry the remainder ---
+    ("partial: a partial unload is terminal instead of re-planned", OFFBOARD_STATE,
+     "        return factory.makePlanState(payment: next)",
+     "        return factory.makePartiallyCompletedState(payment: next, reason: \"partial\")"),
+
+    ("partial: the next round reuses the settled group", OFFBOARD_STATE,
+     "        next.round += 1",
+     "        next.round += 0"),
+
+    ("partial: the remainder is planned as the full amount", PLAN_STATE,
+     "                amount: payment.remainingInPlanks,",
+     "                amount: payment.amountInPlanks,"),
+
+    ("partial: nothing delivered after a settled round is called failed", FACTORY,
+     "        payment.settledInPlanks > 0",
+     "        false"),
 
     # --- strategy-aware planning & the persisted scope ---
     ("planner: no verdicts yet is treated as no funds", PLANNER,

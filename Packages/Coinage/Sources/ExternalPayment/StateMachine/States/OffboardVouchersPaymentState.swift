@@ -1,11 +1,14 @@
 import Foundation
+import SubstrateSdk
 import SDKLogger
 import StateMachine
 
 /// Unloads vouchers to external asset and transfers to destination.
 ///
 /// Delegates to ``OffboardVouchersForPaymentService``; durability tracks the resulting asset state.
-/// Unload verdicts (`.failed` outcome) persist `failed`; thrown errors keep the stage and retry.
+/// A partial outcome settles what finalized and re-plans the remainder in a new round; a `.failed`
+/// outcome is a verdict (`failed`, or `partiallyCompleted` once something settled); thrown errors keep
+/// the stage and retry.
 struct OffboardVouchersPaymentState: StateMachineState {
     typealias StateFactory = ExternalPaymentStateFactory
     typealias PersistentValue = ExternalPayment
@@ -20,6 +23,7 @@ struct OffboardVouchersPaymentState: StateMachineState {
         let service = OffboardVouchersForPaymentService(
             instanceId: factory.instanceId,
             voucherKeyFactory: factory.voucherKeyFactory,
+            voucherService: factory.voucherService,
             voucherMinter: factory.voucherMinter,
             recyclerLoader: factory.recyclerLoader,
             txService: factory.durability,
@@ -49,17 +53,16 @@ struct OffboardVouchersPaymentState: StateMachineState {
             )
             switch outcome {
             case .success:
-                return factory.makeCompletedState(payment: payment)
-            case let .partialSuccess(executed, total):
-                return factory.makePartiallyCompletedState(
-                    payment: payment,
-                    reason: "\(executed) of \(total) unload transactions executed"
+                var settled = payment
+                settled.settledInPlanks = payment.amountInPlanks
+                return factory.makeCompletedState(payment: settled)
+            case let .partialSuccess(settledInPlanks, executed, total):
+                factory.logger?.debug(
+                    "Payment \(payment.id) round \(payment.round): \(executed)/\(total) unloads settled \(settledInPlanks)"
                 )
+                return nextRound(after: settledInPlanks, factory: factory)
             case .failed:
-                return factory.makeFailedState(
-                    payment: payment,
-                    reason: "no unload transaction executed"
-                )
+                return factory.makeFailedOrPartial(payment: payment, reason: "no unload transaction executed")
             }
         } catch {
             return factory.makeRetryState(payment: payment, stage: .offboardVouchers, error: error)
@@ -71,6 +74,22 @@ struct OffboardVouchersPaymentState: StateMachineState {
         currentPayment.stage = .offboardVouchers
         currentPayment.updatedAt = Date()
         return currentPayment
+    }
+
+    /// Books the settled value and re-plans the remainder under the next round's durability group.
+    private func nextRound(
+        after settledInPlanks: Balance,
+        factory: ExternalPaymentStateFactory
+    ) -> AnyStateMachineState<ExternalPaymentStateFactory, ExternalPayment> {
+        var next = payment
+        next.settledInPlanks += settledInPlanks
+        next.round += 1
+
+        guard next.remainingInPlanks > 0 else {
+            return factory.makeCompletedState(payment: next)
+        }
+
+        return factory.makePlanState(payment: next)
     }
 
     /// Whether every planned voucher is still spendable under the payment's scope — the plan may

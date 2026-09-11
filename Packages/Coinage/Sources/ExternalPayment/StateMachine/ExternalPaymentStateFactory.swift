@@ -1,4 +1,5 @@
 import ExtrinsicService
+import SubstrateSdk
 import Foundation
 import KeyDerivation
 import SDKLogger
@@ -15,6 +16,7 @@ final class ExternalPaymentStateFactory {
     let spendableAssets: any SpendableAssetsProviding
     let context: DenominationBreakdownContext
     let recycler: CoinageRecyclingServicing
+    let voucherService: VoucherServiceProtocol
     let voucherKeyFactory: any VoucherKeyDeriving
     let voucherMinter: any VoucherMinting
     let recyclerLoader: RecyclerReadinessLoading
@@ -30,6 +32,7 @@ final class ExternalPaymentStateFactory {
         spendableAssets: any SpendableAssetsProviding,
         context: DenominationBreakdownContext,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -44,6 +47,7 @@ final class ExternalPaymentStateFactory {
         self.spendableAssets = spendableAssets
         self.context = context
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -92,6 +96,14 @@ extension ExternalPaymentStateFactory {
 
     func makeRescheduledState(payment: ExternalPayment, until: Date) -> ErasedState {
         AnyStateMachineState(RescheduledPaymentState(payment: payment, until: until))
+    }
+
+    /// A permanent verdict: `failed` for a payment that delivered nothing, `partiallyCompleted` once an
+    /// earlier round settled part of the amount — money moved, and the product is told so.
+    func makeFailedOrPartial(payment: ExternalPayment, reason: String) -> ErasedState {
+        payment.settledInPlanks > 0
+            ? makePartiallyCompletedState(payment: payment, reason: reason)
+            : makeFailedState(payment: payment, reason: reason)
     }
 
     /// Transient failure: keeps `stage` persisted as-is so the service can retry from it.

@@ -76,8 +76,12 @@ Contract (`Packages/Products/.../ProductNativeApi+Payment.swift`, handlers in `C
 - Coded errors (`HostPaymentRequestError`): `Rejected`, `InsufficientBalance`, `AlreadyExists`, `Unknown`.
   Messages keep the legacy strings the shipped container.js matches on.
 
-Native order in `ProductsNativeApi+Payment.swift`: balance check (non-prompting `check(.balanceAccess)`
-only shapes `InsufficientBalance` vs `Rejected`) → approval → `initiateExternalPayment`. Identity is
+Native order in `ProductsNativeApi+Payment.swift`: scope resolution from one balance snapshot
+(`PaymentSpendScopeResolver`: `.spendable` when private funds cover the amount, `.withConfirmation`
+when the strategy's gaining-privacy funds cover the shortfall, otherwise a permission-shaped
+`InsufficientBalance` / `Rejected` from a non-prompting `check(.balanceAccess)`) → approval → for a
+widened scope the gaining-privacy sheet (`PaymentPrivacyConfirming`, the same sheet transfers show;
+declining is `Rejected`) → `initiateExternalPayment` with the persisted scope. Identity is
 `(origin = productId, paymentId)`; the coinage service validates uniqueness at registration, so a
 replayed call ends in `AlreadyExists` after those two steps. Products must treat any error on a retry
 as "subscribe to status", not as a failed payment.

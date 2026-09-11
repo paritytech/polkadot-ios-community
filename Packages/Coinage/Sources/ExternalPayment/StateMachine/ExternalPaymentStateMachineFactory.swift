@@ -14,6 +14,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
     private let planner: ExternalPaymentPlanning
     private let spendableAssets: any SpendableAssetsProviding
     private let recycler: CoinageRecyclingServicing
+    private let voucherService: VoucherServiceProtocol
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
@@ -29,6 +30,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         planner: ExternalPaymentPlanning,
         spendableAssets: any SpendableAssetsProviding,
         recycler: CoinageRecyclingServicing,
+        voucherService: VoucherServiceProtocol,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
@@ -43,6 +45,7 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
         self.planner = planner
         self.spendableAssets = spendableAssets
         self.recycler = recycler
+        self.voucherService = voucherService
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
@@ -82,6 +85,7 @@ private extension ExternalPaymentStateMachineFactory {
             spendableAssets: spendableAssets,
             context: context,
             recycler: recycler,
+            voucherService: voucherService,
             voucherKeyFactory: voucherKeyFactory,
             voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,

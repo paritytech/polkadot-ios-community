@@ -26,6 +26,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
     let substrateStorageFacade: StorageFacadeProtocol
     let permissionGuard: ProductPermissionGuarding
     let paymentApprovalRequester: PaymentApprovalRequesting
+    let paymentPrivacyConfirmer: PaymentPrivacyConfirming
     let paymentsSupport: PaymentsSupport?
     let accountManager: ProductsAccountManaging
     let createProofHandler: APCreateProofHandling
@@ -68,6 +69,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         substrateStorageFacade: StorageFacadeProtocol,
         permissionGuard: ProductPermissionGuarding,
         paymentApprovalRequester: PaymentApprovalRequesting,
+        paymentPrivacyConfirmer: PaymentPrivacyConfirming,
         paymentsSupport: PaymentsSupport?,
         accountManager: ProductsAccountManaging,
         createProofHandler: APCreateProofHandling,
@@ -96,6 +98,7 @@ final class ProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendable {
         self.substrateStorageFacade = substrateStorageFacade
         self.permissionGuard = permissionGuard
         self.paymentApprovalRequester = paymentApprovalRequester
+        self.paymentPrivacyConfirmer = paymentPrivacyConfirmer
         self.paymentsSupport = paymentsSupport
         self.accountManager = accountManager
         self.createProofHandler = createProofHandler

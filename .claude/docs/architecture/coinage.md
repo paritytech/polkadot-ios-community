@@ -73,10 +73,18 @@ Transfer plans determine how coins are spent:
   is two payments and the durability group id `external-payment:<id>` stays unique. Registration
   (`initiatePayment`) validates uniqueness and throws `ExternalPaymentError.alreadyExists`; there is
   no separate pre-check.
-- **Spend scope is persisted** (`spendScope`, CoreData v46). Products always register `.spendable`.
-  The in-app flow previews two-pass like `previewTransfer` (spendable, then `.withConfirmation`) and
-  persists the widened scope only after the presenter's privacy confirmation — the record carries the
-  consent, so a restart plans with it.
+- **Spend scope is persisted** (`spendScope`, CoreData v46). Both callers widen the same way transfers
+  do: spendable funds first, gaining-privacy funds only when the strategy allows confirmed spends and
+  only after the user confirms. The in-app flow previews two-pass like `previewTransfer`; a product
+  payment resolves the scope from one balance snapshot (`PaymentSpendScopeResolver`) and shows the
+  same gaining-privacy sheet through `PaymentPrivacyConfirming` (never allowlisted). The record carries
+  the consent, so a restart plans with it.
+- **Partial unloads settle and retry** (`settledInPlanks`, `round`, CoreData v46). When some unload
+  groups finalize and others fail, `OffboardVouchersPaymentState` books the delivered value (finalized
+  entries' voucher inputs minus their surplus outputs), advances `round`, and re-plans
+  `remainingInPlanks` under a fresh durability group (`external-payment:<id>:r<round>`; round 0 keeps
+  the legacy id so in-flight rows re-join after an upgrade). A verdict after something settled is
+  `partiallyCompleted`, never `failed`.
 - **Planner reads strategy buckets**, never raw structural readiness: `SpendableAssetsProviding`
   (`RecyclingAwareSpendableAssetsProvider` over `CoinageAssetSelector` + evaluator verdicts + voucher
   usability). No verdicts yet → reschedule. Gaining-privacy funds outside the scope reschedule at the
@@ -89,7 +97,7 @@ Transfer plans determine how coins are spent:
   Cancellation never persists `failed`. Retries re-enter offboarding through the durability group
   re-join exactly like crash re-entry, so a group is registered once.
 - **Status semantics** (`subscribePaymentStatus`): unknown id → `.failed("unknown payment")` once,
-  then end; `partiallyCompleted` → `.completed`; `rescheduled` → `.processing`; duplicates collapse;
+  then end; `partiallyCompleted` → `.completed` (money moved; the host status has no partial variant); `rescheduled` → `.processing`; duplicates collapse;
   the stream ends after the first terminal status.
 - Tests: `Packages/Coinage/Tests/ExternalPayment/` (real service + state machine over an in-memory
   store and a group-aware durability double); mutation sweep

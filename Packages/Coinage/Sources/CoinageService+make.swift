@@ -328,6 +328,7 @@ public extension CoinageService {
             instanceId: instanceId,
             spendableAssets: spendableAssetsProvider,
             recycler: recyclingService,
+            voucherService: voucherService,
             voucherKeyFactory: voucherKeypairFactory,
             voucherMinter: coinageMinter,
             recyclerLoader: readinessLoader,

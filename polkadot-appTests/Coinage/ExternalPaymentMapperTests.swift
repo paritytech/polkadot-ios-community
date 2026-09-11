@@ -28,6 +28,8 @@ struct ExternalPaymentMapperTests {
         let fetched = try #require(try await store.fetchPayment(byId: payment.id))
 
         #expect(fetched.spendScope == scope)
+        #expect(fetched.settledInPlanks == 0)
+        #expect(fetched.round == 0)
         #expect(fetched.id == "getcash.dot:0xab")
         #expect(fetched.origin == "getcash.dot")
         #expect(fetched.paymentId == "0xab")
@@ -51,7 +53,7 @@ struct ExternalPaymentMapperTests {
         #expect(fetched.paymentId == "6F1E4A0C-LEGACY")
     }
 
-    @Test("re-saving a later stage keeps the persisted scope")
+    @Test("re-saving a later round keeps the scope and persists settled value and round")
     func stageUpdateKeepsScope() async throws {
         let store = makeStore()
         var payment = ExternalPayment(
@@ -63,11 +65,15 @@ struct ExternalPaymentMapperTests {
         )
         try await store.save(payment: payment)
 
-        payment.stage = .offboardVouchers
+        payment.stage = .plan
+        payment.settledInPlanks = 3
+        payment.round = 1
         try await store.save(payment: payment)
 
         let fetched = try #require(try await store.fetchPayment(byId: payment.id))
-        #expect(fetched.stage == .offboardVouchers)
+        #expect(fetched.stage == .plan)
         #expect(fetched.spendScope == .withConfirmation)
+        #expect(fetched.settledInPlanks == 3)
+        #expect(fetched.round == 1)
     }
 }

@@ -27,6 +27,7 @@ struct ExternalPaymentHarness {
     let recycler: StubCoinageRecyclingService
     let planner: StubExternalPaymentPlanner
     let assets: StubSpendableAssetsProvider
+    let vouchers: StubVoucherService
     let sleeper: RecordingSleeper
     let service: ExternalPaymentService
 }
@@ -71,6 +72,8 @@ enum ExternalPaymentTestFactory {
         paymentId: String = "0xaa",
         amount: Balance = planks(3),
         spendScope: SpendScope = .spendable,
+        round: Int = 0,
+        settled: Balance = 0,
         stage: ExternalPayment.Stage = .plan,
         readyAt: Date = .distantPast,
         createdAt: Date = Date()
@@ -81,6 +84,8 @@ enum ExternalPaymentTestFactory {
             amountInPlanks: amount,
             destination: destination,
             spendScope: spendScope,
+            settledInPlanks: settled,
+            round: round,
             stage: stage,
             readyAt: readyAt,
             createdAt: createdAt
@@ -100,7 +105,8 @@ enum ExternalPaymentTestFactory {
         planner: any ExternalPaymentPlanning,
         assets: any SpendableAssetsProviding = StubSpendableAssetsProvider(),
         recycler: StubCoinageRecyclingService = StubCoinageRecyclingService(),
-        txService: StubGroupTxService = StubGroupTxService()
+        txService: StubGroupTxService = StubGroupTxService(),
+        vouchers: [Voucher] = []
     ) -> ExternalPaymentStateFactory {
         ExternalPaymentStateFactory(
             instanceId: 0,
@@ -108,6 +114,7 @@ enum ExternalPaymentTestFactory {
             spendableAssets: assets,
             context: denomination,
             recycler: recycler,
+            voucherService: StubVoucherService(vouchers: vouchers),
             voucherKeyFactory: StubVoucherKeyFactory(),
             voucherMinter: StubVoucherMinter(),
             recyclerLoader: StubRecyclerReadinessLoader(),
@@ -130,6 +137,7 @@ enum ExternalPaymentTestFactory {
         let recycler = StubCoinageRecyclingService()
         let stubPlanner = StubExternalPaymentPlanner()
         let assets = StubSpendableAssetsProvider()
+        let vouchers = StubVoucherService()
         let sleeper = RecordingSleeper()
         let planner: any ExternalPaymentPlanning = usesRealPlanner
             ? ExternalPaymentPlanner(spendableAssets: assets)
@@ -140,6 +148,7 @@ enum ExternalPaymentTestFactory {
             planner: planner,
             spendableAssets: assets,
             recycler: recycler,
+            voucherService: vouchers,
             voucherKeyFactory: StubVoucherKeyFactory(),
             voucherMinter: StubVoucherMinter(),
             recyclerLoader: StubRecyclerReadinessLoader(),
@@ -172,6 +181,7 @@ enum ExternalPaymentTestFactory {
             recycler: recycler,
             planner: stubPlanner,
             assets: assets,
+            vouchers: vouchers,
             sleeper: sleeper,
             service: service
         )
