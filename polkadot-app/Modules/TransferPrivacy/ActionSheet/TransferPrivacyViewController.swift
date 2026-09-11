@@ -45,3 +45,13 @@ extension TransferPrivacyViewController: TransferPrivacyViewProtocol {
         rootView.bind(viewModel: viewModel)
     }
 }
+
+extension TransferPrivacyViewController: ModalPresenterDelegate {
+    func presenterShouldHide(_: ModalPresenterProtocol) -> Bool {
+        true
+    }
+
+    func presenterDidHide(_: ModalPresenterProtocol) {
+        presenter.dismissedExternally()
+    }
+}

@@ -9,6 +9,8 @@ protocol TransferPrivacyPresenterProtocol: AnyObject {
     func setup()
     func sendAnyway()
     func cancel()
+    /// Backdrop tap or swipe: the sheet is already gone, only the decision is outstanding.
+    func dismissedExternally()
 }
 
 @MainActor

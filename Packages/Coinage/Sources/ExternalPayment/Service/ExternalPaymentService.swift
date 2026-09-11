@@ -164,7 +164,7 @@ final class ExternalPaymentService: ExternalPaymentServicing, @unchecked Sendabl
         return store.observePayment(id: id)
             .map { payment -> ExternalPaymentStatus in
                 guard let payment else { return .failed(reason: "unknown payment") }
-                return payment.stage.toStatus(failureReason: payment.failureReason)
+                return payment.status
             }
             .removeDuplicates()
             .endAfterTerminal()
@@ -234,34 +234,38 @@ private extension ExternalPaymentService {
         }
     }
 
-    func processPayment(id: String, denominationContext: DenominationBreakdownContext) async {
-        logger?.debug("Processing payment \(id)")
+    /// One machine run per slot occupancy. A transient failure (stage still non-terminal afterwards)
+    /// releases the slot first and re-enters through the queue after the backoff, so a payment that
+    /// is backing off never blocks the ones behind it. Attempts are in-memory; a relaunch resets them
+    /// and the window from `createdAt` still bounds the total.
+    func processPayment(id: String, denominationContext: DenominationBreakdownContext, attempt: Int = 0) async {
+        logger?.debug("Processing payment \(id), attempt \(attempt)")
 
-        var attempt = 0
+        await runStateMachine(id: id, denominationContext: denominationContext)
 
-        while true {
-            await runStateMachine(id: id, denominationContext: denominationContext)
-
-            guard let payment = await reloadPayment(id: id), !payment.stage.isTerminal else { break }
-            guard !Task.isCancelled else { return }
-
-            if retryPolicy.hasWindowElapsed(since: payment.createdAt) {
-                await persistRetryWindowElapsed(payment)
-                break
-            }
-
-            attempt += 1
-            let delay = retryPolicy.delay(forAttempt: attempt)
-            logger?.debug("Payment \(id) retry #\(attempt) in \(delay)s: \(payment.failureReason ?? "-")")
-
-            do {
-                try await retryPolicy.sleep(delay)
-            } catch {
-                return
-            }
+        guard let payment = await reloadPayment(id: id), !payment.stage.isTerminal else {
+            await context.onComplete(paymentId: id)
+            return
         }
 
+        guard !Task.isCancelled else { return }
+
+        if retryPolicy.hasWindowElapsed(since: payment.createdAt) {
+            await persistRetryWindowElapsed(payment)
+            await context.onComplete(paymentId: id)
+            return
+        }
+
+        let nextAttempt = attempt + 1
+        let delay = retryPolicy.delay(forAttempt: nextAttempt)
+        logger?.debug("Payment \(id) retry #\(nextAttempt) in \(delay)s: \(payment.failureReason ?? "-")")
+
         await context.onComplete(paymentId: id)
+        await context.scheduleRetry(paymentId: id, after: delay, sleep: retryPolicy.sleep) { [weak self] in
+            Task { [weak self] in
+                await self?.processPayment(id: id, denominationContext: denominationContext, attempt: nextAttempt)
+            }
+        }
     }
 
     func runStateMachine(id: String, denominationContext: DenominationBreakdownContext) async {
@@ -294,7 +298,10 @@ private extension ExternalPaymentService {
 
         do {
             try await store.save(payment: failed)
-            logger?.error("Payment \(payment.id) failed after retry window: \(failed.failureReason ?? "")")
+            logger?.error(
+                "Payment \(payment.id) gave up after retry window: \(failed.failureReason ?? ""), " +
+                    "settled \(payment.settledInPlanks) of \(payment.amountInPlanks)"
+            )
         } catch {
             logger?.error("Payment \(payment.id) could not persist failure: \(error)")
         }
@@ -303,16 +310,17 @@ private extension ExternalPaymentService {
 
 // MARK: - Helpers
 
-private extension ExternalPayment.Stage {
-    func toStatus(failureReason: String?) -> ExternalPaymentStatus {
-        switch self {
+private extension ExternalPayment {
+    var status: ExternalPaymentStatus {
+        switch stage {
         case .plan,
              .onboardCoins,
              .offboardVouchers:
             .processing
-        case .completed,
-             .partiallyCompleted:
+        case .completed:
             .completed
+        case .partiallyCompleted:
+            .partiallyCompleted(settledInPlanks: settledInPlanks)
         case .failed:
             .failed(reason: failureReason ?? "Unknown")
         case .rescheduled:
@@ -326,6 +334,7 @@ private extension ExternalPaymentStatus {
         switch self {
         case .processing: false
         case .completed,
+             .partiallyCompleted,
              .failed: true
         }
     }

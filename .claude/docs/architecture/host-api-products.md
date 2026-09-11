@@ -71,8 +71,11 @@ Contract (`Packages/Products/.../ProductNativeApi+Payment.swift`, handlers in `C
   id** (`PaymentRequestId = Data`, 32 bytes, validated at DTO decode), exactly like `paymentTopUp`.
   Nothing is returned; the id is the handle.
 - `paymentStatusSubscribe { paymentId: hex32 } → { tag: Processing | Completed | Failed, value? }`.
-  An unknown `(product, id)` emits `Failed("unknown payment")` once and ends; `PartiallyCompleted`
-  reports as `Completed` (money moved); `Rescheduled` reports as `Processing`.
+  An unknown `(product, id)` emits `Failed("unknown payment")` once and ends; `Rescheduled` reports as
+  `Processing`. A payment that gave up after delivering part of the amount reports `Completed` with
+  `value` = delivered planks (decimal string): products that reconcile must read it, legacy products see
+  plain `Completed` (Android parity). `Failed` carries the reason in `value`.
+- Malformed params (missing key, wrong hex length) fail with `ContainerBridgeHostApiError.invalidPaymentRequestParams`.
 - Coded errors (`HostPaymentRequestError`): `Rejected`, `InsufficientBalance`, `AlreadyExists`, `Unknown`.
   Messages keep the legacy strings the shipped container.js matches on.
 

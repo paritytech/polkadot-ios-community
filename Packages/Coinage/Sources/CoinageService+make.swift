@@ -321,7 +321,8 @@ public extension CoinageService {
             settings: recyclingStrategySettings,
             strategyResolver: recyclingStrategyResolver,
             ringCapacityProvider: ringCapacityProvider,
-            preClassificator: preClassificator
+            preClassificator: preClassificator,
+            logger: logger
         )
 
         let externalPaymentDependency = ExternalPaymentDependency(

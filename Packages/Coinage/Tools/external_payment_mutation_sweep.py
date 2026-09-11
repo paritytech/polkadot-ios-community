@@ -86,12 +86,16 @@ MUTANTS = [
 
     # --- the bounded retry loop ---
     ("loop: the retry window is never checked", SERVICE,
-     "            if retryPolicy.hasWindowElapsed(since: payment.createdAt) {",
-     "            if false {"),
+     "        if retryPolicy.hasWindowElapsed(since: payment.createdAt) {",
+     "        if false {"),
 
     ("loop: cancellation persists failed", SERVICE,
-     "            guard !Task.isCancelled else { return }",
-     "            if Task.isCancelled {\n                await persistRetryWindowElapsed(payment)\n                return\n            }"),
+     "        guard !Task.isCancelled else { return }",
+     "        if Task.isCancelled {\n            await persistRetryWindowElapsed(payment)\n            return\n        }"),
+
+    ("loop: the backoff holds the processing slot", SERVICE,
+     "        await context.onComplete(paymentId: id)\n        await context.scheduleRetry(",
+     "        await context.scheduleRetry("),
 
     ("backoff: every retry is immediate", POLICY,
      "        min(TimeInterval(attempt) * backoff, maxBackoff)",
@@ -102,9 +106,13 @@ MUTANTS = [
      "                        .filter { _ in true }"),
 
     ("context: a scheduled payment is started a second time", CONTEXT,
-     "        guard paymentId != currentPaymentId,\n"
+     "        guard paymentId != currentPaymentId,\n              retryTasks[paymentId] == nil,\n"
      "              !pendingTasks.contains(where: { $0.paymentId == paymentId })\n        else {",
      "        guard true else {"),
+
+    ("context: a backing-off payment is re-entered by the next snapshot", CONTEXT,
+     "              retryTasks[paymentId] == nil,\n",
+     ""),
 
     ("rescheduler: the wakeup leaves the stage rescheduled", RESCHEDULER,
      "            updated.stage = .plan",
@@ -117,10 +125,9 @@ MUTANTS = [
      "            .compactMap { payment -> ExternalPaymentStatus? in\n"
      "                guard let payment else { return nil }"),
 
-    ("status: partially completed is reported as failed", SERVICE,
-     "        case .completed,\n             .partiallyCompleted:\n            .completed",
-     "        case .completed:\n            .completed\n        case .partiallyCompleted:\n"
-     "            .failed(reason: failureReason ?? \"Unknown\")"),
+    ("status: partially completed hides the settled amount", SERVICE,
+     "            .partiallyCompleted(settledInPlanks: settledInPlanks)",
+     "            .partiallyCompleted(settledInPlanks: 0)"),
 
     ("status: the stream never ends after a terminal status", SERVICE,
      "                        if status.isTerminal { break }",
@@ -140,8 +147,8 @@ MUTANTS = [
      "                amount: payment.amountInPlanks,"),
 
     ("partial: nothing delivered after a settled round is called failed", FACTORY,
-     "        payment.settledInPlanks > 0",
-     "        false"),
+     "        guard payment.settledInPlanks > 0 else {",
+     "        guard false else {"),
 
     # --- strategy-aware planning & the persisted scope ---
     ("planner: no verdicts yet is treated as no funds", PLANNER,

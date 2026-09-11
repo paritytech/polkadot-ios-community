@@ -15,15 +15,14 @@ final class PaymentApprovalRequester: PaymentApprovalRequesting, @unchecked Send
         amount: Balance,
         destination: AccountId
     ) async -> PaymentApprovalDecision {
-        let context = PaymentRequestContext(
-            productId: productId,
-            amountInPlanks: amount,
-            destination: destination
-        )
-
-        return await withCheckedContinuation { continuation in
-            context.setContinuation(continuation)
+        await withCheckedContinuation { continuation in
             Task { @MainActor [router] in
+                let context = PaymentRequestContext(
+                    productId: productId,
+                    amountInPlanks: amount,
+                    destination: destination
+                )
+                context.setContinuation(continuation)
                 router.showPaymentRequest(context: context)
             }
         }

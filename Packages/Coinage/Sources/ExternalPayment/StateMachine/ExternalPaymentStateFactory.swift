@@ -101,9 +101,14 @@ extension ExternalPaymentStateFactory {
     /// A permanent verdict: `failed` for a payment that delivered nothing, `partiallyCompleted` once an
     /// earlier round settled part of the amount — money moved, and the product is told so.
     func makeFailedOrPartial(payment: ExternalPayment, reason: String) -> ErasedState {
-        payment.settledInPlanks > 0
-            ? makePartiallyCompletedState(payment: payment, reason: reason)
-            : makeFailedState(payment: payment, reason: reason)
+        guard payment.settledInPlanks > 0 else {
+            return makeFailedState(payment: payment, reason: reason)
+        }
+
+        logger?.error(
+            "Payment \(payment.id) short: settled \(payment.settledInPlanks) of \(payment.amountInPlanks) (\(reason))"
+        )
+        return makePartiallyCompletedState(payment: payment, reason: reason)
     }
 
     /// Transient failure: keeps `stage` persisted as-is so the service can retry from it.

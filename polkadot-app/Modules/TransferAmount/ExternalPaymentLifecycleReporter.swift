@@ -44,6 +44,11 @@ final class ExternalPaymentLifecycleReporter: TransferLifecycleReporting {
                         subject.send(.finished(claimedAmount: amountInPlanks))
                         subject.send(Termination<Never>.finished)
                         return
+                    case let .partiallyCompleted(settledInPlanks):
+                        logger?.error("External payment \(paymentId) short: \(settledInPlanks) of \(amountInPlanks)")
+                        subject.send(.finished(claimedAmount: settledInPlanks))
+                        subject.send(Termination<Never>.finished)
+                        return
                     case let .failed(reason):
                         logger?.error("External payment \(paymentId) failed: \(reason)")
                         subject.send(.error)

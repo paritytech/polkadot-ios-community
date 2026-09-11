@@ -68,6 +68,7 @@ extension ProductsNativeApi {
             switch status {
             case .processing: .processing
             case .completed: .completed
+            case let .partiallyCompleted(settled): .partiallyCompleted(settledInPlanks: settled)
             case let .failed(reason): .failed(reason: reason)
             }
         }

@@ -8,13 +8,27 @@ import Testing
 /// Records the delays the retry loop asked for instead of sleeping.
 final class RecordingSleeper: @unchecked Sendable {
     private let delays = OSAllocatedUnfairLock(initialState: [TimeInterval]())
+    private let held = OSAllocatedUnfairLock(initialState: false)
 
     var recorded: [TimeInterval] {
         delays.withLock { $0 }
     }
 
+    /// While held, every sleep suspends until `release()`; lets a test observe what happens
+    /// during a backoff instead of after it.
+    func hold() {
+        held.withLock { $0 = true }
+    }
+
+    func release() {
+        held.withLock { $0 = false }
+    }
+
     func sleep(_ delay: TimeInterval) async throws {
         delays.withLock { $0.append(delay) }
+        while held.withLock({ $0 }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
         try Task.checkCancellation()
     }
 }
@@ -126,11 +140,9 @@ enum ExternalPaymentTestFactory {
         )
     }
 
-    /// `usesRealPlanner` routes planning through the production planner over `assets`; otherwise
-    /// the scripted stub planner answers.
+    /// Real service and state machine over the scripted stub planner.
     static func makeHarness(
         store: InMemoryExternalPaymentStore = InMemoryExternalPaymentStore(),
-        usesRealPlanner: Bool = false,
         retryWindow: TimeInterval = 3_600
     ) -> ExternalPaymentHarness {
         let txService = StubGroupTxService()
@@ -139,9 +151,7 @@ enum ExternalPaymentTestFactory {
         let assets = StubSpendableAssetsProvider()
         let vouchers = StubVoucherService()
         let sleeper = RecordingSleeper()
-        let planner: any ExternalPaymentPlanning = usesRealPlanner
-            ? ExternalPaymentPlanner(spendableAssets: assets)
-            : stubPlanner
+        let planner: any ExternalPaymentPlanning = stubPlanner
 
         let machineFactory = ExternalPaymentStateMachineFactory(
             instanceId: 0,

@@ -35,5 +35,7 @@ public protocol ExternalPaymentServicing {
 public enum ExternalPaymentStatus: Sendable, Equatable {
     case processing
     case completed
+    /// Terminal with a shortfall: `settledInPlanks` reached the destination, the rest never will.
+    case partiallyCompleted(settledInPlanks: Balance)
     case failed(reason: String)
 }

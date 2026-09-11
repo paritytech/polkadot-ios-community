@@ -1,5 +1,6 @@
 import Foundation
 import os
+import SDKLogger
 
 /// Buckets the tracked wallet through ``CoinageAssetSelector`` — the same verdict + usability rule
 /// `CoinageService.selectableAssets` applies to transfers — so product payments never spend what
@@ -15,6 +16,7 @@ final class RecyclingAwareSpendableAssetsProvider: SpendableAssetsProviding, @un
     private let strategyResolver: any RecyclingStrategyProviding
     private let ringCapacityProvider: any RingCapacityProviding
     private let preClassificator: any CoinageAssetsPreClassificating
+    private let logger: SDKLoggerProtocol?
     private let verdictsSource = OSAllocatedUnfairLock(initialState: VerdictsSource())
 
     init(
@@ -23,7 +25,8 @@ final class RecyclingAwareSpendableAssetsProvider: SpendableAssetsProviding, @un
         settings: any CoinageRecyclingStrategyProviding,
         strategyResolver: any RecyclingStrategyProviding,
         ringCapacityProvider: any RingCapacityProviding,
-        preClassificator: any CoinageAssetsPreClassificating
+        preClassificator: any CoinageAssetsPreClassificating,
+        logger: SDKLoggerProtocol? = nil
     ) {
         self.coinService = coinService
         self.voucherService = voucherService
@@ -31,6 +34,7 @@ final class RecyclingAwareSpendableAssetsProvider: SpendableAssetsProviding, @un
         self.strategyResolver = strategyResolver
         self.ringCapacityProvider = ringCapacityProvider
         self.preClassificator = preClassificator
+        self.logger = logger
     }
 
     func setVerdictsReader(_ reader: any RecyclingVerdictsReading) {
@@ -104,6 +108,7 @@ private extension RecyclingAwareSpendableAssetsProvider {
         do {
             capacities = try await ringCapacityProvider.capacities(for: exponents)
         } catch {
+            logger?.warning("Ring capacities unavailable, planning on memoised values: \(error)")
             capacities = await ringCapacityProvider.peekCapacities(for: exponents)
         }
 

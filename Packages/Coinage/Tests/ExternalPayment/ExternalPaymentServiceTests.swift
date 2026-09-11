@@ -113,7 +113,7 @@ struct ExternalPaymentServiceTests {
 
     @Test(arguments: [
         (ExternalPayment.Stage.completed, ExternalPaymentStatus.completed),
-        (.partiallyCompleted, .completed),
+        (.partiallyCompleted, .partiallyCompleted(settledInPlanks: 0)),
         (.failed, .failed(reason: "boom"))
     ])
     func coldSubscribeOnTerminalRowEmitsOnceThenEnds(
@@ -269,6 +269,45 @@ struct ExternalPaymentServiceTests {
     }
 
     private func store(_ harness: ExternalPaymentHarness) -> InMemoryExternalPaymentStore { harness.store }
+
+    @Test func partialCompletionReportsTheSettledAmount() async throws {
+        let payment = Factory.payment(amount: 12, round: 1, settled: 8, stage: .partiallyCompleted)
+        let harness = Factory.makeHarness(store: InMemoryExternalPaymentStore(seed: [payment]))
+
+        let statuses = try await collect(
+            harness.service.subscribePaymentStatus(origin: payment.origin, paymentId: payment.paymentId)
+        )
+
+        #expect(statuses == [.partiallyCompleted(settledInPlanks: 8)])
+    }
+
+    @Test func backoffReleasesTheProcessingSlotForOtherPayments() async throws {
+        let now = Date()
+        let stuck = Factory.payment(paymentId: "0xa", amount: 8, createdAt: now.addingTimeInterval(-20))
+        let next = Factory.payment(paymentId: "0xb", amount: 16, createdAt: now.addingTimeInterval(-10))
+        let store = InMemoryExternalPaymentStore(seed: [stuck, next])
+        let harness = Factory.makeHarness(store: store)
+        let voucher = Factory.voucher(index: 1, exponent: 4)
+        harness.assets.set(.make(spendableVouchers: [voucher]), for: .spendable)
+        harness.planner.setHandler { amount, _ in
+            amount == 8
+                ? .failure(StubExternalPaymentPlanner.Failure("rpc down"))
+                : .success(.ready(Factory.selection(vouchers: [voucher], amount: amount)))
+        }
+        harness.sleeper.hold()
+
+        harness.service.setup(with: Factory.denomination)
+        defer { harness.service.throttle() }
+
+        await Factory.waitUntil { store.payment(id: next.id)?.stage == .completed }
+        #expect(store.payment(id: stuck.id)?.stage == .plan)
+        #expect(harness.sleeper.recorded == [30])
+        #expect(harness.planner.amounts == [8, 16])
+
+        harness.sleeper.release()
+        await Factory.waitUntil { harness.planner.amounts.count >= 3 }
+        #expect(harness.planner.amounts.dropFirst(2).allSatisfy { $0 == 8 })
+    }
 
     @Test func retryWindowElapsedPersistsFailedWithLastError() async throws {
         let payment = Factory.payment(createdAt: Date(timeIntervalSinceNow: -10))

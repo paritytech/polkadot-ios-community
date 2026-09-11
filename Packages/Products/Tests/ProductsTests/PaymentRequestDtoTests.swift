@@ -53,5 +53,10 @@ struct PaymentRequestDtoTests {
         let processing = try HostPaymentStatusDto(status: .processing).toScaleCompatibleJSON()
         #expect(processing.tag?.stringValue == "Processing")
         #expect(processing.value == nil)
+
+        let partial = try HostPaymentStatusDto(status: .partiallyCompleted(settledInPlanks: 1_500))
+            .toScaleCompatibleJSON()
+        #expect(partial.tag?.stringValue == "Completed")
+        #expect(partial.value?.stringValue == "1500")
     }
 }

@@ -38,4 +38,8 @@ extension TransferPrivacyPresenter: TransferPrivacyPresenterProtocol {
     func cancel() {
         wireframe.complete(from: view) { [onCancel] in onCancel() }
     }
+
+    func dismissedExternally() {
+        onCancel()
+    }
 }

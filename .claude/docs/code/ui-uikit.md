@@ -113,6 +113,12 @@ Prefer natural ordering over manual index tracking:
 
 ## Hard Rules
 
+- **A sheet a host call or continuation suspends on must report its own dismissal.** The bottom-sheet
+  presentation controller only calls `ModalPresenterDelegate` on the *presented* controller; a plain
+  `UINavigationController` wrapper swallows backdrop taps and swipes. Either build the sheet with
+  `allowsSwipeDown: false` (`PaymentRequestViewFactory`) or conform the root and forward from the
+  wrapper (`TransferPrivacyViewFactory`), and resolve the pending decision from `presenterDidHide`.
+
 1. **No Storyboards** — all layout is programmatic
 2. **Dark mode only** — `UIUserInterfaceStyle: Dark` in Info.plist; don't add light mode support
 3. **Max line width 120** — enforced by SwiftFormat and SwiftLint

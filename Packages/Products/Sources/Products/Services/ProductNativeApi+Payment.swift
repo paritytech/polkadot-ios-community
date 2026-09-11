@@ -15,6 +15,9 @@ public struct PaymentBalance: Encodable {
 public enum HostPaymentStatus: Sendable, Equatable {
     case processing
     case completed
+    /// Money moved, but less than requested. Reported on the wire as `Completed` with the delivered
+    /// amount in `value`, so products that reconcile can, and legacy ones keep the parity behaviour.
+    case partiallyCompleted(settledInPlanks: Balance)
     case failed(reason: String)
 }
 
@@ -101,6 +104,9 @@ public struct HostPaymentStatusDto: Encodable {
         case .completed:
             tag = "Completed"
             value = nil
+        case let .partiallyCompleted(settledInPlanks):
+            tag = "Completed"
+            value = String(settledInPlanks)
         case let .failed(reason):
             tag = "Failed"
             value = reason

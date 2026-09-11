@@ -63,6 +63,39 @@ struct ExternalPaymentContextTests {
         #expect(await context.currentPaymentId == "a")
     }
 
+    @Test func retryReentersTheQueueAfterTheDelayAndIsDedupedWhilePending() async {
+        let context = ExternalPaymentContext()
+        let starts = Starts()
+        let gate = OSAllocatedUnfairLock(initialState: true)
+        let sleep: @Sendable (TimeInterval) async throws -> Void = { _ in
+            while gate.withLock({ $0 }) {
+                try await Task.sleep(for: .milliseconds(5))
+            }
+        }
+
+        await context.scheduleRetry(paymentId: "a", after: 30, sleep: sleep, onExecute: starts.execute("a"))
+        await context.scheduleRetry(paymentId: "a", after: 30, sleep: sleep, onExecute: starts.execute("a"))
+        #expect(starts.ids.isEmpty)
+        #expect(await context.currentPaymentId == nil)
+
+        gate.withLock { $0 = false }
+        await ExternalPaymentTestFactory.waitUntil { starts.ids == ["a"] }
+        #expect(await context.currentPaymentId == "a")
+    }
+
+    @Test func cancelAllCancelsPendingRetries() async {
+        let context = ExternalPaymentContext()
+        let starts = Starts()
+        let sleep: @Sendable (TimeInterval) async throws -> Void = { _ in try await Task.sleep(for: .seconds(60)) }
+
+        await context.scheduleRetry(paymentId: "a", after: 60, sleep: sleep, onExecute: starts.execute("a"))
+        await context.cancelAll()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(starts.ids.isEmpty)
+        #expect(await context.currentPaymentId == nil)
+    }
+
     @Test func cancelAllClearsCurrentAndQueue() async {
         let context = ExternalPaymentContext()
         let starts = Starts()

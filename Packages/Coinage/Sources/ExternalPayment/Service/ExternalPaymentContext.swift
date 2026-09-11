@@ -14,6 +14,7 @@ actor ExternalPaymentContext {
     private(set) var currentPaymentId: String?
     private var currentTask: Task<Void, Never>?
     private var pendingTasks: [Pending] = []
+    private var retryTasks: [String: Task<Void, Never>] = [:]
     private let logger: SDKLoggerProtocol?
 
     init(logger: SDKLoggerProtocol? = nil) {
@@ -21,12 +22,14 @@ actor ExternalPaymentContext {
     }
 
     /// Enqueues a payment for processing. Starts immediately if idle.
-    /// Duplicate ids (already processing or already pending) are ignored.
+    /// Duplicate ids (already processing, already pending, or backing off) are ignored — the store
+    /// republishes a backing-off row on every save, and that must not short-circuit its delay.
     func scheduleIfNeeded(
         paymentId: String,
         onExecute: @escaping @Sendable () -> Task<Void, Never>
     ) {
         guard paymentId != currentPaymentId,
+              retryTasks[paymentId] == nil,
               !pendingTasks.contains(where: { $0.paymentId == paymentId })
         else {
             return
@@ -50,11 +53,36 @@ actor ExternalPaymentContext {
         startNextPendingIfNeeded()
     }
 
+    /// Re-enters `paymentId` through the normal queue after `delay`, without holding the processing
+    /// slot meanwhile — other payments keep flowing while this one backs off. Ignored while a retry
+    /// for the same id is already pending.
+    func scheduleRetry(
+        paymentId: String,
+        after delay: TimeInterval,
+        sleep: @escaping @Sendable (TimeInterval) async throws -> Void,
+        onExecute: @escaping @Sendable () -> Task<Void, Never>
+    ) {
+        guard retryTasks[paymentId] == nil else { return }
+
+        retryTasks[paymentId] = Task { [weak self] in
+            do {
+                try await sleep(delay)
+            } catch {
+                return
+            }
+
+            await self?.retryElapsed(paymentId: paymentId, onExecute: onExecute)
+        }
+        logger?.debug("Retry of payment \(paymentId) in \(delay)s")
+    }
+
     func cancelAll() {
         currentTask?.cancel()
         currentTask = nil
         currentPaymentId = nil
         pendingTasks.removeAll()
+        retryTasks.values.forEach { $0.cancel() }
+        retryTasks.removeAll()
     }
 }
 
@@ -65,6 +93,11 @@ private extension ExternalPaymentContext {
         currentPaymentId = pending.paymentId
         currentTask = pending.onExecute()
         logger?.debug("Started processing payment \(pending.paymentId)")
+    }
+
+    func retryElapsed(paymentId: String, onExecute: @escaping @Sendable () -> Task<Void, Never>) {
+        guard retryTasks.removeValue(forKey: paymentId) != nil else { return }
+        scheduleIfNeeded(paymentId: paymentId, onExecute: onExecute)
     }
 
     func startNextPendingIfNeeded() {

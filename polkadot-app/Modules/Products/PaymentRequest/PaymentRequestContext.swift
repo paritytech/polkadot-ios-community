@@ -2,6 +2,8 @@ import Foundation
 import Products
 import SubstrateSdk
 
+/// Main-actor owner of a pending approval: created, armed and answered on the same actor as the sheet.
+@MainActor
 final class PaymentRequestContext {
     let productId: ProductId
     let amountInPlanks: Balance

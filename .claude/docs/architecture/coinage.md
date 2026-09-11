@@ -93,11 +93,16 @@ Transfer plans determine how coins are spent:
   `failed` immediately. A thrown error (RPC, planner, cancellation) yields `RetryPaymentState`, which
   persists the failing stage unchanged with the error as `failureReason`; `ExternalPaymentService`
   detects "machine returned but stage is non-terminal" and re-runs under `ExternalPaymentRetryPolicy`
-  (30 s × attempt, capped at 5 min, within 1 h of `createdAt`; then `failed` with the last error).
+  (30 s × attempt, capped at 5 min, within 1 h of `createdAt`; then `failed`, or `partiallyCompleted`
+  once something settled). The backoff releases the single-flight slot (`ExternalPaymentContext.scheduleRetry`)
+  so other payments keep flowing. The window bounds only stages the machine leaves non-terminal:
+  `rescheduled` rows (funds maturing) are woken by their `readyAt` and are not aged out by it.
   Cancellation never persists `failed`. Retries re-enter offboarding through the durability group
   re-join exactly like crash re-entry, so a group is registered once.
 - **Status semantics** (`subscribePaymentStatus`): unknown id → `.failed("unknown payment")` once,
-  then end; `partiallyCompleted` → `.completed` (money moved; the host status has no partial variant); `rescheduled` → `.processing`; duplicates collapse;
+  then end; `partiallyCompleted` → `.partiallyCompleted(settledInPlanks:)`, which the host reports as
+  `Completed` with the delivered amount in `value` (legacy products keep the parity behaviour, reconciling
+  ones can read the shortfall); `rescheduled` → `.processing`; duplicates collapse;
   the stream ends after the first terminal status.
 - Tests: `Packages/Coinage/Tests/ExternalPayment/` (real service + state machine over an in-memory
   store and a group-aware durability double); mutation sweep
