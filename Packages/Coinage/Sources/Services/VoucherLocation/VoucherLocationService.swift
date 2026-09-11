@@ -67,10 +67,10 @@ public final class VoucherLocationService: BaseSyncService {
                 .map { trackedVouchers in
                     trackedVouchers.filter(\.shouldTrackOnchain).map(\.voucher)
                 }
-                // Resubscribe only when the tracked key-set changes; non-key voucher edits keep the
-                // existing subscription.
+                // A restore clears enteredAt; resubscribe so its next confirmation starts a new timer.
                 .removeDuplicates { previous, current in
-                    Set(previous.map(\.publicKey)) == Set(current.map(\.publicKey))
+                    Dictionary(uniqueKeysWithValues: previous.map { ($0.publicKey, $0.recycler?.enteredAt) })
+                        == Dictionary(uniqueKeysWithValues: current.map { ($0.publicKey, $0.recycler?.enteredAt) })
                 }
 
             for try await vouchers in stream {
@@ -261,7 +261,8 @@ extension VoucherLocationService {
     /// - Anything else (onboarding/suspended position) is onboarding.
     static func resolveLocations(
         positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        statuses: [DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>]
+        statuses: [DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>],
+        observedAt: Date = .now
     ) -> [DerivationIndex: Voucher.OnChainState] {
         positions.reduce(into: [:]) { resolved, entry in
             let (derivationIndex, positionEntry) = entry
@@ -291,7 +292,7 @@ extension VoucherLocationService {
             case let .defined(.some(status))?:
                 guard status.includesKey(from: position) else { return }
                 resolved[derivationIndex] = .inRecycler(
-                    Voucher.Recycler(index: ringIndex, membersCount: status.included)
+                    Voucher.Recycler(index: ringIndex, membersCount: status.included, enteredAt: observedAt)
                 )
             }
         }

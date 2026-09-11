@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 import Foundation_iOS
 import Individuality
 @testable import Coinage
@@ -9,6 +10,8 @@ import Individuality
 /// retracted), and `.defined(value)` (delivered with a value).
 @Suite("VoucherLocationService.resolveLocations")
 struct VoucherLocationResolveTests {
+    private let observedAt = Date(timeIntervalSince1970: 1_000)
+
     @Test("A member row delivered empty (retracted) reverts the voucher to unlocated")
     func retractedMemberBecomesUnlocated() {
         let resolved = resolve([0: .defined(nil)])
@@ -28,7 +31,7 @@ struct VoucherLocationResolveTests {
             [0: .defined(included(ring: 5, position: 1))],
             [0: .defined(status(total: 10, included: 3))]
         )
-        #expect(resolved[0] == .inRecycler(.init(index: 5, membersCount: 3)))
+        #expect(resolved[0] == .inRecycler(.init(index: 5, membersCount: 3, enteredAt: observedAt)))
     }
 
     @Test("An onboarding position is onboarding")
@@ -79,7 +82,7 @@ struct VoucherLocationResolveTests {
             [1: .defined(status(total: 4, included: 2))]
         )
         #expect(resolved[0] == .unlocated)
-        #expect(resolved[1] == .inRecycler(.init(index: 7, membersCount: 2)))
+        #expect(resolved[1] == .inRecycler(.init(index: 7, membersCount: 2, enteredAt: observedAt)))
         #expect(resolved[2] == .onboarding)
         #expect(resolved.count == 3)
     }
@@ -92,7 +95,7 @@ private extension VoucherLocationResolveTests {
         _ positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
         _ statuses: [DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>] = [:]
     ) -> [DerivationIndex: Voucher.OnChainState] {
-        VoucherLocationService.resolveLocations(positions: positions, statuses: statuses)
+        VoucherLocationService.resolveLocations(positions: positions, statuses: statuses, observedAt: observedAt)
     }
 
     func included(ring: MembersPallet.RingIndex, position: UInt32) -> MembersPallet.RingPosition {

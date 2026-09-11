@@ -3,8 +3,7 @@ import CoreData
 import Coinage
 import Operation_iOS
 
-/// Writes only the location-sync fields (`onChainState`, `recyclerIndex`, `recyclerMembers`) onto an
-/// existing `CDVoucher`, leaving every other column untouched. Write-only: it never reads back.
+/// Updates location fields while preserving the first confirmed inclusion time in the same ring.
 final class VoucherLocationMapper {
     enum MappingError: Error {
         case missingVoucher
@@ -31,6 +30,16 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
         guard entity.identifier != nil else {
             throw MappingError.missingVoucher
         }
+
+        entity.enteredAt =
+            switch model.remoteState {
+            case let .inRecycler(recycler):
+                entity.recyclerIndex == Int64(recycler.index)
+                    ? entity.enteredAt ?? recycler.enteredAt
+                    : recycler.enteredAt
+            case .unlocated,
+                 .onboarding: nil
+            }
 
         entity.recyclerIndex =
             switch model.remoteState {
