@@ -95,7 +95,7 @@ private extension ClaimCoinsService {
         let coins = Set(keypairs.keys)
         guard !coins.isEmpty else { report(.notClaimed); return }
 
-        let onChainUpdates = AsyncBufferedChannel<[PublicKey: Int16]>()
+        let onChainUpdates = AsyncBufferedChannel<[PublicKey: ClaimableCoinInfo]>()
         let pump = Task { [coinOnChainQuery] in
             do {
                 for try await snapshot in coinOnChainQuery.subscribeCoinInfos(for: Array(coins)) {
@@ -134,7 +134,7 @@ private extension ClaimCoinsService {
         groupId: CoinageTxGroupId,
         retryUntil: Date,
         context: DenominationBreakdownContext,
-        onChain: AsyncBufferedChannel<[PublicKey: Int16]>.Iterator,
+        onChain: AsyncBufferedChannel<[PublicKey: ClaimableCoinInfo]>.Iterator,
         report: @Sendable (CoinageTransferDetection) -> Void
     ) async throws -> [CoinageTxEntry] {
         let coins = Set(keypairs.keys)
@@ -161,7 +161,12 @@ private extension ClaimCoinsService {
             if !claimable.isEmpty {
                 logger?.debug("Claiming coins for group=\(groupId)")
 
-                await submit(claimable: claimable, keypairs: keypairs, groupId: groupId)
+                await submit(
+                    claimable: claimable,
+                    keypairs: keypairs,
+                    bundleSize: coins.count,
+                    groupId: groupId
+                )
 
                 logger?.debug("Claiming complete for group=\(groupId)")
             } else if Date() >= retryUntil {
@@ -197,13 +202,27 @@ private extension ClaimCoinsService {
         return last
     }
 
-    func submit(claimable: [PublicKey: Int16], keypairs: [PublicKey: Data], groupId: CoinageTxGroupId) async {
-        let items = claimable.compactMap { key, exponent -> ClaimableCoin? in
+    func submit(
+        claimable: [PublicKey: ClaimableCoinInfo],
+        keypairs: [PublicKey: Data],
+        bundleSize: Int,
+        groupId: CoinageTxGroupId
+    ) async {
+        let items = claimable.compactMap { key, info -> ClaimableCoin? in
             guard let privateKey = keypairs[key] else { return nil }
-            return ClaimableCoin(privateKey: privateKey, publicKey: key, valueExponent: exponent)
+            return ClaimableCoin(
+                privateKey: privateKey,
+                publicKey: key,
+                valueExponent: info.exponent,
+                age: info.age
+            )
         }
         do {
-            try await claimSubmitter.submit(claimable: items, groupId: groupId)
+            try await claimSubmitter.submit(
+                claimable: items,
+                bundleSize: bundleSize,
+                groupId: groupId
+            )
         } catch {
             logger?.error("Claim submission failed group=\(groupId): \(error)")
         }
@@ -214,10 +233,10 @@ private extension ClaimCoinsService {
     /// cannot spin the loop. Settling for the last look is deliberate: a coin that never arrives is
     /// the peer's problem, and holding the others hostage to it would strand money sitting right there.
     func awaitOnChainWithTimeout(
-        _ onChain: AsyncBufferedChannel<[PublicKey: Int16]>.Iterator,
+        _ onChain: AsyncBufferedChannel<[PublicKey: ClaimableCoinInfo]>.Iterator,
         unclaimed: Set<PublicKey>
-    ) async -> [PublicKey: Int16] {
-        let latest = OSAllocatedUnfairLock<[PublicKey: Int16]>(initialState: [:])
+    ) async -> [PublicKey: ClaimableCoinInfo] {
+        let latest = OSAllocatedUnfairLock<[PublicKey: ClaimableCoinInfo]>(initialState: [:])
         _ = try? await withTimeout(Self.detectionTimeout) {
             while let look = await onChain.next() {
                 let filtered = look.filter { unclaimed.contains($0.key) }

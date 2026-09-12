@@ -1,6 +1,9 @@
 import Foundation
 
 public enum CoinageConstants {
+    /// Upper bound of the recycler-fungibility scale (percentage).
+    public static let fullFungibility: UInt8 = 100
+
     /// Interval at which the background recycling task is scheduled (24 hours).
     public static let backgroundRecyclingInterval: TimeInterval = 24 * 60 * 60
 

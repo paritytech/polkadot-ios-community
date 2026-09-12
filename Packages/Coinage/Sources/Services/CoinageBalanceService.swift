@@ -14,6 +14,11 @@ public protocol CoinageBalanceServiceProtocol {
     /// The single strategy-aware balance. Amounts are planks; render via ``denominationContext``.
     var balanceStream: AnyAsyncSequence<CoinageBalance> { get }
 
+    /// The balance together with the holdings behind it. A display that shows both must read this
+    /// rather than the two separately, so it can never pair one evaluation's totals with another's
+    /// holdings.
+    var summaryStream: AnyAsyncSequence<CoinageSummary> { get }
+
     /// The cached denomination context for plank→decimal conversion by display consumers.
     var denominationContext: DenominationBreakdownContext { get }
 }
@@ -42,7 +47,8 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     private var latestVouchers: [TrackedVoucher] = []
     private var latestVerdicts: RecyclingVerdicts = [:]
 
-    private nonisolated let balanceSubject: AsyncCurrentValueSubject<CoinageBalance>
+    /// One subject for both, so an evaluation reaches every subscriber as a single value.
+    private nonisolated let summarySubject: AsyncCurrentValueSubject<CoinageSummary>
 
     init(
         denominationContext: DenominationBreakdownContext,
@@ -63,11 +69,17 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
         self.preClassificator = preClassificator
         self.logger = logger
 
-        balanceSubject = AsyncCurrentValueSubject<CoinageBalance>(.empty)
+        summarySubject = AsyncCurrentValueSubject<CoinageSummary>(.empty)
     }
 
+    /// Projected off ``summaryStream`` rather than kept in step with it, for the callers that need
+    /// only the totals.
     public nonisolated var balanceStream: AnyAsyncSequence<CoinageBalance> {
-        balanceSubject.removeDuplicates().eraseToAnyAsyncSequence()
+        summarySubject.map(\.balance).removeDuplicates().eraseToAnyAsyncSequence()
+    }
+
+    public nonisolated var summaryStream: AnyAsyncSequence<CoinageSummary> {
+        summarySubject.removeDuplicates().eraseToAnyAsyncSequence()
     }
 
     public nonisolated func start() {
@@ -134,13 +146,22 @@ private extension CoinageBalanceService {
             context: usability
         )
 
-        balanceSubject.send(
-            Self.calculateBalance(
-                coinBuckets: coinBuckets,
-                voucherBuckets: voucherBuckets,
-                verdicts: latestVerdicts,
-                canSpendWithConfirmation: voucherStrategy.allowsConfirmedSpend(),
-                context: denominationContext
+        // Both derived from this one set of buckets and verdicts, then published as one value:
+        // nothing downstream can observe the totals of one evaluation beside another's holdings.
+        summarySubject.send(
+            CoinageSummary(
+                balance: Self.calculateBalance(
+                    coinBuckets: coinBuckets,
+                    voucherBuckets: voucherBuckets,
+                    verdicts: latestVerdicts,
+                    canSpendWithConfirmation: voucherStrategy.allowsConfirmedSpend(),
+                    context: denominationContext
+                ),
+                holdings: CoinageHoldings.make(
+                    coinBuckets: coinBuckets,
+                    voucherBuckets: voucherBuckets,
+                    verdicts: latestVerdicts
+                )
             )
         )
 

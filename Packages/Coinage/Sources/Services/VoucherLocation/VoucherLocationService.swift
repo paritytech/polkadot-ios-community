@@ -24,15 +24,17 @@ import os
 /// reconciliation:
 /// 1. **Members**: subscribe `Members[collection][voucherPubKey]` for every voucher and `scan` the
 ///    per-key deltas into a complete positions snapshot.
-/// 2. **RingKeysStatus**: `flatMapLatest` re-derives the ring-status subscription from the current
-///    positions and `scan`s its deltas into a complete status snapshot, then joins the two snapshots into
-///    the resolved location — onboarding, or in-recycler(ringIndex, ringMembers).
+/// 2. **RingKeysStatus + RecyclersUnloadedCount**: `flatMapLatest` re-derives the ring-state
+///    subscription from the current positions and `scan`s its deltas into complete snapshots, then joins
+///    them into the resolved location — onboarding, or in-recycler(ringIndex, ringMembers) — together
+///    with the ring's fungibility, which is a function of those two readings and the ring capacity.
 public final class VoucherLocationService: BaseSyncService {
     private let instanceId: CoinageInstanceId
     private let voucherRepository: AnyDataProviderRepository<Voucher>
     private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
+    private let ringCapacityProvider: any RingCapacityProviding
 
     private var localVouchersMonitoringTask: Task<Void, Error>?
     private var voucherStatusSubscriptionTask: Task<Void, Error>?
@@ -43,6 +45,7 @@ public final class VoucherLocationService: BaseSyncService {
         databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
+        ringCapacityProvider: any RingCapacityProviding,
         logger: any SDKLoggerProtocol
     ) {
         self.instanceId = instanceId
@@ -50,6 +53,7 @@ public final class VoucherLocationService: BaseSyncService {
         self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
+        self.ringCapacityProvider = ringCapacityProvider
         super.init(logger: logger)
     }
 
@@ -115,6 +119,13 @@ extension VoucherLocationService {
         let memberReqs = try memberRequests(vouchers)
         guard !memberReqs.isEmpty else { return }
 
+        // Ring capacity is chain config keyed by denomination and cannot change within a session, so
+        // it is resolved once per tracked set rather than per emission. A denomination that fails to
+        // resolve simply has no fungibility written until it does.
+        let capacities = try await ringCapacityProvider.capacities(
+            for: Set(vouchers.map(\.exponent))
+        )
+
         let memberStream: AnyAsyncSequence<MemberStatusResult> = CallbackBatchStorageSubscription
             .asyncStream(
                 requests: memberReqs,
@@ -136,17 +147,21 @@ extension VoucherLocationService {
             }
 
         let resolvedStream = positionsStream
-            .flatMapLatest { [weak self] positions -> AnyAsyncSequence<[DerivationIndex: Voucher.OnChainState]> in
+            .flatMapLatest { [weak self] positions -> AnyAsyncSequence<[DerivationIndex: VoucherLocationUpdate]> in
                 guard let self else {
                     return AsyncEmptySequence().eraseToAnyAsyncSequence()
                 }
-                return resolvedLocationsStream(positions: positions, vouchers: vouchers)
+                return resolvedLocationsStream(
+                    positions: positions,
+                    vouchers: vouchers,
+                    capacities: capacities
+                )
             }
             .removeDuplicates { $0 == $1 }
 
-        for try await locations in resolvedStream {
+        for try await updates in resolvedStream {
             try Task.checkCancellation()
-            try await writeLocations(locations)
+            try await write(updates)
         }
     }
 
@@ -155,14 +170,23 @@ extension VoucherLocationService {
     /// placed in a ring, emits the onboarding-only resolution once so those writes still happen.
     private func resolvedLocationsStream(
         positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        vouchers: [Voucher]
-    ) -> AnyAsyncSequence<[DerivationIndex: Voucher.OnChainState]> {
+        vouchers: [Voucher],
+        capacities: [Int16: Int]
+    ) -> AnyAsyncSequence<[DerivationIndex: VoucherLocationUpdate]> {
         let voucherByIndex = Dictionary(uniqueKeysWithValues: vouchers.map { ($0.derivationIndex, $0) })
-        let requests = ringStatusRequests(positions: positions, voucherByIndex: voucherByIndex)
+        let recyclers = Self.recyclers(positions: positions, voucherByIndex: voucherByIndex)
+        // One request per distinct ring, however many vouchers share it.
+        let rings = Set(recyclers.values)
+        let requests = ringStatusRequests(for: rings) + unloadedCountRequests(for: rings)
 
         guard !requests.isEmpty else {
             let resolved = Self.resolveLocations(positions: positions, statuses: [:])
-            return AsyncJustSequence(resolved).eraseToAnyAsyncSequence()
+            return AsyncJustSequence(Self.updates(
+                locations: resolved,
+                unloadedCounts: [:],
+                voucherByIndex: voucherByIndex,
+                capacities: capacities
+            )).eraseToAnyAsyncSequence()
         }
 
         let statusStream: AnyAsyncSequence<MemberStatusResult> = CallbackBatchStorageSubscription
@@ -174,14 +198,22 @@ extension VoucherLocationService {
             )
 
         return statusStream
-            .scan([DerivationIndex: UncertainStorage<MembersPallet.RingKeysStatus?>]()) { statuses, result in
-                var statuses = statuses
-                for update in result.ringStatusUpdates {
-                    statuses[update.derivationIndex] = .defined(update.ringKeysStatus)
-                }
-                return statuses
+            .scan(RingSnapshot.empty) { snapshot, result in
+                snapshot.applying(result)
             }
-            .map { Self.resolveLocations(positions: positions, statuses: $0) }
+            .map { snapshot in
+                // The readings are shared per ring; the resolution below is per voucher, so each
+                // voucher reads the ring it sits in.
+                let statuses = recyclers.compactMapValues { snapshot.statuses[$0] }
+                let unloadedCounts = recyclers.compactMapValues { snapshot.unloadedCounts[$0] }
+
+                return Self.updates(
+                    locations: Self.resolveLocations(positions: positions, statuses: statuses),
+                    unloadedCounts: unloadedCounts,
+                    voucherByIndex: voucherByIndex,
+                    capacities: capacities
+                )
+            }
             .eraseToAnyAsyncSequence()
     }
 }
@@ -213,18 +245,12 @@ private extension VoucherLocationService {
         }
     }
 
-    func ringStatusRequests(
-        positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        voucherByIndex: [DerivationIndex: Voucher]
-    ) -> [BatchStorageSubscriptionRequest] {
-        positions.compactMap { derivationIndex, entry -> BatchStorageSubscriptionRequest? in
-            guard case let .defined(.some(position)) = entry,
-                  let ringIndex = position.ringIndex,
-                  let voucher = voucherByIndex[derivationIndex]
-            else { return nil }
-
-            let collectionId = RecyclerCollectionIdentifier.identifier(instanceId: instanceId, for: voucher.exponent)
-            let mappingKey = SubscriptionKey.ringStatus(derivationIndex: derivationIndex).mappingKey
+    func ringStatusRequests(for rings: Set<RecyclerKey>) -> [BatchStorageSubscriptionRequest] {
+        rings.map { ring in
+            let collectionId = RecyclerCollectionIdentifier.identifier(
+                instanceId: instanceId,
+                for: ring.exponent
+            )
 
             let innerRequest = DoubleMapSubscriptionRequest(
                 storagePath: MembersPallet.Storage.ringKeysStatus(),
@@ -232,12 +258,82 @@ private extension VoucherLocationService {
                 keyParamClosure: {
                     (
                         BytesCodable(wrappedValue: collectionId),
-                        StringCodable(wrappedValue: ringIndex)
+                        StringCodable(wrappedValue: ring.index)
                     )
                 }
             )
 
-            return BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey)
+            return BatchStorageSubscriptionRequest(
+                innerRequest: innerRequest,
+                mappingKey: SubscriptionKey.ringStatus(recycler: ring).mappingKey
+            )
+        }
+    }
+
+    /// Subscribes to `RecyclersUnloadedCount` per ring. A plain map whose single key is a tuple, so
+    /// it goes through `MapSubscriptionRequest` rather than the n-map path used for
+    /// `RecyclerAliasStates`.
+    func unloadedCountRequests(for rings: Set<RecyclerKey>) -> [BatchStorageSubscriptionRequest] {
+        rings.map { ring in
+            let key = RecyclerUnloadedCountKey(
+                instanceId: instanceId,
+                exponent: ring.exponent,
+                ringIndex: ring.index
+            )
+
+            let innerRequest = MapSubscriptionRequest(
+                storagePath: CoinagePallet.Storage.recyclersUnloadedCount(),
+                localKey: "",
+                keyParamClosure: { key }
+            )
+
+            return BatchStorageSubscriptionRequest(
+                innerRequest: innerRequest,
+                mappingKey: SubscriptionKey.unloadedCount(recycler: ring).mappingKey
+            )
+        }
+    }
+}
+
+// MARK: - Ring readings
+
+extension VoucherLocationService {
+    /// The ring each placed voucher sits in. Vouchers that share a ring map to one ``RecyclerKey``,
+    /// which is what collapses their subscriptions into a single request each.
+    static func recyclers(
+        positions: [DerivationIndex: UncertainStorage<MembersPallet.RingPosition?>],
+        voucherByIndex: [DerivationIndex: Voucher]
+    ) -> [DerivationIndex: RecyclerKey] {
+        positions.reduce(into: [:]) { recyclers, entry in
+            guard case let .defined(.some(position)) = entry.value,
+                  let ringIndex = position.ringIndex,
+                  let voucher = voucherByIndex[entry.key]
+            else { return }
+
+            recyclers[entry.key] = RecyclerKey(exponent: voucher.exponent, index: ringIndex)
+        }
+    }
+
+    /// The two per-ring readings, accumulated from the subscription's deltas. Kept together so one
+    /// `scan` covers both and the join sees a consistent pair.
+    struct RingSnapshot {
+        var statuses: [RecyclerKey: UncertainStorage<MembersPallet.RingKeysStatus?>]
+        var unloadedCounts: [RecyclerKey: UncertainStorage<UInt32?>]
+
+        static let empty = RingSnapshot(statuses: [:], unloadedCounts: [:])
+
+        func applying(_ result: MemberStatusResult) -> RingSnapshot {
+            var snapshot = self
+
+            for update in result.ringStatusUpdates {
+                snapshot.statuses[update.recycler] = .defined(update.ringKeysStatus)
+            }
+
+            for update in result.unloadedCountUpdates {
+                snapshot.unloadedCounts[update.recycler] = .defined(update.unloadedCount)
+            }
+
+            return snapshot
         }
     }
 }
@@ -299,22 +395,71 @@ extension VoucherLocationService {
     }
 }
 
+extension VoucherLocationService {
+    /// Pairs each resolved location with its ring's fungibility.
+    ///
+    /// A score is only attached when the ring's own readings are all in hand: the voucher resolved
+    /// into a ring, its unloaded count was actually delivered, and its denomination's capacity is
+    /// known. Anything short of that leaves the stored score alone rather than guessing an
+    /// optimistic one — this drives a privacy indicator, so an absent reading must not read as
+    /// "nothing unloaded".
+    static func updates(
+        locations: [DerivationIndex: Voucher.OnChainState],
+        unloadedCounts: [DerivationIndex: UncertainStorage<UInt32?>],
+        voucherByIndex: [DerivationIndex: Voucher],
+        capacities: [Int16: Int]
+    ) -> [DerivationIndex: VoucherLocationUpdate] {
+        locations.reduce(into: [:]) { updates, entry in
+            let (derivationIndex, location) = entry
+
+            updates[derivationIndex] = VoucherLocationUpdate(
+                derivationIndex: derivationIndex,
+                remoteState: location,
+                recyclerFungibility: nil,
+                maxRecyclerFungibility: nil
+            )
+
+            guard case let .inRecycler(recycler) = location,
+                  // Delivered-and-absent is a real zero: the pallet creates the entry on the first
+                  // unload, so "no entry" means nothing has been unloaded from this ring yet.
+                  case let .defined(delivered) = unloadedCounts[derivationIndex] ?? .undefined,
+                  let exponent = voucherByIndex[derivationIndex]?.exponent,
+                  let capacity = capacities[exponent]
+            else { return }
+
+            let unloaded = delivered ?? 0
+
+            updates[derivationIndex] = VoucherLocationUpdate(
+                derivationIndex: derivationIndex,
+                remoteState: location,
+                recyclerFungibility: RecyclerFungibility.current(
+                    included: recycler.membersCount,
+                    unloaded: unloaded,
+                    capacity: capacity
+                ),
+                maxRecyclerFungibility: RecyclerFungibility.maximum(
+                    included: recycler.membersCount,
+                    unloaded: unloaded,
+                    capacity: capacity
+                )
+            )
+        }
+    }
+}
+
 // MARK: - Persistence
 
 private extension VoucherLocationService {
-    func writeLocations(_ locations: [DerivationIndex: Voucher.OnChainState]) async throws {
-        logger.debug(locations.toDebugDescription)
+    func write(_ updates: [DerivationIndex: VoucherLocationUpdate]) async throws {
+        guard !updates.isEmpty else { return }
 
-        guard !locations.isEmpty else { return }
+        // A dedicated write-only mapper touches only the location and fungibility columns, so a
+        // concurrent change to any other voucher field is not clobbered by this write.
+        let values = Array(updates.values)
 
-        // A dedicated write-only mapper touches only remoteState, so a concurrent change to any other
-        // voucher field is not clobbered by this location write.
-        let updates = locations.map {
-            VoucherLocationUpdate(derivationIndex: $0.key, remoteState: $0.value)
-        }
         try await databaseFactory.makeVoucherLocationRepository()
-            .saveOperation({ updates }, { [] })
+            .saveOperation({ values }, { [] })
             .asyncExecute()
-        logger.debug("Updated \(updates.count) voucher locations via subscription")
+        logger.debug("Updated \(values.count) voucher locations via subscription")
     }
 }

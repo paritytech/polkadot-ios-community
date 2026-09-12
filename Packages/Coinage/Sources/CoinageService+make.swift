@@ -194,8 +194,6 @@ public extension CoinageService {
             voucherLoaderFactory: voucherLoaderFactory
         )
 
-        // Shared unload-quota tracker: read by the recycling strategy's quota valve and decremented by the
-        // unload paths (transfer / external payment) as free-unload tokens are spent.
         let consumedTokenChecker = ConsumedTokenChecker(
             operationQueue: operationQueue,
             connection: connection,
@@ -283,12 +281,20 @@ public extension CoinageService {
             logger: logger
         )
 
+        let ringCapacityProvider = RingCapacityProvider(
+            instanceId: instanceId,
+            operationQueue: operationQueue,
+            connection: connection,
+            runtimeCodingService: runtimeService
+        )
+
         let voucherLocationService = VoucherLocationService(
             instanceId: instanceId,
             voucherRepository: voucherRepository,
             databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,
+            ringCapacityProvider: ringCapacityProvider,
             logger: logger
         )
 
@@ -302,14 +308,6 @@ public extension CoinageService {
             logger: logger
         )
 
-        // Recycling strategy evaluation collaborators. The evaluator itself is built lazily once the
-        // denomination context resolves (see `CoinageService.setup`).
-        let ringCapacityProvider = RingCapacityProvider(
-            instanceId: instanceId,
-            operationQueue: operationQueue,
-            connection: connection,
-            runtimeCodingService: runtimeService
-        )
         let recyclingStrategyResolver = RecyclingStrategyProvider(quotaTracker: quotaTracker)
         let preClassificator = CoinageAssetPreClassificator()
 
