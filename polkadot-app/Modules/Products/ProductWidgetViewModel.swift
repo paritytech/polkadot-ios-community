@@ -35,11 +35,16 @@ final class ProductWidgetViewModel: WidgetNodeProviding {
             )
 
             do {
-                for try await hexString in stream {
+                for try await output in stream {
                     guard !Task.isCancelled else { return }
 
-                    let widget = try ScaleWidget.decode(from: hexString)
-                    let resolved = widget.toWidgetNode(resolver: self.tokenResolver)
+                    let resolved: CustomMessageWidgetNode? = switch output {
+                    case let .scaleEncoded(hexString):
+                        try ScaleWidget.decode(from: hexString)
+                            .toWidgetNode(resolver: self.tokenResolver)
+                    case let .native(node):
+                        node.toWidgetNode(resolver: self.tokenResolver)
+                    }
                     await MainActor.run { self.node = resolved }
                 }
             } catch {
