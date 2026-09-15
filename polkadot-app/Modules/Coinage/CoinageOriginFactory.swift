@@ -93,6 +93,10 @@ final class CoinageOriginFactory: ExtrinsicOriginFactory, OriginCreating {
         )
     }
 
+    func createSignedOrigin(for wallet: WalletManaging, chainId: ChainId) async throws -> ExtrinsicOriginDefining {
+        try createSignedOrigin(for: wallet, chain: chainRegistry.getChainOrError(for: chainId))
+    }
+
     func createInfallibleUnpaidSignedOrigin(for wallet: WalletManaging) throws -> ExtrinsicOriginDefining {
         let infallibleOrigin = InfallibleUnpaidSignedOriginDefinition()
 

@@ -33,6 +33,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
     private let eventCenter: EventCenterProtocol
 
     private var recoveryStateTask: Task<Void, Error>?
+    private var accountBackupStatusTask: Task<Void, Error>?
 
     private let fundingDomainProvider: FundingDomainProviding
     private var rampProductTasks: [RampAction: Task<Void, Never>] = [:]
@@ -68,6 +69,7 @@ final class AssetDetailsInteractor: AnyProviderAutoCleaning {
         fiatOnrampTrackingTask?.cancel()
         balanceSubscriptionTask?.cancel()
         recoveryStateTask?.cancel()
+        accountBackupStatusTask?.cancel()
         priceSubscriptionTask?.cancel()
         rampProductTasks.values.forEach { $0.cancel() }
     }
@@ -86,6 +88,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
         subscribeToPrice()
         subscribeToBalances()
         subscribeToRecoveryState()
+        subscribeToAccountBackupStatus()
 
         provideDenominationContext()
     }
@@ -96,6 +99,7 @@ extension AssetDetailsInteractor: AssetDetailsInteractorInputProtocol {
 
     func cancelBackupNotification() {
         balanceSyncStateStorage.isRestorePending = false
+        coinageBackupSyncService.acknowledgeRecovery()
     }
 
     func removeCompletedFiatOnrampTransactions() {
@@ -243,17 +247,16 @@ private extension AssetDetailsInteractor {
         recoveryStateTask = Task { [weak presenter, coinageBackupSyncService] in
             let stream = coinageBackupSyncService.stateStream
             for try await state in stream {
-                switch state {
-                case .inProgress:
-                    await presenter?.didReceive(isRecoveryInProgress: true)
-                case let .failed(error):
-                    await presenter?.didReceive(isRecoveryInProgress: false)
-                    await presenter?.didFail(recovery: error)
-                case .idle:
-                    await presenter?.didReceive(isRecoveryInProgress: false)
-                case .completed:
-                    await presenter?.didReceive(isRecoveryInProgress: false)
-                }
+                await presenter?.didReceive(isRecoveryInProgress: state == .inProgress)
+            }
+        }
+    }
+
+    func subscribeToAccountBackupStatus() {
+        accountBackupStatusTask?.cancel()
+        accountBackupStatusTask = Task { [weak presenter, coinageService] in
+            for try await status in coinageService.subscribeAccountBackupStatus() {
+                await presenter?.didReceive(isAccountBackupPending: status.needsAttention)
             }
         }
     }

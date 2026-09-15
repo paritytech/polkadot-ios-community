@@ -109,7 +109,8 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             coinageInstanceId: coinageInstanceId(),
             fundingDomain: nonEmptyString(for: .fundingDomain),
             fundingUrl: fundingConfigValue(.onrampUrl),
-            offrampUrl: fundingConfigValue(.offrampUrl)
+            offrampUrl: fundingConfigValue(.offrampUrl),
+            accountDataStoreContract: accountDataStoreContractAddress()
         )
     }
 
@@ -167,6 +168,13 @@ private extension FirebaseApplicationService {
     func fundingConfigValue(_ field: String) -> String? {
         let json = remoteConfig[.fundingConfig].jsonValue as? [String: String]
         guard let value = json?[field], !value.isEmpty else { return nil }
+        return value
+    }
+
+    /// One JSON object shared with Android: `{ "contractAddress": "0x…" }`.
+    func accountDataStoreContractAddress() -> String? {
+        let json = remoteConfig[.accountDataStoreConfig].jsonValue as? [String: String]
+        guard let value = json?[.contractAddress], !value.isEmpty else { return nil }
         return value
     }
 
@@ -261,4 +269,6 @@ private extension String {
     static let fundingConfig = "funding_config"
     static let onrampUrl = "onrampUrl"
     static let offrampUrl = "offrampUrl"
+    static let accountDataStoreConfig = "account_data_store_config"
+    static let contractAddress = "contractAddress"
 }

@@ -61,12 +61,12 @@ final class ExternalPaymentMapper: CoreDataMapperProtocol {
     }
 
     /// Comma-separated derivation indices; nil for none.
-    static func encodeVoucherIndices(_ indices: [DerivationIndex]) -> String? {
-        indices.isEmpty ? nil : indices.map { String($0) }.joined(separator: ",")
+    static func encodeVoucherIndices(_ indices: [CoinageKeyIndex]) -> String? {
+        indices.isEmpty ? nil : indices.map(\.identifier).joined(separator: ",")
     }
 
-    static func decodeVoucherIndices(_ encoded: String?) -> [DerivationIndex] {
-        encoded?.split(separator: ",").compactMap { DerivationIndex($0) } ?? []
+    static func decodeVoucherIndices(_ encoded: String?) -> [CoinageKeyIndex] {
+        encoded?.split(separator: ",").compactMap { CoinageKeyIndex(identifier: String($0)) } ?? []
     }
 }
 

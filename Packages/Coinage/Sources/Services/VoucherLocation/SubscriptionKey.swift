@@ -6,7 +6,7 @@ import Foundation
 /// and subscribing per voucher would ask the node for the same key repeatedly. The ring cases are
 /// therefore keyed by ``RecyclerKey`` so one request serves every voucher in that ring.
 enum SubscriptionKey: Hashable {
-    case member(derivationIndex: DerivationIndex)
+    case member(derivationIndex: CoinageKeyIndex)
     case ringStatus(recycler: RecyclerKey)
     case unloadedCount(recycler: RecyclerKey)
 
@@ -19,7 +19,9 @@ enum SubscriptionKey: Hashable {
 
         switch type {
         case "m":
-            guard components.count == 2, let index = DerivationIndex(components[1]) else { return nil }
+            guard components.count == 2, let index = CoinageKeyIndex(identifier: String(components[1])) else {
+                return nil
+            }
             self = .member(derivationIndex: index)
         case "rs":
             guard let recycler = Self.recycler(from: components.dropFirst()) else { return nil }
@@ -35,7 +37,7 @@ enum SubscriptionKey: Hashable {
     var mappingKey: String {
         switch self {
         case let .member(index):
-            ["m", "\(index)"].joined(separator: Self.separator)
+            ["m", index.identifier].joined(separator: Self.separator)
         case let .ringStatus(recycler):
             (["rs"] + Self.components(of: recycler)).joined(separator: Self.separator)
         case let .unloadedCount(recycler):

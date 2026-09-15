@@ -8,7 +8,7 @@ struct SubscriptionKeyTests {
         let key = SubscriptionKey.member(derivationIndex: 123)
         let mapping = key.mappingKey
 
-        #expect(mapping == "m:123")
+        #expect(mapping == "m:\(CoinageInstallationId.test.hex)/123")
         #expect(SubscriptionKey(mappingKey: mapping) == key)
     }
 

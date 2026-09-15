@@ -17,6 +17,10 @@ final class StubOriginFactory: OriginCreating {
         StubExtrinsicOrigin()
     }
 
+    func createSignedOrigin(for _: WalletManaging, chainId _: ChainId) async throws -> ExtrinsicOriginDefining {
+        StubExtrinsicOrigin()
+    }
+
     func createInfallibleUnpaidSignedOrigin(for _: WalletManaging) throws -> ExtrinsicOriginDefining {
         StubExtrinsicOrigin()
     }

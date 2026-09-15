@@ -25,9 +25,16 @@ extension CoinMapper: CoreDataMapperProtocol {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.publicKey))
         }
 
+        guard let installationHex = entity.installationId else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.installationId))
+        }
+
         return try Coin(
             exponent: entity.exponent,
-            derivationIndex: DerivationIndex.fromCoreData(entity.derivationIndex),
+            derivationIndex: CoinageKeyIndex(
+                installation: CoinageInstallationId(hex: installationHex),
+                item: UInt32(clamping: entity.derivationIndex)
+            ),
             age: entity.age?.int16Value,
             isOnchain: entity.isOnchain,
             handoffMark: handoffMark,
@@ -43,7 +50,8 @@ extension CoinMapper: CoreDataMapperProtocol {
         using _: NSManagedObjectContext
     ) throws {
         entity.identifier = model.identifier
-        entity.derivationIndex = model.derivationIndex.toCoreData()
+        entity.installationId = model.derivationIndex.installation.hex
+        entity.derivationIndex = Int64(model.derivationIndex.item)
         entity.exponent = model.exponent
         entity.age = model.age.map { NSNumber(value: $0) }
         entity.isOnchain = model.isOnchain

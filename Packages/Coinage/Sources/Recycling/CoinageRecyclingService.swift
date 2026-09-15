@@ -98,7 +98,7 @@ enum RecyclingStatusFolder {
             return .pending
         }
 
-        let mintedIndices = Set(entries.flatMap(\.outputs).compactMap { output -> DerivationIndex? in
+        let mintedIndices = Set(entries.flatMap(\.outputs).compactMap { output -> CoinageKeyIndex? in
             guard case let .recyclerVoucher(index, _) = output else { return nil }
             return index
         })

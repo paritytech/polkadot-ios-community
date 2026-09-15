@@ -5,7 +5,7 @@ import Individuality
 
 struct MemberStatusResult: BatchStorageSubscriptionResult {
     struct MemberUpdate {
-        let derivationIndex: DerivationIndex
+        let derivationIndex: CoinageKeyIndex
         let ringPosition: MembersPallet.RingPosition?
     }
 

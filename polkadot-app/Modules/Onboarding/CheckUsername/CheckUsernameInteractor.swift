@@ -45,7 +45,6 @@ extension CheckUsernameInteractor: CheckUsernameInteractorInputProtocol {
     func save(username: Username) {
         usernameStorage.username = username
         usernameStorage.usernameClaimed = true
-        settingsManager.set(value: true, for: .coinageSyncNeeded)
         MainActor.assumeIsolated {
             presenter?.didSaveUsername()
         }

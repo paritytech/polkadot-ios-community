@@ -53,13 +53,10 @@ enum CoinageTxAssetRows {
                 return try .coin(.received(Data(hexString: hex)))
             }
             if let coin = row.coin {
-                return try .coin(.own(DerivationIndex.fromCoreData(coin.derivationIndex), publicKey(coin.publicKey)))
+                return try .coin(.own(keyIndex(coin.identifier), publicKey(coin.publicKey)))
             }
             if let voucher = row.voucher {
-                return try .recyclerVoucher(
-                    DerivationIndex.fromCoreData(voucher.derivationIndex),
-                    publicKey(voucher.publicKey)
-                )
+                return try .recyclerVoucher(keyIndex(voucher.identifier), publicKey(voucher.publicKey))
             }
             return nil
         }
@@ -69,13 +66,10 @@ enum CoinageTxAssetRows {
         guard let rows = rows as? Set<CDCoinageTxOutput> else { return [] }
         return try rows.compactMap { row in
             if let coin = row.coin {
-                return try .coin(DerivationIndex.fromCoreData(coin.derivationIndex), publicKey(coin.publicKey))
+                return try .coin(keyIndex(coin.identifier), publicKey(coin.publicKey))
             }
             if let voucher = row.voucher {
-                return try .recyclerVoucher(
-                    DerivationIndex.fromCoreData(voucher.derivationIndex),
-                    publicKey(voucher.publicKey)
-                )
+                return try .recyclerVoucher(keyIndex(voucher.identifier), publicKey(voucher.publicKey))
             }
             return nil
         }
@@ -122,6 +116,15 @@ private extension CoinageTxAssetRows {
             throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.publicKey))
         }
         return try Data(hexString: hex)
+    }
+
+    /// The row's `identifier` is the key index in its string form (coinage.md), so the index is read
+    /// back from it rather than from the split columns.
+    static func keyIndex(_ identifier: String?) throws -> CoinageKeyIndex {
+        guard let identifier, let index = CoinageKeyIndex(identifier: identifier) else {
+            throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoin.identifier))
+        }
+        return index
     }
 
     static func populateInputs(

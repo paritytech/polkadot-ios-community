@@ -19,11 +19,9 @@ enum SettingsKey: String {
     case gameAlarmId
     case gameAlarmFireDate
     case gameAlarmTimingSeconds
-    case coinageSyncNeeded = "coinageSyncNeeded.v2"
     // Balance restored notification
     case coinageBackupRestorePending = "coinageBackupRestorePending.v2"
-    case coinScanHorizon = "coinScanHorizon.v2"
-    case voucherScanHorizon = "voucherScanHorizon.v2"
+    case coinageDeepRecoveryCompleted = "coinageDeepRecoveryCompleted.v2"
     case deviceEncryptId = "deviceEncryptId.v2"
     case nextSyncUpdateId = "nextSyncUpdateId.v2"
     case themeSelected = "themeSelected.v2"

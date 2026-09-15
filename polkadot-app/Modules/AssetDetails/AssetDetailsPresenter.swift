@@ -202,12 +202,12 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
         provideAssetBalance()
     }
 
-    func didFail(recovery error: Error) {
-        wireframe.present(error: error, from: view)
-    }
-
     func didReceive(isRecoveryInProgress: Bool) {
         view?.didReceive(isRecoveryInProgress: isRecoveryInProgress)
+    }
+
+    func didReceive(isAccountBackupPending: Bool) {
+        view?.didReceive(isAccountBackupPending: isAccountBackupPending)
     }
 
     func didCompleteRecovery() {

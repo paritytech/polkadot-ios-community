@@ -20,7 +20,8 @@ struct JWTTokenManagerTests {
                 coinageInstanceId: nil,
                 fundingDomain: nil,
                 fundingUrl: nil,
-                offrampUrl: nil
+                offrampUrl: nil,
+                accountDataStoreContract: nil
             )
         )
     }

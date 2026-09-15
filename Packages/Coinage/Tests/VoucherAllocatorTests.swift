@@ -2,22 +2,18 @@ import Testing
 import Foundation
 import SubstrateSdk
 import NovaCrypto
-import Keystore_iOS
 import Operation_iOS
 @testable import Coinage
 
 struct VoucherAllocatorTests {
-    private let keychain: InMemoryKeychain
-    private let store: VoucherIndexstore
-    private let mockDelay: MockDelayProvider
+    private let queries = StubKeyIndexQueries()
+    private let mockDelay = MockDelayProvider()
     private let allocator: VoucherAllocator
 
     init() {
-        keychain = InMemoryKeychain()
-        store = VoucherIndexstore(storage: keychain)
-        mockDelay = MockDelayProvider()
         allocator = VoucherAllocator(
-            storage: store,
+            installationRepository: InMemoryInstallations(current: .test),
+            keyIndexQueries: queries,
             delayProvider: mockDelay,
             voucherRepository: AnyDataProviderRepository(StubRepository<Voucher>()),
             keyFactory: VoucherKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
@@ -27,36 +23,38 @@ struct VoucherAllocatorTests {
         )
     }
 
-    @Test("Successfully allocates a voucher")
+    @Test("an allocated voucher takes the next index of the current installation")
     func allocateVoucher() async throws {
-        let expectedIndex: UInt64 = 7
-        let expectedDelay: TimeInterval = 3_600
+        queries.maxVoucherItem = 6
+        mockDelay.interval = 3_600
 
-        try keychain.saveKey(UInt64(6).scaleEncoded(), with: store.storageKey)
-        mockDelay.interval = expectedDelay
-
-        let exponent: Int16 = -2
         let startTime = Date()
-
-        let voucher = try await allocator.allocate(exponent: exponent)
+        let voucher = try await allocator.allocate(exponent: -2)
         let endTime = Date()
 
-        #expect(voucher.derivationIndex == expectedIndex)
-        #expect(voucher.exponent == exponent)
+        #expect(voucher.derivationIndex == CoinageKeyIndex(installation: .test, item: 7))
+        #expect(queries.voucherQueries == [.test])
+        #expect(voucher.exponent == -2)
         #expect(voucher.recycler == nil)
-
         #expect(voucher.allocatedAt >= startTime)
         #expect(voucher.allocatedAt <= endTime)
-
-        let expectedReadyAt = voucher.allocatedAt.addingTimeInterval(expectedDelay)
-        #expect(voucher.readyAt == expectedReadyAt)
+        #expect(voucher.readyAt == voucher.allocatedAt.addingTimeInterval(3_600))
     }
 
-    @Test("Propagates errors during voucher allocation")
-    func allocationFailures() async throws {
-        try keychain.saveKey(Data("".utf8), with: store.storageKey)
+    @Test("an installation with no vouchers yet starts at item zero")
+    func firstItem() async throws {
+        queries.maxVoucherItem = nil
 
-        await #expect(throws: Error.self) {
+        let voucher = try await allocator.allocate(exponent: 0)
+
+        #expect(voucher.derivationIndex == CoinageKeyIndex(installation: .test, item: 0))
+    }
+
+    @Test("propagates errors from the index query")
+    func allocationFailures() async throws {
+        queries.error = InstallationStubError.unreachable
+
+        await #expect(throws: InstallationStubError.unreachable) {
             try await allocator.allocate(exponent: 0)
         }
     }

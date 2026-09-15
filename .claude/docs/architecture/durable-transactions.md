@@ -8,7 +8,8 @@ ledger row, the submission watch, recovery, reorg handling and the block-body se
 *means* — which resources it locks and how its effect is observed on chain — belongs to the feature that
 registers it, behind one seam: `TxCompletionOracle`.
 
-Coinage (`Packages/Coinage/Sources/CoinageTx/`) is the first domain.
+Coinage (`Packages/Coinage/Sources/CoinageTx/`) is the first domain; installation registration
+(`Packages/Coinage/Sources/Installation/Registration/`, domain `coinage-installation`) is the second.
 
 ## Key Components
 
@@ -118,6 +119,13 @@ queue would deadlock).
    `subscribeTransactionStatus` / group streams.
 5. Test over `DurableTransactionsTestSupport` fakes; the engine's own suite
    (`Packages/DurableTransactions/Tests`) needs no domain types.
+
+Worked example — `coinage-installation`: the group id is `"{contractHex}/{installationHex}"`, so the
+oracle (`CoinageInstallationRegistrationOracle`, a `MonotoneEffectOracle` on Asset Hub) reads each
+contract's list once per head and answers `true`/`false` per registration; a failed read answers nothing.
+Nothing is locked, so there is no registration hook. The registrar never submits while a group entry is
+live — the oracle credits the same record to every attempt — and retries with backoff once the last
+attempt has settled without a `finalizedSuccess`.
 
 ## Hard Rules
 

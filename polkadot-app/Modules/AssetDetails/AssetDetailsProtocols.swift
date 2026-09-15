@@ -11,6 +11,7 @@ protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     func didReceive(lockedAmount: BalanceViewModelProtocol?)
     func didReceive(fundingStates: [AssetFundingStatusView.FundingState])
     func didReceive(isRecoveryInProgress: Bool)
+    func didReceive(isAccountBackupPending: Bool)
     func didShowBackupNotification()
     func didHideBackupNotification()
 
@@ -63,8 +64,8 @@ protocol AssetDetailsInteractorOutputProtocol: AnyObject {
 
     func didReceive(price: PriceData?)
     func didReceive(fiatOnrampStatuses: Set<FiatOnrampTransactionStatusPayload>)
-    func didFail(recovery error: Error)
     func didReceive(isRecoveryInProgress: Bool)
+    func didReceive(isAccountBackupPending: Bool)
     func didCompleteRecovery()
     func didClearBackupNotification()
 

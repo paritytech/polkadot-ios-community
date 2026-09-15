@@ -8,6 +8,7 @@ import ChainRegistry
 import BackgroundExecution
 import DurableTransactions
 import ExtrinsicService
+import Individuality
 
 extension ServiceCoordinator {
     struct CoinageServices {
@@ -44,11 +45,7 @@ extension ServiceCoordinator {
             claimStatusStore: claimStatusStore
         )
 
-        let backupSyncService = CoinageBackupSyncService(
-            coinageService: coinageService,
-            coinRepository: databaseFactory.makeCoinRepository(),
-            voucherRepository: databaseFactory.makeVoucherRepository()
-        )
+        let backupSyncService = CoinageBackupSyncService(coinageService: coinageService)
 
         return CoinageServices(
             coinageService: coinageService,
@@ -164,6 +161,14 @@ private extension ServiceCoordinator {
         let incomingPaymentSecretStore = IncomingPaymentKeychainSecretStore(keychain: Keychain(), logger: logger)
         let incomingPaymentAcknowledger = TopUpAcknowledgementPresenter()
 
+        guard let installation = createInstallationDependency(
+            chainRegistry: chainRegistry,
+            extrinsicMonitorFacade: extrinsicMonitorFacade,
+            logger: logger
+        ) else {
+            return nil
+        }
+
         return CoinageService.make(
             chainResource: chainRegistry,
             chain: chain,
@@ -175,7 +180,6 @@ private extension ServiceCoordinator {
             chainViewFactory: chainViewFactory,
             assetLedger: assetLedger,
             rootEntropyManager: RootEntropyManager.shared,
-            keystore: Keychain(),
             applicationStateStreamFactory: ApplicationStateStreamFactory(),
             externalPaymentStore: externalPaymentStore,
             incomingPaymentStore: incomingPaymentStore,
@@ -185,7 +189,38 @@ private extension ServiceCoordinator {
             recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,
             viewFunctionFetcher: viewFunctionFetcher,
+            installation: installation,
             logger: logger
+        )
+    }
+
+    /// Registration and recovery of installations run against the `AccountDataStore` contract on
+    /// Asset Hub, paid in PGAS by the seed's `//datastore` account.
+    static func createInstallationDependency(
+        chainRegistry: ChainRegistryProtocol,
+        extrinsicMonitorFacade: ExtrinsicSubmissionMonitorFacade,
+        logger: LoggerProtocol
+    ) -> CoinageInstallationDependency? {
+        let assetHubChainId = AppConfig.Chains.assethubChain
+
+        guard
+            let assetHub = chainRegistry.getChain(for: assetHubChainId),
+            let runtimeProvider = chainRegistry.getRuntimeProvider(for: assetHubChainId),
+            let operationFactory = try? extrinsicMonitorFacade.createOperationFactory(chain: assetHub),
+            let pgasProvisioner = PGASAccountProvisioner.forDataStoreAccount(chainRegistry: chainRegistry)
+        else {
+            logger.error("Failed to set up installation registration on Asset Hub")
+            return nil
+        }
+
+        return CoinageInstallationDependency(
+            chainId: assetHubChainId,
+            runtimeService: runtimeProvider,
+            reviveApi: CoinageReviveContractApi(chainId: assetHubChainId, chainRegistry: chainRegistry),
+            configProvider: AccountDataStoreConfigProvider(),
+            pgasProvisioner: pgasProvisioner,
+            feeEstimator: CoinageRegistrationFeeEstimator(operationFactory: operationFactory),
+            deepRecoveryCompletedStore: CoinageDeepRecoveryCompletedStore()
         )
     }
 }

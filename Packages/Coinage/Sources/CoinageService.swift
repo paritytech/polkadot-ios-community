@@ -87,25 +87,23 @@ public protocol CoinageServicing: Actor {
     /// `groupId` labels the registered transaction(s) — the transfer's message id, or `nil`.
     func executeTransfer(result: CoinSelectionResult, groupId: CoinageTxGroupId?) async throws -> PreparedTransfer
 
-    /// Scans the chain for coins and vouchers belonging to the user.
-    /// Runs coin and voucher recovery concurrently.
-    /// - Returns: Tuple of recovered coins and vouchers found on-chain
-    /// - Throws: `CoinageError.notConfigured` if recovery service is unavailable
-    func recoverCoinsAndVouchers() async throws -> (coins: ScanResult<Coin>, vouchers: ScanResult<Voucher>)
+    /// Where recovery of previous installations' balance stands — see ``BackupProgress``.
+    nonisolated func subscribeBackupProgress() -> AnyAsyncSequence<BackupProgress>
+
+    /// Another look for balance under previous installations, past where the launch scan stopped.
+    func deepSearchBackup() async
+
+    /// The user accepted the recovered balance; the progress becomes ``BackupProgress/completed``.
+    func markBackupAsCompleted() async
+
+    /// Whether this installation is registered on chain — see ``CoinageAccountBackupStatus``.
+    nonisolated func subscribeAccountBackupStatus() -> AnyAsyncSequence<CoinageAccountBackupStatus>
 
     /// See `TransferClaimServicing.transferCoinsFromSecretKeys`.
     func transferCoinsFromSecretKeys(
         secretKeys: [Data],
         transferCoins: Bool
     ) async throws -> BigUInt
-
-    /// Scans beyond the given horizons for new coins and vouchers.
-    /// Runs coin and voucher extend scan concurrently.
-    /// Returns discovered items and updated horizons.
-    func extendScanCoinsAndVouchers(
-        coinHorizon: Int,
-        voucherHorizon: Int
-    ) async throws -> (coins: ScanResult<Coin>, vouchers: ScanResult<Voucher>)
 
     /// Recover spent coins by re-sweeping them back into the user's balance.
     /// Enumerates locally spent coins and delegates to
@@ -134,6 +132,8 @@ public actor CoinageService {
     private let coinStateSyncService: CoinStateSyncService
     private let voucherLocationService: VoucherLocationService
     private let recoveryService: any CoinageBackupRecoveryServicing
+    private let installationRegistrar: any CoinageInstallationRegistering
+    private var backupRecoveryTask: Task<Void, Never>?
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
     // Recycling strategy evaluation — the evaluator is built lazily once the context resolves.
@@ -194,6 +194,7 @@ public actor CoinageService {
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
+        installationRegistrar: any CoinageInstallationRegistering,
         incomingPaymentService: any IncomingPaymentServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -214,6 +215,7 @@ public actor CoinageService {
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
+        self.installationRegistrar = installationRegistrar
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
@@ -304,6 +306,7 @@ extension CoinageService: CoinageServicing {
             try await txService.releaseUncommittedHandoffs()
 
             txService.start()
+            startInstallationBackup()
 
         } catch {
             // Reset so a subsequent setup(with:) call triggers a fresh fetch
@@ -427,19 +430,20 @@ extension CoinageService: CoinageServicing {
 
     // MARK: Recovery
 
-    public func recoverCoinsAndVouchers() async throws -> (coins: ScanResult<Coin>, vouchers: ScanResult<Voucher>) {
-        async let coins = recoveryService.recoverCoins()
-        async let vouchers = recoveryService.recoverVouchers()
-        return try await (coins, vouchers)
+    public nonisolated func subscribeBackupProgress() -> AnyAsyncSequence<BackupProgress> {
+        recoveryService.subscribeProgress()
     }
 
-    public func extendScanCoinsAndVouchers(
-        coinHorizon: Int,
-        voucherHorizon: Int
-    ) async throws -> (coins: ScanResult<Coin>, vouchers: ScanResult<Voucher>) {
-        async let coins = recoveryService.extendScanCoins(from: coinHorizon)
-        async let vouchers = recoveryService.extendScanVouchers(from: voucherHorizon)
-        return try await (coins, vouchers)
+    public func deepSearchBackup() async {
+        await recoveryService.deepSearch()
+    }
+
+    public func markBackupAsCompleted() async {
+        await recoveryService.markAsCompleted()
+    }
+
+    public nonisolated func subscribeAccountBackupStatus() -> AnyAsyncSequence<CoinageAccountBackupStatus> {
+        installationRegistrar.subscribeStatus()
     }
 
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {
@@ -452,6 +456,21 @@ extension CoinageService: CoinageServicing {
             spentCoins: spentCoins,
             context: context
         )
+    }
+}
+
+// MARK: - Installation backup
+
+private extension CoinageService {
+    /// Registers this installation and recovers the previous ones, once per process: `setup(with:)`
+    /// may run again to update the asset precision, and neither run should start over.
+    func startInstallationBackup() {
+        installationRegistrar.start()
+
+        guard backupRecoveryTask == nil else { return }
+        backupRecoveryTask = Task { [recoveryService] in
+            await recoveryService.start()
+        }
     }
 }
 

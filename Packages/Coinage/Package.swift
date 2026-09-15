@@ -54,6 +54,10 @@ let package = Package(
             url: "https://github.com/pointfreeco/swift-clocks",
             from: "1.0.6"
         ),
+        .package(
+            url: "https://github.com/novasamatech/web3swift.git",
+            from: "3.3.0"
+        ),
         .package(path: "../KeyDerivation"),
         .package(path: "../StructuredConcurrency"),
         .package(path: "../CommonService"),
@@ -83,6 +87,7 @@ let package = Package(
                 .product(name: "Operation-iOS", package: "operation-ios"),
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
                 .product(name: "AsyncExtensions", package: "AsyncExtensions"),
+                .product(name: "web3swift", package: "web3swift"),
                 "KeyDerivation",
                 "StructuredConcurrency",
                 "CommonService",

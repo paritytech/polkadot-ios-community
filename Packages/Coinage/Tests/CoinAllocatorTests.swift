@@ -2,23 +2,17 @@ import Testing
 import Foundation
 import SubstrateSdk
 import NovaCrypto
-import Keystore_iOS
 import Operation_iOS
 @testable import Coinage
 
 struct CoinAllocatorTests {
-    private let keychain: InMemoryKeychain
-    private let store: CoinIndexstore
+    private let queries = StubKeyIndexQueries()
     private let allocator: CoinAllocator
 
     init() {
-        let keychain = InMemoryKeychain()
-        let store = CoinIndexstore(storage: keychain)
-
-        self.keychain = keychain
-        self.store = store
         allocator = CoinAllocator(
-            storage: store,
+            installationRepository: InMemoryInstallations(current: .test),
+            keyIndexQueries: queries,
             coinRepository: AnyDataProviderRepository(StubRepository<Coin>()),
             keyFactory: CoinKeypairFactory(entropyManager: MockEntropyManager(entropy: Data(
                 repeating: 0x01,
@@ -27,29 +21,31 @@ struct CoinAllocatorTests {
         )
     }
 
-    @Test("Successfully allocates a coin")
+    @Test("an allocated coin takes the next index of the current installation")
     func allocateCoin() async throws {
-        let expectedIndex: UInt64 = 42
-        let seedIndex: UInt64 = 41
-        try keychain.saveKey(seedIndex.scaleEncoded(), with: store.storageKey)
+        queries.maxCoinItem = 41
 
-        let exponent: Int16 = 5
+        let coin = try await allocator.allocate(exponent: 5, provenance: .unloaded(recyclerFungibility: 73))
 
-        let provenance = CoinProvenance.unloaded(recyclerFungibility: 73)
-
-        let coin = try await allocator.allocate(exponent: exponent, provenance: provenance)
-
-        #expect(coin.derivationIndex == expectedIndex)
-        #expect(coin.exponent == exponent)
+        #expect(coin.derivationIndex == CoinageKeyIndex(installation: .test, item: 42))
+        #expect(queries.coinQueries == [.test])
+        #expect(coin.exponent == 5)
         #expect(coin.age == nil)
         #expect(coin.recyclerFungibility == 73)
         #expect(coin.hops.isEmpty)
     }
 
-    @Test("Persists the provenance it was minted with")
-    func allocateCoinWithProvenance() async throws {
-        try keychain.saveKey(UInt64(0).scaleEncoded(), with: store.storageKey)
+    @Test("an installation with no coins yet starts at item zero")
+    func firstItem() async throws {
+        queries.maxCoinItem = nil
 
+        let coin = try await allocator.allocate(exponent: 2, provenance: .unknown)
+
+        #expect(coin.derivationIndex == CoinageKeyIndex(installation: .test, item: 0))
+    }
+
+    @Test("persists the provenance it was minted with")
+    func allocateCoinWithProvenance() async throws {
         let hops: [Hop] = [.transfer(bundleSize: 3), .split(fanout: 4)]
         let coin = try await allocator.allocate(
             exponent: 2,
@@ -60,12 +56,33 @@ struct CoinAllocatorTests {
         #expect(coin.hops == hops)
     }
 
-    @Test("Propagates errors from storage")
-    func storageFailure() async throws {
-        try keychain.saveKey(Data("".utf8), with: store.storageKey)
+    @Test("propagates errors from the index query")
+    func queryFailure() async throws {
+        queries.error = InstallationStubError.unreachable
 
-        await #expect(throws: Error.self) {
+        await #expect(throws: InstallationStubError.unreachable) {
             try await allocator.allocate(exponent: 0, provenance: .unknown)
         }
+    }
+}
+
+/// The highest stored item per installation, as the allocators would read it from the store.
+final class StubKeyIndexQueries: CoinageKeyIndexQuerying, @unchecked Sendable {
+    var maxCoinItem: UInt32?
+    var maxVoucherItem: UInt32?
+    var error: Error?
+    private(set) var coinQueries: [CoinageInstallationId] = []
+    private(set) var voucherQueries: [CoinageInstallationId] = []
+
+    func maxCoinItem(in installation: CoinageInstallationId) async throws -> UInt32? {
+        coinQueries.append(installation)
+        if let error { throw error }
+        return maxCoinItem
+    }
+
+    func maxVoucherItem(in installation: CoinageInstallationId) async throws -> UInt32? {
+        voucherQueries.append(installation)
+        if let error { throw error }
+        return maxVoucherItem
     }
 }
