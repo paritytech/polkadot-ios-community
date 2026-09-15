@@ -52,70 +52,19 @@
         }
       }
     },
-    "connectionStatusHealthExcellent": {
+    "connectionStatusLivenessValue": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Excellent"
+            "value": "Live %@"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "excelente"
-          }
-        }
-      }
-    },
-    "connectionStatusHealthFair": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fair"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "regular"
-          }
-        }
-      }
-    },
-    "connectionStatusHealthGood": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Good"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "buena"
-          }
-        }
-      }
-    },
-    "connectionStatusHealthPoor": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Poor"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "mala"
+            "value": "Actividad %@"
           }
         }
       }
@@ -133,23 +82,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Estado de la red"
-          }
-        }
-      }
-    },
-    "connectionStatusSpeedValue": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Speed is %@"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La velocidad es %@"
           }
         }
       }
