@@ -1,13 +1,12 @@
 import UIKit
-import DesignSystem
-import PolkadotUI
-import SnapKit
+import FoundationExt
 
 /// Composes the scan panel's content so Common/QRScanner stays free of contact-search knowledge.
-final class ScanPanelViewController: UIViewController {
+final class ScanPanelViewController: UIViewController, ViewHolder {
+    typealias RootViewType = ScanPanelViewLayout
+
     private let scannerController: UIViewController
     private let onSearchTap: () -> Void
-    private let searchButton = SearchContactFieldButton()
 
     init(scannerController: UIViewController, onSearchTap: @escaping () -> Void) {
         self.scannerController = scannerController
@@ -20,32 +19,19 @@ final class ScanPanelViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    override func loadView() {
+        view = ScanPanelViewLayout()
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
         addChild(scannerController)
-        view.addSubview(scannerController.view)
+        rootView.setupScannerView(scannerController.view)
         scannerController.didMove(toParent: self)
 
-        searchButton.onTap = { [weak self] in
+        rootView.searchButton.onTap = { [weak self] in
             self?.onSearchTap()
-        }
-        view.addSubview(searchButton)
-
-        setupLayout()
-    }
-}
-
-private extension ScanPanelViewController {
-    func setupLayout() {
-        scannerController.view.snp.makeConstraints {
-            $0.top.leading.trailing.equalToSuperview()
-        }
-
-        searchButton.snp.makeConstraints {
-            $0.top.equalTo(scannerController.view.snp.bottom)
-            $0.leading.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased)
-            $0.bottom.equalToSuperview().inset(DSSpacings.small)
         }
     }
 }
