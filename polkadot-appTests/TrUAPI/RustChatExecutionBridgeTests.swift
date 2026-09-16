@@ -109,6 +109,19 @@ struct RustChatExecutionBridgeTests {
         }
     }
 
+    /// A roomless body cannot be named by a `RenderContext`, so nothing could
+    /// ever draw it: refuse the post rather than file it under the bot's
+    /// default chat.
+    @Test func postMessageRejectsAnEmptyRoom() async throws {
+        let api = RecordingChatMessaging()
+        let bridge = await makeBridge(api: api)
+
+        await #expect(throws: HostRejection.self) {
+            try await offPool { try bridge.postMessage(roomId: "", content: .text(text: "hi")) }
+        }
+        #expect(api.sentMessages.isEmpty)
+    }
+
     @Test func registerBotIsRejected() async throws {
         let api = RecordingChatMessaging()
         let bridge = await makeBridge(api: api)

@@ -19,6 +19,9 @@ actor ChatRustRuntime: ChatRuntimeProtocol {
         /// The core normalizes room ids on the way back and rejects an empty one, so a
         /// chat with no room would reach the product as a message it cannot answer.
         case roomlessChat
+        /// The stored message carries no product-defined type, so no
+        /// `RenderContext` can name the body the action came from.
+        case untypedBody
     }
 
     private let productUrl: URL
@@ -96,13 +99,16 @@ actor ChatRustRuntime: ChatRuntimeProtocol {
     }
 
     func renderMessage(
+        roomId: String?,
         messageId: String,
         messageType: String,
         messageData: Data
     ) async -> AsyncThrowingStream<ChatRendererOutput, Error> {
         do {
+            guard let roomId else { throw ChatSeamError.roomlessChat }
             let nodes = try await renderNodesWhenConnected(
                 deadline: ContinuousClock.now + renderStartupWindow,
+                roomId: roomId,
                 messageId: messageId,
                 messageType: messageType,
                 messageData: messageData
@@ -125,18 +131,31 @@ actor ChatRustRuntime: ChatRuntimeProtocol {
         }
     }
 
-    func dispatchEvent(roomId: String?, messageId: String, actionId: String, payload: String?) async {
+    /// A press inside a body the product drew is a renderer action addressed by
+    /// `RenderContext`, not a chat action: `ChatActionPayload.actionTriggered`
+    /// means a host-drawn `Actions` button, which this host does not raise.
+    func dispatchEvent(
+        roomId: String?,
+        messageId: String,
+        messageType: String?,
+        actionId: String,
+        payload: String?
+    ) async {
         do {
             try checkNotDisposed()
             guard let roomId else { throw ChatSeamError.roomlessChat }
-            try requireExecution().publishChatAction(HostChatActionSubscribeItem(
-                roomId: roomId,
-                peer: "native",
-                payload: .actionTriggered(ActionTrigger(
+            // The core routes by context, so an action whose body we cannot name
+            // would be delivered nowhere. Only this runtime needs the type: the
+            // native one addresses by message id.
+            guard let messageType else { throw ChatSeamError.untypedBody }
+            try requireExecution().publishRendererAction(HostRendererActionSubscribeItem(
+                context: .chatMessage(
+                    roomId: roomId,
                     messageId: messageId,
-                    actionId: actionId,
-                    payload: payload.map { Data($0.utf8) }
-                ))
+                    messageType: messageType
+                ),
+                actionId: actionId,
+                payload: payload.map { Data($0.utf8) } ?? Data()
             ))
         } catch is CancellationError {
             logger.debug("Rust chat runtime disposed before event \(actionId)")
@@ -261,18 +280,24 @@ private extension ChatRustRuntime {
     /// never evicts, so failing once breaks that cell for the session.
     func renderNodesWhenConnected(
         deadline: ContinuousClock.Instant,
+        roomId: String,
         messageId: String,
         messageType: String,
         messageData: Data
-    ) async throws -> AsyncThrowingStream<CustomRendererNode, Error> {
+    ) async throws -> AsyncThrowingStream<RendererNode, Error> {
+        let request = ProductRendererRenderRequest(
+            context: .chatMessage(
+                roomId: roomId,
+                messageId: messageId,
+                messageType: messageType
+            ),
+            payload: messageData
+        )
+
         while true {
             try checkNotDisposed()
             do {
-                return try requireExecution().renderCustomMessage(
-                    messageId: messageId,
-                    messageType: messageType,
-                    payload: messageData
-                )
+                return try requireExecution().render(request)
             } catch let error where error.isTransientRenderStartupError {
                 guard ContinuousClock.now < deadline else {
                     logger.error("Custom render gave up waiting for the product: \(messageId)")

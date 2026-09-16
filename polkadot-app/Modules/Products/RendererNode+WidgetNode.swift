@@ -4,11 +4,28 @@ import PolkadotUI
 import Products
 import SwiftUI
 
-extension CustomRendererNode {
+extension RendererNode {
     func toWidgetNode(resolver: any WidgetDesignTokenResolving) -> CustomMessageWidgetNode? {
         switch self {
-        case .nil, .string:
-            return nil
+        case .nil,
+             .string,
+             .image,
+             .spacer,
+             .text,
+             .button,
+             .textField:
+            return leafWidgetNode(resolver: resolver)
+
+        // Only a root effect reaches this case — `widgetNodes` splices nested ones
+        // into their parent. It has one slot to fill, and a box would overlay
+        // several children, since it renders as a `ZStack`.
+        case let .effect(_, children):
+            let mapped = children.widgetNodes(resolver: resolver)
+            guard mapped.count > 1 else { return mapped.first }
+            return CustomMessageWidgetNode(
+                content: .column(.init(alignment: .leading, arrangement: .start), children: mapped),
+                modifiers: .empty
+            )
 
         case let .box(modifiers, props, children):
             let alignment = props.contentAlignment.map { $0.toScale().swiftUIAlignment } ?? .center
@@ -38,8 +55,27 @@ extension CustomRendererNode {
                 ),
                 modifiers: modifiers.toNodeModifiers(resolver: resolver)
             )
+        }
+    }
+}
 
-        case let .spacer(modifiers, _):
+private extension RendererNode {
+    /// Nodes that draw themselves, with no children to lay out.
+    func leafWidgetNode(resolver: any WidgetDesignTokenResolving) -> CustomMessageWidgetNode? {
+        switch self {
+        case .nil, .string:
+            return nil
+
+        // There is no image content here, so the picture cannot be drawn. An empty
+        // box keeps the space its modifiers reserved, rather than collapsing the
+        // layout around it.
+        case let .image(modifiers, _):
+            return CustomMessageWidgetNode(
+                content: .box(.init(alignment: .center), children: []),
+                modifiers: modifiers.toNodeModifiers(resolver: resolver)
+            )
+
+        case let .spacer(modifiers):
             return CustomMessageWidgetNode(
                 content: .spacer,
                 modifiers: modifiers.toNodeModifiers(resolver: resolver)
@@ -70,7 +106,7 @@ extension CustomRendererNode {
                 modifiers: modifiers.toNodeModifiers(resolver: resolver)
             )
 
-        case let .textField(modifiers, props, _):
+        case let .textField(modifiers, props):
             return CustomMessageWidgetNode(
                 content: .textField(.init(
                     text: props.text,
@@ -81,13 +117,33 @@ extension CustomRendererNode {
                 )),
                 modifiers: modifiers.toNodeModifiers(resolver: resolver)
             )
+
+        case .box,
+             .column,
+             .row,
+             .effect:
+            return nil
         }
     }
 }
 
-private extension [CustomRendererNode] {
+private extension RendererNode {
+    /// The nodes this one contributes to its parent's children: at most one,
+    /// except an `Effect`, which contributes its own. It decorates them without
+    /// laying them out, so a container here would impose a layout the product
+    /// never asked for.
+    func widgetNodesInPlace(resolver: any WidgetDesignTokenResolving) -> [CustomMessageWidgetNode] {
+        if case let .effect(_, children) = self {
+            return children.widgetNodes(resolver: resolver)
+        }
+
+        return toWidgetNode(resolver: resolver).map { [$0] } ?? []
+    }
+}
+
+private extension [RendererNode] {
     func widgetNodes(resolver: any WidgetDesignTokenResolving) -> [CustomMessageWidgetNode] {
-        compactMap { $0.toWidgetNode(resolver: resolver) }
+        flatMap { $0.widgetNodesInPlace(resolver: resolver) }
     }
 }
 
@@ -134,6 +190,12 @@ private extension [Modifier] {
                 fillWidth = enabled
             case let .fillHeight(enabled):
                 fillHeight = enabled
+            // No slot on `CustomMessageWidgetNode.Modifiers`. `opacity` fails open —
+            // a node hidden with `opacity(0)` draws fully — but dropping the node
+            // would move everything around it, so the gap is left to close there.
+            case .opacity,
+                 .blendingMode:
+                continue
             }
         }
 
@@ -166,6 +228,7 @@ private extension Dimensions {
 }
 
 // MARK: - Token translation
+
 //
 // The design-token resolver is defined over the SCALE token enums, so the core's
 // leaf enums are translated into those rather than duplicating the resolver.
@@ -174,6 +237,7 @@ private extension TrUAPIHostShape {
     func toScale() -> ScaleShape {
         switch self {
         case let .rounded(radius): .rounded(BigUInt(radius))
+        case .square: .rounded(0)
         case .circle: .circle
         }
     }

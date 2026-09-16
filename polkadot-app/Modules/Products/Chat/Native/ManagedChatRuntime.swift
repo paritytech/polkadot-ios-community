@@ -48,6 +48,7 @@ final class ManagedChatRuntime: ChatRuntimeProtocol, @unchecked Sendable {
     }
 
     func renderMessage(
+        roomId _: String?,
         messageId: String,
         messageType: String,
         messageData: Data
@@ -77,7 +78,13 @@ final class ManagedChatRuntime: ChatRuntimeProtocol, @unchecked Sendable {
         }
     }
 
-    func dispatchEvent(roomId: String?, messageId: String, actionId: String, payload: String?) async {
+    func dispatchEvent(
+        roomId: String?,
+        messageId: String,
+        messageType _: String?,
+        actionId: String,
+        payload: String?
+    ) async {
         guard let worker = await ensureWorker() else { return }
 
         await worker.dispatchEvent(

@@ -199,17 +199,19 @@ struct ChatRuntimeTests {
 
     @Test func rustRuntimeRetriesRenderUntilTheProductAttaches() async throws {
         let execution = MockProductExecution()
-        execution.renderCustomMessageErrors = [
+        execution.renderErrors = [
             ProductRuntimeError.NotConnected,
             ProductRuntimeError.NotConnected
         ]
         let runtime = makeRustRuntime(execution: execution, engine: MockJSEngine())
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
-        let stream = await runtime.renderMessage(messageId: "m1", messageType: "t", messageData: Data())
+        let stream = await runtime.renderMessage(
+            roomId: "room", messageId: "m1", messageType: "t", messageData: Data()
+        )
         for try await _ in stream {}
 
-        #expect(execution.renderCustomMessageCallCount == 3)
+        #expect(execution.renderRequests.count == 3)
 
         await runtime.dispose()
     }
@@ -218,15 +220,17 @@ struct ChatRuntimeTests {
     /// attempt instead of holding the cell in a retry loop.
     @Test func rustRuntimeDoesNotRetryTerminalRenderErrors() async throws {
         let execution = MockProductExecution()
-        execution.renderCustomMessageErrors = [ProductRuntimeError.Closed]
+        execution.renderErrors = [ProductRuntimeError.Closed]
         let runtime = makeRustRuntime(execution: execution, engine: MockJSEngine())
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
-        let stream = await runtime.renderMessage(messageId: "m1", messageType: "t", messageData: Data())
+        let stream = await runtime.renderMessage(
+            roomId: "room", messageId: "m1", messageType: "t", messageData: Data()
+        )
         await #expect(throws: ProductRuntimeError.Closed) {
             for try await _ in stream {}
         }
-        #expect(execution.renderCustomMessageCallCount == 1)
+        #expect(execution.renderRequests.count == 1)
 
         await runtime.dispose()
     }
@@ -235,7 +239,11 @@ struct ChatRuntimeTests {
     @Test func rustRuntimeFailsPendingRendersOnDispose() async throws {
         let runtime = makeRustRuntime(engine: MockJSEngine())
 
-        let render = Task { await runtime.renderMessage(messageId: "m1", messageType: "t", messageData: Data()) }
+        let render = Task {
+            await runtime.renderMessage(
+                roomId: "room", messageId: "m1", messageType: "t", messageData: Data()
+            )
+        }
         await runtime.dispose()
 
         await #expect(throws: CancellationError.self) {
@@ -245,13 +253,13 @@ struct ChatRuntimeTests {
 
     @Test func rustRuntimeYieldsTypedNodesToTheConsumer() async throws {
         let execution = MockProductExecution()
-        execution.renderCustomMessageNodes = [.string(text: "hello")]
+        execution.renderNodes = [.string(text: "hello")]
         let runtime = makeRustRuntime(execution: execution, engine: MockJSEngine())
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
         var outputs: [ChatRendererOutput] = []
         for try await output in await runtime.renderMessage(
-            messageId: "m1", messageType: "t", messageData: Data()
+            roomId: "room", messageId: "m1", messageType: "t", messageData: Data()
         ) {
             outputs.append(output)
         }
@@ -263,6 +271,15 @@ struct ChatRuntimeTests {
             Issue.record("the rust runtime must yield typed nodes, not SCALE hex")
         }
 
+        if case let .chatMessage(roomId, messageId, messageType) =
+            execution.renderRequests.first?.context {
+            #expect(roomId == "room")
+            #expect(messageId == "m1")
+            #expect(messageType == "t")
+        } else {
+            Issue.record("a chat body must be rendered under a chatMessage context")
+        }
+
         await runtime.dispose()
     }
 
@@ -271,15 +288,17 @@ struct ChatRuntimeTests {
     /// session, because `ProductMessageDecoder` never evicts.
     @Test func rustRuntimeRetriesRenderIssuedBeforeStart() async throws {
         let execution = MockProductExecution()
-        execution.renderCustomMessageNodes = [.string(text: "late")]
+        execution.renderNodes = [.string(text: "late")]
         let runtime = makeRustRuntime(execution: execution, engine: MockJSEngine())
 
         let render = Task {
-            await runtime.renderMessage(messageId: "m1", messageType: "t", messageData: Data())
+            await runtime.renderMessage(
+                roomId: "room", messageId: "m1", messageType: "t", messageData: Data()
+            )
         }
         // Long enough for the render to reach the retry loop with no execution.
         try await Task.sleep(for: .milliseconds(60))
-        #expect(execution.renderCustomMessageCallCount == 0)
+        #expect(execution.renderRequests.isEmpty)
 
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
@@ -289,7 +308,7 @@ struct ChatRuntimeTests {
         }
 
         #expect(outputs.count == 1)
-        #expect(execution.renderCustomMessageCallCount == 1)
+        #expect(execution.renderRequests.count == 1)
 
         await runtime.dispose()
     }
@@ -312,6 +331,16 @@ struct ChatRuntimeTests {
         }
         #expect(execution.publishedChatActions.isEmpty)
 
+        // The renderer context is addressed by room, so a roomless render is
+        // refused before it reaches the core rather than sent with an empty id.
+        let render = await runtime.renderMessage(
+            roomId: nil, messageId: "m1", messageType: "t", messageData: Data()
+        )
+        await #expect(throws: ChatRustRuntime.ChatSeamError.roomlessChat) {
+            for try await _ in render {}
+        }
+        #expect(execution.renderRequests.isEmpty)
+
         await runtime.dispose()
     }
 
@@ -321,24 +350,34 @@ struct ChatRuntimeTests {
         try await runtime.start(messagingSupport: .init(bot: nil, context: nil))
 
         try await runtime.onUserMessage(text: "hi", roomId: "room")
-        await runtime.dispatchEvent(roomId: "room", messageId: "m1", actionId: "a1", payload: "p")
+        await runtime.dispatchEvent(
+            roomId: "room", messageId: "m1", messageType: "t", actionId: "a1", payload: "p"
+        )
 
-        #expect(execution.publishedChatActions.count == 2)
-        #expect(execution.publishedChatActions.allSatisfy { $0.peer == "native" })
-        #expect(execution.publishedChatActions.allSatisfy { $0.roomId == "room" })
+        // A user message is a chat action; a press inside a product-drawn body is
+        // a renderer action. Two different surfaces.
+        #expect(execution.publishedChatActions.count == 1)
+        #expect(execution.publishedChatActions[0].peer == "native")
+        #expect(execution.publishedChatActions[0].roomId == "room")
 
         if case let .messagePosted(content) = execution.publishedChatActions[0].payload,
            case let .text(text) = content {
             #expect(text == "hi")
         } else {
-            Issue.record("first action should be a posted text message")
+            Issue.record("the user message should be a posted text message")
         }
 
-        if case let .actionTriggered(trigger) = execution.publishedChatActions[1].payload {
-            #expect(trigger.messageId == "m1")
-            #expect(trigger.actionId == "a1")
+        #expect(execution.publishedRendererActions.count == 1)
+        let rendererAction = try #require(execution.publishedRendererActions.first)
+        #expect(rendererAction.actionId == "a1")
+        #expect(rendererAction.payload == Data("p".utf8))
+
+        if case let .chatMessage(roomId, messageId, messageType) = rendererAction.context {
+            #expect(roomId == "room")
+            #expect(messageId == "m1")
+            #expect(messageType == "t")
         } else {
-            Issue.record("second action should be an action trigger")
+            Issue.record("the action should be addressed by a chatMessage context")
         }
 
         await runtime.dispose()

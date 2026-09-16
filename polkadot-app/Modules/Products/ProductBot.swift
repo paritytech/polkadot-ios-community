@@ -122,11 +122,20 @@ extension ProductBot: ChatExtensionBotProtocol {
     func process(action: Chat.Action, context: ChatExtensionActionContextProtocol) async {
         switch action {
         case let .customMessage(actionId, payload, messageId):
-            let roomId = await (try? context.getMessage(messageId: messageId))?.chatId.roomId
+            // Passed as found: the native runtime addresses a body by message id
+            // and answers without a room or a type.
+            let message = await (try? context.getMessage(messageId: messageId))
+            let messageType: String? =
+                if case let .customRendered(content) = message?.content {
+                    content.identifier
+                } else {
+                    nil
+                }
 
             await runtime.dispatchEvent(
-                roomId: roomId,
+                roomId: message?.chatId.roomId,
                 messageId: messageId,
+                messageType: messageType,
                 actionId: actionId,
                 payload: payload as? String
             )

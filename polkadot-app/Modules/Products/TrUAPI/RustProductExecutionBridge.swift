@@ -53,20 +53,11 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
         writeSimulatorConnectionMarkerIfNeeded(marker: marker)
     }
 
-    #if targetEnvironment(simulator)
-        /// `ProcessInfo.environment` rebuilds the whole dictionary on every read, so
-        /// the harness switch is resolved once.
-        private static let e2eMarkersEnabled =
-            ProcessInfo.processInfo.environment["TRUAPI_IOS_E2E_RUNTIME_MARKERS"] == "1"
-    #endif
-
     /// Drop a file the truapi E2E launcher polls for, so it knows the product
     /// actually reached the core over the ws-bridge.
     private func writeSimulatorConnectionMarkerIfNeeded(marker: String) {
         #if targetEnvironment(simulator)
-            guard marker == "truapi.ws_bridge.connection_open", Self.e2eMarkersEnabled else {
-                return
-            }
+            guard marker == "truapi.ws_bridge.connection_open" else { return }
 
             // The harness still spells the worker kind "chat" in its file name.
             let kind = switch dependencies.executionKind {
@@ -75,21 +66,8 @@ class RustProductExecutionBridge: HostBridge, @unchecked Sendable {
             case .worker: "chat"
             }
             let safeProductId = dependencies.productId.replacingOccurrences(of: "/", with: "_")
-            let directory = FileManager.default.temporaryDirectory
-                .appendingPathComponent("truapi-e2e", isDirectory: true)
 
-            do {
-                try FileManager.default.createDirectory(
-                    at: directory,
-                    withIntermediateDirectories: true
-                )
-                try Data().write(
-                    to: directory.appendingPathComponent("connected-\(kind)-\(safeProductId)"),
-                    options: .atomic
-                )
-            } catch {
-                dependencies.logger.warning("Failed to write TrUAPI E2E marker: \(error)")
-            }
+            TrUAPIE2EMarkers.write("connected-\(kind)-\(safeProductId)", logger: dependencies.logger)
         #endif
     }
 

@@ -54,6 +54,13 @@ final class RustChatExecutionBridge: RustProductExecutionBridge, ChatHostBridge,
         // Message bodies are user content and this logger has a file destination
         // on testnet builds: log the variant, never the payload.
         logger.debug("[truapi:chat-bridge] postMessage \(roomId) \(content.variantName)")
+        // This bridge validates product input whatever the core does upstream: a
+        // roomless body lands in the bot's default chat, which no `RenderContext`
+        // can name and so no renderer could ever draw.
+        guard let roomId = roomId.nilIfEmpty else {
+            throw HostRejection.Rejected(reason: "a chat message needs a room")
+        }
+
         let api = chatMessaging
         let message: ProductBotMessage = switch content {
         case let .text(text):
@@ -64,7 +71,7 @@ final class RustChatExecutionBridge: RustProductExecutionBridge, ChatHostBridge,
             throw HostRejection.Rejected(reason: "this host renders text and custom messages only")
         }
         return try awaitBlocking {
-            try await api.sendMessage(message, roomId: roomId.nilIfEmpty)
+            try await api.sendMessage(message, roomId: roomId)
         }
     }
 
