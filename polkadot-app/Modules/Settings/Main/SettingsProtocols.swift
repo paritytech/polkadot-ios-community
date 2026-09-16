@@ -1,6 +1,7 @@
 import Foundation
 import UIKitExt
 import Coinage
+import Products
 
 protocol SettingsViewProtocol: ControllerBackedProtocol {
     func applyContent(_ content: SettingsViewModel.Content)
@@ -17,6 +18,7 @@ protocol SettingsInteractorInputProtocol: AnyObject {
     func setup()
     func openMailApp()
     func savePrivacyStrategy(_ strategy: RecyclingStrategyType)
+    func openMerchantMode()
 }
 
 @MainActor
@@ -28,6 +30,8 @@ protocol SettingsInteractorOutputProtocol: AnyObject {
     func didFailToOpenMailApp(email: String)
     func didReceiveHasBlockedUsers(_ hasBlockedUsers: Bool)
     func didReceivePrivacyStrategy(_ strategy: RecyclingStrategyType)
+    func didReceiveMerchantPage(_ page: ProductPage)
+    func didFailToOpenMerchantMode()
 }
 
 @MainActor
@@ -40,4 +44,6 @@ protocol SettingsWireframeProtocol: AnyObject, WebPresentable, AlertPresentable 
     func showBlockedUsers(from view: SettingsViewProtocol?)
     func showApps(from view: SettingsViewProtocol?)
     func showThemeSelection(from view: SettingsViewProtocol?, onFinish: @escaping () -> Void)
+    func showMerchantMode(page: ProductPage, from view: SettingsViewProtocol?)
+    func showMerchantModeUnavailable(from view: SettingsViewProtocol?)
 }

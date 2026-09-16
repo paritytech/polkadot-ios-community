@@ -3,6 +3,7 @@ import UIKit
 import UIKitExt
 import SafariServices
 import Coinage
+import Products
 
 @MainActor
 final class SettingsPresenter {
@@ -54,7 +55,8 @@ private extension SettingsPresenter {
              .linkedDevices,
              .apps,
              .contactUs,
-             .blockedUsers:
+             .blockedUsers,
+             .merchantMode:
             nil
         }
     }
@@ -124,6 +126,8 @@ extension SettingsPresenter: SettingsPresenterProtocol {
             interactor.openMailApp()
         case .blockedUsers:
             wireframe.showBlockedUsers(from: view)
+        case .merchantMode:
+            interactor.openMerchantMode()
         }
     }
 }
@@ -165,5 +169,13 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
         guard strategy != selectedPrivacyStrategy else { return }
         selectedPrivacyStrategy = strategy
         refreshContent()
+    }
+
+    func didReceiveMerchantPage(_ page: ProductPage) {
+        wireframe.showMerchantMode(page: page, from: view)
+    }
+
+    func didFailToOpenMerchantMode() {
+        wireframe.showMerchantModeUnavailable(from: view)
     }
 }

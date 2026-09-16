@@ -19,7 +19,7 @@ final class RootInteractor {
     let tldProvider: DotNsTldProviding
 
     let firebaseFacade = FirebaseFacade.shared
-    let browsePrewarmer: ProductContentPrewarming
+    let productPrewarmers: [ProductContentPrewarming]
 
     private let setupTimeoutSeconds: TimeInterval = 5
     private var setupTimeoutTask: Task<Void, Never>?
@@ -36,7 +36,7 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
-        browsePrewarmer: ProductContentPrewarming,
+        productPrewarmers: [ProductContentPrewarming],
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
@@ -45,7 +45,7 @@ final class RootInteractor {
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
-        self.browsePrewarmer = browsePrewarmer
+        self.productPrewarmers = productPrewarmers
         self.tldProvider = tldProvider
     }
 
@@ -80,7 +80,7 @@ final class RootInteractor {
     private func prewarmProducts(for destination: RootDestination) {
         switch destination {
         case .dashboard:
-            browsePrewarmer.prewarm()
+            productPrewarmers.forEach { $0.prewarm() }
         default:
             break
         }

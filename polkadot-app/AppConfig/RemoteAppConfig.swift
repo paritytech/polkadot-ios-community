@@ -2,7 +2,7 @@ import Foundation
 
 // Built from individual Firebase RemoteConfig keys:
 //   identity_backend_url, ipfs_gateway_url, game_dashboard_url, dot_ns_config, coinage_instance_id,
-//   funding_domain, funding_config { onrampUrl, offrampUrl }
+//   funding_domain, funding_config { onrampUrl, offrampUrl }, merchant_url
 // Each field nil if the corresponding key is missing or empty.
 struct RemoteAppConfig {
     let identityBackendUrl: URL?
@@ -23,6 +23,8 @@ struct RemoteAppConfig {
     /// CASH card entry points report unavailable.
     let fundingUrl: String?
     let offrampUrl: String?
+    /// The merchant terminal product.
+    let merchantUrl: String?
 }
 
 extension RemoteAppConfig {

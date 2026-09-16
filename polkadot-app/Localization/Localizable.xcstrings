@@ -4098,6 +4098,23 @@
         }
       }
     },
+    "settings.cell.merchant.mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merchant mode"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modo comerciante"
+          }
+        }
+      }
+    },
     "settings.cell.privacy": {
       "extractionState": "manual",
       "localizations": {
@@ -4162,6 +4179,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Configuración"
+          }
+        }
+      }
+    },
+    "settings.merchant.mode.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merchant mode isn’t available right now. Please try again later."
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modo comerciante no está disponible ahora. Inténtalo de nuevo más tarde."
           }
         }
       }
@@ -4315,6 +4349,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Legal"
+          }
+        }
+      }
+    },
+    "settings.section.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otros"
           }
         }
       }

@@ -13,7 +13,10 @@ enum SettingsViewFactory {
         let interactor = SettingsInteractor(
             logger: Logger.shared,
             mnemonicBackupHelper: MnemonicBackupHelper(),
-            emailComposePresenter: emailComposeAdapter
+            emailComposePresenter: emailComposeAdapter,
+            merchantDomainProvider: MerchantDomainProvider(
+                hostProvider: { [flowStateProvider] in flowStateProvider.flowState().hostProvider }
+            )
         )
 
         let wireframe = SettingsWireframe(

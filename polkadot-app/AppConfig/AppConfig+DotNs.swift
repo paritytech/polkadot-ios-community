@@ -43,6 +43,22 @@ extension AppConfig {
             return fromUrl ?? config?.fundingDomain ?? ""
         }
 
+        /// The merchant terminal product's label: `merchant_url` when published (a bare label, a dot-domain or a
+        /// URL, like the funding keys), else the product's known label.
+        static let dotNsMerchantDefault = "terminal"
+        static var merchantDestination: String? {
+            AppConfigProvider.shared.getRemoteConfig()?.merchantUrl
+        }
+
+        static var dotNsMerchant: String {
+            guard let destination = merchantDestination, !destination.isEmpty else {
+                return dotNsMerchantDefault
+            }
+
+            let host = URL(string: destination)?.host() ?? destination
+            return ProductHost.name(fromDotDomain: host) ?? host
+        }
+
         static let dotNsGameWebview = "game-webview"
         static let dotNsCollectibles = "collectibles-webview"
 
