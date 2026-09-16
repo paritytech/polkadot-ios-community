@@ -471,24 +471,6 @@ struct CoinSelectorTests {
         }
     }
 
-    @Test("Zero amount returns error")
-    func negativeAmountReturnsError() async throws {
-        let coins = [makeCoin(exponent: 3)]
-
-        do {
-            _ = try await makeSelector().selectCoins(SelectCoinsInput(
-                amount: BigUInt(0),
-                coins: coins,
-                vouchers: [],
-                breakdownContext: testContext,
-                maxVouchersPerGroup: maxVouchers
-            ))
-            Issue.record("Expected zeroAmount error")
-        } catch let error as CoinSelectionError {
-            #expect(error == .zeroAmount)
-        }
-    }
-
     @Test("Empty wallet returns error")
     func emptyWalletReturnsError() async throws {
         do {

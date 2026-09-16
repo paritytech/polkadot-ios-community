@@ -783,15 +783,15 @@ extension TransferSenderServiceTests {
     }
 
     private func makeTransferSenderService(
-        originFactory: MockOriginFactory = MockOriginFactory(),
+        originFactory: StubOriginFactory = StubOriginFactory(),
         recyclerLoader: MockRecyclerLoader = MockRecyclerLoader(),
         blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider(),
         mockDurability: MockCoinageTxService = MockCoinageTxService()
     ) -> TransferSenderService {
         let coinSelector = CoinSelector()
         let memoBuilder = MockMemoBuilder()
-        let coinKeyFactory = MockCoinKeyFactory()
-        let voucherKeyFactory = MockVoucherKeyFactory()
+        let coinKeyFactory = StubCoinKeyFactory()
+        let voucherKeyFactory = StubVoucherKeyFactory()
 
         let planFactory = TransferPlanFactory(
             instanceId: 0,
@@ -800,6 +800,7 @@ extension TransferSenderServiceTests {
             coinKeyFactory: coinKeyFactory,
             durability: mockDurability,
             originFactory: originFactory,
+            quotaTracker: StubUnloadQuotaTracker(),
             recyclerLoader: recyclerLoader,
             blockInfoProvider: blockInfoProvider,
             logger: nil

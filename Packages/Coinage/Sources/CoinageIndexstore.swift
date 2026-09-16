@@ -37,7 +37,7 @@ extension CoinageIndexstoreProtocol {
 
 final class CoinIndexstore: CoinageIndexstoreProtocol {
     let storage: KeystoreProtocol
-    let storageKey = "coin-index-store"
+    let storageKey = "coin-index-store-v2"
 
     init(storage: KeystoreProtocol) {
         self.storage = storage
@@ -46,7 +46,7 @@ final class CoinIndexstore: CoinageIndexstoreProtocol {
 
 final class VoucherIndexstore: CoinageIndexstoreProtocol {
     let storage: KeystoreProtocol
-    let storageKey = "voucher-index-store"
+    let storageKey = "voucher-index-store-v2"
 
     init(storage: KeystoreProtocol) {
         self.storage = storage

@@ -12,41 +12,44 @@ import SubstrateOperation
 final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreating {
     private let instanceId: CoinageInstanceId
     private let planner: ExternalPaymentPlanning
-    private let recycler: CoinageRecyclingServicing
     private let voucherService: VoucherServiceProtocol
+    private let recycler: CoinageRecyclingServicing
     private let voucherKeyFactory: any VoucherKeyDeriving
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol
     private let durability: any CoinageTxServicing
     private let originFactory: OriginCreating
+    private let quotaTracker: any UnloadQuotaTracking
     private let blockNumberProvider: BlockInfoProviding
     private let logger: SDKLoggerProtocol?
 
     init(
         instanceId: CoinageInstanceId,
         planner: ExternalPaymentPlanning,
-        recycler: CoinageRecyclingServicing,
         voucherService: VoucherServiceProtocol,
+        recycler: CoinageRecyclingServicing,
         voucherKeyFactory: any VoucherKeyDeriving,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         extrinsicMonitor: ExtrinsicSubmitMonitorFactoryProtocol,
         durability: any CoinageTxServicing,
         originFactory: OriginCreating,
+        quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.instanceId = instanceId
         self.planner = planner
-        self.recycler = recycler
         self.voucherService = voucherService
+        self.recycler = recycler
         self.voucherKeyFactory = voucherKeyFactory
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.extrinsicMonitor = extrinsicMonitor
         self.durability = durability
         self.originFactory = originFactory
+        self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
         self.logger = logger
     }
@@ -70,20 +73,19 @@ final class ExternalPaymentStateMachineFactory: ExternalPaymentStateMachineCreat
 }
 
 private extension ExternalPaymentStateMachineFactory {
-    func makeStateFactory(
-        context: DenominationBreakdownContext
-    ) -> ExternalPaymentStateFactory {
+    func makeStateFactory(context: DenominationBreakdownContext) -> ExternalPaymentStateFactory {
         ExternalPaymentStateFactory(
             instanceId: instanceId,
             planner: planner,
             context: context,
-            recycler: recycler,
             voucherService: voucherService,
+            recycler: recycler,
             voucherKeyFactory: voucherKeyFactory,
             voucherMinter: voucherMinter,
             recyclerLoader: recyclerLoader,
             durability: durability,
             originFactory: originFactory,
+            quotaTracker: quotaTracker,
             blockNumberProvider: blockNumberProvider,
             logger: logger
         )

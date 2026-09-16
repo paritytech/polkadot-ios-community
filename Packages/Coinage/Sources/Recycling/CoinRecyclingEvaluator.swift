@@ -18,7 +18,6 @@ public actor CoinRecyclingEvaluator {
     private let ringCapacityProvider: any RingCapacityProviding
     private let preClassificator: any CoinageAssetsPreClassificating
     private let recyclingService: any CoinageRecyclingServicing
-    private let quotaTracker: any UnloadQuotaTracking
     private nonisolated let denominationContext: DenominationBreakdownContext
     private nonisolated let logger: SDKLoggerProtocol?
 
@@ -36,7 +35,6 @@ public actor CoinRecyclingEvaluator {
         ringCapacityProvider: any RingCapacityProviding,
         preClassificator: any CoinageAssetsPreClassificating,
         recyclingService: any CoinageRecyclingServicing,
-        quotaTracker: any UnloadQuotaTracking,
         denominationContext: DenominationBreakdownContext,
         logger: SDKLoggerProtocol?
     ) {
@@ -46,7 +44,6 @@ public actor CoinRecyclingEvaluator {
         self.ringCapacityProvider = ringCapacityProvider
         self.preClassificator = preClassificator
         self.recyclingService = recyclingService
-        self.quotaTracker = quotaTracker
         self.denominationContext = denominationContext
         self.logger = logger
     }
@@ -179,8 +176,7 @@ private extension CoinRecyclingEvaluator {
         // `recycleCoins` skips coins whose ledger state is not free, so the 5s cadence is idempotent.
         let coinsToRecycle = coins.filter { gated.contains($0.coin.derivationIndex) }.map(\.coin)
         do {
-            try await recyclingService.recycleCoins(coinsToRecycle)
-            await quotaTracker.noteUnloadHappened()
+            try await recyclingService.recycleCoins(coinsToRecycle, groupId: nil)
         } catch {
             logger?.error("Recycle trigger failed: \(error)")
         }

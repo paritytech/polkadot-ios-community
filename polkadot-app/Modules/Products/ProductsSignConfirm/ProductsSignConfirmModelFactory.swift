@@ -123,8 +123,8 @@ private extension ProductsSignConfirmModelFactory {
 
     func rawPayload(from review: SignRawReview) -> RawPayload {
         switch review {
-        case let .product(request): request.payload
-        case let .legacyAccount(request): request.payload
+        case let .product(request, _): request.payload
+        case let .legacyAccount(request, _): request.payload
         }
     }
 }

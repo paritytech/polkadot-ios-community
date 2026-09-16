@@ -54,7 +54,7 @@ struct CoinageIndexstoreTests {
         #expect(nextVoucher == 501)
 
         // Verify storage keys are distinct
-        #expect(coinIndexstore.storageKey == "coin-index-store")
-        #expect(voucherIndexstore.storageKey == "voucher-index-store")
+        #expect(coinIndexstore.storageKey == "coin-index-store-v2")
+        #expect(voucherIndexstore.storageKey == "voucher-index-store-v2")
     }
 }

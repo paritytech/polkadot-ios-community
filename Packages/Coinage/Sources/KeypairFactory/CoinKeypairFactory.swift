@@ -2,29 +2,42 @@ import KeyDerivation
 import SubstrateSdk
 import NovaCrypto
 
-public protocol CoinKeyDeriving: CoinageKeypairFactory where Model == Coin {}
+public protocol CoinKeyDeriving: CoinKeypairFactoryProtocol {}
 
-public final class CoinKeypairFactory: BaseKeypairFactory<Coin>, CoinKeyDeriving {
+public final class CoinKeypairFactory {
+    let entropyManager: RootEntropyManaging
+
     public init(entropyManager: RootEntropyManaging) {
-        super.init(basePath: "//pps//coin", entropyManager: entropyManager)
+        self.entropyManager = entropyManager
     }
+}
 
-    override public func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
+extension CoinKeypairFactory: CoinKeyDeriving {
+    public func derivePublicKey(index: DerivationIndex) throws -> PublicKey {
         try WalletMnemonicKeypairFactory(
-            derivationPath: derivationPath(index: index),
+            derivationPath: coinPath(for: index),
             entropyManager: entropyManager
         )
         .derivePublicKey()
         .rawData()
     }
 
-    override public func derivePrivateKey(index: DerivationIndex) throws -> PrivateKey {
+    public func derivePrivateKey(index: DerivationIndex) throws -> PrivateKey {
         try WalletMnemonicKeypairFactory(
-            derivationPath: derivationPath(index: index),
+            derivationPath: coinPath(for: index),
             entropyManager: entropyManager
         )
         .deriveKeypair()
         .privateKey()
         .rawData()
+    }
+}
+
+public extension CoinKeypairFactory {
+    func coinPath(for derivationIndex: DerivationIndex) -> String {
+        let purse = CoinageConstants.Derivation.mainPurse
+        let page = CoinageConstants.Derivation.page
+
+        return "//coinage//\(purse)//\(page)/\(derivationIndex)"
     }
 }

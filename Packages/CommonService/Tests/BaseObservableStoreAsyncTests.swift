@@ -6,6 +6,29 @@ struct BaseObservableStoreAsyncTests {
         let value: Int
     }
 
+    /// Replaces the wall-clock `Task.sleep` that only *hoped* a subscription had established before the
+    /// producer mutated. Each observer calls ``signalReady()`` once it has received its initial buffered
+    /// state — which proves `observe()` has registered it — and the mutator awaits ``waitForReady(count:)``
+    /// before updating. Delivery is then deterministic instead of racing a fixed delay.
+    struct ReadinessBarrier: Sendable {
+        private let stream: AsyncStream<Void>
+        private let continuation: AsyncStream<Void>.Continuation
+
+        init() {
+            (stream, continuation) = AsyncStream<Void>.makeStream()
+        }
+
+        func signalReady() { continuation.yield(()) }
+
+        func waitForReady(count: Int) async {
+            var seen = 0
+            for await _ in stream {
+                seen += 1
+                if seen >= count { return }
+            }
+        }
+    }
+
     @Test("Observe receives initial nil state")
     func observeReceivesInitialNilState() async throws {
         // Given
@@ -61,10 +84,12 @@ struct BaseObservableStoreAsyncTests {
         // When
         let stream = store.observe()
         var receivedStates: [TestState?] = []
+        let readiness = ReadinessBarrier()
 
         let task = Task {
             for try await state in stream {
                 receivedStates.append(state)
+                if receivedStates.count == 1 { readiness.signalReady() }
                 // Initial nil + 3 updates
                 if receivedStates.count >= 4 {
                     break
@@ -72,13 +97,12 @@ struct BaseObservableStoreAsyncTests {
             }
         }
 
-        // Give the subscription time to establish
-        try await Task.sleep(nanoseconds: 50_000_000)
+        // Wait for the subscription to establish (initial state received)
+        await readiness.waitForReady(count: 1)
 
-        // Update states
+        // Update states — buffered in order, so no inter-update delay is needed
         for state in expectedStates {
             store.updateState(state)
-            try await Task.sleep(nanoseconds: 10_000_000)
         }
 
         try await task.value
@@ -103,10 +127,12 @@ struct BaseObservableStoreAsyncTests {
 
         var observer1States: [TestState?] = []
         var observer2States: [TestState?] = []
+        let readiness = ReadinessBarrier()
 
         let task1 = Task {
             for try await state in stream1 {
                 observer1States.append(state)
+                if observer1States.count == 1 { readiness.signalReady() }
                 if observer1States.count >= 2 {
                     break
                 }
@@ -116,14 +142,15 @@ struct BaseObservableStoreAsyncTests {
         let task2 = Task {
             for try await state in stream2 {
                 observer2States.append(state)
+                if observer2States.count == 1 { readiness.signalReady() }
                 if observer2States.count >= 2 {
                     break
                 }
             }
         }
 
-        // Give subscriptions time to establish
-        try await Task.sleep(nanoseconds: 50_000_000)
+        // Wait for both subscriptions to establish
+        await readiness.waitForReady(count: 2)
 
         store.updateState(testState)
 
@@ -156,13 +183,10 @@ struct BaseObservableStoreAsyncTests {
 
         try await task.value
 
-        // Give time for cleanup
-        try await Task.sleep(nanoseconds: 100_000_000)
-
-        // Then - observer should be cleaned up
+        // Then - a later update still lands on the store's own state, and the removed observer's
+        // terminated continuation quietly drops it rather than crashing.
         store.updateState(TestState(value: 999))
 
-        // If observer wasn't removed, this might cause issues
         #expect(store.currentState == TestState(value: 999))
     }
 
@@ -175,10 +199,12 @@ struct BaseObservableStoreAsyncTests {
         // When
         let stream = store.observe()
         var receivedStates: [TestState?] = []
+        let readiness = ReadinessBarrier()
 
         let task = Task {
             for try await state in stream {
                 receivedStates.append(state)
+                if receivedStates.count == 1 { readiness.signalReady() }
                 // Initial nil + 10 updates
                 if receivedStates.count >= 11 {
                     break
@@ -186,8 +212,8 @@ struct BaseObservableStoreAsyncTests {
             }
         }
 
-        // Give the subscription time to establish
-        try await Task.sleep(nanoseconds: 50_000_000)
+        // Wait for the subscription to establish (initial state received)
+        await readiness.waitForReady(count: 1)
 
         // Rapidly update states
         for state in stateSequence {
@@ -216,18 +242,20 @@ struct BaseObservableStoreAsyncTests {
         // When
         let stream = store.observe()
         var receivedStates: [TestState?] = []
+        let readiness = ReadinessBarrier()
 
         let task = Task {
             for try await state in stream {
                 receivedStates.append(state)
+                if receivedStates.count == 1 { readiness.signalReady() }
                 if receivedStates.count >= 2 {
                     break
                 }
             }
         }
 
-        // Give the subscription time to establish
-        try await Task.sleep(nanoseconds: 50_000_000)
+        // Wait for the subscription to establish (current state received)
+        await readiness.waitForReady(count: 1)
 
         // Update to nil
         store.updateState(nil)
@@ -245,6 +273,7 @@ struct BaseObservableStoreAsyncTests {
         // Given
         let store = MockObservableStore<TestState>(logger: MockLogger())
         let concurrentCount = 5
+        let readiness = ReadinessBarrier()
 
         // When - create multiple concurrent subscriptions
         var tasks: [Task<[TestState?], any Error>] = []
@@ -256,6 +285,7 @@ struct BaseObservableStoreAsyncTests {
 
                 for try await state in stream {
                     states.append(state)
+                    if states.count == 1 { readiness.signalReady() }
                     if states.count >= 2 {
                         break
                     }
@@ -265,8 +295,8 @@ struct BaseObservableStoreAsyncTests {
             tasks.append(task)
         }
 
-        // Give subscriptions time to establish
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Wait for every subscription to establish
+        await readiness.waitForReady(count: concurrentCount)
 
         // Trigger update
         store.updateState(TestState(value: 777))

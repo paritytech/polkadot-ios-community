@@ -16,12 +16,15 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     private(set) var permissionRequests: [PermissionAuthorizationRequest] = []
 
     private(set) var publishedChatActions: [HostChatActionSubscribeItem] = []
-    private(set) var renderCustomMessageCallCount = 0
-    /// Errors thrown by successive `renderCustomMessage` calls, consumed in order;
-    /// once empty the call succeeds. Lets tests drive the startup retry loop.
-    var renderCustomMessageErrors: [Error] = []
+    private(set) var publishedRendererActions: [HostRendererActionSubscribeItem] = []
+    /// Requests passed to `render`, in order, including ones that threw, so
+    /// `renderRequests.count` is the call count the retry tests assert on.
+    private(set) var renderRequests: [ProductRendererRenderRequest] = []
+    /// Errors thrown by successive `render` calls, consumed in order; once
+    /// empty the call succeeds. Lets tests drive the startup retry loop.
+    var renderErrors: [Error] = []
     /// Nodes the render stream yields before finishing.
-    var renderCustomMessageNodes: [CustomRendererNode] = []
+    var renderNodes: [RendererNode] = []
 
     func startWsBridge(bindPort _: UInt16) throws -> WsBridgeEndpoint {
         startWsBridgeCallCount += 1
@@ -40,21 +43,21 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
         publishedChatActions.append(item)
     }
 
-    func renderCustomMessage(
-        messageId _: String,
-        messageType _: String,
-        payload _: Data
-    ) throws -> AsyncThrowingStream<CustomRendererNode, Error> {
-        renderCustomMessageCallCount += 1
-        if !renderCustomMessageErrors.isEmpty {
-            throw renderCustomMessageErrors.removeFirst()
+    func render(_ request: ProductRendererRenderRequest) throws -> AsyncThrowingStream<RendererNode, Error> {
+        renderRequests.append(request)
+        if !renderErrors.isEmpty {
+            throw renderErrors.removeFirst()
         }
 
-        let nodes = renderCustomMessageNodes
+        let nodes = renderNodes
         return AsyncThrowingStream { continuation in
             nodes.forEach { continuation.yield($0) }
             continuation.finish()
         }
+    }
+
+    func publishRendererAction(_ item: HostRendererActionSubscribeItem) throws {
+        publishedRendererActions.append(item)
     }
 
     func permissionAuthorizationStatus(

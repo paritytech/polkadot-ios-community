@@ -26,6 +26,10 @@ public protocol CoinageServicing: Actor {
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
     nonisolated var externalPaymentService: any ExternalPaymentServicing { get }
 
+    /// The incoming-payment (top-up) service — exposed for dependency registration.
+    /// Lifecycle (setup/throttle) is managed internally by CoinageService.
+    nonisolated var incomingPaymentService: any IncomingPaymentServicing { get }
+
     /// Suspends until the denomination context is ready, then returns it.
     /// Throws if `setup(with:)` has not been called or if setup failed.
     func denominationContext() async throws -> DenominationBreakdownContext
@@ -53,20 +57,27 @@ public protocol CoinageServicing: Actor {
     /// Suspends and waits if the service has not been configured with an asset yet.
     func coinageBalanceService() async throws -> CoinageBalanceServiceProtocol
 
-    /// Preview an external payment for UI validation (degraded privacy check).
+    /// Preview an external payment: what it would spend and whether that costs privacy.
     func previewExternalPayment(for amount: BigUInt) async throws -> ExternalPaymentPreview
 
-    /// Initiate an external payment. Saves to store and returns the payment id.
+    /// Whether private vouchers alone would pay `amount` — the check behind the privacy warning.
+    func canExecuteExternalPaymentPrivately(amount: BigUInt) async throws -> Bool
+
+    /// Register an external payment identified by `(productId, paymentId)`.
+    /// Throws `ExternalPaymentError.alreadyExists` on replay.
     func initiateExternalPayment(
-        origin: String,
+        productId: String,
+        paymentId: String,
         amountInPlanks: Balance,
         destination: AccountId
-    ) async throws -> String
+    ) async throws
 
-    /// Subscribe to the status of an external payment.
-    func subscribeExternalPaymentStatus(
+    /// Subscribe to the status of an external payment identified by `(productId, paymentId)`; the
+    /// stream fails with `ExternalPaymentError.notFound` for an unknown identity.
+    nonisolated func subscribeExternalPaymentStatus(
+        productId: String,
         paymentId: String
-    ) throws -> AnyAsyncSequence<ExternalPaymentStatus>
+    ) -> AnyAsyncSequence<ExternalPaymentStatus>
 
     /// Preview a transfer and compute both the full and non-degraded sendable amounts.
     func previewTransfer(for amount: BigUInt) async throws -> TransferPreview
@@ -130,10 +141,13 @@ public actor CoinageService {
     private let recyclingStrategyResolver: any RecyclingStrategyProviding
     private let ringCapacityProvider: any RingCapacityProviding
     private let preClassificator: any CoinageAssetsPreClassificating
-    private let quotaTracker: any UnloadQuotaTracking
 
     // External payment — lifecycle managed internally, exposed for dependency registration
     public nonisolated let externalPaymentService: any ExternalPaymentServicing
+
+    // Incoming payments (top-ups) — lifecycle managed internally (setup driven by `setup(with:)`),
+    // exposed for dependency registration. Mirrors `externalPaymentService`.
+    public nonisolated let incomingPaymentService: any IncomingPaymentServicing
 
     private let contextLoader: DenominationContextLoaderProtocol
 
@@ -177,10 +191,10 @@ public actor CoinageService {
         recyclingStrategyResolver: any RecyclingStrategyProviding,
         ringCapacityProvider: any RingCapacityProviding,
         preClassificator: any CoinageAssetsPreClassificating,
-        quotaTracker: any UnloadQuotaTracking,
         applicationStateStreamFactory: ApplicationStateStreamFactory,
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
+        incomingPaymentService: any IncomingPaymentServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.coinService = coinService
@@ -197,13 +211,13 @@ public actor CoinageService {
         self.recyclingStrategyResolver = recyclingStrategyResolver
         self.ringCapacityProvider = ringCapacityProvider
         self.preClassificator = preClassificator
-        self.quotaTracker = quotaTracker
         self.applicationStateStreamFactory = applicationStateStreamFactory
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
+        self.incomingPaymentService = incomingPaymentService
         self.logger = logger
     }
 }
@@ -218,22 +232,30 @@ extension CoinageService: CoinageServicing {
         return try await externalPaymentService.previewPayment(for: amount, context: context)
     }
 
+    public func canExecuteExternalPaymentPrivately(amount: BigUInt) async throws -> Bool {
+        let context = try await requireContext()
+        return try await externalPaymentService.canExecuteExternalPaymentPrivately(amount: amount, context: context)
+    }
+
     public func initiateExternalPayment(
-        origin: String,
+        productId: String,
+        paymentId: String,
         amountInPlanks: Balance,
         destination: AccountId
-    ) async throws -> String {
+    ) async throws {
         try await externalPaymentService.initiatePayment(
-            origin: origin,
+            productId: productId,
+            paymentId: paymentId,
             amountInPlanks: amountInPlanks,
             destination: destination
         )
     }
 
-    public func subscribeExternalPaymentStatus(
+    public nonisolated func subscribeExternalPaymentStatus(
+        productId: String,
         paymentId: String
-    ) throws -> AnyAsyncSequence<ExternalPaymentStatus> {
-        try externalPaymentService.subscribePaymentStatus(paymentId: paymentId)
+    ) -> AnyAsyncSequence<ExternalPaymentStatus> {
+        externalPaymentService.subscribePaymentStatus(productId: productId, paymentId: paymentId)
     }
 
     // MARK: Denomination Context
@@ -275,12 +297,13 @@ extension CoinageService: CoinageServicing {
             coinStateSyncService.setup()
             voucherLocationService.setup()
             externalPaymentService.setup(with: context)
+            incomingPaymentService.setup(with: context)
 
             ensureRecyclingEvaluator(context: context)
 
+            // Before the engine's first recovery pass, which the app starts once setup returns, so nothing
+            // is decided against a mark that is about to disappear.
             try await txService.releaseUncommittedHandoffs()
-
-            txService.start()
 
         } catch {
             // Reset so a subsequent setup(with:) call triggers a fresh fetch
@@ -370,7 +393,8 @@ extension CoinageService: CoinageServicing {
             let vouchers = try await voucherService.load(
                 amount: amount,
                 externalAssetHolder: externalAssetHolder,
-                breakdownContext: context
+                breakdownContext: context,
+                groupId: nil
             )
             return vouchers.reduce(BigUInt.zero) { $0 + context.valueInPlanks(for: $1.exponent) }
         }
@@ -467,7 +491,6 @@ private extension CoinageService {
             ringCapacityProvider: ringCapacityProvider,
             preClassificator: preClassificator,
             recyclingService: recyclingService,
-            quotaTracker: quotaTracker,
             denominationContext: context,
             logger: logger
         )
