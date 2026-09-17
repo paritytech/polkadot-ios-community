@@ -3,9 +3,15 @@ import SwiftUI
 
 /// Diagonal stripes sliding leftwards, for depicting work that is still in progress.
 ///
-/// The pattern repeats every `stripeWidth * 2`, so sliding by exactly one period and snapping back
-/// is seamless. Only a static layer is offset, which keeps the animation off the main thread even
-/// with many of these on screen at once.
+/// The pattern repeats every `stripeWidth * 2`, so sliding by exactly one period and wrapping back
+/// is seamless: at the end of a period the layer is drawing exactly what it drew at the start.
+///
+/// The offset is derived from the timeline's own clock rather than from a latched piece of state
+/// driving a `repeatForever` animation. A repeating animation is armed once, when its `value`
+/// changes, and nothing can re-arm it afterwards — so anything that tears down the running
+/// animation, such as a layout pass that rebuilds the animated subtree, parks the stripes at the
+/// end of their travel for good. Reading the phase from the clock cannot get stuck, and it drops
+/// the state entirely.
 ///
 /// Two things have to hold for the wrap to be invisible, and both are about coverage rather than
 /// timing: the drawn pattern must extend past the layer's own bounds — a leaning stripe's far
@@ -17,22 +23,27 @@ public struct DSBarberPole: View {
     private let periodDuration: Double
     private let stripeColor: Color
     private let backgroundColor: Color
+    private let isAnimated: Bool
 
-    @State private var isSliding = false
-
-    /// - Parameter slant: Horizontal run per unit of height — the stripes' lean.
+    /// - Parameters:
+    ///   - slant: Horizontal run per unit of height — the stripes' lean.
+    ///   - isAnimated: Pass `false` for a still pattern. Worth doing wherever the pole is a few
+    ///     points across, such as a legend key, where the sliding reads as jitter rather than
+    ///     progress.
     public init(
         stripeWidth: CGFloat = 5,
         slant: CGFloat = 0.7,
         periodDuration: Double = 0.6,
         stripeColor: Color = .fgError,
-        backgroundColor: Color = .fgStaticWhite
+        backgroundColor: Color = .fgStaticWhite,
+        isAnimated: Bool = true
     ) {
         self.stripeWidth = stripeWidth
         self.slant = slant
         self.periodDuration = periodDuration
         self.stripeColor = stripeColor
         self.backgroundColor = backgroundColor
+        self.isAnimated = isAnimated
     }
 
     public var body: some View {
@@ -41,38 +52,62 @@ public struct DSBarberPole: View {
             let period = Self.period(forStripeWidth: stripeWidth)
             let margin = period + size.height * slant
 
-            ZStack(alignment: .leading) {
-                backgroundColor
-
-                Canvas { context, canvasSize in
-                    Self.drawStripes(
-                        in: &context,
-                        size: canvasSize,
-                        stripeWidth: stripeWidth,
-                        slant: slant,
-                        color: stripeColor
+            if isAnimated {
+                TimelineView(.animation) { timeline in
+                    stripes(
+                        in: size,
+                        margin: margin,
+                        offset: -margin - period * Self.phase(
+                            at: timeline.date,
+                            periodDuration: periodDuration
+                        )
                     )
                 }
-                .frame(width: size.width + margin * 2, height: size.height)
-                .offset(x: isSliding ? -margin - period : -margin)
-                .animation(
-                    .linear(duration: periodDuration).repeatForever(autoreverses: false),
-                    value: isSliding
+            } else {
+                stripes(in: size, margin: margin, offset: -margin)
+            }
+        }
+    }
+}
+
+private extension DSBarberPole {
+    /// The pattern at one fixed offset. Held apart from ``body`` so the animated and still cases
+    /// differ only in where the offset comes from.
+    func stripes(in size: CGSize, margin: CGFloat, offset: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            backgroundColor
+
+            Canvas { context, canvasSize in
+                Self.drawStripes(
+                    in: &context,
+                    size: canvasSize,
+                    stripeWidth: stripeWidth,
+                    slant: slant,
+                    color: stripeColor
                 )
             }
-            // Leading, not the default centre: the stripe layer is deliberately wider than the
-            // frame, and centring it would shift it half its overdraw before the offset below
-            // even applies — which starves the right edge partway through each slide.
-            .frame(width: size.width, height: size.height, alignment: .leading)
-            .clipped()
-            .onAppear { isSliding = true }
+            .frame(width: size.width + margin * 2, height: size.height)
+            .offset(x: offset)
         }
+        // Leading, not the default centre: the stripe layer is deliberately wider than the frame,
+        // and centring it would shift it half its overdraw before the offset below even applies —
+        // which starves the right edge partway through each slide.
+        .frame(width: size.width, height: size.height, alignment: .leading)
+        .clipped()
     }
 }
 
 private extension DSBarberPole {
     static func period(forStripeWidth stripeWidth: CGFloat) -> CGFloat {
         stripeWidth * 2
+    }
+
+    /// How far through one period the pattern is, in `0..<1`. Anchored to the clock rather than to
+    /// when the view appeared, so every pole on screen slides in step and a pole that is rebuilt
+    /// picks up where its neighbours are instead of restarting.
+    static func phase(at date: Date, periodDuration: Double) -> CGFloat {
+        let periods = date.timeIntervalSinceReferenceDate / periodDuration
+        return CGFloat(periods - periods.rounded(.down))
     }
 
     /// Fills the canvas with stripes, starting and ending a full stripe-and-lean beyond its
