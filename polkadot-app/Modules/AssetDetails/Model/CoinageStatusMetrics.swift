@@ -15,6 +15,18 @@ enum CoinageStatusMetrics {
     static let levelBarHeight: CGFloat = 12
     /// Square floor for a level bar, so a near-zero length still leaves a mark.
     static let minimumLevelBarWidth: CGFloat = levelBarHeight
+    /// Thickness range when a bar is weighted by value. The floor keeps a trivial holding visible;
+    /// the ceiling stops one large group from dwarfing the rest of the list.
+    static let weightedBarHeights: ClosedRange<CGFloat> = 4 ... 24
+
+    /// Thickness for a group holding `share` of the largest group's value.
+    static func weightedHeight(forShare share: Double) -> CGFloat {
+        let span = weightedBarHeights.upperBound - weightedBarHeights.lowerBound
+        let clamped = min(max(CGFloat(share), 0), 1)
+
+        return weightedBarHeights.lowerBound + span * clamped
+    }
+
     /// Kept to the same share of the height as ``solidBarCornerRadius`` is of ``barHeight``, so a
     /// floored level bar still reads as a rounded square rather than as a provenance circle.
     static let levelBarCornerRadius: CGFloat = 3

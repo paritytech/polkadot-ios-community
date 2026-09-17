@@ -337,18 +337,22 @@ private extension AssetDetailsPresenter {
                 .joined(separator: "   ")
         }
 
-        let rows = CoinageBreakdownFactory.group(CoinageBreakdownFactory.rows(from: holdings)).map { group in
+        let groups = CoinageBreakdownFactory.group(CoinageBreakdownFactory.rows(from: holdings))
+        let groupValues = groups.map { group in
+            context.map { context in
+                group.exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) }
+            } ?? 0
+        }
+        let peak = groupValues.max() ?? 0
+
+        let rows = zip(groups, groupValues).map { group, value in
             CoinageHoldingGroupViewModel(
                 id: group.id,
                 status: group.status,
                 amounts: folded(group.exponents.map { amount(forExponent: $0) ?? "—" }),
                 count: group.exponents.count,
-                total: context.map { context in
-                    formatted(
-                        from: group.exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) },
-                        includeSymbol: false
-                    )
-                }
+                share: peak > 0 ? NSDecimalNumber(decimal: value / peak).doubleValue : 0,
+                total: context.map { _ in formatted(from: value, includeSymbol: false) }
             )
         }
 

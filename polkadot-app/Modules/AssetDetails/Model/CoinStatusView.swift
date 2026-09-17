@@ -23,14 +23,13 @@ struct CoinStatusView: View {
     }
 
     let model: Model
+    var levelHeight: CGFloat = CoinageStatusMetrics.levelBarHeight
 
     var body: some View {
         Canvas { context, size in
             Self.draw(model, in: &context, size: size)
         }
-        .frame(height: model.bucket == nil
-            ? CoinageStatusMetrics.barHeight
-            : CoinageStatusMetrics.levelBarHeight)
+        .frame(height: model.bucket == nil ? CoinageStatusMetrics.barHeight : levelHeight)
     }
 }
 

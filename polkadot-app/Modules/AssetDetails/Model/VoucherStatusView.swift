@@ -22,6 +22,7 @@ struct VoucherStatusView: View {
     }
 
     let model: Model
+    var height: CGFloat = CoinageStatusMetrics.levelBarHeight
 
     var body: some View {
         GeometryReader { geometry in
@@ -29,7 +30,7 @@ struct VoucherStatusView: View {
 
             DSProportionalBar(
                 segments: Self.segments(for: model, layout: layout),
-                height: CoinageStatusMetrics.levelBarHeight,
+                height: height,
                 cornerStyle: .rounded(radius: CoinageStatusMetrics.levelBarCornerRadius),
                 outlineColor: CoinageStatusMetrics.markFrame,
                 outlineWidth: CoinageStatusMetrics.markFrameWidth
@@ -37,7 +38,7 @@ struct VoucherStatusView: View {
             .frame(width: layout.barWidth)
             .frame(width: geometry.size.width, alignment: .leading)
         }
-        .frame(height: CoinageStatusMetrics.levelBarHeight)
+        .frame(height: height)
     }
 }
 

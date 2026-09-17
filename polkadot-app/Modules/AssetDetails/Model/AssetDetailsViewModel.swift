@@ -28,6 +28,9 @@ struct CoinageHoldingGroupViewModel: Identifiable {
     let amounts: String
     /// How many holdings the group stands for.
     let count: Int
+    /// Value against the largest group, in `0...1`. Drives how thick the bar is drawn, so the
+    /// mark carries value as well as standing.
+    let share: Double
     /// What the group comes to, bare, no currency symbol.
     let total: String?
 }
