@@ -15,8 +15,9 @@ struct CoinStatusView: View {
         /// One entry per hop, oldest first: the inner-dot count already resolved from the hop's
         /// `bundleSize` or `fanout`.
         let hopDots: [Int]
-        /// Fungibility of the recycler the coin came out of. `nil` when it is not known.
-        let fungibility: UInt8?
+        /// Fungibility bucket of the recycler the coin came out of, batch penalty already applied.
+        /// `nil` when we have no record of the recycler, which is every coin received from a peer.
+        let bucket: Int?
         /// Whether the current strategy leaves this coin spendable right now.
         let isSpendable: Bool
     }
@@ -89,12 +90,20 @@ extension CoinStatusView {
 }
 
 private extension CoinStatusView {
+    /// A known level is drawn as a bar and nothing else, even when the coin also carries hops:
+    /// the level is the reading that can be compared against every other bar in the list, and a
+    /// row cannot be in two orders at once.
     static func draw(_ model: Model, in context: inout GraphicsContext, size: CGSize) {
-        guard !model.hopDots.isEmpty else {
-            drawUnhopped(model, in: &context, size: size)
-            return
+        if let bucket = model.bucket {
+            drawLevel(bucket: bucket, isSpendable: model.isSpendable, in: &context, size: size)
+        } else if model.hopDots.isEmpty {
+            drawUnknown(in: &context, rect: CGRect(origin: .zero, size: size))
+        } else {
+            drawHops(model, in: &context, size: size)
         }
+    }
 
+    static func drawHops(_ model: Model, in context: inout GraphicsContext, size: CGSize) {
         let plan = plan(
             hopCount: model.hopDots.count,
             width: size.width,
@@ -128,15 +137,15 @@ private extension CoinStatusView {
         )
     }
 
-    static func drawUnhopped(_ model: Model, in context: inout GraphicsContext, size: CGSize) {
-        guard let fungibility = model.fungibility else {
-            drawUnknown(in: &context, rect: CGRect(origin: .zero, size: size))
-            return
-        }
-
+    static func drawLevel(
+        bucket: Int,
+        isSpendable: Bool,
+        in context: inout GraphicsContext,
+        size: CGSize
+    ) {
         // A perfectly fungible recycler scores a zero-length bar; the minimum keeps a mark.
         let width = max(
-            CoinageStatusMetrics.fraction(forScore: fungibility) * size.width,
+            CoinageStatusMetrics.fraction(forBucket: bucket) * size.width,
             CoinageStatusMetrics.minimumBarWidth
         )
         let inset = CoinageStatusMetrics.outlineWidth / 2
@@ -151,7 +160,7 @@ private extension CoinStatusView {
             cornerRadius: CoinageStatusMetrics.solidBarCornerRadius
         )
 
-        context.fill(path, with: .color(model.isSpendable ? Color.fgStaticWhite : Color.fgError))
+        context.fill(path, with: .color(isSpendable ? Color.fgStaticWhite : Color.fgError))
         context.stroke(
             path,
             with: .color(CoinageStatusMetrics.markFrame),

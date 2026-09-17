@@ -5,7 +5,8 @@ import SwiftUI
 /// Swatch keying one summary figure to its section of the bar above.
 ///
 /// The gaining-privacy swatch is the same ``DSBarberPole`` the bar and the voucher rows use, so
-/// there is one striped thing in the screen rather than three that merely resemble each other.
+/// there is one striped thing in the screen rather than three that merely resemble each other. It
+/// is held still: at this size the sliding reads as jitter, not as progress.
 struct CoinageLegendSwatch: View {
     enum Kind {
         case availableNow
@@ -38,7 +39,7 @@ struct CoinageLegendSwatch: View {
     private var shape: some View {
         switch kind {
         case .availableNow: Color.fgStaticWhite
-        case .gainingPrivacy: DSBarberPole()
+        case .gainingPrivacy: DSBarberPole(isAnimated: false)
         case .unavailable: Color.fgError
         }
     }
@@ -137,7 +138,7 @@ private extension CoinageExplanationView {
                 text: String(localized: .coinageKeySolid),
                 illustration: AnyView(
                     CoinStatusView(
-                        model: .init(hopDots: [], fungibility: 25, isSpendable: true)
+                        model: .init(hopDots: [], bucket: 2, isSpendable: true)
                     )
                 )
             ),
@@ -146,7 +147,7 @@ private extension CoinageExplanationView {
                 text: String(localized: .coinageKeyVoucher),
                 illustration: AnyView(
                     VoucherStatusView(
-                        model: .init(maxFungibility: 55, fungibility: 15, isUnloadable: false)
+                        model: .init(maxBucket: 1, bucket: 4, isUnloadable: false)
                     )
                 )
             )

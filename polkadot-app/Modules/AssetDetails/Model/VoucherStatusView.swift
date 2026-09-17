@@ -6,15 +6,17 @@ import SwiftUI
 /// A voucher's recycler status as one bar: a solid head for the anonymity its recycler can ever
 /// reach, running straight into a barber pole covering the part still being earned.
 ///
-/// Both lengths are inverted scores, so the bar reaches `1 − fungibility/100` of the column and
-/// shrinks towards nothing as the recycler fills. Neither part has a floor of its own — a ring that
-/// can reach full anonymity shows no head at all, and one already at its ceiling shows no pole.
+/// Both lengths are inverted scores, so the bar reaches the current bucket's share of the column
+/// and shrinks towards nothing as the recycler fills. Neither part has a floor of its own — a ring
+/// that can reach full anonymity shows no head at all, and one already at its ceiling shows no
+/// pole.
 struct VoucherStatusView: View {
     struct Model: Equatable {
-        /// Frozen when the voucher entered its ring — the best the ring can still do.
-        let maxFungibility: UInt8
-        /// The ring's fungibility right now.
-        let fungibility: UInt8
+        /// Frozen when the voucher entered its ring — the best the ring can still do. Lower is
+        /// better, so this is the *smallest* bucket the voucher can reach.
+        let maxBucket: Int
+        /// The ring's fungibility bucket right now.
+        let bucket: Int
         /// Whether the current strategy would let this voucher be unloaded immediately.
         let isUnloadable: Bool
     }
@@ -46,7 +48,7 @@ extension VoucherStatusView {
         let solidShare: CGFloat
     }
 
-    /// Sizes the bar to `1 − current/100` of the column, with the head at `1 − max/100`.
+    /// Sizes the bar to the current bucket's share of the column, with the head at the ceiling's.
     ///
     /// A bar that would round away is widened to a square floor rather than vanishing, and the two
     /// parts keep their ratio when that happens — the floor buys visibility, it must not
@@ -60,9 +62,9 @@ extension VoucherStatusView {
     static func layout(for model: Model, width: CGFloat) -> Layout {
         guard width > 0 else { return Layout(barWidth: 0, solidShare: 1) }
 
-        let solidFraction = CoinageStatusMetrics.fraction(forScore: model.maxFungibility)
+        let solidFraction = CoinageStatusMetrics.fraction(forBucket: model.maxBucket)
         let totalFraction = max(
-            CoinageStatusMetrics.fraction(forScore: model.fungibility),
+            CoinageStatusMetrics.fraction(forBucket: model.bucket),
             solidFraction
         )
 

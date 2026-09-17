@@ -62,19 +62,42 @@ enum CoinageStatusMetrics {
     /// Thinner, so the stacked pair keeps some colour inside its frame.
     static let thinFrameWidth: CGFloat = 0.75
 
-    /// Fraction of the column a score occupies: `1 − score/100`.
-    ///
-    /// Inverted on purpose — a highly fungible holding draws a *short* bar, and a poorly
-    /// fungible one stretches across the column.
-    ///
-    /// Linear, so the bar is the score. An earlier square root pulled the low end in hard, which
-    /// read as progress that had not happened: a ring 1% of the way drew a bar 10% short of full.
-    static func fraction(forScore score: UInt8) -> CGFloat {
-        let scale = CGFloat(CoinageConstants.fullFungibility)
-        let clamped = min(max(CGFloat(score), 0), scale)
+    /// Lowest fungibility percentage in each bucket, most fungible first. Ratio is about 1.53 per
+    /// step, so a bucket is roughly a one-and-a-half-fold change in the anonymity set, with the
+    /// last two widened because scores that low are rare and not worth separating.
+    private static let bucketFloors: [UInt8] = [66, 43, 28, 19, 12, 8, 5, 2, 0]
 
-        return 1 - clamped / scale
+    /// Buckets run `0` (fully fungible, no bar) to ``maximumBucket`` (no anonymity, full column).
+    static var maximumBucket: Int { bucketFloors.count - 1 }
+
+    /// Buckets a fungibility percentage onto the log-ish ladder the bars are drawn in.
+    ///
+    /// Logarithmic rather than linear because the meaning of a difference is: going from being
+    /// fungible with one other coin to four is substantial, going from 510 to 511 is not. Quantised
+    /// because discrete lengths are what lets rows with the same standing collapse into one.
+    static func bucket(forScore score: UInt8) -> Int {
+        let clamped = min(score, CoinageConstants.fullFungibility)
+
+        return bucketFloors.firstIndex { clamped >= $0 } ?? maximumBucket
     }
+
+    /// Fraction of the column a bucket occupies.
+    ///
+    /// Inverted on purpose — a highly fungible holding draws a *short* bar, and a poorly fungible
+    /// one stretches across the column.
+    static func fraction(forBucket bucket: Int) -> CGFloat {
+        let clamped = min(max(bucket, 0), maximumBucket)
+
+        return CGFloat(clamped) / CGFloat(maximumBucket)
+    }
+
+    /// Penalty for a coin unloaded as one of a batch: the batch links it to the others that came
+    /// out with it, which the recycler's own score does not account for.
+    ///
+    /// A flat step rather than `log(batch size)` because the batch size is not recorded. Two
+    /// buckets is about a two-and-a-third-fold linkage, which understates a typical batch; it is a
+    /// deliberate approximation, not an estimate.
+    static let batchUnloadPenalty = 2
 
     /// Inner dots drawn inside a provenance circle: one per sibling of the hop, capped so a
     /// large bundle stays legible.
