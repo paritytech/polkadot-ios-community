@@ -180,6 +180,13 @@ final class TabBarBottomChromeController: UIViewController {
         panelController.refreshHeightAfterAnchorChange(animator: animator)
     }
 
+    /// Re-measures the open content panel after its hosted controller changed its own size.
+    /// The scan panel's camera resizes independently of the keyboard notifications, so the
+    /// height cannot be refreshed from those alone.
+    func resizeContentPanel() {
+        panelController.resizeForContentPanel()
+    }
+
     /// Selecting a different action closes the open panel before opening the new one, so the
     /// change reads as a close followed by an open instead of a silent content swap.
     private func togglePanel(_ kind: TabBarPanelKind) {

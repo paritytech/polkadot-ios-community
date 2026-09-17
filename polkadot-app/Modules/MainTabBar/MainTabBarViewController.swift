@@ -348,10 +348,12 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
 
         controller?.onEditingDidBegin = { [weak self] in
             self?.isScanPanelFieldFocused = true
+            self?.chromeController.resizeContentPanel()
         }
 
         controller?.onEditingDidEnd = { [weak self] in
             self?.isScanPanelFieldFocused = false
+            self?.chromeController.resizeContentPanel()
         }
     }
 

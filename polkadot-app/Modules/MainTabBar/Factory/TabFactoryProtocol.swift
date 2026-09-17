@@ -46,10 +46,9 @@ final class TabFactory: TabFactoryProtocol {
     }
 
     func makeScanController() -> ScanPanelViewController? {
-        guard let scanner = WalletQRScanViewFactory.createView(
-            for: scanResultHandler,
-            presentation: .embedded
-        )?.controller else {
+        let scannerView = WalletQRScanViewFactory.createView(for: scanResultHandler, presentation: .embedded)
+
+        guard let scanner = scannerView?.controller as? (UIViewController & ScanPanelScannerControlling) else {
             return nil
         }
 

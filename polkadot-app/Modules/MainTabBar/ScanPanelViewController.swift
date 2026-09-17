@@ -5,12 +5,12 @@ import FoundationExt
 final class ScanPanelViewController: UIViewController, ViewHolder {
     typealias RootViewType = ScanPanelViewLayout
 
-    private let scannerController: UIViewController
+    private let scannerController: UIViewController & ScanPanelScannerControlling
 
     var onEditingDidBegin: (() -> Void)?
     var onEditingDidEnd: (() -> Void)?
 
-    init(scannerController: UIViewController) {
+    init(scannerController: UIViewController & ScanPanelScannerControlling) {
         self.scannerController = scannerController
         super.init(nibName: nil, bundle: nil)
     }
@@ -45,6 +45,10 @@ private extension ScanPanelViewController {
             searchField?.resignFirstResponder()
         }
 
+        rootView.onCameraTapped = { [weak searchField] in
+            searchField?.resignFirstResponder()
+        }
+
         searchField.addTarget(self, action: #selector(editingDidBegin), for: .editingDidBegin)
         searchField.addTarget(self, action: #selector(editingDidEnd), for: .editingDidEnd)
 
@@ -53,13 +57,22 @@ private extension ScanPanelViewController {
 
     @objc
     func editingDidBegin() {
-        rootView.searchRow.setCancelVisible(true)
+        applySearchFieldFocused(true)
         onEditingDidBegin?()
     }
 
     @objc
     func editingDidEnd() {
-        rootView.searchRow.setCancelVisible(false)
+        applySearchFieldFocused(false)
         onEditingDidEnd?()
+    }
+
+    /// Focusing the field shrinks the camera to a thumbnail and disarms recognition, so a code
+    /// cannot be picked up from the sliver of preview left behind the keyboard.
+    func applySearchFieldFocused(_ focused: Bool) {
+        scannerController.setRecognitionArmed(!focused)
+        scannerController.setPreviewCompact(focused)
+        rootView.setCameraCompact(focused)
+        rootView.searchRow.setCancelVisible(focused)
     }
 }
