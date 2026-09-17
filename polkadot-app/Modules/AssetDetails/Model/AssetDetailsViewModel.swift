@@ -25,6 +25,8 @@ struct CoinageHoldingGroupViewModel: Identifiable {
     /// Values in the group, descending, repeats folded into a count. Empty until the denomination
     /// context is known.
     let amounts: String
+    /// How many holdings the group stands for.
+    let count: Int
     /// What the group comes to, bare, no currency symbol.
     let total: String?
 }

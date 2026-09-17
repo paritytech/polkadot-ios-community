@@ -310,8 +310,9 @@ private struct CoinageBalanceBreakdownView: View {
     }
 }
 
-/// One block per distinct depiction: the mark drawn once, the values that share it, and what
-/// they come to.
+/// One block per distinct depiction: the mark drawn once, and what the holdings sharing it come
+/// to. The individual values are dropped — at this level the question is how much of the balance
+/// stands where, not which coin is which.
 private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
@@ -327,16 +328,16 @@ private struct CoinageDetailsView: View {
                     }
 
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(verbatim: group.amounts)
-                            .textStyle(.caption12Regular())
-                            .foregroundStyle(.fgSecondary)
-
-                        Spacer(minLength: 4)
-
                         Text(verbatim: group.total ?? "—")
                             .textStyle(.body14SemiBold())
                             .foregroundStyle(.fgPrimary)
                             .lineLimit(1)
+
+                        Text(verbatim: group.count == 1 ? "" : "in \(group.count)")
+                            .textStyle(.caption12Regular())
+                            .foregroundStyle(.fgSecondary)
+
+                        Spacer(minLength: 0)
                     }
                 }
             }

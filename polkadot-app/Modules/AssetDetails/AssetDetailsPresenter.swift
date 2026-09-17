@@ -342,6 +342,7 @@ private extension AssetDetailsPresenter {
                 id: group.id,
                 status: group.status,
                 amounts: folded(group.exponents.map { amount(forExponent: $0) ?? "—" }),
+                count: group.exponents.count,
                 total: context.map { context in
                     formatted(
                         from: group.exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) },
