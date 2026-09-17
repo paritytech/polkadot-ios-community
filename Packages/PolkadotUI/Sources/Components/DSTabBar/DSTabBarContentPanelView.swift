@@ -89,7 +89,7 @@ public final class DSTabBarContentPanelView: UIView {
         layoutIfNeeded()
     }
 
-    public func preferredHeight(availableHeight: CGFloat) -> CGFloat {
+    public func preferredHeight(availableHeight: CGFloat, reservesCapsule: Bool = true) -> CGFloat {
         guard let measuredView = hostedView ?? contentView, bounds.width > 0 else {
             return DSTabBarMetrics.capsuleHeight
         }
@@ -113,7 +113,8 @@ public final class DSTabBarContentPanelView: UIView {
 
         return DSTabBarPanelLayout.panelHeight(
             contentHeight: measuredSize.height,
-            availableHeight: availableHeight
+            availableHeight: availableHeight,
+            reservesCapsule: reservesCapsule
         )
     }
 

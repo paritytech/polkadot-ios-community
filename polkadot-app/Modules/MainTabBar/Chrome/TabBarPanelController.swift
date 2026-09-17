@@ -155,6 +155,12 @@ final class TabBarPanelController {
     func refreshHeightAfterLayout() {
         surface.updateHeight(for: open, animator: nil)
     }
+
+    /// Re-measures the open panel after the container's bottom anchor moved between the
+    /// safe area and the keyboard, since the capsule strip is only reserved in the former.
+    func refreshHeightAfterAnchorChange(animator: UIViewPropertyAnimator?) {
+        surface.updateHeight(for: open, animator: animator)
+    }
 }
 
 private extension TabBarPanelController {

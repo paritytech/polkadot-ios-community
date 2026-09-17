@@ -6,11 +6,12 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
     typealias RootViewType = ScanPanelViewLayout
 
     private let scannerController: UIViewController
-    private let onSearchTap: () -> Void
 
-    init(scannerController: UIViewController, onSearchTap: @escaping () -> Void) {
+    var onEditingDidBegin: (() -> Void)?
+    var onEditingDidEnd: (() -> Void)?
+
+    init(scannerController: UIViewController) {
         self.scannerController = scannerController
-        self.onSearchTap = onSearchTap
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -30,8 +31,35 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
         rootView.setupScannerView(scannerController.view)
         scannerController.didMove(toParent: self)
 
-        rootView.searchButton.onTap = { [weak self] in
-            self?.onSearchTap()
+        setupSearchHeader()
+    }
+}
+
+// MARK: - Private
+
+private extension ScanPanelViewController {
+    func setupSearchHeader() {
+        let searchField = rootView.searchRow.searchField
+
+        rootView.searchRow.cancelHandler = { [weak searchField] in
+            searchField?.resignFirstResponder()
         }
+
+        searchField.addTarget(self, action: #selector(editingDidBegin), for: .editingDidBegin)
+        searchField.addTarget(self, action: #selector(editingDidEnd), for: .editingDidEnd)
+
+        rootView.searchRow.setCancelVisible(false)
+    }
+
+    @objc
+    func editingDidBegin() {
+        rootView.searchRow.setCancelVisible(true)
+        onEditingDidBegin?()
+    }
+
+    @objc
+    func editingDidEnd() {
+        rootView.searchRow.setCancelVisible(false)
+        onEditingDidEnd?()
     }
 }

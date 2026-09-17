@@ -175,6 +175,11 @@ final class TabBarBottomChromeController: UIViewController {
         panelController.setPanel(kind, animated: animated)
     }
 
+    func setPanelTracksKeyboard(_ tracking: Bool, animator: UIViewPropertyAnimator?) {
+        chromeSurface.setPanelTracksKeyboard(tracking, animator: animator)
+        panelController.refreshHeightAfterAnchorChange(animator: animator)
+    }
+
     /// Selecting a different action closes the open panel before opening the new one, so the
     /// change reads as a close followed by an open instead of a silent content swap.
     private func togglePanel(_ kind: TabBarPanelKind) {
@@ -335,7 +340,8 @@ private extension TabBarBottomChromeController {
     func installBar() {
         chromeSurface.addBar(barView)
         barView.snp.makeConstraints { make in
-            make.bottom.leading.trailing.equalTo(chromeSurface.capsuleLayoutReference)
+            make.bottom.equalToSuperview().offset(-DSTabBarView.bottomGap)
+            make.leading.trailing.equalTo(chromeSurface.capsuleLayoutReference)
             make.height.equalTo(DSTabBarView.capsuleHeight)
         }
 

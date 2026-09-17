@@ -4,12 +4,17 @@ import SnapKit
 import UIKit
 
 final class ScanPanelViewLayout: UIView {
-    let searchButton = SearchContactFieldButton()
+    let searchRow = DSSearchRowView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
 
-        addSubview(searchButton)
+        addSubview(searchRow)
+
+        searchRow.snp.makeConstraints { make in
+            make.leading.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased)
+            make.bottom.equalToSuperview().inset(DSSpacings.small)
+        }
     }
 
     @available(*, unavailable)
@@ -22,12 +27,7 @@ final class ScanPanelViewLayout: UIView {
 
         scannerView.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
-        }
-
-        searchButton.snp.makeConstraints { make in
-            make.top.equalTo(scannerView.snp.bottom)
-            make.leading.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased)
-            make.bottom.equalToSuperview().inset(DSSpacings.small)
+            make.bottom.equalTo(searchRow.snp.top)
         }
     }
 }
