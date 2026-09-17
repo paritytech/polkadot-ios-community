@@ -24,7 +24,7 @@ enum CoinageBreakdownFactory {
         /// bucket for ``Standing/knownLevel``. Both read "least fungible first".
         let severity: Int
         let derivationIndex: DerivationIndex
-        let status: CoinageHoldingViewModel.Status
+        let status: CoinageHoldingStatus
     }
 
     /// One list, ordered least fungible first: unknown histories lead, deepest first, then
@@ -86,6 +86,31 @@ enum CoinageBreakdownFactory {
             }
 
             return lhs.derivationIndex < rhs.derivationIndex
+        }
+    }
+
+    /// One depiction and the holdings that share it.
+    struct Group: Equatable {
+        let id: String
+        let status: CoinageHoldingStatus
+        /// Exponents in display order, one per holding, so a caller can price them and total them.
+        let exponents: [Int16]
+    }
+
+    /// Folds runs of identical depictions. Rows arrive ordered, so anything that draws the same is
+    /// already adjacent and this is a scan. Two rows merge exactly when their status compares
+    /// equal, which is the condition under which they would otherwise draw the same row twice.
+    static func group(_ rows: [Row]) -> [Group] {
+        rows.reduce(into: [Group]()) { groups, row in
+            if let last = groups.last, last.status == row.status {
+                groups[groups.count - 1] = Group(
+                    id: last.id,
+                    status: last.status,
+                    exponents: last.exponents + [row.exponent]
+                )
+            } else {
+                groups.append(Group(id: row.id, status: row.status, exponents: [row.exponent]))
+            }
         }
     }
 

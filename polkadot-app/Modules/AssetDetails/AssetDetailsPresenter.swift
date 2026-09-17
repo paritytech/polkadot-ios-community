@@ -319,11 +319,35 @@ private extension AssetDetailsPresenter {
             return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
         }
 
-        let rows = CoinageBreakdownFactory.rows(from: holdings).map { row in
-            CoinageHoldingViewModel(
-                id: row.id,
-                amount: amount(forExponent: row.exponent),
-                status: row.status
+        /// Counts consecutive repeats rather than tallying the whole run, so the values stay in
+        /// the order the ordering put them in.
+        func folded(_ values: [String]) -> String {
+            var parts: [(value: String, count: Int)] = []
+
+            for value in values {
+                if let last = parts.last, last.value == value {
+                    parts[parts.count - 1].count += 1
+                } else {
+                    parts.append((value, 1))
+                }
+            }
+
+            return parts
+                .map { $0.count > 1 ? "\($0.value) ×\($0.count)" : $0.value }
+                .joined(separator: "   ")
+        }
+
+        let rows = CoinageBreakdownFactory.group(CoinageBreakdownFactory.rows(from: holdings)).map { group in
+            CoinageHoldingGroupViewModel(
+                id: group.id,
+                status: group.status,
+                amounts: folded(group.exponents.map { amount(forExponent: $0) ?? "—" }),
+                total: context.map { context in
+                    formatted(
+                        from: group.exponents.reduce(Decimal.zero) { $0 + context.amount(forExponent: $1) },
+                        includeSymbol: false
+                    )
+                }
             )
         }
 

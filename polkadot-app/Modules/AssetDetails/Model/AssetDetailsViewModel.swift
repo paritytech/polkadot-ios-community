@@ -13,21 +13,25 @@ struct CoinageBalanceBreakdownViewModel {
     let pendingBalance: String
     let symbol: String
     let composition: CoinageCompositionBar.Model
-    /// Coins and vouchers in one list, already ordered for display.
-    let holdings: [CoinageHoldingViewModel]
+    /// Coins and vouchers in one list, already ordered and grouped for display.
+    let holdings: [CoinageHoldingGroupViewModel]
 }
 
-/// A single coin or voucher row: its value, and a number-free status depiction.
-struct CoinageHoldingViewModel: Identifiable {
+/// Everything that draws one depiction: the depiction itself, the values that share it, and what
+/// they come to.
+struct CoinageHoldingGroupViewModel: Identifiable {
     let id: String
-    /// The bare value, no currency symbol. Nil until the denomination context is known.
-    let amount: String?
-    let status: Status
+    let status: CoinageHoldingStatus
+    /// Values in the group, descending, repeats folded into a count. Empty until the denomination
+    /// context is known.
+    let amounts: String
+    /// What the group comes to, bare, no currency symbol.
+    let total: String?
+}
 
-    enum Status: Equatable {
-        case coin(CoinStatusView.Model)
-        case voucher(VoucherStatusView.Model)
-    }
+enum CoinageHoldingStatus: Equatable {
+    case coin(CoinStatusView.Model)
+    case voucher(VoucherStatusView.Model)
 }
 
 protocol AssetDetailsViewModelProtocol: Observation.Observable {
