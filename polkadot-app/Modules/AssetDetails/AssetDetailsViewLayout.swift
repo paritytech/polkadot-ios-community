@@ -310,32 +310,80 @@ private struct CoinageBalanceBreakdownView: View {
     }
 }
 
-/// Two columns, laid out as a grid so the value column takes the width of the widest value in
-/// the list and every depiction starts at the same x. Sizing each row on its own would give the
-/// bars different columns to scale against, and a fixed width would either clip long values or
-/// shrink them out of alignment.
+/// One block per distinct depiction: the mark drawn once, then the values that share it.
+///
+/// Holdings arrive ordered, so anything that draws identically is already adjacent and the
+/// grouping is a scan rather than a sort. Two holdings merge exactly when their status compares
+/// equal, which is the same condition under which they would have drawn the same row twice.
 private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
-            ForEach(breakdown.holdings) { holding in
-                GridRow {
-                    Text(verbatim: holding.amount ?? "—")
-                        .textStyle(.caption12Regular())
-                        .foregroundStyle(.fgPrimary)
-                        .lineLimit(1)
-                        .gridColumnAlignment(.trailing)
-
-                    switch holding.status {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(Self.groups(of: breakdown.holdings)) { group in
+                VStack(alignment: .leading, spacing: 3) {
+                    switch group.status {
                     case let .coin(model):
                         CoinStatusView(model: model)
                     case let .voucher(model):
                         VoucherStatusView(model: model)
                     }
+
+                    Text(verbatim: group.amounts)
+                        .textStyle(.caption12Regular())
+                        .foregroundStyle(.fgSecondary)
                 }
             }
         }
+    }
+}
+
+private extension CoinageDetailsView {
+    struct Group: Identifiable {
+        let id: String
+        let status: CoinageHoldingViewModel.Status
+        /// Values sharing this depiction, descending, repeats folded into a count.
+        let amounts: String
+    }
+
+    static func groups(of holdings: [CoinageHoldingViewModel]) -> [Group] {
+        var groups: [Group] = []
+        var run: [CoinageHoldingViewModel] = []
+
+        func flush() {
+            guard let first = run.first else { return }
+            groups.append(Group(id: first.id, status: first.status, amounts: amounts(of: run)))
+            run = []
+        }
+
+        for holding in holdings {
+            if holding.status != run.first?.status {
+                flush()
+            }
+            run.append(holding)
+        }
+        flush()
+
+        return groups
+    }
+
+    /// Counts consecutive repeats rather than tallying the whole run, so the values stay in the
+    /// order the list put them in.
+    static func amounts(of run: [CoinageHoldingViewModel]) -> String {
+        var parts: [String] = []
+
+        for holding in run {
+            let amount = holding.amount ?? "—"
+
+            if let last = parts.last, last == amount || last.hasPrefix("\(amount) ×") {
+                let count = Int(last.split(separator: "×").last ?? "1") ?? 1
+                parts[parts.count - 1] = "\(amount) ×\(count + 1)"
+            } else {
+                parts.append(amount)
+            }
+        }
+
+        return parts.joined(separator: "   ")
     }
 }
 
