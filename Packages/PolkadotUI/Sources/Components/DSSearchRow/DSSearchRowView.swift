@@ -79,9 +79,9 @@ public final class DSSearchRowView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// Controls whether the Cancel control is visible. Defaults to true so hosts keep their
-    /// current appearance unless they opt out. When hidden, the search capsule stretches
-    /// to fill the available width; when visible, it stops before the Cancel control.
+    /// Controls whether the Cancel control is visible (shown only while the field is edited).
+    /// When visible, the search capsule stops before the button; when hidden, it stretches
+    /// to fill the row's width.
     public func setCancelVisible(_ visible: Bool) {
         cancelButton.isHidden = !visible
 
