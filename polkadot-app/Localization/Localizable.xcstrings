@@ -2004,7 +2004,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coins show one circle per past payment. Dots represent other coins that moved with the payment."
+            "value": "Each circle marks one past payment the coin was part of, so more circles mean a longer payment history. The dots inside a circle are other coins that moved together with that payment. Those extra coins lower fungibility, so the fewer dots you see, the more fungible the coin is."
           }
         },
         "es-ES": {
@@ -2021,7 +2021,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A single block means no past payments at all. The shorter it is, the more fungible the coin."
+            "value": "This means the coin has no past payments at all. The length of the block reflects how fungible the coin is. The shorter the block, the more fungible the coin."
           }
         },
         "es-ES": {
@@ -2038,7 +2038,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "A thin red and orange line means we have no record for that part of the coin's past."
+            "value": "This marks a stretch of the coin’s past that we have no record of. Since that part of its history is unknown, we can’t assess its fungibility there. It’s just a gap in the data, not a judgment on the coin."
           }
         },
         "es-ES": {
@@ -2055,7 +2055,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coins that gain privacy. The solid block is how fungible they will be at best; the striped part is the current level."
+            "value": "This shows a coin that is gaining fungibility over time. The solid part is the best fungibility the coin can eventually reach, and the striped part is its current level, which shrinks toward the solid part as the coin improves ist fungibility."
           }
         },
         "es-ES": {
@@ -2072,13 +2072,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reloading"
+            "value": "Clearing"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Recargando"
+            "value": "Compensando"
           }
         }
       }
@@ -2106,13 +2106,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spendable"
+            "value": "Ready"
           }
         },
         "es-ES": {
           "stringUnit": {
             "state": "translated",
-            "value": "Disponible"
+            "value": "Listo"
           }
         }
       }
