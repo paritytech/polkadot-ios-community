@@ -2066,6 +2066,23 @@
         }
       }
     },
+    "coinageLessFungible": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Less fungible"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menos fungible"
+          }
+        }
+      }
+    },
     "coinageLoading": {
       "extractionState": "manual",
       "localizations": {
@@ -2079,6 +2096,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Compensando"
+          }
+        }
+      }
+    },
+    "coinageMoreFungible": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More fungible"
+          }
+        },
+        "es-ES": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más fungible"
           }
         }
       }

@@ -114,6 +114,16 @@ enum CoinageBreakdownFactory {
         }
     }
 
+    /// Where a depiction sits on the fungibility ladder.
+    static func band(for status: CoinageHoldingStatus) -> Int {
+        switch status {
+        case let .coin(model):
+            model.bucket ?? CoinageFungibilityDistribution.unknownBand
+        case let .voucher(model):
+            model.bucket
+        }
+    }
+
     /// The bucket a coin's bar is drawn at, or `nil` when we have no record of its recycler.
     ///
     /// A coin that left in a batch is linked to everything that left with it, which the recycler's

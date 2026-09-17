@@ -354,6 +354,14 @@ private extension AssetDetailsPresenter {
 
         let amounts = coinageAmounts ?? .zero
 
+        let bands = context.map { context in
+            distribution(
+                of: CoinageBreakdownFactory.group(CoinageBreakdownFactory.rows(from: holdings)),
+                value: { context.amount(forExponent: $0) },
+                formatted: { formatted(from: $0, includeSymbol: false) }
+            )
+        } ?? .empty
+
         let breakdown = CoinageBalanceBreakdownViewModel(
             totalBalance: formatted(from: amounts.total, includeSymbol: false),
             availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
@@ -363,8 +371,40 @@ private extension AssetDetailsPresenter {
             composition: context.map {
                 CoinageBreakdownFactory.composition(of: holdings, context: $0)
             } ?? .empty,
-            holdings: rows
+            holdings: rows,
+            distribution: bands
         )
         view?.didReceive(coinageBreakdown: breakdown)
+    }
+
+    /// Totals every band on the ladder, empty ones included, and scales them against the fullest
+    /// so the tallest band always reaches the top of the chart whatever the balance is.
+    func distribution(
+        of groups: [CoinageBreakdownFactory.Group],
+        value: (Int16) -> Decimal,
+        formatted: (Decimal) -> String
+    ) -> CoinageFungibilityDistribution {
+        var totals: [Int: Decimal] = [:]
+
+        for group in groups {
+            let band = CoinageBreakdownFactory.band(for: group.status)
+            totals[band, default: 0] += group.exponents.reduce(Decimal.zero) { $0 + value($1) }
+        }
+
+        let ladder = [CoinageFungibilityDistribution.unknownBand]
+            + (0 ... CoinageStatusMetrics.maximumBucket).reversed()
+        let peak = totals.values.max() ?? 0
+
+        return CoinageFungibilityDistribution(
+            bands: ladder.map { band in
+                let total = totals[band] ?? 0
+
+                return .init(
+                    id: band,
+                    share: peak > 0 ? NSDecimalNumber(decimal: total / peak).doubleValue : 0,
+                    total: total > 0 ? formatted(total) : nil
+                )
+            }
+        )
     }
 }

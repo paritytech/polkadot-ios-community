@@ -310,38 +310,67 @@ private struct CoinageBalanceBreakdownView: View {
     }
 }
 
-/// One block per distinct depiction: the mark drawn once, and what the holdings sharing it come
-/// to. The individual values are dropped — at this level the question is how much of the balance
-/// stands where, not which coin is which.
+/// The balance as a shape on the fungibility ladder rather than as a list of holdings.
+///
+/// Least fungible on the left, so money moves rightwards as its recyclers fill and the picture
+/// reads as progress. Empty bands are drawn too: the gap ahead of a holding is the part of the
+/// journey still to come, and hiding it would make a young wallet look finished.
 private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
+    private static let chartHeight: CGFloat = 72
+    private static let minimumBandHeight: CGFloat = 3
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(breakdown.holdings) { group in
-                VStack(alignment: .leading, spacing: 3) {
-                    switch group.status {
-                    case let .coin(model):
-                        CoinStatusView(model: model)
-                    case let .voucher(model):
-                        VoucherStatusView(model: model)
-                    }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(verbatim: group.total ?? "—")
-                            .textStyle(.body14SemiBold())
-                            .foregroundStyle(.fgPrimary)
-                            .lineLimit(1)
-
-                        Text(verbatim: group.count == 1 ? "" : "in \(group.count)")
-                            .textStyle(.caption12Regular())
-                            .foregroundStyle(.fgSecondary)
-
-                        Spacer(minLength: 0)
-                    }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .bottom, spacing: 4) {
+                ForEach(breakdown.distribution.bands) { band in
+                    bandColumn(band)
                 }
             }
+            .frame(height: Self.chartHeight, alignment: .bottom)
+
+            HStack {
+                Text(verbatim: String(localized: .coinageLessFungible))
+                    .textStyle(.caption12Regular())
+                    .foregroundStyle(.fgSecondary)
+
+                Spacer(minLength: 8)
+
+                Text(verbatim: String(localized: .coinageMoreFungible))
+                    .textStyle(.caption12Regular())
+                    .foregroundStyle(.fgSecondary)
+            }
         }
+    }
+
+    @ViewBuilder
+    private func bandColumn(_ band: CoinageFungibilityDistribution.Band) -> some View {
+        let height = band.share > 0
+            ? max(band.share * Self.chartHeight, Self.minimumBandHeight)
+            : 0
+
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+
+            RoundedRectangle(cornerRadius: CoinageStatusMetrics.levelBarCornerRadius)
+                .fill(Self.fill(for: band))
+                .overlay(
+                    RoundedRectangle(cornerRadius: CoinageStatusMetrics.levelBarCornerRadius)
+                        .stroke(
+                            CoinageStatusMetrics.markFrame,
+                            lineWidth: band.share > 0 ? CoinageStatusMetrics.markFrameWidth : 0
+                        )
+                )
+                .frame(height: height)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The far right of the ladder is where a holding has nothing left to earn, so it takes the
+    /// same white the summary bar gives spendable value. Everything short of that is still red.
+    private static func fill(for band: CoinageFungibilityDistribution.Band) -> Color {
+        band.id == 0 ? Color.fgStaticWhite : Color.fgError
     }
 }
 

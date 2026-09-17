@@ -15,6 +15,7 @@ struct CoinageBalanceBreakdownViewModel {
     let composition: CoinageCompositionBar.Model
     /// Coins and vouchers in one list, already ordered and grouped for display.
     let holdings: [CoinageHoldingGroupViewModel]
+    let distribution: CoinageFungibilityDistribution
 }
 
 /// Everything that draws one depiction: the depiction itself, the values that share it, and what
@@ -34,6 +35,28 @@ struct CoinageHoldingGroupViewModel: Identifiable {
 enum CoinageHoldingStatus: Equatable {
     case coin(CoinStatusView.Model)
     case voucher(VoucherStatusView.Model)
+}
+
+/// The balance laid out along the fungibility ladder, least fungible first.
+///
+/// Every band is present whether or not anything stands in it, so the shape is comparable from one
+/// reading to the next and the empty stretch ahead of a holding is visible.
+struct CoinageFungibilityDistribution: Equatable {
+    struct Band: Equatable, Identifiable {
+        /// ``CoinageFungibilityDistribution/unknownBand`` for holdings with no recycler record,
+        /// otherwise the fungibility bucket.
+        let id: Int
+        /// Height against the fullest band, in `0...1`.
+        let share: Double
+        /// Bare total, no currency symbol. Nil when nothing stands here.
+        let total: String?
+    }
+
+    static let unknownBand = -1
+
+    let bands: [Band]
+
+    static let empty = CoinageFungibilityDistribution(bands: [])
 }
 
 protocol AssetDetailsViewModelProtocol: Observation.Observable {
