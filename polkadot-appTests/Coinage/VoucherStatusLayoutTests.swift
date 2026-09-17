@@ -7,7 +7,7 @@ import Testing
 @Suite("Voucher status bar layout")
 struct VoucherStatusLayoutTests {
     private let column: CGFloat = 200
-    private let minimum = CoinageStatusMetrics.minimumBarWidth
+    private let minimum = CoinageStatusMetrics.minimumLevelBarWidth
     private let worst = CoinageStatusMetrics.maximumBucket
 
     private func layout(max: Int, current: Int, width: CGFloat? = nil) -> VoucherStatusView.Layout {

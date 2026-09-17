@@ -29,15 +29,15 @@ struct VoucherStatusView: View {
 
             DSProportionalBar(
                 segments: Self.segments(for: model, layout: layout),
-                height: CoinageStatusMetrics.barHeight,
-                cornerStyle: .rounded(radius: CoinageStatusMetrics.solidBarCornerRadius),
+                height: CoinageStatusMetrics.levelBarHeight,
+                cornerStyle: .rounded(radius: CoinageStatusMetrics.levelBarCornerRadius),
                 outlineColor: CoinageStatusMetrics.markFrame,
                 outlineWidth: CoinageStatusMetrics.markFrameWidth
             )
             .frame(width: layout.barWidth)
             .frame(width: geometry.size.width, alignment: .leading)
         }
-        .frame(height: CoinageStatusMetrics.barHeight)
+        .frame(height: CoinageStatusMetrics.levelBarHeight)
     }
 }
 
@@ -68,7 +68,7 @@ extension VoucherStatusView {
             solidFraction
         )
 
-        let barWidth = min(max(totalFraction * width, CoinageStatusMetrics.minimumBarWidth), width)
+        let barWidth = min(max(totalFraction * width, CoinageStatusMetrics.minimumLevelBarWidth), width)
 
         return Layout(
             barWidth: barWidth,

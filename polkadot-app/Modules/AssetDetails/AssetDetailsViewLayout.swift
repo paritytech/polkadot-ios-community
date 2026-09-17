@@ -318,11 +318,11 @@ private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 18) {
+        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
             ForEach(breakdown.holdings) { holding in
                 GridRow {
                     Text(verbatim: holding.amount ?? "—")
-                        .textStyle(.body14Regular())
+                        .textStyle(.caption12Regular())
                         .foregroundStyle(.fgPrimary)
                         .lineLimit(1)
                         .gridColumnAlignment(.trailing)

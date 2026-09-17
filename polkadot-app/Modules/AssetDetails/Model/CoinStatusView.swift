@@ -28,7 +28,9 @@ struct CoinStatusView: View {
         Canvas { context, size in
             Self.draw(model, in: &context, size: size)
         }
-        .frame(height: CoinageStatusMetrics.barHeight)
+        .frame(height: model.bucket == nil
+            ? CoinageStatusMetrics.barHeight
+            : CoinageStatusMetrics.levelBarHeight)
     }
 }
 
@@ -146,7 +148,7 @@ private extension CoinStatusView {
         // A perfectly fungible recycler scores a zero-length bar; the minimum keeps a mark.
         let width = max(
             CoinageStatusMetrics.fraction(forBucket: bucket) * size.width,
-            CoinageStatusMetrics.minimumBarWidth
+            CoinageStatusMetrics.minimumLevelBarWidth
         )
         let inset = CoinageStatusMetrics.outlineWidth / 2
         let rect = CGRect(
@@ -157,7 +159,7 @@ private extension CoinStatusView {
         )
         let path = Path(
             roundedRect: rect,
-            cornerRadius: CoinageStatusMetrics.solidBarCornerRadius
+            cornerRadius: CoinageStatusMetrics.levelBarCornerRadius
         )
 
         context.fill(path, with: .color(isSpendable ? Color.fgStaticWhite : Color.fgError))

@@ -10,6 +10,14 @@ enum CoinageStatusMetrics {
     /// Height of every depiction, and so also the diameter of a provenance circle.
     static let barHeight: CGFloat = 21
     static let summaryBarHeight: CGFloat = 20
+    /// Height of a level bar. Shorter than ``barHeight`` because a bar carries no internal detail,
+    /// unlike a provenance circle, so it costs nothing to flatten.
+    static let levelBarHeight: CGFloat = 12
+    /// Square floor for a level bar, so a near-zero length still leaves a mark.
+    static let minimumLevelBarWidth: CGFloat = levelBarHeight
+    /// Kept to the same share of the height as ``solidBarCornerRadius`` is of ``barHeight``, so a
+    /// floored level bar still reads as a rounded square rather than as a provenance circle.
+    static let levelBarCornerRadius: CGFloat = 3
     static let outlineWidth: CGFloat = 1
     /// Gap between circles, and between the two bars of a voucher row.
     static let itemSpacing: CGFloat = 4
