@@ -366,6 +366,8 @@ private extension AssetDetailsPresenter {
             )
         } ?? .empty
 
+        let matrix = matrix(of: groups, amount: amount(forExponent:))
+
         let breakdown = CoinageBalanceBreakdownViewModel(
             totalBalance: formatted(from: amounts.total, includeSymbol: false),
             availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
@@ -376,9 +378,40 @@ private extension AssetDetailsPresenter {
                 CoinageBreakdownFactory.composition(of: holdings, context: $0)
             } ?? .empty,
             holdings: rows,
-            distribution: bands
+            distribution: bands,
+            matrix: matrix
         )
         view?.didReceive(coinageBreakdown: breakdown)
+    }
+
+    /// Counts holdings per denomination and band. Denominations descend by value; every band is a
+    /// column whether or not anything stands in it, so the columns line up across rows.
+    func matrix(
+        of groups: [CoinageBreakdownFactory.Group],
+        amount: (Int16) -> String?
+    ) -> CoinageHoldingMatrix {
+        let ladder = [CoinageFungibilityDistribution.unknownBand]
+            + (0 ... CoinageStatusMetrics.maximumBucket).reversed()
+
+        var counts: [Int16: [Int: Int]] = [:]
+
+        for group in groups {
+            let band = CoinageBreakdownFactory.band(for: group.status)
+
+            for exponent in group.exponents {
+                counts[exponent, default: [:]][band, default: 0] += 1
+            }
+        }
+
+        let rows = counts.keys.sorted(by: >).map { exponent in
+            CoinageHoldingMatrix.Row(
+                id: exponent,
+                amount: amount(exponent) ?? "—",
+                counts: ladder.map { counts[exponent]?[$0] ?? 0 }
+            )
+        }
+
+        return CoinageHoldingMatrix(bands: ladder, rows: rows)
     }
 
     /// Totals every band on the ladder, empty ones included, and scales them against the fullest

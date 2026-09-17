@@ -16,6 +16,7 @@ struct CoinageBalanceBreakdownViewModel {
     /// Coins and vouchers in one list, already ordered and grouped for display.
     let holdings: [CoinageHoldingGroupViewModel]
     let distribution: CoinageFungibilityDistribution
+    let matrix: CoinageHoldingMatrix
 }
 
 /// Everything that draws one depiction: the depiction itself, the values that share it, and what
@@ -38,6 +39,24 @@ struct CoinageHoldingGroupViewModel: Identifiable {
 enum CoinageHoldingStatus: Equatable {
     case coin(CoinStatusView.Model)
     case voucher(VoucherStatusView.Model)
+}
+
+/// Holdings crossed against the fungibility ladder: one row per denomination, one column per
+/// band, so the joint picture is visible rather than one axis collapsed into the other.
+struct CoinageHoldingMatrix: Equatable {
+    struct Row: Equatable, Identifiable {
+        /// The denomination's exponent, which is also its order.
+        let id: Int16
+        let amount: String
+        /// Holdings in each band, in the same order as ``CoinageHoldingMatrix/bands``.
+        let counts: [Int]
+    }
+
+    /// Ladder ids, least fungible first.
+    let bands: [Int]
+    let rows: [Row]
+
+    static let empty = CoinageHoldingMatrix(bands: [], rows: [])
 }
 
 /// The balance laid out along the fungibility ladder, least fungible first.
