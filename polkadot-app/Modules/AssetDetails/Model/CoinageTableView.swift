@@ -79,8 +79,10 @@ extension CoinageTableView {
         }
     }
 
-    /// Alternate rows carry one coin fewer and are centred, which offsets them by half a pitch
-    /// without any explicit indent: no coin sits directly below another and the gaps interlock.
+    /// Every row sits on one lattice, odd rows indented half a pitch, so the offset holds however
+    /// many coins a row ends up with. Centring each row on its own contents would look tidier until
+    /// a short last row re-centred itself directly under the row above and broke the interlock, so
+    /// the final row is left short and off-centre instead.
     static func layout(_ coins: [Coin], sizing: Sizing, width: CGFloat) -> [Placement] {
         let pitch = diameter(forTier: 3, sizing: sizing) + gap
 
@@ -90,15 +92,18 @@ extension CoinageTableView {
         // Hex packing: rows sit a little closer than a full pitch because they interlock.
         let step = pitch * 0.87
 
+        // The lattice is laid out for a full row, and every row is placed against it.
+        let origin = (width - (CGFloat(columns) * pitch - gap)) / 2 + pitch / 2
+
         var placements: [Placement] = []
         var index = 0
         var row = 0
 
         while index < coins.count {
-            let slots = row.isMultiple(of: 2) ? columns : max(columns - 1, 1)
+            let isIndented = !row.isMultiple(of: 2)
+            let slots = isIndented ? max(columns - 1, 1) : columns
             let count = min(slots, coins.count - index)
-            let rowWidth = CGFloat(count) * pitch - gap
-            let first = (width - rowWidth) / 2 + pitch / 2
+            let first = origin + (isIndented ? pitch / 2 : 0)
 
             for column in 0 ..< count {
                 let coin = coins[index + column]
