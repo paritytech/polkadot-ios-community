@@ -315,7 +315,7 @@ private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
     var body: some View {
-        CoinageTableView(coins: coins, sizing: .uniform)
+        CoinageTableView(coins: coins, sizing: .byTier)
     }
 
     /// An empty wallet falls back to the design sample, so the depiction stays reviewable when the
