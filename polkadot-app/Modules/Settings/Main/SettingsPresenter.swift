@@ -3,6 +3,7 @@ import UIKit
 import UIKitExt
 import SafariServices
 import Coinage
+import Products
 
 @MainActor
 final class SettingsPresenter {
@@ -56,9 +57,15 @@ private extension SettingsPresenter {
              .linkedDevices,
              .apps,
              .contactUs,
-             .blockedUsers:
+             .blockedUsers,
+             .merchantMode:
             nil
         }
+    }
+
+    func showWebPage(for cell: SettingsViewModel.CellType) {
+        guard let url = fetchURL(for: cell), let view else { return }
+        wireframe.showWeb(url: url, from: view, style: WebPresentableStyle(mode: .automatic))
     }
 
     var selectedThemeName: String {
@@ -114,13 +121,7 @@ extension SettingsPresenter: SettingsPresenterProtocol {
         switch cell {
         case .termsOfUse,
              .privacy:
-            guard
-                let url = fetchURL(for: cell),
-                let view
-            else {
-                return
-            }
-            wireframe.showWeb(url: url, from: view, style: WebPresentableStyle(mode: .automatic))
+            showWebPage(for: cell)
         case .backup:
             wireframe.showBackupFlow(from: view)
         case .theme:
@@ -139,6 +140,8 @@ extension SettingsPresenter: SettingsPresenterProtocol {
             interactor.openMailApp()
         case .blockedUsers:
             wireframe.showBlockedUsers(from: view)
+        case .merchantMode:
+            interactor.openMerchantMode()
         }
     }
 }
@@ -186,5 +189,13 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
         guard isEnabled != isTabBarLabelsEnabled else { return }
         isTabBarLabelsEnabled = isEnabled
         refreshContent()
+    }
+
+    func didReceiveMerchantPage(_ page: ProductPage) {
+        wireframe.showMerchantMode(page: page, from: view)
+    }
+
+    func didFailToOpenMerchantMode() {
+        wireframe.showMerchantModeUnavailable(from: view)
     }
 }

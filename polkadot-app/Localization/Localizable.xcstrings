@@ -2652,6 +2652,17 @@
         }
       }
     },
+    "settings.cell.merchant.mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merchant mode"
+          }
+        }
+      }
+    },
     "settings.cell.privacy": {
       "extractionState": "manual",
       "localizations": {
@@ -2703,6 +2714,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Settings"
+          }
+        }
+      }
+    },
+    "settings.merchant.mode.unavailable": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Merchant mode isn’t available right now. Please try again later."
           }
         }
       }
@@ -2802,6 +2824,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Legal"
+          }
+        }
+      }
+    },
+    "settings.section.other": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
           }
         }
       }

@@ -80,13 +80,19 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             flowStateProvider: flowStateProvider
         )
 
+        let merchantPrewarmer = ProductContentPrewarmer(
+            makeLabel: { AppConfig.DotNs.dotNsMerchant },
+            chainRegistryClosure: chainRegistryClosure,
+            flowStateProvider: flowStateProvider
+        )
+
         let interactor = RootInteractor(
             chainRegistryClosure: chainRegistryClosure,
             migrator: migrator,
             logger: Logger.shared,
             resolver: resolver,
             tokenManager: JWTTokenManager.shared,
-            browsePrewarmer: browsePrewarmer
+            productPrewarmers: [browsePrewarmer, merchantPrewarmer]
         )
 
         let presenter = RootPresenter(

@@ -1,6 +1,8 @@
 import Foundation
 import UIKit
 import UIKitExt
+import DesignSystem
+import Products
 
 @MainActor
 final class SettingsWireframe: SettingsWireframeProtocol {
@@ -107,5 +109,53 @@ final class SettingsWireframe: SettingsWireframeProtocol {
         controller.hidesBottomBarWhenPushed = true
 
         view.controller.navigationController?.pushViewController(controller, animated: true)
+    }
+
+    func showMerchantMode(page: ProductPage, from view: (any SettingsViewProtocol)?) {
+        let title = String(localized: .settingsCellMerchantMode)
+        let configuration = SPAConfiguration(
+            title: title,
+            isRootScreen: false,
+            showMoreButton: false,
+            page: page
+        )
+
+        guard
+            let view,
+            let spaView = SPAViewFactory.createView(
+                configuration: configuration,
+                flowState: flowStateProvider.flowState()
+            )
+        else {
+            return
+        }
+
+        let controller = spaView.controller
+        controller.navigationItem.title = title
+
+        let closeButton = UIBarButtonItem(
+            image: UIImage(systemName: "xmark"),
+            primaryAction: UIAction { [weak controller] _ in
+                controller?.dismiss(animated: true)
+            }
+        )
+        closeButton.tintColor = .fgPrimary
+        controller.navigationItem.rightBarButtonItem = closeButton
+
+        let navigation = AppNavigationController(rootViewController: controller)
+        navigation.barSettings = .defaultSettings.bySettingCloseButton(false)
+        navigation.modalPresentationStyle = .fullScreen
+        view.controller.present(navigation, animated: true)
+    }
+
+    func showMerchantModeUnavailable(from view: (any SettingsViewProtocol)?) {
+        let viewModel = AlertPresentableViewModel(
+            title: String(localized: .settingsCellMerchantMode),
+            message: String(localized: .settingsMerchantModeUnavailable),
+            actions: [],
+            closeActionTitle: String(localized: .Common.close)
+        )
+
+        present(viewModel: viewModel, style: .alert, from: view)
     }
 }

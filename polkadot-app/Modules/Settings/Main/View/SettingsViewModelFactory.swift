@@ -81,6 +81,7 @@ private extension SettingsViewModelFactory {
         case .termsOfUse,
              .privacy: .iconFile
         case .contactUs: .iconCircleHelp
+        case .merchantMode: .iconStore
         }
     }
 
@@ -108,7 +109,8 @@ private extension SettingsViewModelFactory {
              .blockedUsers,
              .termsOfUse,
              .privacy,
-             .contactUs:
+             .contactUs,
+             .merchantMode:
             .chevron
         }
     }
