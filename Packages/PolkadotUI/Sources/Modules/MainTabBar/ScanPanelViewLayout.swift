@@ -94,6 +94,14 @@ public final class ScanPanelViewLayout: UIView {
             fullHorizontalConstraints.forEach { $0.activate() }
         }
 
+        let animator = UIViewPropertyAnimator(
+            duration: DSTabBarTabsPanelView.openDuration,
+            dampingRatio: DSTabBarTabsPanelView.openDampingRatio
+        ) { [self] in
+            layoutIfNeeded()
+        }
+        animator.startAnimation()
+
         cameraTapRecognizer.isEnabled = compact
     }
 }

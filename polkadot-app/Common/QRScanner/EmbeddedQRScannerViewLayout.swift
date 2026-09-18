@@ -12,6 +12,8 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
         static let previewFadeDuration: TimeInterval = 0.25
     }
 
+    let previewView = CameraPreviewView()
+
     override func setupLayout() {
         backgroundColor = .clear
 
@@ -23,6 +25,11 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
         qrFrameView.layer.masksToBounds = true
         qrFrameView.fillColor = .clear
         qrFrameView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        qrFrameView.addSubview(previewView)
+        previewView.snp.makeConstraints { make in
             make.edges.equalToSuperview()
         }
 
