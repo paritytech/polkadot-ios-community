@@ -2421,6 +2421,17 @@
         }
       }
     },
+    "root.init.loading.hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is taking longer than usual"
+          }
+        }
+      }
+    },
     "root.init.failure.subtitle": {
       "extractionState": "manual",
       "localizations": {
@@ -2443,17 +2454,7 @@
         }
       }
     },
-    "root.init.waiting.subtitle": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Turn off Airplane Mode or check your internet"
-          }
-        }
-      }
-    },
+
     "searchContact.NoSuchUsername": {
       "extractionState": "manual",
       "localizations": {

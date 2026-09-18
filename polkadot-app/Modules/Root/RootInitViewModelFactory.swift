@@ -2,7 +2,7 @@ import UIKit
 
 protocol RootInitViewModelMaking {
     func makeInitial() -> RootInitViewLayout.ViewModel
-    func makeWaitingForNetwork() -> RootInitViewLayout.ViewModel
+    func makeLoadingHint() -> RootInitViewLayout.ViewModel
     func makeFailure() -> RootInitViewLayout.ViewModel
 }
 
@@ -11,8 +11,8 @@ final class RootInitViewModelFactory: RootInitViewModelMaking {
         .loading(hint: nil)
     }
 
-    func makeWaitingForNetwork() -> RootInitViewLayout.ViewModel {
-        .loading(hint: String(localized: .rootInitWaitingSubtitle))
+    func makeLoadingHint() -> RootInitViewLayout.ViewModel {
+        .loading(hint: String(localized: .rootInitLoadingHint))
     }
 
     func makeFailure() -> RootInitViewLayout.ViewModel {

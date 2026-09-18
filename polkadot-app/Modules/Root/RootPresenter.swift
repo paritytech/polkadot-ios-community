@@ -2,12 +2,15 @@ import UIKit
 
 @MainActor
 final class RootPresenter {
+    private static let loadingHintDelay: Duration = .seconds(3)
+
     weak var view: RootViewProtocol?
     let wireframe: RootWireframeProtocol
     let interactor: RootInteractorInputProtocol
     let viewModelFactory: RootInitViewModelMaking
 
     private var onComplete: (() -> Void)?
+    private var loadingHintTask: Task<Void, Never>?
 
     init(
         wireframe: RootWireframeProtocol,
@@ -25,17 +28,20 @@ extension RootPresenter: RootPresenterProtocol {
         self.onComplete = onComplete
 
         view?.didReceive(viewModel: viewModelFactory.makeInitial())
+        scheduleLoadingHint()
         interactor.setup()
     }
 
     func retry() {
         view?.didReceive(viewModel: viewModelFactory.makeInitial())
+        scheduleLoadingHint()
         interactor.retrySetup()
     }
 }
 
 extension RootPresenter: RootInteractorOutputProtocol {
     func didDecide(destination: RootDestination) {
+        cancelLoadingHint()
         show(destination)
 
         onComplete?()
@@ -43,6 +49,7 @@ extension RootPresenter: RootInteractorOutputProtocol {
     }
 
     func didFailSetup() {
+        cancelLoadingHint()
         view?.didReceive(viewModel: viewModelFactory.makeFailure())
     }
 
@@ -71,6 +78,22 @@ private extension RootPresenter {
         case .broken:
             wireframe.showBroken()
         }
+    }
+
+    func scheduleLoadingHint() {
+        cancelLoadingHint()
+
+        loadingHintTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.loadingHintDelay)
+            guard !Task.isCancelled, let self else { return }
+
+            view?.didReceive(viewModel: viewModelFactory.makeLoadingHint())
+        }
+    }
+
+    func cancelLoadingHint() {
+        loadingHintTask?.cancel()
+        loadingHintTask = nil
     }
 }
 

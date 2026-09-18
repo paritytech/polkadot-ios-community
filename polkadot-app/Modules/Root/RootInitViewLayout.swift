@@ -18,6 +18,16 @@ final class RootInitViewLayout: UIView {
         return view
     }()
 
+    private let hintLabel: Label = {
+        let label = Label()
+        label.style = .body14Regular()
+        label.textColor = UIColor.fgTertiary
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.isHidden = true
+        return label
+    }()
+
     private let issueView: TopBottomLabelView = {
         let view = TopBottomLabelView()
         view.topLabel.style = .title16SemiBold()
@@ -73,14 +83,10 @@ extension RootInitViewLayout {
     func bind(viewModel: ViewModel) {
         switch viewModel {
         case let .loading(hint):
-            guard let hint else {
-                animateIssueDismissal()
-                return
-            }
-
-            showIssue(title: nil, subtitle: hint)
-            retryButton.setHidden(true)
+            dismissIssue()
+            setHint(hint)
         case let .failed(issue):
+            setHint(nil)
             showIssue(title: issue.title, subtitle: issue.subtitle)
             retryButton.setHidden(false)
         }
@@ -97,6 +103,7 @@ private extension RootInitViewLayout {
         }
 
         stackView.addArrangedSubview(logoImageView)
+        stackView.addArrangedSubview(hintLabel)
         stackView.addArrangedSubview(issueView)
         stackView.addArrangedSubview(retryButton)
 
@@ -116,35 +123,50 @@ private extension RootInitViewLayout {
         delegate?.didTapRetry()
     }
 
-    func showIssue(title: String?, subtitle: String) {
-        issueView.topLabel.text = title
-        issueView.topLabel.setHidden(title == nil)
-        issueView.bottomLabel.text = subtitle
+    func setHint(_ hint: String?) {
+        guard let hint else {
+            animateDismissal(of: hintLabel)
+            return
+        }
 
-        animateIssueAppearance()
+        hintLabel.text = hint
+        animateAppearance(of: hintLabel)
     }
 
-    func animateIssueAppearance() {
-        guard issueView.isHidden else { return }
-        issueView.alpha = 0
+    func showIssue(title: String, subtitle: String) {
+        issueView.topLabel.text = title
+        issueView.bottomLabel.text = subtitle
+
+        animateAppearance(of: issueView)
+    }
+
+    func dismissIssue() {
+        animateDismissal(of: issueView) { [retryButton] in
+            retryButton.setHidden(true)
+        }
+    }
+
+    func animateAppearance(of view: UIView) {
+        guard view.isHidden else { return }
+        view.alpha = 0
 
         UIView.animate(springDuration: 0.3, bounce: 0) { [weak self] in
-            self?.issueView.setHidden(false)
+            view.setHidden(false)
             self?.layoutIfNeeded()
         }
 
-        UIView.animate(springDuration: 0.3, bounce: 0, delay: 0.25) { [issueView] in
-            issueView.alpha = 1
+        UIView.animate(springDuration: 0.3, bounce: 0, delay: 0.25) {
+            view.alpha = 1
         }
     }
 
-    func animateIssueDismissal() {
-        guard !issueView.isHidden else { return }
+    func animateDismissal(of view: UIView, alongside extraChanges: @escaping () -> Void = {}) {
+        guard !view.isHidden else { return }
 
         UIView.animate(springDuration: 0.35, bounce: 0) { [weak self] in
-            self?.issueView.alpha = 0
-            self?.issueView.setHidden(true)
-            self?.retryButton.setHidden(true)
+            view.alpha = 0
+            view.setHidden(true)
+            extraChanges()
             self?.layoutIfNeeded()
         }
     }
