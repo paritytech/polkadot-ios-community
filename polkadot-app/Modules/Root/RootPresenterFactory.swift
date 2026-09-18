@@ -50,7 +50,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             flowStateProvider: flowStateProvider
         )
 
-        let migrator = createDatabaseMigrator()
+        let migrator = createLaunchMigrator()
 
         let jailbreakDetector = JailbreakDetector(
             device: UIDevice.current,
@@ -117,7 +117,16 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
         return presenter
     }
 
-    private static func createDatabaseMigrator() -> Migrating {
+    /// Local launch steps in order: erase a cross-device backup restore before any store is opened, then
+    /// migrate the schemas.
+    private static func createLaunchMigrator() -> Migrating {
+        let restoredBackupGuard = RestoredBackupGuard(
+            keyIdStore: InstallationKeyIdStore(),
+            entropyManager: RootEntropyManager.shared,
+            eraser: LocalStateEraser(logger: Logger.shared),
+            logger: Logger.shared
+        )
+
         let userStorageMigrator = UserStorageMigrator(
             storeURL: UserStorageParams.storageURL,
             modelDirectory: UserStorageParams.modelDirectory,
@@ -132,6 +141,6 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             fileManager: FileManager.default
         )
 
-        return SerialMigrator(migrations: [userStorageMigrator, substrateStorageMigrator])
+        return SerialMigrator(migrations: [restoredBackupGuard, userStorageMigrator, substrateStorageMigrator])
     }
 }

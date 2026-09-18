@@ -37,6 +37,9 @@ permissions:
 
 jobs:
   prepare:
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # This job had no condition.
+    if: false
     uses: ./.github/workflows/_prepare_pipeline.yml
     with:
       is_nightly: false

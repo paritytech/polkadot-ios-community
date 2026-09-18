@@ -19,6 +19,7 @@ final class SettingsPresenter {
     private var appVersion: String?
     private var selectedCurrencyCode: String?
     private var selectedPrivacyStrategy: RecyclingStrategyType?
+    private var isTabBarLabelsEnabled = false
 
     init(
         interactor: SettingsInteractorInputProtocol,
@@ -51,6 +52,7 @@ private extension SettingsPresenter {
             AppConfig.privacyPolicyLink
         case .backup,
              .theme,
+             .tabBarLabels,
              .currency,
              .linkedDevices,
              .apps,
@@ -75,14 +77,25 @@ private extension SettingsPresenter {
             selectedThemeName: selectedThemeName,
             selectedPrivacyStrategy: selectedPrivacyStrategy,
             appVersion: appVersion,
+            isTabBarLabelsEnabled: isTabBarLabelsEnabled,
             onSelect: { [weak self] cellType in
                 self?.didTapCell(cellType)
             },
             onSelectPrivacyStrategy: { [weak self] strategy in
                 self?.didSelectPrivacyStrategy(strategy)
+            },
+            onToggleTabBarLabels: { [weak self] isEnabled in
+                self?.didToggleTabBarLabels(isEnabled)
             }
         )
         view?.applyContent(viewModelFactory.makeContent(input))
+    }
+
+    func didToggleTabBarLabels(_ isEnabled: Bool) {
+        guard isEnabled != isTabBarLabelsEnabled else { return }
+        isTabBarLabelsEnabled = isEnabled
+        refreshContent()
+        interactor.saveTabBarLabelsEnabled(isEnabled)
     }
 }
 
@@ -116,6 +129,8 @@ extension SettingsPresenter: SettingsPresenterProtocol {
             wireframe.showThemeSelection(from: view) { [weak self] in
                 self?.refreshContent()
             }
+        case .tabBarLabels:
+            break
         case .currency:
             wireframe.showCurrencyPicker(from: view)
         case .linkedDevices:
@@ -168,6 +183,12 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
     func didReceivePrivacyStrategy(_ strategy: RecyclingStrategyType) {
         guard strategy != selectedPrivacyStrategy else { return }
         selectedPrivacyStrategy = strategy
+        refreshContent()
+    }
+
+    func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool) {
+        guard isEnabled != isTabBarLabelsEnabled else { return }
+        isTabBarLabelsEnabled = isEnabled
         refreshContent()
     }
 

@@ -18,6 +18,7 @@ protocol SettingsInteractorInputProtocol: AnyObject {
     func setup()
     func openMailApp()
     func savePrivacyStrategy(_ strategy: RecyclingStrategyType)
+    func saveTabBarLabelsEnabled(_ isEnabled: Bool)
     func openMerchantMode()
 }
 
@@ -30,6 +31,7 @@ protocol SettingsInteractorOutputProtocol: AnyObject {
     func didFailToOpenMailApp(email: String)
     func didReceiveHasBlockedUsers(_ hasBlockedUsers: Bool)
     func didReceivePrivacyStrategy(_ strategy: RecyclingStrategyType)
+    func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool)
     func didReceiveMerchantPage(_ page: ProductPage)
     func didFailToOpenMerchantMode()
 }
