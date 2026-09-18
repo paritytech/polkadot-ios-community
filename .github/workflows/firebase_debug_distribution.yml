@@ -34,7 +34,13 @@ jobs:
   build:
     name: Build and distribute (${{ matrix.variant.name }})
     runs-on: macos-26
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # Two repositories publishing one configuration collide on a single App
+    # Store Connect record, so this runs in one place only.
+    #
+    # The condition this replaces:
+    # if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    if: false
     strategy:
       fail-fast: false
       matrix:

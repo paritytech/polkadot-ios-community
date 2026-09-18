@@ -326,6 +326,10 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         chromeController.setBadge(badge.map { _ in .attention }, at: index)
     }
 
+    func setLabels(visible: Bool) {
+        chromeController.setLabels(visible: visible)
+    }
+
     func view(for tab: TabBarItem) -> UIViewController? {
         controllerByItem[tab]
     }
@@ -351,6 +355,15 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
         let width = max(1, ChainConnectionStatusBarView.ringsWidth(count: models.count))
         chainStatusAnchorWidth?.update(offset: width)
+    }
+}
+
+// MARK: - Scan panel
+
+extension MainTabBarViewController {
+    /// Opens the scan panel from outside the bar, as a tap on the `.scan` action would.
+    func openScanPanel() {
+        chromeController.setPanel(.content(.scan), animated: true)
     }
 }
 
