@@ -38,7 +38,6 @@ protocol RootInteractorInputProtocol: AnyObject {
 @MainActor
 protocol RootInteractorOutputProtocol: AnyObject {
     func didDecide(destination: RootDestination)
-    func didExceedSetupTimeout()
     func didFailSetup()
     #if TESTNET_FEATURE
         func didRequireAppFactoryReset()

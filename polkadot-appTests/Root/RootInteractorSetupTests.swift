@@ -39,15 +39,29 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        // The retried resolve completes off the main actor and lands seconds late on CI,
-        // so poll up to a deadline rather than assuming a fixed settling time.
-        let deadline = Date().addingTimeInterval(15)
-        while spy.didFailSetupCallCount == 0, Date() < deadline {
-            try await Task.sleep(for: .milliseconds(100))
-        }
+        try await waitForSetupFailure(on: spy)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected one setup failure to be reported")
         #expect(spy.didDecideCallCount == 0, "Expected no destination decision (gate holds)")
+    }
+
+    @Test("setup deadline expiry reports failure and no destination")
+    @MainActor
+    func setupDeadlineExpiryReportsFailureAndNoDestination() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        // No chains emitted; the subscription never resolves
+
+        let interactor = makeInteractor(chainRegistry: chainRegistry)
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(spy.didFailSetupCallCount == 1, "Expected failure reported after deadline")
+        #expect(spy.didDecideCallCount == 0, "Expected no destination reported")
+        #expect(chainRegistry.chainsUnsubscribeCallCount == 1, "Expected chain wait to be cancelled")
     }
 }
 
@@ -69,6 +83,17 @@ private extension RootInteractorSetupTests {
             browsePrewarmer: MockProductContentPrewarmer(),
             tldProvider: tldProvider
         )
+    }
+
+    /// Polls until the spy reports a setup failure, or the deadline passes.
+    /// The retried TLD resolve and the ten second setup wait both land off the main actor and
+    /// arrive seconds late on CI, so the deadline sits above both rather than fixing a settling time.
+    @MainActor
+    func waitForSetupFailure(on spy: RootSetupOutputSpy) async throws {
+        let deadline = Date().addingTimeInterval(15)
+        while spy.didFailSetupCallCount == 0, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(100))
+        }
     }
 
     func makeChain(id: String) -> ChainModel {

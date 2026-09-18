@@ -42,10 +42,6 @@ extension RootPresenter: RootInteractorOutputProtocol {
         onComplete = nil
     }
 
-    func didExceedSetupTimeout() {
-        view?.didReceive(viewModel: viewModelFactory.makeWaitingForNetwork())
-    }
-
     func didFailSetup() {
         view?.didReceive(viewModel: viewModelFactory.makeFailure())
     }

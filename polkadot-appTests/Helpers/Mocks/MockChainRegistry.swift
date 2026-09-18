@@ -13,6 +13,9 @@ final class MockChainRegistry: ChainRegistryProtocol {
     /// Chains delivered to a new subscriber. Empty by default, so subscribing stays a no-op.
     var chainsOnSubscribe: [ChainModel] = []
 
+    /// Counts unsubscribes, so a test can assert a pending chain wait was cancelled.
+    var chainsUnsubscribeCallCount = 0
+
     var availableChainIds: Set<ChainModel.Id>? { nil }
     var allAvailableChains: [ChainModel] { Array(chainsByGenesis.values) }
 
@@ -38,7 +41,10 @@ final class MockChainRegistry: ChainRegistryProtocol {
         }
     }
 
-    func chainsUnsubscribe(_: AnyObject) {}
+    func chainsUnsubscribe(_: AnyObject) {
+        chainsUnsubscribeCallCount += 1
+    }
+
     func subscribeChainState(_: ConnectionStateSubscription, chainId _: ChainModel.Id) {}
     func unsubscribeChainState(_: ConnectionStateSubscription, chainId _: ChainModel.Id) {}
     func syncUp() {}

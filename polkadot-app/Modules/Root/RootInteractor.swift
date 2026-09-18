@@ -9,6 +9,11 @@ import Products
 import StructuredConcurrency
 
 final class RootInteractor {
+    private enum SetupWaitOutcome {
+        case ready
+        case deadlineExpired
+    }
+
     weak var presenter: RootInteractorOutputProtocol?
 
     let chainRegistryClosure: ChainRegistryLazyClosure
@@ -23,8 +28,7 @@ final class RootInteractor {
     let chainRegistryConfigurator: ChainRegistryConfiguring
     let browsePrewarmer: ProductContentPrewarming
 
-    private let setupTimeoutSeconds: TimeInterval = 5
-    private var setupTimeoutTask: Task<Void, Never>?
+    private let setupDeadlineSeconds: TimeInterval = 10
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
 
@@ -57,16 +61,12 @@ final class RootInteractor {
     }
 
     deinit {
-        setupTimeoutTask?.cancel()
         completionTask?.cancel()
     }
 
     @MainActor
     private func performCommonSetup(with chainRegistry: ChainRegistryProtocol) {
-        setupTimeoutTask?.cancel()
         completionTask?.cancel()
-
-        startSetupTimeoutTask()
 
         setupChainUpdate(for: chainRegistry)
         fetchRemoteConfig()
@@ -122,15 +122,17 @@ final class RootInteractor {
         remoteConfigManager: RemoteConfigManaging,
         tldProvider: DotNsTldProviding
     ) async {
-        async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
-            AppConfig.Chains.usernameChain,
-            AppConfig.Chains.bulletInChain,
-            AppConfig.Chains.assethubChain
-        ])
-        async let remoteConfig = try remoteConfigManager.asyncWaitRemoteConfig()
-        _ = try? await (chainsReady, remoteConfig)
+        let outcome = await waitForSetupInputs(
+            for: chainRegistry,
+            remoteConfigManager: remoteConfigManager
+        )
 
         guard !Task.isCancelled else { return }
+
+        if outcome == .deadlineExpired {
+            await reportSetupFailure()
+            return
+        }
 
         setupJWTManager()
 
@@ -159,25 +161,39 @@ final class RootInteractor {
         await completeSetup()
     }
 
+    /// Waits for the paired chain registry and remote config, bounded by ``setupDeadlineSeconds``.
+    /// A chain or remote config failure is not fatal on its own: only the deadline gates startup.
+    private func waitForSetupInputs(
+        for chainRegistry: ChainRegistryProtocol,
+        remoteConfigManager: RemoteConfigManaging
+    ) async -> SetupWaitOutcome {
+        do {
+            try await withTimeout(.seconds(setupDeadlineSeconds)) {
+                async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
+                    AppConfig.Chains.usernameChain,
+                    AppConfig.Chains.bulletInChain,
+                    AppConfig.Chains.assethubChain
+                ])
+                _ = try? await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+            }
+            return .ready
+        } catch is TimeoutError {
+            return .deadlineExpired
+        } catch {
+            // The enclosing task was cancelled, so the deadline did not expire. The caller's
+            // cancellation guard stops the flow before this outcome is acted on.
+            return .ready
+        }
+    }
+
     @MainActor
     private func completeSetup() {
-        setupTimeoutTask?.cancel()
         reevaluate()
     }
 
     @MainActor
     private func reportSetupFailure() {
-        setupTimeoutTask?.cancel()
         presenter?.didFailSetup()
-    }
-
-    func startSetupTimeoutTask() {
-        let timeout = setupTimeoutSeconds
-        setupTimeoutTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(timeout))
-            guard !Task.isCancelled else { return }
-            self?.presenter?.didExceedSetupTimeout()
-        }
     }
 }
 

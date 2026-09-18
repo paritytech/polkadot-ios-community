@@ -11,8 +11,6 @@ final class RootSetupOutputSpy: RootInteractorOutputProtocol {
         didDecideCallCount += 1
     }
 
-    func didExceedSetupTimeout() {}
-
     func didFailSetup() {
         didFailSetupCallCount += 1
     }
