@@ -310,73 +310,22 @@ private struct CoinageBalanceBreakdownView: View {
     }
 }
 
-/// Denominations down, the fungibility ladder across, a dot where holdings stand.
-///
-/// The only view here that keeps both axes. Every other one collapses value into the depiction or
-/// the depiction into a total, so neither can answer which denominations are stuck and which have
-/// made it.
+/// The holdings as coins on a table.
 private struct CoinageDetailsView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
 
-    private static let cellSize: CGFloat = 16
-    private static let dotSize: CGFloat = 9
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Grid(alignment: .center, horizontalSpacing: 2, verticalSpacing: 3) {
-                ForEach(breakdown.matrix.rows) { row in
-                    GridRow {
-                        Text(verbatim: row.amount)
-                            .textStyle(.caption12Regular())
-                            .foregroundStyle(.fgPrimary)
-                            .lineLimit(1)
-                            .gridColumnAlignment(.trailing)
-
-                        ForEach(Array(row.counts.enumerated()), id: \.offset) { index, count in
-                            cell(count: count, band: breakdown.matrix.bands[index])
-                        }
-                    }
-                }
-            }
-
-            HStack {
-                Text(verbatim: String(localized: .coinageLessFungible))
-                    .textStyle(.caption12Regular())
-                    .foregroundStyle(.fgSecondary)
-
-                Spacer(minLength: 8)
-
-                Text(verbatim: String(localized: .coinageMoreFungible))
-                    .textStyle(.caption12Regular())
-                    .foregroundStyle(.fgSecondary)
-            }
-        }
+        CoinageTableView(coins: coins, sizing: .uniform)
     }
 
-    /// An empty cell is left blank rather than drawn faintly: a grid of placeholders reads as
-    /// content, and most of this grid is empty most of the time.
-    @ViewBuilder
-    private func cell(count: Int, band: Int) -> some View {
-        ZStack {
-            if count > 0 {
-                Circle()
-                    .fill(band == 0 ? Color.fgStaticWhite : Color.fgError)
-                    .overlay(
-                        Circle().stroke(
-                            CoinageStatusMetrics.markFrame,
-                            lineWidth: CoinageStatusMetrics.markFrameWidth
-                        )
-                    )
-                    .frame(width: Self.dotSize, height: Self.dotSize)
-
-                if count > 1 {
-                    Text(verbatim: "\(count)")
-                        .font(.system(size: 7, weight: .bold))
-                        .foregroundStyle(band == 0 ? Color.fgPrimary : Color.fgStaticWhite)
-                }
-            }
-        }
-        .frame(width: Self.cellSize, height: Self.cellSize)
+    /// An empty wallet falls back to the design sample, so the depiction stays reviewable when the
+    /// testnet has nothing in it. Debug only.
+    private var coins: [CoinageTableView.Coin] {
+        #if DEBUG
+            breakdown.table.isEmpty ? CoinageTableView.sample : breakdown.table
+        #else
+            breakdown.table
+        #endif
     }
 }
 

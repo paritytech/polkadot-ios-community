@@ -17,6 +17,8 @@ struct CoinageBalanceBreakdownViewModel {
     let holdings: [CoinageHoldingGroupViewModel]
     let distribution: CoinageFungibilityDistribution
     let matrix: CoinageHoldingMatrix
+    /// Every holding, in list order, for the table depiction.
+    let table: [CoinageTableView.Coin]
 }
 
 /// Everything that draws one depiction: the depiction itself, the values that share it, and what

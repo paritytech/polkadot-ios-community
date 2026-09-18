@@ -114,6 +114,28 @@ enum CoinageBreakdownFactory {
         }
     }
 
+    /// One coin per holding, in the list's own order, for the table depiction.
+    static func tableCoins(_ rows: [Row]) -> [CoinageTableView.Coin] {
+        rows.map { row in
+            switch row.status {
+            case let .coin(model):
+                CoinageTableView.Coin(
+                    id: row.id,
+                    exponent: row.exponent,
+                    dents: model.hopDots.count,
+                    bucket: model.bucket
+                )
+            case let .voucher(model):
+                CoinageTableView.Coin(
+                    id: row.id,
+                    exponent: row.exponent,
+                    dents: 0,
+                    bucket: model.bucket
+                )
+            }
+        }
+    }
+
     /// Where a depiction sits on the fungibility ladder.
     static func band(for status: CoinageHoldingStatus) -> Int {
         switch status {

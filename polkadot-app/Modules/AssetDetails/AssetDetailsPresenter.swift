@@ -367,6 +367,7 @@ private extension AssetDetailsPresenter {
         } ?? .empty
 
         let matrix = matrix(of: groups, amount: amount(forExponent:))
+        let table = CoinageBreakdownFactory.tableCoins(CoinageBreakdownFactory.rows(from: holdings))
 
         let breakdown = CoinageBalanceBreakdownViewModel(
             totalBalance: formatted(from: amounts.total, includeSymbol: false),
@@ -379,7 +380,8 @@ private extension AssetDetailsPresenter {
             } ?? .empty,
             holdings: rows,
             distribution: bands,
-            matrix: matrix
+            matrix: matrix,
+            table: table
         )
         view?.didReceive(coinageBreakdown: breakdown)
     }
