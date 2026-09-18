@@ -86,6 +86,8 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             logger: Logger.shared,
             resolver: resolver,
             tokenManager: JWTTokenManager.shared,
+            remoteConfigManager: FirebaseFacade.shared,
+            chainRegistryConfigurator: FirebaseFacade.shared,
             browsePrewarmer: browsePrewarmer
         )
 

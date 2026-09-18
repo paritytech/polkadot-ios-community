@@ -18,7 +18,8 @@ final class RootInteractor {
     let tokenManager: JWTTokenManaging
     let tldProvider: DotNsTldProviding
 
-    let firebaseFacade = FirebaseFacade.shared
+    let remoteConfigManager: RemoteConfigManaging
+    let chainRegistryConfigurator: ChainRegistryConfiguring
     let browsePrewarmer: ProductContentPrewarming
 
     private let setupTimeoutSeconds: TimeInterval = 5
@@ -36,6 +37,8 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
+        remoteConfigManager: RemoteConfigManaging,
+        chainRegistryConfigurator: ChainRegistryConfiguring,
         browsePrewarmer: ProductContentPrewarming,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
@@ -45,6 +48,8 @@ final class RootInteractor {
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
+        self.remoteConfigManager = remoteConfigManager
+        self.chainRegistryConfigurator = chainRegistryConfigurator
         self.browsePrewarmer = browsePrewarmer
         self.tldProvider = tldProvider
     }
@@ -54,7 +59,7 @@ final class RootInteractor {
     }
 
     private func setupChainUpdate(for registry: ChainRegistryProtocol) {
-        firebaseFacade.set(chainRegistry: registry)
+        chainRegistryConfigurator.set(chainRegistry: registry)
     }
 
     private func runMigrators() {
@@ -66,7 +71,7 @@ final class RootInteractor {
     }
 
     private func fetchRemoteConfig() {
-        firebaseFacade.fetchRemoteConfigValues()
+        remoteConfigManager.fetchRemoteConfigValues()
     }
 
     private func setupJWTManager() {
@@ -87,13 +92,13 @@ final class RootInteractor {
     }
 
     private func completeSetupOnceRemoteConfig(from chainRegistry: ChainRegistryProtocol) {
-        Task { [weak self, firebaseFacade, tldProvider] in
+        Task { [weak self, remoteConfigManager, tldProvider] in
             async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                 AppConfig.Chains.usernameChain,
                 AppConfig.Chains.bulletInChain,
                 AppConfig.Chains.assethubChain
             ])
-            async let remoteConfig = try firebaseFacade.asyncWaitRemoteConfig()
+            async let remoteConfig = try remoteConfigManager.asyncWaitRemoteConfig()
             _ = try? await (chainsReady, remoteConfig)
 
             // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers

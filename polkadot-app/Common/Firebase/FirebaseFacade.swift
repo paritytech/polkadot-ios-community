@@ -34,7 +34,7 @@ final class FirebaseFacade {
     }
 }
 
-extension FirebaseFacade: RemoteConfigManaging {
+extension FirebaseFacade: RemoteConfigManaging, ChainRegistryConfiguring {
     func fetchRemoteConfigValues() {
         applyCachedConfigIfValid()
         scheduleRemoteFetch()
