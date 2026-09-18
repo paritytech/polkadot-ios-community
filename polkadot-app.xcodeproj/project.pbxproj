@@ -168,6 +168,8 @@
 				"Modules/Chat/Model/ChatMessage+New.swift",
 				Modules/Chat/Model/ChatMessageReaction.swift,
 				Modules/Chat/Model/ChatMessageStatusUpdate.swift,
+				Modules/Chat/Model/ChatNotificationPayload.swift,
+				"Modules/Chat/Model/ChatNotificationPayload+Coding.swift",
 				Modules/Chat/Model/ChatRichRemoteContent.swift,
 				Modules/Chat/Model/ChatRoomMetadata.swift,
 				Modules/Chat/Model/ChatTokenRemoteContent.swift,
