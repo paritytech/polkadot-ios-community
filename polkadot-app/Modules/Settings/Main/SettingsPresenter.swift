@@ -63,6 +63,11 @@ private extension SettingsPresenter {
         }
     }
 
+    func showWebPage(for cell: SettingsViewModel.CellType) {
+        guard let url = fetchURL(for: cell), let view else { return }
+        wireframe.showWeb(url: url, from: view, style: WebPresentableStyle(mode: .automatic))
+    }
+
     var selectedThemeName: String {
         switch themeManager.mode {
         case let .app(selection): selection.displayName
@@ -116,13 +121,7 @@ extension SettingsPresenter: SettingsPresenterProtocol {
         switch cell {
         case .termsOfUse,
              .privacy:
-            guard
-                let url = fetchURL(for: cell),
-                let view
-            else {
-                return
-            }
-            wireframe.showWeb(url: url, from: view, style: WebPresentableStyle(mode: .automatic))
+            showWebPage(for: cell)
         case .backup:
             wireframe.showBackupFlow(from: view)
         case .theme:
