@@ -14,6 +14,9 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
 
     private let loadingView = SearchContactLoadingView()
 
+    private let collectionContainer = UIView()
+    private let fadeMask = CAGradientLayer()
+
     private let separatorConfiguration = SeparatorContentConfiguration(
         color: UIColor.strokePrimary,
         height: Constants.separatorHeight,
@@ -52,9 +55,12 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
         noResultsLabel.setHidden(true)
         loadingView.setHidden(true)
 
-        addSubview(collectionView)
+        addSubview(collectionContainer)
+        collectionContainer.addSubview(collectionView)
         addSubview(noResultsLabel)
         addSubview(loadingView)
+
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
 
         let centeringLayoutGuide = UILayoutGuide()
         addLayoutGuide(centeringLayoutGuide)
@@ -76,10 +82,14 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
             $0.edges.equalTo(centeringLayoutGuide)
         }
 
-        collectionView.snp.makeConstraints {
+        collectionContainer.snp.makeConstraints {
             $0.top.equalToSuperview()
             $0.leading.trailing.equalToSuperview()
             $0.bottom.equalToSuperview().inset(Constants.bottomSpacing)
+        }
+
+        collectionView.snp.makeConstraints {
+            $0.edges.equalToSuperview()
         }
 
         contentSizeObservation = collectionView.observe(
@@ -88,6 +98,11 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
         ) { [weak self] _, _ in
             self?.contentHeightDidChange()
         }
+    }
+
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+        updateFadeMask()
     }
 
     override public func registerCells() {
@@ -194,9 +209,11 @@ private extension SearchContactResultsView {
         static let interItemSpacing: CGFloat = 8
         static let separatorHeight: CGFloat = 1
         static let bottomSpacing: CGFloat = DSSpacings.small
+        static let fadeHeight: CGFloat = 24
     }
 
     func contentHeightDidChange() {
+        setNeedsLayout()
         let height = intrinsicContentSize.height
         guard height != lastReportedHeight else {
             return
@@ -204,6 +221,24 @@ private extension SearchContactResultsView {
         lastReportedHeight = height
         invalidateIntrinsicContentSize()
         onContentHeightChanged?()
+    }
+
+    /// Masks only when the list scrolls, so a list that fits keeps its last row fully visible.
+    func updateFadeMask() {
+        let bounds = collectionContainer.bounds
+        let overflows = collectionView.contentSize.height > bounds.height + 0.5
+        guard overflows, bounds.height > Constants.fadeHeight else {
+            collectionContainer.layer.mask = nil
+            return
+        }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fadeMask.frame = bounds
+        let fadeStart = (bounds.height - Constants.fadeHeight) / bounds.height
+        fadeMask.locations = [0, NSNumber(value: fadeStart), 1]
+        collectionContainer.layer.mask = fadeMask
+        CATransaction.commit()
     }
 
     func updateStatusVisibility(_ status: StatusViewModel) {
