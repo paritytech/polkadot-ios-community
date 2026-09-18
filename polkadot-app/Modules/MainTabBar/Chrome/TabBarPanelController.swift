@@ -53,6 +53,13 @@ final class TabBarPanelController {
         // A resize owed by the outgoing content must not land on whatever replaces it.
         hasPendingContentPanelResize = false
 
+        // `open` is cleared the moment a close starts, so a second close during that animation
+        // would cancel it in place and leave the backdrop and panel frozen mid-way. The pending
+        // reopen above is still cancelled, which is all a repeated close can mean.
+        guard kind != nil || open != nil else {
+            return
+        }
+
         let previousPanel = open
         let animator = animated ? makePanelAnimator() : nil
 

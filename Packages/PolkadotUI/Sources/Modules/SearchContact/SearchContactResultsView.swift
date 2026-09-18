@@ -169,16 +169,19 @@ public extension SearchContactResultsView {
     }
 
     func bind(status: StatusViewModel) {
+        updateStatusVisibility(status)
         noResultsLabel.attributedText = status.searchFailReason
         noResultsLabel.setHidden(status.searchFailReason == nil)
         loadingView.bind(text: status.loaderText)
         loadingView.setLoading(status.showsLoader)
-        isStatusVisible = status.showsLoader || status.searchFailReason != nil
         contentHeightDidChange()
     }
 
     func bind(viewModel: ViewModel) {
+        // The status flag must be current before the snapshot changes `contentSize`, or the KVO
+        // resize measures a stale state and the panel dips before the status floor applies.
         modelHeight = expectedHeight(for: viewModel)
+        updateStatusVisibility(viewModel.status)
         applySnapshot(sections: viewModel.sections.map { createSectionProvider(for: $0) })
         bind(status: viewModel.status)
     }
@@ -201,6 +204,10 @@ private extension SearchContactResultsView {
         lastReportedHeight = height
         invalidateIntrinsicContentSize()
         onContentHeightChanged?()
+    }
+
+    func updateStatusVisibility(_ status: StatusViewModel) {
+        isStatusVisible = status.showsLoader || status.searchFailReason != nil
     }
 
     func measuredHeight(of view: UIView) -> CGFloat {
