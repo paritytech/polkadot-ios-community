@@ -28,6 +28,7 @@ protocol RootWireframeProtocol: AnyObject {
 @MainActor
 protocol RootInteractorInputProtocol: AnyObject {
     func setup()
+    func retrySetup()
     func reevaluate()
     func completeWalletsCreation()
     func completeWalletsRecovery()

@@ -24,6 +24,7 @@ final class RootInteractor {
 
     private let setupTimeoutSeconds: TimeInterval = 5
     private var setupTimeoutTask: Task<Void, Never>?
+    private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
 
     #if TESTNET_FEATURE
@@ -56,6 +57,20 @@ final class RootInteractor {
 
     deinit {
         setupTimeoutTask?.cancel()
+        completionTask?.cancel()
+    }
+
+    @MainActor
+    private func performCommonSetup(with chainRegistry: ChainRegistryProtocol) {
+        setupTimeoutTask?.cancel()
+        completionTask?.cancel()
+
+        startSetupTimeoutTask()
+
+        setupChainUpdate(for: chainRegistry)
+        fetchRemoteConfig()
+
+        startSetupCompletionTask(for: chainRegistry)
     }
 
     private func setupChainUpdate(for registry: ChainRegistryProtocol) {
@@ -91,29 +106,45 @@ final class RootInteractor {
         }
     }
 
-    private func completeSetupOnceRemoteConfig(from chainRegistry: ChainRegistryProtocol) {
-        Task { [weak self, remoteConfigManager, tldProvider] in
-            async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
-                AppConfig.Chains.usernameChain,
-                AppConfig.Chains.bulletInChain,
-                AppConfig.Chains.assethubChain
-            ])
-            async let remoteConfig = try remoteConfigManager.asyncWaitRemoteConfig()
-            _ = try? await (chainsReady, remoteConfig)
-
-            // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers
-            // every onboarding path (username claim, iCloud recovery), so downstream built-in
-            // account derivation can read the TLD synchronously. A TLD persisted by a previous
-            // run is enough, so startup is not blocked offline; currentTld() kicks a background
-            // refresh on its own.
-            if tldProvider.currentTld() == nil {
-                _ = try? await tldProvider.resolveTld()
-            }
-
-            self?.setupJWTManager()
-
-            await self?.completeSetup()
+    private func startSetupCompletionTask(for chainRegistry: ChainRegistryProtocol) {
+        completionTask = Task { [weak self, remoteConfigManager, tldProvider] in
+            await self?.performSetupCompletion(
+                for: chainRegistry,
+                remoteConfigManager: remoteConfigManager,
+                tldProvider: tldProvider
+            )
         }
+    }
+
+    private func performSetupCompletion(
+        for chainRegistry: ChainRegistryProtocol,
+        remoteConfigManager: RemoteConfigManaging,
+        tldProvider: DotNsTldProviding
+    ) async {
+        async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
+            AppConfig.Chains.usernameChain,
+            AppConfig.Chains.bulletInChain,
+            AppConfig.Chains.assethubChain
+        ])
+        async let remoteConfig = try remoteConfigManager.asyncWaitRemoteConfig()
+        _ = try? await (chainsReady, remoteConfig)
+
+        guard !Task.isCancelled else { return }
+
+        setupJWTManager()
+
+        // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers
+        // every onboarding path (username claim, iCloud recovery), so downstream built-in
+        // account derivation can read the TLD synchronously. A TLD persisted by a previous
+        // run is enough, so startup is not blocked offline; currentTld() kicks a background
+        // refresh on its own.
+        if tldProvider.currentTld() == nil {
+            _ = try? await tldProvider.resolveTld()
+        }
+
+        guard !Task.isCancelled else { return }
+
+        await completeSetup()
     }
 
     @MainActor
@@ -142,18 +173,18 @@ extension RootInteractor: RootInteractorInputProtocol {
 
     func setup() {
         runMigrators()
-        startSetupTimeoutTask()
-
         let chainRegistry = chainRegistryClosure()
-        setupChainUpdate(for: chainRegistry)
-        fetchRemoteConfig()
-
-        completeSetupOnceRemoteConfig(from: chainRegistry)
+        performCommonSetup(with: chainRegistry)
 
         #if TESTNET_FEATURE
             appFactoryResetChecker = appFactoryResetCheckerFactory?
                 .makeChecker(chainRegistry: chainRegistry)
         #endif
+    }
+
+    func retrySetup() {
+        let chainRegistry = chainRegistryClosure()
+        performCommonSetup(with: chainRegistry)
     }
 
     func completeWalletsCreation() {
