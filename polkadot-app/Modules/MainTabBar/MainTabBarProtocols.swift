@@ -20,7 +20,7 @@ protocol MainTabBarPresenterProtocol: AnyObject {
     func setup()
     func configureViews()
     func didRequestContentPanel(for action: TabBarAction)
-    func didRequestContactSearch()
+    func didFindChat(_ model: ChatOpenModel)
 }
 
 protocol MainTabBarInteractorInputProtocol: AnyObject {
@@ -44,7 +44,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
 @MainActor
 protocol MainTabBarWireframeProtocol: AnyObject {
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?)
-    func showSearchContact(from view: MainTabBarViewProtocol?)
+    func openChat(_ model: ChatOpenModel)
 }
 
 enum TabBarItem: String, CaseIterable {

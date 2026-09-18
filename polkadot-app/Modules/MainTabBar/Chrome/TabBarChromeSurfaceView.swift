@@ -64,7 +64,8 @@ final class TabBarChromeSurfaceView: UIView {
         contentPanelView.setOpen(kind?.contentAction != nil, animator: animator)
     }
 
-    func updateHeight(for kind: TabBarPanelKind?, animator: UIViewPropertyAnimator?) {
+    @discardableResult
+    func updateHeight(for kind: TabBarPanelKind?, animator: UIViewPropertyAnimator?) -> Bool {
         let containerHeight: CGFloat =
             switch kind {
             case .spaTabs:
@@ -79,7 +80,7 @@ final class TabBarChromeSurfaceView: UIView {
             }
 
         guard containerHeight != appliedGlassContainerHeight else {
-            return
+            return false
         }
 
         appliedGlassContainerHeight = containerHeight
@@ -88,6 +89,8 @@ final class TabBarChromeSurfaceView: UIView {
         animator?.addAnimations { [weak self] in
             self?.layoutIfNeeded()
         }
+
+        return true
     }
 
     func setChips(_ chips: [DSTabBarChip], selected: UUID?, closeActionTitle: String) {

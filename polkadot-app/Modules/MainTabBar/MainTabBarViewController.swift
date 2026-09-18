@@ -359,6 +359,16 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
             self?.isScanPanelFieldFocused = false
             self?.chromeController.resizeContentPanel()
         }
+
+        // Opening the chat selects its tab, and tab selection closes the panel. A second close here
+        // would cancel that animation in place and leave the backdrop and panel frozen mid-way.
+        controller?.onChatFound = { [weak self] model in
+            self?.presenter.didFindChat(model)
+        }
+
+        controller?.onContentHeightChanged = { [weak self] in
+            self?.chromeController.resizeContentPanel()
+        }
     }
 
     func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {

@@ -1,14 +1,14 @@
 import DesignSystem
-import PolkadotUI
-import SnapKit
 import UIKit
+internal import SnapKit
 
-final class ScanPanelViewLayout: UIView {
+public final class ScanPanelViewLayout: UIView {
     private enum Constants {
         static let compactCameraWidthRatio: CGFloat = 0.25
     }
 
-    let searchRow = DSSearchRowView()
+    public let searchRow = DSSearchRowView()
+    public let resultsView = SearchContactResultsView()
 
     /// Stands in for the camera while `AVCaptureSession` configures and starts, which takes
     /// roughly a second. It sits behind the preview, which fades in over it.
@@ -29,12 +29,18 @@ final class ScanPanelViewLayout: UIView {
     private var fullHorizontalConstraints: [Constraint] = []
     private var compactHorizontalConstraints: [Constraint] = []
 
-    var onCameraTapped: (() -> Void)?
+    public var onCameraTapped: (() -> Void)?
 
-    override init(frame: CGRect) {
+    override public init(frame: CGRect) {
         super.init(frame: frame)
 
+        addSubview(resultsView)
         addSubview(searchRow)
+
+        resultsView.snp.makeConstraints { make in
+            make.top.equalToSuperview().offset(DSSpacings.tiny)
+            make.leading.trailing.equalToSuperview().inset(DSSpacings.small)
+        }
 
         searchRow.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased)
@@ -47,7 +53,7 @@ final class ScanPanelViewLayout: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func setupScannerView(_ scannerView: UIView) {
+    public func setupScannerView(_ scannerView: UIView) {
         insertSubview(scannerView, at: 0)
         insertSubview(placeholderView, belowSubview: scannerView)
 
@@ -56,7 +62,10 @@ final class ScanPanelViewLayout: UIView {
         }
 
         scannerView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(DSSpacings.mediumIncreased)
+            // Idle, the empty results view stretches to keep the camera 16pt from the top; with content it
+            // pushes the camera down from its own tiny top inset.
+            make.top.equalTo(resultsView.snp.bottom)
+            make.top.greaterThanOrEqualToSuperview().offset(DSSpacings.mediumIncreased)
             make.bottom.equalTo(searchRow.snp.top).offset(-DSSpacings.small)
 
             fullHorizontalConstraints = [
@@ -76,7 +85,7 @@ final class ScanPanelViewLayout: UIView {
     }
 
     /// The camera shrinks to a centred square above the field while the field is focused.
-    func setCameraCompact(_ compact: Bool) {
+    public func setCameraCompact(_ compact: Bool) {
         if compact {
             fullHorizontalConstraints.forEach { $0.deactivate() }
             compactHorizontalConstraints.forEach { $0.activate() }

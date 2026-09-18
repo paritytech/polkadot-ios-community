@@ -90,10 +90,9 @@ private extension SearchContactPresenter {
         }
     }
 
-    func makeStatus() -> SearchContactViewLayout.StatusViewModel {
+    func makeStatus() -> SearchContactResultsView.StatusViewModel {
         let query = currentSearch.query
         let allEmpty = selection.isEmpty
-        let showHint = !currentSearch.isSearching && !currentSearch.queryFailed && allEmpty && query.isEmpty
 
         let searchFailReason: NSAttributedString?
         if !currentSearch.isSearching, currentSearch.queryFailed || (!query.isEmpty && allEmpty) {
@@ -108,8 +107,7 @@ private extension SearchContactPresenter {
             searchFailReason = nil
         }
 
-        return SearchContactViewLayout.StatusViewModel(
-            showHint: showHint,
+        return SearchContactResultsView.StatusViewModel(
             searchFailReason: searchFailReason,
             showsLoader: currentSearch.showsLoader,
             loaderText: currentSearch.loaderText
@@ -121,7 +119,7 @@ private extension SearchContactPresenter {
     }
 
     func provideViewModel(sections: AccountSearchSections<ContactSearchPayload, ContactSearchPayload>) {
-        let viewModel = SearchContactViewLayout.ViewModel(
+        let viewModel = SearchContactResultsView.ViewModel(
             sections: buildViewSections(from: sections),
             status: makeStatus()
         )
@@ -131,7 +129,7 @@ private extension SearchContactPresenter {
 
     func buildViewSections(
         from sections: AccountSearchSections<ContactSearchPayload, ContactSearchPayload>
-    ) -> [SearchContactViewLayout.ViewModel.Section] {
+    ) -> [SearchContactResultsView.ViewModel.Section] {
         [
             makeViewSection(
                 id: "recent",
@@ -155,10 +153,10 @@ private extension SearchContactPresenter {
         id: String,
         title: String,
         rows: [SearchRow<ContactSearchPayload>]
-    ) -> SearchContactViewLayout.ViewModel.Section? {
+    ) -> SearchContactResultsView.ViewModel.Section? {
         guard !rows.isEmpty else { return nil }
 
-        return SearchContactViewLayout.ViewModel.Section(
+        return SearchContactResultsView.ViewModel.Section(
             id: id,
             title: title,
             rows: rows.map { row in

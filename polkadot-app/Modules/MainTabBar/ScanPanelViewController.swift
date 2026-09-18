@@ -1,17 +1,25 @@
 import UIKit
 import FoundationExt
+import PolkadotUI
 
 /// Composes the scan panel's content so Common/QRScanner stays free of contact-search knowledge.
 final class ScanPanelViewController: UIViewController, ViewHolder {
     typealias RootViewType = ScanPanelViewLayout
 
     private let scannerController: UIViewController & ScanPanelScannerControlling
+    private let presenter: SearchContactPresenterProtocol
 
     var onEditingDidBegin: (() -> Void)?
     var onEditingDidEnd: (() -> Void)?
+    var onChatFound: ((ChatOpenModel) -> Void)?
+    var onContentHeightChanged: (() -> Void)?
 
-    init(scannerController: UIViewController & ScanPanelScannerControlling) {
+    init(
+        scannerController: UIViewController & ScanPanelScannerControlling,
+        presenter: SearchContactPresenterProtocol
+    ) {
         self.scannerController = scannerController
+        self.presenter = presenter
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -32,6 +40,8 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
         scannerController.didMove(toParent: self)
 
         setupSearchHeader()
+        setupSearchResults()
+        presenter.setup()
     }
 }
 
@@ -41,18 +51,39 @@ private extension ScanPanelViewController {
     func setupSearchHeader() {
         let searchField = rootView.searchRow.searchField
 
-        rootView.searchRow.cancelHandler = { [weak searchField] in
-            searchField?.resignFirstResponder()
+        rootView.searchRow.cancelHandler = { [weak self] in
+            self?.cancelSearch()
         }
 
-        rootView.onCameraTapped = { [weak searchField] in
-            searchField?.resignFirstResponder()
+        rootView.onCameraTapped = { [weak self] in
+            self?.cancelSearch()
         }
 
         searchField.addTarget(self, action: #selector(editingDidBegin), for: .editingDidBegin)
         searchField.addTarget(self, action: #selector(editingDidEnd), for: .editingDidEnd)
 
         rootView.searchRow.setCancelVisible(false)
+    }
+
+    func setupSearchResults() {
+        rootView.searchRow.searchHandler = { [weak self] text in
+            self?.presenter.search(username: text ?? "")
+        }
+
+        rootView.resultsView.selectionHandler = { [weak self] identifier in
+            self?.presenter.didSelectContact(identifier: identifier)
+        }
+
+        rootView.resultsView.onContentHeightChanged = { [weak self] in
+            self?.onContentHeightChanged?()
+        }
+    }
+
+    func cancelSearch() {
+        let searchField = rootView.searchRow.searchField
+        searchField.text = nil
+        presenter.search(username: "")
+        searchField.resignFirstResponder()
     }
 
     @objc
@@ -74,5 +105,15 @@ private extension ScanPanelViewController {
         scannerController.setPreviewCompact(focused)
         rootView.setCameraCompact(focused)
         rootView.searchRow.setCancelVisible(focused)
+    }
+}
+
+extension ScanPanelViewController: SearchContactViewProtocol {
+    func didReceive(viewModel: SearchContactResultsView.ViewModel) {
+        rootView.resultsView.bind(viewModel: viewModel)
+    }
+
+    func didReceive(status: SearchContactResultsView.StatusViewModel) {
+        rootView.resultsView.bind(status: status)
     }
 }

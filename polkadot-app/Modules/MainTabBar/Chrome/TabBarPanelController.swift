@@ -139,7 +139,14 @@ final class TabBarPanelController {
         }
 
         let animator = makePanelAnimator()
-        surface.updateHeight(for: open, animator: animator)
+
+        // An animator with no animation blocks never completes, so it would block every later
+        // resize behind a completion that never fires.
+        guard surface.updateHeight(for: open, animator: animator) else {
+            panelAnimator = nil
+            return
+        }
+
         animator.startAnimation()
     }
 

@@ -3,19 +3,9 @@ import UIKit
 internal import SnapKit
 internal import UIKit_iOS
 
-public final class SearchContactViewLayout: DiffableCollectionViewProviderView<String, String> {
-    private let searchHeader = SearchContactHeaderView()
-
+public final class SearchContactResultsView: DiffableCollectionViewProviderView<String, String> {
     private let separatorSuffix = "_separator"
     private let headerSuffix = "_header"
-
-    private let searchHintLabel: Label = create {
-        $0.text = String(localized: .searchContactHint)
-        $0.typography = .bodyMedium
-        $0.textColor = UIColor.fgPrimary
-        $0.numberOfLines = 0
-        $0.textAlignment = .center
-    }
 
     private let noResultsLabel: Label = create {
         $0.numberOfLines = 0
@@ -24,23 +14,45 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
 
     private let loadingView = SearchContactLoadingView()
 
-    private lazy var separatorConfiguration = createSeparatorConfiguration()
+    private let separatorConfiguration = SeparatorContentConfiguration(
+        color: UIColor.strokePrimary,
+        height: Constants.separatorHeight,
+        insets: NSDirectionalEdgeInsets(top: 0, leading: 64, bottom: 0, trailing: 16)
+    )
 
     public var selectionHandler: ((ItemIdentifierType) -> Void)?
+    public var onContentHeightChanged: (() -> Void)?
+
+    private var contentSizeObservation: NSKeyValueObservation?
+    private var isStatusVisible = false
+    private var lastReportedHeight: CGFloat = 0
+
+    private var modelHeight: CGFloat = 0
+    private lazy var rowHeight = measuredHeight(
+        of: SearchContactListView(
+            configuration: SearchContactListConfiguration(
+                userName: "M",
+                avatarViewModel: .colored(text: "M", colorSeed: "M")
+            )
+        )
+    )
+    private lazy var headerHeight = measuredHeight(
+        of: SearchContactSectionHeaderView(
+            configuration: SearchContactSectionHeaderConfiguration(title: "M")
+        )
+    )
 
     override public func setupViews() {
-        backgroundColor = .bgSurfaceMain
+        backgroundColor = .clear
         collectionView.backgroundColor = .clear
-        collectionView.keyboardDismissMode = .onDrag
+        collectionView.keyboardDismissMode = .none
         collectionView.delegate = self
+        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
 
-        searchHintLabel.setHidden(true)
         noResultsLabel.setHidden(true)
         loadingView.setHidden(true)
 
-        addSubview(searchHeader)
         addSubview(collectionView)
-        addSubview(searchHintLabel)
         addSubview(noResultsLabel)
         addSubview(loadingView)
 
@@ -49,19 +61,8 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
 
         centeringLayoutGuide.snp.makeConstraints {
             $0.leading.trailing.equalToSuperview()
-            $0.top.equalTo(safeAreaLayoutGuide.snp.top)
-            $0.bottom.equalTo(searchHeader.snp.top)
-        }
-
-        searchHeader.snp.makeConstraints {
-            $0.leading.trailing.equalToSuperview()
-            $0.bottom.equalTo(keyboardLayoutGuide.snp.top)
-        }
-
-        searchHintLabel.snp.makeConstraints {
-            $0.bottom.equalTo(searchHeader.snp.top).offset(-12)
-            $0.leading.equalToSuperview().offset(24)
-            $0.trailing.equalToSuperview().inset(24)
+            $0.top.equalToSuperview()
+            $0.bottom.equalToSuperview().inset(Constants.bottomSpacing)
         }
 
         noResultsLabel.snp.makeConstraints {
@@ -76,9 +77,16 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
         }
 
         collectionView.snp.makeConstraints {
-            $0.top.equalTo(safeAreaLayoutGuide.snp.top)
+            $0.top.equalToSuperview()
             $0.leading.trailing.equalToSuperview()
-            $0.bottom.equalTo(searchHeader.snp.top)
+            $0.bottom.equalToSuperview().inset(Constants.bottomSpacing)
+        }
+
+        contentSizeObservation = collectionView.observe(
+            \.contentSize,
+            options: [.new]
+        ) { [weak self] _, _ in
+            self?.contentHeightDidChange()
         }
     }
 
@@ -103,24 +111,31 @@ public final class SearchContactViewLayout: DiffableCollectionViewProviderView<S
             reuseId: SearchContactSectionHeaderView.reuseIdentifier
         )
     }
+
+    /// Sized from the view model first, because a collection view with an empty frame never
+    /// lays out; the content size then only corrects.
+    override public var intrinsicContentSize: CGSize {
+        let content = max(
+            collectionView.contentSize.height,
+            modelHeight,
+            isStatusVisible ? Constants.statusHeight : 0
+        )
+        let height = content > 0 ? content + Constants.bottomSpacing : 0
+        return CGSize(width: UIView.noIntrinsicMetric, height: height)
+    }
 }
 
-public extension SearchContactViewLayout {
-    /// Everything the layout shows around the rows: hint, failure text and loader.
-    /// Pushed on its own while a search is in flight, so the rows already on screen stay put.
+public extension SearchContactResultsView {
     struct StatusViewModel {
-        public let showHint: Bool
         public let searchFailReason: NSAttributedString?
         public let showsLoader: Bool
         public let loaderText: String?
 
         public init(
-            showHint: Bool = false,
             searchFailReason: NSAttributedString? = nil,
             showsLoader: Bool = false,
             loaderText: String? = nil
         ) {
-            self.showHint = showHint
             self.searchFailReason = searchFailReason
             self.showsLoader = showsLoader
             self.loaderText = loaderText
@@ -153,53 +168,59 @@ public extension SearchContactViewLayout {
         }
     }
 
-    var searchHandler: ((String?) -> Void)? {
-        get { searchHeader.searchHandler }
-        set { searchHeader.searchHandler = newValue }
-    }
-
-    var cancelHandler: (() -> Void)? {
-        get { searchHeader.cancelHandler }
-        set { searchHeader.cancelHandler = newValue }
-    }
-
     func bind(status: StatusViewModel) {
-        searchHintLabel.setHidden(!status.showHint)
         noResultsLabel.attributedText = status.searchFailReason
         noResultsLabel.setHidden(status.searchFailReason == nil)
         loadingView.bind(text: status.loaderText)
         loadingView.setLoading(status.showsLoader)
+        isStatusVisible = status.showsLoader || status.searchFailReason != nil
+        contentHeightDidChange()
     }
 
     func bind(viewModel: ViewModel) {
-        configureCollectionView(viewModel: viewModel)
+        modelHeight = expectedHeight(for: viewModel)
+        applySnapshot(sections: viewModel.sections.map { createSectionProvider(for: $0) })
         bind(status: viewModel.status)
-    }
-
-    func focusSearchInput() {
-        searchHeader.searchField.becomeFirstResponder()
     }
 }
 
-private extension SearchContactViewLayout {
-    func createSeparatorConfiguration() -> SeparatorContentConfiguration {
-        .init(
-            color: UIColor.strokePrimary,
-            height: 1,
-            insets: NSDirectionalEdgeInsets(
-                top: 0,
-                leading: 64,
-                bottom: 0,
-                trailing: 16
-            )
-        )
+private extension SearchContactResultsView {
+    enum Constants {
+        static let statusHeight: CGFloat = 120
+        static let sectionTopInset: CGFloat = 16
+        static let interItemSpacing: CGFloat = 8
+        static let separatorHeight: CGFloat = 1
+        static let bottomSpacing: CGFloat = DSSpacings.small
     }
 
-    func configureCollectionView(viewModel: ViewModel) {
-        let sectionProviders = viewModel.sections.map { section in
-            createSectionProvider(for: section)
+    func contentHeightDidChange() {
+        let height = intrinsicContentSize.height
+        guard height != lastReportedHeight else {
+            return
         }
-        applySnapshot(sections: sectionProviders)
+        lastReportedHeight = height
+        invalidateIntrinsicContentSize()
+        onContentHeightChanged?()
+    }
+
+    func measuredHeight(of view: UIView) -> CGFloat {
+        view.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
+    }
+
+    /// Mirrors `createSectionProvider`: top inset, then header, rows and separators
+    /// with spacing between.
+    func expectedHeight(for viewModel: ViewModel) -> CGFloat {
+        viewModel.sections.reduce(0) { total, section in
+            let headerCount: CGFloat = section.title == nil ? 0 : 1
+            let rowCount = CGFloat(section.rows.count)
+            let separatorCount = max(rowCount - 1, 0)
+            let itemCount = headerCount + rowCount + separatorCount
+            let itemsHeight = headerCount * headerHeight
+                + rowCount * rowHeight
+                + separatorCount * Constants.separatorHeight
+            let spacing = Constants.interItemSpacing * max(itemCount - 1, 0)
+            return total + Constants.sectionTopInset + itemsHeight + spacing
+        }
     }
 
     func createSectionProvider(for section: ViewModel.Section) -> SectionProviderType {
@@ -245,8 +266,13 @@ private extension SearchContactViewLayout {
             )
 
             let section = NSCollectionLayoutSection(group: group)
-            section.interGroupSpacing = 8
-            section.contentInsets = .init(top: 16, leading: 16, bottom: 0, trailing: 16)
+            section.interGroupSpacing = Constants.interItemSpacing
+            section.contentInsets = .init(
+                top: Constants.sectionTopInset,
+                leading: 16,
+                bottom: 0,
+                trailing: 16
+            )
             return section
         }
     }
@@ -313,8 +339,11 @@ private final class SearchContactLoadingView: UIView {
     }
 }
 
-extension SearchContactViewLayout: UICollectionViewDelegate {
-    public func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+extension SearchContactResultsView: UICollectionViewDelegate {
+    public func collectionView(
+        _ collectionView: UICollectionView,
+        didSelectItemAt indexPath: IndexPath
+    ) {
         guard collectionView.cellForItem(at: indexPath)?.contentView is SearchContactListView,
               let identifier = dataSource.itemIdentifier(for: indexPath) else {
             return
@@ -324,7 +353,7 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
 }
 
 #Preview("2 contacts found") {
-    let layout = SearchContactViewLayout()
+    let layout = SearchContactResultsView()
     let contacts = [
         SearchContactListConfiguration(
             userName: "Jake.23",
@@ -335,45 +364,35 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
             avatarViewModel: .colored(text: "M", colorSeed: "max")
         )
     ]
-    let section = SearchContactViewLayout.ViewModel.Section(
+    let section = SearchContactResultsView.ViewModel.Section(
         id: "contacts",
         title: nil,
         rows: contacts.identifiedByUUIDs()
     )
-    let viewModel = SearchContactViewLayout.ViewModel(
+    let viewModel = SearchContactResultsView.ViewModel(
         sections: [section],
-        status: SearchContactViewLayout.StatusViewModel()
+        status: SearchContactResultsView.StatusViewModel()
     )
     layout.bind(viewModel: viewModel)
     return layout
 }
 
 #Preview("No search results") {
-    let layout = SearchContactViewLayout()
+    let layout = SearchContactResultsView()
     let string = NSAttributedString(string: "No results for\n\"notfoundusername\"")
-    let viewModel = SearchContactViewLayout.ViewModel(
+    let viewModel = SearchContactResultsView.ViewModel(
         sections: [],
-        status: SearchContactViewLayout.StatusViewModel(searchFailReason: string)
-    )
-    layout.bind(viewModel: viewModel)
-    return layout
-}
-
-#Preview("Empty input") {
-    let layout = SearchContactViewLayout()
-    let viewModel = SearchContactViewLayout.ViewModel(
-        sections: [],
-        status: SearchContactViewLayout.StatusViewModel(showHint: true)
+        status: SearchContactResultsView.StatusViewModel(searchFailReason: string)
     )
     layout.bind(viewModel: viewModel)
     return layout
 }
 
 #Preview("Loading") {
-    let layout = SearchContactViewLayout()
-    let viewModel = SearchContactViewLayout.ViewModel(
+    let layout = SearchContactResultsView()
+    let viewModel = SearchContactResultsView.ViewModel(
         sections: [],
-        status: SearchContactViewLayout.StatusViewModel(
+        status: SearchContactResultsView.StatusViewModel(
             showsLoader: true,
             loaderText: "Search is taking longer than usual"
         )
@@ -383,7 +402,7 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
 }
 
 #Preview("Multiple sections with headers") {
-    let layout = SearchContactViewLayout()
+    let layout = SearchContactResultsView()
     let recentContacts = [
         SearchContactListConfiguration(
             userName: "Alice.01",
@@ -406,20 +425,20 @@ extension SearchContactViewLayout: UICollectionViewDelegate {
     ]
 
     let sections = [
-        SearchContactViewLayout.ViewModel.Section(
+        SearchContactResultsView.ViewModel.Section(
             id: "recent",
             title: "Recent",
             rows: recentContacts.identifiedByUUIDs()
         ),
-        SearchContactViewLayout.ViewModel.Section(
+        SearchContactResultsView.ViewModel.Section(
             id: "other",
             title: "Other",
             rows: otherContacts.identifiedByUUIDs()
         )
     ]
-    let viewModel = SearchContactViewLayout.ViewModel(
+    let viewModel = SearchContactResultsView.ViewModel(
         sections: sections,
-        status: SearchContactViewLayout.StatusViewModel()
+        status: SearchContactResultsView.StatusViewModel()
     )
     layout.bind(viewModel: viewModel)
     return layout
