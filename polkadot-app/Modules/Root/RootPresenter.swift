@@ -27,6 +27,11 @@ extension RootPresenter: RootPresenterProtocol {
         view?.didReceive(viewModel: viewModelFactory.makeInitial())
         interactor.setup()
     }
+
+    func retry() {
+        view?.didReceive(viewModel: viewModelFactory.makeInitial())
+        interactor.retrySetup()
+    }
 }
 
 extension RootPresenter: RootInteractorOutputProtocol {
@@ -39,6 +44,10 @@ extension RootPresenter: RootInteractorOutputProtocol {
 
     func didExceedSetupTimeout() {
         view?.didReceive(viewModel: viewModelFactory.makeWaitingForNetwork())
+    }
+
+    func didFailSetup() {
+        view?.didReceive(viewModel: viewModelFactory.makeFailure())
     }
 
     #if TESTNET_FEATURE

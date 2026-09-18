@@ -108,6 +108,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
 
         let initViewController = RootInitViewController()
         presenter.view = initViewController
+        initViewController.presenter = presenter
         window.rootViewController = initViewController
 
         return presenter

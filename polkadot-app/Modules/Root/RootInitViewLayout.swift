@@ -1,12 +1,20 @@
 import UIKit
 import SnapKit
 import PolkadotUI
+import UIKit_iOS
+
+protocol RootInitViewLayoutDelegate: AnyObject {
+    func didTapRetry()
+}
 
 final class RootInitViewLayout: UIView {
+    weak var delegate: RootInitViewLayoutDelegate?
+
     private let logoImageView: UIImageView = {
         let view = UIImageView()
         view.contentMode = .scaleAspectFit
         view.tintColor = .fgPrimary
+        view.image = .polkadotLogoLoading.withRenderingMode(.alwaysTemplate)
         return view
     }()
 
@@ -33,6 +41,12 @@ final class RootInitViewLayout: UIView {
         return view
     }()
 
+    private let retryButton: RoundedButton = create {
+        $0.applySecondaryStyle()
+        $0.setTitle(.init(localized: .rootInitFailureAction))
+        $0.setHidden(true)
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .bgSurfaceMain
@@ -46,26 +60,30 @@ final class RootInitViewLayout: UIView {
 }
 
 extension RootInitViewLayout {
-    struct ViewModel {
+    enum ViewModel {
         struct Issue {
             let title: String
             let subtitle: String
         }
 
-        let logo: UIImage?
-        let issue: Issue?
+        case loading(hint: String?)
+        case failed(Issue)
     }
 
     func bind(viewModel: ViewModel) {
-        logoImageView.image = viewModel.logo
+        switch viewModel {
+        case let .loading(hint):
+            guard let hint else {
+                animateIssueDismissal()
+                return
+            }
 
-        guard let issue = viewModel.issue else {
-            animateIssueDismissal()
-            return
+            showIssue(title: nil, subtitle: hint)
+            retryButton.setHidden(true)
+        case let .failed(issue):
+            showIssue(title: issue.title, subtitle: issue.subtitle)
+            retryButton.setHidden(false)
         }
-
-        issueView.bind(viewModel: .init(top: issue.title, bottom: issue.subtitle))
-        animateIssueAppearance()
     }
 }
 
@@ -80,10 +98,30 @@ private extension RootInitViewLayout {
 
         stackView.addArrangedSubview(logoImageView)
         stackView.addArrangedSubview(issueView)
+        stackView.addArrangedSubview(retryButton)
 
         logoImageView.snp.makeConstraints {
             $0.size.equalTo(64)
         }
+
+        retryButton.snp.makeConstraints {
+            $0.height.equalTo(UIConstants.actionHeight)
+        }
+
+        retryButton.addTarget(self, action: #selector(didTapRetry), for: .touchUpInside)
+    }
+
+    @objc
+    func didTapRetry() {
+        delegate?.didTapRetry()
+    }
+
+    func showIssue(title: String?, subtitle: String) {
+        issueView.topLabel.text = title
+        issueView.topLabel.setHidden(title == nil)
+        issueView.bottomLabel.text = subtitle
+
+        animateIssueAppearance()
     }
 
     func animateIssueAppearance() {
@@ -106,6 +144,7 @@ private extension RootInitViewLayout {
         UIView.animate(springDuration: 0.35, bounce: 0) { [weak self] in
             self?.issueView.alpha = 0
             self?.issueView.setHidden(true)
+            self?.retryButton.setHidden(true)
             self?.layoutIfNeeded()
         }
     }

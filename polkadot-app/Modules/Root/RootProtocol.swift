@@ -8,6 +8,7 @@ protocol RootViewProtocol: AnyObject {
 @MainActor
 protocol RootPresenterProtocol: AnyObject {
     func loadOnLaunch(onComplete: @escaping () -> Void)
+    func retry()
 }
 
 @MainActor
@@ -38,6 +39,7 @@ protocol RootInteractorInputProtocol: AnyObject {
 protocol RootInteractorOutputProtocol: AnyObject {
     func didDecide(destination: RootDestination)
     func didExceedSetupTimeout()
+    func didFailSetup()
     #if TESTNET_FEATURE
         func didRequireAppFactoryReset()
     #endif

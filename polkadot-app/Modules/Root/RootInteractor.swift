@@ -6,6 +6,7 @@ import SubstrateSdk
 import ChainRegistry
 import SubstrateSdkExt
 import Products
+import StructuredConcurrency
 
 final class RootInteractor {
     weak var presenter: RootInteractorOutputProtocol?
@@ -139,7 +140,18 @@ final class RootInteractor {
         // run is enough, so startup is not blocked offline; currentTld() kicks a background
         // refresh on its own.
         if tldProvider.currentTld() == nil {
-            _ = try? await tldProvider.resolveTld()
+            do {
+                _ = try await withRetry(
+                    maxAttempts: 4,
+                    initialDelay: .seconds(1)
+                ) {
+                    try await tldProvider.resolveTld()
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await reportSetupFailure()
+                return
+            }
         }
 
         guard !Task.isCancelled else { return }
@@ -151,6 +163,12 @@ final class RootInteractor {
     private func completeSetup() {
         setupTimeoutTask?.cancel()
         reevaluate()
+    }
+
+    @MainActor
+    private func reportSetupFailure() {
+        setupTimeoutTask?.cancel()
+        presenter?.didFailSetup()
     }
 
     func startSetupTimeoutTask() {

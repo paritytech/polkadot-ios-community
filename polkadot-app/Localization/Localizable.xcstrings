@@ -2410,6 +2410,39 @@
         }
       }
     },
+    "root.init.failure.action": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "root.init.failure.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check your internet connection and try again"
+          }
+        }
+      }
+    },
+    "root.init.failure.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setup could not be completed"
+          }
+        }
+      }
+    },
     "root.init.waiting.subtitle": {
       "extractionState": "manual",
       "localizations": {
@@ -2417,17 +2450,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Turn off Airplane Mode or check your internet"
-          }
-        }
-      }
-    },
-    "root.init.waiting.title": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Configuring application..."
           }
         }
       }
