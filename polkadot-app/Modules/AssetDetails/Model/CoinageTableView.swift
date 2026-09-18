@@ -3,10 +3,11 @@ import SwiftUI
 
 /// Every holding as a coin on a table.
 ///
-/// Denomination picks the material and the shape the way a real coinage does: the four metals
-/// cycle with each step up in value, and the shape changes once the metals have been round. That
-/// covers sixteen denominations with four of each, and makes a coin recognisable before its value
-/// is read.
+/// Denomination picks the material and the shape the way a real coinage does: four shapes cycle
+/// with each step up in value, and the metal changes once the shapes have been round, so a run of
+/// four denominations shares a material the way coppers, silvers and bimetallics do. That covers
+/// sixteen denominations with four of each, and makes a coin recognisable before its value is
+/// read.
 ///
 /// Fungibility is wear rather than a bar. Dents are the payments a coin has been through; streaks
 /// are how far its recycler still has to go, on the same bucket ladder the bars used. A coin that
@@ -65,8 +66,10 @@ extension CoinageTableView {
     /// stacked chart.
     static let gap: CGFloat = 8
 
+    /// Shape, and with it size: the four shapes cycle within a metal before the next metal starts
+    /// again from the first.
     static func tier(of exponent: Int16) -> Int {
-        min(max(Int(exponent) / 4, 0), 3)
+        min(max(Int(exponent) % 4, 0), 3)
     }
 
     static func diameter(forTier tier: Int, sizing: Sizing) -> CGFloat {
@@ -276,10 +279,10 @@ private extension CoinageTableView {
         case gold
         case twin
 
-        /// Metals cycle with every step up in denomination, so neighbouring values never share a
-        /// material and a coin is identifiable from its face alone.
+        /// A material covers four consecutive denominations, so the coppers sit together and the
+        /// bimetallics are the largest, the way a real coinage is banded.
         static func forExponent(_ exponent: Int16) -> Metal {
-            allCases[min(max(Int(exponent) % 4, 0), 3)]
+            allCases[min(max(Int(exponent) / 4, 0), 3)]
         }
 
         /// Sheen is the spread between the two ends of the gradient: bronze is nearly flat, gold
@@ -341,8 +344,8 @@ private extension CoinageTableView {
     extension CoinageTableView {
         /// A spread across every metal, every shape and the whole wear range, for design review.
         /// Live holdings rarely cover more than a couple of buckets at once.
-        static let sample: [Coin] = (0 ..< 24).map { index in
-            let exponent = Int16(index % 12)
+        static let sample: [Coin] = (0 ..< 32).map { index in
+            let exponent = Int16(index % 16)
             let wear = [(5, 8), (1, 4), (0, 2), (0, 0), (3, 6), (2, 7)][index % 6]
 
             return Coin(
