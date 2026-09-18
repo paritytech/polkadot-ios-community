@@ -26,10 +26,16 @@ jobs:
   build:
     # PR trigger covers hotfix pushes to release branches; nightly PRs (marked in the
     # PR-body metadata) are excluded — a failed nightly is redone via nightly_prepare.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (startsWith(github.head_ref, 'release/') &&
-       !contains(github.event.pull_request.body, 'nightly_build=true'))
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # Two repositories publishing one configuration collide on a single App
+    # Store Connect record, so this runs in one place only.
+    #
+    # The condition this replaces:
+    # if: >-
+    # github.event_name == 'workflow_dispatch' ||
+    # (startsWith(github.head_ref, 'release/') &&
+    # !contains(github.event.pull_request.body, 'nightly_build=true'))
+    if: false
     uses: ./.github/workflows/_build_distribute.yml
     with:
       release_branch: ${{ inputs.release_branch || github.head_ref }}
@@ -47,9 +53,15 @@ jobs:
     needs: build
     # Dispatch only. The pull_request trigger rebuilds on every push to a release PR, and
     # those intermediate builds are not a release worth announcing.
-    if: >-
-      ${{ !cancelled() && github.event_name == 'workflow_dispatch' &&
-      needs.build.outputs.succeeded == 'true' }}
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # Two repositories publishing one configuration collide on a single App
+    # Store Connect record, so this runs in one place only.
+    #
+    # The condition this replaces:
+    # if: >-
+    # ${{ !cancelled() && github.event_name == 'workflow_dispatch' &&
+    # needs.build.outputs.succeeded == 'true' }}
+    if: false
     steps:
       - name: Send release notification
         uses: novasamatech/github-actions/send-release-notification@v5

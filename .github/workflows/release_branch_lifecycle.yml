@@ -14,6 +14,10 @@ jobs:
   cleanup_release_branch:
     name: Delete release branch on PR close without merge
     runs-on: ubuntu-latest
+    # Not held. The nightly that produces Safetynet still runs here and still
+    # creates a release/ branch for its version bump, so a run whose pull
+    # request is closed without merging would otherwise leave the branch
+    # behind. auto_merge only covers the path where the build succeeded.
     if: startsWith(github.head_ref, 'release/') && github.event.pull_request.merged == false
     steps:
       - name: Delete release branch
@@ -41,7 +45,13 @@ jobs:
   create_backport_pr:
     name: Create backport PR to source branch
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'release/') && github.event.pull_request.merged == true
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # Two repositories publishing one configuration collide on a single App
+    # Store Connect record, so this runs in one place only.
+    #
+    # The condition this replaces:
+    # if: startsWith(github.head_ref, 'release/') && github.event.pull_request.merged == true
+    if: false
     steps:
       - name: Extract source_ref from PR body and create backport PR
         uses: actions/github-script@v8
