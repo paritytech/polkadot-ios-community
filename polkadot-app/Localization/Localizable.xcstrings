@@ -2660,12 +2660,6 @@
             "state": "translated",
             "value": "Merchant mode"
           }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modo comerciante"
-          }
         }
       }
     },
@@ -2731,12 +2725,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Merchant mode isn’t available right now. Please try again later."
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El modo comerciante no está disponible ahora. Inténtalo de nuevo más tarde."
           }
         }
       }
@@ -2847,12 +2835,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Other"
-          }
-        },
-        "es-ES": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otros"
           }
         }
       }
