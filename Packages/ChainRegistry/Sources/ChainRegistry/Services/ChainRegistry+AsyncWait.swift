@@ -87,7 +87,12 @@ private final class ChainsSetupWaiter: @unchecked Sendable {
         let shouldSubscribe = stateLock.withLock { state -> Bool in
             switch state {
             case .initial:
-                state = .active(target: target, availableChains: [:], guardian: guardian, registry: registry)
+                state = .active(
+                    target: target,
+                    availableChains: [:],
+                    guardian: guardian,
+                    registry: registry
+                )
                 return true
             case .active,
                  .done:
@@ -103,10 +108,8 @@ private final class ChainsSetupWaiter: @unchecked Sendable {
 
         registry.chainsSubscribe(target, runningInQueue: syncQueue) { [weak self] changes in
             guard let self else { return }
-
-            if apply(changes, requiring: chainIds) {
-                finish()
-            }
+            guard apply(changes, requiring: chainIds) else { return }
+            finish()
         }
     }
 
@@ -117,7 +120,10 @@ private final class ChainsSetupWaiter: @unchecked Sendable {
 
 private extension ChainsSetupWaiter {
     /// Folds the changes into the active state and reports whether every required chain is now available.
-    func apply(_ changes: [DataProviderChange<ChainModel>], requiring chainIds: Set<ChainModel.Id>) -> Bool {
+    func apply(
+        _ changes: [DataProviderChange<ChainModel>],
+        requiring chainIds: Set<ChainModel.Id>
+    ) -> Bool {
         stateLock.withLock { state -> Bool in
             guard case let .active(target, availableChains, guardian, registry) = state else {
                 return false
@@ -156,7 +162,11 @@ private extension ChainsSetupWaiter {
                 return nil
             }
 
-            return ActiveSubscription(target: target, registry: registry, guardian: guardian)
+            return ActiveSubscription(
+                target: target,
+                registry: registry,
+                guardian: guardian
+            )
         }
 
         guard let subscription else { return }
@@ -183,8 +193,7 @@ private final class ContinuationGuard: Sendable {
             return true
         }
 
-        if shouldResume {
-            continuation.resume()
-        }
+        guard shouldResume else { return }
+        continuation.resume()
     }
 }
