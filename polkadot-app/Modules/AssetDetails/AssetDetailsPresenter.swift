@@ -323,7 +323,6 @@ private extension AssetDetailsPresenter {
             totalBalance: formatted(from: amounts.total, includeSymbol: false),
             availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
             gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
-            pendingBalance: formatted(from: amounts.pending, includeSymbol: false),
             symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
             composition: context.map {
                 CoinageBreakdownFactory.composition(of: holdings, context: $0)

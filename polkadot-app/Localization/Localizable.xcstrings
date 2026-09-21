@@ -1346,7 +1346,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reloading"
+            "value": "Clearing"
           }
         }
       }
@@ -1368,7 +1368,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spendable"
+            "value": "Ready"
           }
         }
       }
@@ -1379,29 +1379,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coinage Balance"
-          }
-        }
-      }
-    },
-    "coinageTotalBalance": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Total balance"
-          }
-        }
-      }
-    },
-    "coinageUnavailable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unavailable"
+            "value": "Balance"
           }
         }
       }
