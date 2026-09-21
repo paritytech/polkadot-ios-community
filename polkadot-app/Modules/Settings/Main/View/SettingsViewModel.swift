@@ -16,6 +16,7 @@ enum SettingsViewModel {
         case apps
         case blockedUsers
         case legalSupport
+        case merchantMode
 
         var title: String {
             switch self {
@@ -27,6 +28,7 @@ enum SettingsViewModel {
             case .apps: String(localized: .settingsCellApps)
             case .blockedUsers: String(localized: .settingsCellBlockedUsers)
             case .legalSupport: String(localized: .settingsCellLegalSupport)
+            case .merchantMode: String(localized: .settingsCellMerchantMode)
             }
         }
 
@@ -47,12 +49,14 @@ enum SettingsViewModel {
         case general
         case security
         case legalSupport
+        case other
 
         var header: String {
             switch self {
             case .general: String(localized: .settingsSectionGeneral)
             case .security: String(localized: .settingsSectionSecurity)
             case .legalSupport: String(localized: .settingsSectionLegalSupport)
+            case .other: String(localized: .settingsSectionOther)
             }
         }
 
@@ -61,6 +65,7 @@ enum SettingsViewModel {
             case .general: [.theme, .tabBarLabels]
             case .security: Self.securityCells
             case .legalSupport: [.legalSupport]
+            case .other: [.merchantMode]
             }
         }
 

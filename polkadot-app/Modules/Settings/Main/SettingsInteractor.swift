@@ -18,10 +18,13 @@ final class SettingsInteractor {
     private var blockedContactsTask: Task<Void, Never>?
     private var privacyStrategyTask: Task<Void, Never>?
     private var tabBarLabelsTask: Task<Void, Never>?
+    private let merchantDomainProvider: MerchantDomainProviding
+    private var merchantPageTask: Task<Void, Never>?
 
     init(
         logger: LoggerProtocol,
         mnemonicBackupHelper: MnemonicBackupHelperProtocol,
+        merchantDomainProvider: MerchantDomainProviding,
         selectedCurrencyManager: SelectedCurrencyManaging = SelectedCurrencyManager.shared,
         notificationCenter: NotificationCenter = .default,
         eventCenter: EventCenterProtocol = EventCenter.shared,
@@ -37,6 +40,7 @@ final class SettingsInteractor {
         self.chatContactDataProviderFactory = chatContactDataProviderFactory
         self.recyclingStrategyProvider = recyclingStrategyProvider
         self.tabBarLabelsStore = tabBarLabelsStore
+        self.merchantDomainProvider = merchantDomainProvider
     }
 
     deinit {
@@ -46,6 +50,7 @@ final class SettingsInteractor {
         blockedContactsTask?.cancel()
         privacyStrategyTask?.cancel()
         tabBarLabelsTask?.cancel()
+        merchantPageTask?.cancel()
     }
 }
 
@@ -173,5 +178,25 @@ extension SettingsInteractor: AppEventVisiting {
 
     func processSelectedCurrencyChanged(event _: SelectedCurrencyChanged) {
         provideSelectedCurrency()
+    }
+}
+
+// MARK: - Merchant mode
+
+extension SettingsInteractor {
+    func openMerchantMode() {
+        merchantPageTask?.cancel()
+
+        merchantPageTask = Task { [weak self, merchantDomainProvider, logger] in
+            do {
+                let page = try await merchantDomainProvider.merchantPage()
+                guard !Task.isCancelled else { return }
+                await self?.presenter?.didReceiveMerchantPage(page)
+            } catch {
+                guard !Task.isCancelled else { return }
+                logger.error("Merchant mode unavailable: \(error)")
+                await self?.presenter?.didFailToOpenMerchantMode()
+            }
+        }
     }
 }

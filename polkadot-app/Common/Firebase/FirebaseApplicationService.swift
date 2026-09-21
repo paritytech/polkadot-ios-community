@@ -110,7 +110,8 @@ final class FirebaseApplicationService: RemoteConfigManaging {
             coinageInstanceId: coinageInstanceId(),
             fundingUrl: fundingConfigValue(.onrampUrl),
             offrampUrl: fundingConfigValue(.offrampUrl),
-            accountDataStoreContract: accountDataStoreContractAddress()
+            accountDataStoreContract: accountDataStoreContractAddress(),
+            merchantUrl: nonEmptyString(for: .merchantUrl)
         )
     }
 
@@ -277,4 +278,5 @@ private extension String {
     static let offrampUrl = "offrampUrl"
     static let accountDataStoreConfig = "account_data_store_config"
     static let contractAddress = "contractAddress"
+    static let merchantUrl = "merchant_url"
 }

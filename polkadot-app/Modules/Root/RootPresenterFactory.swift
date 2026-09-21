@@ -128,7 +128,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             try? fundingProvider.offrampPage()
         ]
 
-        return staticProducts + fundingPages.compactMap { $0?.host.name }
+        return staticProducts + [AppConfig.DotNs.dotNsMerchant] + fundingPages.compactMap { $0?.host.name }
     }
 
     /// Local launch steps in order: erase a cross-device backup restore before any store is opened, then

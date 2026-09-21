@@ -11,7 +11,10 @@ enum SettingsViewFactory {
     ) -> SettingsViewProtocol? {
         let interactor = SettingsInteractor(
             logger: Logger.shared,
-            mnemonicBackupHelper: MnemonicBackupHelper()
+            mnemonicBackupHelper: MnemonicBackupHelper(),
+            merchantDomainProvider: MerchantDomainProvider(
+                hostProvider: { [flowStateProvider] in flowStateProvider.flowState().hostProvider }
+            )
         )
 
         let wireframe = SettingsWireframe(

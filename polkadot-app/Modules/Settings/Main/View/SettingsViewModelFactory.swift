@@ -79,6 +79,7 @@ private extension SettingsViewModelFactory {
         case .apps: .iconGrid
         case .blockedUsers: .iconBlock
         case .legalSupport: .iconFile
+        case .merchantMode: .iconStore
         }
     }
 
@@ -104,7 +105,8 @@ private extension SettingsViewModelFactory {
              .linkedDevices,
              .apps,
              .blockedUsers,
-             .legalSupport:
+             .legalSupport,
+             .merchantMode:
             .chevron
         }
     }

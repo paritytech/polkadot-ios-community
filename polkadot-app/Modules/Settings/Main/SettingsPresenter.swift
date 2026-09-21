@@ -2,6 +2,7 @@ import DesignSystem
 import UIKit
 import UIKitExt
 import Coinage
+import Products
 
 @MainActor
 final class SettingsPresenter {
@@ -105,6 +106,8 @@ extension SettingsPresenter: SettingsPresenterProtocol {
             wireframe.showApps(from: view)
         case .blockedUsers:
             wireframe.showBlockedUsers(from: view)
+        case .merchantMode:
+            interactor.openMerchantMode()
         }
     }
 }
@@ -144,5 +147,13 @@ extension SettingsPresenter: SettingsInteractorOutputProtocol {
         guard isEnabled != isTabBarLabelsEnabled else { return }
         isTabBarLabelsEnabled = isEnabled
         refreshContent()
+    }
+
+    func didReceiveMerchantPage(_ page: ProductPage) {
+        wireframe.showMerchantMode(page: page, from: view)
+    }
+
+    func didFailToOpenMerchantMode() {
+        wireframe.showMerchantModeUnavailable(from: view)
     }
 }
