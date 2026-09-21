@@ -7,7 +7,7 @@ final class RootPresenter {
     weak var view: RootViewProtocol?
     let wireframe: RootWireframeProtocol
     let interactor: RootInteractorInputProtocol
-    let viewModelFactory: RootInitViewModelMaking
+    let viewModelFactory: RootViewModelMaking
 
     private var onComplete: (() -> Void)?
     private var loadingHintTask: Task<Void, Never>?
@@ -15,7 +15,7 @@ final class RootPresenter {
     init(
         wireframe: RootWireframeProtocol,
         interactor: RootInteractorInputProtocol,
-        viewModelFactory: RootInitViewModelMaking
+        viewModelFactory: RootViewModelMaking
     ) {
         self.wireframe = wireframe
         self.interactor = interactor

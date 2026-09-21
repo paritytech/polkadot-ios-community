@@ -94,7 +94,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
         let presenter = RootPresenter(
             wireframe: wireframe,
             interactor: interactor,
-            viewModelFactory: RootInitViewModelFactory()
+            viewModelFactory: RootViewModelFactory()
         )
 
         interactor.presenter = presenter
@@ -106,9 +106,8 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             )
         #endif
 
-        let initViewController = RootInitViewController()
+        let initViewController = RootViewController(presenter: presenter)
         presenter.view = initViewController
-        initViewController.presenter = presenter
         window.rootViewController = initViewController
 
         return presenter

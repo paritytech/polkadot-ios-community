@@ -2,7 +2,7 @@ import UIKit
 
 @MainActor
 protocol RootViewProtocol: AnyObject {
-    func didReceive(viewModel: RootInitViewLayout.ViewModel)
+    func didReceive(viewModel: RootViewLayout.ViewModel)
 }
 
 @MainActor
