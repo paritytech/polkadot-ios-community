@@ -21,16 +21,17 @@ protocol SearchAccountPresenterProtocol: AnyObject {
     func selectAccount(_ cellType: SearchAccountViewController.Cell)
 }
 
+typealias SearchAccountSearchState = SearchRunner.State<SearchAccountResult>
+
 protocol SearchAccountInteractorInputProtocol: AnyObject {
     func setup()
-    func subscribeToRecentContacts()
     func searchAccount(for input: String?)
     func resolveChat(for address: AccountAddress)
 }
 
 @MainActor
 protocol SearchAccountInteractorOutputProtocol: AnyObject {
-    func didReceive(_ result: SearchAccountResult)
+    func didReceive(searchState: SearchAccountSearchState)
     func didResolveChat(_ model: ChatOpenModel)
     func didReceiveSearchError(message: String?)
 }

@@ -70,7 +70,6 @@ final class SearchAccountPresenter {
 extension SearchAccountPresenter: SearchAccountPresenterProtocol {
     func viewDidLoad() {
         interactor.setup()
-        interactor.subscribeToRecentContacts()
         provideAddressInputViewModel()
     }
 
@@ -116,26 +115,22 @@ extension SearchAccountPresenter: SearchAccountPresenterProtocol {
 // MARK: - SearchAccountInteractorOutputProtocol
 
 extension SearchAccountPresenter: SearchAccountInteractorOutputProtocol {
-    func didReceive(_ result: SearchAccountResult) {
-        let recent = recipientViewModelFactory.createRecentContacts(from: result.recent)
-        let contacts = result.contacts.map(Self.mapToAccountType)
-        let global = result.global.map(Self.mapToAccountType)
-
-        let content = SearchAccountViewModel.Content(
-            recent: recent,
-            contacts: contacts,
-            global: global
-        )
-
-        updateViewModel(content: content)
-
-        switch result.loader {
-        case .start:
+    func didReceive(searchState: SearchAccountSearchState) {
+        switch searchState {
+        case .started,
+             .waiting,
+             .waitingLong:
             view?.didStartLoading()
-        case .stop:
+        case let .result(result):
             view?.didStopLoading()
-        case .unchanged:
-            break
+
+            updateViewModel(
+                content: SearchAccountViewModel.Content(
+                    recent: recipientViewModelFactory.createRecentContacts(from: result.recent),
+                    contacts: result.contacts.map(Self.mapToAccountType),
+                    global: result.global.map(Self.mapToAccountType)
+                )
+            )
         }
     }
 

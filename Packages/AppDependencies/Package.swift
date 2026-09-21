@@ -5,7 +5,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "extrinsic-service-ios",
         url: "https://github.com/novasamatech/extrinsic-service-ios",
-        version: .exact("1.16.0"),
+        version: .exact("1.17.0"),
         products: ["ExtrinsicService"]
     ),
     .init(
@@ -22,6 +22,12 @@ let dependencyConfigs: [DependencyConfig] = [
             "FirebaseCore",
             "FirebaseRemoteConfig"
         ]
+    ),
+    .init(
+        name: "Operation-iOS",
+        url: "https://github.com/novasamatech/Operation-iOS",
+        version: .exact("3.0.0"),
+        products: ["Operation-iOS"]
     ),
     .init(
         name: "Foundation-iOS",
@@ -50,7 +56,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "substrate-sdk-ios",
         url: "https://github.com/novasamatech/substrate-sdk-ios",
-        version: .exact("5.13.0"),
+        version: .exact("5.14.0"),
         products: [
             "SubstrateSdk",
             "SubstrateMetadataHash"
@@ -89,7 +95,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "unique-device-ios",
         url: "https://github.com/novasamatech/unique-device-ios",
-        version: .exact("0.3.1"),
+        version: .exact("0.4.0"),
         products: ["UniqueDevice"]
     ),
     .init(
@@ -119,7 +125,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "host-rust-core",
         url: "https://github.com/paritytech/host-rust-core",
-        version: .exact("0.12.0"),
+        version: .exact("0.16.0"),
         products: ["TrUAPIHost"]
     ),
     .init(

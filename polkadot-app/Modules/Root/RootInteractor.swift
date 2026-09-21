@@ -19,7 +19,7 @@ final class RootInteractor {
     let tldProvider: DotNsTldProviding
 
     let firebaseFacade = FirebaseFacade.shared
-    let browsePrewarmer: ProductContentPrewarming
+    let productPrewarmer: ProductContentPrewarming
 
     private let setupTimeoutSeconds: TimeInterval = 5
     private var setupTimeoutTask: Task<Void, Never>?
@@ -36,7 +36,7 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
-        browsePrewarmer: ProductContentPrewarming,
+        productPrewarmer: ProductContentPrewarming,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
@@ -45,7 +45,7 @@ final class RootInteractor {
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
-        self.browsePrewarmer = browsePrewarmer
+        self.productPrewarmer = productPrewarmer
         self.tldProvider = tldProvider
     }
 
@@ -80,7 +80,7 @@ final class RootInteractor {
     private func prewarmProducts(for destination: RootDestination) {
         switch destination {
         case .dashboard:
-            browsePrewarmer.prewarm()
+            productPrewarmer.prewarm()
         default:
             break
         }
@@ -98,8 +98,12 @@ final class RootInteractor {
 
             // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers
             // every onboarding path (username claim, iCloud recovery), so downstream built-in
-            // account derivation can read the TLD synchronously.
-            _ = try? await tldProvider.resolveTld()
+            // account derivation can read the TLD synchronously. A TLD persisted by a previous
+            // run is enough, so startup is not blocked offline; currentTld() kicks a background
+            // refresh on its own.
+            if tldProvider.currentTld() == nil {
+                _ = try? await tldProvider.resolveTld()
+            }
 
             self?.setupJWTManager()
 

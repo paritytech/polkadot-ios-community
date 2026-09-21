@@ -11,7 +11,7 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
 
     private var cardCreateModel: WalletCardCreateViewModel?
     private var amount: String?
-    private var lockedAmountString: String?
+    private var readyAmountString: String?
 
     init(viewModel: AssetDetailsViewModel) {
         self.viewModel = viewModel
@@ -63,15 +63,14 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
             presenter?.onTopUp()
         }
 
+        viewModel.onWithdraw = { [weak presenter] in
+            presenter?.onWithdraw()
+        }
+
         #if TESTNET_FEATURE
             viewModel.onTestnetTopUp = { [weak presenter] in
                 presenter?.onTestnetTopUp()
             }
-
-            viewModel.onMakeAllVouchersReady = { [weak presenter] in
-                presenter?.onMakeAllVouchersReady()
-            }
-
         #endif
     }
 
@@ -89,17 +88,17 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         emitCardUpdate()
     }
 
-    func didReceive(lockedAmount: BalanceViewModelProtocol?) {
+    func didReceive(readyAmount: BalanceViewModelProtocol?) {
         defer {
             emitCardUpdate()
         }
 
-        guard let lockedAmount else {
-            lockedAmountString = nil
+        guard let readyAmount else {
+            readyAmountString = nil
             return
         }
 
-        lockedAmountString = String(localized: .balanceOnhold(amount: lockedAmount.amount))
+        readyAmountString = readyAmount.amount
     }
 
     func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel) {
@@ -120,6 +119,12 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         viewModel.isUpdating = isRecoveryInProgress
     }
 
+    func didReceive(isAccountBackupPending: Bool) {
+        withAnimation(.easeInOut) {
+            viewModel.showsAccountBackupPending = isAccountBackupPending
+        }
+    }
+
     func didShowBackupNotification() {
         guard animatesBackupNotificationUpdates else {
             viewModel.showsBackupNotification = true
@@ -137,14 +142,17 @@ final class AssetDetailsViewBinding: AssetDetailsViewProtocol {
         }
     }
 
-    func didReceive(topUpLoading: Bool) {
-        viewModel.isTopUpInProgress = topUpLoading
+    func didReceive(rampLoading action: RampAction, isLoading: Bool) {
+        switch action {
+        case .topUp: viewModel.isTopUpInProgress = isLoading
+        case .withdraw: viewModel.isWithdrawInProgress = isLoading
+        }
     }
 
     private func emitCardUpdate() {
         viewModel.balanceCardModel = .init(
             balance: amount,
-            lockedAmount: lockedAmountString
+            readyBalance: readyAmountString
         )
     }
 }

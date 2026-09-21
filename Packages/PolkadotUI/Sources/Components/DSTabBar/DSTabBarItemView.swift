@@ -2,11 +2,22 @@ import UIKit
 import DesignSystem
 
 final class DSTabBarItemView: UIView {
+    /// Action items never receive the pill, so an open panel is signalled by tinting the item.
+    var isActive: Bool = false {
+        didSet {
+            guard isActive != oldValue else {
+                return
+            }
+            applyTint()
+        }
+    }
+
     private let isSelectedAppearance: Bool
     private let iconView = UIImageView()
     private let tabsGlyphView = DSTabBarTabsGlyphView()
     private let titleLabel = UILabel()
     private let badgeView = UIView()
+    private var glassBackground: DSGlassBackgroundView?
 
     init(isSelectedAppearance: Bool) {
         self.isSelectedAppearance = isSelectedAppearance
@@ -42,11 +53,25 @@ final class DSTabBarItemView: UIView {
         isAccessibilityElement = false
         accessibilityIdentifier = item.accessibilityIdentifier
 
+        if item.showsGlassBackground, !isSelectedAppearance {
+            if glassBackground == nil {
+                let background = DSGlassBackgroundView(shape: .capsule, style: .clear)
+                background.isUserInteractionEnabled = false
+                insertSubview(background, at: 0)
+                glassBackground = background
+            }
+            glassBackground?.isHidden = false
+        } else {
+            glassBackground?.isHidden = true
+        }
+
         applyTint()
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+
+        glassBackground?.frame = bounds
 
         let iconSize = DSTabBarMetrics.iconSize
         let iconX = ((bounds.width - iconSize) / 2).rounded()
@@ -79,7 +104,7 @@ final class DSTabBarItemView: UIView {
 
 private extension DSTabBarItemView {
     var tint: UIColor {
-        isSelectedAppearance ? .fgPrimary : .fgSecondary
+        isSelectedAppearance || isActive ? .fgPrimary : .fgSecondary
     }
 
     func setupSubviews() {
@@ -111,5 +136,6 @@ private extension DSTabBarItemView {
         iconView.tintColor = color
         titleLabel.textColor = color
         tabsGlyphView.glyphColor = color
+        glassBackground?.tint = isActive ? .bgActionPrimary.withAlphaComponent(0.2) : .bgSurfaceMain
     }
 }

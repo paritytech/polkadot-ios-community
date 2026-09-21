@@ -42,7 +42,7 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
     }
 
     func configureViews() {
-        view?.show(slots: slots, selecting: .wallet)
+        view?.show(slots: slots, selecting: .chat)
         view?.setBadge(settingsBadge, for: .settings)
     }
 
@@ -55,6 +55,10 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
         case .connectionStatus:
             showConnectionStatusPanel()
         }
+    }
+
+    func didRequestContactSearch() {
+        wireframe.showSearchContact(from: view)
     }
 }
 
@@ -95,6 +99,10 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
 
         chainStatusRows = rows
         showConnectionStatusPanel()
+    }
+
+    func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool) {
+        view?.setLabels(visible: isEnabled)
     }
 }
 

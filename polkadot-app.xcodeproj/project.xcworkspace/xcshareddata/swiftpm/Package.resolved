@@ -1,5 +1,5 @@
 {
-  "originHash" : "6218bec7db7600c6de7e5c30ef96a5e3d73f43efe89244f995573ee1cb3a5044",
+  "originHash" : "e61a9ba186f939c18ebfca398a73231663851dc0ee765da46d0e26da3b7351e1",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -87,8 +87,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/extrinsic-service-ios",
       "state" : {
-        "revision" : "3c1eb23431bd2c245c26eb33867fefb1a9b2cf10",
-        "version" : "1.16.0"
+        "revision" : "0375f485c0b86f36b232faadf7ccae4604776049",
+        "version" : "1.17.0"
       }
     },
     {
@@ -168,8 +168,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/paritytech/host-rust-core",
       "state" : {
-        "revision" : "7e0284cef81c4ca025d613428d02defd0f80b863",
-        "version" : "0.12.0"
+        "revision" : "1b01dd0dc61d58b5ffafb060eb3dcd4ecb4f34b4",
+        "version" : "0.16.0"
       }
     },
     {
@@ -267,8 +267,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/Operation-iOS",
       "state" : {
-        "revision" : "6870932682cbb3a8c833f61bc0cee16f884ab5c6",
-        "version" : "2.7.0"
+        "revision" : "b26b43a3c6d7f8d3622da0856119b88299a9c691",
+        "version" : "3.0.0"
       }
     },
     {
@@ -357,8 +357,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/substrate-sdk-ios",
       "state" : {
-        "revision" : "cb890bd5d4bbe5aa3e13aac8f1e201180fd7b02e",
-        "version" : "5.13.0"
+        "revision" : "8c0c11df92a9dddc95f5cbbc5e34bfdc8cbadc38",
+        "version" : "5.14.0"
       }
     },
     {
@@ -573,8 +573,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/unique-device-ios",
       "state" : {
-        "revision" : "9c1f2b0a8392061db3dd84834ee134a943139906",
-        "version" : "0.3.1"
+        "revision" : "a3aa9ece390103eea1b28f98e4477b308af40a77",
+        "version" : "0.4.0"
       }
     },
     {

@@ -1811,7 +1811,7 @@
 
   // node_modules/@novasamatech/host-api/dist/protocol/v1/payments.js
   var Sr25519SecretKey = Bytes2(64);
-  var PaymentId = str;
+  var PaymentId = Bytes2(32);
   var PaymentTopUpId = Bytes2(32);
   var CoinPaymentPurseId2 = u32;
   var PaymentTopUpSource = Enum2({
@@ -1823,13 +1823,14 @@
   var PaymentBalance = Struct({
     available: u128
   });
-  var PaymentReceipt = Struct({
-    id: PaymentId
-  });
   var PaymentStatus = Enum2({
     Processing: _void,
+    // Terminal: the full amount reached the destination.
     Completed: _void,
-    Failed: str
+    // Terminal: the payment did not go through; carries the reason.
+    Failed: str,
+    // Terminal: only this amount reached the destination, less than requested.
+    PartiallyClaimed: u128
   });
   var PaymentTopUpStatus = Enum2({
     // Waiting for the requested amount to appear on the source.
@@ -1864,6 +1865,7 @@
     Unknown: [GenericErr, "unknown error"]
   });
   var PaymentRequestErr = ErrEnum("PaymentRequestErr", {
+    AlreadyExists: [_void, "a payment with this id already exists"],
     Rejected: [_void, "rejected"],
     InsufficientBalance: [_void, "insufficient balance"],
     Unknown: [GenericErr, "unknown error"]
@@ -1887,9 +1889,10 @@
   var PaymentRequestV1_request = Struct({
     from: Option(CoinPaymentPurseId2),
     amount: u128,
-    destination: Bytes2(32)
+    destination: Bytes2(32),
+    id: PaymentId
   });
-  var PaymentRequestV1_response = CallResult(PaymentReceipt, PaymentRequestErr);
+  var PaymentRequestV1_response = CallResult(_void, PaymentRequestErr);
   var PaymentStatusSubscribeV1_start = PaymentId;
   var PaymentStatusSubscribeV1_receive = PaymentStatus;
   var PaymentStatusSubscribeV1_interrupt = PaymentStatusErr;
@@ -6925,18 +6928,23 @@
   });
   container.handlePaymentRequest(async (params, { ok: ok2, err: err2 }) => {
     try {
-      const result = await callNative("paymentRequest", {
+      await callNative("paymentRequest", {
+        idHex: toHex2(params.id),
         amount: params.amount.toString(),
         destinationHex: toHex2(params.destination)
       });
-      return ok2({ id: result.id });
+      return ok2(void 0);
     } catch (e) {
-      const msg = String(e instanceof Error ? e.message : e);
-      if (msg.includes("payment rejected"))
-        return err2(new PaymentRequestErr.Rejected());
-      if (msg.includes("insufficient balance"))
-        return err2(new PaymentRequestErr.InsufficientBalance());
-      return err2(new PaymentRequestErr.Unknown({ reason: msg }));
+      switch (e?.code) {
+        case "AlreadyExists":
+          return err2(new PaymentRequestErr.AlreadyExists());
+        case "Rejected":
+          return err2(new PaymentRequestErr.Rejected());
+        case "InsufficientBalance":
+          return err2(new PaymentRequestErr.InsufficientBalance());
+        default:
+          return err2(new PaymentRequestErr.Unknown({ reason: String(e?.message ?? e) }));
+      }
     }
   });
   container.handlePaymentTopUp(async (params, { ok: ok2, err: err2 }) => {
@@ -6995,19 +7003,26 @@
       }
     );
   });
-  container.handlePaymentStatusSubscribe((paymentId, send, interrupt) => {
+  container.handlePaymentStatusSubscribe((id2, send, interrupt) => {
     return subscribeNative(
       "paymentStatusSubscribe",
-      { paymentId },
+      { idHex: toHex2(id2) },
       (payload) => {
-        if (payload.tag === "Processing")
-          send({ tag: "Processing", value: void 0 });
-        else if (payload.tag === "Completed")
-          send({ tag: "Completed", value: void 0 });
-        else
-          send({ tag: "Failed", value: payload.value ?? "" });
+        switch (payload.tag) {
+          case "Completed":
+            return send({ tag: "Completed", value: void 0 });
+          case "Failed":
+            return send({ tag: "Failed", value: payload.value ?? "" });
+          case "PartiallyClaimed":
+            return send({ tag: "PartiallyClaimed", value: BigInt(payload.value ?? "0") });
+          default:
+            return send({ tag: "Processing", value: void 0 });
+        }
       },
-      () => interrupt(new PaymentStatusErr.Unknown({ reason: "subscription interrupted" }))
+      (e) => {
+        const failure = e?.code === "NotFound" ? new PaymentStatusErr.PaymentNotFound() : new PaymentStatusErr.Unknown({ reason: String(e?.message ?? e) });
+        queueMicrotask(() => interrupt(failure));
+      }
     );
   });
   console.log("Host container initialized");

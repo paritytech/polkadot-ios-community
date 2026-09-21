@@ -143,9 +143,12 @@
         <attribute name="destination" attributeType="Binary"/>
         <attribute name="failureReason" optional="YES" attributeType="String"/>
         <attribute name="identifier" attributeType="String"/>
-        <attribute name="origin" attributeType="String"/>
-        <attribute name="readyAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="paymentId" attributeType="String"/>
+        <attribute name="plannedVoucherIndices" optional="YES" attributeType="String"/>
+        <attribute name="productId" attributeType="String"/>
+        <attribute name="settledInPlanks" optional="YES" attributeType="String"/>
         <attribute name="stage" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="surplusInPlanks" optional="YES" attributeType="String"/>
         <attribute name="updatedAt" attributeType="Date" usesScalarValueType="NO"/>
     </entity>
     <entity name="CDGameVote" representedClassName="CDGameVote" syncable="YES" codeGenerationType="class">

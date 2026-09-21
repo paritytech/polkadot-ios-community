@@ -77,9 +77,15 @@ struct CoinageBreakdownOrderTests {
             vouchers: [holding(voucher(fungibility: 50))]
         )
 
-        #expect(severities(of: holdings) == [
-            .unknownHistory(5), .unknownHistory(2), .knownLevel(3), .knownLevel(1), .knownLevel(0)
-        ])
+        let expected: [Placement] = [
+            .unknownHistory(5),
+            .unknownHistory(2),
+            .knownLevel(3),
+            .knownLevel(1),
+            .knownLevel(0)
+        ]
+
+        #expect(severities(of: holdings) == expected)
     }
 
     @Test("Value breaks ties within one bucket, largest first")
@@ -114,6 +120,13 @@ private extension CoinageBreakdownOrderTests {
         }
     }
 
+    /// One installation for the whole suite: ordering only ever compares items within it.
+    static let installation = try! CoinageInstallationId(value: Data(repeating: 7, count: 32))
+
+    func keyIndex(_ item: DerivationIndex) -> CoinageKeyIndex {
+        CoinageKeyIndex(installation: Self.installation, item: item)
+    }
+
     func hops(_ count: Int) -> [Hop] {
         Array(repeating: .transfer(bundleSize: 1), count: count)
     }
@@ -126,7 +139,7 @@ private extension CoinageBreakdownOrderTests {
     ) -> Coin {
         Coin(
             exponent: exponent,
-            derivationIndex: DerivationIndex(UInt32(abs(Int(age)) + Int(exponent) * 100)),
+            derivationIndex: keyIndex(DerivationIndex(abs(Int(age)) + Int(exponent) * 100)),
             age: age,
             recyclerFungibility: fungibility,
             hops: hops,
@@ -137,7 +150,7 @@ private extension CoinageBreakdownOrderTests {
     func voucher(exponent: Int16 = 5, fungibility: UInt8) -> Voucher {
         Voucher(
             exponent: exponent,
-            derivationIndex: DerivationIndex(900),
+            derivationIndex: keyIndex(900),
             allocatedAt: .distantPast,
             readyAt: .distantPast,
             remoteState: .inRecycler(.init(index: 0, membersCount: 10)),

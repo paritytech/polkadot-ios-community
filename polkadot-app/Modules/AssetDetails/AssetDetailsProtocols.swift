@@ -8,13 +8,14 @@ import Products
 protocol AssetDetailsViewProtocol: ControllerBackedProtocol {
     func didSetCards(viewModels: [WalletCardCreateViewModel])
     func didReceiveData(viewModel: WalletCardDataViewModel, index: Int)
-    func didReceive(lockedAmount: BalanceViewModelProtocol?)
+    func didReceive(readyAmount: BalanceViewModelProtocol?)
     func didReceive(fundingStates: [AssetFundingStatusView.FundingState])
     func didReceive(isRecoveryInProgress: Bool)
+    func didReceive(isAccountBackupPending: Bool)
     func didShowBackupNotification()
     func didHideBackupNotification()
 
-    func didReceive(topUpLoading: Bool)
+    func didReceive(rampLoading action: RampAction, isLoading: Bool)
 
     func didReceive(coinageBreakdown: CoinageBalanceBreakdownViewModel)
     #if TESTNET_FEATURE
@@ -33,10 +34,10 @@ protocol AssetDetailsPresenterProtocol: AnyObject {
     func onBackupCancel()
     func onBackupWhyUpdate()
     func onTopUp()
+    func onWithdraw()
 
     #if TESTNET_FEATURE
         func onTestnetTopUp()
-        func onMakeAllVouchersReady()
     #endif
 }
 
@@ -47,27 +48,24 @@ protocol AssetDetailsInteractorInputProtocol: AnyObject {
     func triggerSync()
     func cancelBackupNotification()
 
-    func openTopUpProduct()
+    func openRampProduct(_ action: RampAction)
 
     #if TESTNET_FEATURE
         func topUp()
-        func makeAllVouchersReady()
     #endif
 }
 
 @MainActor
 protocol AssetDetailsInteractorOutputProtocol: AnyObject {
     func didReceive(balance: Decimal)
-    func didReceive(lockedAmount: Decimal)
 
     func didReceive(price: PriceData?)
     func didReceive(fiatOnrampStatuses: Set<FiatOnrampTransactionStatusPayload>)
-    func didFail(recovery error: Error)
     func didReceive(isRecoveryInProgress: Bool)
-    func didCompleteRecovery()
-    func didClearBackupNotification()
+    func didReceive(isAccountBackupPending: Bool)
+    func didReceive(showsRecoveredBalance: Bool)
 
-    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>)
+    func didResolveRampProduct(_ action: RampAction, result: Result<ProductPage, Error>)
 
     /// One call, because the presenter rebuilds the whole breakdown on receipt: delivering the
     /// figures and the holdings separately would render the new totals beside the previous

@@ -88,6 +88,8 @@ xcuserdata
 # Claude
 
 .claude/PLAN.md
+.claude/worktrees
+docs/superpowers/
 
 # Secrets
 polkadot-app/env-vars.sh
@@ -106,3 +108,8 @@ __pycache__
 
 # temp
 tmp/
+
+.scratch/
+
+# Merge leftovers
+*.orig

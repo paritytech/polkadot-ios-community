@@ -10,25 +10,23 @@ enum SettingsViewModel {
     enum CellType: Hashable {
         case backup
         case theme
+        case tabBarLabels
         case currency
         case linkedDevices
         case apps
         case blockedUsers
-        case termsOfUse
-        case privacy
-        case contactUs
+        case legalSupport
 
         var title: String {
             switch self {
             case .backup: String(localized: .settingsCellBackup)
             case .theme: String(localized: .settingsCellTheme)
+            case .tabBarLabels: String(localized: .settingsCellTabBarLabels)
             case .currency: String(localized: .settingsCellCurrency)
             case .linkedDevices: String(localized: .settingsCellLinkedDevices)
             case .apps: String(localized: .settingsCellApps)
             case .blockedUsers: String(localized: .settingsCellBlockedUsers)
-            case .termsOfUse: String(localized: .settingsCellTerms)
-            case .privacy: String(localized: .settingsCellPrivacy)
-            case .contactUs: String(localized: .settingsCellContactUs)
+            case .legalSupport: String(localized: .settingsCellLegalSupport)
             }
         }
 
@@ -48,24 +46,21 @@ enum SettingsViewModel {
     enum Section: String, CaseIterable {
         case general
         case security
-        case legal
-        case support
+        case legalSupport
 
         var header: String {
             switch self {
             case .general: String(localized: .settingsSectionGeneral)
             case .security: String(localized: .settingsSectionSecurity)
-            case .legal: String(localized: .settingsSectionLegal)
-            case .support: String(localized: .settingsSectionSupport)
+            case .legalSupport: String(localized: .settingsSectionLegalSupport)
             }
         }
 
         var cells: [CellType] {
             switch self {
-            case .general: [.theme]
+            case .general: [.theme, .tabBarLabels]
             case .security: Self.securityCells
-            case .legal: [.privacy, .termsOfUse]
-            case .support: [.contactUs]
+            case .legalSupport: [.legalSupport]
             }
         }
 

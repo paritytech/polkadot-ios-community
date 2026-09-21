@@ -7,14 +7,6 @@ struct SearchAccountResult {
         let address: AccountAddress
     }
 
-    enum LoaderChange {
-        case unchanged
-        case start
-        case stop
-    }
-
-    let query: String?
-    let loader: LoaderChange
     let recent: [RecentContactModelWithUsername]
     let contacts: [Contact]
     let global: [Contact]

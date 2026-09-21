@@ -11,19 +11,94 @@ public struct PaymentBalance: Encodable {
     }
 }
 
-/// Payment status as seen by product scripts.
+/// Payment status as seen by product scripts. `completed`, `partiallyClaimed` and `failed` are terminal.
 public enum HostPaymentStatus: Sendable, Equatable {
     case processing
     case completed
+    /// Money moved, but less than requested: `settledInPlanks` reached the destination, the rest never will.
+    case partiallyClaimed(settledInPlanks: Balance)
     case failed(reason: String)
 }
 
-/// Receipt returned to the product after initiating a payment.
-public struct PaymentReceipt: Sendable {
-    public let paymentId: String
+/// Coded `paymentRequest` errors. Messages keep the legacy strings the current
+/// container.js matches on. Anything else the host throws reaches the product uncoded.
+public enum HostPaymentRequestError: Error, Hashable {
+    case rejected
+    case insufficientBalance
+    case alreadyExists
 
-    public init(paymentId: String) {
-        self.paymentId = paymentId
+    public var code: String {
+        switch self {
+        case .rejected: "Rejected"
+        case .insufficientBalance: "InsufficientBalance"
+        case .alreadyExists: "AlreadyExists"
+        }
+    }
+
+    public var message: String {
+        switch self {
+        case .rejected: "payment rejected"
+        case .insufficientBalance: "insufficient balance"
+        case .alreadyExists: "A payment for the given id already exists"
+        }
+    }
+}
+
+extension HostPaymentRequestError: HostCallCodedError {}
+
+/// Typed error for `host_payment_status_subscribe`, serialized to JS via `HostCallCodedError`.
+public enum HostPaymentStatusError: HostCallCodedError {
+    case notFound
+
+    public var code: String { "NotFound" }
+    public var message: String { "payment not found" }
+}
+
+// MARK: - Wire DTOs
+
+/// Decoded request for `paymentRequest`. Byte fields are hex strings on the wire; the id is opaque
+/// to the host, so its length is not validated here (same as `paymentTopUp`).
+public struct PaymentRequestDto: Decodable {
+    @HexCodable public var id: PaymentRequestId
+    @StringCodable public var amount: Balance
+    @HexCodable public var destination: AccountId
+
+    private enum CodingKeys: String, CodingKey {
+        case id = "idHex"
+        case amount
+        case destination = "destinationHex"
+    }
+}
+
+/// Decoded request for `paymentStatusSubscribe`.
+public struct PaymentStatusSubscribeDto: Decodable {
+    @HexCodable public var id: PaymentRequestId
+
+    private enum CodingKeys: String, CodingKey {
+        case id = "idHex"
+    }
+}
+
+/// Wire representation of ``HostPaymentStatus``: a tagged struct encoded via `toScaleCompatibleJSON()`.
+public struct HostPaymentStatusDto: Encodable {
+    public let tag: String
+    public let value: String?
+
+    public init(status: HostPaymentStatus) {
+        switch status {
+        case .processing:
+            tag = "Processing"
+            value = nil
+        case .completed:
+            tag = "Completed"
+            value = nil
+        case let .partiallyClaimed(settledInPlanks):
+            tag = "PartiallyClaimed"
+            value = String(settledInPlanks)
+        case let .failed(reason):
+            tag = "Failed"
+            value = reason
+        }
     }
 }
 

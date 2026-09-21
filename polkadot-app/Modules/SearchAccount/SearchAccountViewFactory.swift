@@ -9,6 +9,13 @@ enum SearchAccountViewFactory {
         for chainAsset: ChainAsset,
         coinageServicing: CoinageServicing
     ) -> SearchAccountViewProtocol? {
+        let walletRepo: WalletManagerRepositoryProtocol = .shared
+
+        guard let ownAccountId = try? walletRepo.main().getRawPublicKey() else {
+            assertionFailure()
+            return nil
+        }
+
         let logger = Logger.shared
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
         let chainRegistry = ChainRegistryFacade.sharedRegistry
@@ -22,15 +29,30 @@ enum SearchAccountViewFactory {
             operationQueue: operationQueue,
             logger: logger
         )
-        let searchUsernameFactory = SearchUsernameFactory(
-            chatContactRepositoryFactory: ChatContactRepositoryFactory(),
-            chainModel: chainAsset.chain
+        let localContactSearch = LocalContactSearchService(
+            repositoryFactory: ChatContactRepositoryFactory()
         )
+        let recentRecipientsProvider = RecentRecipientsProvider(
+            service: recentContactsService,
+            chainFormat: chainAsset.chain.chainFormat,
+            chainAssetId: chainAsset.chainAssetId,
+            logger: logger
+        )
+
+        let accountSearching: any AccountSearching<
+            RecentContactModelWithUsername,
+            ContactSearchPayload
+        > = AccountSearchProvider(
+            recentRowsStream: { recentRecipientsProvider.subscribe() },
+            localContactSearch: localContactSearch,
+            remoteContactSearch: RemoteContactOperationFactory(),
+            ownAccountId: ownAccountId,
+            logger: logger
+        )
+
         let recipientViewModelFactory = RecipientViewModelFactory()
         let interactor = SearchAccountInteractor(
-            searchUsernameFactory: searchUsernameFactory,
-            recentContactsManager: recentContactsService,
-            remoteContactSearch: RemoteContactOperationFactory(),
+            accountSearching: accountSearching,
             chatOpenResolver: ChatOpenModelResolver(),
             chainAsset: chainAsset,
             logger: logger

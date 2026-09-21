@@ -163,6 +163,18 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         await localStorage.clear(key: key)
     }
 
+    func subscribeLocalStorage(key _: String) -> AnyAsyncSequence<String?> {
+        AsyncStream<String?> { $0.finish() }.eraseToAnyAsyncSequence()
+    }
+
+    func workerBeginOperation(label _: String?) async throws -> UInt32 { 0 }
+
+    func workerEndOperation(id _: UInt32) async throws {}
+
+    func subscribeLocale() -> AnyAsyncSequence<String> {
+        AsyncStream<String> { $0.finish() }.eraseToAnyAsyncSequence()
+    }
+
     func navigateTo(destination _: String) async throws {}
 
     func allowNetworkAccess(url _: String) async throws -> Bool {
@@ -230,11 +242,9 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
         AsyncStream<HostPaymentTopUpStatus> { $0.finish() }.eraseToAnyAsyncSequence()
     }
 
-    func requestPayment(amountInPlanks _: String, destination _: AccountId) async throws -> PaymentReceipt {
-        PaymentReceipt(paymentId: UUID().uuidString)
-    }
+    func requestPayment(amount _: Balance, destination _: AccountId, id _: PaymentRequestId) async throws {}
 
-    func subscribePaymentStatus(paymentId _: String) async throws -> AsyncExtensions
+    func subscribePaymentStatus(id _: PaymentRequestId) async throws -> AsyncExtensions
         .AnyAsyncSequence<HostPaymentStatus> {
         AsyncStream<HostPaymentStatus> { $0.finish() }.eraseToAnyAsyncSequence()
     }

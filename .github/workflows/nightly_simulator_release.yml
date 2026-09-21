@@ -32,6 +32,9 @@ env:
 
 jobs:
   build_simulator:
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # This job had no condition.
+    if: false
     name: Build & publish simulator .app
     runs-on: macos-26
     timeout-minutes: 60

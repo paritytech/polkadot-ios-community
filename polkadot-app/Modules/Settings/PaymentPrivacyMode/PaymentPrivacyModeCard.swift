@@ -6,8 +6,9 @@ import Coinage
 
 /// Inline "Payments Privacy Mode" row — the first cell of the Security & Privacy group (the enclosing
 /// layout supplies the grouped-cell surface). Three modes as lit spheres resting in a recessed groove that
-/// carries a stepped speed-to-privacy scale; tap a mode to switch in place, or drag a sphere and it snaps
-/// to the nearest mode on release. A description card reflects the selection.
+/// carries a stepped speed-to-privacy scale, and a ring marking the selection. Tap a mode and the ring
+/// slides to it; drag the ring and it follows the finger, settling on the nearest mode on release. The
+/// spheres stay in their slots and grow or shrink as the ring comes and goes. A description card follows.
 ///
 /// A dumb view: it renders the ``selected`` mode supplied by the Settings view model and reports user
 /// input through ``onSelect``; the presenter/interactor own persistence and re-gating.
@@ -17,14 +18,21 @@ struct PaymentPrivacyModeCard: View {
 
     private let modes = RecyclingStrategyType.allCases
 
-    /// Fractional mode index under the finger while dragging; `nil` when the selection is settled.
-    @State private var dragFraction: CGFloat?
-    /// The scale mark the drag last crossed — the haptic grain of a drag.
+    @State private var ringPosition: CGFloat
+    @State private var isDragging = false
+    @State private var ringTravelling = false
+    @State private var pendingIndex: Int?
+    @State private var journey = 0
     @State private var markIndex = 0
-    /// How long the dragged sphere's glyph/accent cross-fade runs, shortened as the drag speeds up.
     @State private var dragFadeDuration = PrivacyModeMetrics.slowDragFade
     @State private var lastDragX: CGFloat?
     @State private var lastDragTime: Date?
+
+    init(selected: RecyclingStrategyType, onSelect: @escaping (RecyclingStrategyType) -> Void) {
+        self.selected = selected
+        self.onSelect = onSelect
+        _ringPosition = State(initialValue: CGFloat(RecyclingStrategyType.allCases.firstIndex(of: selected) ?? 0))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -39,6 +47,7 @@ struct PaymentPrivacyModeCard: View {
         .padding(.bottom, DSSpacings.small)
         .sensoryFeedback(.selection, trigger: selected)
         .sensoryFeedback(.selection, trigger: markIndex)
+        .onChange(of: selected) { _, _ in selectionChanged() }
     }
 }
 
@@ -52,7 +61,7 @@ private extension PaymentPrivacyModeCard {
                 .foregroundStyle(.fgSecondary)
                 .frame(width: 32, height: 32)
 
-            Text(String(localized: .settingsPrivacymodeTitle))
+            Text(String(localized: .settingsPrivacymodeTitle(AppConfig.Brand.cashSymbol)))
                 .typography(.bodyLarge)
                 .foregroundStyle(.fgPrimary)
         }
@@ -71,6 +80,7 @@ private extension PaymentPrivacyModeCard {
                 trackGroove(width: width)
                 TickScale(start: centerX(0, width: width), end: centerX(lastIndex, width: width))
                 circles(width: width)
+                ring(width: width)
             }
             .frame(width: width, height: PrivacyModeMetrics.boxHeight)
             .contentShape(Rectangle())
@@ -102,30 +112,24 @@ private extension PaymentPrivacyModeCard {
     }
 
     func circles(width: CGFloat) -> some View {
-        ZStack {
-            ForEach(Array(modes.enumerated()), id: \.element) { index, mode in
-                ModeCircleView(
-                    mode: mode,
-                    isSelected: index == highlightedIndex,
-                    hasGlow: dragFraction == nil && index == selectedIndex
-                )
-                // While dragging, the covered mode hands its place to the dragged sphere below.
-                .opacity(dragFraction != nil && index == highlightedIndex ? 0 : 1)
+        ForEach(Array(modes.enumerated()), id: \.element) { index, mode in
+            ModeCircleView(mode: mode, state: circleState(at: index))
                 .position(x: centerX(CGFloat(index), width: width), y: PrivacyModeMetrics.boxHeight / 2)
-            }
-
-            if let fraction = dragFraction {
-                ModeCircleView(
-                    mode: modes[highlightedIndex],
-                    isSelected: true,
-                    hasGlow: false,
-                    fadeDuration: dragFadeDuration
-                )
-                .position(x: centerX(fraction, width: width), y: PrivacyModeMetrics.boxHeight / 2)
-            }
         }
-        .animation(.easeInOut(duration: 0.2), value: highlightedIndex)
-        .animation(.easeInOut(duration: 0.2), value: dragFraction == nil)
+    }
+
+    func ring(width: CGFloat) -> some View {
+        SelectionRingView(
+            mode: modes[nearestIndex],
+            fadeDuration: isDragging ? dragFadeDuration : PrivacyModeMetrics.tapFade
+        )
+        .position(x: centerX(ringPosition, width: width), y: PrivacyModeMetrics.boxHeight / 2)
+    }
+
+    func circleState(at index: Int) -> ModeCircleState {
+        if !isDragging, !ringTravelling, index == chosenIndex { return .settled }
+        if index == highlightedIndex { return .grown }
+        return .resting
     }
 }
 
@@ -133,12 +137,13 @@ private extension PaymentPrivacyModeCard {
 
 private extension PaymentPrivacyModeCard {
     var descriptionCard: some View {
-        VStack(alignment: .leading, spacing: DSSpacings.extraTiny) {
-            Text(selected.displayTitle)
+        let shown = modes[highlightedIndex]
+        return VStack(alignment: .leading, spacing: DSSpacings.extraTiny) {
+            Text(shown.displayTitle)
                 .typography(.titleMedium)
                 .foregroundStyle(.fgPrimary)
 
-            Text(selected.displayDescription)
+            Text(shown.displayDescription)
                 .typography(.paragraphMedium)
                 .foregroundStyle(.fgSecondary)
         }
@@ -146,7 +151,7 @@ private extension PaymentPrivacyModeCard {
         .padding(.horizontal, DSSpacings.mediumIncreased)
         .padding(.vertical, DSSpacings.extraMedium)
         .background(.bgSurfaceNested, in: RoundedRectangle(cornerRadius: DSRadii.extraMedium, style: .continuous))
-        .animation(.easeOut(duration: 0.18), value: selected)
+        .animation(.easeOut(duration: 0.18), value: highlightedIndex)
     }
 }
 
@@ -156,14 +161,17 @@ private extension PaymentPrivacyModeCard {
     var selectedIndex: Int { modes.firstIndex(of: selected) ?? 0 }
     var lastIndex: CGFloat { CGFloat(modes.count - 1) }
 
-    /// The mode the visuals track: the one nearest the finger while dragging, else the settled selection.
-    var highlightedIndex: Int {
-        guard let fraction = dragFraction else { return selectedIndex }
-        return Int(fraction.rounded())
+    /// The mode the ring is closest to. It spends most of a drag between two.
+    var nearestIndex: Int {
+        min(max(Int(ringPosition.rounded()), 0), modes.count - 1)
     }
 
-    /// Centre of a (possibly fractional) mode position: the design's `inset` from each track end, then evenly
-    /// spread — so the outer modes hug the ends rather than sitting a full column-width in.
+    var chosenIndex: Int { pendingIndex ?? selectedIndex }
+
+    var highlightedIndex: Int {
+        isDragging ? nearestIndex : chosenIndex
+    }
+
     func centerX(_ position: CGFloat, width: CGFloat) -> CGFloat {
         PrivacyModeMetrics.inset + position * trackStep(width: width)
     }
@@ -175,17 +183,17 @@ private extension PaymentPrivacyModeCard {
     }
 
     /// A single gesture that reads a tap and a drag apart: a touch that never crosses the slop selects the
-    /// mode it lands on in place (`dragFraction` stays nil, so nothing travels), while one that does moves a
-    /// sphere under the finger and snaps to the nearest mode on release.
+    /// mode it lands on (the ring then slides there on its own), while one that does takes the ring along
+    /// under the finger and settles it on the nearest mode on release.
     func dragGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard dragFraction != nil || abs(value.translation.width) >= 8 else { return }
-                if dragFraction == nil { beginDrag() }
+                guard isDragging || abs(value.translation.width) >= 8 else { return }
+                if !isDragging { beginDrag() }
                 trackSpeed(locationX: value.location.x, time: value.time, width: width)
 
                 let fraction = fractionAt(value.location.x, width: width)
-                dragFraction = fraction
+                ringPosition = fraction
 
                 let scaleStart = centerX(0, width: width)
                 markIndex = max(0, Int((centerX(fraction, width: width) - scaleStart) / PrivacyModeMetrics.tickStep))
@@ -194,37 +202,54 @@ private extension PaymentPrivacyModeCard {
                 lastDragX = nil
                 lastDragTime = nil
 
-                if let fraction = dragFraction {
-                    // A drag: slide the sphere to its snapped mode, then hand off to the static one there.
-                    finishDrag(from: fraction)
+                if isDragging {
+                    finishDrag()
                 } else {
-                    // A tap: select the mode under the finger in place.
                     commit(target: Int(fractionAt(value.location.x, width: width).rounded()))
                 }
             }
     }
 
-    /// Animates the dragged sphere the rest of the way to its nearest mode so the selection settles into
-    /// place instead of jumping, dropping the drag only once it has arrived — the point the static sphere
-    /// takes over.
-    func finishDrag(from fraction: CGFloat) {
-        let target = Int(fraction.rounded())
+    func finishDrag() {
+        let target = nearestIndex
         commit(target: target)
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-            dragFraction = CGFloat(target)
+        withAnimation(PrivacyModeMetrics.selectionAnimation) {
+            ringPosition = CGFloat(target)
         } completion: {
-            dragFraction = nil
+            isDragging = false
         }
     }
 
     func commit(target: Int) {
-        let mode = modes[target]
-        guard mode != selected else { return }
-        onSelect(mode)
+        guard target != chosenIndex else { return }
+        pendingIndex = target
+        onSelect(modes[target])
+        if !isDragging { moveRing(to: target) }
+    }
+
+    func selectionChanged() {
+        pendingIndex = nil
+        if !isDragging, ringPosition != CGFloat(selectedIndex) {
+            moveRing(to: selectedIndex)
+        }
+    }
+
+    func moveRing(to target: Int) {
+        journey += 1
+        let thisJourney = journey
+        ringTravelling = true
+
+        withAnimation(PrivacyModeMetrics.selectionAnimation) {
+            ringPosition = CGFloat(target)
+        } completion: {
+            guard thisJourney == journey else { return }
+            ringTravelling = false
+        }
     }
 
     func beginDrag() {
+        isDragging = true
         dragFadeDuration = PrivacyModeMetrics.slowDragFade
         lastDragX = nil
         lastDragTime = nil

@@ -9,33 +9,34 @@ final class SettingsInteractor {
     let logger: LoggerProtocol
     let mnemonicBackupHelper: MnemonicBackupHelperProtocol
     let selectedCurrencyManager: SelectedCurrencyManaging
-    let emailComposePresenter: EmailComposePresenting
     private let notificationCenter: NotificationCenter
     private let eventCenter: EventCenterProtocol
     private let chatContactDataProviderFactory: ChatContactDataProviderMaking
     private let recyclingStrategyProvider: any CoinageRecyclingStrategyProviding
+    private let tabBarLabelsStore: any TabBarLabelsProviding
     private var availabilityObserver: NSObjectProtocol?
     private var blockedContactsTask: Task<Void, Never>?
     private var privacyStrategyTask: Task<Void, Never>?
+    private var tabBarLabelsTask: Task<Void, Never>?
 
     init(
         logger: LoggerProtocol,
         mnemonicBackupHelper: MnemonicBackupHelperProtocol,
-        emailComposePresenter: EmailComposePresenting,
         selectedCurrencyManager: SelectedCurrencyManaging = SelectedCurrencyManager.shared,
         notificationCenter: NotificationCenter = .default,
         eventCenter: EventCenterProtocol = EventCenter.shared,
         chatContactDataProviderFactory: ChatContactDataProviderMaking = ChatContactDataProviderFactory(),
-        recyclingStrategyProvider: any CoinageRecyclingStrategyProviding = CoinageRecyclingStrategyStore.shared
+        recyclingStrategyProvider: any CoinageRecyclingStrategyProviding = CoinageRecyclingStrategyStore.shared,
+        tabBarLabelsStore: any TabBarLabelsProviding = TabBarLabelsStore.shared
     ) {
         self.logger = logger
         self.mnemonicBackupHelper = mnemonicBackupHelper
-        self.emailComposePresenter = emailComposePresenter
         self.selectedCurrencyManager = selectedCurrencyManager
         self.notificationCenter = notificationCenter
         self.eventCenter = eventCenter
         self.chatContactDataProviderFactory = chatContactDataProviderFactory
         self.recyclingStrategyProvider = recyclingStrategyProvider
+        self.tabBarLabelsStore = tabBarLabelsStore
     }
 
     deinit {
@@ -44,6 +45,7 @@ final class SettingsInteractor {
         }
         blockedContactsTask?.cancel()
         privacyStrategyTask?.cancel()
+        tabBarLabelsTask?.cancel()
     }
 }
 
@@ -127,6 +129,18 @@ private extension SettingsInteractor {
             }
         }
     }
+
+    func subscribeToTabBarLabels() {
+        tabBarLabelsTask = Task { [weak self, tabBarLabelsStore, logger] in
+            do {
+                for try await isEnabled in tabBarLabelsStore.stream() {
+                    await self?.presenter?.didReceiveTabBarLabelsEnabled(isEnabled)
+                }
+            } catch {
+                logger.error("Tab bar labels subscription error: \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - SettingsInteractorInputProtocol
@@ -134,6 +148,7 @@ private extension SettingsInteractor {
 extension SettingsInteractor: SettingsInteractorInputProtocol {
     func setup() {
         subscribeToPrivacyStrategy()
+        subscribeToTabBarLabels()
         configureAppVersion()
         subscribeToAvailabilityChanges()
         subscribeToBackupStatusChanges()
@@ -146,13 +161,8 @@ extension SettingsInteractor: SettingsInteractorInputProtocol {
         recyclingStrategyProvider.save(strategy: strategy)
     }
 
-    func openMailApp() {
-        let canSendMail = MainActor.assumeIsolated { emailComposePresenter.canSendMail() }
-        if canSendMail {
-            Task { await presenter?.didOpenMailApp() }
-        } else {
-            Task { await presenter?.didFailToOpenMailApp(email: AppConfig.contactEmail) }
-        }
+    func saveTabBarLabelsEnabled(_ isEnabled: Bool) {
+        tabBarLabelsStore.save(isEnabled: isEnabled)
     }
 }
 

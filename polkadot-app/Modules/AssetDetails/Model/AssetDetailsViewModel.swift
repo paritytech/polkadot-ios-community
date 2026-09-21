@@ -6,19 +6,29 @@ import Foundation
 
 struct CoinageBalanceBreakdownViewModel {
     /// Bare amounts, no symbol: the headline carries ``symbol`` once, in small type, and the
-    /// three figures below it are read against that.
+    /// two figures below it are read against that.
     let totalBalance: String
     let availableNowBalance: String
     let gainingPrivacyBalance: String
-    let pendingBalance: String
     let symbol: String
     let composition: CoinageCompositionBar.Model
-    /// Coins and vouchers in one list, already ordered and grouped for display.
-    let holdings: [CoinageHoldingGroupViewModel]
+    /// Coins and vouchers in one list, already ordered for display. What the screen draws.
+    let holdings: [CoinageHoldingViewModel]
+    /// Alternative depictions, kept alongside the live one so a design variant is a one-line
+    /// change in ``CoinageDetailsView`` rather than a revert.
+    let groups: [CoinageHoldingGroupViewModel]
     let distribution: CoinageFungibilityDistribution
     let matrix: CoinageHoldingMatrix
     /// Every holding, in list order, for the table depiction.
     let table: [CoinageTableView.Coin]
+}
+
+/// A single coin or voucher row: its value, and a number-free status depiction.
+struct CoinageHoldingViewModel: Identifiable {
+    let id: String
+    /// The bare value, no currency symbol. Nil until the denomination context is known.
+    let amount: String?
+    let status: CoinageHoldingStatus
 }
 
 /// Everything that draws one depiction: the depiction itself, the values that share it, and what
@@ -86,6 +96,8 @@ struct CoinageFungibilityDistribution: Equatable {
 protocol AssetDetailsViewModelProtocol: Observation.Observable {
     var balanceCardModel: AssetDetailsBalanceCard.ViewModel? { get set }
     var showsBackupNotification: Bool { get set }
+    /// This installation's on-chain registration has not landed in the expected time (D4).
+    var showsAccountBackupPending: Bool { get set }
     var fundingStates: [AssetFundingStatusView.FundingState] { get set }
     var isFundingExpanded: Bool { get set }
     var isUpdating: Bool { get set }
@@ -100,11 +112,10 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
 
     var isTopUpInProgress: Bool { get set }
     var onTopUp: (() -> Void)? { get set }
+    var isWithdrawInProgress: Bool { get set }
+    var onWithdraw: (() -> Void)? { get set }
 
     var coinageBreakdown: CoinageBalanceBreakdownViewModel? { get set }
-    /// Set only in builds that carry the debug affordances; nil elsewhere, which is what hides the
-    /// button rather than a second conditional in the view.
-    var onMakeAllVouchersReady: (() -> Void)? { get set }
     #if TESTNET_FEATURE
         var isTestnetTopUpInProgress: Bool { get set }
         var onTestnetTopUp: (() -> Void)? { get set }
@@ -115,6 +126,7 @@ protocol AssetDetailsViewModelProtocol: Observation.Observable {
 class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
     var balanceCardModel: AssetDetailsBalanceCard.ViewModel?
     var showsBackupNotification: Bool = false
+    var showsAccountBackupPending: Bool = false
     var fundingStates: [AssetFundingStatusView.FundingState] = []
     var isFundingExpanded: Bool = false
     var isUpdating: Bool = false
@@ -129,9 +141,10 @@ class AssetDetailsViewModel: AssetDetailsViewModelProtocol {
 
     var isTopUpInProgress: Bool = false
     var onTopUp: (() -> Void)?
+    var isWithdrawInProgress: Bool = false
+    var onWithdraw: (() -> Void)?
 
     var coinageBreakdown: CoinageBalanceBreakdownViewModel?
-    var onMakeAllVouchersReady: (() -> Void)?
     #if TESTNET_FEATURE
         var isTestnetTopUpInProgress: Bool = false
         var onTestnetTopUp: (() -> Void)?

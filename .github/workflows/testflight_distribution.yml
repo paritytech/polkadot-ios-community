@@ -21,7 +21,13 @@ env:
 jobs:
   distribute_testflight:
     runs-on: macos-26
-    if: contains('["sergkononenko","ERussel","stepanLav", "den-vasilev", "piroznoe", "kogeler"]', github.actor)
+    # Held: host-rust-core builds and distributes everything except Safetynet.
+    # Two repositories publishing one configuration collide on a single App
+    # Store Connect record, so this runs in one place only.
+    #
+    # The condition this replaces:
+    # if: contains('["sergkononenko","ERussel","stepanLav", "den-vasilev", "piroznoe", "kogeler"]', github.actor)
+    if: false
     name: Distribute TestFlight Build
     outputs:
       build_number: ${{ steps.read_marketing_version.outputs.build_number }}

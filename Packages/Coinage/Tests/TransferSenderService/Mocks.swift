@@ -28,19 +28,19 @@ extension TransferSenderServiceTests {
     /// Mock coin allocator that returns coins with sequential derivation indices and records every
     /// coin it mints, so tests can assert on the outputs the strategies persist.
     actor MockCoinAllocator: CoinAllocating, CoinMinting {
-        private var nextIndex: UInt64 = 100
+        private var nextIndex: CoinageKeyIndex = 100
         private(set) var mintedCoins: [Coin] = []
 
         func allocate(exponent: Int16, provenance: CoinProvenance) async throws -> Coin {
             let index = nextIndex
-            nextIndex += 1
+            nextIndex = nextIndex.next()
             let coin = Coin(
                 exponent: exponent,
                 derivationIndex: index,
                 age: nil,
                 recyclerFungibility: provenance.recyclerFungibility,
                 hops: provenance.hops,
-                publicKey: Data(repeating: UInt8(truncatingIfNeeded: index), count: 32)
+                publicKey: Data(repeating: UInt8(truncatingIfNeeded: index.item), count: 32)
             )
             mintedCoins.append(coin)
             return coin
@@ -56,9 +56,14 @@ extension TransferSenderServiceTests {
         var states: [RecyclerKey: MembersPallet.RingStatus] = [:]
         var revisions: [RecyclerKey: UInt32] = [:]
         var maxConsolidationValue: UInt32 = 100
+        var maxSplitOutputsValue: UInt32 = 32
 
         func maxConsolidation() async throws -> UInt32 {
             maxConsolidationValue
+        }
+
+        func maxSplitOutputs() async throws -> UInt32 {
+            maxSplitOutputsValue
         }
 
         func fetchRecyclerStates(for keys: [RecyclerKey]) async throws -> [RecyclerKey: MembersPallet.RingStatus] {
@@ -144,6 +149,10 @@ extension TransferSenderServiceTests {
 
         func fetchBlockHash(_: BlockNumber) async throws -> BlockHashData {
             Data(repeating: 0x00, count: 32)
+        }
+
+        func fetchBlockNumber(byHash _: BlockHashData) async throws -> BlockNumber {
+            BlockNumber(123)
         }
 
         func subscribeFinalizedHeads() -> AnyAsyncSequence<Block.Header> {

@@ -21,6 +21,7 @@ import SubstrateSdkExt
 final class OffboardVouchersForPaymentService {
     private let instanceId: CoinageInstanceId
     private let voucherKeyFactory: any VoucherKeyDeriving
+    private let voucherService: VoucherServiceProtocol
     private let voucherMinter: any VoucherMinting
     private let recyclerLoader: RecyclerReadinessLoading
     private let txService: any CoinageTxServicing
@@ -33,6 +34,7 @@ final class OffboardVouchersForPaymentService {
     init(
         instanceId: CoinageInstanceId,
         voucherKeyFactory: any VoucherKeyDeriving,
+        voucherService: VoucherServiceProtocol,
         voucherMinter: any VoucherMinting,
         recyclerLoader: RecyclerReadinessLoading,
         txService: any CoinageTxServicing,
@@ -44,6 +46,7 @@ final class OffboardVouchersForPaymentService {
     ) {
         self.instanceId = instanceId
         self.voucherKeyFactory = voucherKeyFactory
+        self.voucherService = voucherService
         self.voucherMinter = voucherMinter
         self.recyclerLoader = recyclerLoader
         self.txService = txService
@@ -54,25 +57,22 @@ final class OffboardVouchersForPaymentService {
         self.logger = logger
     }
 
+    /// `surplus` is what `vouchers` exceed the payment by; it is folded back into fresh vouchers.
     func execute(
         payment: ExternalPayment,
-        vouchers: [Voucher]
+        vouchers: [Voucher],
+        surplus: Balance
     ) async throws -> OffboardOutcome {
-        try await executeSubmissions(payment: payment, vouchers: vouchers)
-    }
-
-    /// Whether this payment already has a registered durability group — i.e. a prior attempt got as
-    /// far as registration. Lets the state decide between re-joining and re-planning after a crash.
-    func hasPendingGroup(for payment: ExternalPayment) async throws -> Bool {
-        try await !txService.getOperationGroupStatuses(groupId(for: payment)).isEmpty
+        try await executeSubmissions(payment: payment, vouchers: vouchers, surplus: surplus)
     }
 }
 
 /// The unload's single verdict, folded from its per-group entries. `partialSuccess` is not a
-/// failure — money did move, just not all of it.
+/// failure — money did move, just not all of it: `settledInPlanks` is what the finalized groups
+/// delivered, and the payment ends there.
 enum OffboardOutcome: Equatable {
     case success
-    case partialSuccess(executed: Int, total: Int)
+    case partialSuccess(settledInPlanks: Balance, executed: Int, total: Int)
     case failed
 }
 
@@ -81,17 +81,18 @@ enum OffboardOutcome: Equatable {
 private extension OffboardVouchersForPaymentService {
     func executeSubmissions(
         payment: ExternalPayment,
-        vouchers: [Voucher]
+        vouchers: [Voucher],
+        surplus: Balance
     ) async throws -> OffboardOutcome {
         let groupId = groupId(for: payment)
 
-        try await registerOrRejoinGroup(payment: payment, vouchers: vouchers, groupId: groupId)
+        try await registerOrRejoinGroup(payment: payment, vouchers: vouchers, surplus: surplus, groupId: groupId)
 
         return try await awaitGroupOutcome(groupId: groupId)
     }
 
     func groupId(for payment: ExternalPayment) -> CoinageTxGroupId {
-        "external-payment:\(payment.id)"
+        payment.identifier
     }
 
     /// Registers the whole payment as one atomic durability group, or re-joins the group a prior
@@ -100,6 +101,7 @@ private extension OffboardVouchersForPaymentService {
     func registerOrRejoinGroup(
         payment: ExternalPayment,
         vouchers: [Voucher],
+        surplus: Balance,
         groupId: CoinageTxGroupId
     ) async throws {
         let existing = try await txService.getOperationGroupStatuses(groupId)
@@ -114,7 +116,7 @@ private extension OffboardVouchersForPaymentService {
             throw OffboardVouchersForPaymentError.missingRecyclerInfo
         }
 
-        let requests = try await buildGroupRequests(payment: payment, vouchers: vouchers)
+        let requests = try await buildGroupRequests(payment: payment, vouchers: vouchers, surplus: surplus)
         _ = try await txService.submitTransactions(requests, groupId: groupId)
         logger?.debug("Registered \(requests.count) offboard groups under \(groupId)")
 
@@ -130,13 +132,17 @@ private extension OffboardVouchersForPaymentService {
                 continue
             }
 
-            let executed = entries.filter { $0.status == .finalizedSuccess }.count
+            let finalized = entries.filter { $0.status == .finalizedSuccess }
             let total = entries.count
 
-            if executed == total {
+            if finalized.count == total {
                 return .success
-            } else if executed > 0 {
-                return .partialSuccess(executed: executed, total: total)
+            } else if !finalized.isEmpty {
+                return try await .partialSuccess(
+                    settledInPlanks: settledValue(of: finalized),
+                    executed: finalized.count,
+                    total: total
+                )
             } else {
                 return .failed
             }
@@ -147,12 +153,10 @@ private extension OffboardVouchersForPaymentService {
 
     func buildGroupRequests(
         payment: ExternalPayment,
-        vouchers: [Voucher]
+        vouchers: [Voucher],
+        surplus: Balance
     ) async throws -> [CoinageTxRequest] {
-        let details = try await buildGroupDetails(
-            groups: groupVouchers(vouchers),
-            paymentAmount: payment.amountInPlanks
-        )
+        let details = try await buildGroupDetails(groups: unloadCalls(for: vouchers), surplus: surplus)
 
         let blockHash = try await blockNumberProvider.fetchCurrentHash()
 
@@ -162,8 +166,10 @@ private extension OffboardVouchersForPaymentService {
             blockHash: blockHash
         )
 
+        // Several calls can share a recycler, so the revision query is deduplicated.
+        var seenKeys = Set<RecyclerKey>()
         let revisions = try await recyclerLoader.fetchRevisions(
-            for: details.map(\.group.key),
+            for: details.map(\.group.key).filter { seenKeys.insert($0).inserted },
             blockHash: blockHash
         )
 
@@ -182,16 +188,52 @@ private extension OffboardVouchersForPaymentService {
     }
 }
 
+// MARK: - Settled Value
+
+private extension OffboardVouchersForPaymentService {
+    /// What the finalized groups delivered to the destination: each group's voucher inputs minus the
+    /// surplus vouchers it minted back. Only the vouchers the entries name are read, by public key.
+    func settledValue(of entries: [CoinageTxEntry]) async throws -> Balance {
+        let inputKeys = entries.flatMap(\.inputs).compactMap { input -> (CoinageKeyIndex, PublicKey)? in
+            guard case let .recyclerVoucher(index, key) = input else { return nil }
+            return (index, key)
+        }
+        let outputKeys = entries.flatMap(\.outputs).compactMap { output -> (CoinageKeyIndex, PublicKey)? in
+            guard case let .recyclerVoucher(index, key) = output else { return nil }
+            return (index, key)
+        }
+        let vouchers = try await voucherService.fetchVouchers(publicKeys: Set((inputKeys + outputKeys).map(\.1)))
+        let exponents = Dictionary(
+            vouchers.map { ($0.derivationIndex, $0.exponent) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        func value(of index: CoinageKeyIndex) throws -> Balance {
+            guard let exponent = exponents[index] else {
+                throw OffboardVouchersForPaymentError.unknownVoucher(index)
+            }
+            return denominationContext.valueInPlanks(for: exponent)
+        }
+
+        return try entries.reduce(Balance(0)) { partial, entry in
+            let inputs = try entry.inputs.reduce(Balance(0)) { sum, input in
+                guard case let .recyclerVoucher(index, _) = input else { return sum }
+                return try sum + value(of: index)
+            }
+            let outputs = try entry.outputs.reduce(Balance(0)) { sum, output in
+                guard case let .recyclerVoucher(index, _) = output else { return sum }
+                return try sum + value(of: index)
+            }
+            return partial + (inputs > outputs ? inputs - outputs : 0)
+        }
+    }
+}
+
 // MARK: - Models
 
 private extension OffboardVouchersForPaymentService {
-    struct VoucherGroup {
-        let key: RecyclerKey
-        let vouchers: [Voucher]
-    }
-
     struct GroupDetails {
-        let group: VoucherGroup
+        let group: RecyclerVoucherChunk
         let externalAssetAmount: Balance
         let surplusVouchers: [Voucher]
     }
@@ -203,9 +245,12 @@ private extension OffboardVouchersForPaymentService {
         let origin: any ExtrinsicOriginDefining
     }
 
-    /// The single group carrying the whole payment's surplus, and the change vouchers minted for it.
+    /// The single call carrying the whole payment's surplus, and the change vouchers minted for it.
+    ///
+    /// Identified by its position, not by its recycler: a recycler holding more vouchers than one
+    /// call may unload is split across several calls that all share the same `RecyclerKey`.
     struct SurplusHost {
-        let hostKey: RecyclerKey
+        let hostIndex: Int
         let surplusVouchers: [Voucher]
     }
 }
@@ -214,16 +259,13 @@ private extension OffboardVouchersForPaymentService {
 
 private extension OffboardVouchersForPaymentService {
     func buildGroupDetails(
-        groups: [VoucherGroup],
-        paymentAmount: Balance
+        groups: [RecyclerVoucherChunk],
+        surplus: Balance
     ) async throws -> [GroupDetails] {
-        let totalInput = groups.reduce(Balance(0)) { $0 + groupInput($1) }
-        let surplus = totalInput > paymentAmount ? totalInput - paymentAmount : Balance(0)
-
         let host = try await resolveSurplusHost(groups: groups, surplus: surplus)
 
-        return groups.map { group in
-            let isHost = group.key == host?.hostKey
+        return groups.enumerated().map { index, group in
+            let isHost = index == host?.hostIndex
             return GroupDetails(
                 group: group,
                 externalAssetAmount: isHost ? groupInput(group) - surplus : groupInput(group),
@@ -232,23 +274,23 @@ private extension OffboardVouchersForPaymentService {
         }
     }
 
-    /// Picks the first group large enough to host the entire surplus and mints the change vouchers
-    /// for it. `nil` when there is no surplus; throws when no single group can carry it.
+    /// Picks the first call large enough to host the entire surplus and mints the change vouchers
+    /// for it. `nil` when there is no surplus; throws when no single call can carry it.
     func resolveSurplusHost(
-        groups: [VoucherGroup],
+        groups: [RecyclerVoucherChunk],
         surplus: Balance
     ) async throws -> SurplusHost? {
         guard surplus > 0 else { return nil }
 
-        guard let host = groups.first(where: { groupInput($0) >= surplus }) else {
+        guard let hostIndex = groups.firstIndex(where: { groupInput($0) >= surplus }) else {
             throw OffboardVouchersForPaymentError.noSurplusHost(surplus)
         }
 
         let surplusVouchers = try await allocateSurplusVouchers(surplus: surplus)
-        return SurplusHost(hostKey: host.key, surplusVouchers: surplusVouchers)
+        return SurplusHost(hostIndex: hostIndex, surplusVouchers: surplusVouchers)
     }
 
-    func groupInput(_ group: VoucherGroup) -> Balance {
+    func groupInput(_ group: RecyclerVoucherChunk) -> Balance {
         group.vouchers.reduce(Balance(0)) {
             $0 + denominationContext.valueInPlanks(for: $1.exponent)
         }
@@ -258,14 +300,11 @@ private extension OffboardVouchersForPaymentService {
 // MARK: - Grouping
 
 private extension OffboardVouchersForPaymentService {
-    func groupVouchers(_ vouchers: [Voucher]) -> [VoucherGroup] {
-        var grouped: [RecyclerKey: [Voucher]] = [:]
-        for voucher in vouchers {
-            guard let recycler = voucher.recycler else { continue }
-            let key = RecyclerKey(exponent: voucher.exponent, index: recycler.index)
-            grouped[key, default: []].append(voucher)
-        }
-        return grouped.map { VoucherGroup(key: $0.key, vouchers: $0.value) }
+    /// One call per recycler, split further when a recycler holds more vouchers than the pallet
+    /// accepts as aliases in a single call.
+    func unloadCalls(for vouchers: [Voucher]) async throws -> [RecyclerVoucherChunk] {
+        let maxPerCall = try await max(Int(recyclerLoader.maxConsolidation()), 1)
+        return try RecyclerVoucherChunker.chunk(vouchers, maxPerChunk: maxPerCall)
     }
 }
 

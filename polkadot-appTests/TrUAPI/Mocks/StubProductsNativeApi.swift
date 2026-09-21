@@ -72,11 +72,12 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
     func subscribePaymentBalance() async throws -> AnyAsyncSequence<PaymentBalance> { fatalError() }
 
     func requestPayment(
-        amountInPlanks _: String,
-        destination _: AccountId
-    ) async throws -> PaymentReceipt { fatalError() }
+        amount _: Balance,
+        destination _: AccountId,
+        id _: PaymentRequestId
+    ) async throws { fatalError() }
 
-    func subscribePaymentStatus(paymentId _: String) async throws -> AnyAsyncSequence<HostPaymentStatus> {
+    func subscribePaymentStatus(id _: PaymentRequestId) async throws -> AnyAsyncSequence<HostPaymentStatus> {
         fatalError()
     }
 

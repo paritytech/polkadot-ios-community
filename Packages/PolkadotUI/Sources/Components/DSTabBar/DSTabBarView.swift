@@ -35,13 +35,13 @@ public final class DSTabBarView: UIView {
         }
     }
 
-    /// The action item whose panel is open. The lens parks on it until the panel closes.
+    /// The action item whose panel is open. Tints that item without moving the lens.
     public var activeActionIndex: Int? {
         didSet {
             guard activeActionIndex != oldValue else {
                 return
             }
-            updateLens(animated: true)
+            applyActiveAction()
             rebuildAccessibilityElements()
         }
     }
@@ -51,6 +51,10 @@ public final class DSTabBarView: UIView {
     public var onActionTapped: ((Int) -> Void)?
 
     public var onFoldChangeRequested: ((_ folded: Bool, _ velocityX: CGFloat) -> Void)?
+
+    /// Fires once item frames are assigned, so callers anchoring to them can wait for real
+    /// geometry rather than guessing when layout has run.
+    public var onItemsLaidOut: (() -> Void)?
 
     private let content = UIView()
     private let lens = DSTabBarSelectionLens()
@@ -107,6 +111,18 @@ public final class DSTabBarView: UIView {
         itemsStorage[index].badge = badge
         itemViews[index].apply(itemsStorage[index])
         selectedItemViews[index].apply(itemsStorage[index])
+        applyActiveAction()
+    }
+
+    /// Anchor view for a popover pointing at a bar item. Re-read it rather than caching:
+    /// item views are recreated whenever `items` changes. Nil until frames are assigned in
+    /// `layoutSubviews` — an empty source rect makes UIKit centre the popover on screen.
+    public func itemAnchor(at index: Int) -> UIView? {
+        guard itemViews.indices.contains(index), !itemViews[index].frame.isEmpty else {
+            return nil
+        }
+
+        return itemViews[index]
     }
 
     override public func layoutSubviews() {
@@ -141,15 +157,6 @@ private extension DSTabBarView {
 
     var tabIndices: [Int] {
         itemsStorage.indices.filter { itemsStorage[$0].role == .tab }
-    }
-
-    /// An open panel outranks the selected tab, so the single pill reads as current focus rather
-    /// than leaving the bar with two marks.
-    var restingPillIndex: Int {
-        guard let activeActionIndex, itemsStorage.indices.contains(activeActionIndex) else {
-            return selectedIndex
-        }
-        return activeActionIndex
     }
 
     /// The apps action sits mid-row, so springing the reflow slides its neighbours across a whole
@@ -190,6 +197,7 @@ private extension DSTabBarView {
             return view
         }
 
+        applyActiveAction()
         rebuildAccessibilityElements()
         setNeedsLayout()
     }
@@ -202,6 +210,16 @@ private extension DSTabBarView {
             selectedItemViews[index].frame = frame
         }
         rebuildAccessibilityElements()
+
+        if !items.isEmpty, bounds.width > 0 {
+            onItemsLaidOut?()
+        }
+    }
+
+    func applyActiveAction() {
+        for index in itemViews.indices {
+            itemViews[index].isActive = index == activeActionIndex
+        }
     }
 
     func updateLens(animated: Bool) {
@@ -212,13 +230,12 @@ private extension DSTabBarView {
         lens.update(pillFrame: lensPillFrame(), isLifted: dragState != nil, animated: animated)
     }
 
-    /// The pill rests on the selected tab, parks on an action while that action's panel is open,
-    /// and a drag in flight carries it, clamped to the row.
+    /// The pill rests on the selected tab; a drag in flight carries it, clamped to the row.
     func lensPillFrame() -> CGRect {
         let row = row
 
         guard let dragState else {
-            return row.pillFrame(at: restingPillIndex)
+            return row.pillFrame(at: selectedIndex)
         }
 
         var frame = row.pillFrame(at: dragState.index)

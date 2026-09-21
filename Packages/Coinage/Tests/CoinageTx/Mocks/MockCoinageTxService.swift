@@ -4,6 +4,7 @@ import Operation_iOS
 import ExtrinsicService
 import AsyncExtensions
 @testable import Coinage
+import DurableTransactions
 
 /// Thread-safe journal for recording mock call events.
 final class CallJournal: @unchecked Sendable {
@@ -29,7 +30,6 @@ actor MockCoinageTxService: CoinageTxServicing {
     private(set) var submittedInputs: [[CoinageTxInput]] = []
     private(set) var submittedOutputs: [[OwnAsset]] = []
     private(set) var handoffAssets: [OwnAsset] = []
-    private(set) var recoveryPassCount: Int = 0
 
     private let submissionOutcome: SubmissionOutcome
 
@@ -110,29 +110,15 @@ actor MockCoinageTxService: CoinageTxServicing {
         store.subscribeOperationGroupStatuses(groupId)
     }
 
-    nonisolated func startRecoveryPass() {
-        Task { [weak self] in
-            await self?.incrementRecoveryPassCount()
-        }
-    }
-
-    nonisolated func start() {}
-
-    nonisolated func stop() {}
-
     func preCommitHandoff(_ assets: [OwnAsset]) async throws -> any CoinageHandoffCommit {
         callJournal.record("preCommitHandoff")
         handoffAssets.append(contentsOf: assets)
         try await store.precommitHandOff(assets) { _ in }
-        return StoreHandoffCommit(assets: assets, store: store)
+        return StoreHandoffCommit(assets: assets, ledger: store.ledger)
     }
 
     func releaseUncommittedHandoffs() async throws {
         try await store.releaseUncommittedHandoffs()
-    }
-
-    private func incrementRecoveryPassCount() {
-        recoveryPassCount += 1
     }
 }
 

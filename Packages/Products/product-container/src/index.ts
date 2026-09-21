@@ -918,16 +918,23 @@ container.handlePaymentBalanceSubscribe((_params, send, interrupt) => {
 
 container.handlePaymentRequest(async (params, { ok, err }) => {
   try {
-    const result = await callNative('paymentRequest', {
+    await callNative('paymentRequest', {
+      idHex: toHex(params.id),
       amount: params.amount.toString(),
       destinationHex: toHex(params.destination),
     });
-    return ok({ id: result.id });
+    return ok(undefined);
   } catch (e) {
-    const msg = String(e instanceof Error ? e.message : e);
-    if (msg.includes('payment rejected')) return err(new PaymentRequestErr.Rejected());
-    if (msg.includes('insufficient balance')) return err(new PaymentRequestErr.InsufficientBalance());
-    return err(new PaymentRequestErr.Unknown({ reason: msg }));
+    switch ((e as { code?: string })?.code) {
+      case 'AlreadyExists':
+        return err(new PaymentRequestErr.AlreadyExists());
+      case 'Rejected':
+        return err(new PaymentRequestErr.Rejected());
+      case 'InsufficientBalance':
+        return err(new PaymentRequestErr.InsufficientBalance());
+      default:
+        return err(new PaymentRequestErr.Unknown({ reason: String((e as Error)?.message ?? e) }));
+    }
   }
 });
 
@@ -995,16 +1002,31 @@ container.handlePaymentTopUpStatusSubscribe((id, send, interrupt) => {
   );
 });
 
-container.handlePaymentStatusSubscribe((paymentId, send, interrupt) => {
+container.handlePaymentStatusSubscribe((id, send, interrupt) => {
   return subscribeNative(
     'paymentStatusSubscribe',
-    { paymentId },
-    (payload: { tag: 'Processing' | 'Completed' | 'Failed'; value: string | null }) => {
-      if (payload.tag === 'Processing') send({ tag: 'Processing', value: undefined });
-      else if (payload.tag === 'Completed') send({ tag: 'Completed', value: undefined });
-      else send({ tag: 'Failed', value: payload.value ?? '' });
+    { idHex: toHex(id) },
+    (payload: { tag: string; value: string | null }) => {
+      switch (payload.tag) {
+        case 'Completed':
+          return send({ tag: 'Completed', value: undefined });
+        case 'Failed':
+          return send({ tag: 'Failed', value: payload.value ?? '' });
+        case 'PartiallyClaimed':
+          return send({ tag: 'PartiallyClaimed', value: BigInt(payload.value ?? '0') });
+        default:
+          return send({ tag: 'Processing', value: undefined });
+      }
     },
-    () => interrupt(new PaymentStatusErr.Unknown({ reason: 'subscription interrupted' })),
+    (e) => {
+      // Deferred for the same reason as the top-up status subscription above.
+      const failure =
+        (e as { code?: string })?.code === 'NotFound'
+          ? new PaymentStatusErr.PaymentNotFound()
+          : new PaymentStatusErr.Unknown({ reason: String((e as Error)?.message ?? e) });
+
+      queueMicrotask(() => interrupt(failure));
+    },
   );
 });
 

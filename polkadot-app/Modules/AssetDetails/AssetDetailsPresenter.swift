@@ -23,7 +23,6 @@ final class AssetDetailsPresenter {
 
     private let chainAsset: ChainAsset
     private var balance: Decimal = 0
-    private var lockedAmount: Decimal = 0
     /// Classified alongside the balance figures, so the rows and the bar always account for
     /// exactly the total shown above them.
     private var holdings: CoinageHoldings = .empty
@@ -69,18 +68,18 @@ final class AssetDetailsPresenter {
 
         view?.didReceiveData(viewModel: .token(balanceViewModel), index: 0)
 
-        guard lockedAmount > 0 else {
-            view?.didReceive(lockedAmount: nil)
+        guard (coinageAmounts?.gainingPrivacy ?? 0) > 0 else {
+            view?.didReceive(readyAmount: nil)
             return
         }
 
-        let lockedViewModel = balanceViewModelFactory.balanceFromPrice(
-            lockedAmount,
+        let readyViewModel = balanceViewModelFactory.balanceFromPrice(
+            coinageAmounts?.availableNow ?? 0,
             priceData: price
         )
         .value(for: .current)
 
-        view?.didReceive(lockedAmount: lockedViewModel)
+        view?.didReceive(readyAmount: readyViewModel)
     }
 }
 
@@ -122,9 +121,11 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
     }
 
     func onTopUp() {
-        view?.didReceive(topUpLoading: true)
+        openRampProduct(.topUp)
+    }
 
-        interactor?.openTopUpProduct()
+    func onWithdraw() {
+        openRampProduct(.withdraw)
     }
 
     #if TESTNET_FEATURE
@@ -133,16 +134,12 @@ extension AssetDetailsPresenter: AssetDetailsPresenterProtocol {
 
             interactor?.topUp()
         }
-
-        func onMakeAllVouchersReady() {
-            interactor?.makeAllVouchersReady()
-        }
     #endif
 }
 
 extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
-    func didResolveTopUpProduct(_ result: Result<ProductPage, Error>) {
-        view?.didReceive(topUpLoading: false)
+    func didResolveRampProduct(_ action: RampAction, result: Result<ProductPage, Error>) {
+        view?.didReceive(rampLoading: action, isLoading: false)
 
         switch result {
         case let .success(page):
@@ -160,6 +157,7 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
     func didReceive(coinageAmounts: CoinageAmounts, holdings: CoinageHoldings) {
         self.coinageAmounts = coinageAmounts
         self.holdings = holdings
+        provideAssetBalance()
         provideCoinageBreakdown()
     }
 
@@ -187,33 +185,25 @@ extension AssetDetailsPresenter: AssetDetailsInteractorOutputProtocol {
         #endif
     }
 
-    func didReceive(lockedAmount: Decimal) {
-        self.lockedAmount = lockedAmount
-        provideAssetBalance()
-        #if TESTNET_FEATURE
-            provideCoinageBreakdown()
-        #endif
-    }
-
     func didReceive(price: PriceData?) {
         self.price = price
         provideAssetBalance()
-    }
-
-    func didFail(recovery error: Error) {
-        wireframe.present(error: error, from: view)
     }
 
     func didReceive(isRecoveryInProgress: Bool) {
         view?.didReceive(isRecoveryInProgress: isRecoveryInProgress)
     }
 
-    func didCompleteRecovery() {
-        view?.didShowBackupNotification()
+    func didReceive(isAccountBackupPending: Bool) {
+        view?.didReceive(isAccountBackupPending: isAccountBackupPending)
     }
 
-    func didClearBackupNotification() {
-        view?.didHideBackupNotification()
+    func didReceive(showsRecoveredBalance: Bool) {
+        if showsRecoveredBalance {
+            view?.didShowBackupNotification()
+        } else {
+            view?.didHideBackupNotification()
+        }
     }
 }
 
@@ -345,6 +335,14 @@ private extension AssetDetailsPresenter {
         }
         let peak = groupValues.max() ?? 0
 
+        let holdingRows = CoinageBreakdownFactory.rows(from: holdings).map { row in
+            CoinageHoldingViewModel(
+                id: row.id,
+                amount: amount(forExponent: row.exponent),
+                status: row.status
+            )
+        }
+
         let rows = zip(groups, groupValues).map { group, value in
             CoinageHoldingGroupViewModel(
                 id: group.id,
@@ -373,12 +371,12 @@ private extension AssetDetailsPresenter {
             totalBalance: formatted(from: amounts.total, includeSymbol: false),
             availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
             gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
-            pendingBalance: formatted(from: amounts.pending, includeSymbol: false),
             symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
             composition: context.map {
                 CoinageBreakdownFactory.composition(of: holdings, context: $0)
             } ?? .empty,
-            holdings: rows,
+            holdings: holdingRows,
+            groups: rows,
             distribution: bands,
             matrix: matrix,
             table: table
@@ -445,5 +443,13 @@ private extension AssetDetailsPresenter {
                 )
             }
         )
+    }
+}
+
+private extension AssetDetailsPresenter {
+    func openRampProduct(_ action: RampAction) {
+        view?.didReceive(rampLoading: action, isLoading: true)
+
+        interactor?.openRampProduct(action)
     }
 }

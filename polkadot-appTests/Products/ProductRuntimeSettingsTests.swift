@@ -8,7 +8,11 @@ struct ProductRuntimeSettingsTests {
     /// TrUAPI, so every product surface is exercised against the rust core rather than native.
     @Test("A fresh install runs the TrUAPI runtime")
     func freshInstallRunsTrUAPI() {
-        #expect(InMemorySettingsManager().isTrUAPIRuntimeEnabled)
+        #if TRUAPI_RUNTIME_DEFAULT
+            #expect(InMemorySettingsManager().isTrUAPIRuntimeEnabled)
+        #else
+            #expect(!InMemorySettingsManager().isTrUAPIRuntimeEnabled)
+        #endif
     }
 
     @Test("An explicit switch to native is respected")
