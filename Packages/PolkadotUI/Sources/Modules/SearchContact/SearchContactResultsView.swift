@@ -29,6 +29,7 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
     private var contentSizeObservation: NSKeyValueObservation?
     private var isStatusVisible = false
     private var lastReportedHeight: CGFloat = 0
+    private var noResultsHeightCap: Constraint?
 
     private var modelHeight: CGFloat = 0
     private lazy var rowHeight = measuredHeight(
@@ -75,7 +76,7 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
             $0.centerX.equalTo(centeringLayoutGuide.snp.centerX)
             $0.centerY.equalTo(centeringLayoutGuide.snp.centerY)
             $0.width.lessThanOrEqualTo(centeringLayoutGuide.snp.width)
-            $0.height.lessThanOrEqualTo(centeringLayoutGuide.snp.height)
+            noResultsHeightCap = $0.height.lessThanOrEqualTo(centeringLayoutGuide.snp.height).constraint
         }
 
         loadingView.snp.makeConstraints {
@@ -185,20 +186,27 @@ public extension SearchContactResultsView {
 
     func bind(status: StatusViewModel) {
         updateStatusVisibility(status)
+        let showsFailReason = status.searchFailReason != nil
         noResultsLabel.attributedText = status.searchFailReason
-        noResultsLabel.setHidden(status.searchFailReason == nil)
+        noResultsLabel.setHidden(!showsFailReason)
+        // A hidden label still constrains: its height cap would hold the empty view open.
+        if showsFailReason {
+            noResultsHeightCap?.activate()
+        } else {
+            noResultsHeightCap?.deactivate()
+        }
         loadingView.bind(text: status.loaderText)
         loadingView.setLoading(status.showsLoader)
         contentHeightDidChange()
     }
 
     func bind(viewModel: ViewModel) {
-        // The status flag must be current before the snapshot changes `contentSize`, or the KVO
-        // resize measures a stale state and the panel dips before the status floor applies.
         modelHeight = expectedHeight(for: viewModel)
-        updateStatusVisibility(viewModel.status)
-        applySnapshot(sections: viewModel.sections.map { createSectionProvider(for: $0) })
+        // The status must be applied before the snapshot sets `contentSize`: that KVO fires even
+        // for an unchanged value and resizes the panel at once, so a stale status floor or label
+        // cap would be the one measured.
         bind(status: viewModel.status)
+        applySnapshot(sections: viewModel.sections.map { createSectionProvider(for: $0) })
     }
 }
 

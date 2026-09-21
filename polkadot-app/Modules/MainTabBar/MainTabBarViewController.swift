@@ -350,14 +350,9 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         let controller = viewFactory.makeScanController()
         chromeController.setContentController(controller, for: .scan)
 
-        controller?.onEditingDidBegin = { [weak self] in
-            self?.isScanPanelFieldFocused = true
-            self?.chromeController.resizeContentPanel()
-        }
-
-        controller?.onEditingDidEnd = { [weak self] in
-            self?.isScanPanelFieldFocused = false
-            self?.chromeController.resizeContentPanel()
+        controller?.onFocusChanged = { [weak self] focused, applyLayout in
+            self?.isScanPanelFieldFocused = focused
+            self?.chromeController.resizeContentPanel(preparing: applyLayout)
         }
 
         // Opening the chat selects its tab, and tab selection closes the panel. A second close here

@@ -85,6 +85,7 @@ public final class ScanPanelViewLayout: UIView {
     }
 
     /// The camera shrinks to a centred square above the field while the field is focused.
+    /// The caller owns the animation via the panel animator.
     public func setCameraCompact(_ compact: Bool) {
         if compact {
             fullHorizontalConstraints.forEach { $0.deactivate() }
@@ -93,14 +94,6 @@ public final class ScanPanelViewLayout: UIView {
             compactHorizontalConstraints.forEach { $0.deactivate() }
             fullHorizontalConstraints.forEach { $0.activate() }
         }
-
-        let animator = UIViewPropertyAnimator(
-            duration: DSTabBarTabsPanelView.openDuration,
-            dampingRatio: DSTabBarTabsPanelView.openDampingRatio
-        ) { [self] in
-            layoutIfNeeded()
-        }
-        animator.startAnimation()
 
         cameraTapRecognizer.isEnabled = compact
     }

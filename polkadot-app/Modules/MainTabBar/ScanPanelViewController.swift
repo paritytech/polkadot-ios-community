@@ -9,8 +9,7 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
     private let scannerController: UIViewController & ScanPanelScannerControlling
     private let presenter: SearchContactPresenterProtocol
 
-    var onEditingDidBegin: (() -> Void)?
-    var onEditingDidEnd: (() -> Void)?
+    var onFocusChanged: ((_ focused: Bool, _ applyLayout: @escaping () -> Void) -> Void)?
     var onChatFound: ((ChatOpenModel) -> Void)?
     var onContentHeightChanged: (() -> Void)?
 
@@ -88,14 +87,16 @@ private extension ScanPanelViewController {
 
     @objc
     func editingDidBegin() {
-        applySearchFieldFocused(true)
-        onEditingDidBegin?()
+        onFocusChanged?(true) { [weak self] in
+            self?.applySearchFieldFocused(true)
+        }
     }
 
     @objc
     func editingDidEnd() {
-        applySearchFieldFocused(false)
-        onEditingDidEnd?()
+        onFocusChanged?(false) { [weak self] in
+            self?.applySearchFieldFocused(false)
+        }
     }
 
     /// Focusing the field shrinks the camera to a thumbnail and disarms recognition, so a code

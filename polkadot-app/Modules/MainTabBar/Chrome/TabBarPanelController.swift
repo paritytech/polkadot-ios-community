@@ -157,6 +157,37 @@ final class TabBarPanelController {
         animator.startAnimation()
     }
 
+    /// The hosted UIKit view measures correctly the moment its constraints or content change, so
+    /// its pushes join a running animation instead of waiting: on focus loss the keyboard hide is
+    /// already animating the container, and the camera expansion and results collapse that follow
+    /// must move with it.
+    ///
+    /// `preparing` and the measurement run inside the animation block. Measuring settles the
+    /// hosted view's pending layout, so doing it outside the block would commit the camera's new
+    /// frame unanimated and leave only the container height to animate.
+    func resizeForHostedContent(preparing: (() -> Void)? = nil) {
+        guard !isApplyingPanel, open?.contentAction != nil else {
+            preparing?()
+            return
+        }
+
+        let runningAnimator = panelAnimator
+        let animator = runningAnimator ?? makePanelAnimator()
+
+        animator.addAnimations { [weak self] in
+            guard let self else {
+                return
+            }
+            preparing?()
+            surface.updateHeight(for: open, animator: nil)
+            surface.layoutIfNeeded()
+        }
+
+        if runningAnimator == nil {
+            animator.startAnimation()
+        }
+    }
+
     /// Re-measures the open panel after the chip list changed. Only an open SPA-tabs panel
     /// animates; any other state settles the height without an animator.
     func refreshHeightAfterChipsChange() {
@@ -172,8 +203,21 @@ final class TabBarPanelController {
 
     /// Re-measures the open panel after the container's bottom anchor moved between the
     /// safe area and the keyboard, since the capsule strip is only reserved in the former.
+    /// With no panel animation running, the keyboard animator takes ownership so a resize that
+    /// follows (the camera expanding on focus loss) joins it rather than starting a rival. Only an
+    /// animator that gained an animation is registered: the keyboard notifications repeat while
+    /// typing, and an empty animator never completes, so it would block every later resize.
     func refreshHeightAfterAnchorChange(animator: UIViewPropertyAnimator?) {
-        surface.updateHeight(for: open, animator: animator)
+        let heightChanged = surface.updateHeight(for: open, animator: animator)
+
+        guard heightChanged, let animator, panelAnimator == nil else {
+            return
+        }
+
+        animator.addCompletion { [weak self] _ in
+            self?.panelAnimator = nil
+        }
+        panelAnimator = animator
     }
 }
 
