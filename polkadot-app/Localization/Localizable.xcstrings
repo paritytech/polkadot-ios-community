@@ -397,17 +397,6 @@
         }
       }
     },
-    "balance.onhold": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$(amount)@ on hold"
-          }
-        }
-      }
-    },
     "block.user.action": {
       "extractionState": "manual",
       "localizations": {
