@@ -26,7 +26,7 @@ final class RootInteractor {
 
     let remoteConfigManager: RemoteConfigManaging
     let chainRegistryConfigurator: ChainRegistryConfiguring
-    let browsePrewarmer: ProductContentPrewarming
+    let productPrewarmer: ProductContentPrewarming
 
     private let setupDeadlineSeconds: TimeInterval = 10
     private let tldTimeoutSeconds: TimeInterval = 10
@@ -46,7 +46,7 @@ final class RootInteractor {
         tokenManager: JWTTokenManaging,
         remoteConfigManager: RemoteConfigManaging,
         chainRegistryConfigurator: ChainRegistryConfiguring,
-        browsePrewarmer: ProductContentPrewarming,
+        productPrewarmer: ProductContentPrewarming,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
@@ -57,7 +57,7 @@ final class RootInteractor {
         self.tokenManager = tokenManager
         self.remoteConfigManager = remoteConfigManager
         self.chainRegistryConfigurator = chainRegistryConfigurator
-        self.browsePrewarmer = browsePrewarmer
+        self.productPrewarmer = productPrewarmer
         self.tldProvider = tldProvider
     }
 
@@ -102,7 +102,7 @@ final class RootInteractor {
     private func prewarmProducts(for destination: RootDestination) {
         switch destination {
         case .dashboard:
-            browsePrewarmer.prewarm()
+            productPrewarmer.prewarm()
         default:
             break
         }

@@ -56,9 +56,14 @@ extension TransferSenderServiceTests {
         var states: [RecyclerKey: MembersPallet.RingStatus] = [:]
         var revisions: [RecyclerKey: UInt32] = [:]
         var maxConsolidationValue: UInt32 = 100
+        var maxSplitOutputsValue: UInt32 = 32
 
         func maxConsolidation() async throws -> UInt32 {
             maxConsolidationValue
+        }
+
+        func maxSplitOutputs() async throws -> UInt32 {
+            maxSplitOutputsValue
         }
 
         func fetchRecyclerStates(for keys: [RecyclerKey]) async throws -> [RecyclerKey: MembersPallet.RingStatus] {

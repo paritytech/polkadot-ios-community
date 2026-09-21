@@ -10,9 +10,10 @@ import SubstrateOperation
 
 /// Strategy 3: Unload vouchers directly into required denominations.
 ///
-/// Submits one extrinsic per recycler group. `CoinSelector` guarantees each group
-/// respects the `maxConsolidation` pallet constraint (throws if exceeded). All groups
-/// run concurrently — one task per `RecyclerKey`.
+/// Submits one extrinsic per planned call. `CoinSelector` sizes the calls so each respects the
+/// `MaxConsolidation` and `MaxSplitOutputs` pallet constraints, which can put several calls on one
+/// recycler. All calls run concurrently; the pallet marks aliases individually and leaves the ring
+/// revision untouched, so calls sharing a recycler do not conflict.
 struct UnloadIntoCoinsStrategy {
     private let instanceId: CoinageInstanceId
     private let readyCoins: [Coin]
@@ -159,9 +160,12 @@ private extension UnloadIntoCoinsStrategy {
             throw TransferStrategyError.invalidRecyclerRevision
         }
 
-        let keys = realizedGroups.map(\.recyclerKey)
+        // Several calls can share a recycler when it holds more vouchers than one call may unload,
+        // so the query is deduplicated and each group looks its own revision up by key.
+        var seenKeys = Set<RecyclerKey>()
+        let keys = realizedGroups.map(\.recyclerKey).filter { seenKeys.insert($0).inserted }
         let revisions = try await recyclerLoader.fetchRevisions(for: keys, blockHash: blockHash)
-        guard keys.count == revisions.count else {
+        guard keys.allSatisfy({ revisions[$0] != nil }) else {
             assertionFailure("Revision for recyclerKey is missing")
             throw TransferStrategyError.invalidRecyclerRevision
         }

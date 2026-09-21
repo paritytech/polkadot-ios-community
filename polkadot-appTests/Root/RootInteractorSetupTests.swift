@@ -80,7 +80,7 @@ private extension RootInteractorSetupTests {
             tokenManager: MockJWTTokenManager(),
             remoteConfigManager: MockRemoteConfigManager(),
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
-            browsePrewarmer: MockProductContentPrewarmer(),
+            productPrewarmer: MockProductContentPrewarmer(),
             tldProvider: tldProvider
         )
     }

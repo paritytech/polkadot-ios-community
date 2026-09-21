@@ -136,7 +136,8 @@ enum ExternalPaymentTestFactory {
 
     static func makeHarness(
         store: InMemoryExternalPaymentStore = InMemoryExternalPaymentStore(),
-        vouchers: [Voucher] = []
+        vouchers: [Voucher] = [],
+        maxConsolidation: UInt32 = 100
     ) -> ExternalPaymentHarness {
         let txService = StubGroupTxService()
         let recycler = StubCoinageRecyclingService()
@@ -151,7 +152,7 @@ enum ExternalPaymentTestFactory {
             recycler: recycler,
             voucherKeyFactory: StubVoucherKeyFactory(),
             voucherMinter: StubVoucherMinter(),
-            recyclerLoader: StubRecyclerReadinessLoader(),
+            recyclerLoader: StubRecyclerReadinessLoader(maxConsolidationValue: maxConsolidation),
             extrinsicMonitor: StubExtrinsicMonitorFactory(),
             durability: txService,
             originFactory: StubOriginFactory(),

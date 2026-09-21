@@ -92,22 +92,39 @@ struct AssetDetailsView: View {
     }
 
     private func actions() -> some View {
-        HStack(spacing: 12) {
-            DSButton(.actionSendCash, leadingIcon: .iconArrowUp16, expands: true) {
+        HStack(spacing: DSSpacings.small) {
+            DSButton(.actionSendCash, expands: true) {
                 viewModel.onSendMoney?()
             }
             .accessibilityId(AccessibilityID.Wallet.sendPaymentButton)
-
-            circleButton(.iconArrowUpRight24, isLoading: viewModel.isWithdrawInProgress) {
-                viewModel.onWithdraw?()
-            }
-            .accessibilityId(AccessibilityID.Wallet.withdrawButton)
 
             circleButton(.add24, isLoading: viewModel.isTopUpInProgress) {
                 viewModel.onTopUp?()
             }
             .accessibilityId(AccessibilityID.Wallet.addFundsButton)
+
+            withdrawButton()
         }
+    }
+
+    private func withdrawButton() -> some View {
+        Button {
+            viewModel.onWithdraw?()
+        } label: {
+            Group {
+                if viewModel.isWithdrawInProgress {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.fgPrimaryInverted)
+                } else {
+                    Text(String(localized: .actionWithdraw))
+                }
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.ds(style: .primary, shape: .pill, size: .large))
+        .disabled(viewModel.isWithdrawInProgress)
+        .accessibilityId(AccessibilityID.Wallet.withdrawButton)
     }
 
     private func circleButton(
