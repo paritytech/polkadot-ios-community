@@ -46,7 +46,7 @@ public extension ChainRegistryProtocol {
                 waiter.start(
                     chainIds: chainIds,
                     registry: self,
-                    guardian: ContinuationGuard(continuation),
+                    continuation: continuation,
                     syncQueue: syncQueue
                 )
             }
@@ -57,20 +57,16 @@ public extension ChainRegistryProtocol {
 }
 
 private final class ChainsSetupWaiter: @unchecked Sendable {
-    private struct ActiveSubscription {
+    private struct Subscription {
         let target: NSObject
         let registry: ChainRegistryProtocol
-        let guardian: ContinuationGuard
+        let continuation: CheckedContinuation<Void, Never>
+        var availableChains: [ChainModel.Id: ChainModel] = [:]
     }
 
     private enum WaiterState {
         case initial
-        case active(
-            target: NSObject,
-            availableChains: [ChainModel.Id: ChainModel],
-            guardian: ContinuationGuard,
-            registry: ChainRegistryProtocol
-        )
+        case active(Subscription)
         case done
     }
 
@@ -79,30 +75,28 @@ private final class ChainsSetupWaiter: @unchecked Sendable {
     func start(
         chainIds: Set<ChainModel.Id>,
         registry: ChainRegistryProtocol,
-        guardian: ContinuationGuard,
+        continuation: CheckedContinuation<Void, Never>,
         syncQueue: DispatchQueue
     ) {
         let target = NSObject()
 
         let shouldSubscribe = stateLock.withLock { state -> Bool in
-            switch state {
-            case .initial:
-                state = .active(
+            guard case .initial = state else { return false }
+
+            state = .active(
+                Subscription(
                     target: target,
-                    availableChains: [:],
-                    guardian: guardian,
-                    registry: registry
+                    registry: registry,
+                    continuation: continuation
                 )
-                return true
-            case .active,
-                 .done:
-                return false
-            }
+            )
+
+            return true
         }
 
         guard shouldSubscribe else {
             // Already cancelled before we could subscribe
-            guardian.resume()
+            continuation.resume()
             return
         }
 
@@ -125,75 +119,42 @@ private extension ChainsSetupWaiter {
         requiring chainIds: Set<ChainModel.Id>
     ) -> Bool {
         stateLock.withLock { state -> Bool in
-            guard case let .active(target, availableChains, guardian, registry) = state else {
+            guard case var .active(subscription) = state else {
                 return false
             }
-
-            var updatedChains = availableChains
 
             for change in changes {
                 switch change {
                 case let .insert(chain),
                      let .update(chain):
-                    updatedChains[chain.chainId] = chain
+                    subscription.availableChains[chain.chainId] = chain
                 case let .delete(chainId):
-                    updatedChains[chainId] = nil
+                    subscription.availableChains[chainId] = nil
                 }
             }
 
-            state = .active(
-                target: target,
-                availableChains: updatedChains,
-                guardian: guardian,
-                registry: registry
-            )
+            state = .active(subscription)
 
-            return chainIds.allSatisfy { updatedChains[$0] != nil }
+            return chainIds.allSatisfy { subscription.availableChains[$0] != nil }
         }
     }
 
     /// Single exit point for both completion and cancellation: the state read and the `.done`
     /// transition share one lock acquisition, so unsubscribe and resume happen at most once.
     func finish() {
-        let subscription = stateLock.withLock { state -> ActiveSubscription? in
+        let subscription = stateLock.withLock { state -> Subscription? in
             defer { state = .done }
 
-            guard case let .active(target, _, guardian, registry) = state else {
+            guard case let .active(subscription) = state else {
                 return nil
             }
 
-            return ActiveSubscription(
-                target: target,
-                registry: registry,
-                guardian: guardian
-            )
+            return subscription
         }
 
         guard let subscription else { return }
 
         subscription.registry.chainsUnsubscribe(subscription.target)
-        subscription.guardian.resume()
-    }
-}
-
-private final class ContinuationGuard: Sendable {
-    private let hasResumedLock = OSAllocatedUnfairLock(initialState: false)
-    private let continuation: CheckedContinuation<Void, Never>
-
-    init(_ continuation: CheckedContinuation<Void, Never>) {
-        self.continuation = continuation
-    }
-
-    func resume() {
-        let shouldResume = hasResumedLock.withLock { hasResumed in
-            guard !hasResumed else { return false }
-
-            hasResumed = true
-
-            return true
-        }
-
-        guard shouldResume else { return }
-        continuation.resume()
+        subscription.continuation.resume()
     }
 }

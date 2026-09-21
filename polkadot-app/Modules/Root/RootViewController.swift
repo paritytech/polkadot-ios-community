@@ -19,8 +19,10 @@ final class RootViewController: UIHostingController<RootViewLayout> {
         view.backgroundColor = .bgSurfaceMain
         setupHandlers()
     }
+}
 
-    private func setupHandlers() {
+private extension RootViewController {
+    func setupHandlers() {
         rootView.onRetry = { [weak presenter] in
             presenter?.retry()
         }

@@ -114,24 +114,13 @@ final class RootInteractor {
     }
 
     private func startSetupCompletionTask(for chainRegistry: ChainRegistryProtocol) {
-        completionTask = Task { [weak self, remoteConfigManager, tldProvider] in
-            await self?.performSetupCompletion(
-                for: chainRegistry,
-                remoteConfigManager: remoteConfigManager,
-                tldProvider: tldProvider
-            )
+        completionTask = Task { [weak self] in
+            await self?.performSetupCompletion(for: chainRegistry)
         }
     }
 
-    private func performSetupCompletion(
-        for chainRegistry: ChainRegistryProtocol,
-        remoteConfigManager: RemoteConfigManaging,
-        tldProvider: DotNsTldProviding
-    ) async {
-        let outcome = await waitForSetupInputs(
-            for: chainRegistry,
-            remoteConfigManager: remoteConfigManager
-        )
+    private func performSetupCompletion(for chainRegistry: ChainRegistryProtocol) async {
+        let outcome = await waitForSetupInputs(for: chainRegistry)
 
         guard !Task.isCancelled else { return }
 
@@ -142,26 +131,12 @@ final class RootInteractor {
 
         setupJWTManager()
 
-        // Cache the DotNs TLD once chains and remote config are ready. Resolving here covers
-        // every onboarding path (username claim, iCloud recovery), so downstream built-in
-        // account derivation can read the TLD synchronously. A TLD persisted by a previous
-        // run is enough, so startup is not blocked offline; currentTld() kicks a background
-        // refresh on its own.
-        if tldProvider.currentTld() == nil {
-            do {
-                _ = try await withRetry(
-                    maxAttempts: Constants.tldRetryMaxAttempts,
-                    initialDelay: Constants.tldRetryInitialDelay
-                ) { [self] in
-                    try await withTimeout(.seconds(Constants.tldTimeoutSeconds)) {
-                        try await tldProvider.resolveTld()
-                    }
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                await reportSetupFailure()
-                return
-            }
+        do {
+            try await resolveTldIfNeeded()
+        } catch {
+            guard !Task.isCancelled else { return }
+            await reportSetupFailure()
+            return
         }
 
         guard !Task.isCancelled else { return }
@@ -169,14 +144,29 @@ final class RootInteractor {
         await completeSetup()
     }
 
+    /// Caches the DotNs TLD once chains and remote config are ready. Resolving here covers
+    /// every onboarding path (username claim, iCloud recovery), so downstream built-in
+    /// account derivation can read the TLD synchronously. A TLD persisted by a previous
+    /// run is enough, so startup is not blocked offline; currentTld() kicks a background
+    /// refresh on its own.
+    private func resolveTldIfNeeded() async throws {
+        guard tldProvider.currentTld() == nil else { return }
+
+        _ = try await withRetry(
+            maxAttempts: Constants.tldRetryMaxAttempts,
+            initialDelay: Constants.tldRetryInitialDelay
+        ) { [self] in
+            try await withTimeout(.seconds(Constants.tldTimeoutSeconds)) {
+                try await tldProvider.resolveTld()
+            }
+        }
+    }
+
     /// Waits for the paired chain registry and remote config, bounded by ``Constants.setupDeadlineSeconds``.
     /// A chain or remote config failure is not fatal on its own: only the deadline gates startup.
-    private func waitForSetupInputs(
-        for chainRegistry: ChainRegistryProtocol,
-        remoteConfigManager: RemoteConfigManaging
-    ) async -> SetupWaitOutcome {
+    private func waitForSetupInputs(for chainRegistry: ChainRegistryProtocol) async -> SetupWaitOutcome {
         do {
-            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) {
+            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) { [self] in
                 async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                     AppConfig.Chains.usernameChain,
                     AppConfig.Chains.bulletInChain,
