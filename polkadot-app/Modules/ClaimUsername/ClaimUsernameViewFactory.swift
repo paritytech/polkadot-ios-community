@@ -100,8 +100,7 @@ enum ClaimUsernameViewFactory {
             usernameOperationFactory: { UsernameOperationFactory(tokenProvider: JWTTokenManager.shared) },
             usernameStorage: { UsernameStorage() },
             walletRepo: .shared,
-            vrfRepo: .shared,
-            tldProvider: DotNsTldProviderFacade.shared
+            vrfRepo: .shared
         )
 
         return ClaimLiteUsernameInteractor(

@@ -5,7 +5,6 @@ import KeyDerivation
 import SubstrateSdkExt
 import StructuredConcurrency
 import Individuality
-import Products
 
 struct ClaimLiteUsernameDependency {
     let walletSetupManagerFactory: () -> WalletSetupManaging
@@ -18,7 +17,6 @@ struct ClaimLiteUsernameDependency {
     let usernameStorage: () -> UsernameStoring
     let walletRepo: WalletManagerRepositoryProtocol
     let vrfRepo: BandersnatchManagerRepositoryProtocol
-    let tldProvider: DotNsTldProviding
 }
 
 final class ClaimLiteUsernameInteractor {
@@ -55,10 +53,6 @@ extension ClaimLiteUsernameInteractor: ClaimUsernameInteractorInputProtocol {
             if !walletCreated {
                 try await createWallet()
             }
-
-            // Built-in accounts derive from the DotNs TLD, which startup may have failed to cache
-            // (offline or chains not ready), so resolve it here instead of failing the claim.
-            _ = try await dependencies.tldProvider.resolveTld()
 
             return try await performClaim(
                 username: username,
