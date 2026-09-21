@@ -38,6 +38,7 @@ public struct AssetDetailsBalanceCard: View {
                 .resizable()
                 .scaledToFill()
                 .clipped()
+                .opacity(isExpanded ? 1 : 0.2)
 
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 5) {
