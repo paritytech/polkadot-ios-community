@@ -14,6 +14,13 @@ final class RootInteractor {
         case deadlineExpired
     }
 
+    private enum Constants {
+        static let setupDeadlineSeconds: TimeInterval = 10
+        static let tldTimeoutSeconds: TimeInterval = 10
+        static let tldRetryMaxAttempts = 4
+        static let tldRetryInitialDelay: Duration = .seconds(1)
+    }
+
     weak var presenter: RootInteractorOutputProtocol?
 
     let chainRegistryClosure: ChainRegistryLazyClosure
@@ -28,8 +35,6 @@ final class RootInteractor {
     let chainRegistryConfigurator: ChainRegistryConfiguring
     let productPrewarmer: ProductContentPrewarming
 
-    private let setupDeadlineSeconds: TimeInterval = 10
-    private let tldTimeoutSeconds: TimeInterval = 10
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
 
@@ -145,10 +150,10 @@ final class RootInteractor {
         if tldProvider.currentTld() == nil {
             do {
                 _ = try await withRetry(
-                    maxAttempts: 4,
-                    initialDelay: .seconds(1)
+                    maxAttempts: Constants.tldRetryMaxAttempts,
+                    initialDelay: Constants.tldRetryInitialDelay
                 ) { [self] in
-                    try await withTimeout(.seconds(tldTimeoutSeconds)) {
+                    try await withTimeout(.seconds(Constants.tldTimeoutSeconds)) {
                         try await tldProvider.resolveTld()
                     }
                 }
@@ -164,14 +169,14 @@ final class RootInteractor {
         await completeSetup()
     }
 
-    /// Waits for the paired chain registry and remote config, bounded by ``setupDeadlineSeconds``.
+    /// Waits for the paired chain registry and remote config, bounded by ``Constants.setupDeadlineSeconds``.
     /// A chain or remote config failure is not fatal on its own: only the deadline gates startup.
     private func waitForSetupInputs(
         for chainRegistry: ChainRegistryProtocol,
         remoteConfigManager: RemoteConfigManaging
     ) async -> SetupWaitOutcome {
         do {
-            try await withTimeout(.seconds(setupDeadlineSeconds)) {
+            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) {
                 async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                     AppConfig.Chains.usernameChain,
                     AppConfig.Chains.bulletInChain,
