@@ -155,7 +155,7 @@ final class RootInteractor {
         _ = try await withRetry(
             maxAttempts: Constants.tldRetryMaxAttempts,
             initialDelay: Constants.tldRetryInitialDelay
-        ) { [self] in
+        ) { [tldProvider] in
             try await withTimeout(.seconds(Constants.tldTimeoutSeconds)) {
                 try await tldProvider.resolveTld()
             }
@@ -166,7 +166,7 @@ final class RootInteractor {
     /// A chain or remote config failure is not fatal on its own: only the deadline gates startup.
     private func waitForSetupInputs(for chainRegistry: ChainRegistryProtocol) async -> SetupWaitOutcome {
         do {
-            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) { [self] in
+            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) { [remoteConfigManager] in
                 async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
                     AppConfig.Chains.usernameChain,
                     AppConfig.Chains.bulletInChain,
@@ -175,12 +175,10 @@ final class RootInteractor {
                 _ = try? await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
             }
             return .ready
-        } catch is TimeoutError {
-            return .deadlineExpired
         } catch {
-            // The enclosing task was cancelled, so the deadline did not expire. The caller's
-            // cancellation guard stops the flow before this outcome is acted on.
-            return .ready
+            // Timeout or cancellation both stop startup; the caller's cancellation guard runs
+            // before the outcome is acted on. Any unexpected error must not read as ready.
+            return .deadlineExpired
         }
     }
 
