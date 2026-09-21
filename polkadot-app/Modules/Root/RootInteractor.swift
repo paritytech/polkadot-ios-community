@@ -29,6 +29,7 @@ final class RootInteractor {
     let browsePrewarmer: ProductContentPrewarming
 
     private let setupDeadlineSeconds: TimeInterval = 10
+    private let tldTimeoutSeconds: TimeInterval = 10
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
 
@@ -146,8 +147,10 @@ final class RootInteractor {
                 _ = try await withRetry(
                     maxAttempts: 4,
                     initialDelay: .seconds(1)
-                ) {
-                    try await tldProvider.resolveTld()
+                ) { [self] in
+                    try await withTimeout(.seconds(tldTimeoutSeconds)) {
+                        try await tldProvider.resolveTld()
+                    }
                 }
             } catch {
                 guard !Task.isCancelled else { return }
