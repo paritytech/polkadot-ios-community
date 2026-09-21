@@ -18,7 +18,18 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Send CASH"
+            "value": "Send"
+          }
+        }
+      }
+    },
+    "action.withdraw": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Withdraw"
           }
         }
       }
@@ -2641,6 +2652,17 @@
         }
       }
     },
+    "settings.cell.legal.support": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legal & Support"
+          }
+        }
+      }
+    },
     "settings.cell.linked.devices": {
       "extractionState": "manual",
       "localizations": {
@@ -2824,6 +2846,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Legal"
+          }
+        }
+      }
+    },
+    "settings.section.legal.support": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legal & Support"
           }
         }
       }

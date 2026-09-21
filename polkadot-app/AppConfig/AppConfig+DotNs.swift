@@ -27,6 +27,7 @@ extension AppConfig {
         }
 
         static let dotNsBrowse = "browse"
+
         /// The merchant terminal product's label: `merchant_url` when published (a bare label, a dot-domain or a
         /// URL, like the funding keys), else the product's known label.
         static let dotNsMerchantDefault = "terminal"

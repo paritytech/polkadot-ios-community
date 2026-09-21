@@ -9,11 +9,9 @@ enum SettingsViewFactory {
         serviceCoordinator: ServiceCoordinatorProtocol,
         flowStateProvider: any SPAFlowStateProviding
     ) -> SettingsViewProtocol? {
-        let emailComposeAdapter = EmailComposeAdapter()
         let interactor = SettingsInteractor(
             logger: Logger.shared,
             mnemonicBackupHelper: MnemonicBackupHelper(),
-            emailComposePresenter: emailComposeAdapter,
             merchantDomainProvider: MerchantDomainProvider(
                 hostProvider: { [flowStateProvider] in flowStateProvider.flowState().hostProvider }
             )
@@ -21,7 +19,6 @@ enum SettingsViewFactory {
 
         let wireframe = SettingsWireframe(
             serviceCoordinator: serviceCoordinator,
-            emailComposePresenter: emailComposeAdapter,
             flowStateProvider: flowStateProvider
         )
         let presenter = SettingsPresenter(
