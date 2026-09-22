@@ -17,13 +17,32 @@ final class RootViewModelFactory: RootViewModelMaking {
 
     func makeFailure(kind: RootSetupFailureKind) -> RootViewLayout.ViewModel {
         switch kind {
+        case .connectivity:
+            makeConnectivityIssue()
         case .unknown:
-            .failed(
-                RootViewLayout.ViewModel.Issue(
-                    title: String(localized: .rootInitFailureUnknownTitle),
-                    subtitle: String(localized: .rootInitFailureUnknownSubtitle)
-                )
-            )
+            makeUnknownIssue()
         }
+    }
+}
+
+private extension RootViewModelFactory {
+    func makeConnectivityIssue() -> RootViewLayout.ViewModel {
+        .failed(
+            RootViewLayout.ViewModel.Issue(
+                title: String(localized: .rootInitFailureConnectivityTitle),
+                subtitle: String(localized: .rootInitFailureConnectivitySubtitle),
+                actionTitle: nil
+            )
+        )
+    }
+
+    func makeUnknownIssue() -> RootViewLayout.ViewModel {
+        .failed(
+            RootViewLayout.ViewModel.Issue(
+                title: String(localized: .rootInitFailureUnknownTitle),
+                subtitle: String(localized: .rootInitFailureUnknownSubtitle),
+                actionTitle: String(localized: .rootInitFailureAction)
+            )
+        )
     }
 }

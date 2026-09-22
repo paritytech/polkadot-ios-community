@@ -55,12 +55,14 @@ struct RootViewLayout: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 4)
 
-                        DSButton(
-                            String(localized: .rootInitFailureAction),
-                            style: .secondary,
-                            action: onRetry
-                        )
-                        .padding(.top, 16)
+                        if let actionTitle = issue.actionTitle {
+                            DSButton(
+                                actionTitle,
+                                style: .secondary,
+                                action: onRetry
+                            )
+                            .padding(.top, 16)
+                        }
                     }
                     .transition(.opacity)
                 }
@@ -78,6 +80,7 @@ extension RootViewLayout {
         struct Issue: Equatable {
             let title: String
             let subtitle: String
+            let actionTitle: String?
         }
 
         case loading(hint: String?)
@@ -97,7 +100,8 @@ extension RootViewLayout {
             viewModel: .failed(
                 RootViewLayout.ViewModel.Issue(
                     title: "Failed to Load",
-                    subtitle: "Please check your connection and try again."
+                    subtitle: "Please check your connection and try again.",
+                    actionTitle: "Retry"
                 )
             )
         )

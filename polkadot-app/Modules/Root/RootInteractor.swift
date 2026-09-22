@@ -1,4 +1,5 @@
 import Foundation
+import os
 import NovaCrypto
 import Operation_iOS
 import Foundation_iOS
@@ -34,9 +35,12 @@ final class RootInteractor {
     let remoteConfigManager: RemoteConfigManaging
     let chainRegistryConfigurator: ChainRegistryConfiguring
     let productPrewarmer: ProductContentPrewarming
+    let pathMonitor: NetworkPathMonitoring
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
+    private let isPathSatisfied = OSAllocatedUnfairLock(initialState: true)
+    private var pathTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
         var appFactoryResetCheckerFactory: AppFactoryResetCheckerFactoryProtocol?
@@ -52,6 +56,7 @@ final class RootInteractor {
         remoteConfigManager: RemoteConfigManaging,
         chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
+        pathMonitor: NetworkPathMonitoring,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
@@ -63,11 +68,13 @@ final class RootInteractor {
         self.remoteConfigManager = remoteConfigManager
         self.chainRegistryConfigurator = chainRegistryConfigurator
         self.productPrewarmer = productPrewarmer
+        self.pathMonitor = pathMonitor
         self.tldProvider = tldProvider
     }
 
     deinit {
         completionTask?.cancel()
+        pathTask?.cancel()
     }
 
     @MainActor
@@ -76,6 +83,7 @@ final class RootInteractor {
 
         setupChainUpdate(for: chainRegistry)
         fetchRemoteConfig()
+        startPathMonitoringIfNeeded()
 
         startSetupCompletionTask(for: chainRegistry)
     }
@@ -125,7 +133,7 @@ final class RootInteractor {
         guard !Task.isCancelled else { return }
 
         if outcome == .deadlineExpired {
-            await reportSetupFailure(kind: .unknown)
+            await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
             return
         }
 
@@ -135,7 +143,7 @@ final class RootInteractor {
             try await resolveTldIfNeeded()
         } catch {
             guard !Task.isCancelled else { return }
-            await reportSetupFailure(kind: .unknown)
+            await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
             return
         }
 
@@ -272,5 +280,28 @@ private extension RootInteractor {
         logger.debug("Score address: \(score ?? "")")
         logger.debug("Mob rule address: \(mobRule ?? "")")
         logger.debug("Resources address: \(resources ?? "")")
+    }
+}
+
+private extension RootInteractor {
+    func startPathMonitoringIfNeeded() {
+        guard pathTask == nil else {
+            return
+        }
+
+        let stream = pathMonitor.pathStream()
+
+        pathTask = Task { [weak self] in
+            do {
+                for try await isAvailable in stream {
+                    self?.isPathSatisfied.withLock { $0 = isAvailable }
+                }
+            } catch {}
+        }
+    }
+
+    /// Connectivity outranks every other cause: an unsatisfied path is the only thing the user can act on.
+    func classifyFailure(fallback kind: RootSetupFailureKind) -> RootSetupFailureKind {
+        isPathSatisfied.withLock { $0 } ? kind : .connectivity
     }
 }

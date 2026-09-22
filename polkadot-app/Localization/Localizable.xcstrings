@@ -2443,6 +2443,28 @@
         }
       }
     },
+    "root.init.failure.connectivity.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check your connection. We'll try again automatically."
+          }
+        }
+      }
+    },
+    "root.init.failure.connectivity.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No internet connection"
+          }
+        }
+      }
+    },
     "root.init.failure.unknown.subtitle": {
       "extractionState": "manual",
       "localizations": {

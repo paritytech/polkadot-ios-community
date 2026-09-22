@@ -88,7 +88,8 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             tokenManager: JWTTokenManager.shared,
             remoteConfigManager: FirebaseFacade.shared,
             chainRegistryConfigurator: FirebaseFacade.shared,
-            productPrewarmer: productPrewarmer
+            productPrewarmer: productPrewarmer,
+            pathMonitor: NetworkPathMonitor()
         )
 
         let presenter = RootPresenter(

@@ -65,6 +65,50 @@ struct RootInteractorSetupTests {
         #expect(spy.didDecideCallCount == 0, "Expected no destination reported")
         #expect(chainRegistry.chainsUnsubscribeCallCount == 1, "Expected chain wait to be cancelled")
     }
+
+    @Test("unsatisfied path classifies the failure as connectivity")
+    @MainActor
+    func unsatisfiedPathClassifiesFailureAsConnectivity() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        // No chains emitted; the subscription never resolves
+
+        let pathMonitor = MockNetworkPathMonitor(initial: false)
+        let interactor = makeInteractor(chainRegistry: chainRegistry, pathMonitor: pathMonitor)
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure with unsatisfied path")
+    }
+
+    @Test("unsatisfied path outranks a TLD failure")
+    @MainActor
+    func unsatisfiedPathOutranksTldFailure() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+
+        let pathMonitor = MockNetworkPathMonitor(initial: false)
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor,
+            tldProvider: StubDotNsTldProvider(tld: nil)
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure instead of TLD failure")
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -72,6 +116,7 @@ private extension RootInteractorSetupTests {
     func makeInteractor(
         migrator: Migrating = MockMigrator(),
         chainRegistry: MockChainRegistry = MockChainRegistry(),
+        pathMonitor: NetworkPathMonitoring = MockNetworkPathMonitor(),
         tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot")
     ) -> RootInteractor {
         RootInteractor(
@@ -83,6 +128,7 @@ private extension RootInteractorSetupTests {
             remoteConfigManager: MockRemoteConfigManager(),
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),
+            pathMonitor: pathMonitor,
             tldProvider: tldProvider
         )
     }
