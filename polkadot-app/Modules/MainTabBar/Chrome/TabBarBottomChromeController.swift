@@ -69,6 +69,12 @@ final class TabBarBottomChromeController: UIViewController {
         }
     )
 
+    private lazy var inputFocusController = TabBarInputFocusController(
+        surface: chromeSurface,
+        panelController: panelController,
+        content: { [weak self] in self?.hostedPanelController as? TabBarKeyboardTrackingContent }
+    )
+
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
     var onChipTapped: ((UUID) -> Void)?
     var onChipCloseRequested: ((UUID) -> Void)?
@@ -105,7 +111,9 @@ final class TabBarBottomChromeController: UIViewController {
         installWidgetsIfNeeded()
 
         installOutsideTapRecognizer()
-        registerKeyboardObservers()
+
+        // Observers register on creation.
+        _ = inputFocusController
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -492,69 +500,6 @@ private extension TabBarBottomChromeController {
                 self?.view.layoutIfNeeded()
             }
         )
-    }
-}
-
-// MARK: - Keyboard tracking
-
-private extension TabBarBottomChromeController {
-    var keyboardTrackingContent: TabBarKeyboardTrackingContent? {
-        hostedPanelController as? TabBarKeyboardTrackingContent
-    }
-
-    func registerKeyboardObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleKeyboardWillShow(_:)),
-            name: UIResponder.keyboardWillShowNotification,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleKeyboardWillHide(_:)),
-            name: UIResponder.keyboardWillHideNotification,
-            object: nil
-        )
-    }
-
-    @objc
-    func handleKeyboardWillShow(_ notification: NSNotification) {
-        guard keyboardTrackingContent?.isKeyboardInputFocused == true else {
-            return
-        }
-
-        animateKeyboardTracking(true, matching: notification)
-    }
-
-    @objc
-    func handleKeyboardWillHide(_ notification: NSNotification) {
-        animateKeyboardTracking(false, matching: notification)
-    }
-
-    /// Mirrors the keyboard's duration and curve so the anchor, the hosted content's focus layout
-    /// and the container height move with the keys. The measurement runs inside the block because
-    /// `preferredHeight` settles the hosted view's pending layout; outside it the camera's new frame
-    /// would commit unanimated. This animator is deliberately not registered with the panel controller.
-    func animateKeyboardTracking(_ tracking: Bool, matching notification: NSNotification) {
-        let userInfo = notification.userInfo
-        let duration = userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.3
-        let curveRawValue = userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int ?? 0
-        let curve = UIView.AnimationCurve(rawValue: curveRawValue) ?? .linear
-
-        let animator = UIViewPropertyAnimator(
-            duration: duration,
-            timingParameters: UICubicTimingParameters(animationCurve: curve)
-        )
-
-        animator.addAnimations { [weak self] in
-            guard let self else { return }
-            chromeSurface.setPanelTracksKeyboard(tracking)
-            keyboardTrackingContent?.setKeyboardInputFocused(tracking)
-            panelController.refreshHeightAfterLayout()
-            chromeSurface.layoutIfNeeded()
-        }
-        animator.startAnimation()
     }
 }
 

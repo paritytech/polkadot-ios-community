@@ -17,6 +17,7 @@ final class TabBarChromeSurfaceView: UIView {
     private var glassContainerBottomKeyboardConstraint: Constraint?
     private var panelBottomConstraints: [Constraint] = []
     private var isPanelTrackingKeyboard = false
+    private var isContentFilling = false
 
     var capsuleLayoutReference: UIView {
         glassContainer.contentView
@@ -70,9 +71,9 @@ final class TabBarChromeSurfaceView: UIView {
             case .spaTabs:
                 tabsPanelView.preferredHeight(availableHeight: availablePanelHeight)
             case .content:
-                // While the keyboard is up the search owns the panel, so the content fills the
-                // space above the keys instead of fitting its rows.
-                if isPanelTrackingKeyboard {
+                // While a search is active the content fills the space above the keys or the
+                // tab bar instead of fitting its rows.
+                if isContentFilling {
                     max(0, availablePanelHeight)
                 } else {
                     contentPanelView.preferredHeight(availableHeight: availablePanelHeight)
@@ -124,6 +125,11 @@ final class TabBarChromeSurfaceView: UIView {
             glassContainerBottomSuperviewConstraint?.activate()
             panelBottomConstraints.forEach { $0.update(offset: -DSTabBarView.capsuleHeight) }
         }
+    }
+
+    /// While a search is active the content panel fills the available height instead of fitting its rows.
+    func setContentFillsAvailableHeight(_ fills: Bool) {
+        isContentFilling = fills
     }
 }
 
