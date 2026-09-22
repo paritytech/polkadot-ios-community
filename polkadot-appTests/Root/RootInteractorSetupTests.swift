@@ -122,6 +122,43 @@ struct RootInteractorSetupTests {
         #expect(migrator.migrateCallCount == 1, "Expected migrations to stay on the launch pass")
     }
 
+    @Test("a path drop during setup reports connectivity immediately")
+    @MainActor
+    func pathDropDuringSetupReportsConnectivityImmediately() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+
+        let pathMonitor = MockNetworkPathMonitor()
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor,
+            tldProvider: StubDotNsTldProvider(tld: nil)
+        )
+        interactor.presenter = spy
+
+        let startedAt = Date()
+        interactor.setup()
+
+        // Lets setup pass the chain wait and enter the TLD retry sequence, so the drop lands on
+        // work already in flight rather than on a launch that has barely started.
+        try await Task.sleep(for: .milliseconds(500))
+
+        pathMonitor.send(false)
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(spy.failureKinds == [.connectivity], "Expected a path drop to report connectivity")
+        #expect(
+            Date().timeIntervalSince(startedAt) < 8,
+            "Expected the drop to be reported without waiting out the TLD retry sequence"
+        )
+    }
+
     @Test("cold offline launch fails fast")
     @MainActor
     func coldOfflineLaunchFailsFast() async throws {

@@ -31,6 +31,11 @@ final class RootInteractor {
         var isAwaitingRecovery = false
     }
 
+    private enum PathTransition {
+        case recovered
+        case dropped
+    }
+
     private struct SetupDeadlineExpired: Error {}
 
     private enum Constants {
@@ -374,26 +379,55 @@ private extension RootInteractor {
 
         pathTask = Task { [weak self] in
             do {
+                var isFirstValue = true
                 for try await isAvailable in stream {
                     guard let self else { return }
-                    guard consumeRecovery(isAvailable: isAvailable) else { continue }
 
-                    await MainActor.run { self.retrySetup() }
+                    let transition = consumeTransition(isAvailable: isAvailable)
+
+                    // The monitor replays the current path as its first value: it establishes the
+                    // baseline the later values are compared against rather than describing a change.
+                    // Reporting it would fail an already offline launch outright, and a warm one still
+                    // reaches a destination with the path down; the offline deadline bounds a cold one.
+                    guard !isFirstValue else {
+                        isFirstValue = false
+                        continue
+                    }
+
+                    guard let transition else { continue }
+
+                    await MainActor.run {
+                        switch transition {
+                        case .recovered:
+                            self.retrySetup()
+                        case .dropped:
+                            guard self.claimOutcome() else { return }
+                            self.completionTask?.cancel()
+                            self.reportSetupFailure(kind: self.classifyFailure(fallback: .connectivity))
+                        }
+                    }
                 }
             } catch {}
         }
     }
 
-    /// Records the new satisfaction and reports whether it recovers a connectivity failure still awaiting
-    /// retry, consuming the flag so one recovery drives at most one retry.
-    func consumeRecovery(isAvailable: Bool) -> Bool {
+    /// Records the new satisfaction and classifies the transition: recovered when availability returns
+    /// while awaiting retry, dropped when availability is lost.
+    private func consumeTransition(isAvailable: Bool) -> PathTransition? {
         pathState.withLock { state in
-            let isRecovery = isAvailable && !state.isSatisfied && state.isAwaitingRecovery
+            let wasAvailable = state.isSatisfied
             state.isSatisfied = isAvailable
-            if isRecovery {
+
+            if isAvailable, !wasAvailable, state.isAwaitingRecovery {
                 state.isAwaitingRecovery = false
+                return .recovered
             }
-            return isRecovery
+
+            if !isAvailable, wasAvailable {
+                return .dropped
+            }
+
+            return nil
         }
     }
 
