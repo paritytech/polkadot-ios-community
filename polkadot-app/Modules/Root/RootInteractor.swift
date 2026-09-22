@@ -399,7 +399,7 @@ private extension RootInteractor {
                     await MainActor.run {
                         switch transition {
                         case .recovered:
-                            self.retrySetup()
+                            self.presenter?.didRecoverConnectivity()
                         case .dropped:
                             guard self.claimOutcome() else { return }
                             self.completionTask?.cancel()

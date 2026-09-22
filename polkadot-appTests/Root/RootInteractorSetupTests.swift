@@ -93,9 +93,9 @@ struct RootInteractorSetupTests {
         #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure instead of TLD failure")
     }
 
-    @Test("path recovery retries setup without re-running migrations")
+    @Test("path recovery reports connectivity recovery")
     @MainActor
-    func pathRecoveryRetriesSetupWithoutMigrations() async throws {
+    func pathRecoveryReportsConnectivityRecovery() async throws {
         let spy = RootSetupOutputSpy()
         let migrator = MockMigrator()
         let chainRegistry = MockChainRegistry()
@@ -112,13 +112,12 @@ struct RootInteractorSetupTests {
 
         try await waitForSetupFailure(on: spy)
         #expect(spy.failureKinds == [.connectivity])
-        #expect(chainRegistry.chainsSubscribeCallCount == 1)
 
         pathMonitor.send(true)
 
-        try await waitUntil(timeout: 5) { chainRegistry.chainsSubscribeCallCount == 2 }
+        try await waitUntil(timeout: 5) { spy.didRecoverConnectivityCallCount > 0 }
 
-        #expect(chainRegistry.chainsSubscribeCallCount == 2, "Expected path recovery to re-run setup")
+        #expect(spy.didRecoverConnectivityCallCount == 1, "Expected one connectivity recovery report")
         #expect(migrator.migrateCallCount == 1, "Expected migrations to stay on the launch pass")
     }
 

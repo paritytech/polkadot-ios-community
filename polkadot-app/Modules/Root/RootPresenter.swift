@@ -53,6 +53,10 @@ extension RootPresenter: RootInteractorOutputProtocol {
         view?.didReceive(viewModel: viewModelFactory.makeFailure(kind: kind))
     }
 
+    func didRecoverConnectivity() {
+        retry()
+    }
+
     #if TESTNET_FEATURE
         func didRequireAppFactoryReset() {
             wireframe.showAppFactoryResetSheet()

@@ -39,6 +39,8 @@ protocol RootInteractorInputProtocol: AnyObject {
 protocol RootInteractorOutputProtocol: AnyObject {
     func didDecide(destination: RootDestination)
     func didFailSetup(kind: RootSetupFailureKind)
+    /// The network path recovered after a connectivity failure, so setup can be attempted again.
+    func didRecoverConnectivity()
     #if TESTNET_FEATURE
         func didRequireAppFactoryReset()
     #endif
