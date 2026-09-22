@@ -351,7 +351,8 @@ private extension RootInteractorSetupTests {
                 coinageInstanceId: 1,
                 fundingUrl: nil,
                 offrampUrl: nil,
-                accountDataStoreContract: nil
+                accountDataStoreContract: nil,
+                paymentAsset: nil
             )
         }
     ) -> RootInteractor {

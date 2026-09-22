@@ -33,7 +33,7 @@ final class UnreadMessageCountService {
     /// `unsavedMessageId` names a message that was notified but not persisted (a stripped push);
     /// it counts as one more unread entry unless a row for it already exists.
     func totalUnreadBadgeMessageCount(unsavedMessageId: Chat.MessageId?) async throws -> Int {
-        try await databaseService.perform { context in
+        try await databaseService.performRead { context in
             let request = NSFetchRequest<NSDictionary>()
             request.entity = CDChatMessage.entity()
             request.predicate = Self.badgeCountPredicate()

@@ -1,6 +1,7 @@
 import BigInt
 import ExtrinsicService
 import Foundation
+import FoundationExt
 import KeyDerivation
 import SDKLogger
 import SubstrateSdk
@@ -29,6 +30,7 @@ final class OffboardVouchersForPaymentService {
     private let quotaTracker: any UnloadQuotaTracking
     private let blockNumberProvider: BlockInfoProviding
     private let denominationContext: DenominationBreakdownContext
+    private let dateProvider: any DateProviding
     private let logger: SDKLoggerProtocol?
 
     init(
@@ -42,6 +44,7 @@ final class OffboardVouchersForPaymentService {
         quotaTracker: any UnloadQuotaTracking,
         blockNumberProvider: BlockInfoProviding,
         denominationContext: DenominationBreakdownContext,
+        dateProvider: any DateProviding,
         logger: SDKLoggerProtocol? = nil
     ) {
         self.instanceId = instanceId
@@ -54,6 +57,7 @@ final class OffboardVouchersForPaymentService {
         self.quotaTracker = quotaTracker
         self.blockNumberProvider = blockNumberProvider
         self.denominationContext = denominationContext
+        self.dateProvider = dateProvider
         self.logger = logger
     }
 
@@ -162,7 +166,7 @@ private extension OffboardVouchersForPaymentService {
 
         let origins = try await originFactory.createAsUnloadTokenOrigins(
             voucherGroups: details.map(\.group.vouchers),
-            currentDate: Date(),
+            currentDate: dateProvider.read(),
             blockHash: blockHash
         )
 

@@ -12,7 +12,6 @@ protocol TransferSenderServicing: Actor {
     ///   - amount: Amount to preview
     ///   - availableCoins: Coins available for selection
     ///   - availableVouchers: Vouchers available for selection
-    ///   - currentDate: Current date for voucher readiness checking
     ///   - breakdownContext: Context for denomination breakdown
     /// - Returns: The coin selection result
     /// - Throws: CoinSelectionError on failure
@@ -28,25 +27,9 @@ protocol TransferSenderServicing: Actor {
     /// `groupId` labels the transaction(s) this transfer registers (the message id), or `nil`.
     func execute(
         result: CoinSelectionResult,
-        currentDate: Date,
         breakdownContext: DenominationBreakdownContext,
-        groupId: CoinageTxGroupId?
+        groupId: CoinageTxGroupId
     ) async throws -> PreparedTransfer
-}
-
-extension TransferSenderServicing {
-    func execute(
-        result: CoinSelectionResult,
-        breakdownContext: DenominationBreakdownContext,
-        groupId: CoinageTxGroupId?
-    ) async throws -> PreparedTransfer {
-        try await execute(
-            result: result,
-            currentDate: .now,
-            breakdownContext: breakdownContext,
-            groupId: groupId
-        )
-    }
 }
 
 /// Orchestrates the complete coin transfer sender flow.
@@ -62,6 +45,7 @@ actor TransferSenderService {
     private let planFactory: TransferPlanCreating
     private let memoBuilder: MemoBuilding
     private let recyclerLoader: RecyclerReadinessLoading
+    private let txService: any CoinageTxServicing
     private let logger: SDKLoggerProtocol?
 
     private var cachedLimits: UnloadCallLimits?
@@ -71,12 +55,14 @@ actor TransferSenderService {
         planFactory: TransferPlanCreating,
         memoBuilder: MemoBuilding,
         recyclerLoader: RecyclerReadinessLoading,
+        txService: any CoinageTxServicing,
         logger: SDKLoggerProtocol?
     ) {
         self.coinSelector = coinSelector
         self.planFactory = planFactory
         self.memoBuilder = memoBuilder
         self.recyclerLoader = recyclerLoader
+        self.txService = txService
         self.logger = logger
     }
 }
@@ -99,14 +85,13 @@ private extension TransferSenderService {
 extension TransferSenderService: TransferSenderServicing {
     func execute(
         result: CoinSelectionResult,
-        currentDate: Date,
         breakdownContext: DenominationBreakdownContext,
-        groupId: CoinageTxGroupId?
+        groupId: CoinageTxGroupId
     ) async throws -> PreparedTransfer {
         try await markStallActivity("Execute transfer") {
             let plan: TransferPlan
             do {
-                plan = try await planFactory.createPlan(for: result, currentDate: currentDate)
+                plan = try await planFactory.createPlan(for: result)
             } catch {
                 logger?.error("Plan creation failed: \(error)")
                 throw TransferSenderServiceError.planCreationFailed(error)
@@ -118,7 +103,7 @@ extension TransferSenderService: TransferSenderServicing {
             // recovery pass / relaunch.
             let prepared: PreparedStrategy
             do {
-                prepared = try await plan.strategy.prepare(groupId: groupId)
+                prepared = try await plan.strategy.prepare()
             } catch {
                 logger?.error("Strategy preparation failed: \(error)")
                 throw TransferSenderServiceError.strategyFailed(error)
@@ -133,7 +118,13 @@ extension TransferSenderService: TransferSenderServicing {
                 throw TransferSenderServiceError.memoBuildingFailed(error)
             }
 
-            return PreparedTransfer(memo: memo, handoffCommit: prepared.handoffCommit)
+            return PreparedTransfer(
+                memo: memo,
+                handoffCommit: prepared.handoffCommit,
+                transactions: prepared.transactions,
+                groupId: groupId,
+                txService: txService
+            )
         }
     }
 

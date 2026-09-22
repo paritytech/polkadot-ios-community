@@ -83,6 +83,19 @@ extension FirebaseFacade: RemoteConfigManaging, ChainRegistryConfiguring {
     }
 }
 
+extension FirebaseFacade: RemoteConfigObserving {
+    func remoteConfigStream() -> AnyAsyncSequence<RemoteAppConfig> {
+        // Invalid outcomes are dropped because they are never applied.
+        remoteConfigSubject
+            .compacted()
+            .compactMap { outcome -> RemoteAppConfig? in
+                guard case let .valid(config) = outcome else { return nil }
+                return config
+            }
+            .eraseToAnyAsyncSequence()
+    }
+}
+
 extension FirebaseFacade: RemoteConfigDelegate {
     func remoteConfig(didFinishLoading result: Result<Void, Error>) {
         switch result {

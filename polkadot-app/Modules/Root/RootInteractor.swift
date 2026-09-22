@@ -64,6 +64,7 @@ final class RootInteractor {
     let productPrewarmer: ProductContentPrewarming
     let observer: RootSetupObserver
     let appliedConfigReader: () -> RemoteAppConfig?
+    let paymentAssetBranding: PaymentAssetBranding
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
@@ -86,7 +87,8 @@ final class RootInteractor {
         productPrewarmer: ProductContentPrewarming,
         observer: RootSetupObserver,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
-        appliedConfigReader: @escaping () -> RemoteAppConfig? = { AppConfigProvider.shared.getRemoteConfig() }
+        appliedConfigReader: @escaping () -> RemoteAppConfig? = { AppConfigProvider.shared.getRemoteConfig() },
+        paymentAssetBranding: PaymentAssetBranding = .shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -100,6 +102,7 @@ final class RootInteractor {
         self.observer = observer
         self.tldProvider = tldProvider
         self.appliedConfigReader = appliedConfigReader
+        self.paymentAssetBranding = paymentAssetBranding
     }
 
     deinit {
@@ -133,6 +136,9 @@ final class RootInteractor {
 
     private func fetchRemoteConfig() {
         remoteConfigManager.fetchRemoteConfigValues()
+
+        // Follows every applied config, so the logos are fetched the moment one names them.
+        paymentAssetBranding.start()
     }
 
     private func setupJWTManager() {
