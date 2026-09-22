@@ -30,21 +30,12 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
     func setup() {
         accountSearching.setup()
         subscribeToSourcesChanged()
+        loadIdleState()
     }
 
     func search(username: String) {
         guard !username.isEmpty else {
-            stateLock.withLock { $0.currentQuery = "" }
-            let task = Task { [weak presenter] in
-                guard !Task.isCancelled else { return }
-                await presenter?.didReceive(
-                    searchState: .result(.sections(
-                        AccountSearchSections(recent: [], contacts: [], global: [])
-                    )),
-                    for: ""
-                )
-            }
-            replaceSearchTask(with: task)
+            loadIdleState()
             return
         }
 
@@ -128,6 +119,24 @@ private extension SearchContactInteractor {
         }
 
         previous?.cancel()
+    }
+
+    func loadIdleState() {
+        stateLock.withLock { $0.currentQuery = "" }
+
+        let task = Task { [weak self, weak presenter] in
+            guard let self else { return }
+            do {
+                let sections = try await accountSearching.search(query: nil)
+                guard !Task.isCancelled else { return }
+                await presenter?.didReceive(searchState: .result(.sections(sections)), for: "")
+            } catch {
+                guard !Task.isCancelled else { return }
+                await presenter?.didReceive(error: error)
+            }
+        }
+
+        replaceSearchTask(with: task)
     }
 
     func makeSearchResult(for query: String) async -> SearchContactSearchResult? {

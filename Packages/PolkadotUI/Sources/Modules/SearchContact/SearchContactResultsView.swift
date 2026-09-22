@@ -3,9 +3,9 @@ import UIKit
 internal import SnapKit
 internal import UIKit_iOS
 
-public final class SearchContactResultsView: DiffableCollectionViewProviderView<String, String> {
-    private let separatorSuffix = "_separator"
-    private let headerSuffix = "_header"
+public final class SearchContactResultsView: UIView {
+    private let scrollView = UIScrollView()
+    private let stackView = UIStackView()
 
     private let noResultsLabel: Label = create {
         $0.numberOfLines = 0
@@ -14,7 +14,6 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
 
     private let loadingView = SearchContactLoadingView()
 
-    private let collectionContainer = UIView()
     private let fadeMask = CAGradientLayer()
 
     private let separatorConfiguration = SeparatorContentConfiguration(
@@ -23,82 +22,18 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
         insets: NSDirectionalEdgeInsets(top: 0, leading: 64, bottom: 0, trailing: 16)
     )
 
-    public var selectionHandler: ((ItemIdentifierType) -> Void)?
-    public var onContentHeightChanged: (() -> Void)?
+    public var selectionHandler: ((String) -> Void)?
 
-    private var contentSizeObservation: NSKeyValueObservation?
-    private var isStatusVisible = false
-    private var lastReportedHeight: CGFloat = 0
-    private var noResultsHeightCap: Constraint?
+    private var statusFloorConstraint: Constraint?
 
-    private var modelHeight: CGFloat = 0
-    private lazy var rowHeight = measuredHeight(
-        of: SearchContactListView(
-            configuration: SearchContactListConfiguration(
-                userName: "M",
-                avatarViewModel: .colored(text: "M", colorSeed: "M")
-            )
-        )
-    )
-    private lazy var headerHeight = measuredHeight(
-        of: SearchContactSectionHeaderView(
-            configuration: SearchContactSectionHeaderConfiguration(title: "M")
-        )
-    )
+    override public init(frame: CGRect) {
+        super.init(frame: frame)
+        setupViews()
+    }
 
-    override public func setupViews() {
-        backgroundColor = .clear
-        collectionView.backgroundColor = .clear
-        collectionView.keyboardDismissMode = .none
-        collectionView.delegate = self
-        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-
-        noResultsLabel.setHidden(true)
-        loadingView.setHidden(true)
-
-        addSubview(collectionContainer)
-        collectionContainer.addSubview(collectionView)
-        addSubview(noResultsLabel)
-        addSubview(loadingView)
-
-        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
-
-        let centeringLayoutGuide = UILayoutGuide()
-        addLayoutGuide(centeringLayoutGuide)
-
-        centeringLayoutGuide.snp.makeConstraints {
-            $0.leading.trailing.equalToSuperview()
-            $0.top.equalToSuperview()
-            $0.bottom.equalToSuperview().inset(Constants.bottomSpacing)
-        }
-
-        noResultsLabel.snp.makeConstraints {
-            $0.centerX.equalTo(centeringLayoutGuide.snp.centerX)
-            $0.centerY.equalTo(centeringLayoutGuide.snp.centerY)
-            $0.width.lessThanOrEqualTo(centeringLayoutGuide.snp.width)
-            noResultsHeightCap = $0.height.lessThanOrEqualTo(centeringLayoutGuide.snp.height).constraint
-        }
-
-        loadingView.snp.makeConstraints {
-            $0.edges.equalTo(centeringLayoutGuide)
-        }
-
-        collectionContainer.snp.makeConstraints {
-            $0.top.equalToSuperview()
-            $0.leading.trailing.equalToSuperview()
-            $0.bottom.equalToSuperview().inset(Constants.bottomSpacing)
-        }
-
-        collectionView.snp.makeConstraints {
-            $0.edges.equalToSuperview()
-        }
-
-        contentSizeObservation = collectionView.observe(
-            \.contentSize,
-            options: [.new]
-        ) { [weak self] _, _ in
-            self?.contentHeightDidChange()
-        }
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 
     override public func layoutSubviews() {
@@ -106,53 +41,38 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
         updateFadeMask()
     }
 
-    override public func registerCells() {
-        super.registerCells()
-
-        CollectionRegistration.registerCell(
-            UICollectionViewCell.self,
-            for: collectionView,
-            reuseId: SearchContactListView.reuseIdentifier
-        )
-
-        CollectionRegistration.registerCell(
-            UICollectionViewCell.self,
-            for: collectionView,
-            reuseId: SeparatorContentView.reuseIdentifier
-        )
-
-        CollectionRegistration.registerCell(
-            UICollectionViewCell.self,
-            for: collectionView,
-            reuseId: SearchContactSectionHeaderView.reuseIdentifier
-        )
+    public func bind(status: StatusViewModel) {
+        updateStatusFloor(for: status)
+        noResultsLabel.attributedText = status.message
+        noResultsLabel.setHidden(status.message == nil)
+        loadingView.bind(text: status.loaderText)
+        loadingView.setLoading(status.showsLoader)
     }
 
-    /// Sized from the view model first, because a collection view with an empty frame never
-    /// lays out; the content size then only corrects.
-    override public var intrinsicContentSize: CGSize {
-        let content = max(
-            collectionView.contentSize.height,
-            modelHeight,
-            isStatusVisible ? Constants.statusHeight : 0
-        )
-        let height = content > 0 ? content + Constants.bottomSpacing : 0
-        return CGSize(width: UIView.noIntrinsicMetric, height: height)
+    public func bind(viewModel: ViewModel) {
+        bind(status: viewModel.status)
+        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        for section in viewModel.sections {
+            addSectionTopInset()
+            addSectionViews(for: section)
+        }
     }
 }
 
 public extension SearchContactResultsView {
+    /// `message` is centred text shown instead of rows: the no-recents hint or the failure reason.
     struct StatusViewModel {
-        public let searchFailReason: NSAttributedString?
+        public let message: NSAttributedString?
         public let showsLoader: Bool
         public let loaderText: String?
 
         public init(
-            searchFailReason: NSAttributedString? = nil,
+            message: NSAttributedString? = nil,
             showsLoader: Bool = false,
             loaderText: String? = nil
         ) {
-            self.searchFailReason = searchFailReason
+            self.message = message
             self.showsLoader = showsLoader
             self.loaderText = loaderText
         }
@@ -183,31 +103,6 @@ public extension SearchContactResultsView {
             self.status = status
         }
     }
-
-    func bind(status: StatusViewModel) {
-        updateStatusVisibility(status)
-        let showsFailReason = status.searchFailReason != nil
-        noResultsLabel.attributedText = status.searchFailReason
-        noResultsLabel.setHidden(!showsFailReason)
-        // A hidden label still constrains: its height cap would hold the empty view open.
-        if showsFailReason {
-            noResultsHeightCap?.activate()
-        } else {
-            noResultsHeightCap?.deactivate()
-        }
-        loadingView.bind(text: status.loaderText)
-        loadingView.setLoading(status.showsLoader)
-        contentHeightDidChange()
-    }
-
-    func bind(viewModel: ViewModel) {
-        modelHeight = expectedHeight(for: viewModel)
-        // The status must be applied before the snapshot sets `contentSize`: that KVO fires even
-        // for an unchanged value and resizes the panel at once, so a stale status floor or label
-        // cap would be the one measured.
-        bind(status: viewModel.status)
-        applySnapshot(sections: viewModel.sections.map { createSectionProvider(for: $0) })
-    }
 }
 
 private extension SearchContactResultsView {
@@ -220,23 +115,57 @@ private extension SearchContactResultsView {
         static let fadeHeight: CGFloat = 24
     }
 
-    func contentHeightDidChange() {
-        setNeedsLayout()
-        let height = intrinsicContentSize.height
-        guard height != lastReportedHeight else {
-            return
+    func setupViews() {
+        backgroundColor = .clear
+        scrollView.backgroundColor = .clear
+        scrollView.keyboardDismissMode = .none
+
+        noResultsLabel.setHidden(true)
+        loadingView.setHidden(true)
+
+        stackView.axis = .vertical
+        stackView.spacing = Constants.interItemSpacing
+        stackView.layoutMargins = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
+        stackView.isLayoutMarginsRelativeArrangement = true
+
+        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+
+        addSubview(scrollView)
+        scrollView.addSubview(stackView)
+        addSubview(noResultsLabel)
+        addSubview(loadingView)
+
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
+
+        scrollView.snp.makeConstraints { make in
+            make.top.leading.trailing.equalToSuperview()
+            make.bottom.equalToSuperview().inset(Constants.bottomSpacing)
+            make.height.equalTo(stackView).priority(.low)
+            statusFloorConstraint = make.height.greaterThanOrEqualTo(Constants.statusHeight)
+                .priority(.high).constraint
         }
-        lastReportedHeight = height
-        invalidateIntrinsicContentSize()
-        onContentHeightChanged?()
+        statusFloorConstraint?.deactivate()
+
+        stackView.snp.makeConstraints { make in
+            make.top.bottom.equalTo(scrollView.contentLayoutGuide)
+            make.leading.trailing.equalTo(scrollView.frameLayoutGuide)
+        }
+
+        noResultsLabel.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+            make.leading.trailing.equalToSuperview().inset(24)
+        }
+
+        loadingView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
     }
 
-    /// Masks only when the list scrolls, so a list that fits keeps its last row fully visible.
     func updateFadeMask() {
-        let bounds = collectionContainer.bounds
-        let overflows = collectionView.contentSize.height > bounds.height + 0.5
+        let bounds = scrollView.bounds
+        let overflows = scrollView.contentSize.height > bounds.height + 0.5
         guard overflows, bounds.height > Constants.fadeHeight else {
-            collectionContainer.layer.mask = nil
+            scrollView.layer.mask = nil
             return
         }
 
@@ -245,86 +174,71 @@ private extension SearchContactResultsView {
         fadeMask.frame = bounds
         let fadeStart = (bounds.height - Constants.fadeHeight) / bounds.height
         fadeMask.locations = [0, NSNumber(value: fadeStart), 1]
-        collectionContainer.layer.mask = fadeMask
+        scrollView.layer.mask = fadeMask
         CATransaction.commit()
     }
 
-    func updateStatusVisibility(_ status: StatusViewModel) {
-        isStatusVisible = status.showsLoader || status.searchFailReason != nil
-    }
-
-    func measuredHeight(of view: UIView) -> CGFloat {
-        view.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).height
-    }
-
-    /// Mirrors `createSectionProvider`: top inset, then header, rows and separators
-    /// with spacing between.
-    func expectedHeight(for viewModel: ViewModel) -> CGFloat {
-        viewModel.sections.reduce(0) { total, section in
-            let headerCount: CGFloat = section.title == nil ? 0 : 1
-            let rowCount = CGFloat(section.rows.count)
-            let separatorCount = max(rowCount - 1, 0)
-            let itemCount = headerCount + rowCount + separatorCount
-            let itemsHeight = headerCount * headerHeight
-                + rowCount * rowHeight
-                + separatorCount * Constants.separatorHeight
-            let spacing = Constants.interItemSpacing * max(itemCount - 1, 0)
-            return total + Constants.sectionTopInset + itemsHeight + spacing
+    func addSectionTopInset() {
+        if let lastView = stackView.arrangedSubviews.last {
+            stackView.setCustomSpacing(Constants.sectionTopInset, after: lastView)
+            return
         }
+
+        let topSpacer = UIView()
+        topSpacer.snp.makeConstraints { $0.height.equalTo(Constants.sectionTopInset) }
+        stackView.addArrangedSubview(topSpacer)
     }
 
-    func createSectionProvider(for section: ViewModel.Section) -> SectionProviderType {
-        var items: [ItemProviderType] = []
-
+    func addSectionViews(for section: ViewModel.Section) {
         if let title = section.title {
-            items.append(
-                ItemProviderType(
-                    id: section.id + headerSuffix,
-                    configuration: SearchContactSectionHeaderConfiguration(title: title),
-                    reuseIdentifier: SearchContactSectionHeaderView.reuseIdentifier
-                )
-            )
+            let headerView = SearchContactSectionHeaderConfiguration(title: title).makeContentView()
+            stackView.addArrangedSubview(headerView)
         }
 
-        section.rows.enumerated().forEach { offset, item in
-            items.append(
-                ItemProviderType(
-                    id: item.id,
-                    configuration: item.configuration,
-                    reuseIdentifier: SearchContactListView.reuseIdentifier
-                )
-            )
+        for (offset, item) in section.rows.enumerated() {
+            let rowContainer = RowTapContainer(contentView: item.configuration.makeContentView())
+            rowContainer.onTap = { [weak self] in
+                self?.selectionHandler?(item.id)
+            }
+            stackView.addArrangedSubview(rowContainer)
 
             if offset < section.rows.count - 1 {
-                items.append(
-                    ItemProviderType(
-                        id: item.id + separatorSuffix,
-                        configuration: separatorConfiguration,
-                        reuseIdentifier: SeparatorContentView.reuseIdentifier
-                    )
-                )
+                stackView.addArrangedSubview(separatorConfiguration.makeContentView())
             }
         }
+    }
 
-        return SectionProviderType(
-            id: section.id,
-            itemProviders: items
-        ) { _, _ in
-            let group = NSCollectionLayoutGroup.list(
-                heightDimension: .estimated(60),
-                widthDimension: .fractionalWidth(1.0)
-            )
-
-            let section = NSCollectionLayoutSection(group: group)
-            section.interGroupSpacing = Constants.interItemSpacing
-            section.contentInsets = .init(
-                top: Constants.sectionTopInset,
-                leading: 16,
-                bottom: 0,
-                trailing: 16
-            )
-            return section
+    /// A status replaces the rows, so the view keeps a floor height to centre it in.
+    func updateStatusFloor(for status: StatusViewModel) {
+        if status.showsLoader || status.message != nil {
+            statusFloorConstraint?.activate()
+        } else {
+            statusFloorConstraint?.deactivate()
         }
+    }
+}
+
+private final class RowTapContainer: UIControl {
+    var onTap: (() -> Void)?
+
+    init(contentView: UIView) {
+        super.init(frame: .zero)
+        contentView.isUserInteractionEnabled = false
+        addSubview(contentView)
+        contentView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc
+    func handleTap() {
+        onTap?()
     }
 }
 
@@ -389,19 +303,6 @@ private final class SearchContactLoadingView: UIView {
     }
 }
 
-extension SearchContactResultsView: UICollectionViewDelegate {
-    public func collectionView(
-        _ collectionView: UICollectionView,
-        didSelectItemAt indexPath: IndexPath
-    ) {
-        guard collectionView.cellForItem(at: indexPath)?.contentView is SearchContactListView,
-              let identifier = dataSource.itemIdentifier(for: indexPath) else {
-            return
-        }
-        selectionHandler?(identifier)
-    }
-}
-
 #Preview("2 contacts found") {
     let layout = SearchContactResultsView()
     let contacts = [
@@ -432,7 +333,7 @@ extension SearchContactResultsView: UICollectionViewDelegate {
     let string = NSAttributedString(string: "No results for\n\"notfoundusername\"")
     let viewModel = SearchContactResultsView.ViewModel(
         sections: [],
-        status: SearchContactResultsView.StatusViewModel(searchFailReason: string)
+        status: SearchContactResultsView.StatusViewModel(message: string)
     )
     layout.bind(viewModel: viewModel)
     return layout

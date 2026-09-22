@@ -15,8 +15,7 @@ final class TabBarChromeSurfaceView: UIView {
     private var appliedGlassContainerHeight: CGFloat = 0
     private var glassContainerBottomSuperviewConstraint: Constraint?
     private var glassContainerBottomKeyboardConstraint: Constraint?
-    private var panelBottomAboveCapsuleConstraints: [Constraint] = []
-    private var panelBottomFlushConstraints: [Constraint] = []
+    private var panelBottomConstraints: [Constraint] = []
     private var isPanelTrackingKeyboard = false
 
     var capsuleLayoutReference: UIView {
@@ -71,10 +70,13 @@ final class TabBarChromeSurfaceView: UIView {
             case .spaTabs:
                 tabsPanelView.preferredHeight(availableHeight: availablePanelHeight)
             case .content:
-                contentPanelView.preferredHeight(
-                    availableHeight: availablePanelHeight,
-                    reservesCapsule: !isPanelTrackingKeyboard
-                )
+                // While the keyboard is up the search owns the panel, so the content fills the
+                // space above the keys instead of fitting its rows.
+                if isPanelTrackingKeyboard {
+                    max(0, availablePanelHeight)
+                } else {
+                    contentPanelView.preferredHeight(availableHeight: availablePanelHeight)
+                }
             case nil:
                 DSTabBarView.capsuleHeight
             }
@@ -106,7 +108,7 @@ final class TabBarChromeSurfaceView: UIView {
         contentPanelView.setHostedView(view)
     }
 
-    func setPanelTracksKeyboard(_ tracking: Bool, animator: UIViewPropertyAnimator?) {
+    func setPanelTracksKeyboard(_ tracking: Bool) {
         guard tracking != isPanelTrackingKeyboard else {
             return
         }
@@ -116,17 +118,11 @@ final class TabBarChromeSurfaceView: UIView {
         if tracking {
             glassContainerBottomSuperviewConstraint?.deactivate()
             glassContainerBottomKeyboardConstraint?.activate()
-            panelBottomAboveCapsuleConstraints.forEach { $0.deactivate() }
-            panelBottomFlushConstraints.forEach { $0.activate() }
+            panelBottomConstraints.forEach { $0.update(offset: 0) }
         } else {
             glassContainerBottomKeyboardConstraint?.deactivate()
             glassContainerBottomSuperviewConstraint?.activate()
-            panelBottomFlushConstraints.forEach { $0.deactivate() }
-            panelBottomAboveCapsuleConstraints.forEach { $0.activate() }
-        }
-
-        animator?.addAnimations { [weak self] in
-            self?.layoutIfNeeded()
+            panelBottomConstraints.forEach { $0.update(offset: -DSTabBarView.capsuleHeight) }
         }
     }
 }
@@ -170,20 +166,10 @@ private extension TabBarChromeSurfaceView {
 
         panel.snp.makeConstraints { make in
             make.top.leading.trailing.equalTo(glassContainer.contentView)
-            panelBottomAboveCapsuleConstraints.append(
+            panelBottomConstraints.append(
                 make.bottom.equalTo(glassContainer.contentView)
                     .offset(-DSTabBarView.capsuleHeight).constraint
             )
-        }
-
-        var flushConstraint: Constraint?
-        panel.snp.makeConstraints { make in
-            flushConstraint = make.bottom.equalTo(glassContainer.contentView).constraint
-        }
-
-        if let flushConstraint {
-            flushConstraint.deactivate()
-            panelBottomFlushConstraints.append(flushConstraint)
         }
     }
 }

@@ -58,9 +58,6 @@ class QRScannerViewController: UIViewController, ViewHolder {
             let videoPreviewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
             videoPreviewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
             videoPreviewLayer.frame = view.layer.bounds
-            // A manually added sublayer of a frame-driven view animates its frame on CALayer's
-            // implicit timing, which would not match the panel's resize animator.
-            videoPreviewLayer.actions = ["bounds": NSNull(), "position": NSNull()]
 
             rootView.qrFrameView.frameLayer = videoPreviewLayer
         }

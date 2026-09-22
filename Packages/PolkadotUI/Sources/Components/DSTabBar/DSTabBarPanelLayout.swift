@@ -26,12 +26,9 @@ enum DSTabBarPanelLayout {
             + verticalPadding * 2
     }
 
-    /// The container stacks the panel above the capsule unless the capsule is hidden, so it must fit
-    /// the content plus the capsule height unless reservesCapsule is false.
-    static func panelHeight(contentHeight: CGFloat, availableHeight: CGFloat, reservesCapsule: Bool = true)
-        -> CGFloat {
-        let capsuleReservation = reservesCapsule ? DSTabBarMetrics.capsuleHeight : 0
-        return min(contentHeight + capsuleReservation, max(0, availableHeight))
+    /// The container stacks the panel above the capsule, so it must fit both.
+    static func panelHeight(contentHeight: CGFloat, availableHeight: CGFloat) -> CGFloat {
+        min(contentHeight + DSTabBarMetrics.capsuleHeight, max(0, availableHeight))
     }
 
     static func panelHeight(rowHeights: [CGFloat], availableHeight: CGFloat) -> CGFloat {

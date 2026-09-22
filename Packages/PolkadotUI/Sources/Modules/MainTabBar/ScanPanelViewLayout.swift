@@ -28,6 +28,7 @@ public final class ScanPanelViewLayout: UIView {
 
     private var fullHorizontalConstraints: [Constraint] = []
     private var compactHorizontalConstraints: [Constraint] = []
+    private var resultsCollapsedConstraint: Constraint?
 
     public var onCameraTapped: (() -> Void)?
 
@@ -35,11 +36,13 @@ public final class ScanPanelViewLayout: UIView {
         super.init(frame: frame)
 
         addSubview(resultsView)
+        resultsView.clipsToBounds = true
         addSubview(searchRow)
 
         resultsView.snp.makeConstraints { make in
             make.top.equalToSuperview().offset(DSSpacings.tiny)
             make.leading.trailing.equalToSuperview().inset(DSSpacings.small)
+            resultsCollapsedConstraint = make.bottom.equalTo(snp.top).offset(DSSpacings.mediumIncreased).constraint
         }
 
         searchRow.snp.makeConstraints { make in
@@ -79,23 +82,27 @@ public final class ScanPanelViewLayout: UIView {
             ]
         }
 
-        compactHorizontalConstraints.forEach { $0.deactivate() }
-
         scannerView.addGestureRecognizer(cameraTapRecognizer)
+        setSearchFocused(false)
     }
 
-    /// The camera shrinks to a centred square above the field while the field is focused.
-    /// The caller owns the animation via the panel animator.
-    public func setCameraCompact(_ compact: Bool) {
-        if compact {
+    /// Unfocused implies no results, so the late empty snapshot from the interactor changes nothing
+    /// visible; collapsed, the results end at the camera's idle top.
+    public func setSearchFocused(_ focused: Bool) {
+        if focused {
             fullHorizontalConstraints.forEach { $0.deactivate() }
             compactHorizontalConstraints.forEach { $0.activate() }
+            resultsCollapsedConstraint?.deactivate()
+            resultsView.alpha = 1
         } else {
             compactHorizontalConstraints.forEach { $0.deactivate() }
             fullHorizontalConstraints.forEach { $0.activate() }
+            resultsCollapsedConstraint?.activate()
+            resultsView.alpha = 0
         }
 
-        cameraTapRecognizer.isEnabled = compact
+        searchRow.setCancelVisible(focused)
+        cameraTapRecognizer.isEnabled = focused
     }
 }
 

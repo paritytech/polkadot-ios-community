@@ -13,7 +13,6 @@ final class MainTabBarViewController: UIViewController {
     let flowStateProvider: any SPAFlowStateProviding
 
     private let chromeController = TabBarBottomChromeController()
-    private var isScanPanelFieldFocused = false
 
     private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(models: []))
 
@@ -59,8 +58,6 @@ final class MainTabBarViewController: UIViewController {
         installStatusBar()
 
         installChromeController()
-
-        registerKeyboardObservers()
 
         chromeController.statusStripAnchorProvider = { [weak self] in self?.chainStatusAnchorGuide }
 
@@ -350,11 +347,6 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         let controller = viewFactory.makeScanController()
         chromeController.setContentController(controller, for: .scan)
 
-        controller?.onFocusChanged = { [weak self] focused, applyLayout in
-            self?.isScanPanelFieldFocused = focused
-            self?.chromeController.resizeContentPanel(preparing: applyLayout)
-        }
-
         // Opening the chat selects its tab, and tab selection closes the panel. A second close here
         // would cancel that animation in place and leave the backdrop and panel frozen mid-way.
         controller?.onChatFound = { [weak self] model in
@@ -370,56 +362,6 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
         let width = max(1, ChainConnectionStatusBarView.ringsWidth(count: models.count))
         chainStatusAnchorWidth?.update(offset: width)
-    }
-}
-
-// MARK: - Keyboard tracking
-
-private extension MainTabBarViewController {
-    func registerKeyboardObservers() {
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleKeyboardWillShow(_:)),
-            name: UIResponder.keyboardWillShowNotification,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleKeyboardWillHide(_:)),
-            name: UIResponder.keyboardWillHideNotification,
-            object: nil
-        )
-    }
-
-    @objc
-    func handleKeyboardWillShow(_ notification: NSNotification) {
-        guard isScanPanelFieldFocused else {
-            return
-        }
-
-        setPanelTracksKeyboard(true, matching: notification)
-    }
-
-    @objc
-    func handleKeyboardWillHide(_ notification: NSNotification) {
-        setPanelTracksKeyboard(false, matching: notification)
-    }
-
-    /// Mirrors the keyboard's own duration and curve so the panel and the keyboard move as one.
-    func setPanelTracksKeyboard(_ tracking: Bool, matching notification: NSNotification) {
-        let userInfo = notification.userInfo
-        let duration = userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.3
-        let curveRawValue = userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int ?? 0
-        let curve = UIView.AnimationCurve(rawValue: curveRawValue) ?? .linear
-
-        let animator = UIViewPropertyAnimator(
-            duration: duration,
-            timingParameters: UICubicTimingParameters(animationCurve: curve)
-        )
-
-        chromeController.setPanelTracksKeyboard(tracking, animator: animator)
-        animator.startAnimation()
     }
 }
 

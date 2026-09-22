@@ -9,7 +9,6 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
     private let scannerController: UIViewController & ScanPanelScannerControlling
     private let presenter: SearchContactPresenterProtocol
 
-    var onFocusChanged: ((_ focused: Bool, _ applyLayout: @escaping () -> Void) -> Void)?
     var onChatFound: ((ChatOpenModel) -> Void)?
     var onContentHeightChanged: (() -> Void)?
 
@@ -38,8 +37,7 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
         rootView.setupScannerView(scannerController.view)
         scannerController.didMove(toParent: self)
 
-        setupSearchHeader()
-        setupSearchResults()
+        setupHandlers()
         presenter.setup()
     }
 }
@@ -47,9 +45,7 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
 // MARK: - Private
 
 private extension ScanPanelViewController {
-    func setupSearchHeader() {
-        let searchField = rootView.searchRow.searchField
-
+    func setupHandlers() {
         rootView.searchRow.cancelHandler = { [weak self] in
             self?.cancelSearch()
         }
@@ -58,23 +54,12 @@ private extension ScanPanelViewController {
             self?.cancelSearch()
         }
 
-        searchField.addTarget(self, action: #selector(editingDidBegin), for: .editingDidBegin)
-        searchField.addTarget(self, action: #selector(editingDidEnd), for: .editingDidEnd)
-
-        rootView.searchRow.setCancelVisible(false)
-    }
-
-    func setupSearchResults() {
         rootView.searchRow.searchHandler = { [weak self] text in
             self?.presenter.search(username: text ?? "")
         }
 
         rootView.resultsView.selectionHandler = { [weak self] identifier in
             self?.presenter.didSelectContact(identifier: identifier)
-        }
-
-        rootView.resultsView.onContentHeightChanged = { [weak self] in
-            self?.onContentHeightChanged?()
         }
     }
 
@@ -84,37 +69,30 @@ private extension ScanPanelViewController {
         presenter.search(username: "")
         searchField.resignFirstResponder()
     }
+}
 
-    @objc
-    func editingDidBegin() {
-        onFocusChanged?(true) { [weak self] in
-            self?.applySearchFieldFocused(true)
-        }
-    }
-
-    @objc
-    func editingDidEnd() {
-        onFocusChanged?(false) { [weak self] in
-            self?.applySearchFieldFocused(false)
-        }
+extension ScanPanelViewController: TabBarKeyboardTrackingContent {
+    var isKeyboardInputFocused: Bool {
+        rootView.searchRow.searchField.isFirstResponder
     }
 
     /// Focusing the field shrinks the camera to a thumbnail and disarms recognition, so a code
     /// cannot be picked up from the sliver of preview left behind the keyboard.
-    func applySearchFieldFocused(_ focused: Bool) {
+    func setKeyboardInputFocused(_ focused: Bool) {
         scannerController.setRecognitionArmed(!focused)
         scannerController.setPreviewCompact(focused)
-        rootView.setCameraCompact(focused)
-        rootView.searchRow.setCancelVisible(focused)
+        rootView.setSearchFocused(focused)
     }
 }
 
 extension ScanPanelViewController: SearchContactViewProtocol {
     func didReceive(viewModel: SearchContactResultsView.ViewModel) {
         rootView.resultsView.bind(viewModel: viewModel)
+        onContentHeightChanged?()
     }
 
     func didReceive(status: SearchContactResultsView.StatusViewModel) {
         rootView.resultsView.bind(status: status)
+        onContentHeightChanged?()
     }
 }

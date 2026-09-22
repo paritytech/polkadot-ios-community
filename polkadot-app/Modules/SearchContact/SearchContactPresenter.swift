@@ -91,27 +91,36 @@ private extension SearchContactPresenter {
     }
 
     func makeStatus() -> SearchContactResultsView.StatusViewModel {
-        let query = currentSearch.query
-        let allEmpty = selection.isEmpty
-
-        let searchFailReason: NSAttributedString?
-        if !currentSearch.isSearching, currentSearch.queryFailed || (!query.isEmpty && allEmpty) {
-            let searchFailedString = String(localized: .searchContactNoSuchUsername(username: query))
-            var attributes = LabelStyle.title16SemiBold().attributes(for: .center)
-            attributes[.foregroundColor] = UIColor.fgSecondary
-            searchFailReason = NSAttributedString(
-                string: searchFailedString,
-                attributes: attributes
-            )
-        } else {
-            searchFailReason = nil
-        }
-
-        return SearchContactResultsView.StatusViewModel(
-            searchFailReason: searchFailReason,
+        SearchContactResultsView.StatusViewModel(
+            message: makeStatusMessage(),
             showsLoader: currentSearch.showsLoader,
             loaderText: currentSearch.loaderText
         )
+    }
+
+    /// Shown instead of the rows once the search settles: the failure reason, or the
+    /// no-recents hint when the field is empty.
+    func makeStatusMessage() -> NSAttributedString? {
+        guard !currentSearch.isSearching else {
+            return nil
+        }
+
+        let query = currentSearch.query
+        let allEmpty = selection.isEmpty
+
+        if currentSearch.queryFailed || (!query.isEmpty && allEmpty) {
+            return makeCenteredMessage(String(localized: .searchContactNoSuchUsername(username: query)))
+        } else if allEmpty, query.isEmpty {
+            return makeCenteredMessage(String(localized: .searchContactNoRecentSearches))
+        } else {
+            return nil
+        }
+    }
+
+    func makeCenteredMessage(_ text: String) -> NSAttributedString {
+        var attributes = LabelStyle.title16SemiBold().attributes(for: .center)
+        attributes[.foregroundColor] = UIColor.fgSecondary
+        return NSAttributedString(string: text, attributes: attributes)
     }
 
     func provideStatus() {
