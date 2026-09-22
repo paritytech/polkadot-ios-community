@@ -114,6 +114,7 @@
 				"AppConfig/AppConfig+Brand.swift",
 				AppConfig/AppConfigProvider.swift,
 				AppConfig/KnownChains.swift,
+				AppConfig/PaymentAssetConfig.swift,
 				AppConfig/RemoteAppConfig.swift,
 				Common/Crypto/Keychain.swift,
 				Common/Crypto/RootEntropyManaging.swift,

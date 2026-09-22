@@ -1,3 +1,4 @@
+import DurableTransactionsTestSupport
 import Testing
 import Foundation
 import BigInt
@@ -57,12 +58,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         // Then - Wait for handoff marks to be recorded
         try await waitForHandoff(expectedCoins: 2)
@@ -100,12 +102,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher1, voucher2],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         // Wait for entries to be submitted and outputs to be saved
         try await waitForSubmission(expectedEntries: 2)
@@ -154,12 +157,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher1, voucher2, voucher3],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 3)
 
@@ -208,12 +212,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher1, voucher2, voucher3, voucher4, voucher5],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 5)
 
@@ -255,12 +260,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher1, voucher2],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -301,12 +307,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -342,12 +349,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -382,12 +390,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -422,12 +431,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -461,12 +471,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
@@ -501,12 +512,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         // Then
         try await waitForSubmission(expectedEntries: 1)
@@ -550,12 +562,13 @@ struct TransferSenderServiceTests {
             availableVouchers: [],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         // Then - Split registers the overflow coin as consumed
         try await waitForSubmission(expectedEntries: 1)
@@ -584,7 +597,7 @@ struct TransferSenderServiceTests {
 
     // MARK: - Ordering and Error Handling Tests
 
-    @Test("UnloadIntoCoins: registration precedes handoff reservation")
+    @Test("UnloadIntoCoins: reservation precedes scheduling, and prepare submits nothing")
     func registrationPrecedesReservationForUnload() async throws {
         let voucher1 = makeVoucher(exponent: 4, derivationIndex: 1, recyclerIndex: 0) // $16
         let voucher2 = makeVoucher(exponent: 3, derivationIndex: 2, recyclerIndex: 1) // $8
@@ -607,33 +620,40 @@ struct TransferSenderServiceTests {
             availableVouchers: [voucher1, voucher2],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 2)
 
         let events = journal.events
 
-        let registerIdx = try #require(
-            events.firstIndex(of: "submit"),
-            "no submit (registration) event recorded"
-        )
         let handoffIdx = try #require(
             events.firstIndex(of: "preCommitHandoff"),
-            "no handoff reservation recorded — the assertion below would be vacuous"
+            "no handoff reservation recorded"
+        )
+        let scheduleIdx = try #require(
+            events.firstIndex(of: "schedule"),
+            "no scheduling recorded — the assertion below would be vacuous"
         )
 
+        // Nothing is submitted while the memo is being prepared: the transactions are declared and
+        // only registered when the transport commits them.
+        #expect(!events.contains("submit"), "prepare must not submit: \(events)")
+
+        // The reservation is what holds the coins in the window before the transactions exist, so it
+        // must already be in place by the time they are registered.
         #expect(
-            registerIdx < handoffIdx,
-            "registration must precede handoff reservation: \(events)"
+            handoffIdx < scheduleIdx,
+            "handoff reservation must precede scheduling: \(events)"
         )
     }
 
-    @Test("SplitCoin: registration precedes handoff reservation")
+    @Test("SplitCoin: reservation precedes scheduling, and prepare submits nothing")
     func registrationPrecedesReservationForSplit() async throws {
         let coin = makeCoin(exponent: 3, derivationIndex: 1) // $8
 
@@ -645,29 +665,36 @@ struct TransferSenderServiceTests {
             availableVouchers: [],
             breakdownContext: testContext
         )
-        _ = try await service.execute(
+        let prepared = try await service.execute(
             result: result,
-            currentDate: now,
             breakdownContext: testContext,
-            groupId: nil
+            groupId: "transfer"
         )
+        // Declared work only becomes real when the transport commits it.
+        try prepared.commit(in: InMemoryRegistrationScope())
 
         try await waitForSubmission(expectedEntries: 1)
 
         let events = journal.events
 
-        let registerIdx = try #require(
-            events.firstIndex(of: "submit"),
-            "no submit (registration) event recorded"
-        )
         let handoffIdx = try #require(
             events.firstIndex(of: "preCommitHandoff"),
-            "no handoff reservation recorded — the assertion below would be vacuous"
+            "no handoff reservation recorded"
+        )
+        let scheduleIdx = try #require(
+            events.firstIndex(of: "schedule"),
+            "no scheduling recorded — the assertion below would be vacuous"
         )
 
+        // Nothing is submitted while the memo is being prepared: the transactions are declared and
+        // only registered when the transport commits them.
+        #expect(!events.contains("submit"), "prepare must not submit: \(events)")
+
+        // The reservation is what holds the coins in the window before the transactions exist, so it
+        // must already be in place by the time they are registered.
         #expect(
-            registerIdx < handoffIdx,
-            "registration must precede handoff reservation: \(events)"
+            handoffIdx < scheduleIdx,
+            "handoff reservation must precede scheduling: \(events)"
         )
     }
 }
@@ -727,7 +754,10 @@ extension TransferSenderServiceTests {
     ) async throws {
         let start = Date()
         while Date().timeIntervalSince(start) < timeout {
-            let actualEntries = await (mockDurability.submittedInputs).count
+            // `prepare` declares rather than submits now, so the transactions it produced are the
+            // scheduled ones; a strategy that puts nothing on chain still declares nothing.
+            let actualEntries = await mockDurability.submittedInputs.count
+                + mockDurability.scheduledRequests.count
 
             if actualEntries >= expectedEntries {
                 return
@@ -737,6 +767,7 @@ extension TransferSenderServiceTests {
         }
 
         let actualEntries = await mockDurability.submittedInputs.count
+            + mockDurability.scheduledRequests.count
         throw TestError.timeout("waitForSubmission: expected \(expectedEntries) entries, got \(actualEntries)")
     }
 
@@ -783,9 +814,9 @@ extension TransferSenderServiceTests {
     }
 
     private func makeTransferSenderService(
-        originFactory: StubOriginFactory = StubOriginFactory(),
+        originFactory _: StubOriginFactory = StubOriginFactory(),
         recyclerLoader: MockRecyclerLoader = MockRecyclerLoader(),
-        blockInfoProvider: MockBlockNumberProvider = MockBlockNumberProvider(),
+        blockInfoProvider _: MockBlockNumberProvider = MockBlockNumberProvider(),
         mockDurability: MockCoinageTxService = MockCoinageTxService()
     ) -> TransferSenderService {
         let coinSelector = CoinSelector()
@@ -794,15 +825,9 @@ extension TransferSenderServiceTests {
         let voucherKeyFactory = StubVoucherKeyFactory()
 
         let planFactory = TransferPlanFactory(
-            instanceId: 0,
             minter: mockMinter,
-            voucherKeyFactory: voucherKeyFactory,
-            coinKeyFactory: coinKeyFactory,
             durability: mockDurability,
-            originFactory: originFactory,
-            quotaTracker: StubUnloadQuotaTracker(),
-            recyclerLoader: recyclerLoader,
-            blockInfoProvider: blockInfoProvider,
+            dateProvider: StubDateProvider(now),
             logger: nil
         )
 
@@ -811,6 +836,7 @@ extension TransferSenderServiceTests {
             planFactory: planFactory,
             memoBuilder: memoBuilder,
             recyclerLoader: recyclerLoader,
+            txService: mockDurability,
             logger: nil
         )
     }

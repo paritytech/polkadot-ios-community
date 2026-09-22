@@ -397,17 +397,6 @@
         }
       }
     },
-    "balance.onhold": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%1$(amount)@ on hold"
-          }
-        }
-      }
-    },
     "block.user.action": {
       "extractionState": "manual",
       "localizations": {
@@ -1357,7 +1346,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reloading"
+            "value": "Clearing"
           }
         }
       }
@@ -1379,7 +1368,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Spendable"
+            "value": "Ready"
           }
         }
       }
@@ -1390,29 +1379,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coinage Balance"
-          }
-        }
-      }
-    },
-    "coinageTotalBalance": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Total balance"
-          }
-        }
-      }
-    },
-    "coinageUnavailable": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unavailable"
+            "value": "Balance"
           }
         }
       }
@@ -3092,17 +3059,6 @@
         }
       }
     },
-    "token.name": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CASH"
-          }
-        }
-      }
-    },
     "transaction.details.title": {
       "extractionState": "manual",
       "localizations": {
@@ -3208,7 +3164,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Available now"
+            "value": "Ready to send"
           }
         }
       }

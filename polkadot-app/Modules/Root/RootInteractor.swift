@@ -20,6 +20,7 @@ final class RootInteractor {
 
     let firebaseFacade = FirebaseFacade.shared
     let productPrewarmer: ProductContentPrewarming
+    let paymentAssetBranding: PaymentAssetBranding
 
     private let setupTimeoutSeconds: TimeInterval = 5
     private var setupTimeoutTask: Task<Void, Never>?
@@ -37,7 +38,8 @@ final class RootInteractor {
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
         productPrewarmer: ProductContentPrewarming,
-        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
+        paymentAssetBranding: PaymentAssetBranding = .shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -47,6 +49,7 @@ final class RootInteractor {
         self.tokenManager = tokenManager
         self.productPrewarmer = productPrewarmer
         self.tldProvider = tldProvider
+        self.paymentAssetBranding = paymentAssetBranding
     }
 
     deinit {
@@ -67,6 +70,8 @@ final class RootInteractor {
 
     private func fetchRemoteConfig() {
         firebaseFacade.fetchRemoteConfigValues()
+        // Follows every applied config, so the logos are fetched the moment one names them.
+        paymentAssetBranding.start()
     }
 
     private func setupJWTManager() {

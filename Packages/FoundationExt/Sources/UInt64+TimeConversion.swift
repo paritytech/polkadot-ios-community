@@ -1,6 +1,6 @@
 import Foundation
 
-extension UInt64 {
+public extension UInt64 {
     func millisecondsToSeconds() -> TimeInterval {
         let fullSeconds = self / 1_000
         let milliseconds = TimeInterval(self % 1_000) / 1_000.0

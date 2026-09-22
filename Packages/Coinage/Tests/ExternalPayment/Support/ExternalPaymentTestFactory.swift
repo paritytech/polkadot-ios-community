@@ -1,6 +1,7 @@
 import BigInt
 import DurableTransactionsTestSupport
 import Foundation
+import FoundationExt
 import os
 import SubstrateSdk
 import Testing
@@ -130,6 +131,7 @@ enum ExternalPaymentTestFactory {
             originFactory: StubOriginFactory(),
             quotaTracker: StubUnloadQuotaTracker(),
             blockNumberProvider: StubBlockInfoProvider(),
+            dateProvider: StubDateProvider(Date()),
             logger: nil
         )
     }
@@ -158,6 +160,7 @@ enum ExternalPaymentTestFactory {
             originFactory: StubOriginFactory(),
             quotaTracker: StubUnloadQuotaTracker(),
             blockNumberProvider: StubBlockInfoProvider(),
+            dateProvider: StubDateProvider(Date()),
             logger: nil
         )
 

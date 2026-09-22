@@ -10,7 +10,6 @@ struct CoinageLegendSwatch: View {
     enum Kind {
         case availableNow
         case gainingPrivacy
-        case unavailable
     }
 
     let kind: Kind
@@ -39,7 +38,6 @@ struct CoinageLegendSwatch: View {
         switch kind {
         case .availableNow: Color.fgStaticWhite
         case .gainingPrivacy: DSBarberPole()
-        case .unavailable: Color.fgError
         }
     }
 }

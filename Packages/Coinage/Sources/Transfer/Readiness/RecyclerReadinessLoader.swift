@@ -1,14 +1,14 @@
 import Foundation
 import Operation_iOS
-import SubstrateSdk
-import SubstrateStorageQuery
+@preconcurrency import SubstrateSdk
+@preconcurrency import SubstrateStorageQuery
 import SubstrateStorageSubscription
 import StructuredConcurrency
 import Individuality
 import AsyncExtensions
 
 /// Protocol for loading recycler states from chain.
-public protocol RecyclerReadinessLoading {
+public protocol RecyclerReadinessLoading: Sendable {
     /// Fetches the current revisions from Members.Root storage.
     func fetchRevisions(
         for keys: [RecyclerKey],

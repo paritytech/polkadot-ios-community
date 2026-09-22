@@ -5,7 +5,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "extrinsic-service-ios",
         url: "https://github.com/novasamatech/extrinsic-service-ios",
-        version: .exact("1.17.0"),
+        version: .exact("1.18.0"),
         products: ["ExtrinsicService"]
     ),
     .init(
@@ -26,7 +26,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "Operation-iOS",
         url: "https://github.com/novasamatech/Operation-iOS",
-        version: .exact("3.0.0"),
+        version: .exact("3.1.0"),
         products: ["Operation-iOS"]
     ),
     .init(
@@ -56,7 +56,7 @@ let dependencyConfigs: [DependencyConfig] = [
     .init(
         name: "substrate-sdk-ios",
         url: "https://github.com/novasamatech/substrate-sdk-ios",
-        version: .exact("5.14.0"),
+        version: .exact("5.15.0"),
         products: [
             "SubstrateSdk",
             "SubstrateMetadataHash"
