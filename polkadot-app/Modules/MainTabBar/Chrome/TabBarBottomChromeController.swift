@@ -69,11 +69,13 @@ final class TabBarBottomChromeController: UIViewController {
         }
     )
 
-    private lazy var inputFocusController = TabBarInputFocusController(
-        surface: chromeSurface,
-        panelController: panelController,
-        content: { [weak self] in self?.hostedPanelController as? TabBarKeyboardTrackingContent }
-    )
+    #if FEATURE_INPUT
+        private lazy var inputFocusController = TabBarInputFocusController(
+            surface: chromeSurface,
+            panelController: panelController,
+            content: { [weak self] in self?.hostedPanelController as? TabBarKeyboardTrackingContent }
+        )
+    #endif
 
     var onSelect: ((_ index: Int, _ isReselection: Bool) -> Void)?
     var onChipTapped: ((UUID) -> Void)?
@@ -112,8 +114,10 @@ final class TabBarBottomChromeController: UIViewController {
 
         installOutsideTapRecognizer()
 
-        // Observers register on creation.
-        _ = inputFocusController
+        #if FEATURE_INPUT
+            // Observers register on creation.
+            _ = inputFocusController
+        #endif
     }
 
     override func viewDidAppear(_ animated: Bool) {

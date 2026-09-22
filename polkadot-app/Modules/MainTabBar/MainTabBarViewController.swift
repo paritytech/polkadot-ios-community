@@ -347,15 +347,23 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         let controller = viewFactory.makeScanController()
         chromeController.setContentController(controller, for: .scan)
 
-        // Opening the chat selects its tab, and tab selection closes the panel. A second close here
-        // would cancel that animation in place and leave the backdrop and panel frozen mid-way.
-        controller?.onChatFound = { [weak self] model in
-            self?.presenter.didFindChat(model)
-        }
+        #if FEATURE_INPUT
+            // Opening the chat selects its tab, and tab selection closes the panel. A second close
+            // here would cancel that animation in place and leave the backdrop and panel frozen
+            // mid-way.
+            controller?.onChatFound = { [weak self] model in
+                self?.presenter.didFindChat(model)
+            }
 
-        controller?.onContentHeightChanged = { [weak self] in
-            self?.chromeController.resizeContentPanel()
-        }
+            controller?.onContentHeightChanged = { [weak self] in
+                self?.chromeController.resizeContentPanel()
+            }
+        #else
+            controller?.onSearchTap = { [weak self] in
+                self?.chromeController.setPanel(nil, animated: true)
+                self?.presenter.didRequestContactSearch()
+            }
+        #endif
     }
 
     func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {
