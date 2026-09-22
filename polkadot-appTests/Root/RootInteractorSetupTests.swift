@@ -66,24 +66,6 @@ struct RootInteractorSetupTests {
         #expect(chainRegistry.chainsUnsubscribeCallCount == 1, "Expected chain wait to be cancelled")
     }
 
-    @Test("unsatisfied path classifies the failure as connectivity")
-    @MainActor
-    func unsatisfiedPathClassifiesFailureAsConnectivity() async throws {
-        let spy = RootSetupOutputSpy()
-        let chainRegistry = MockChainRegistry()
-        // No chains emitted; the subscription never resolves
-
-        let pathMonitor = MockNetworkPathMonitor(initial: false)
-        let interactor = makeInteractor(chainRegistry: chainRegistry, pathMonitor: pathMonitor)
-        interactor.presenter = spy
-
-        interactor.setup()
-
-        try await waitForSetupFailure(on: spy)
-
-        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure with unsatisfied path")
-    }
-
     @Test("unsatisfied path outranks a TLD failure")
     @MainActor
     func unsatisfiedPathOutranksTldFailure() async throws {
@@ -137,6 +119,63 @@ struct RootInteractorSetupTests {
 
         #expect(chainRegistry.chainsSubscribeCallCount == 2, "Expected path recovery to re-run setup")
         #expect(migrator.migrateCallCount == 1, "Expected migrations to stay on the launch pass")
+    }
+
+    @Test("cold offline launch fails fast")
+    @MainActor
+    func coldOfflineLaunchFailsFast() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        let pathMonitor = MockNetworkPathMonitor(initial: false)
+
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor
+        )
+        interactor.presenter = spy
+
+        let startedAt = Date()
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure when offline")
+        #expect(
+            Date().timeIntervalSince(startedAt) < 8,
+            "Expected the offline deadline, not the full ten seconds"
+        )
+    }
+
+    @Test("warm offline launch still succeeds")
+    @MainActor
+    func warmOfflineLaunchStillSucceeds() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+        let pathMonitor = MockNetworkPathMonitor(initial: false)
+
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitUntil(timeout: 8) { spy.didDecideCallCount > 0 }
+
+        #expect(
+            spy.didDecideCallCount == 1,
+            "Expected a warm offline launch to reach a destination"
+        )
+        #expect(
+            spy.didFailSetupCallCount == 0,
+            "Expected no setup failure offline when everything is cached"
+        )
     }
 }
 

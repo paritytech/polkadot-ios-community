@@ -20,8 +20,13 @@ final class RootInteractor {
         var isAwaitingRecovery = false
     }
 
+    private struct SetupDeadlineExpired: Error {}
+
     private enum Constants {
         static let setupDeadlineSeconds: TimeInterval = 10
+        /// Applied when the path is already unsatisfied: locally-served chains and a cached config
+        /// still resolve well inside it, so only a genuinely blocked wait is cut short.
+        static let offlineSetupDeadlineSeconds: TimeInterval = 3
         static let tldTimeoutSeconds: TimeInterval = 10
         static let tldRetryMaxAttempts = 4
         static let tldRetryInitialDelay: Duration = .seconds(1)
@@ -175,18 +180,29 @@ final class RootInteractor {
         }
     }
 
-    /// Waits for the paired chain registry and remote config, bounded by ``Constants.setupDeadlineSeconds``.
-    /// A chain or remote config failure is not fatal on its own: only the deadline gates startup.
+    /// Waits for the paired chain registry and remote config, bounded by the full deadline,
+    /// cut to the offline deadline when the path is unsatisfied once that shorter deadline
+    /// is reached; a chain or remote config failure is not fatal on its own.
     private func waitForSetupInputs(for chainRegistry: ChainRegistryProtocol) async -> SetupWaitOutcome {
         do {
-            try await withTimeout(.seconds(Constants.setupDeadlineSeconds)) { [remoteConfigManager] in
-                async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
-                    AppConfig.Chains.usernameChain,
-                    AppConfig.Chains.bulletInChain,
-                    AppConfig.Chains.assethubChain
-                ])
-                _ = try? await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask { [remoteConfigManager] in
+                    async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
+                        AppConfig.Chains.usernameChain,
+                        AppConfig.Chains.bulletInChain,
+                        AppConfig.Chains.assethubChain
+                    ])
+                    _ = try? await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+                }
+
+                group.addTask {
+                    try await self.enforceSetupDeadline()
+                }
+
+                _ = try await group.next()
+                group.cancelAll()
             }
+
             return .ready
         } catch {
             // Timeout or cancellation both stop startup; the caller's cancellation guard runs
@@ -330,5 +346,18 @@ private extension RootInteractor {
             state.isAwaitingRecovery = true
             return .connectivity
         }
+    }
+
+    /// Ends the wait early when the path is unsatisfied at the offline deadline — by then the monitor has
+    /// emitted, so the choice is made on a known value rather than a race with the first emission.
+    func enforceSetupDeadline() async throws {
+        try await Task.sleep(for: .seconds(Constants.offlineSetupDeadlineSeconds))
+
+        if pathState.withLock({ $0.isSatisfied }) {
+            let remaining = Constants.setupDeadlineSeconds - Constants.offlineSetupDeadlineSeconds
+            try await Task.sleep(for: .seconds(remaining))
+        }
+
+        throw SetupDeadlineExpired()
     }
 }
