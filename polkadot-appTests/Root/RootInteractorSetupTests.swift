@@ -40,7 +40,7 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        try await waitForSetupFailure(on: spy, timeout: 120)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected one setup failure to be reported")
         #expect(spy.failureKinds == [.configuration(.tld)], "Expected the configuration failure at the tld stage")
@@ -88,7 +88,7 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        try await waitForSetupFailure(on: spy, timeout: 120)
 
         #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure instead of TLD failure")
     }
@@ -332,9 +332,11 @@ private extension RootInteractorSetupTests {
 
     /// The retried TLD resolve and the ten second setup wait both land off the main actor and
     /// arrive seconds late on CI, so the timeout sits above both rather than fixing a settling time.
+    /// TLD-failure tests pass 120 seconds to accommodate the 30-second initial timeout plus retries
+    /// (worst case ~93 seconds total) plus CI latency and clock variation.
     @MainActor
-    func waitForSetupFailure(on spy: RootSetupOutputSpy) async throws {
-        try await waitUntil(timeout: 15) { spy.didFailSetupCallCount > 0 }
+    func waitForSetupFailure(on spy: RootSetupOutputSpy, timeout: TimeInterval = 15) async throws {
+        try await waitUntil(timeout: timeout) { spy.didFailSetupCallCount > 0 }
     }
 
     @MainActor

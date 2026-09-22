@@ -43,8 +43,12 @@ final class RootInteractor {
         /// Applied when the path is already unsatisfied: locally-served chains and a cached config
         /// still resolve well inside it, so only a genuinely blocked wait is cut short.
         static let offlineSetupDeadlineSeconds: TimeInterval = 3
-        static let tldTimeoutSeconds: TimeInterval = 10
-        static let tldRetryMaxAttempts = 4
+        /// TLD resolution waits on the contracts chain's runtime metadata sync (~1.25 MB on the wire,
+        /// roughly 27s on 3G and 85s on EDGE). The 30s single-attempt timeout and 3-attempt budget
+        /// allow ~93 seconds total, preventing failures on slow but working connections. Concurrent
+        /// TLD reads are coalesced, so retries only matter after a genuinely failed read.
+        static let tldTimeoutSeconds: TimeInterval = 30
+        static let tldRetryMaxAttempts = 3
         static let tldRetryInitialDelay: Duration = .seconds(1)
     }
 
