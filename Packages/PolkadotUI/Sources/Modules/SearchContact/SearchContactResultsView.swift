@@ -141,7 +141,8 @@ private extension SearchContactResultsView {
 
         scrollContainer.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
-            make.bottom.equalToSuperview().inset(Constants.bottomSpacing)
+            // Yields when the host collapses the view to zero height.
+            make.bottom.equalToSuperview().inset(Constants.bottomSpacing).priority(.high)
         }
 
         scrollView.snp.makeConstraints { make in

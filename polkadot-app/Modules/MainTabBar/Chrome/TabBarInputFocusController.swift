@@ -13,6 +13,7 @@ final class TabBarInputFocusController: NSObject {
     private let content: () -> TabBarKeyboardTrackingContent?
 
     private var appliedFocus = false
+    private var keyboardAnimator: UIViewPropertyAnimator?
 
     init(
         surface: TabBarChromeSurfaceView,
@@ -68,17 +69,24 @@ private extension TabBarInputFocusController {
         }
     }
 
+    /// A hardware keyboard posts a hide while the field stays focused, so the hide only drops the
+    /// anchor. Whether the content is focused is read from the field one hop later, where a real
+    /// resign has landed by then and the change joins this animator.
     @objc
     func handleKeyboardWillHide(_ notification: NSNotification) {
         animate(matching: notification) { [weak self] in
             self?.surface.setPanelTracksKeyboard(false)
-            self?.applyFocus(false)
         }
+        scheduleFocusSync()
+    }
+
+    @objc
+    func handleEditingChanged() {
+        scheduleFocusSync()
     }
 
     /// One hop lets a keyboard notification posted in the same responder change take over first.
-    @objc
-    func handleEditingChanged() {
+    func scheduleFocusSync() {
         DispatchQueue.main.async { [weak self] in
             self?.syncFocusIfNeeded()
         }
@@ -87,6 +95,13 @@ private extension TabBarInputFocusController {
     func syncFocusIfNeeded() {
         let focused = content()?.isKeyboardInputFocused ?? false
         guard focused != appliedFocus else {
+            return
+        }
+
+        if let keyboardAnimator, keyboardAnimator.isRunning {
+            keyboardAnimator.addAnimations { [weak self] in
+                self?.applyFocus(focused)
+            }
             return
         }
 
@@ -124,6 +139,10 @@ private extension TabBarInputFocusController {
             timingParameters: UICubicTimingParameters(animationCurve: curve)
         )
         animator.addAnimations(animations)
+        animator.addCompletion { [weak self] _ in
+            self?.keyboardAnimator = nil
+        }
+        keyboardAnimator = animator
         animator.startAnimation()
     }
 }

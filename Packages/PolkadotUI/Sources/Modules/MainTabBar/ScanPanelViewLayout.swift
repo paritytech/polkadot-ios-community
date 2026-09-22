@@ -36,6 +36,7 @@ public final class ScanPanelViewLayout: UIView {
 
     private var fullCameraWidthConstraint: Constraint?
     private var compactCameraWidthConstraint: Constraint?
+    private var resultsCollapsedConstraint: Constraint?
 
     public var onCameraTapped: (() -> Void)?
 
@@ -59,6 +60,7 @@ public final class ScanPanelViewLayout: UIView {
 
         resultsView.snp.makeConstraints { make in
             make.width.equalTo(contentStack).offset(-DSSpacings.small * 2)
+            resultsCollapsedConstraint = make.height.equalTo(0).constraint
         }
     }
 
@@ -87,12 +89,13 @@ public final class ScanPanelViewLayout: UIView {
     }
 
     /// Unfocused implies no results, so the late empty snapshot from the interactor changes nothing
-    /// visible. The stack drops the hidden results and the camera takes its idle top inset.
+    /// visible. The collapse is a constraint, not the stack's animated hide, because the panel
+    /// measures its height mid-animation and the hide still reports the rows' height then.
     public func setSearchFocused(_ focused: Bool) {
-        // UIStackView counts `isHidden` sets on arranged subviews; a repeated set would need two
-        // reverts to undo.
-        if resultsView.isHidden == focused {
-            resultsView.isHidden = !focused
+        if focused {
+            resultsCollapsedConstraint?.deactivate()
+        } else {
+            resultsCollapsedConstraint?.activate()
         }
         resultsView.alpha = focused ? 1 : 0
         contentStack.directionalLayoutMargins.top = focused ? DSSpacings.tiny : DSSpacings.mediumIncreased
