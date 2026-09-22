@@ -58,6 +58,7 @@ public final class SearchContactResultsView: UIView {
             addSectionTopInset()
             addSectionViews(for: section)
         }
+        updateFadeMask()
     }
 }
 
@@ -112,8 +113,7 @@ private extension SearchContactResultsView {
         static let sectionTopInset: CGFloat = 16
         static let interItemSpacing: CGFloat = 8
         static let separatorHeight: CGFloat = 1
-        static let bottomSpacing: CGFloat = DSSpacings.small
-        static let fadeHeight: CGFloat = 24
+        static let fadeHeight: CGFloat = 16
     }
 
     func setupViews() {
@@ -142,7 +142,7 @@ private extension SearchContactResultsView {
         scrollContainer.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
             // Yields when the host collapses the view to zero height.
-            make.bottom.equalToSuperview().inset(Constants.bottomSpacing).priority(.high)
+            make.bottom.equalToSuperview().priority(.high)
         }
 
         scrollView.snp.makeConstraints { make in
@@ -168,10 +168,9 @@ private extension SearchContactResultsView {
         }
     }
 
-    /// The mask sits on the non-scrolling container so the gradient stays at the bottom edge while
-    /// the rows scroll under it. The scroll view is laid out first because its content size is only
-    /// current after its own layout pass. Only an overflowing list is masked, so one that fits keeps
-    /// its last row fully visible.
+    /// Updates the fade gradient mask on resize and when content changes. The mask sits on the
+    /// non-scrolling container so the gradient stays at the bottom edge while rows scroll under it.
+    /// Only an overflowing list is masked, so one that fits keeps its last row fully visible.
     func updateFadeMask() {
         scrollView.layoutIfNeeded()
 
