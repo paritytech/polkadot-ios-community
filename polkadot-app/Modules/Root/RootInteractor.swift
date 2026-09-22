@@ -455,8 +455,11 @@ private extension RootInteractor {
 }
 
 extension RootInteractor: ChainRegistryEventVisiting {
-    func processChainSyncDidComplete(event: ChainSyncDidComplete) {
-        let availableChainIds = Set(event.newOrUpdatedChains.map(\.chainId))
+    func processChainSyncDidComplete(event _: ChainSyncDidComplete) {
+        // The event carries a delta: a chain identical to the cached one is absent from it, so a sync
+        // that changes nothing arrives empty. The registry is what knows which chains exist.
+        let availableChainIds = chainRegistryClosure().availableChainIds ?? []
+
         guard !Self.requiredChainIds.isSubset(of: availableChainIds) else { return }
 
         Task { @MainActor [weak self] in

@@ -250,18 +250,17 @@ struct RootInteractorSetupTests {
     func chainSyncWithoutRequiredChainsFails() async throws {
         let spy = RootSetupOutputSpy()
         let eventCenter = MockEventCenter()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [makeChain(id: AppConfig.Chains.usernameChain)]
 
-        let interactor = makeInteractor(eventCenter: eventCenter)
+        let interactor = makeInteractor(chainRegistry: chainRegistry, eventCenter: eventCenter)
         interactor.presenter = spy
 
         let startedAt = Date()
         interactor.setup()
 
         eventCenter.notify(
-            with: ChainSyncDidComplete(
-                newOrUpdatedChains: [makeChain(id: AppConfig.Chains.usernameChain)],
-                removedChains: []
-            )
+            with: ChainSyncDidComplete(newOrUpdatedChains: [], removedChains: [])
         )
 
         try await waitForSetupFailure(on: spy)
@@ -281,27 +280,29 @@ struct RootInteractorSetupTests {
     func chainSyncWithRequiredChainsSucceeds() async throws {
         let spy = RootSetupOutputSpy()
         let eventCenter = MockEventCenter()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
 
-        let interactor = makeInteractor(eventCenter: eventCenter)
+        let interactor = makeInteractor(chainRegistry: chainRegistry, eventCenter: eventCenter)
         interactor.presenter = spy
 
         interactor.setup()
 
         eventCenter.notify(
-            with: ChainSyncDidComplete(
-                newOrUpdatedChains: [
-                    makeChain(id: AppConfig.Chains.usernameChain),
-                    makeChain(id: AppConfig.Chains.bulletInChain),
-                    makeChain(id: AppConfig.Chains.assethubChain)
-                ],
-                removedChains: []
-            )
+            with: ChainSyncDidComplete(newOrUpdatedChains: [], removedChains: [])
         )
 
         // Gives the event a window to land; an unexpected failure ends the wait early.
         try await waitUntil(timeout: 2) { spy.didFailSetupCallCount > 0 }
 
-        #expect(spy.didFailSetupCallCount == 0, "Expected no failure when every required chain is present")
+        #expect(
+            spy.didFailSetupCallCount == 0,
+            "Expected no failure on an empty delta when every required chain is present"
+        )
     }
 }
 

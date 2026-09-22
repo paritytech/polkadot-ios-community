@@ -19,7 +19,11 @@ final class MockChainRegistry: ChainRegistryProtocol {
     /// Counts subscriptions, so a test can assert setup ran again.
     var chainsSubscribeCallCount = 0
 
-    var availableChainIds: Set<ChainModel.Id>? { nil }
+    /// Mirrors the chains a subscriber would receive; returns their IDs when populated, otherwise nil.
+    var availableChainIds: Set<ChainModel.Id>? {
+        chainsOnSubscribe.isEmpty ? nil : Set(chainsOnSubscribe.map(\.chainId))
+    }
+
     var allAvailableChains: [ChainModel] { Array(chainsByGenesis.values) }
 
     func getChain(for _: ChainModel.Id) -> ChainModel? { nil }
