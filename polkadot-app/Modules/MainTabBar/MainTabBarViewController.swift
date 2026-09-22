@@ -270,9 +270,7 @@ extension MainTabBarViewController {
     func handleSelection(index: Int, isReselection: Bool) {
         chromeController.setPanel(nil, animated: true)
 
-        guard tabs.indices.contains(index) else {
-            return
-        }
+        guard tabs.indices.contains(index) else { return }
 
         guard !isReselection || container.selection.isSPA else {
             handleReselection()
@@ -310,9 +308,8 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     func select(tab: TabBarItem) {
         chromeController.setPanel(nil, animated: true)
 
-        guard let index = tabs.firstIndex(of: tab) else {
-            return
-        }
+        guard let index = tabs.firstIndex(of: tab) else { return }
+
         chromeController.setSelectedIndex(index)
         container.select(index: index)
         reconcileChromeWithSelectedTab()

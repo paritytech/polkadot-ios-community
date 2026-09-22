@@ -7,11 +7,8 @@ final class TabBarBottomChromeController: UIViewController {
     private let chromeSurface = TabBarChromeSurfaceView()
     private let barView = DSTabBarView()
     private let backdropView = DSTabBarBackdropView()
-    private let floatingWidgetContainerView = MainTabBarFloatingWidgetStackView()
 
-    private var widgetControllers: [AppWidgetID: AppWidgetContentViewController] = [:]
     private weak var contentSafeAreaAdjustedViewController: UIViewController?
-    private var floatingWidgetBottomConstraint: Constraint?
 
     private weak var appliedTabController: UIViewController?
     private weak var appliedContentController: UIViewController?
@@ -69,6 +66,10 @@ final class TabBarBottomChromeController: UIViewController {
         }
     )
 
+    private lazy var widgetController = TabBarWidgetController { [weak self] in
+        self?.updateLayout()
+    }
+
     #if FEATURE_INPUT
         private lazy var inputFocusController = TabBarInputFocusController(
             surface: chromeSurface,
@@ -109,8 +110,7 @@ final class TabBarBottomChromeController: UIViewController {
         installChromeSurface()
         installBar()
         installBackdrop()
-        installFloatingWidgetContainer()
-        installWidgetsIfNeeded()
+        widgetController.install(in: view, below: chromeSurface)
 
         installOutsideTapRecognizer()
 
@@ -273,24 +273,11 @@ final class TabBarBottomChromeController: UIViewController {
     }
 
     func attachWidget(_ configuration: any HashableContentConfiguration, for id: AppWidgetID) {
-        if let controller = widgetControllers[id] {
-            controller.update(configuration: configuration)
-            updateLayout()
-            return
-        }
-
-        let controller = AppWidgetContentViewController(configuration: configuration)
-        widgetControllers[id] = controller
-        installWidget(controller)
+        widgetController.attach(configuration, for: id)
     }
 
     func detachWidget(for id: AppWidgetID) {
-        guard let controller = widgetControllers.removeValue(forKey: id) else { return }
-
-        floatingWidgetContainerView.removeArrangedSubview(controller.view)
-        controller.view.removeFromSuperview()
-
-        updateLayout()
+        widgetController.detach(for: id)
     }
 }
 
@@ -391,16 +378,6 @@ private extension TabBarBottomChromeController {
         }
     }
 
-    func installFloatingWidgetContainer() {
-        floatingWidgetContainerView.translatesAutoresizingMaskIntoConstraints = false
-        view.insertSubview(floatingWidgetContainerView, belowSubview: chromeSurface)
-
-        floatingWidgetContainerView.snp.makeConstraints { make in
-            make.leading.trailing.equalToSuperview()
-            floatingWidgetBottomConstraint = make.bottom.equalToSuperview().constraint
-        }
-    }
-
     /// Inserted at the bottom so both the tab content and the floating widgets sit behind it.
     func installBackdrop() {
         view.insertSubview(backdropView, at: 0)
@@ -410,34 +387,15 @@ private extension TabBarBottomChromeController {
         }
     }
 
-    func installWidgetsIfNeeded() {
-        widgetControllers.values.forEach(installWidget)
-    }
-
-    func installWidget(_ controller: UIViewController) {
-        guard isViewLoaded else {
-            return
-        }
-
-        controller.loadViewIfNeeded()
-        floatingWidgetContainerView.addArrangedSubview(controller.view)
-
-        updateLayout()
-    }
-
-    func hasAttachedWidget() -> Bool {
-        !widgetControllers.isEmpty
-    }
-
     func updateLayout(animatingAlongside transitionCoordinator: UIViewControllerTransitionCoordinator? = nil) {
         guard view.window != nil else {
             return
         }
 
-        floatingWidgetBottomConstraint?.update(offset: -occupiedHeight)
+        widgetController.setBottomOffset(-occupiedHeight)
         updateContentSafeAreaInset()
 
-        guard hasAttachedWidget() else {
+        guard widgetController.hasWidgets else {
             return
         }
 
@@ -460,7 +418,7 @@ private extension TabBarBottomChromeController {
             return
         }
 
-        let widgetInset = floatingWidgetContentHeight()
+        let widgetInset = widgetController.contentHeight(fittingWidth: view.bounds.width)
 
         if contentController === tabController {
             contentController.additionalSafeAreaInsets.bottom = barInset + widgetInset
@@ -470,25 +428,6 @@ private extension TabBarBottomChromeController {
         }
 
         contentSafeAreaAdjustedViewController = widgetInset > 0 ? contentController : nil
-    }
-
-    func floatingWidgetContentHeight() -> CGFloat {
-        guard hasAttachedWidget() else {
-            return 0
-        }
-
-        let fittingWidth = max(floatingWidgetContainerView.bounds.width, view.bounds.width)
-        let fittingSize = CGSize(
-            width: fittingWidth,
-            height: UIView.layoutFittingCompressedSize.height
-        )
-        let measuredSize = floatingWidgetContainerView.systemLayoutSizeFitting(
-            fittingSize,
-            withHorizontalFittingPriority: .required,
-            verticalFittingPriority: .fittingSizeLevel
-        )
-
-        return max(floatingWidgetContainerView.bounds.height, measuredSize.height)
     }
 
     func animateFloatingWidgetConstraintChange(with transitionCoordinator: UIViewControllerTransitionCoordinator?) {
