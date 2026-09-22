@@ -19,6 +19,8 @@ final class RootViewModelFactory: RootViewModelMaking {
         switch kind {
         case .connectivity:
             makeConnectivityIssue()
+        case let .configuration(stage):
+            makeConfigurationIssue(for: stage)
         case .unknown:
             makeUnknownIssue()
         }
@@ -34,6 +36,19 @@ private extension RootViewModelFactory {
                 actionTitle: nil
             )
         )
+    }
+
+    func makeConfigurationIssue(for stage: RootSetupStage) -> RootViewLayout.ViewModel {
+        switch stage {
+        case .config:
+            .failed(
+                RootViewLayout.ViewModel.Issue(
+                    title: String(localized: .rootInitFailureConfigTitle),
+                    subtitle: String(localized: .rootInitFailureConfigSubtitle),
+                    actionTitle: String(localized: .rootInitFailureAction)
+                )
+            )
+        }
     }
 
     func makeUnknownIssue() -> RootViewLayout.ViewModel {

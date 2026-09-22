@@ -177,6 +177,35 @@ struct RootInteractorSetupTests {
             "Expected no setup failure offline when everything is cached"
         )
     }
+
+    @Test("invalid remote config fails at the config stage")
+    @MainActor
+    func invalidRemoteConfigFailsAtConfigStage() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+        let remoteConfigManager = MockRemoteConfigManager()
+        remoteConfigManager.errorToThrow = RemoteConfigError.invalidConfig
+
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            remoteConfigManager: remoteConfigManager
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(
+            spy.failureKinds == [.configuration(.config)],
+            "Expected a configuration failure at the config stage"
+        )
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -185,6 +214,7 @@ private extension RootInteractorSetupTests {
         migrator: Migrating = MockMigrator(),
         chainRegistry: MockChainRegistry = MockChainRegistry(),
         pathMonitor: NetworkPathMonitoring = MockNetworkPathMonitor(),
+        remoteConfigManager: MockRemoteConfigManager = MockRemoteConfigManager(),
         tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot")
     ) -> RootInteractor {
         RootInteractor(
@@ -193,7 +223,7 @@ private extension RootInteractorSetupTests {
             logger: StubLogger(),
             resolver: MockDecisionResolver(),
             tokenManager: MockJWTTokenManager(),
-            remoteConfigManager: MockRemoteConfigManager(),
+            remoteConfigManager: remoteConfigManager,
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),
             pathMonitor: pathMonitor,

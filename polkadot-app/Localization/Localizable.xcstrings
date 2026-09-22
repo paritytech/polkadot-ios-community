@@ -2443,6 +2443,28 @@
         }
       }
     },
+    "root.init.failure.config.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We are working on a fix."
+          }
+        }
+      }
+    },
+    "root.init.failure.config.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration is broken"
+          }
+        }
+      }
+    },
     "root.init.failure.connectivity.subtitle": {
       "extractionState": "manual",
       "localizations": {

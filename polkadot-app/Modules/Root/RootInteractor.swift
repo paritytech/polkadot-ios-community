@@ -13,6 +13,7 @@ final class RootInteractor {
     private enum SetupWaitOutcome {
         case ready
         case deadlineExpired
+        case configurationBroken
     }
 
     private struct PathState {
@@ -142,8 +143,14 @@ final class RootInteractor {
 
         guard !Task.isCancelled else { return }
 
-        if outcome == .deadlineExpired {
+        switch outcome {
+        case .ready:
+            break
+        case .deadlineExpired:
             await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
+            return
+        case .configurationBroken:
+            await reportSetupFailure(kind: classifyFailure(fallback: .configuration(.config)))
             return
         }
 
@@ -192,7 +199,15 @@ final class RootInteractor {
                         AppConfig.Chains.bulletInChain,
                         AppConfig.Chains.assethubChain
                     ])
-                    _ = try? await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+                    do {
+                        _ = try await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+                    } catch {
+                        // Only a broken remote config stops setup; chain and other failures
+                        // stay non-fatal on their own and are swallowed here.
+                        if error as? RemoteConfigError == .invalidConfig {
+                            throw error
+                        }
+                    }
                 }
 
                 group.addTask {
@@ -204,6 +219,8 @@ final class RootInteractor {
             }
 
             return .ready
+        } catch RemoteConfigError.invalidConfig {
+            return .configurationBroken
         } catch {
             // Timeout or cancellation both stop startup; the caller's cancellation guard runs
             // before the outcome is acted on. Any unexpected error must not read as ready.
