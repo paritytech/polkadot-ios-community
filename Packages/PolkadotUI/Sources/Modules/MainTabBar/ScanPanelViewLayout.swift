@@ -26,28 +26,39 @@ public final class ScanPanelViewLayout: UIView {
         return recognizer
     }()
 
-    private var fullHorizontalConstraints: [Constraint] = []
-    private var compactHorizontalConstraints: [Constraint] = []
-    private var resultsCollapsedConstraint: Constraint?
+    private let contentStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.isLayoutMarginsRelativeArrangement = true
+        return stack
+    }()
+
+    private var fullCameraWidthConstraint: Constraint?
+    private var compactCameraWidthConstraint: Constraint?
 
     public var onCameraTapped: (() -> Void)?
 
     override public init(frame: CGRect) {
         super.init(frame: frame)
 
-        addSubview(resultsView)
         resultsView.clipsToBounds = true
+        contentStack.addArrangedSubview(resultsView)
+        addSubview(contentStack)
         addSubview(searchRow)
-
-        resultsView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(DSSpacings.tiny)
-            make.leading.trailing.equalToSuperview().inset(DSSpacings.small)
-            resultsCollapsedConstraint = make.bottom.equalTo(snp.top).offset(DSSpacings.mediumIncreased).constraint
-        }
 
         searchRow.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased)
             make.bottom.equalToSuperview().inset(DSSpacings.small)
+        }
+
+        contentStack.snp.makeConstraints { make in
+            make.top.leading.trailing.equalToSuperview()
+            make.bottom.equalTo(searchRow.snp.top).offset(-DSSpacings.small)
+        }
+
+        resultsView.snp.makeConstraints { make in
+            make.width.equalTo(contentStack).offset(-DSSpacings.small * 2)
         }
     }
 
@@ -57,29 +68,18 @@ public final class ScanPanelViewLayout: UIView {
     }
 
     public func setupScannerView(_ scannerView: UIView) {
-        insertSubview(scannerView, at: 0)
-        insertSubview(placeholderView, belowSubview: scannerView)
+        contentStack.addArrangedSubview(scannerView)
+        insertSubview(placeholderView, at: 0)
 
         placeholderView.snp.makeConstraints { make in
             make.edges.equalTo(scannerView)
         }
 
         scannerView.snp.makeConstraints { make in
-            // Idle, the empty results view stretches to keep the camera 16pt from the top; with content it
-            // pushes the camera down from its own tiny top inset.
-            make.top.equalTo(resultsView.snp.bottom)
-            make.top.greaterThanOrEqualToSuperview().offset(DSSpacings.mediumIncreased)
-            make.bottom.equalTo(searchRow.snp.top).offset(-DSSpacings.small)
-
-            fullHorizontalConstraints = [
-                make.leading.equalToSuperview().offset(DSSpacings.mediumIncreased).constraint,
-                make.trailing.equalToSuperview().inset(DSSpacings.mediumIncreased).constraint
-            ]
-
-            compactHorizontalConstraints = [
-                make.centerX.equalToSuperview().constraint,
-                make.width.equalToSuperview().multipliedBy(Constants.compactCameraWidthRatio).constraint
-            ]
+            fullCameraWidthConstraint = make.width.equalTo(contentStack)
+                .offset(-DSSpacings.mediumIncreased * 2).constraint
+            compactCameraWidthConstraint = make.width.equalTo(contentStack)
+                .multipliedBy(Constants.compactCameraWidthRatio).constraint
         }
 
         scannerView.addGestureRecognizer(cameraTapRecognizer)
@@ -87,18 +87,22 @@ public final class ScanPanelViewLayout: UIView {
     }
 
     /// Unfocused implies no results, so the late empty snapshot from the interactor changes nothing
-    /// visible; collapsed, the results end at the camera's idle top.
+    /// visible. The stack drops the hidden results and the camera takes its idle top inset.
     public func setSearchFocused(_ focused: Bool) {
+        // UIStackView counts `isHidden` sets on arranged subviews; a repeated set would need two
+        // reverts to undo.
+        if resultsView.isHidden == focused {
+            resultsView.isHidden = !focused
+        }
+        resultsView.alpha = focused ? 1 : 0
+        contentStack.directionalLayoutMargins.top = focused ? DSSpacings.tiny : DSSpacings.mediumIncreased
+
         if focused {
-            fullHorizontalConstraints.forEach { $0.deactivate() }
-            compactHorizontalConstraints.forEach { $0.activate() }
-            resultsCollapsedConstraint?.deactivate()
-            resultsView.alpha = 1
+            fullCameraWidthConstraint?.deactivate()
+            compactCameraWidthConstraint?.activate()
         } else {
-            compactHorizontalConstraints.forEach { $0.deactivate() }
-            fullHorizontalConstraints.forEach { $0.activate() }
-            resultsCollapsedConstraint?.activate()
-            resultsView.alpha = 0
+            compactCameraWidthConstraint?.deactivate()
+            fullCameraWidthConstraint?.activate()
         }
 
         searchRow.setCancelVisible(focused)
