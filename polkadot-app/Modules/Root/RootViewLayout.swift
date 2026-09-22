@@ -32,12 +32,17 @@ struct RootViewLayout: View {
                 switch viewModel {
                 case let .loading(hint):
                     if let hint {
-                        Text(hint)
-                            .typography(.bodyMedium)
-                            .foregroundColor(.fgTertiary)
-                            .multilineTextAlignment(.center)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .transition(.opacity)
+                        VStack(spacing: 12) {
+                            LoadingSpinner(lineWidth: 2, strokeStyle: .fgTertiary)
+                                .frame(width: 20, height: 20)
+
+                            Text(hint)
+                                .typography(.bodyMedium)
+                                .foregroundColor(.fgTertiary)
+                                .multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .transition(.opacity)
                     }
 
                 case let .failed(issue):
