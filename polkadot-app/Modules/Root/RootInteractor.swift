@@ -26,16 +26,6 @@ final class RootInteractor {
         }
     }
 
-    private struct PathState {
-        var isSatisfied = true
-        var isAwaitingRecovery = false
-    }
-
-    private enum PathTransition {
-        case recovered
-        case dropped
-    }
-
     private struct SetupDeadlineExpired: Error {}
 
     private enum Constants {
@@ -72,12 +62,11 @@ final class RootInteractor {
     let remoteConfigManager: RemoteConfigManaging
     let chainRegistryConfigurator: ChainRegistryConfiguring
     let productPrewarmer: ProductContentPrewarming
-    let pathMonitor: NetworkPathMonitoring
+    let observer: RootSetupObserver
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
-    private let pathState = OSAllocatedUnfairLock(initialState: PathState())
-    private var pathTask: Task<Void, Never>?
+    private var observationTask: Task<Void, Never>?
     private let didReportOutcome = OSAllocatedUnfairLock(initialState: false)
     private var didRegisterForEvents = false
 
@@ -96,7 +85,7 @@ final class RootInteractor {
         remoteConfigManager: RemoteConfigManaging,
         chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
-        pathMonitor: NetworkPathMonitoring,
+        observer: RootSetupObserver,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
     ) {
         self.chainRegistryClosure = chainRegistryClosure
@@ -109,13 +98,13 @@ final class RootInteractor {
         self.remoteConfigManager = remoteConfigManager
         self.chainRegistryConfigurator = chainRegistryConfigurator
         self.productPrewarmer = productPrewarmer
-        self.pathMonitor = pathMonitor
+        self.observer = observer
         self.tldProvider = tldProvider
     }
 
     deinit {
         completionTask?.cancel()
-        pathTask?.cancel()
+        observationTask?.cancel()
         eventCenter.remove(observer: self)
     }
 
@@ -126,8 +115,8 @@ final class RootInteractor {
 
         setupChainUpdate(for: chainRegistry)
         fetchRemoteConfig()
-        startPathMonitoringIfNeeded()
         registerForEventCenterIfNeeded()
+        startObservationIfNeeded()
 
         startSetupCompletionTask(for: chainRegistry)
     }
@@ -224,12 +213,10 @@ final class RootInteractor {
                         .asyncWaitChainsSetup(for: Self.requiredChainIds)
                     do {
                         _ = try await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
+                    } catch let error as RemoteConfigError where error == .invalidConfig {
+                        throw error
                     } catch {
-                        // Only a broken remote config stops setup; chain and other failures
-                        // stay non-fatal on their own and are swallowed here.
-                        if error as? RemoteConfigError == .invalidConfig {
-                            throw error
-                        }
+                        // Chain and other config failures stay non-fatal on their own.
                     }
                 }
 
@@ -266,6 +253,27 @@ final class RootInteractor {
     private func reportFailure(fallback: RootSetupFailureKind) {
         guard !Task.isCancelled, claimOutcome() else { return }
 
+        reportSetupFailure(kind: classifyFailure(fallback: fallback))
+    }
+
+    @MainActor
+    private func handle(_ signal: RootSetupSignal) {
+        switch signal {
+        case .connectivityRecovered:
+            presenter?.didRecoverConnectivity()
+        case .connectivityLost:
+            abandonSetup(fallback: .connectivity)
+        case .chainsIncomplete:
+            abandonSetup(fallback: .configuration(.chains))
+        }
+    }
+
+    /// Stops the attempt in flight and reports, unless it already reported an outcome.
+    @MainActor
+    private func abandonSetup(fallback: RootSetupFailureKind) {
+        guard claimOutcome() else { return }
+
+        completionTask?.cancel()
         reportSetupFailure(kind: classifyFailure(fallback: fallback))
     }
 }
@@ -372,76 +380,26 @@ private extension RootInteractor {
         eventCenter.add(observer: self, dispatchIn: .main)
     }
 
-    /// Observes network path transitions; both feeds failure classification and drives unattended retry after a
-    /// connectivity failure.
-    func startPathMonitoringIfNeeded() {
-        guard pathTask == nil else {
+    /// The observer and its signal consumer are per-app-lifetime, unlike completionTask which is per-attempt.
+    func startObservationIfNeeded() {
+        guard observationTask == nil else {
             return
         }
 
-        let stream = pathMonitor.pathStream()
+        observer.start()
 
-        pathTask = Task { [weak self] in
-            do {
-                var isFirstValue = true
-                for try await isAvailable in stream {
-                    guard let self else { return }
-
-                    let transition = consumeTransition(isAvailable: isAvailable)
-
-                    // The monitor replays the current path as its first value: it establishes the
-                    // baseline the later values are compared against rather than describing a change.
-                    // Reporting it would fail an already offline launch outright, and a warm one still
-                    // reaches a destination with the path down; the offline deadline bounds a cold one.
-                    guard !isFirstValue else {
-                        isFirstValue = false
-                        continue
-                    }
-
-                    guard let transition else { continue }
-
-                    await MainActor.run {
-                        switch transition {
-                        case .recovered:
-                            self.presenter?.didRecoverConnectivity()
-                        case .dropped:
-                            guard self.claimOutcome() else { return }
-                            self.completionTask?.cancel()
-                            self.reportSetupFailure(kind: self.classifyFailure(fallback: .connectivity))
-                        }
-                    }
-                }
-            } catch {}
-        }
-    }
-
-    /// Records the new satisfaction and classifies the transition: recovered when availability returns
-    /// while awaiting retry, dropped when availability is lost.
-    private func consumeTransition(isAvailable: Bool) -> PathTransition? {
-        pathState.withLock { state in
-            let wasAvailable = state.isSatisfied
-            state.isSatisfied = isAvailable
-
-            if isAvailable, !wasAvailable, state.isAwaitingRecovery {
-                state.isAwaitingRecovery = false
-                return .recovered
+        let signals = observer.signals
+        observationTask = Task { [weak self] in
+            for await signal in signals {
+                guard let self else { return }
+                await handle(signal)
             }
-
-            if !isAvailable, wasAvailable {
-                return .dropped
-            }
-
-            return nil
         }
     }
 
     /// Connectivity outranks every other cause: an unsatisfied path is the only thing the user can act on.
     func classifyFailure(fallback kind: RootSetupFailureKind) -> RootSetupFailureKind {
-        pathState.withLock { state in
-            guard !state.isSatisfied else { return kind }
-            state.isAwaitingRecovery = true
-            return .connectivity
-        }
+        observer.claimConnectivityFailure() ? .connectivity : kind
     }
 
     /// Ends the wait early when the path is unsatisfied at the offline deadline — by then the monitor has
@@ -449,7 +407,7 @@ private extension RootInteractor {
     func enforceSetupDeadline() async throws {
         try await Task.sleep(for: .seconds(Constants.offlineSetupDeadlineSeconds))
 
-        if pathState.withLock({ $0.isSatisfied }) {
+        if observer.isPathSatisfied {
             let remaining = Constants.setupDeadlineSeconds - Constants.offlineSetupDeadlineSeconds
             try await Task.sleep(for: .seconds(remaining))
         }
@@ -466,12 +424,6 @@ extension RootInteractor: ChainRegistryEventVisiting {
 
         guard !Self.requiredChainIds.isSubset(of: availableChainIds) else { return }
 
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            guard claimOutcome() else { return }
-
-            completionTask?.cancel()
-            reportSetupFailure(kind: classifyFailure(fallback: .configuration(.chains)))
-        }
+        observer.noteChainSyncIncomplete()
     }
 }

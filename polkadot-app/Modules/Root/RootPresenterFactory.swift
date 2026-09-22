@@ -92,7 +92,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             remoteConfigManager: FirebaseFacade.shared,
             chainRegistryConfigurator: FirebaseFacade.shared,
             productPrewarmer: productPrewarmer,
-            pathMonitor: NetworkPathMonitor()
+            observer: RootSetupObserver(pathMonitor: NetworkPathMonitor())
         )
 
         let presenter = RootPresenter(

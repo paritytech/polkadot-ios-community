@@ -303,6 +303,36 @@ struct RootInteractorSetupTests {
             "Expected no failure on an empty delta when every required chain is present"
         )
     }
+
+    @Test("retry does not start a second signal consumer")
+    @MainActor
+    func retryDoesNotStartSecondSignalConsumer() async throws {
+        let spy = RootSetupOutputSpy()
+        let pathMonitor = MockNetworkPathMonitor()
+        let chainRegistry = MockChainRegistry()
+
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+        interactor.retrySetup()
+
+        pathMonitor.send(false)
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(
+            spy.didFailSetupCallCount == 1,
+            "Expected exactly one failure from a single signal"
+        )
+        #expect(
+            spy.failureKinds == [.connectivity],
+            "Expected connectivity failure from the path drop"
+        )
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -325,7 +355,7 @@ private extension RootInteractorSetupTests {
             remoteConfigManager: remoteConfigManager,
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),
-            pathMonitor: pathMonitor,
+            observer: RootSetupObserver(pathMonitor: pathMonitor),
             tldProvider: tldProvider
         )
     }
