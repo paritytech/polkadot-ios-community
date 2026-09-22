@@ -5,6 +5,7 @@ internal import UIKit_iOS
 
 public final class SearchContactResultsView: UIView {
     private let scrollView = UIScrollView()
+    private let scrollContainer = UIView()
     private let stackView = UIStackView()
 
     private let noResultsLabel: Label = create {
@@ -130,16 +131,21 @@ private extension SearchContactResultsView {
 
         setContentCompressionResistancePriority(.defaultLow, for: .vertical)
 
-        addSubview(scrollView)
+        addSubview(scrollContainer)
+        scrollContainer.addSubview(scrollView)
         scrollView.addSubview(stackView)
         addSubview(noResultsLabel)
         addSubview(loadingView)
 
         fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
 
-        scrollView.snp.makeConstraints { make in
+        scrollContainer.snp.makeConstraints { make in
             make.top.leading.trailing.equalToSuperview()
             make.bottom.equalToSuperview().inset(Constants.bottomSpacing)
+        }
+
+        scrollView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
             make.height.equalTo(stackView).priority(.low)
             statusFloorConstraint = make.height.greaterThanOrEqualTo(Constants.statusHeight)
                 .priority(.high).constraint
@@ -161,11 +167,17 @@ private extension SearchContactResultsView {
         }
     }
 
+    /// The mask sits on the non-scrolling container so the gradient stays at the bottom edge while
+    /// the rows scroll under it. The scroll view is laid out first because its content size is only
+    /// current after its own layout pass. Only an overflowing list is masked, so one that fits keeps
+    /// its last row fully visible.
     func updateFadeMask() {
-        let bounds = scrollView.bounds
+        scrollView.layoutIfNeeded()
+
+        let bounds = scrollContainer.bounds
         let overflows = scrollView.contentSize.height > bounds.height + 0.5
         guard overflows, bounds.height > Constants.fadeHeight else {
-            scrollView.layer.mask = nil
+            scrollContainer.layer.mask = nil
             return
         }
 
@@ -174,7 +186,7 @@ private extension SearchContactResultsView {
         fadeMask.frame = bounds
         let fadeStart = (bounds.height - Constants.fadeHeight) / bounds.height
         fadeMask.locations = [0, NSNumber(value: fadeStart), 1]
-        scrollView.layer.mask = fadeMask
+        scrollContainer.layer.mask = fadeMask
         CATransaction.commit()
     }
 
