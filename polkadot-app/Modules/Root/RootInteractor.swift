@@ -216,8 +216,8 @@ final class RootInteractor {
                         .asyncWaitChainsSetup(for: Self.requiredChainIds)
                     do {
                         _ = try await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
-                    } catch let error as RemoteConfigError where error == .invalidConfig {
-                        throw error
+                    } catch RemoteConfigError.invalidConfig {
+                        throw RemoteConfigError.invalidConfig
                     } catch {
                         // Chain and other config failures stay non-fatal on their own.
                     }
