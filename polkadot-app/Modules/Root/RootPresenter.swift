@@ -48,9 +48,9 @@ extension RootPresenter: RootInteractorOutputProtocol {
         onComplete = nil
     }
 
-    func didFailSetup() {
+    func didFailSetup(kind: RootSetupFailureKind) {
         cancelLoadingHint()
-        view?.didReceive(viewModel: viewModelFactory.makeFailure())
+        view?.didReceive(viewModel: viewModelFactory.makeFailure(kind: kind))
     }
 
     #if TESTNET_FEATURE

@@ -3,7 +3,7 @@ import UIKit
 protocol RootViewModelMaking {
     func makeInitial() -> RootViewLayout.ViewModel
     func makeLoadingHint() -> RootViewLayout.ViewModel
-    func makeFailure() -> RootViewLayout.ViewModel
+    func makeFailure(kind: RootSetupFailureKind) -> RootViewLayout.ViewModel
 }
 
 final class RootViewModelFactory: RootViewModelMaking {
@@ -15,12 +15,15 @@ final class RootViewModelFactory: RootViewModelMaking {
         .loading(hint: String(localized: .rootInitLoadingHint))
     }
 
-    func makeFailure() -> RootViewLayout.ViewModel {
-        .failed(
-            RootViewLayout.ViewModel.Issue(
-                title: String(localized: .rootInitFailureTitle),
-                subtitle: String(localized: .rootInitFailureSubtitle)
+    func makeFailure(kind: RootSetupFailureKind) -> RootViewLayout.ViewModel {
+        switch kind {
+        case .unknown:
+            .failed(
+                RootViewLayout.ViewModel.Issue(
+                    title: String(localized: .rootInitFailureUnknownTitle),
+                    subtitle: String(localized: .rootInitFailureUnknownSubtitle)
+                )
             )
-        )
+        }
     }
 }

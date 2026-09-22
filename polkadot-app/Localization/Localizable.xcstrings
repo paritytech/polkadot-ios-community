@@ -2443,18 +2443,18 @@
         }
       }
     },
-    "root.init.failure.subtitle": {
+    "root.init.failure.unknown.subtitle": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Check your internet connection and try again"
+            "value": "Please try again"
           }
         }
       }
     },
-    "root.init.failure.title": {
+    "root.init.failure.unknown.title": {
       "extractionState": "manual",
       "localizations": {
         "en": {

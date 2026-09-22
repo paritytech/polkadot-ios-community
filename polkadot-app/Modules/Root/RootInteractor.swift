@@ -125,7 +125,7 @@ final class RootInteractor {
         guard !Task.isCancelled else { return }
 
         if outcome == .deadlineExpired {
-            await reportSetupFailure()
+            await reportSetupFailure(kind: .unknown)
             return
         }
 
@@ -135,7 +135,7 @@ final class RootInteractor {
             try await resolveTldIfNeeded()
         } catch {
             guard !Task.isCancelled else { return }
-            await reportSetupFailure()
+            await reportSetupFailure(kind: .unknown)
             return
         }
 
@@ -188,8 +188,8 @@ final class RootInteractor {
     }
 
     @MainActor
-    private func reportSetupFailure() {
-        presenter?.didFailSetup()
+    private func reportSetupFailure(kind: RootSetupFailureKind) {
+        presenter?.didFailSetup(kind: kind)
     }
 }
 

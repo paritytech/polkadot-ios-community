@@ -5,14 +5,16 @@ import Foundation
 @MainActor
 final class RootSetupOutputSpy: RootInteractorOutputProtocol {
     var didDecideCallCount = 0
-    var didFailSetupCallCount = 0
+    private(set) var failureKinds: [RootSetupFailureKind] = []
+
+    var didFailSetupCallCount: Int { failureKinds.count }
 
     func didDecide(destination _: RootDestination) {
         didDecideCallCount += 1
     }
 
-    func didFailSetup() {
-        didFailSetupCallCount += 1
+    func didFailSetup(kind: RootSetupFailureKind) {
+        failureKinds.append(kind)
     }
 
     func didRequireAppFactoryReset() {}

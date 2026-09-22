@@ -42,6 +42,7 @@ struct RootInteractorSetupTests {
         try await waitForSetupFailure(on: spy)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected one setup failure to be reported")
+        #expect(spy.failureKinds == [.unknown], "Expected the unknown failure kind")
         #expect(spy.didDecideCallCount == 0, "Expected no destination decision (gate holds)")
     }
 
@@ -60,6 +61,7 @@ struct RootInteractorSetupTests {
         try await waitForSetupFailure(on: spy)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected failure reported after deadline")
+        #expect(spy.failureKinds == [.unknown], "Expected the unknown failure kind")
         #expect(spy.didDecideCallCount == 0, "Expected no destination reported")
         #expect(chainRegistry.chainsUnsubscribeCallCount == 1, "Expected chain wait to be cancelled")
     }
