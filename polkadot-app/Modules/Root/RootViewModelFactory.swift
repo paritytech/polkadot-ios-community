@@ -18,53 +18,57 @@ final class RootViewModelFactory: RootViewModelMaking {
     func makeFailure(kind: RootSetupFailureKind) -> RootViewLayout.ViewModel {
         switch kind {
         case .connectivity:
-            makeConnectivityIssue()
+            makeIssue(
+                title: .rootInitFailureConnectivityTitle,
+                subtitle: .rootInitFailureConnectivitySubtitle,
+                actionTitle: nil
+            )
         case let .configuration(stage):
             makeConfigurationIssue(for: stage)
         case .unknown:
-            makeUnknownIssue()
+            makeIssue(
+                title: .rootInitFailureUnknownTitle,
+                subtitle: .rootInitFailureUnknownSubtitle,
+                actionTitle: .rootInitFailureAction
+            )
         }
     }
 }
 
 private extension RootViewModelFactory {
-    func makeConnectivityIssue() -> RootViewLayout.ViewModel {
-        .failed(
-            RootViewLayout.ViewModel.Issue(
-                title: String(localized: .rootInitFailureConnectivityTitle),
-                subtitle: String(localized: .rootInitFailureConnectivitySubtitle),
-                actionTitle: nil
-            )
-        )
-    }
-
     func makeConfigurationIssue(for stage: RootSetupStage) -> RootViewLayout.ViewModel {
         switch stage {
         case .config:
-            .failed(
-                RootViewLayout.ViewModel.Issue(
-                    title: String(localized: .rootInitFailureConfigTitle),
-                    subtitle: String(localized: .rootInitFailureConfigSubtitle),
-                    actionTitle: String(localized: .rootInitFailureAction)
-                )
+            makeIssue(
+                title: .rootInitFailureConfigTitle,
+                subtitle: .rootInitFailureConfigSubtitle,
+                actionTitle: .rootInitFailureAction
             )
         case .chains:
-            .failed(
-                RootViewLayout.ViewModel.Issue(
-                    title: String(localized: .rootInitFailureChainsTitle),
-                    subtitle: String(localized: .rootInitFailureChainsSubtitle),
-                    actionTitle: String(localized: .rootInitFailureAction)
-                )
+            makeIssue(
+                title: .rootInitFailureChainsTitle,
+                subtitle: .rootInitFailureChainsSubtitle,
+                actionTitle: .rootInitFailureAction
+            )
+        case .tld:
+            makeIssue(
+                title: .rootInitFailureTldTitle,
+                subtitle: .rootInitFailureTldSubtitle,
+                actionTitle: .rootInitFailureAction
             )
         }
     }
 
-    func makeUnknownIssue() -> RootViewLayout.ViewModel {
+    func makeIssue(
+        title: LocalizedStringResource,
+        subtitle: LocalizedStringResource,
+        actionTitle: LocalizedStringResource?
+    ) -> RootViewLayout.ViewModel {
         .failed(
             RootViewLayout.ViewModel.Issue(
-                title: String(localized: .rootInitFailureUnknownTitle),
-                subtitle: String(localized: .rootInitFailureUnknownSubtitle),
-                actionTitle: String(localized: .rootInitFailureAction)
+                title: String(localized: title),
+                subtitle: String(localized: subtitle),
+                actionTitle: actionTitle.map { String(localized: $0) }
             )
         )
     }

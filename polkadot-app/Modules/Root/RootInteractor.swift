@@ -15,6 +15,15 @@ final class RootInteractor {
         case ready
         case deadlineExpired
         case configurationBroken
+
+        /// The failure to report for this outcome, or nil when setup may continue.
+        var failureFallback: RootSetupFailureKind? {
+            switch self {
+            case .ready: nil
+            case .deadlineExpired: .unknown
+            case .configurationBroken: .configuration(.config)
+            }
+        }
     }
 
     private struct PathState {
@@ -158,16 +167,8 @@ final class RootInteractor {
 
         guard !Task.isCancelled else { return }
 
-        switch outcome {
-        case .ready:
-            break
-        case .deadlineExpired:
-            guard claimOutcome() else { return }
-            await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
-            return
-        case .configurationBroken:
-            guard claimOutcome() else { return }
-            await reportSetupFailure(kind: classifyFailure(fallback: .configuration(.config)))
+        if let fallback = outcome.failureFallback {
+            await reportFailure(fallback: fallback)
             return
         }
 
@@ -176,15 +177,12 @@ final class RootInteractor {
         do {
             try await resolveTldIfNeeded()
         } catch {
-            guard !Task.isCancelled else { return }
-            guard claimOutcome() else { return }
-            await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
+            await reportFailure(fallback: .configuration(.tld))
             return
         }
 
-        guard !Task.isCancelled else { return }
+        guard !Task.isCancelled, claimOutcome() else { return }
 
-        guard claimOutcome() else { return }
         await completeSetup()
     }
 
@@ -252,6 +250,14 @@ final class RootInteractor {
     @MainActor
     private func reportSetupFailure(kind: RootSetupFailureKind) {
         presenter?.didFailSetup(kind: kind)
+    }
+
+    /// Reports a failure unless this attempt already reported an outcome, or was cancelled.
+    @MainActor
+    private func reportFailure(fallback: RootSetupFailureKind) {
+        guard !Task.isCancelled, claimOutcome() else { return }
+
+        reportSetupFailure(kind: classifyFailure(fallback: fallback))
     }
 }
 

@@ -4,4 +4,5 @@ import Foundation
 enum RootSetupStage: Equatable {
     case config
     case chains
+    case tld
 }

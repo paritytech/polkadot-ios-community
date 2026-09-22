@@ -43,7 +43,7 @@ struct RootInteractorSetupTests {
         try await waitForSetupFailure(on: spy)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected one setup failure to be reported")
-        #expect(spy.failureKinds == [.unknown], "Expected the unknown failure kind")
+        #expect(spy.failureKinds == [.configuration(.tld)], "Expected the configuration failure at the tld stage")
         #expect(spy.didDecideCallCount == 0, "Expected no destination decision (gate holds)")
     }
 
