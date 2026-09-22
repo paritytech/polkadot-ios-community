@@ -5,11 +5,13 @@ import JailbreakDetection
 import KeyDerivation
 import SubstrateSdk
 import ChainRegistry
+import EventCenter
 
 enum RootPresenterFactory: RootPresenterFactoryProtocol {
     static func createPresenter(
         with window: UIWindow
     ) -> RootPresenterProtocol {
+        let eventCenter = EventCenter.shared
         let flowStateProvider = SPAFlowStateProvider()
         let foregroundPresentationController = PushForegroundPresentationController()
 
@@ -86,6 +88,7 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
             logger: Logger.shared,
             resolver: resolver,
             tokenManager: JWTTokenManager.shared,
+            eventCenter: eventCenter,
             remoteConfigManager: FirebaseFacade.shared,
             chainRegistryConfigurator: FirebaseFacade.shared,
             productPrewarmer: productPrewarmer,

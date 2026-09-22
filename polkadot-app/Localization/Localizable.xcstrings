@@ -2443,6 +2443,28 @@
         }
       }
     },
+    "root.init.failure.chains.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We are working on a fix."
+          }
+        }
+      }
+    },
+    "root.init.failure.chains.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chains configuration is broken"
+          }
+        }
+      }
+    },
     "root.init.failure.config.subtitle": {
       "extractionState": "manual",
       "localizations": {

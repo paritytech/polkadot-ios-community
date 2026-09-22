@@ -48,6 +48,14 @@ private extension RootViewModelFactory {
                     actionTitle: String(localized: .rootInitFailureAction)
                 )
             )
+        case .chains:
+            .failed(
+                RootViewLayout.ViewModel.Issue(
+                    title: String(localized: .rootInitFailureChainsTitle),
+                    subtitle: String(localized: .rootInitFailureChainsSubtitle),
+                    actionTitle: String(localized: .rootInitFailureAction)
+                )
+            )
         }
     }
 

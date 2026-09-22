@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import ChainRegistry
 import Products
+import EventCenter
 
 @testable import polkadot_app
 
@@ -206,6 +207,65 @@ struct RootInteractorSetupTests {
             "Expected a configuration failure at the config stage"
         )
     }
+
+    @Test("chain sync completing without the required chains fails at the chains stage")
+    @MainActor
+    func chainSyncWithoutRequiredChainsFails() async throws {
+        let spy = RootSetupOutputSpy()
+        let eventCenter = MockEventCenter()
+
+        let interactor = makeInteractor(eventCenter: eventCenter)
+        interactor.presenter = spy
+
+        let startedAt = Date()
+        interactor.setup()
+
+        eventCenter.notify(
+            with: ChainSyncDidComplete(
+                newOrUpdatedChains: [makeChain(id: AppConfig.Chains.usernameChain)],
+                removedChains: []
+            )
+        )
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(
+            spy.failureKinds == [.configuration(.chains)],
+            "Expected a configuration failure at the chains stage"
+        )
+        #expect(
+            Date().timeIntervalSince(startedAt) < 8,
+            "Expected the chains failure to be reported without waiting out the deadline"
+        )
+    }
+
+    @Test("chain sync completing with the required chains reports no failure")
+    @MainActor
+    func chainSyncWithRequiredChainsSucceeds() async throws {
+        let spy = RootSetupOutputSpy()
+        let eventCenter = MockEventCenter()
+
+        let interactor = makeInteractor(eventCenter: eventCenter)
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        eventCenter.notify(
+            with: ChainSyncDidComplete(
+                newOrUpdatedChains: [
+                    makeChain(id: AppConfig.Chains.usernameChain),
+                    makeChain(id: AppConfig.Chains.bulletInChain),
+                    makeChain(id: AppConfig.Chains.assethubChain)
+                ],
+                removedChains: []
+            )
+        )
+
+        // Gives the event a window to land; an unexpected failure ends the wait early.
+        try await waitUntil(timeout: 2) { spy.didFailSetupCallCount > 0 }
+
+        #expect(spy.didFailSetupCallCount == 0, "Expected no failure when every required chain is present")
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -215,6 +275,7 @@ private extension RootInteractorSetupTests {
         chainRegistry: MockChainRegistry = MockChainRegistry(),
         pathMonitor: NetworkPathMonitoring = MockNetworkPathMonitor(),
         remoteConfigManager: MockRemoteConfigManager = MockRemoteConfigManager(),
+        eventCenter: EventCenterProtocol = MockEventCenter(),
         tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot")
     ) -> RootInteractor {
         RootInteractor(
@@ -223,6 +284,7 @@ private extension RootInteractorSetupTests {
             logger: StubLogger(),
             resolver: MockDecisionResolver(),
             tokenManager: MockJWTTokenManager(),
+            eventCenter: eventCenter,
             remoteConfigManager: remoteConfigManager,
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),

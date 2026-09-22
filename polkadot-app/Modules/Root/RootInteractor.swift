@@ -8,6 +8,7 @@ import ChainRegistry
 import SubstrateSdkExt
 import Products
 import StructuredConcurrency
+import EventCenter
 
 final class RootInteractor {
     private enum SetupWaitOutcome {
@@ -33,6 +34,12 @@ final class RootInteractor {
         static let tldRetryInitialDelay: Duration = .seconds(1)
     }
 
+    private static let requiredChainIds: Set<ChainModel.Id> = [
+        AppConfig.Chains.usernameChain,
+        AppConfig.Chains.bulletInChain,
+        AppConfig.Chains.assethubChain
+    ]
+
     weak var presenter: RootInteractorOutputProtocol?
 
     let chainRegistryClosure: ChainRegistryLazyClosure
@@ -41,6 +48,7 @@ final class RootInteractor {
     let logger: LoggerProtocol
     let resolver: any DecisionResolver<RootDestination>
     let tokenManager: JWTTokenManaging
+    let eventCenter: EventCenterProtocol
     let tldProvider: DotNsTldProviding
 
     let remoteConfigManager: RemoteConfigManaging
@@ -52,6 +60,8 @@ final class RootInteractor {
     private var didReportEstablishedUser = false
     private let pathState = OSAllocatedUnfairLock(initialState: PathState())
     private var pathTask: Task<Void, Never>?
+    private let didReportOutcome = OSAllocatedUnfairLock(initialState: false)
+    private var didRegisterForEvents = false
 
     #if TESTNET_FEATURE
         var appFactoryResetCheckerFactory: AppFactoryResetCheckerFactoryProtocol?
@@ -64,6 +74,7 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
+        eventCenter: EventCenterProtocol,
         remoteConfigManager: RemoteConfigManaging,
         chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
@@ -76,6 +87,7 @@ final class RootInteractor {
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
+        self.eventCenter = eventCenter
         self.remoteConfigManager = remoteConfigManager
         self.chainRegistryConfigurator = chainRegistryConfigurator
         self.productPrewarmer = productPrewarmer
@@ -86,15 +98,18 @@ final class RootInteractor {
     deinit {
         completionTask?.cancel()
         pathTask?.cancel()
+        eventCenter.remove(observer: self)
     }
 
     @MainActor
     private func performCommonSetup(with chainRegistry: ChainRegistryProtocol) {
         completionTask?.cancel()
+        didReportOutcome.withLock { $0 = false }
 
         setupChainUpdate(for: chainRegistry)
         fetchRemoteConfig()
         startPathMonitoringIfNeeded()
+        registerForEventCenterIfNeeded()
 
         startSetupCompletionTask(for: chainRegistry)
     }
@@ -147,9 +162,11 @@ final class RootInteractor {
         case .ready:
             break
         case .deadlineExpired:
+            guard claimOutcome() else { return }
             await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
             return
         case .configurationBroken:
+            guard claimOutcome() else { return }
             await reportSetupFailure(kind: classifyFailure(fallback: .configuration(.config)))
             return
         }
@@ -160,12 +177,14 @@ final class RootInteractor {
             try await resolveTldIfNeeded()
         } catch {
             guard !Task.isCancelled else { return }
+            guard claimOutcome() else { return }
             await reportSetupFailure(kind: classifyFailure(fallback: .unknown))
             return
         }
 
         guard !Task.isCancelled else { return }
 
+        guard claimOutcome() else { return }
         await completeSetup()
     }
 
@@ -194,11 +213,8 @@ final class RootInteractor {
         do {
             try await withThrowingTaskGroup(of: Void.self) { group in
                 group.addTask { [remoteConfigManager] in
-                    async let chainsReady: Void = chainRegistry.asyncWaitChainsSetup(for: [
-                        AppConfig.Chains.usernameChain,
-                        AppConfig.Chains.bulletInChain,
-                        AppConfig.Chains.assethubChain
-                    ])
+                    async let chainsReady: Void = chainRegistry
+                        .asyncWaitChainsSetup(for: Self.requiredChainIds)
                     do {
                         _ = try await (chainsReady, remoteConfigManager.asyncWaitRemoteConfig())
                     } catch {
@@ -322,6 +338,25 @@ private extension RootInteractor {
 }
 
 private extension RootInteractor {
+    /// Setup can now finish from two places — the wait and the chain-sync event — so the first one
+    /// to report wins and the other is dropped.
+    func claimOutcome() -> Bool {
+        didReportOutcome.withLock { reported in
+            guard !reported else { return false }
+            reported = true
+            return true
+        }
+    }
+
+    func registerForEventCenterIfNeeded() {
+        guard !didRegisterForEvents else {
+            return
+        }
+
+        didRegisterForEvents = true
+        eventCenter.add(observer: self, dispatchIn: .main)
+    }
+
     /// Observes network path transitions; both feeds failure classification and drives unattended retry after a
     /// connectivity failure.
     func startPathMonitoringIfNeeded() {
@@ -376,5 +411,20 @@ private extension RootInteractor {
         }
 
         throw SetupDeadlineExpired()
+    }
+}
+
+extension RootInteractor: ChainRegistryEventVisiting {
+    func processChainSyncDidComplete(event: ChainSyncDidComplete) {
+        let availableChainIds = Set(event.newOrUpdatedChains.map(\.chainId))
+        guard !Self.requiredChainIds.isSubset(of: availableChainIds) else { return }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard claimOutcome() else { return }
+
+            completionTask?.cancel()
+            reportSetupFailure(kind: classifyFailure(fallback: .configuration(.chains)))
+        }
     }
 }
