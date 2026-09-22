@@ -109,6 +109,35 @@ struct RootInteractorSetupTests {
 
         #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure instead of TLD failure")
     }
+
+    @Test("path recovery retries setup without re-running migrations")
+    @MainActor
+    func pathRecoveryRetriesSetupWithoutMigrations() async throws {
+        let spy = RootSetupOutputSpy()
+        let migrator = MockMigrator()
+        let chainRegistry = MockChainRegistry()
+        let pathMonitor = MockNetworkPathMonitor(initial: false)
+
+        let interactor = makeInteractor(
+            migrator: migrator,
+            chainRegistry: chainRegistry,
+            pathMonitor: pathMonitor
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+        #expect(spy.failureKinds == [.connectivity])
+        #expect(chainRegistry.chainsSubscribeCallCount == 1)
+
+        pathMonitor.send(true)
+
+        try await waitUntil(timeout: 5) { chainRegistry.chainsSubscribeCallCount == 2 }
+
+        #expect(chainRegistry.chainsSubscribeCallCount == 2, "Expected path recovery to re-run setup")
+        #expect(migrator.migrateCallCount == 1, "Expected migrations to stay on the launch pass")
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -133,13 +162,17 @@ private extension RootInteractorSetupTests {
         )
     }
 
-    /// Polls until the spy reports a setup failure, or the deadline passes.
     /// The retried TLD resolve and the ten second setup wait both land off the main actor and
-    /// arrive seconds late on CI, so the deadline sits above both rather than fixing a settling time.
+    /// arrive seconds late on CI, so the timeout sits above both rather than fixing a settling time.
     @MainActor
     func waitForSetupFailure(on spy: RootSetupOutputSpy) async throws {
-        let deadline = Date().addingTimeInterval(15)
-        while spy.didFailSetupCallCount == 0, Date() < deadline {
+        try await waitUntil(timeout: 15) { spy.didFailSetupCallCount > 0 }
+    }
+
+    @MainActor
+    func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !condition(), Date() < deadline {
             try await Task.sleep(for: .milliseconds(100))
         }
     }

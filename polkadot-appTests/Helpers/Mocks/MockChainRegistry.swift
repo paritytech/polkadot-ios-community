@@ -16,6 +16,9 @@ final class MockChainRegistry: ChainRegistryProtocol {
     /// Counts unsubscribes, so a test can assert a pending chain wait was cancelled.
     var chainsUnsubscribeCallCount = 0
 
+    /// Counts subscriptions, so a test can assert setup ran again.
+    var chainsSubscribeCallCount = 0
+
     var availableChainIds: Set<ChainModel.Id>? { nil }
     var allAvailableChains: [ChainModel] { Array(chainsByGenesis.values) }
 
@@ -32,6 +35,7 @@ final class MockChainRegistry: ChainRegistryProtocol {
         runningInQueue queue: DispatchQueue,
         updateClosure: @escaping ([DataProviderChange<ChainModel>]) -> Void
     ) {
+        chainsSubscribeCallCount += 1
         guard !chainsOnSubscribe.isEmpty else { return }
 
         let changes = chainsOnSubscribe.map { DataProviderChange<ChainModel>.insert(newItem: $0) }

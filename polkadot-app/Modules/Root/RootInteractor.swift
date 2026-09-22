@@ -15,6 +15,11 @@ final class RootInteractor {
         case deadlineExpired
     }
 
+    private struct PathState {
+        var isSatisfied = true
+        var isAwaitingRecovery = false
+    }
+
     private enum Constants {
         static let setupDeadlineSeconds: TimeInterval = 10
         static let tldTimeoutSeconds: TimeInterval = 10
@@ -39,7 +44,7 @@ final class RootInteractor {
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
-    private let isPathSatisfied = OSAllocatedUnfairLock(initialState: true)
+    private let pathState = OSAllocatedUnfairLock(initialState: PathState())
     private var pathTask: Task<Void, Never>?
 
     #if TESTNET_FEATURE
@@ -284,6 +289,8 @@ private extension RootInteractor {
 }
 
 private extension RootInteractor {
+    /// Observes network path transitions; both feeds failure classification and drives unattended retry after a
+    /// connectivity failure.
     func startPathMonitoringIfNeeded() {
         guard pathTask == nil else {
             return
@@ -294,14 +301,34 @@ private extension RootInteractor {
         pathTask = Task { [weak self] in
             do {
                 for try await isAvailable in stream {
-                    self?.isPathSatisfied.withLock { $0 = isAvailable }
+                    guard let self else { return }
+                    guard consumeRecovery(isAvailable: isAvailable) else { continue }
+
+                    await MainActor.run { self.retrySetup() }
                 }
             } catch {}
         }
     }
 
+    /// Records the new satisfaction and reports whether it recovers a connectivity failure still awaiting
+    /// retry, consuming the flag so one recovery drives at most one retry.
+    func consumeRecovery(isAvailable: Bool) -> Bool {
+        pathState.withLock { state in
+            let isRecovery = isAvailable && !state.isSatisfied && state.isAwaitingRecovery
+            state.isSatisfied = isAvailable
+            if isRecovery {
+                state.isAwaitingRecovery = false
+            }
+            return isRecovery
+        }
+    }
+
     /// Connectivity outranks every other cause: an unsatisfied path is the only thing the user can act on.
     func classifyFailure(fallback kind: RootSetupFailureKind) -> RootSetupFailureKind {
-        isPathSatisfied.withLock { $0 } ? kind : .connectivity
+        pathState.withLock { state in
+            guard !state.isSatisfied else { return kind }
+            state.isAwaitingRecovery = true
+            return .connectivity
+        }
     }
 }
