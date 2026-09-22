@@ -37,6 +37,8 @@ final class VoIPCallKitManager: NSObject {
     private let audioSessionManager: CallAudioSessionManaging
     private let contactsService: ContactsLocalStorageServicing
     private let messageCoder: ChatPushMessageCoding
+    private let permissionsService: CallPermissionsServicing
+    private let missedCallNotifier: MissedCallNotifying
     private let logger: LoggerProtocol
 
     private let activeCallDataSubject = AsyncCurrentValueSubject<VoIPCallKitData?>(nil)
@@ -57,12 +59,16 @@ final class VoIPCallKitManager: NSObject {
                 entropyManager: RootEntropyManager.shared
             )
         ),
+        permissionsService: CallPermissionsServicing = CallPermissionsService(),
+        missedCallNotifier: MissedCallNotifying = MissedCallNotifier(),
         queue: DispatchQueue = PushKitQueueProvider.queue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.audioSessionManager = audioSessionManager
         self.contactsService = contactsService
         self.messageCoder = messageCoder
+        self.permissionsService = permissionsService
+        self.missedCallNotifier = missedCallNotifier
         callController = CXCallController(queue: queue)
 
         let config = CXProviderConfiguration()
@@ -115,7 +121,7 @@ extension VoIPCallKitManager: VoIPCallKitManaging {
                 self?.activeCallData = nil
             } else {
                 self?.logger.debug("Call initially reported \(uuid)")
-                self?.updateReportedCall(with: uuid, fromPushPayload: payload)
+                self?.continueReportedCall(with: uuid, fromPushPayload: payload)
             }
         }
     }
@@ -359,6 +365,27 @@ private extension VoIPCallKitManager {
     var activeCallData: VoIPCallKitData? {
         get { activeCallDataSubject.value }
         set { activeCallDataSubject.send(newValue) }
+    }
+
+    /// Answering needs the microphone, and by this point the app is in the background where
+    /// no permission prompt can be shown. Rather than let CallKit ring into a call that can
+    /// never connect, end it straight away and explain why out of band.
+    ///
+    /// The status is only read, never requested: `ensurePermissions` would await a prompt
+    /// that cannot appear here and would stall the PushKit completion handler.
+    func continueReportedCall(with uuid: UUID, fromPushPayload payload: [AnyHashable: Any]) {
+        guard permissionsService.isMicrophoneGranted else {
+            logger.warning("No microphone permission, ending reported call \(uuid)")
+            performReportCallEnd(with: uuid, with: .failed)
+
+            Task { [missedCallNotifier] in
+                await missedCallNotifier.notifyMissedCallWithoutPermissions()
+            }
+
+            return
+        }
+
+        updateReportedCall(with: uuid, fromPushPayload: payload)
     }
 
     func updateReportedCall(with uuid: UUID, fromPushPayload payload: [AnyHashable: Any]) {

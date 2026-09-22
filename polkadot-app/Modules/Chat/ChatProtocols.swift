@@ -92,6 +92,8 @@ protocol ChatWireframeProtocol: AnyObject, AlertPresentable {
         callType: ChatCallType
     )
 
+    func presentMicrophoneAccessDenied(from view: ControllerBackedProtocol?)
+
     func showEditHistory(
         from view: ControllerBackedProtocol?,
         messageId: String

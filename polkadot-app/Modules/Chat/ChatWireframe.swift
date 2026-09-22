@@ -6,7 +6,7 @@ import UIKitExt
 import ChainRegistry
 
 @MainActor
-final class ChatWireframe: ChatWireframeProtocol {
+final class ChatWireframe: ChatWireframeProtocol, ApplicationSettingsPresentable {
     let chainAsset: ChainAsset
     let flowState: ChatFlowState
     let documentAdapter: DocumentPreviewPresenting
@@ -55,6 +55,23 @@ final class ChatWireframe: ChatWireframeProtocol {
         let navigation = AppNavigationController(rootViewController: destination.controller)
         navigation.modalPresentationStyle = .fullScreen
         view?.controller.present(navigation, animated: true)
+    }
+
+    /// Mirrors the in-call alert so a denial reads the same whether it is caught before the
+    /// call screen opens or after the call has already started.
+    func presentMicrophoneAccessDenied(from view: ControllerBackedProtocol?) {
+        let viewModel = AlertPresentableViewModel(
+            title: String(localized: .chatCallMicAccessTitle),
+            message: String(localized: .chatCallMicAccessMessage),
+            actions: [
+                AlertPresentableAction(title: String(localized: .Common.openSettings)) { [weak self] in
+                    self?.openApplicationSettings()
+                }
+            ],
+            closeActionTitle: String(localized: .Common.notNow)
+        )
+
+        present(viewModel: viewModel, style: .alert, from: view)
     }
 
     func showCall(

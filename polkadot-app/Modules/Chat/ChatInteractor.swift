@@ -11,6 +11,7 @@ final class ChatInteractor {
     private let reactionRepository: ChatReactionRepositoryProtocol
     private let logger: LoggerProtocol
     private let usernameStorage: UsernameStoring
+    private let permissionsService: CallPermissionsServicing
 
     private var messagesTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
@@ -26,6 +27,7 @@ final class ChatInteractor {
         engine: ChatEngineProtocol,
         reactionRepository: ChatReactionRepositoryProtocol,
         usernameStorage: UsernameStoring = UsernameStorage(),
+        permissionsService: CallPermissionsServicing = CallPermissionsService(),
         logger: LoggerProtocol = Logger.shared,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting?,
         notificationsCleaner: any PushNotificationsCleaning
@@ -34,6 +36,7 @@ final class ChatInteractor {
         self.engine = engine
         self.reactionRepository = reactionRepository
         self.usernameStorage = usernameStorage
+        self.permissionsService = permissionsService
         self.logger = logger
         self.foregroundVisibilityReporter = foregroundVisibilityReporter
         self.notificationsCleaner = notificationsCleaner
@@ -47,6 +50,19 @@ final class ChatInteractor {
 }
 
 private extension ChatInteractor {
+    /// Resolves microphone access while the chat relationship is being established, because
+    /// that is the last moment the app is reliably foregrounded. By call time the user may be
+    /// on a locked screen answering through CallKit, where no system prompt can be shown.
+    ///
+    /// Advisory only: a denial never blocks sending or accepting a chat request.
+    func resolveCallPermissions() async {
+        let isGranted = await permissionsService.ensurePermissions(for: .audio)
+
+        if !isGranted {
+            logger.warning("Microphone permission not granted while establishing the chat")
+        }
+    }
+
     func subscribeMetadata() {
         metadataTask = Task { [weak self, logger, engine, usernameStorage] in
             guard let currentUsername = usernameStorage.username?.value else {
@@ -149,6 +165,10 @@ extension ChatInteractor: ChatInteractorInputProtocol {
                     } else {
                         content = .text(text ?? "")
                     }
+                }
+
+                if await self.engine.hasPendingOutgoingChatRequest() {
+                    await self.resolveCallPermissions()
                 }
 
                 try await self.engine.sendUserMessage(with: content)
@@ -321,6 +341,7 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         Task {
             do {
                 try await engine.acceptChatRequest()
+                await resolveCallPermissions()
             } catch {
                 logger.error("Unexpect error while accepting request: \(error)")
             }

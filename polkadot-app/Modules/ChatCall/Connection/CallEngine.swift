@@ -247,6 +247,13 @@ private extension CallEngine {
         return peerConnectionFactory.videoTrack(with: videoSource, trackId: "video0")
     }
 
+    /// Calls never exchange local-network candidates: `PrivateHostCandidateFilter` keeps ICE
+    /// off the LAN so a denied Local Network permission cannot close the socket that the
+    /// reflexive path shares, and `TcpHostCandidateFilter` keeps the signaling volume down.
+    func makeCandidateFilter() -> ConnectionCandidateFiltering {
+        CompositeCandidateFilter([TcpHostCandidateFilter(), PrivateHostCandidateFilter()])
+    }
+
     func makeDataConnectionCreator() -> DataConnectionCreating {
         switch role {
         case .initiator:
@@ -255,6 +262,7 @@ private extension CallEngine {
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
                 purpose: purpose,
+                candidateFilter: makeCandidateFilter(),
                 logger: logger
             )
         case .acceptor:
@@ -262,6 +270,7 @@ private extension CallEngine {
                 signaling: signaling,
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
+                candidateFilter: makeCandidateFilter(),
                 logger: logger
             )
         }

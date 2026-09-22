@@ -12,6 +12,7 @@ final class ChatPresenter {
     let viewModelFactory: ChatViewModelMaking
     let moduleNavigator: ModuleNavigating
     let paymentAssetViewModelFactory: PaymentAssetViewModelMaking
+    let permissionsService: CallPermissionsServicing
 
     private var listModel: MessageListModel?
     private var metadata: MessageListMetadata?
@@ -23,13 +24,15 @@ final class ChatPresenter {
         wireframe: ChatWireframeProtocol,
         viewModelFactory: ChatViewModelMaking,
         moduleNavigator: ModuleNavigating,
-        paymentAssetViewModelFactory: PaymentAssetViewModelMaking = PaymentAssetViewModelFactory()
+        paymentAssetViewModelFactory: PaymentAssetViewModelMaking = PaymentAssetViewModelFactory(),
+        permissionsService: CallPermissionsServicing = CallPermissionsService()
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
         self.viewModelFactory = viewModelFactory
         self.moduleNavigator = moduleNavigator
         self.paymentAssetViewModelFactory = paymentAssetViewModelFactory
+        self.permissionsService = permissionsService
     }
 
     deinit {
@@ -407,6 +410,13 @@ private extension ChatPresenter {
     func handleStartCall(callType: ChatCallType) {
         guard let metadata else { return }
         MainActor.assumeIsolated {
+            // Caught here rather than in the call module so a denial never flashes the call
+            // screen. The in-call guard stays as the backstop for mid-session revocation.
+            guard permissionsService.isMicrophoneGranted else {
+                wireframe.presentMicrophoneAccessDenied(from: view)
+                return
+            }
+
             wireframe.showCall(
                 from: view,
                 chatMetadata: metadata.chatMetadata,
