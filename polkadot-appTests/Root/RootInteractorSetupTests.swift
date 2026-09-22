@@ -333,6 +333,33 @@ struct RootInteractorSetupTests {
             "Expected connectivity failure from the path drop"
         )
     }
+
+    @Test("setup fails at the config stage when no config was applied")
+    @MainActor
+    func setupFailsWhenNoConfigApplied() async throws {
+        let spy = RootSetupOutputSpy()
+        let chainRegistry = MockChainRegistry()
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            appliedConfigReader: { nil }
+        )
+        interactor.presenter = spy
+
+        interactor.setup()
+
+        try await waitForSetupFailure(on: spy)
+
+        #expect(
+            spy.failureKinds == [.configuration(.config)],
+            "Expected configuration failure when no config was applied"
+        )
+    }
 }
 
 private extension RootInteractorSetupTests {
@@ -343,7 +370,20 @@ private extension RootInteractorSetupTests {
         pathMonitor: NetworkPathMonitoring = MockNetworkPathMonitor(),
         remoteConfigManager: MockRemoteConfigManager = MockRemoteConfigManager(),
         eventCenter: EventCenterProtocol = MockEventCenter(),
-        tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot")
+        tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot"),
+        appliedConfigReader: @escaping () -> RemoteAppConfig? = {
+            RemoteAppConfig(
+                identityBackendUrl: URL(string: "https://example.com"),
+                ipfsGatewayUrl: URL(string: "https://ipfs.example.com"),
+                gameDashboardUrl: URL(string: "https://game.example.com"),
+                dotNsResolver: "resolver.example.com",
+                dotNsNameRegistry: nil,
+                coinageInstanceId: 1,
+                fundingUrl: nil,
+                offrampUrl: nil,
+                accountDataStoreContract: nil
+            )
+        }
     ) -> RootInteractor {
         RootInteractor(
             chainRegistryClosure: { chainRegistry },
@@ -356,7 +396,8 @@ private extension RootInteractorSetupTests {
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),
             observer: RootSetupObserver(pathMonitor: pathMonitor),
-            tldProvider: tldProvider
+            tldProvider: tldProvider,
+            appliedConfigReader: appliedConfigReader
         )
     }
 

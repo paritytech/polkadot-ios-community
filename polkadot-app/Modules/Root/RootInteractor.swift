@@ -63,6 +63,7 @@ final class RootInteractor {
     let chainRegistryConfigurator: ChainRegistryConfiguring
     let productPrewarmer: ProductContentPrewarming
     let observer: RootSetupObserver
+    let appliedConfigReader: () -> RemoteAppConfig?
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
@@ -86,7 +87,8 @@ final class RootInteractor {
         chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
         observer: RootSetupObserver,
-        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared
+        tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
+        appliedConfigReader: @escaping () -> RemoteAppConfig? = { AppConfigProvider.shared.getRemoteConfig() }
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -100,6 +102,7 @@ final class RootInteractor {
         self.productPrewarmer = productPrewarmer
         self.observer = observer
         self.tldProvider = tldProvider
+        self.appliedConfigReader = appliedConfigReader
     }
 
     deinit {
@@ -226,6 +229,13 @@ final class RootInteractor {
 
                 _ = try await group.next()
                 group.cancelAll()
+            }
+
+            // The wait tolerates non-invalidity errors, so reaching this point does not by itself
+            // prove a config was applied. If no valid config landed, the force-unwrapping accessors
+            // would trap, so verify the invariant here before setup continues.
+            guard appliedConfigReader()?.isValid == true else {
+                return .configurationBroken
             }
 
             return .ready
