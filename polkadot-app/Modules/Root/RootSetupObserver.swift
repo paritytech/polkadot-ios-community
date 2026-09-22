@@ -74,10 +74,6 @@ final class RootSetupObserver {
         continuation.finish()
     }
 
-    func noteChainSyncIncomplete() {
-        continuation.yield(.chainsIncomplete)
-    }
-
     func claimConnectivityFailure() -> Bool {
         pathState.withLock { state in
             guard !state.isSatisfied else { return false }

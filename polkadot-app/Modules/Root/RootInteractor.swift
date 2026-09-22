@@ -8,12 +8,12 @@ import ChainRegistry
 import SubstrateSdkExt
 import Products
 import StructuredConcurrency
-import EventCenter
 
 final class RootInteractor {
     private enum SetupWaitOutcome {
         case ready
         case deadlineExpired
+        case chainsIncomplete
         case configurationBroken
 
         /// The failure to report for this outcome, or nil when setup may continue.
@@ -21,6 +21,7 @@ final class RootInteractor {
             switch self {
             case .ready: nil
             case .deadlineExpired: .unknown
+            case .chainsIncomplete: .configuration(.chains)
             case .configurationBroken: .configuration(.config)
             }
         }
@@ -56,7 +57,6 @@ final class RootInteractor {
     let logger: LoggerProtocol
     let resolver: any DecisionResolver<RootDestination>
     let tokenManager: JWTTokenManaging
-    let eventCenter: EventCenterProtocol
     let tldProvider: DotNsTldProviding
 
     let remoteConfigManager: RemoteConfigManaging
@@ -69,7 +69,6 @@ final class RootInteractor {
     private var didReportEstablishedUser = false
     private var observationTask: Task<Void, Never>?
     private let didReportOutcome = OSAllocatedUnfairLock(initialState: false)
-    private var didRegisterForEvents = false
 
     #if TESTNET_FEATURE
         var appFactoryResetCheckerFactory: AppFactoryResetCheckerFactoryProtocol?
@@ -82,7 +81,6 @@ final class RootInteractor {
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
-        eventCenter: EventCenterProtocol,
         remoteConfigManager: RemoteConfigManaging,
         chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
@@ -96,7 +94,6 @@ final class RootInteractor {
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
-        self.eventCenter = eventCenter
         self.remoteConfigManager = remoteConfigManager
         self.chainRegistryConfigurator = chainRegistryConfigurator
         self.productPrewarmer = productPrewarmer
@@ -108,7 +105,6 @@ final class RootInteractor {
     deinit {
         completionTask?.cancel()
         observationTask?.cancel()
-        eventCenter.remove(observer: self)
     }
 
     @MainActor
@@ -118,7 +114,6 @@ final class RootInteractor {
 
         setupChainUpdate(for: chainRegistry)
         fetchRemoteConfig()
-        registerForEventCenterIfNeeded()
         startObservationIfNeeded()
 
         startSetupCompletionTask(for: chainRegistry)
@@ -242,8 +237,14 @@ final class RootInteractor {
         } catch RemoteConfigError.invalidConfig {
             return .configurationBroken
         } catch {
-            // Timeout or cancellation both stop startup; the caller's cancellation guard runs
-            // before the outcome is acted on. Any unexpected error must not read as ready.
+            // The deadline expired. The wait cannot tell "not yet" from "not coming", so ask
+            // the registry: if required chains are missing, report that; otherwise timeout.
+            let availableChainIds = chainRegistry.availableChainIds ?? []
+
+            guard Self.requiredChainIds.isSubset(of: availableChainIds) else {
+                return .chainsIncomplete
+            }
+
             return .deadlineExpired
         }
     }
@@ -273,8 +274,6 @@ final class RootInteractor {
             presenter?.didRecoverConnectivity()
         case .connectivityLost:
             abandonSetup(fallback: .connectivity)
-        case .chainsIncomplete:
-            abandonSetup(fallback: .configuration(.chains))
         }
     }
 
@@ -381,15 +380,6 @@ private extension RootInteractor {
         }
     }
 
-    func registerForEventCenterIfNeeded() {
-        guard !didRegisterForEvents else {
-            return
-        }
-
-        didRegisterForEvents = true
-        eventCenter.add(observer: self, dispatchIn: .main)
-    }
-
     /// The observer and its signal consumer are per-app-lifetime, unlike completionTask which is per-attempt.
     func startObservationIfNeeded() {
         guard observationTask == nil else {
@@ -423,17 +413,5 @@ private extension RootInteractor {
         }
 
         throw SetupDeadlineExpired()
-    }
-}
-
-extension RootInteractor: ChainRegistryEventVisiting {
-    func processChainSyncDidComplete(event _: ChainSyncDidComplete) {
-        // The event carries a delta: a chain identical to the cached one is absent from it, so a sync
-        // that changes nothing arrives empty. The registry is what knows which chains exist.
-        let availableChainIds = chainRegistryClosure().availableChainIds ?? []
-
-        guard !Self.requiredChainIds.isSubset(of: availableChainIds) else { return }
-
-        observer.noteChainSyncIncomplete()
     }
 }

@@ -2,7 +2,6 @@ import Foundation
 import Testing
 import ChainRegistry
 import Products
-import EventCenter
 
 @testable import polkadot_app
 
@@ -52,19 +51,27 @@ struct RootInteractorSetupTests {
     func setupDeadlineExpiryReportsFailureAndNoDestination() async throws {
         let spy = RootSetupOutputSpy()
         let chainRegistry = MockChainRegistry()
-        // No chains emitted; the subscription never resolves
+        chainRegistry.chainsOnSubscribe = [
+            makeChain(id: AppConfig.Chains.usernameChain),
+            makeChain(id: AppConfig.Chains.bulletInChain),
+            makeChain(id: AppConfig.Chains.assethubChain)
+        ]
+        let remoteConfigManager = MockRemoteConfigManager()
+        remoteConfigManager.hangs = true
 
-        let interactor = makeInteractor(chainRegistry: chainRegistry)
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            remoteConfigManager: remoteConfigManager
+        )
         interactor.presenter = spy
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        try await waitForSetupFailure(on: spy, timeout: 30)
 
         #expect(spy.didFailSetupCallCount == 1, "Expected failure reported after deadline")
         #expect(spy.failureKinds == [.unknown], "Expected the unknown failure kind")
         #expect(spy.didDecideCallCount == 0, "Expected no destination reported")
-        #expect(chainRegistry.chainsUnsubscribeCallCount == 1, "Expected chain wait to be cancelled")
     }
 
     @Test("unsatisfied path outranks a TLD failure")
@@ -244,63 +251,27 @@ struct RootInteractorSetupTests {
         )
     }
 
-    @Test("chain sync completing without the required chains fails at the chains stage")
+    @Test("a deadline with required chains missing fails at the chains stage")
     @MainActor
-    func chainSyncWithoutRequiredChainsFails() async throws {
+    func deadlineWithMissingChainsFails() async throws {
         let spy = RootSetupOutputSpy()
-        let eventCenter = MockEventCenter()
         let chainRegistry = MockChainRegistry()
-        chainRegistry.chainsOnSubscribe = [makeChain(id: AppConfig.Chains.usernameChain)]
+        // No chains emitted; the subscription never resolves
 
-        let interactor = makeInteractor(chainRegistry: chainRegistry, eventCenter: eventCenter)
+        let interactor = makeInteractor(chainRegistry: chainRegistry)
         interactor.presenter = spy
 
-        let startedAt = Date()
         interactor.setup()
 
-        eventCenter.notify(
-            with: ChainSyncDidComplete(newOrUpdatedChains: [], removedChains: [])
-        )
-
-        try await waitForSetupFailure(on: spy)
+        try await waitForSetupFailure(on: spy, timeout: 30)
 
         #expect(
             spy.failureKinds == [.configuration(.chains)],
-            "Expected a configuration failure at the chains stage"
+            "Expected a configuration failure at the chains stage when required chains are missing"
         )
         #expect(
-            Date().timeIntervalSince(startedAt) < 8,
-            "Expected the chains failure to be reported without waiting out the deadline"
-        )
-    }
-
-    @Test("chain sync completing with the required chains reports no failure")
-    @MainActor
-    func chainSyncWithRequiredChainsSucceeds() async throws {
-        let spy = RootSetupOutputSpy()
-        let eventCenter = MockEventCenter()
-        let chainRegistry = MockChainRegistry()
-        chainRegistry.chainsOnSubscribe = [
-            makeChain(id: AppConfig.Chains.usernameChain),
-            makeChain(id: AppConfig.Chains.bulletInChain),
-            makeChain(id: AppConfig.Chains.assethubChain)
-        ]
-
-        let interactor = makeInteractor(chainRegistry: chainRegistry, eventCenter: eventCenter)
-        interactor.presenter = spy
-
-        interactor.setup()
-
-        eventCenter.notify(
-            with: ChainSyncDidComplete(newOrUpdatedChains: [], removedChains: [])
-        )
-
-        // Gives the event a window to land; an unexpected failure ends the wait early.
-        try await waitUntil(timeout: 2) { spy.didFailSetupCallCount > 0 }
-
-        #expect(
-            spy.didFailSetupCallCount == 0,
-            "Expected no failure on an empty delta when every required chain is present"
+            chainRegistry.chainsUnsubscribeCallCount == 1,
+            "Expected the pending chain wait to be cancelled at the deadline"
         )
     }
 
@@ -369,7 +340,6 @@ private extension RootInteractorSetupTests {
         chainRegistry: MockChainRegistry = MockChainRegistry(),
         pathMonitor: NetworkPathMonitoring = MockNetworkPathMonitor(),
         remoteConfigManager: MockRemoteConfigManager = MockRemoteConfigManager(),
-        eventCenter: EventCenterProtocol = MockEventCenter(),
         tldProvider: DotNsTldProviding = StubDotNsTldProvider(tld: "dot"),
         appliedConfigReader: @escaping () -> RemoteAppConfig? = {
             RemoteAppConfig(
@@ -391,7 +361,6 @@ private extension RootInteractorSetupTests {
             logger: StubLogger(),
             resolver: MockDecisionResolver(),
             tokenManager: MockJWTTokenManager(),
-            eventCenter: eventCenter,
             remoteConfigManager: remoteConfigManager,
             chainRegistryConfigurator: MockChainRegistryConfigurator(),
             productPrewarmer: MockProductContentPrewarmer(),
