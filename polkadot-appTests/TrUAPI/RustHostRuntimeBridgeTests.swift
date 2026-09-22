@@ -91,8 +91,8 @@ struct RustHostRuntimeBridgeTests {
         let device = try await bridge.devicePermission(request: .camera)
         let remote = try await bridge.remotePermission(request: .webRtc)
 
-        #expect(!device)
-        #expect(!remote)
+        #expect(device == .deny)
+        #expect(remote == .deny)
     }
 
     /// Core storage is the real host-global backend: writes round-trip.

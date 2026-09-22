@@ -298,4 +298,71 @@ struct DeviceCapabilityPermissionHandlerTests {
 
         #expect(!result)
     }
+
+    // MARK: - requestDecision
+
+    @Test("requestDecision reports a one-time grant as one-time")
+    func requestDecisionPreservesAllowOnce() async throws {
+        let (handler, repository, _, _) = makeSUT(osStatus: .allowed, promptDecision: .allowOnce)
+        repository.stubState(
+            productId: productId,
+            permission: .deviceCapability(capability),
+            state: .notDetermined
+        )
+
+        let decision = try await handler.requestDecision(productId: productId, capability: capability)
+
+        // Collapsing this to .allowAlways is what the old Bool-returning path
+        // did, and it silently turns a single-use grant into a standing one.
+        #expect(decision == .allowOnce)
+    }
+
+    @Test("requestDecision re-prompts a spent one-time grant")
+    func requestDecisionRepromptsAllowedOnce() async throws {
+        let (handler, repository, requester, _) = makeSUT(osStatus: .allowed, promptDecision: .deny)
+        repository.stubState(
+            productId: productId,
+            permission: .deviceCapability(capability),
+            state: .allowedOnce
+        )
+
+        let decision = try await handler.requestDecision(productId: productId, capability: capability)
+
+        // A one-time grant was spent by the call that consumed it; reusing it
+        // would make it permanent without the user ever choosing that.
+        #expect(requester.promptCalls.count == 1)
+        #expect(decision == .deny)
+    }
+
+    @Test("requestDecision honours a standing grant without prompting")
+    func requestDecisionSkipsPromptWhenAllowedAlways() async throws {
+        let (handler, repository, requester, _) = makeSUT(osStatus: .allowed)
+        repository.stubState(
+            productId: productId,
+            permission: .deviceCapability(capability),
+            state: .allowedAlways
+        )
+
+        let decision = try await handler.requestDecision(productId: productId, capability: capability)
+
+        #expect(decision == .allowAlways)
+        #expect(requester.promptCalls.isEmpty)
+    }
+
+    @Test("requestDecision throws when the OS refuses instead of reporting a denial")
+    func requestDecisionThrowsOnOsDenial() async throws {
+        let (handler, repository, _, _) = makeSUT(osStatus: .denied)
+        repository.stubState(
+            productId: productId,
+            permission: .deviceCapability(capability),
+            state: .allowedAlways
+        )
+
+        // Returning .deny would be recorded by the core as the user's own
+        // decision, locking the product out of a capability the user never
+        // refused — only the OS did, and that is recoverable in Settings.
+        await #expect(throws: DevicePermissionRequestError.osDenied) {
+            try await handler.requestDecision(productId: productId, capability: capability)
+        }
+    }
 }

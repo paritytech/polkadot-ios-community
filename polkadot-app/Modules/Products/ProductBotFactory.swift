@@ -92,6 +92,7 @@ private extension ProductBotFactory {
             notificationScheduler: ProductNotificationScheduler.shared,
             ipfsFetcher: IpfsFetcher(ipfsBaseURL: AppConfig.KnownIPFS.main),
             hostProvider: hostProvider,
+            osPermissionAsker: OSPermissionAsker(),
             logger: logger
         )
 

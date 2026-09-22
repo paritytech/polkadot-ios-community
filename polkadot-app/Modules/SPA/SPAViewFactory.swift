@@ -192,6 +192,7 @@ extension SPAViewFactory {
             notificationScheduler: ProductNotificationScheduler.shared,
             ipfsFetcher: IpfsFetcher(ipfsBaseURL: AppConfig.KnownIPFS.main),
             hostProvider: flowState.hostProvider,
+            osPermissionAsker: OSPermissionAsker(),
             logger: Logger.shared
         )
 

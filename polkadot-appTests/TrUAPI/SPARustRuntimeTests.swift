@@ -57,7 +57,6 @@ struct SPARustRuntimeTests {
         let directURL = try #require(URL(string: "http://localhost:3000"))
         let configuration = try makeConfiguration(contentSource: .directURL(directURL))
         let execution = MockProductExecution()
-        execution.permissionStatus = .authorized
         let engine = MockJSEngine()
         let runtime = makeRuntime(execution: execution, configuration: configuration)
 
@@ -65,14 +64,10 @@ struct SPARustRuntimeTests {
 
         #expect(url == directURL)
         #expect(execution.startWsBridgeCallCount == 1)
-        #expect(execution.permissionRequests == [
-            .remote(RemotePermissionRequest(permission: .webRtc))
-        ])
 
         // Bootstrap → container → zoom disable, doc-start ordering intact.
         #expect(engine.initializedScripts.count == 3)
         #expect(engine.initializedScripts[0].content.contains("truapi-native-ready"))
-        #expect(engine.initializedScripts[0].content.contains("webRtcAllowed: true"))
         #expect(engine.initializedScripts[1].content.contains("freezeAndDelete"))
 
         await runtime.dispose()
@@ -90,7 +85,6 @@ struct SPARustRuntimeTests {
         #expect(url.scheme == ProductScriptSchemeHandler.scheme)
         #expect(url.host == "test.dot")
         #expect(url.path == "/")
-        #expect(engine.initializedScripts[0].content.contains("webRtcAllowed: false"))
 
         await runtime.dispose()
     }

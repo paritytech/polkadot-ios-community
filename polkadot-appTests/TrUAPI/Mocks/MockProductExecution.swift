@@ -61,6 +61,8 @@ final class MockProductExecution: TrUAPIProductExecutionProtocol, @unchecked Sen
     }
 
     func notifyChatRoomsChanged(rooms _: [ChatRoom]) {}
+    func notifyPocketCardsChanged(cards _: [PocketCard]) {}
+    func notifyStorageChanged(key _: String, value _: Data?) {}
 
     func sessionChatIdentityKey() throws -> Data? {
         nil

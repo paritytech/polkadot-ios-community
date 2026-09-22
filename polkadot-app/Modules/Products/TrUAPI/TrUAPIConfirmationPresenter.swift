@@ -124,7 +124,7 @@ private extension TrUAPIConfirmationPresenter {
 
     func confirmPermission(_ request: TrUAPIPermissionRequest) async -> Bool {
         await awaitDecision { [routerFacade] in
-            let decision: PermissionDecision = await withCheckedContinuation { continuation in
+            let decision: Products.PermissionDecision = await withCheckedContinuation { continuation in
                 let context = ProductPermissionContext(
                     productId: request.productId,
                     permissions: request.permissions

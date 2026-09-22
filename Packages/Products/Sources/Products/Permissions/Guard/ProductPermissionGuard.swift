@@ -15,6 +15,21 @@ public protocol ProductPermissionGuarding: Sendable {
         permissions: [ProductPermission]
     ) async throws -> Bool
 
+    /// Device-capability variant of ``requestPermission(productId:permission:)``
+    /// that reports which grant the user chose instead of collapsing it to a
+    /// yes/no, so the core can record a one-time allow as one-time.
+    func requestDevicePermissionDecision(
+        productId: String,
+        capability: DeviceCapabilityType
+    ) async throws -> PermissionDecision
+
+    /// Batched variant of ``requestPermissionsBatched(productId:permissions:)``
+    /// carrying the user's choice rather than a yes/no.
+    func requestPermissionsDecision(
+        productId: String,
+        permissions: [ProductPermission]
+    ) async throws -> PermissionDecision
+
     /// Consumes a previously-issued permission. Falls back to
     /// ``requestPermission(productId:permission:)`` if permission wasn't granted.
     func consumePermission(productId: String, permission: ProductPermission) async throws -> Bool
@@ -108,6 +123,36 @@ public final class ProductPermissionGuard: ProductPermissionGuarding, @unchecked
         case .deny:
             return false
         }
+    }
+
+    public func requestDevicePermissionDecision(
+        productId: String,
+        capability: DeviceCapabilityType
+    ) async throws -> PermissionDecision {
+        try await deviceHandler.requestDecision(productId: productId, capability: capability)
+    }
+
+    public func requestPermissionsDecision(
+        productId: String,
+        permissions: [ProductPermission]
+    ) async throws -> PermissionDecision {
+        var undecided: [ProductPermission] = []
+
+        for permission in permissions.removingDuplicates() {
+            // A one-time grant is deliberately re-prompted: it was spent on the
+            // call that consumed it, so treating it as held would silently make
+            // it permanent.
+            let state = try await repository.getPermissionState(productId: productId, permission: permission)
+            if state != .allowedOnce, try await check(productId: productId, permission: permission) {
+                continue
+            }
+
+            undecided.append(permission)
+        }
+
+        guard !undecided.isEmpty else { return .allowAlways }
+
+        return await requester.promptBatched(productId: productId, permissions: undecided)
     }
 
     public func consumePermission(

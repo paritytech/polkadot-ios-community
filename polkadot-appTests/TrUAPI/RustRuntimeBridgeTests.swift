@@ -75,6 +75,7 @@ private struct StubHostProvider: ProductHostProviding {
 private func makeBridge(
     productId: String = "test.product",
     permissionGuard: MockPermissionGuard = MockPermissionGuard(),
+    osPermissionAsker: MockOSPermissionAsker = MockOSPermissionAsker(),
     notificationScheduler: MockNotificationScheduler = MockNotificationScheduler(),
     chainRegistry: MockChainRegistry = MockChainRegistry(),
     confirmationPresenter: MockConfirmationPresenter = MockConfirmationPresenter(),
@@ -93,6 +94,7 @@ private func makeBridge(
     return RustProductExecutionBridge(dependencies: .init(
         productId: productId,
         permissionGuard: permissionGuard,
+        osPermissionAsker: osPermissionAsker,
         notificationScheduler: notificationScheduler,
         navigationRouter: router,
         chainRegistry: chainRegistry,
@@ -119,25 +121,65 @@ struct RustRuntimeBridgeTests {
     /// and returns its verdict (async callback — awaited directly).
     @Test func devicePermissionRoutesToGuard() async throws {
         let guard_ = MockPermissionGuard()
-        guard_.verdictToReturn = true
+        guard_.decisionToReturn = .allowAlways
         let bridge = makeBridge(productId: "cam.product", permissionGuard: guard_)
 
         let result = try await bridge.devicePermission(request: .camera)
 
-        #expect(result)
+        #expect(result == .allowAlways)
         #expect(guard_.requestedProductId == "cam.product")
         #expect(guard_.requestedPermission == .deviceCapability(.camera))
     }
 
     @Test func devicePermissionDenied() async throws {
         let guard_ = MockPermissionGuard()
-        guard_.verdictToReturn = false
+        guard_.decisionToReturn = .deny
         let bridge = makeBridge(permissionGuard: guard_)
 
         let result = try await bridge.devicePermission(request: .notifications)
 
-        #expect(!result)
+        #expect(result == .deny)
         #expect(guard_.requestedPermission == .deviceCapability(.notifications))
+    }
+
+    /// The Bool-returning bridge could only say yes or no, so "allow once"
+    /// reached the core as a standing grant. Pin that it no longer does.
+    @Test func devicePermissionCarriesOneTimeGrant() async throws {
+        let guard_ = MockPermissionGuard()
+        guard_.decisionToReturn = .allowOnce
+        let bridge = makeBridge(permissionGuard: guard_)
+
+        let result = try await bridge.devicePermission(request: .camera)
+
+        #expect(result == .allowOnce)
+    }
+
+    // MARK: devicePermissionStatus
+
+    /// Status is read from the OS, not from the product's own grant: a product
+    /// asking before prompting must be able to tell "not yet asked" from
+    /// "refused in Settings".
+    @Test func devicePermissionStatusReportsOsState() async throws {
+        let asker = MockOSPermissionAsker()
+        asker.checkResult = .denied
+        let bridge = makeBridge(osPermissionAsker: asker)
+
+        let status = try await bridge.devicePermissionStatus(request: .camera)
+
+        #expect(status == .denied)
+        #expect(asker.checkedCapabilities == [.camera])
+    }
+
+    /// Capabilities iOS has no prompt for must not be reported as refused —
+    /// `.notApplicable` is what lets a product skip asking entirely.
+    @Test func devicePermissionStatusIsNotApplicableWithoutAnOsPrompt() async throws {
+        let asker = MockOSPermissionAsker()
+        let bridge = makeBridge(osPermissionAsker: asker)
+
+        let status = try await bridge.devicePermissionStatus(request: .clipboard)
+
+        #expect(status == .notApplicable)
+        #expect(asker.checkedCapabilities.isEmpty)
     }
 
     // MARK: remotePermission
@@ -146,12 +188,12 @@ struct RustRuntimeBridgeTests {
     /// `ProductPermission.networkAccess(domain: "a.io")` batched request.
     @Test func remotePermissionDomains() async throws {
         let guard_ = MockPermissionGuard()
-        guard_.verdictToReturn = true
+        guard_.decisionToReturn = .allowAlways
         let bridge = makeBridge(permissionGuard: guard_)
 
         let result = try await bridge.remotePermission(request: .remote(domains: ["a.io"]))
 
-        #expect(result)
+        #expect(result == .allowAlways)
         #expect(guard_.requestedBatchedPermissions == [.networkAccess(domain: "a.io")])
     }
 
@@ -161,7 +203,7 @@ struct RustRuntimeBridgeTests {
 
         let result = try await bridge.remotePermission(request: .webRtc)
 
-        #expect(result)
+        #expect(result == .allowAlways)
         #expect(guard_.requestedBatchedPermissions == [.webRtcAccess])
     }
 
@@ -471,6 +513,7 @@ struct RustRuntimeBridgeTests {
         let bridge = RustProductExecutionBridge(dependencies: .init(
             productId: "test.dot",
             permissionGuard: MockPermissionGuard(),
+            osPermissionAsker: MockOSPermissionAsker(),
             notificationScheduler: MockNotificationScheduler(),
             navigationRouter: MockNavigationRouter(),
             chainRegistry: chainRegistry,

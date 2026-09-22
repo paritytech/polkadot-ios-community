@@ -7,6 +7,7 @@ final class MockPermissionGuard: ProductPermissionGuarding, @unchecked Sendable 
     var requestedProductId: String?
     var requestedBatchedPermissions: [ProductPermission]?
     var verdictToReturn: Bool = true
+    var decisionToReturn: PermissionDecision = .allowAlways
 
     func requestPermission(productId: String, permission: ProductPermission) async throws -> Bool {
         requestedProductId = productId
@@ -21,6 +22,24 @@ final class MockPermissionGuard: ProductPermissionGuarding, @unchecked Sendable 
         requestedProductId = productId
         requestedBatchedPermissions = permissions
         return verdictToReturn
+    }
+
+    func requestDevicePermissionDecision(
+        productId: String,
+        capability: DeviceCapabilityType
+    ) async throws -> PermissionDecision {
+        requestedProductId = productId
+        requestedPermission = .deviceCapability(capability)
+        return decisionToReturn
+    }
+
+    func requestPermissionsDecision(
+        productId: String,
+        permissions: [ProductPermission]
+    ) async throws -> PermissionDecision {
+        requestedProductId = productId
+        requestedBatchedPermissions = permissions
+        return decisionToReturn
     }
 
     func consumePermission(productId _: String, permission _: ProductPermission) async throws -> Bool {

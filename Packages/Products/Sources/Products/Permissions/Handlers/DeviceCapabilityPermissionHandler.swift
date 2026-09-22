@@ -1,5 +1,9 @@
 import Foundation
 
+public enum DevicePermissionRequestError: Error {
+    case osDenied
+}
+
 /// Handles `.deviceCapability` permissions: two-step flow that first asks the
 /// user (via the prompt) and then requests the matching OS-level permission.
 public final class DeviceCapabilityPermissionHandler: Sendable {
@@ -60,6 +64,36 @@ public final class DeviceCapabilityPermissionHandler: Sendable {
 
             return try await promptOsPermissionIfNeeded(currentStatus: osPermission, capability: capability)
         }
+    }
+
+    /// Same flow as ``request(productId:capability:)`` but preserves which
+    /// grant the user chose, so a one-time allow does not reach the core as a
+    /// permanent one. An OS-level refusal throws rather than reading as a
+    /// user denial, which the core would record.
+    public func requestDecision(
+        productId: String,
+        capability: DeviceCapabilityType
+    ) async throws -> PermissionDecision {
+        let osPermission = await osAsker.checkPermission(for: capability)
+        guard !osPermission.isDenied else { throw DevicePermissionRequestError.osDenied }
+
+        let permission = ProductPermission.deviceCapability(capability)
+        let permissionState = try await repository.getPermissionState(productId: productId, permission: permission)
+
+        let decision: PermissionDecision =
+            switch permissionState {
+            case .allowedAlways: .allowAlways
+            case .denied: .deny
+            case .allowedOnce,
+                 .notDetermined: await requester.prompt(productId: productId, permission: permission)
+            }
+
+        guard decision != .deny else { return .deny }
+        guard try await promptOsPermissionIfNeeded(currentStatus: osPermission, capability: capability) else {
+            throw DevicePermissionRequestError.osDenied
+        }
+
+        return decision
     }
 }
 
