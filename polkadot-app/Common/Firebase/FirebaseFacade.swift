@@ -108,6 +108,7 @@ extension FirebaseFacade: RemoteConfigDelegate {
             }
         case let .failure(failure):
             logger?.error(failure.localizedDescription)
+            publishInvalidUnlessApplied()
         }
     }
 
@@ -117,8 +118,20 @@ extension FirebaseFacade: RemoteConfigDelegate {
 private extension FirebaseFacade {
     func applyCachedConfigIfValid() {
         let cached = firebaseService.syncedAppConfig()
-        guard cached.isValid else { return }
+        guard cached.isValid else {
+            // A retry must wait for the new fetch instead of replaying the previous failure.
+            if case .invalid = remoteConfigSubject.value {
+                remoteConfigSubject.send(nil)
+            }
+            return
+        }
         applyConfig(cached)
+    }
+
+    /// A failed fetch keeps an already applied config; without one, waiters would hang until their deadline.
+    func publishInvalidUnlessApplied() {
+        if case .valid = remoteConfigSubject.value { return }
+        remoteConfigSubject.send(.invalid)
     }
 
     func scheduleRemoteFetch() {
