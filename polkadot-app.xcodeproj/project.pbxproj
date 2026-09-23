@@ -242,6 +242,7 @@
 				Chat/Mocks/MockChatParticipant.swift,
 				Chat/Mocks/MockStatement.swift,
 				Chat/Mocks/MockStatementStore.swift,
+				Chat/Mocks/StubChatMessageOrderAllocator.swift,
 				Coinage/CoinageCoreDataLedger.swift,
 				Coinage/TestInstallation.swift,
 				Helpers/Mocks/MockInstallationKeyIdStore.swift,

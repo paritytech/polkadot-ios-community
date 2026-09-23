@@ -67,6 +67,7 @@ extension ChatMessageDataProviderFactory: ChatMessageDataProviderMaking {
         let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
         request.predicate = predicate
         request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: true),
             NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: true)
         ]
 

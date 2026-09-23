@@ -10,8 +10,14 @@ final class ChatMessageEntityMapper {
     typealias DataProviderModel = Chat.LocalMessage
     typealias CoreDataEntity = CDChatMessage
 
+    private let orderAllocator: ChatMessageOrderAllocating
+
     var entityIdentifierFieldName: String {
         #keyPath(CDChatMessage.messageId)
+    }
+
+    init(orderAllocator: ChatMessageOrderAllocating = FileChatMessageOrderAllocator.shared) {
+        self.orderAllocator = orderAllocator
     }
 }
 
@@ -65,6 +71,8 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
             rawValue: entity.creationSource
         ) ?? .localDevice
 
+        let order = UInt64(bitPattern: entity.order)
+
         return Chat.LocalMessage(
             messageId: messageId,
             chatId: chatId,
@@ -75,7 +83,8 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
             content: content,
             reactions: reactions,
             compactionId: entity.compactionId,
-            relatedMessages: relatedMessages
+            relatedMessages: relatedMessages,
+            order: order
         )
     }
 
@@ -113,6 +122,10 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
         let chat: CDChat = try context
             .first(for: .chat(for: model.chatId.rawRepresentation))
             .mapOrThrow(MapperError.missingChat)
+
+        if messageState.isNew {
+            entity.order = try newOrder(for: model, in: chat, using: context)
+        }
 
         entity.chat = chat
 
@@ -213,5 +226,51 @@ private extension ChatMessageEntityMapper {
 
         let newContentData = try? model.content.scaleEncoded()
         return entity.content?.data != newContentData
+    }
+
+    func newOrder(
+        for model: DataProviderModel,
+        in chat: CDChat,
+        using context: NSManagedObjectContext
+    ) throws -> Int64 {
+        if model.creationSource == .deviceSync,
+           let lastMessage = chat.lastDisplayMessage,
+           model.timestamp < UInt64(bitPattern: lastMessage.timestamp) {
+            return try backlogOrder(for: model, using: context)
+        }
+
+        let highestOrder = try highestStoredOrder(using: context)
+        return try Int64(bitPattern: orderAllocator.nextOrder(after: highestOrder))
+    }
+
+    /// Floor for the allocator so a lost counter file cannot place new rows above history.
+    func highestStoredOrder(using context: NSManagedObjectContext) throws -> UInt64 {
+        let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false)]
+        request.fetchLimit = 1
+
+        return try context.fetch(request).first.map { UInt64(bitPattern: $0.order) } ?? 0
+    }
+
+    /// Backlog rows borrow the order of the newest preceding message so they interleave by timestamp.
+    func backlogOrder(for model: DataProviderModel, using context: NSManagedObjectContext) throws -> Int64 {
+        let notAfter = NSPredicate(
+            format: "%K <= %lld",
+            #keyPath(CDChatMessage.timestamp),
+            Int64(bitPattern: model.timestamp)
+        )
+
+        let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            .localMessages(from: model.chatId),
+            notAfter
+        ])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false),
+            NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: false)
+        ]
+        request.fetchLimit = 1
+
+        return try context.fetch(request).first?.order ?? 0
     }
 }
