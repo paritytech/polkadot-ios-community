@@ -3,10 +3,14 @@ import UIKit
 internal import SnapKit
 internal import UIKit_iOS
 
-public final class SearchContactResultsView: UIView {
-    private let scrollView = UIScrollView()
-    private let scrollContainer = UIView()
-    private let stackView = UIStackView()
+public enum SearchContactResultsItemId: Hashable {
+    case header(sectionId: String)
+    case row(sectionId: String, rowId: String)
+    case separator(sectionId: String, rowId: String)
+}
+
+public final class SearchContactResultsView: DiffableCollectionViewProviderView<String, SearchContactResultsItemId> {
+    private let listContainer = UIView()
 
     private let noResultsLabel: Label = create {
         $0.numberOfLines = 0
@@ -20,7 +24,7 @@ public final class SearchContactResultsView: UIView {
     private let separatorConfiguration = SeparatorContentConfiguration(
         color: UIColor.strokePrimary,
         height: Constants.separatorHeight,
-        insets: NSDirectionalEdgeInsets(top: 0, leading: 64, bottom: 0, trailing: 16)
+        insets: NSDirectionalEdgeInsets(top: 0, leading: 64, bottom: 0, trailing: DSSpacings.mediumIncreased)
     )
 
     public var selectionHandler: ((String) -> Void)?
@@ -29,7 +33,6 @@ public final class SearchContactResultsView: UIView {
 
     override public init(frame: CGRect) {
         super.init(frame: frame)
-        setupViews()
     }
 
     @available(*, unavailable)
@@ -39,7 +42,76 @@ public final class SearchContactResultsView: UIView {
 
     override public func layoutSubviews() {
         super.layoutSubviews()
-        updateFadeMask()
+        updateFadeMaskFrame()
+    }
+
+    override public func setupViews() {
+        backgroundColor = .clear
+        collectionView.backgroundColor = .clear
+        collectionView.delegate = self
+        collectionView.keyboardDismissMode = .none
+        collectionView.contentInset.bottom = Constants.fadeHeight
+
+        noResultsLabel.setHidden(true)
+        loadingView.setHidden(true)
+
+        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
+        listContainer.layer.mask = fadeMask
+
+        addSubview(listContainer)
+        listContainer.addSubview(collectionView)
+
+        listContainer.snp.makeConstraints { make in
+            make.top.leading.trailing.equalToSuperview()
+            // Yields when the host collapses the view to zero height.
+            make.bottom.equalToSuperview().priority(.high)
+        }
+
+        collectionView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        addSubview(noResultsLabel)
+        addSubview(loadingView)
+
+        noResultsLabel.snp.makeConstraints { make in
+            make.center.equalToSuperview()
+            make.leading.trailing.equalToSuperview().inset(DSSpacings.large)
+        }
+
+        loadingView.snp.makeConstraints { make in
+            make.edges.equalToSuperview()
+        }
+
+        snp.makeConstraints { make in
+            statusFloorConstraint = make.height.greaterThanOrEqualTo(Constants.statusHeight)
+                .priority(.high).constraint
+        }
+        statusFloorConstraint?.deactivate()
+    }
+
+    override public func registerCells() {
+        super.registerCells()
+
+        CollectionRegistration.registerCell(
+            UICollectionViewCell.self,
+            for: collectionView,
+            reuseId: SearchContactListConfiguration.defaultReuseIdentifier
+        )
+
+        CollectionRegistration.registerCell(
+            UICollectionViewCell.self,
+            for: collectionView,
+            reuseId: SearchContactSectionHeaderConfiguration.defaultReuseIdentifier
+        )
+
+        CollectionRegistration.registerCell(
+            UICollectionViewCell.self,
+            for: collectionView,
+            reuseId: SeparatorContentView.reuseIdentifier
+        )
     }
 
     public func bind(status: StatusViewModel) {
@@ -52,13 +124,9 @@ public final class SearchContactResultsView: UIView {
 
     public func bind(viewModel: ViewModel) {
         bind(status: viewModel.status)
-        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
-        for section in viewModel.sections {
-            addSectionTopInset()
-            addSectionViews(for: section)
-        }
-        updateFadeMask()
+        let sections = viewModel.sections.map(makeSectionProvider(for:))
+        applySnapshot(sections: sections)
     }
 }
 
@@ -110,114 +178,80 @@ public extension SearchContactResultsView {
 private extension SearchContactResultsView {
     enum Constants {
         static let statusHeight: CGFloat = 120
-        static let sectionTopInset: CGFloat = 16
-        static let interItemSpacing: CGFloat = 8
+        static let sectionTopInset = DSSpacings.mediumIncreased
+        static let interItemSpacing = DSSpacings.small
         static let separatorHeight: CGFloat = 1
         static let fadeHeight: CGFloat = 16
     }
 
-    func setupViews() {
-        backgroundColor = .clear
-        scrollView.backgroundColor = .clear
-        scrollView.keyboardDismissMode = .none
+    func makeSectionProvider(for section: ViewModel.Section) -> SectionProviderType {
+        var itemProviders: [ItemProviderType] = []
 
-        noResultsLabel.setHidden(true)
-        loadingView.setHidden(true)
-
-        stackView.axis = .vertical
-        stackView.spacing = Constants.interItemSpacing
-        stackView.layoutMargins = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 16)
-        stackView.isLayoutMarginsRelativeArrangement = true
-
-        setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-
-        addSubview(scrollContainer)
-        scrollContainer.addSubview(scrollView)
-        scrollView.addSubview(stackView)
-        addSubview(noResultsLabel)
-        addSubview(loadingView)
-
-        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
-
-        scrollContainer.snp.makeConstraints { make in
-            make.top.leading.trailing.equalToSuperview()
-            // Yields when the host collapses the view to zero height.
-            make.bottom.equalToSuperview().priority(.high)
+        if let title = section.title {
+            itemProviders.append(
+                ItemProviderType(
+                    id: .header(sectionId: section.id),
+                    configuration: SearchContactSectionHeaderConfiguration(title: title),
+                    reuseIdentifier: SearchContactSectionHeaderConfiguration.defaultReuseIdentifier
+                )
+            )
         }
 
-        scrollView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-            make.height.equalTo(stackView).priority(.low)
-            statusFloorConstraint = make.height.greaterThanOrEqualTo(Constants.statusHeight)
-                .priority(.high).constraint
-        }
-        statusFloorConstraint?.deactivate()
+        for (offset, row) in section.rows.enumerated() {
+            itemProviders.append(
+                ItemProviderType(
+                    id: .row(sectionId: section.id, rowId: row.id),
+                    configuration: row.configuration,
+                    reuseIdentifier: SearchContactListConfiguration.defaultReuseIdentifier
+                )
+            )
 
-        stackView.snp.makeConstraints { make in
-            make.top.bottom.equalTo(scrollView.contentLayoutGuide)
-            make.leading.trailing.equalTo(scrollView.frameLayoutGuide)
+            if offset < section.rows.count - 1 {
+                itemProviders.append(
+                    ItemProviderType(
+                        id: .separator(sectionId: section.id, rowId: row.id),
+                        configuration: separatorConfiguration,
+                        reuseIdentifier: SeparatorContentView.reuseIdentifier
+                    )
+                )
+            }
         }
 
-        noResultsLabel.snp.makeConstraints { make in
-            make.center.equalToSuperview()
-            make.leading.trailing.equalToSuperview().inset(24)
-        }
-
-        loadingView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-        }
+        return SectionProviderType(
+            id: section.id,
+            itemProviders: itemProviders
+        ) { _, _ in Self.makeSectionLayout() }
     }
 
-    /// Updates the fade gradient mask on resize and when content changes. The mask sits on the
-    /// non-scrolling container so the gradient stays at the bottom edge while rows scroll under it.
-    /// Only an overflowing list is masked, so one that fits keeps its last row fully visible.
-    func updateFadeMask() {
-        scrollView.layoutIfNeeded()
+    static func makeSectionLayout() -> NSCollectionLayoutSection {
+        let group = NSCollectionLayoutGroup.list(
+            heightDimension: .estimated(56),
+            widthDimension: .fractionalWidth(1.0)
+        )
 
-        let bounds = scrollContainer.bounds
-        let overflows = scrollView.contentSize.height > bounds.height + 0.5
-        guard overflows, bounds.height > Constants.fadeHeight else {
-            scrollContainer.layer.mask = nil
-            return
-        }
+        let section = NSCollectionLayoutSection(group: group)
+        section.interGroupSpacing = Constants.interItemSpacing
+        section.contentInsets = .init(
+            top: Constants.sectionTopInset,
+            leading: DSSpacings.mediumIncreased,
+            bottom: 0,
+            trailing: DSSpacings.mediumIncreased
+        )
+        return section
+    }
+
+    /// The mask sits on the non-scrolling container so the gradient stays at the bottom edge while rows
+    /// scroll under it. A layer mask ignores Auto Layout, so its frame follows the container on every resize.
+    func updateFadeMaskFrame() {
+        let bounds = listContainer.bounds
+        guard bounds.height > Constants.fadeHeight else { return }
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         fadeMask.frame = bounds
         let fadeStart = (bounds.height - Constants.fadeHeight) / bounds.height
         fadeMask.locations = [0, NSNumber(value: fadeStart), 1]
-        scrollContainer.layer.mask = fadeMask
         CATransaction.commit()
-    }
-
-    func addSectionTopInset() {
-        if let lastView = stackView.arrangedSubviews.last {
-            stackView.setCustomSpacing(Constants.sectionTopInset, after: lastView)
-            return
-        }
-
-        let topSpacer = UIView()
-        topSpacer.snp.makeConstraints { $0.height.equalTo(Constants.sectionTopInset) }
-        stackView.addArrangedSubview(topSpacer)
-    }
-
-    func addSectionViews(for section: ViewModel.Section) {
-        if let title = section.title {
-            let headerView = SearchContactSectionHeaderConfiguration(title: title).makeContentView()
-            stackView.addArrangedSubview(headerView)
-        }
-
-        for (offset, item) in section.rows.enumerated() {
-            let rowContainer = RowTapContainer(contentView: item.configuration.makeContentView())
-            rowContainer.onTap = { [weak self] in
-                self?.selectionHandler?(item.id)
-            }
-            stackView.addArrangedSubview(rowContainer)
-
-            if offset < section.rows.count - 1 {
-                stackView.addArrangedSubview(separatorConfiguration.makeContentView())
-            }
-        }
     }
 
     /// A status replaces the rows, so the view keeps a floor height to centre it in.
@@ -230,88 +264,22 @@ private extension SearchContactResultsView {
     }
 }
 
-private final class RowTapContainer: UIControl {
-    var onTap: (() -> Void)?
-
-    init(contentView: UIView) {
-        super.init(frame: .zero)
-        contentView.isUserInteractionEnabled = false
-        addSubview(contentView)
-        contentView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-        }
-        addTarget(self, action: #selector(handleTap), for: .touchUpInside)
+extension SearchContactResultsView: UICollectionViewDelegate {
+    public func collectionView(
+        _: UICollectionView,
+        shouldSelectItemAt indexPath: IndexPath
+    ) -> Bool {
+        guard case .row = dataSource.itemIdentifier(for: indexPath) else { return false }
+        return true
     }
 
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    @objc
-    func handleTap() {
-        onTap?()
-    }
-}
-
-private final class SearchContactLoadingView: UIView {
-    private enum Constants {
-        static let loadingViewSize = CGFloat(64)
-    }
-
-    private let loadingView: LoadingView = create {
-        $0.contentBackgroundColor = .clear
-        $0.contentSize = .init(width: Constants.loadingViewSize, height: Constants.loadingViewSize)
-        $0.indicatorImage = UIImage(resource: .searchingUsername)
-        $0.tintColor = .fgPrimary
-    }
-
-    private let textLabel: Label = create {
-        $0.numberOfLines = 0
-        $0.textAlignment = .center
-        $0.typography = .bodyLargeEmphasized
-        $0.textColor = .fgSecondary
-    }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isUserInteractionEnabled = false
-        setupLayout()
-    }
-
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-
-    func bind(text: String?) {
-        textLabel.text = text
-        textLabel.setHidden(text == nil)
-    }
-
-    func setLoading(_ loading: Bool) {
-        setHidden(!loading)
-
-        if loading {
-            loadingView.startAnimating()
-        } else {
-            loadingView.stopAnimating()
-        }
-    }
-
-    private func setupLayout() {
-        addSubview(loadingView)
-        addSubview(textLabel)
-
-        loadingView.snp.makeConstraints {
-            $0.center.equalToSuperview()
-            $0.size.equalTo(Constants.loadingViewSize)
-        }
-
-        textLabel.snp.makeConstraints {
-            $0.top.equalTo(loadingView.snp.bottom).offset(8)
-            $0.leading.trailing.equalToSuperview().inset(24)
-        }
+    public func collectionView(
+        _ collectionView: UICollectionView,
+        didSelectItemAt indexPath: IndexPath
+    ) {
+        collectionView.deselectItem(at: indexPath, animated: false)
+        guard case let .row(_, rowId) = dataSource.itemIdentifier(for: indexPath) else { return }
+        selectionHandler?(rowId)
     }
 }
 
@@ -405,4 +373,65 @@ private final class SearchContactLoadingView: UIView {
     )
     layout.bind(viewModel: viewModel)
     return layout
+}
+
+private final class SearchContactLoadingView: UIView {
+    private enum Constants {
+        static let loadingViewSize = CGFloat(64)
+    }
+
+    private let loadingView: LoadingView = create {
+        $0.contentBackgroundColor = .clear
+        $0.contentSize = .init(width: Constants.loadingViewSize, height: Constants.loadingViewSize)
+        $0.indicatorImage = UIImage(resource: .searchingUsername)
+        $0.tintColor = .fgPrimary
+    }
+
+    private let textLabel: Label = create {
+        $0.numberOfLines = 0
+        $0.textAlignment = .center
+        $0.typography = .bodyLargeEmphasized
+        $0.textColor = .fgSecondary
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        setupLayout()
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func bind(text: String?) {
+        textLabel.text = text
+        textLabel.setHidden(text == nil)
+    }
+
+    func setLoading(_ loading: Bool) {
+        setHidden(!loading)
+
+        if loading {
+            loadingView.startAnimating()
+        } else {
+            loadingView.stopAnimating()
+        }
+    }
+
+    private func setupLayout() {
+        addSubview(loadingView)
+        addSubview(textLabel)
+
+        loadingView.snp.makeConstraints {
+            $0.center.equalToSuperview()
+            $0.size.equalTo(Constants.loadingViewSize)
+        }
+
+        textLabel.snp.makeConstraints {
+            $0.top.equalTo(loadingView.snp.bottom).offset(DSSpacings.small)
+            $0.leading.trailing.equalToSuperview().inset(DSSpacings.large)
+        }
+    }
 }
