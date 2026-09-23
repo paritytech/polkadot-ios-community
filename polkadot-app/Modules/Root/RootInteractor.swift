@@ -65,6 +65,7 @@ final class RootInteractor {
     let observer: RootSetupObserver
     let appliedConfigReader: () -> RemoteAppConfig?
     let paymentAssetBranding: PaymentAssetBranding
+    let clock: any Clock<Duration>
 
     private var completionTask: Task<Void, Never>?
     private var didReportEstablishedUser = false
@@ -88,7 +89,8 @@ final class RootInteractor {
         observer: RootSetupObserver,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
         appliedConfigReader: @escaping () -> RemoteAppConfig? = { AppConfigProvider.shared.getRemoteConfig() },
-        paymentAssetBranding: PaymentAssetBranding = .shared
+        paymentAssetBranding: PaymentAssetBranding = .shared,
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
@@ -103,6 +105,7 @@ final class RootInteractor {
         self.tldProvider = tldProvider
         self.appliedConfigReader = appliedConfigReader
         self.paymentAssetBranding = paymentAssetBranding
+        self.clock = clock
     }
 
     deinit {
@@ -199,8 +202,8 @@ final class RootInteractor {
         _ = try await withRetry(
             maxAttempts: Constants.tldRetryMaxAttempts,
             initialDelay: Constants.tldRetryInitialDelay
-        ) { [tldProvider] in
-            try await withTimeout(.seconds(Constants.tldTimeoutSeconds)) {
+        ) { [tldProvider, clock] in
+            try await withTimeout(.seconds(Constants.tldTimeoutSeconds), clock: clock) {
                 try await tldProvider.resolveTld()
             }
         }
@@ -411,11 +414,11 @@ private extension RootInteractor {
     /// Ends the wait early when the path is unsatisfied at the offline deadline — by then the monitor has
     /// emitted, so the choice is made on a known value rather than a race with the first emission.
     func enforceSetupDeadline() async throws {
-        try await Task.sleep(for: .seconds(Constants.offlineSetupDeadlineSeconds))
+        try await clock.sleep(for: .seconds(Constants.offlineSetupDeadlineSeconds))
 
         if observer.isPathSatisfied {
             let remaining = Constants.setupDeadlineSeconds - Constants.offlineSetupDeadlineSeconds
-            try await Task.sleep(for: .seconds(remaining))
+            try await clock.sleep(for: .seconds(remaining))
         }
 
         throw SetupDeadlineExpired()

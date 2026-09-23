@@ -2,6 +2,7 @@ import Foundation
 import Testing
 import ChainRegistry
 import Products
+import Clocks
 
 @testable import polkadot_app
 
@@ -39,10 +40,10 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy, timeout: 120)
+        let kind = await spy.nextFailureKind()
 
+        #expect(kind == .configuration(.tld), "Expected the configuration failure at the tld stage")
         #expect(spy.didFailSetupCallCount == 1, "Expected one setup failure to be reported")
-        #expect(spy.failureKinds == [.configuration(.tld)], "Expected the configuration failure at the tld stage")
         #expect(spy.didDecideCallCount == 0, "Expected no destination decision (gate holds)")
     }
 
@@ -58,19 +59,24 @@ struct RootInteractorSetupTests {
         ]
         let remoteConfigManager = MockRemoteConfigManager()
         remoteConfigManager.hangs = true
+        let clock = TestClock<Duration>()
 
         let interactor = makeInteractor(
             chainRegistry: chainRegistry,
-            remoteConfigManager: remoteConfigManager
+            remoteConfigManager: remoteConfigManager,
+            clock: clock
         )
         interactor.presenter = spy
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy, timeout: 30)
+        // Advance the clock past the full deadline (10s) to trigger timeout
+        await clock.advance(by: .seconds(11))
 
+        let kind = await spy.nextFailureKind()
+
+        #expect(kind == .unknown, "Expected the unknown failure kind")
         #expect(spy.didFailSetupCallCount == 1, "Expected failure reported after deadline")
-        #expect(spy.failureKinds == [.unknown], "Expected the unknown failure kind")
         #expect(spy.didDecideCallCount == 0, "Expected no destination reported")
     }
 
@@ -95,9 +101,9 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy, timeout: 120)
+        let kind = await spy.nextFailureKind()
 
-        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure instead of TLD failure")
+        #expect(kind == .connectivity, "Expected connectivity failure instead of TLD failure")
     }
 
     @Test("path recovery reports connectivity recovery")
@@ -107,22 +113,27 @@ struct RootInteractorSetupTests {
         let migrator = MockMigrator()
         let chainRegistry = MockChainRegistry()
         let pathMonitor = MockNetworkPathMonitor(initial: false)
+        let clock = TestClock<Duration>()
 
         let interactor = makeInteractor(
             migrator: migrator,
             chainRegistry: chainRegistry,
-            pathMonitor: pathMonitor
+            pathMonitor: pathMonitor,
+            clock: clock
         )
         interactor.presenter = spy
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
-        #expect(spy.failureKinds == [.connectivity])
+        // Advance the clock to trigger the offline deadline failure
+        await clock.advance(by: .seconds(4))
+
+        let kind = await spy.nextFailureKind()
+        #expect(kind == .connectivity, "Expected connectivity failure")
 
         pathMonitor.send(true)
 
-        try await waitUntil(timeout: 5) { spy.didRecoverConnectivityCallCount > 0 }
+        await spy.nextRecovery()
 
         #expect(spy.didRecoverConnectivityCallCount == 1, "Expected one connectivity recovery report")
         #expect(migrator.migrateCallCount == 1, "Expected migrations to stay on the launch pass")
@@ -147,22 +158,13 @@ struct RootInteractorSetupTests {
         )
         interactor.presenter = spy
 
-        let startedAt = Date()
         interactor.setup()
-
-        // Lets setup pass the chain wait and enter the TLD retry sequence, so the drop lands on
-        // work already in flight rather than on a launch that has barely started.
-        try await Task.sleep(for: .milliseconds(500))
 
         pathMonitor.send(false)
 
-        try await waitForSetupFailure(on: spy)
+        let kind = await spy.nextFailureKind()
 
-        #expect(spy.failureKinds == [.connectivity], "Expected a path drop to report connectivity")
-        #expect(
-            Date().timeIntervalSince(startedAt) < 8,
-            "Expected the drop to be reported without waiting out the TLD retry sequence"
-        )
+        #expect(kind == .connectivity, "Expected a path drop to report connectivity")
     }
 
     @Test("cold offline launch fails fast")
@@ -171,22 +173,26 @@ struct RootInteractorSetupTests {
         let spy = RootSetupOutputSpy()
         let chainRegistry = MockChainRegistry()
         let pathMonitor = MockNetworkPathMonitor(initial: false)
+        let clock = TestClock<Duration>()
 
         let interactor = makeInteractor(
             chainRegistry: chainRegistry,
-            pathMonitor: pathMonitor
+            pathMonitor: pathMonitor,
+            clock: clock
         )
         interactor.presenter = spy
 
-        let startedAt = Date()
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        // Advance the clock past the offline deadline (3s) to trigger offline path failure
+        await clock.advance(by: .seconds(4))
 
-        #expect(spy.failureKinds == [.connectivity], "Expected connectivity failure when offline")
+        let kind = await spy.nextFailureKind()
+
+        #expect(kind == .connectivity, "Expected connectivity failure when offline")
         #expect(
-            Date().timeIntervalSince(startedAt) < 8,
-            "Expected the offline deadline, not the full ten seconds"
+            chainRegistry.chainsUnsubscribeCallCount == 1,
+            "Expected the pending chain wait to be cancelled at the offline deadline"
         )
     }
 
@@ -201,24 +207,29 @@ struct RootInteractorSetupTests {
             makeChain(id: AppConfig.Chains.assethubChain)
         ]
         let pathMonitor = MockNetworkPathMonitor(initial: false)
+        let clock = TestClock<Duration>()
 
         let interactor = makeInteractor(
             chainRegistry: chainRegistry,
-            pathMonitor: pathMonitor
+            pathMonitor: pathMonitor,
+            clock: clock
         )
         interactor.presenter = spy
 
         interactor.setup()
 
-        try await waitUntil(timeout: 8) { spy.didDecideCallCount > 0 }
+        await spy.nextDecision()
 
         #expect(
             spy.didDecideCallCount == 1,
             "Expected a warm offline launch to reach a destination"
         )
+
+        await clock.advance(by: .seconds(4))
+
         #expect(
             spy.didFailSetupCallCount == 0,
-            "Expected no setup failure offline when everything is cached"
+            "Expected the deadline to not fire after a warm launch has already succeeded"
         )
     }
 
@@ -243,10 +254,10 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        let kind = await spy.nextFailureKind()
 
         #expect(
-            spy.failureKinds == [.configuration(.config)],
+            kind == .configuration(.config),
             "Expected a configuration failure at the config stage"
         )
     }
@@ -257,16 +268,23 @@ struct RootInteractorSetupTests {
         let spy = RootSetupOutputSpy()
         let chainRegistry = MockChainRegistry()
         // No chains emitted; the subscription never resolves
+        let clock = TestClock<Duration>()
 
-        let interactor = makeInteractor(chainRegistry: chainRegistry)
+        let interactor = makeInteractor(
+            chainRegistry: chainRegistry,
+            clock: clock
+        )
         interactor.presenter = spy
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy, timeout: 30)
+        // Advance the clock past the full deadline (10s) to trigger timeout
+        await clock.advance(by: .seconds(11))
+
+        let kind = await spy.nextFailureKind()
 
         #expect(
-            spy.failureKinds == [.configuration(.chains)],
+            kind == .configuration(.chains),
             "Expected a configuration failure at the chains stage when required chains are missing"
         )
         #expect(
@@ -293,14 +311,14 @@ struct RootInteractorSetupTests {
 
         pathMonitor.send(false)
 
-        try await waitForSetupFailure(on: spy)
+        let kind = await spy.nextFailureKind()
 
         #expect(
             spy.didFailSetupCallCount == 1,
             "Expected exactly one failure from a single signal"
         )
         #expect(
-            spy.failureKinds == [.connectivity],
+            kind == .connectivity,
             "Expected connectivity failure from the path drop"
         )
     }
@@ -324,10 +342,10 @@ struct RootInteractorSetupTests {
 
         interactor.setup()
 
-        try await waitForSetupFailure(on: spy)
+        let kind = await spy.nextFailureKind()
 
         #expect(
-            spy.failureKinds == [.configuration(.config)],
+            kind == .configuration(.config),
             "Expected configuration failure when no config was applied"
         )
     }
@@ -354,7 +372,8 @@ private extension RootInteractorSetupTests {
                 accountDataStoreContract: nil,
                 paymentAsset: nil
             )
-        }
+        },
+        clock: any Clock<Duration> = TestClock<Duration>()
     ) -> RootInteractor {
         RootInteractor(
             chainRegistryClosure: { chainRegistry },
@@ -367,25 +386,9 @@ private extension RootInteractorSetupTests {
             productPrewarmer: MockProductContentPrewarmer(),
             observer: RootSetupObserver(pathMonitor: pathMonitor),
             tldProvider: tldProvider,
-            appliedConfigReader: appliedConfigReader
+            appliedConfigReader: appliedConfigReader,
+            clock: clock
         )
-    }
-
-    /// The retried TLD resolve and the ten second setup wait both land off the main actor and
-    /// arrive seconds late on CI, so the timeout sits above both rather than fixing a settling time.
-    /// TLD-failure tests pass 120 seconds to accommodate the 30-second initial timeout plus retries
-    /// (worst case ~93 seconds total) plus CI latency and clock variation.
-    @MainActor
-    func waitForSetupFailure(on spy: RootSetupOutputSpy, timeout: TimeInterval = 15) async throws {
-        try await waitUntil(timeout: timeout) { spy.didFailSetupCallCount > 0 }
-    }
-
-    @MainActor
-    func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async throws {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !condition(), Date() < deadline {
-            try await Task.sleep(for: .milliseconds(100))
-        }
     }
 
     func makeChain(id: String) -> ChainModel {
