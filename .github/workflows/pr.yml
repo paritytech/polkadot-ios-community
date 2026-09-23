@@ -133,7 +133,7 @@ jobs:
   test:
     needs: check-skip-label
     if: needs.check-skip-label.outputs.skip == 'false' && !startsWith(github.head_ref, 'release/')
-    runs-on: macos-26-xlarge
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v6
 
