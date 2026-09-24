@@ -12,7 +12,7 @@ Workflows (orchestration)
       → Xcode tooling (gym, scan, match)
 ```
 
-Application secrets come from GitHub Actions repository secrets and are passed only to the steps that consume them. The `install` composite action does not fetch or expose application secrets. Scaleway credentials remain in use for S3 artifact uploads.
+Application secrets come from GitHub Actions repository secrets and are passed only to the steps that consume them. The `install` composite action does not fetch or expose application secrets.
 
 ---
 
@@ -23,13 +23,13 @@ Application secrets come from GitHub Actions repository secrets and are passed o
 | File | Trigger | Purpose |
 |------|---------|---------|
 | `pr.yml` | Any `pull_request`; jobs skip `release-*` branches and PRs with `skip-ci` label | Build + unit tests for regular PRs |
-| `firebase_debug_distribution.yml` | `workflow_dispatch` or `pull_request.closed` on `develop` (merged only) | Build DevCI matrix variants, upload default variant to Firebase, archive both variants to S3 |
+| `firebase_debug_distribution.yml` | `workflow_dispatch` or `pull_request.closed` on `develop` (merged only) | Build DevCI app, upload to Firebase App Distribution |
 | `nightly_prepare.yml` | `workflow_dispatch` or weekday schedule at `16:00 UTC` | Prepare a nightly branch/PR (no version bump), trigger nightly distribution; skips when no changes vs `main` |
 | `release_prepare.yml` | `workflow_dispatch` | Prepare a release branch/PR (optional version bump), trigger release distribution; `source_ref: main` dispatches a direct build with no branch/PR (`no-bump` only) |
 | `_prepare_pipeline.yml` | `workflow_call` (reusable) | Shared prepare logic: bump, branch/PR creation, no-changes decision, distribution trigger |
 | `nightly_distribution.yml` | bot `workflow_dispatch` | Nightly **and** Safetynet TestFlight builds from one branch/PR, internal TestFlight distribution, auto-merge PR once both succeed, combined Matrix notification |
-| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, internal TestFlight distribution, S3 upload, Matrix notification |
-| `_build_distribute.yml` | `workflow_call` (reusable) | Shared build/distribute: metadata, matrix build, TestFlight upload, S3, PR comment, result check |
+| `release_distribution.yml` | `pull_request` (open/sync, nightly PRs excluded) to `main` and bot `workflow_dispatch` | Release TestFlight build, internal TestFlight distribution, Matrix notification |
+| `_build_distribute.yml` | `workflow_call` (reusable) | Shared build/distribute: metadata, build, TestFlight upload, PR comment, result check |
 | `release_branch_lifecycle.yml` | `pull_request.closed` to `main` (`release/*`) | Backport PR on merge; delete branch on close without merge (shared by both flows) |
 | `testflight_distribution.yml` | `workflow_dispatch` | Ad-hoc TestFlight distribution for allowlisted actors |
 | `update_signing_data.yml` | `workflow_dispatch` or daily schedule at `10:00 UTC` | Refresh signing assets through Fastlane Match |
@@ -51,7 +51,6 @@ Application secrets come from GitHub Actions repository secrets and are passed o
 | `read_versions.py` | Read `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from `project.pbxproj` | `python3 read_versions.py project.pbxproj --config-name Release --output-format env` |
 | `update_build_number.py` | Set `CURRENT_PROJECT_VERSION` in `project.pbxproj` | `python3 update_build_number.py project.pbxproj --config-name DevCI --build-number 42` |
 | `update_marketing_version.py` | Set `MARKETING_VERSION` in `project.pbxproj` | `python3 update_marketing_version.py project.pbxproj 1.2.3 --config-name Release` |
-| `add_swift_flags.py` | Append extra flags to `OTHER_SWIFT_FLAGS` in an xcconfig | `python3 add_swift_flags.py polkadot-app.release.xcconfig -DDISABLE_AUTH` |
 
 ### Fastlane Lanes (`fastlane/`)
 
@@ -72,41 +71,6 @@ Application secrets come from GitHub Actions repository secrets and are passed o
 
 ---
 
-## Build Variants
-
-Two workflows build matrix variants in parallel:
-- `firebase_debug_distribution.yml`
-- `_build_distribute.yml` (shared by nightly and release distribution)
-
-Both use the same two variant shapes:
-
-```yaml
-variant:
-  - name: "default"
-    extra_swift_flags: ""
-    s3_suffix: ""
-    upload_to_distribution: true
-  - name: "no-auth"
-    extra_swift_flags: "-DDISABLE_AUTH"
-    s3_suffix: "-no-auth"
-    upload_to_distribution: false
-```
-
-Mapping to real workflow keys:
-- Firebase workflow uses `upload_to_firebase`
-- Release TestFlight workflow uses `upload_to_testflight`
-
-Rules:
-- Only one variant may upload to the external distribution service
-- Extra Swift flags are injected into xcconfig via `add_swift_flags.py`, into the leaf
-  config named after `build_configuration`
-- Both variants are uploaded to S3
-- `no-auth` artifacts use the `-no-auth` suffix in artifact/S3 names
-- Release TestFlight flow explicitly shares one build number across both variants via the `prepare_build_metadata` job
-- Firebase flow produces the same build number for both variants because both derive it from the same `github.run_number`
-
----
-
 ## Build Number Management
 
 ### PR validation builds
@@ -124,7 +88,7 @@ Rules:
   `<!-- RELEASE_METADATA: increment_step=N -->`
   (direct builds from `main` have no PR — it is passed as a workflow input instead)
 - `_build_distribute.yml` reads the number once in `prepare_build_metadata` (via `read-build-version`)
-- The resulting `build_number` is passed to both matrix variants
+- The resulting `build_number` is passed to the build job
 - Build number is not committed to the repository
 
 ### Manual TestFlight builds
@@ -145,7 +109,6 @@ Rules:
 Fastlane configuration selection:
 - `FASTLANE_CONFIGURATION` controls `main_configuration` and defaults to `DevCI`
 - `distribute_testflight` always builds with `Release`
-- The no-auth release variant sets `FASTLANE_CONFIGURATION=Release` before calling `build_app_ci`
 
 ---
 
@@ -177,21 +140,6 @@ Signing notes:
 
 ---
 
-## S3 Artifact Storage
-
-**Bucket:** `s3://polkadot-app-artefacts`  
-**Region:** `fr-par`
-
-| Workflow | Versioned Path | Static Path |
-|----------|----------------|-------------|
-| Firebase (develop) | `/ios/develop/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/develop/polkadot-app{suffix}.ipa` |
-| TestFlight (release/nightly/safetynet) | `/ios/{subdir}/polkadot-app-{version}-{build}{suffix}.ipa` | `/ios/{subdir}/polkadot-app{suffix}.ipa` |
-| TestFlight (manual) | `/ios/releases-manual/polkadot-app-{version}-{build}.ipa` | `/ios/releases-manual/polkadot-app.ipa` |
-
-Suffix notes:
-- `suffix=""` for the default variant
-- `suffix="-no-auth"` for the no-auth variant
-
 ---
 
 ## Release Flow
@@ -222,14 +170,10 @@ Suffix notes:
        │     │     └── no PR (direct build) -> generic notes + increment_step input
        │     ├── Setup iOS environment
        │     └── read-build-version: MARKETING_VERSION + shared build_number
-       ├── check_and_build (matrix: default + no-auth)
-       │     ├── Optionally inject -DDISABLE_AUTH into xcconfig
-       │     ├── [default] distribute-testflight (tests + build + upload)
-       │     ├── [no-auth] build_app_ci with BUILD_NUMBER
-       │     ├── Upload versioned + static IPA to S3
-       │     ├── [default] comment on PR with build info
-       │     └── [default] set commit status for workflow_dispatch
-       ├── check_default_build -> succeeded output (default leg only)
+       ├── check_and_build
+       │     ├── distribute-testflight (tests + build + upload)
+       │     └── comment on PR with build info (if PR)
+       ├── check_default_build -> succeeded output
        ├── trigger_allure_tests (gated on succeeded)
        └── send_failure_notification (Telegram, on failure)
 
@@ -256,14 +200,9 @@ Suffix notes:
    ├── Setup iOS environment
    ├── Query TestFlight and calculate build_number = latest + 1
    ├── Run distribute-testflight action (tests + build + upload)
-   ├── Upload IPA artifact
-   └── Expose marketing_version/build_number for downstream S3 job
+   └── Upload IPA artifact
 
-2. testflight_distribution.yml / upload-to-s3
-   ├── Download IPA artifact
-   └── Upload versioned + static IPA to /ios/releases-manual
-
-3. testflight_distribution.yml / trigger-allure-tests
+2. testflight_distribution.yml / trigger-allure-tests
    └── Trigger Allure TestOps
 ```
 
@@ -303,7 +242,6 @@ Suffix notes:
 ## Security
 
 - Application secrets are stored as GitHub Actions repository secrets and passed only to their consuming steps; do not expose them at job or workflow scope
-- Scaleway credentials are used directly by S3 upload steps and are not handled by the `install` action
 - Google service plist files are not tracked; CI generates `polkadot-app/GoogleService-Info.plist` from the environment-specific Base64 secret after checkout and immediately before the consuming build/test step
 - The prepare flow (`_prepare_pipeline.yml`, used by `nightly_prepare.yml` and `release_prepare.yml`) restricts manual dispatch to an allowlist of GitHub actors; scheduled nightly runs skip the check
 - `testflight_distribution.yml` is restricted to its own actor allowlist
@@ -317,12 +255,11 @@ Suffix notes:
 
 ## Practical Notes for Agents
 
-- Nightly and release share reusable workflows: `_prepare_pipeline.yml` (prepare) and `_build_distribute.yml` (build/distribute). The build mode (`Nightly`/`Release`, external group, S3 subdir) is passed by the caller as inputs — do not reintroduce parsing it from PR metadata
+- Nightly and release share reusable workflows: `_prepare_pipeline.yml` (prepare) and `_build_distribute.yml` (build/distribute). The build mode (`Nightly`/`Release`, external group) is passed by the caller as inputs — do not reintroduce parsing it from PR metadata
 - Reusable workflows need `secrets: inherit` from every caller; the prepare callers also need an explicit `permissions:` write block (env context is unavailable in a reusable-workflow `with:` block)
-- When editing the build flow, remember that shared build metadata lives in `prepare_build_metadata`; do not move build number calculation back into each matrix job unless you intentionally want variant divergence
+- When editing the build flow, remember that shared build metadata lives in `prepare_build_metadata`
 - When touching `distribute-testflight`, verify both callers still pass `build_number`
 - Every CI Xcode build/test entry point must run `configure-google-services` after its final checkout; the TestFlight composite action owns both its Dev test config and Release archive config
-- When changing Swift-flag injection, update both Firebase and release workflows together
 - When reviewing release logic, treat PR metadata in the release PR body as part of the contract:
   - `source_ref`
   - `nightly_build`

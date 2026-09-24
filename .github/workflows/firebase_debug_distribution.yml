@@ -26,13 +26,11 @@ env:
   RELEASE_NOTES: ${{ github.event.pull_request.title || 'New build' }} ${{ github.event.pull_request.merge_commit_sha || github.event.head_commit.message}}
   FASTLANE_CONFIGURATION: "DevCI"
   RUN_IN_CI: true
-  S3_BUCKET: s3://polkadot-app-artefacts
-  S3_REGION: fr-par
   SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
 
 jobs:
   build:
-    name: Build and distribute (${{ matrix.variant.name }})
+    name: Build and distribute
     runs-on: macos-26
     # Held: host-rust-core builds and distributes everything except Safetynet.
     # Two repositories publishing one configuration collide on a single App
@@ -41,27 +39,6 @@ jobs:
     # The condition this replaces:
     # if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     if: false
-    strategy:
-      fail-fast: false
-      matrix:
-        # Each variant runs as a separate parallel job
-        #
-        # extra_swift_flags: space-separated flags, each will be wrapped in quotes
-        #   Single flag:   "-DFLAG1"
-        #   Multiple flags: "-DFLAG1 -DFLAG2 -DFLAG3"
-        #
-        # WARNING: only ONE variant should have upload_to_firebase: true
-        # Multiple Firebase uploads will cause version conflicts
-        variant:
-          - name: "default"
-            extra_swift_flags: ""
-            s3_suffix: ""
-            upload_to_firebase: true
-          - name: "no-auth"
-            extra_swift_flags: "-DDISABLE_AUTH"
-            s3_suffix: "-no-auth"
-            upload_to_firebase: false
-
     steps:
       - uses: actions/checkout@v6
 
@@ -110,13 +87,6 @@ jobs:
           echo "marketing_version=${MARKETING_VERSION}" >> $GITHUB_OUTPUT
           echo "MARKETING_VERSION=${MARKETING_VERSION}" >> $GITHUB_ENV
 
-      - name: Add extra Swift flags to xcconfig
-        if: matrix.variant.extra_swift_flags != ''
-        run: |
-          python3 .github/scripts/add_swift_flags.py \
-            "polkadot-app/Configs/polkadot-app.devci.xcconfig" \
-            "${{ matrix.variant.extra_swift_flags }}"
-
       - name: Configure Google services
         uses: ./.github/actions/configure-google-services
         with:
@@ -130,7 +100,6 @@ jobs:
           meld_basic_auth_token: ${{ secrets.MELD_BASIC_AUTH_TOKEN }}
 
       - name: Distribute to Firebase
-        if: matrix.variant.upload_to_firebase
         env:
           FL_RELEASE_NOTES: ${{ env.RELEASE_NOTES }}
           CREDENTIAL_FILE_CONTENT: ${{ secrets.CREDENTIAL_FILE_CONTENT }}
@@ -140,38 +109,10 @@ jobs:
         run: |
           bundle exec fastlane distribute_app_to_firebase release_notes:"$FL_RELEASE_NOTES"
 
-      - name: Build without Firebase distribution
-        if: ${{ !matrix.variant.upload_to_firebase }}
-        env:
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-        run: |
-          bundle exec fastlane build_app_ci
-
       - name: Upload IPA as artifact
         uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: polkadot-app-debug-ipa${{ matrix.variant.s3_suffix }}
+          name: polkadot-app-debug-ipa
           path: "*.ipa"
           retention-days: 7
-
-      - name: Upload to S3
-        uses: novasamatech/github-actions/s3-upload@v5
-        with:
-          s3_region: ${{ env.S3_REGION }}
-          s3_access_key: ${{ secrets.SCW_ACCESS_KEY }}
-          s3_secret_key: ${{ secrets.SCW_SECRET_KEY }}
-          s3_bucket: ${{ env.S3_BUCKET }}
-          source_path: polkadot-app.ipa
-          destination_path: /ios/develop/polkadot-app-${{ env.MARKETING_VERSION }}-${{ env.BUILD_NUMBER }}${{ matrix.variant.s3_suffix }}.ipa
-
-      - name: Upload to S3 (static path)
-        uses: novasamatech/github-actions/s3-upload@v5
-        with:
-          s3_region: ${{ env.S3_REGION }}
-          s3_access_key: ${{ secrets.SCW_ACCESS_KEY }}
-          s3_secret_key: ${{ secrets.SCW_SECRET_KEY }}
-          s3_bucket: ${{ env.S3_BUCKET }}
-          source_path: polkadot-app.ipa
-          destination_path: /ios/develop/polkadot-app${{ matrix.variant.s3_suffix }}.ipa

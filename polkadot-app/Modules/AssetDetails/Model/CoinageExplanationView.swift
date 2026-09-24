@@ -37,7 +37,7 @@ struct CoinageLegendSwatch: View {
     private var shape: some View {
         switch kind {
         case .availableNow: Color.fgStaticWhite
-        case .gainingPrivacy: DSBarberPole()
+        case .gainingPrivacy: DSBarberPole(isAnimated: false)
         }
     }
 }
@@ -144,7 +144,8 @@ private extension CoinageExplanationView {
                 text: String(localized: .coinageKeyVoucher),
                 illustration: AnyView(
                     VoucherStatusView(
-                        model: .init(maxFungibility: 55, fungibility: 15, isUnloadable: false)
+                        model: .init(maxFungibility: 55, fungibility: 15, isUnloadable: false),
+                        isAnimated: false
                     )
                 )
             )

@@ -98,7 +98,6 @@ Required only by the distribution target you actually use:
 |--------|----------|---------|
 | `CREDENTIAL_FILE_CONTENT` | Google service-account JSON for App Distribution | `firebase_debug_distribution.yml` |
 | `FIREBASE_APP_ID` | Firebase App Distribution app ID (`1:…:ios:…`) | `firebase_debug_distribution.yml` |
-| `SCW_ACCESS_KEY`, `SCW_SECRET_KEY` | Credentials for the S3 artifact bucket | every workflow that uploads an `.ipa` |
 | `SENTRY_AUTH_TOKEN` | Uploading dSYMs to Sentry (the build phase skips when `sentry-cli` is unconfigured — see §9) | signed builds |
 
 Optional — these gate reporting steps only, and a fork can leave them unset:

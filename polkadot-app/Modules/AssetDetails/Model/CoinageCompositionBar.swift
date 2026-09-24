@@ -33,7 +33,8 @@ struct CoinageCompositionBar: View {
             segments: Self.segments(for: model),
             height: CoinageStatusMetrics.summaryBarHeight,
             outlineColor: CoinageStatusMetrics.markFrame,
-            outlineWidth: CoinageStatusMetrics.markFrameWidth
+            outlineWidth: CoinageStatusMetrics.markFrameWidth,
+            isAnimated: false
         )
     }
 }
