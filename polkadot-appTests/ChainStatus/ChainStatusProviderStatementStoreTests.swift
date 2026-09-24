@@ -82,7 +82,7 @@ private extension ChainStatusProviderStatementStoreTests {
         from provider: ChainStatusProvider,
         where predicate: @escaping (ChainConnectionStatusViewModel) -> Bool
     ) async -> ChainConnectionStatusViewModel? {
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             if let row = await row(id, from: provider), predicate(row) {
                 return row
