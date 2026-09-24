@@ -14,13 +14,13 @@ struct ChatMessageOrderAllocatorTests {
 
         let allocator = FileChatMessageOrderAllocator(fileURL: tempURL)
 
-        let values = try (0 ..< 3).map { _ in try allocator.nextOrder(after: 0) }
+        let values = try (0 ..< 3).map { _ in try allocator.nextOrder { 0 } }
 
         #expect(values == [1, 2, 3])
     }
 
-    @Test("floor above the stored counter advances it")
-    func floorAdvancesCounter() throws {
+    @Test("empty counter starts above floor")
+    func emptyCounterStartsAboveFloor() throws {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
             "order-\(UUID().uuidString)"
         )
@@ -28,8 +28,43 @@ struct ChatMessageOrderAllocatorTests {
 
         let allocator = FileChatMessageOrderAllocator(fileURL: tempURL)
 
-        #expect(try allocator.nextOrder(after: 41) == 42)
-        #expect(try allocator.nextOrder(after: 0) == 43)
+        #expect(try allocator.nextOrder { 41 } == 42)
+    }
+
+    @Test("floor is not evaluated when counter exists")
+    func floorNotEvaluatedWhenCounterExists() throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "order-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let allocator = FileChatMessageOrderAllocator(fileURL: tempURL)
+
+        #expect(try allocator.nextOrder { 41 } == 42)
+
+        var floorCalled = false
+        let result = try allocator.nextOrder {
+            floorCalled = true
+            return 0
+        }
+
+        #expect(result == 43)
+        #expect(!floorCalled)
+    }
+
+    @Test("corrupted counter recovers from floor")
+    func corruptedCounterRecoversFromFloor() throws {
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "order-\(UUID().uuidString)"
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try Data([1, 2, 3]).write(to: tempURL)
+
+        let allocator = FileChatMessageOrderAllocator(fileURL: tempURL)
+
+        #expect(try allocator.nextOrder { 41 } == 42)
+        #expect(try Data(contentsOf: tempURL).count == 8)
     }
 
     @Test("two allocators on one file never repeat a value")
@@ -50,7 +85,7 @@ struct ChatMessageOrderAllocatorTests {
                 group.addTask {
                     for _ in 0 ..< 200 {
                         let allocator = taskIndex % 2 == 0 ? allocator1 : allocator2
-                        let value = try allocator.nextOrder(after: 0)
+                        let value = try allocator.nextOrder { 0 }
                         lock.withLock {
                             values.append(value)
                         }

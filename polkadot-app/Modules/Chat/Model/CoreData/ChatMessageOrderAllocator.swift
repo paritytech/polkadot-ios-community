@@ -1,27 +1,32 @@
 import Foundation
+import SDKLogger
 
 protocol ChatMessageOrderAllocating {
-    /// Returns a value greater than both the stored counter and `floor`.
-    func nextOrder(after floor: UInt64) throws -> UInt64
+    /// Returns the next counter value; `floor` is evaluated only for an empty or unreadable counter.
+    func nextOrder(floor: () throws -> UInt64) throws -> UInt64
 }
 
 /// Shared allocator used by the app and NotificationServiceExtension.
-/// File-based storage with flock gives cross-process uniqueness.
+/// File-based storage with flock gives cross-process uniqueness; the counter lives beside the
+/// Core Data store so both share its backup exclusion.
 /// Counter values start at 1; 0 marks rows that predate ordering.
 final class FileChatMessageOrderAllocator: ChatMessageOrderAllocating {
     private static let counterByteCount = MemoryLayout<UInt64>.size
 
     private let fileURL: URL
+    private let logger: LoggerProtocol
 
-    init(fileURL: URL) {
+    init(fileURL: URL, logger: LoggerProtocol = Logger.shared) {
         self.fileURL = fileURL
+        self.logger = logger
     }
 
     static let shared = FileChatMessageOrderAllocator(
-        fileURL: SharedContainerGroup.containerURL.appendingPathComponent("ChatMessageOrder.counter")
+        fileURL: UserStorageParams.sharedStorageDirectoryURL
+            .appendingPathComponent("ChatMessageOrder.counter")
     )
 
-    func nextOrder(after floor: UInt64) throws -> UInt64 {
+    func nextOrder(floor: () throws -> UInt64) throws -> UInt64 {
         let fileDescriptor = open(fileURL.path, O_RDWR | O_CREAT, 0o600)
         guard fileDescriptor >= 0 else {
             throw ChatMessageOrderAllocatorError.systemCall(name: "open", errno: errno)
@@ -38,11 +43,7 @@ final class FileChatMessageOrderAllocator: ChatMessageOrderAllocating {
             throw ChatMessageOrderAllocatorError.systemCall(name: "pread", errno: errno)
         }
 
-        guard readCount == 0 || readCount == Self.counterByteCount else {
-            throw ChatMessageOrderAllocatorError.corruptedCounter(byteCount: readCount)
-        }
-
-        let nextValue = max(UInt64(littleEndian: storedValue), floor) + 1
+        let nextValue = try storedBase(readCount: readCount, storedValue: storedValue, floor: floor) + 1
         var buffer = nextValue.littleEndian
 
         let writeCount = pwrite(fileDescriptor, &buffer, Self.counterByteCount, 0)
@@ -66,10 +67,21 @@ private extension FileChatMessageOrderAllocator {
             }
         }
     }
+
+    func storedBase(readCount: Int, storedValue: UInt64, floor: () throws -> UInt64) throws -> UInt64 {
+        switch readCount {
+        case Self.counterByteCount:
+            return UInt64(littleEndian: storedValue)
+        case 0:
+            return try floor()
+        default:
+            logger.error("Corrupted chat message order counter: \(readCount) bytes")
+            return try floor()
+        }
+    }
 }
 
 enum ChatMessageOrderAllocatorError: Error {
     case systemCall(name: String, errno: Int32)
-    case corruptedCounter(byteCount: Int)
     case shortWrite(byteCount: Int)
 }

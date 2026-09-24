@@ -7,16 +7,7 @@ import Testing
 @Suite("Chat feed order")
 final class ChatMessageFeedOrderTests {
     private let facade = UserDataStorageTestFacade()
-    private let counterURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-        "order-\(UUID().uuidString)"
-    )
-    private var orderAllocator: FileChatMessageOrderAllocator {
-        FileChatMessageOrderAllocator(fileURL: counterURL)
-    }
-
-    deinit {
-        try? FileManager.default.removeItem(at: counterURL)
-    }
+    private let orderAllocator = InMemoryChatMessageOrderAllocator()
 
     private let alice = Chat.Contact(
         accountId: Data(repeating: 0x01, count: 32),
@@ -197,17 +188,13 @@ final class ChatMessageFeedOrderTests {
         try await seedChat()
 
         let now = Date().toChatTimestamp()
-        let resetURL = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "order-\(UUID().uuidString)"
-        )
-        defer { try? FileManager.default.removeItem(at: resetURL) }
 
         try await save(
             makeMessage(id: "first", origin: .user, status: .outgoing(.sent), timestamp: now + 60_000)
         )
         try await save(
             makeMessage(id: "second", origin: .contact(alice.accountId), status: .incoming(.new), timestamp: now),
-            allocator: FileChatMessageOrderAllocator(fileURL: resetURL)
+            allocator: InMemoryChatMessageOrderAllocator()
         )
 
         let messages = try await feed(expectedCount: 2)

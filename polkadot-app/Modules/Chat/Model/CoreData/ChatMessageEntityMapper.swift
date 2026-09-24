@@ -239,11 +239,11 @@ private extension ChatMessageEntityMapper {
             return try backlogOrder(for: model, using: context)
         }
 
-        let highestOrder = try highestStoredOrder(using: context)
-        return try Int64(bitPattern: orderAllocator.nextOrder(after: highestOrder))
+        let order = try orderAllocator.nextOrder { try highestStoredOrder(using: context) }
+        return Int64(bitPattern: order)
     }
 
-    /// Floor for the allocator so a lost counter file cannot place new rows above history.
+    /// Floor for an empty or unreadable counter so new rows never sort above history.
     func highestStoredOrder(using context: NSManagedObjectContext) throws -> UInt64 {
         let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false)]
