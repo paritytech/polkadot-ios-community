@@ -51,11 +51,13 @@ private extension ConnectionStatusPanelView {
                 HStack(spacing: 0) {
                     Text(verbatim: row.stateTitle)
 
-                    Text(verbatim: "\(Self.separator)\(livenessText(row))")
-                        .contentTransition(.numericText())
+                    if row.showsChainMetrics {
+                        Text(verbatim: "\(Self.separator)\(livenessText(row))")
+                            .contentTransition(.numericText())
 
-                    Text(verbatim: "\(Self.separator)\(blockIntervalText(row))")
-                        .contentTransition(.numericText())
+                        Text(verbatim: "\(Self.separator)\(blockIntervalText(row))")
+                            .contentTransition(.numericText())
+                    }
                 }
                 .typography(.bodySmall)
                 .monospacedDigit()

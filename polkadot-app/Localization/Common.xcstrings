@@ -518,6 +518,50 @@
         }
       }
     },
+    "statementStoreStatusActive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection active"
+          }
+        }
+      }
+    },
+    "statementStoreStatusConnecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting..."
+          }
+        }
+      }
+    },
+    "statementStoreStatusNoInternet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No internet"
+          }
+        }
+      }
+    },
+    "statementStoreStatusUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection unavailable"
+          }
+        }
+      }
+    },
     "transaction.failed" : {
       "extractionState" : "manual",
       "localizations" : {
