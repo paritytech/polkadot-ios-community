@@ -315,6 +315,50 @@ final class ChatMessageFeedOrderTests {
         let expectedOrder: [Chat.MessageId] = ["expanded-1", "expanded-2", "after"]
         #expect(messages.filter(expectedOrder.contains) == expectedOrder)
     }
+
+    @Test("synced backlog compares with chat max timestamp, not last display message")
+    func syncedBacklogUsesMaxTimestamp() async throws {
+        try await seedChat()
+
+        let legacyDisplayed = makeMessage(
+            id: "L1",
+            origin: .contact(alice.accountId),
+            status: .incoming(.new),
+            timestamp: 1_000,
+            creationSource: .localDevice
+        )
+
+        try await save(legacyDisplayed, allocator: StubChatMessageOrderAllocator(value: 0))
+
+        let laterSystemMessage = makeMessage(
+            id: "Y",
+            origin: .contact(alice.accountId),
+            status: .incoming(.new),
+            timestamp: 5_000,
+            creationSource: .localDevice,
+            content: .deviceAdded(
+                ChatRemoteMessageContent.DeviceAddedContent(
+                    statementAccountId: Data(repeating: 0x01, count: 32),
+                    encryptionPublicKey: Data(repeating: 0x02, count: 32)
+                )
+            )
+        )
+
+        try await save(laterSystemMessage, allocator: StubChatMessageOrderAllocator(value: 0))
+
+        let syncedBacklog = makeMessage(
+            id: "X",
+            origin: .user,
+            status: .outgoing(.sent),
+            timestamp: 2_000,
+            creationSource: .deviceSync
+        )
+
+        try await save(syncedBacklog)
+
+        let messages = try await feed(expectedCount: 3)
+        #expect(messages == ["L1", "X", "Y"])
+    }
 }
 
 private extension ChatMessageFeedOrderTests {

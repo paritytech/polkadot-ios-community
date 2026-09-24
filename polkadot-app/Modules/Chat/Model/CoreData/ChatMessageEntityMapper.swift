@@ -243,13 +243,27 @@ private extension ChatMessageEntityMapper {
         }
 
         if model.creationSource == .deviceSync,
-           let lastMessage = chat.lastDisplayMessage,
-           model.timestamp < UInt64(bitPattern: lastMessage.timestamp) {
-            return try backlogOrder(for: model, using: context)
+           let latestTimestamp = try latestTimestamp(in: chat, using: context),
+           model.timestamp < latestTimestamp {
+            return try backlogOrder(for: model, in: chat, using: context)
         }
 
         let order = try orderAllocator.nextOrder { try highestStoredOrder(using: context) }
         return Int64(bitPattern: order)
+    }
+
+    /// Served by `byChatTimestampIndex (chat, timestamp)`: a single seek instead of scanning the chat.
+    /// Runs for every new device-sync message, so a bulk backlog import would otherwise cost O(k·n).
+    func latestTimestamp(
+        in chat: CDChat,
+        using context: NSManagedObjectContext
+    ) throws -> UInt64? {
+        let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
+        request.predicate = .messages(in: chat)
+        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: false)]
+        request.fetchLimit = 1
+
+        return try context.fetch(request).first.map { UInt64(bitPattern: $0.timestamp) }
     }
 
     /// Floor for an empty or unreadable counter so new rows never sort above history.
@@ -262,7 +276,11 @@ private extension ChatMessageEntityMapper {
     }
 
     /// Backlog rows borrow the order of the newest preceding message so they interleave by timestamp.
-    func backlogOrder(for model: DataProviderModel, using context: NSManagedObjectContext) throws -> Int64 {
+    func backlogOrder(
+        for model: DataProviderModel,
+        in chat: CDChat,
+        using context: NSManagedObjectContext
+    ) throws -> Int64 {
         let notAfter = NSPredicate(
             format: "%K <= %lld",
             #keyPath(CDChatMessage.timestamp),
@@ -271,7 +289,7 @@ private extension ChatMessageEntityMapper {
 
         let request: NSFetchRequest<CDChatMessage> = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            .localMessages(from: model.chatId),
+            .messages(in: chat),
             notAfter
         ])
         request.sortDescriptors = [

@@ -79,6 +79,10 @@
         <fetchIndex name="byGroupingIdIndex">
             <fetchIndexElement property="groupingId" type="Binary" order="ascending"/>
         </fetchIndex>
+        <fetchIndex name="byChatTimestampIndex">
+            <fetchIndexElement property="chat" type="Binary" order="ascending"/>
+            <fetchIndexElement property="timestamp" type="Binary" order="ascending"/>
+        </fetchIndex>
         <uniquenessConstraints>
             <uniquenessConstraint>
                 <constraint value="messageId"/>
