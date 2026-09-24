@@ -69,7 +69,7 @@ private extension CallInitiator {
                         }
 
                         logger.debug("Received answer: \(sdp.count)")
-                        let remoteSdp = RTCSessionDescription(type: .answer, sdp: filteredRemoteSdp(sdp))
+                        let remoteSdp = RTCSessionDescription(type: .answer, sdp: sdp)
                         try await connectionWrapper.setRemoteDescription(remoteSdp)
                         await self?.drainPendingRemoteCandidates(on: connectionWrapper)
                         logger.debug("Set remote answer")
