@@ -881,6 +881,28 @@
         }
       }
     },
+    "chatCallRemoteMicOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@'s microphone is off"
+          }
+        }
+      }
+    },
+    "chatCallSelfMicOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your microphone is off"
+          }
+        }
+      }
+    },
     "chatCallStatusContacting" : {
       "extractionState" : "manual",
       "localizations" : {

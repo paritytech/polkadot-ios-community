@@ -67,6 +67,14 @@ class ChatCallViewModel: ChatCallViewModelProtocol {
         remoteRenderingModel?.hasVideo == true && remoteMediaState.isCameraEnabled
     }
 
+    var shouldShowSelfMicOffBanner: Bool {
+        callState == .connected && isMuted
+    }
+
+    var shouldShowRemoteMicOffBanner: Bool {
+        callState == .connected && !remoteMediaState.isMicrophoneEnabled
+    }
+
     var shouldDisplayAudioRoute: Bool {
         capability.contains(.audioRoute) && onCall
     }

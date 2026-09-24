@@ -595,6 +595,10 @@ private extension CallEngine {
         if isVideoEnabled != (callType == .video) {
             await sendMediaState(.cameraEnabled(isVideoEnabled))
         }
+
+        if await stateModel.isMuted {
+            await sendMediaState(.microphoneEnabled(false))
+        }
     }
 
     func receiveRemoteMediaState(from channel: CallMediaStateChannel) {
@@ -773,6 +777,7 @@ extension CallEngine: CallEngineProtocol {
     func setMuted(_ isMuted: Bool) async -> Bool {
         let result = await stateModel.setMuted(isMuted)
         logger.debug("Audio muted: \(result)")
+        await sendMediaState(.microphoneEnabled(!result))
         return result
     }
 

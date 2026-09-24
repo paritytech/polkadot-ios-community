@@ -81,6 +81,9 @@ struct ChatCallViewLayout: View {
             VStack {
                 Spacer()
 
+                micOffBanners
+                    .padding(.bottom, 24)
+
                 // Call action buttons
                 HStack(spacing: 24) {
                     // Accept button (only for incoming calls in ringing state)
@@ -178,6 +181,18 @@ struct ChatCallViewLayout: View {
                 .typography(.bodyLarge)
                 .foregroundStyle(Color(.fgTertiary))
                 .accessibilityId(viewModel.statusAccessibilityId)
+        }
+    }
+
+    private var micOffBanners: some View {
+        VStack(spacing: 8) {
+            if viewModel.shouldShowSelfMicOffBanner {
+                MicOffBanner(text: String(localized: .chatCallSelfMicOff))
+            }
+
+            if viewModel.shouldShowRemoteMicOffBanner {
+                MicOffBanner(text: String(localized: .chatCallRemoteMicOff(viewModel.username)))
+            }
         }
     }
 }
@@ -294,6 +309,21 @@ private struct RingView: View {
                 width: DSLetterAvatar.Size.s136.dimension,
                 height: DSLetterAvatar.Size.s136.dimension
             )
+    }
+}
+
+// MARK: - Mic Off Banner
+
+private struct MicOffBanner: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "mic.slash.fill")
+            .typography(.bodyLarge)
+            .foregroundStyle(Color.fgPrimary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.bgActionTertiary, in: Capsule())
     }
 }
 
