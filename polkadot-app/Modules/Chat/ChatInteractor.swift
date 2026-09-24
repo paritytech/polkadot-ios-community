@@ -50,11 +50,9 @@ final class ChatInteractor {
 }
 
 private extension ChatInteractor {
-    /// Resolves microphone access while the chat relationship is being established, because
-    /// that is the last moment the app is reliably foregrounded. By call time the user may be
-    /// on a locked screen answering through CallKit, where no system prompt can be shown.
-    ///
-    /// Advisory only: a denial never blocks sending or accepting a chat request.
+    /// Prompts while the app is still foregrounded: by call time the user may be answering
+    /// through CallKit on a locked screen, where no system prompt can appear. Advisory —
+    /// a denial never blocks the chat request.
     func resolveCallPermissions() async {
         let isGranted = await permissionsService.ensurePermissions(for: .audio)
 
@@ -128,6 +126,10 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         subscribeMetadata()
         subscribeMessages()
         subscribeFooter()
+    }
+
+    func isMicrophoneGranted() -> Bool {
+        permissionsService.isMicrophoneGranted
     }
 
     func send(

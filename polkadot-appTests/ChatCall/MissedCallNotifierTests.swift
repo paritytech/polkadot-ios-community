@@ -25,8 +25,6 @@ struct MissedCallNotifierTests {
         )
     }
 
-    /// The call has already been ended by the time this runs, so a denied notification
-    /// permission must not surface as an unhandled error.
     @Test("Swallows the failure when notifications are not authorized")
     func toleratesDeniedNotifications() async {
         let notificationService = MockUserNotificationService(accessStatus: .notAllowed(denied: true))

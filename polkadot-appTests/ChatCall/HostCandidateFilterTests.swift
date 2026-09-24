@@ -2,10 +2,6 @@
 import Foundation
 import Testing
 
-/// Covers the candidate filters that keep calls off the local network.
-///
-/// Uses the real `SdpCoder` tokenizer through `SdpCoderTests`' candidate fixtures, so the
-/// filters and the encoding pipeline stay tested against one parser.
 struct PrivateHostCandidateFilterTests {
     let sut = PrivateHostCandidateFilter()
 
@@ -27,9 +23,8 @@ struct PrivateHostCandidateFilterTests {
         #expect(!sut.shouldAccept(candidate))
     }
 
-    /// `172.16/12` spans 172.16 through 172.31 only. A string-prefix implementation would
-    /// wrongly drop every `172.*` address, so the neighbours of the range are the cases
-    /// that actually discriminate a correct implementation from a plausible one.
+    /// `172.16/12` spans 172.16 through 172.31 only, so the neighbours of the range are what
+    /// separate a correct implementation from one matching on a string prefix.
     @Test(
         "Keeps host candidates on public addresses just outside 172.16/12",
         arguments: ["172.15.255.255", "172.32.0.1", "172.1.2.3", "8.8.8.8", "1.1.1.1"]
@@ -50,8 +45,6 @@ struct PrivateHostCandidateFilterTests {
         #expect(!sut.shouldAccept(candidate))
     }
 
-    /// iOS hands out globally-routable IPv6 host addresses on cellular. Those never touch
-    /// the local network, so dropping them would remove a working direct path for nothing.
     @Test(
         "Keeps host candidates on globally-routable IPv6 addresses",
         arguments: ["2001:db8::1", "2a00:1450:4001::1"]
@@ -62,8 +55,6 @@ struct PrivateHostCandidateFilterTests {
         #expect(sut.shouldAccept(candidate))
     }
 
-    /// Only `typ host` reaches a local address directly. A reflexive or relay candidate
-    /// carrying a private address is still reached through the server, so it must survive.
     @Test("Keeps non-host candidates regardless of address", arguments: ["srflx", "relay", "prflx"])
     func keepsNonHostCandidates(type: String) {
         let candidate = SdpCoderTests.makeIPv4Candidate(ip: "192.168.1.100", type: type)

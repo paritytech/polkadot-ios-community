@@ -55,6 +55,7 @@ protocol ChatInteractorInputProtocol: AnyObject {
     func acceptChatRequest()
     func declineChatRequest()
     func processAction(_ action: Chat.Action)
+    func isMicrophoneGranted() -> Bool
 }
 
 @MainActor

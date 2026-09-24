@@ -57,8 +57,6 @@ final class ChatWireframe: ChatWireframeProtocol, ApplicationSettingsPresentable
         view?.controller.present(navigation, animated: true)
     }
 
-    /// Mirrors the in-call alert so a denial reads the same whether it is caught before the
-    /// call screen opens or after the call has already started.
     func presentMicrophoneAccessDenied(from view: ControllerBackedProtocol?) {
         let viewModel = AlertPresentableViewModel(
             title: String(localized: .chatCallMicAccessTitle),

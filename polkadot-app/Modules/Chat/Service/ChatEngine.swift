@@ -15,7 +15,6 @@ protocol ChatEngineProtocol {
     func unblockUser() async throws
     func acceptChatRequest() async throws
     func declineChatRequest() async throws
-    /// `true` while the chat exists only as an outgoing request the user has not sent yet.
     func hasPendingOutgoingChatRequest() async -> Bool
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?>
     func footerStream() async throws -> AnyAsyncSequence<(any HashableContentConfiguration)?>?

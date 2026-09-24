@@ -288,8 +288,6 @@ extension SdpCoder.IP4Address: ScaleCodable {
 }
 
 extension SdpCoder.IP4Address {
-    /// `true` for addresses that are only reachable on the local link or a private
-    /// subnet: RFC 1918 ranges, RFC 3927 link-local, and loopback.
     var isPrivateOrLinkLocal: Bool {
         switch comp1 {
         case 10,
@@ -308,8 +306,6 @@ extension SdpCoder.IP4Address {
 }
 
 extension SdpCoder.IP6Address {
-    /// `true` for unique local addresses (fc00::/7), link-local addresses
-    /// (fe80::/10), and loopback (::1).
     var isPrivateOrLinkLocal: Bool {
         let isUniqueLocal = comp1 & 0xFE00 == 0xFC00
         let isLinkLocal = comp1 & 0xFFC0 == 0xFE80

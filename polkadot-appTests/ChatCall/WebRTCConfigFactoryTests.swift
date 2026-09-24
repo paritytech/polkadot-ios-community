@@ -5,8 +5,7 @@ import WebRTC
 
 struct WebRTCConfigFactoryTests {
     /// DIM2 and device sync build their own factories and must keep gathering host
-    /// candidates for local-network peers. Only calls opt out, so the default has to stay
-    /// `.all` — a regression here would silently disable LAN discovery app-wide.
+    /// candidates, so a regression here would silently disable LAN discovery for them.
     @Test("Defaults to gathering every candidate type")
     func defaultsToAllTransports() async throws {
         let sut = WebRTCConfigFactory(turnService: StubTURNCredentialsService())

@@ -130,12 +130,8 @@ extension PeerConnectionCandidate {
         return parsed.transportType == .tcp && parsed.candidateType == .host
     }
 
-    /// `true` when this candidate is `typ host` on a private, link-local or loopback address.
-    ///
-    /// Globally-routable host candidates are deliberately excluded: iOS hands out public
-    /// IPv6 host addresses on cellular, and those never touch the local network.
-    ///
-    /// Returns `false` for malformed candidates, matching `isTCPHost`.
+    /// Globally-routable host candidates are deliberately kept: iOS hands out public IPv6
+    /// host addresses on cellular, and those never touch the local network.
     var isPrivateHost: Bool {
         guard let parsed = try? SdpCoder.parseCandidate(self) else { return false }
         return parsed.candidateType == .host && parsed.address.isPrivateOrLinkLocal

@@ -2,8 +2,7 @@
 import Foundation
 import UserNotifications
 
-/// Records scheduled notifications instead of posting them, and can simulate a user who
-/// has denied notification access.
+/// Records scheduled notifications instead of posting them.
 final class MockUserNotificationService: UserNotificationServicing, @unchecked Sendable {
     struct Scheduled {
         let identifier: String

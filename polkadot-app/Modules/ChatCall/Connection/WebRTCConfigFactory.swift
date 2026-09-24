@@ -28,8 +28,6 @@ final class WebRTCConfigFactory: WebRTCConfigMaking {
         configuration.iceServers = makeIceServers(from: credentials)
         configuration.sdpSemantics = .unifiedPlan
         configuration.iceCandidatePoolSize = iceCandidatePoolSize
-        // Calls pass `.noHost`: srflx and relay are still gathered, but host candidates
-        // are suppressed, so a call never advertises a local-network address.
         configuration.iceTransportPolicy = iceTransportPolicy
         // recommended by WebRTC team to avoid complexity explosion
         configuration.maxIPv6Networks = 1
