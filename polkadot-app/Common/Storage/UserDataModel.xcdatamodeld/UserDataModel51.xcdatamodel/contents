@@ -83,6 +83,11 @@
             <fetchIndexElement property="chat" type="Binary" order="ascending"/>
             <fetchIndexElement property="timestamp" type="Binary" order="ascending"/>
         </fetchIndex>
+        <fetchIndex name="byChatOrderTimestampIndex">
+            <fetchIndexElement property="chat" type="Binary" order="ascending"/>
+            <fetchIndexElement property="order" type="Binary" order="ascending"/>
+            <fetchIndexElement property="timestamp" type="Binary" order="ascending"/>
+        </fetchIndex>
         <uniquenessConstraints>
             <uniquenessConstraint>
                 <constraint value="messageId"/>
