@@ -60,6 +60,10 @@ extension DebugSettingsPresenter: DebugSettingsPresenterProtocol {
         wireframe.showDotNsBrowser(from: view)
     }
 
+    func showDevServer() {
+        wireframe.showDevServer(from: view)
+    }
+
     func showThemeSelection() {
         wireframe.showThemeSelection(from: view)
     }

@@ -24,6 +24,11 @@ final class SPAViewLayout: UIView {
     let minimizeContainer = UIView()
     let moreContainer = UIView()
 
+    /// Shown only for a product served from a development server, where a reload is the way to pick up
+    /// a change the dev server's own hot reload could not apply.
+    let devReloadButton = SPAViewLayout.makeIconButton(systemName: "arrow.clockwise")
+    let devReloadContainer = UIView()
+
     var topChromeHeight: CGFloat { Constants.topEdgeGap * 2 + Constants.topPillSize }
 
     private var isBrowserToolbarLayout = false
@@ -96,6 +101,17 @@ final class SPAViewLayout: UIView {
         setupLoadProgressLayout()
 
         setNeedsLayout()
+    }
+
+    func setupDevReloadPill() {
+        setupTopPill(devReloadContainer, hosting: devReloadButton)
+        devReloadButton.accessibilityLabel = "Reload dev server"
+
+        devReloadContainer.snp.makeConstraints { make in
+            make.trailing.equalTo(safeAreaLayoutGuide).offset(-Constants.topSideInset)
+            make.bottom.equalTo(safeAreaLayoutGuide.snp.bottom).offset(-Constants.topSideInset)
+            make.size.equalTo(Constants.topPillSize)
+        }
     }
 
     func applyChromeCollapse(_ fraction: CGFloat, animated: Bool) {

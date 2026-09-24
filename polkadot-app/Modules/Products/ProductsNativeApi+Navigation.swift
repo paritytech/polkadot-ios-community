@@ -44,6 +44,15 @@ extension ProductsNativeApi {
             return true
         }
 
+        // The same rule for a product served from a development server, which the check above cannot
+        // reach: a local address is not a dotNS name, so `host(url:)` never resolves one. Without this
+        // the product's own assets — its HMR client and source maps among them — raise a permission
+        // prompt each. Matched against its own origin only, recovered from the id it transacts under.
+        if let devOrigin = LocalDevOrigin.origin(forProductId: productId),
+           LocalDevOrigin.parseOrigin(url) == devOrigin {
+            return true
+        }
+
         // Otherwise consult a previously-granted network permission for the host.
         guard let host = parsed.host else {
             // if url is relative then allow as it is still current host

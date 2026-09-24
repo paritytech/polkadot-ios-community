@@ -98,4 +98,73 @@ final class DebugSettingsWireframe: DebugSettingsWireframeProtocol {
 
         view?.controller.present(alert, animated: true)
     }
+
+    func showDevServer(from view: ControllerBackedProtocol?) {
+        let alert = UIAlertController(
+            title: "Open dev server",
+            message: "Enter the address of a local development server",
+            preferredStyle: .alert
+        )
+
+        alert.addTextField { textField in
+            textField.placeholder = "localhost:3000"
+            textField.keyboardType = .URL
+            textField.autocapitalizationType = .none
+            textField.autocorrectionType = .no
+        }
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Open", style: .default) { [weak view, weak self] _ in
+            guard
+                let input = alert.textFields?.first?.text,
+                let self
+            else {
+                return
+            }
+
+            // Rejecting here keeps a mistyped public address from ever reaching the host API.
+            guard
+                let origin = LocalDevOrigin.parseOrigin(input),
+                let url = URL(string: origin)
+            else {
+                present(
+                    message: "Not a local development address: \(input)",
+                    title: "Cannot open",
+                    closeAction: "Close",
+                    from: view
+                )
+                return
+            }
+
+            let flowState = flowStateProvider.flowState()
+            let label = LocalDevOrigin.productLabel(forOrigin: origin)
+
+            Task {
+                guard
+                    let productHost = try? await flowState.hostProvider.resolveHost(label: label),
+                    let spaView = SPAViewFactory.createView(
+                        configuration: SPAConfiguration(
+                            title: origin,
+                            isRootScreen: false,
+                            showMoreButton: true,
+                            page: ProductPage(host: productHost),
+                            contentSource: .directURL(url)
+                        ),
+                        flowState: flowState
+                    )
+                else {
+                    return
+                }
+
+                await MainActor.run {
+                    view?.controller.navigationController?.pushViewController(
+                        spaView.controller,
+                        animated: true
+                    )
+                }
+            }
+        })
+
+        view?.controller.present(alert, animated: true)
+    }
 }

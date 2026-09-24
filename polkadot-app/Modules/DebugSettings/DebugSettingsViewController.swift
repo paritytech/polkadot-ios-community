@@ -61,6 +61,12 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
             for: .touchUpInside
         )
 
+        rootView.devServerButton.addTarget(
+            self,
+            action: #selector(actionShowDevServer),
+            for: .touchUpInside
+        )
+
         rootView.clearJWTTokenButton.addTarget(
             self,
             action: #selector(actionClearJWTToken),
@@ -130,6 +136,10 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
 
     @objc func actionShowDotNsBrowser() {
         presenter.showDotNsBrowser()
+    }
+
+    @objc func actionShowDevServer() {
+        presenter.showDevServer()
     }
 
     @objc func actionClearJWTToken() {

@@ -193,28 +193,7 @@ private extension SPANativeRuntimeInteractor {
     /// resources (leaked monitor/bridge) or deliver stale results.
     func performSetup(engine: JSEngineProtocol) async {
         do {
-            let domain = configuration.page.host.toDotDomain()
-
-            let resolved = try await productResolver.resolve(domain)
-            resolvedProduct = resolved
-
-            // Bytes come from the app executable's subname; the origin stays the base domain, which
-            // is what permission grants and web storage are keyed by.
-            let contentId = resolved.appContentId
-
-            subscribeProgress(domain: contentId)
-
-            let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: contentId)
-            let schemeHandler = makeSchemeHandler(
-                domain: domain,
-                contentURL: contentURL
-            )
-
-            guard let productURL = schemeHandler.getProductUrl() else { return }
-
-            logger.debug("SPA: '\(domain)' content resolved to \(contentURL.path)")
-
-            schemeHandlerProxy.setHandler(schemeHandler)
+            guard let productURL = try await resolveProductOrigin() else { return }
 
             let scripts = try scriptsFactory.makeScripts()
             try await engine.initialize(with: scripts)
@@ -248,6 +227,44 @@ private extension SPANativeRuntimeInteractor {
             guard !Task.isCancelled else { return }
             logger.error("SPA: Setup failed: \(error)")
             presenter?.didFail(error: error)
+        }
+    }
+
+    /// Origin the product is served from. A dotNS product is an archive that has to be resolved and
+    /// then served over `polkadot://`; a development server is already an origin and answers its own
+    /// requests, so there is nothing to resolve and no scheme handler to install.
+    private func resolveProductOrigin() async throws -> URL? {
+        switch configuration.contentSource {
+        case .dotNs:
+            let domain = configuration.page.host.toDotDomain()
+
+            let resolved = try await productResolver.resolve(domain)
+            resolvedProduct = resolved
+
+            // Bytes come from the app executable's subname; the origin stays the base domain, which
+            // is what permission grants and web storage are keyed by.
+            let contentId = resolved.appContentId
+
+            subscribeProgress(domain: contentId)
+
+            let contentURL = try await dotNsResolver.resolveToLocalURL(dotNsName: contentId)
+            let schemeHandler = makeSchemeHandler(
+                domain: domain,
+                contentURL: contentURL
+            )
+
+            guard let productURL = schemeHandler.getProductUrl() else { return nil }
+
+            logger.debug("SPA: '\(domain)' content resolved to \(contentURL.path)")
+
+            schemeHandlerProxy.setHandler(schemeHandler)
+
+            return productURL
+
+        case let .directURL(url):
+            logger.debug("SPA: serving from development server \(url.absoluteString)")
+
+            return url
         }
     }
 

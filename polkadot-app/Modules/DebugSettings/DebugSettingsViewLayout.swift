@@ -32,6 +32,11 @@ final class DebugSettingsViewLayout: UIView {
         button.imageWithTitleView?.title = "Open SPA"
     }
 
+    let devServerButton: RoundedButton = .create { button in
+        button.applyMainStyle()
+        button.imageWithTitleView?.title = "Open dev server"
+    }
+
     let simulateCrash: RoundedButton = .create { button in
         button.applyMainStyle()
         button.imageWithTitleView?.title = "Simulate Crash"
@@ -146,6 +151,7 @@ final class DebugSettingsViewLayout: UIView {
             shareLogsButton,
             productsButton,
             dotNsBrowserButton,
+            devServerButton,
             clearJWTTokenButton,
             simulateCrash,
             replaceEntropyButton,

@@ -18,6 +18,7 @@ protocol DebugSettingsPresenterProtocol: AnyObject {
     func shareLogs()
     func showProducts()
     func showDotNsBrowser()
+    func showDevServer()
     func replaceWithRandomEntropy()
     func showThemeSelection()
     func toggleStrategyDebug()
@@ -52,6 +53,7 @@ protocol DebugSettingsInteractorOutputProtocol: AnyObject {
 protocol DebugSettingsWireframeProtocol: AnyObject, AlertPresentable {
     func showProducts(from view: ControllerBackedProtocol?)
     func showDotNsBrowser(from view: ControllerBackedProtocol?)
+    func showDevServer(from view: ControllerBackedProtocol?)
     func showThemeSelection(from view: ControllerBackedProtocol?)
     func showTrUAPIPlayground(from view: ControllerBackedProtocol?)
 }

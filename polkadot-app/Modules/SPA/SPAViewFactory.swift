@@ -71,7 +71,7 @@ enum SPAViewFactory {
             chainRegistry: chainRegistry,
             usernameStorage: UsernameStorage(),
             localStorage: ProductsLocalStorage(
-                productId: configuration.page.host.toDotDomain(),
+                productId: configuration.productId,
                 settingsManager: SettingsManager.shared
             ),
             notificationService: UserNotificationService.shared,
@@ -86,7 +86,7 @@ enum SPAViewFactory {
         )
 
         let nativeApi = nativeApiFactory.makeApi(
-            productId: configuration.page.host.toDotDomain(),
+            productId: configuration.productId,
             routers: routers
         )
 
@@ -107,7 +107,7 @@ enum SPAViewFactory {
             productRepository: ProductRepositoryFactory().createRepository(),
             chatProviderFactory: ChatContactDataProviderFactory(),
             workerManager: workerFacade.manager,
-            workerProductId: configuration.page.host.toDotDomain()
+            workerProductId: configuration.productId
         )
 
         let presenter = SPAPresenter(

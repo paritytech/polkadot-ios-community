@@ -181,6 +181,17 @@ private extension SPAViewController {
         } else {
             rootView.setupDefaultLayout()
         }
+
+        if case .directURL = configuration.contentSource {
+            rootView.setupDevReloadPill()
+            rootView.devReloadButton.addTarget(self, action: #selector(onDevReloadTapped), for: .touchUpInside)
+        }
+    }
+
+    /// Reloads ignoring the cache, so a rebuilt asset the dev server serves under an unchanged url is
+    /// not answered from the previous build.
+    @objc func onDevReloadTapped() {
+        rootView.webView.reloadFromOrigin()
     }
 
     func setupBrowserTabActions() {
