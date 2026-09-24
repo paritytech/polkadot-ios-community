@@ -260,6 +260,61 @@ final class ChatMessageFeedOrderTests {
         let messages = try await feed(expectedCount: 2)
         #expect(messages == ["first", "second"])
     }
+
+    @Test("expanded compacted messages keep the compacted message's place")
+    func expandedCompactedMessagesKeepPlace() async throws {
+        try await seedChat()
+
+        let now = Date().toChatTimestamp()
+
+        let compactedContent = Chat.LocalMessage.Content.compactedMessages(
+            ChatRemoteMessageContent.CompactedMessagesContent(
+                claimIdentifier: Data(repeating: 0x01, count: 32),
+                claimTicket: Data(repeating: 0x02, count: 32),
+                node: .wssUrl("wss://localhost:8000")
+            )
+        )
+
+        let compacted = makeMessage(
+            id: "compacted",
+            origin: .contact(alice.accountId),
+            status: .incoming(.new),
+            timestamp: now,
+            content: compactedContent
+        )
+
+        try await save(compacted)
+
+        let after = makeMessage(
+            id: "after",
+            origin: .user,
+            status: .outgoing(.sent),
+            timestamp: now + 10_000
+        )
+
+        try await save(after)
+
+        let expandedMessages = [1, 2].map { index in
+            Chat.RemoteMessage(
+                messageId: "expanded-\(index)",
+                timestamp: now + UInt64(index) * 1_000,
+                versioned: .v1(.init(content: .text("expanded \(index)")))
+            )
+        }
+
+        let expandedModel = CompactedExpansionMessageMapper.Model(
+            compactedMessage: compacted,
+            expandedMessages: expandedMessages
+        )
+
+        try await facade.makeRepo(mapper: CompactedExpansionMessageMapper())
+            .saveOperation({ [expandedModel] }, { [] })
+            .asyncExecute()
+
+        let messages = try await feed(expectedCount: 3)
+        let expectedOrder: [Chat.MessageId] = ["expanded-1", "expanded-2", "after"]
+        #expect(messages.filter(expectedOrder.contains) == expectedOrder)
+    }
 }
 
 private extension ChatMessageFeedOrderTests {
@@ -308,7 +363,8 @@ private extension ChatMessageFeedOrderTests {
         origin: Chat.LocalMessage.Origin,
         status: Chat.LocalMessage.Status,
         timestamp: Chat.Timestamp,
-        creationSource: Chat.LocalMessage.CreationSource = .localDevice
+        creationSource: Chat.LocalMessage.CreationSource = .localDevice,
+        content: Chat.LocalMessage.Content? = nil
     ) -> Chat.LocalMessage {
         Chat.LocalMessage(
             messageId: id,
@@ -317,7 +373,7 @@ private extension ChatMessageFeedOrderTests {
             creationSource: creationSource,
             status: status,
             timestamp: timestamp,
-            content: .text(id),
+            content: content ?? .text(id),
             reactions: [],
             compactionId: nil,
             relatedMessages: []

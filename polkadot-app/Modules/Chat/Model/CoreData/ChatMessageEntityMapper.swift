@@ -11,13 +11,18 @@ final class ChatMessageEntityMapper {
     typealias CoreDataEntity = CDChatMessage
 
     private let orderAllocator: ChatMessageOrderAllocating
+    private let inheritedOrder: Int64?
 
     var entityIdentifierFieldName: String {
         #keyPath(CDChatMessage.messageId)
     }
 
-    init(orderAllocator: ChatMessageOrderAllocating = FileChatMessageOrderAllocator.shared) {
+    init(
+        orderAllocator: ChatMessageOrderAllocating = FileChatMessageOrderAllocator.shared,
+        inheritedOrder: Int64? = nil
+    ) {
         self.orderAllocator = orderAllocator
+        self.inheritedOrder = inheritedOrder
     }
 }
 
@@ -233,6 +238,10 @@ private extension ChatMessageEntityMapper {
         in chat: CDChat,
         using context: NSManagedObjectContext
     ) throws -> Int64 {
+        if let inheritedOrder {
+            return inheritedOrder
+        }
+
         if model.creationSource == .deviceSync,
            let lastMessage = chat.lastDisplayMessage,
            model.timestamp < UInt64(bitPattern: lastMessage.timestamp) {
