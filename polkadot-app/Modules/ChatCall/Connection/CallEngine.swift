@@ -33,7 +33,12 @@ private actor CallEngineActor {
     var connectionWrapper: AsyncPeerConnectionWrapper?
 
     var isMuted: Bool = false
+    var isVideoEnabled: Bool
     var hasEnded: Bool = false
+
+    init(isVideoEnabled: Bool) {
+        self.isVideoEnabled = isVideoEnabled
+    }
 
     func markEndedIfFirst() -> Bool {
         guard !hasEnded else { return false }
@@ -47,14 +52,29 @@ private actor CallEngineActor {
         if let audioTrack = localTracks?.audioTrack {
             audioTrack.isEnabled = !isMuted
         }
+
+        if let videoTrack = localTracks?.videoTrack {
+            videoTrack.isEnabled = isVideoEnabled
+        }
     }
 
     func getLocalTracks() -> CallTracks? {
         localTracks
     }
 
-    func setVideoCapturer(_ capturer: RTCVideoCapturer) {
+    func makeVideoCapturerIfNeeded(for track: RTCVideoTrack) -> RTCVideoCapturer? {
+        guard isVideoEnabled, videoCapturer == nil, localRenderer != nil else {
+            return nil
+        }
+
+        #if targetEnvironment(simulator)
+            let capturer = RTCFileVideoCapturer(delegate: track.source)
+        #else
+            let capturer = RTCCameraVideoCapturer(delegate: track.source)
+        #endif
+
         videoCapturer = capturer
+        return capturer
     }
 
     func setLocalRenderer(_ renderer: RTCVideoRenderer) {
@@ -91,8 +111,13 @@ private actor CallEngineActor {
     }
 
     func clearVideoCapture() {
-        if let cameraCapturer = videoCapturer as? RTCCameraVideoCapturer {
+        switch videoCapturer {
+        case let cameraCapturer as RTCCameraVideoCapturer:
             cameraCapturer.stopCapture()
+        case let fileCapturer as RTCFileVideoCapturer:
+            fileCapturer.stopCapture()
+        default:
+            break
         }
 
         videoCapturer = nil
@@ -152,17 +177,13 @@ final class CallEngine {
     private var callType: ChatCallType
 
     private let stateSubject: AsyncCurrentValueSubject<CallEngineState>
-    private let stateModel = CallEngineActor()
+    private let stateModel: CallEngineActor
     private let videoCaptureStrategy: VideoCaptureStrategyProtocol
 
     private var connectionTask: Task<Void, Never>?
     private var remoteCloseTask: Task<Void, Never>?
     private var offerDeliveryTask: Task<Void, Never>?
     private var iceFailureTask: Task<Void, Never>?
-
-    var supportsVideo: Bool {
-        callType == .video
-    }
 
     var supportsAudio: Bool {
         #if targetEnvironment(simulator)
@@ -189,6 +210,7 @@ final class CallEngine {
         self.configFactory = configFactory
         self.peerConnectionFactory = peerConnectionFactory
         self.logger = logger
+        stateModel = CallEngineActor(isVideoEnabled: initialCallType == .video)
 
         videoCaptureStrategy = VideoCaptureStrategy(preferences: .init(profile: .call))
 
@@ -223,7 +245,7 @@ private extension CallEngine {
 private extension CallEngine {
     func createTracks() -> CallTracks {
         let audioTrack = createAudioTrackIfNeeded()
-        let videoTrack = createVideoTrackIfNeeded()
+        let videoTrack = createVideoTrack()
 
         return CallTracks(audioTrack: audioTrack, videoTrack: videoTrack)
     }
@@ -238,11 +260,7 @@ private extension CallEngine {
         return peerConnectionFactory.audioTrack(with: audioSource, trackId: "audio0")
     }
 
-    func createVideoTrackIfNeeded() -> RTCVideoTrack? {
-        guard supportsVideo else {
-            return nil
-        }
-
+    func createVideoTrack() -> RTCVideoTrack {
         let videoSource = peerConnectionFactory.videoSource()
         return peerConnectionFactory.videoTrack(with: videoSource, trackId: "video0")
     }
@@ -399,24 +417,22 @@ private extension CallEngine {
         RTCAudioSessionConfiguration.webRTC()
     }
 
-    private func startVideoCapture(from track: RTCVideoTrack) async throws {
-        #if targetEnvironment(simulator)
-            try await startFileCapturer(for: track)
-        #else
-            try await startCameraVideoCapture(for: track)
-        #endif
+    private func startVideoCaptureIfNeeded(from track: RTCVideoTrack) async throws {
+        guard let capturer = await stateModel.makeVideoCapturerIfNeeded(for: track) else {
+            return
+        }
+
+        switch capturer {
+        case let fileCapturer as RTCFileVideoCapturer:
+            fileCapturer.startCapturing(fromFileNamed: "test.mp4")
+        case let cameraCapturer as RTCCameraVideoCapturer:
+            try await startCameraVideoCapture(cameraCapturer)
+        default:
+            break
+        }
     }
 
-    private func startFileCapturer(for track: RTCVideoTrack) async throws {
-        let capturer = RTCFileVideoCapturer(delegate: track.source)
-        await stateModel.setVideoCapturer(capturer)
-        capturer.startCapturing(fromFileNamed: "test.mp4")
-    }
-
-    private func startCameraVideoCapture(for track: RTCVideoTrack) async throws {
-        let capturer = RTCCameraVideoCapturer(delegate: track.source)
-        await stateModel.setVideoCapturer(capturer)
-
+    private func startCameraVideoCapture(_ capturer: RTCCameraVideoCapturer) async throws {
         guard let frontCamera = (RTCCameraVideoCapturer.captureDevices().first { $0.position == .front }) else {
             logger.error("Front camera not found")
             return
@@ -625,7 +641,6 @@ extension CallEngine: CallEngineProtocol {
             }
 
             await stateModel.setLocalRenderer(localRenderer)
-            let maybeCapturer = await stateModel.videoCapturer
 
             if let currentRenderer {
                 videoTrack.remove(currentRenderer)
@@ -633,12 +648,8 @@ extension CallEngine: CallEngineProtocol {
 
             videoTrack.add(localRenderer)
 
-            guard maybeCapturer == nil else {
-                return
-            }
-
             do {
-                try await startVideoCapture(from: videoTrack)
+                try await startVideoCaptureIfNeeded(from: videoTrack)
             } catch {
                 logger.error("Failed to start video capture: \(error)")
                 // Video capture failure doesn't break the call, but should be logged
