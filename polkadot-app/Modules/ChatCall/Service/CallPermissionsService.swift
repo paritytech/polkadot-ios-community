@@ -2,7 +2,10 @@ import AVFoundation
 import UIKit
 
 protocol CallPermissionsServicing: AnyObject {
-    var isMicrophoneGranted: Bool { get }
+    /// Only an explicit denial. A permission that has never been asked for is not a denial:
+    /// iOS shows no Microphone switch in Settings until the app has asked at least once, so
+    /// blocking on it would leave the user with nothing to turn on.
+    var isMicrophoneDenied: Bool { get }
 
     func ensurePermissions(for callType: ChatCallType) async -> Bool
 }
@@ -56,8 +59,8 @@ private extension CallPermissionsService {
 }
 
 extension CallPermissionsService: CallPermissionsServicing {
-    var isMicrophoneGranted: Bool {
-        AVAudioApplication.shared.recordPermission == .granted
+    var isMicrophoneDenied: Bool {
+        AVAudioApplication.shared.recordPermission == .denied
     }
 
     func ensurePermissions(for callType: ChatCallType) async -> Bool {

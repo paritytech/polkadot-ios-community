@@ -87,6 +87,10 @@ private extension RealCallCoordinator {
             initialCallType: callType,
             purpose: WebRTCConnectionPurpose.call.rawValue,
             configFactory: WebRTCConfigFactory(turnService: turnService, iceTransportPolicy: .noHost),
+            candidateFilter: CompositeCandidateFilter([
+                TcpHostCandidateFilter(),
+                PrivateHostCandidateFilter()
+            ]),
             peerConnectionFactory: WebRTCPeerConnectionFactoryProvider.make(),
             logger: logger
         )

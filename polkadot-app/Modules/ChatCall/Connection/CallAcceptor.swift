@@ -29,7 +29,7 @@ private extension CallAcceptor {
 
                     switch signal {
                     case let .offer(sdp):
-                        let remoteSdp = RTCSessionDescription(type: .offer, sdp: sdp)
+                        let remoteSdp = RTCSessionDescription(type: .offer, sdp: filteredRemoteSdp(sdp))
                         try await connectionWrapper.setRemoteDescription(remoteSdp)
                         try Task.checkCancellation()
 

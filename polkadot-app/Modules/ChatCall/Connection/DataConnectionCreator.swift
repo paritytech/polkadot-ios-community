@@ -156,6 +156,13 @@ class DataConnectionCreator {
     }
 }
 
+extension DataConnectionCreator {
+    func filteredRemoteSdp(_ sdp: String) -> String {
+        guard let candidateFilter else { return sdp }
+        return SdpCandidateLineFilter(candidateFilter).apply(to: sdp)
+    }
+}
+
 private extension DataConnectionCreator {
     func filterIncomingCandidates(
         _ candidates: [PeerConnectionCandidate]

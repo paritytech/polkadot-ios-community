@@ -33,7 +33,7 @@ private extension DataConnectionAcceptor {
                         logger.debug("Offer received: \(sdp.count)")
 
                         // Create remote description
-                        let remoteSdp = RTCSessionDescription(type: .offer, sdp: sdp)
+                        let remoteSdp = RTCSessionDescription(type: .offer, sdp: filteredRemoteSdp(sdp))
                         try await wrapper.setRemoteDescription(remoteSdp)
                         try Task.checkCancellation()
 

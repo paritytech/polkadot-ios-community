@@ -128,8 +128,8 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         subscribeFooter()
     }
 
-    func isMicrophoneGranted() -> Bool {
-        permissionsService.isMicrophoneGranted
+    func isMicrophoneDenied() -> Bool {
+        permissionsService.isMicrophoneDenied
     }
 
     func send(

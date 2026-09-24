@@ -121,7 +121,7 @@ extension VoIPCallKitManager: VoIPCallKitManaging {
                 self?.activeCallData = nil
             } else {
                 self?.logger.debug("Call initially reported \(uuid)")
-                self?.continueReportedCall(with: uuid, fromPushPayload: payload)
+                self?.updateReportedCall(with: uuid, fromPushPayload: payload)
             }
         }
     }
@@ -367,29 +367,23 @@ private extension VoIPCallKitManager {
         set { activeCallDataSubject.send(newValue) }
     }
 
-    /// Ends a reported call that can never connect, rather than letting CallKit ring into it.
-    ///
-    /// The status is only read, never requested: `ensurePermissions` would await a prompt that
-    /// cannot appear in the background and would stall the PushKit completion handler.
-    func continueReportedCall(with uuid: UUID, fromPushPayload payload: [AnyHashable: Any]) {
-        guard permissionsService.isMicrophoneGranted else {
-            logger.warning("No microphone permission, ending reported call \(uuid)")
-            performReportCallEnd(with: uuid, with: .failed)
-
-            Task { [missedCallNotifier] in
-                await missedCallNotifier.notifyMissedCallWithoutPermissions()
-            }
-
-            return
-        }
-
-        updateReportedCall(with: uuid, fromPushPayload: payload)
-    }
-
     func updateReportedCall(with uuid: UUID, fromPushPayload payload: [AnyHashable: Any]) {
-        Task {
+        Task { [permissionsService, missedCallNotifier] in
             do {
+                // Decode before consulting the microphone: decoding is what rejects a blocked
+                // contact or a malformed payload, and a missed call notification for one of
+                // those would tell the user that a blocked contact tried to reach them.
                 let input = try await makeInput(pushPayload: payload)
+
+                // The status is only read, never requested: `ensurePermissions` would await a
+                // prompt that cannot appear in the background and would stall PushKit.
+                guard !permissionsService.isMicrophoneDenied else {
+                    logger.warning("Microphone denied, ending reported call \(uuid)")
+                    reportCallEnd(with: .failed)
+                    await missedCallNotifier.notifyMissedCallWithoutPermissions()
+                    return
+                }
+
                 updateReportedCall(with: uuid, input: input)
             } catch {
                 logger.error("Failed to report update for the call \(uuid): \(error.localizedDescription)")

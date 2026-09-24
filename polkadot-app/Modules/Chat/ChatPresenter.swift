@@ -407,7 +407,9 @@ private extension ChatPresenter {
     func handleStartCall(callType: ChatCallType) {
         guard let metadata else { return }
         MainActor.assumeIsolated {
-            guard interactor.isMicrophoneGranted() else {
+            // Only an explicit denial stops the call here. When the permission has never
+            // been asked for, the call screen opens and `ensureCallPermissions` prompts.
+            if interactor.isMicrophoneDenied() {
                 wireframe.presentMicrophoneAccessDenied(from: view)
                 return
             }

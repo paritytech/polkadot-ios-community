@@ -123,7 +123,7 @@ private extension DataConnectionInitiator {
 
             logger.debug("Received answer: \(sdp.count)")
 
-            let remoteSdp = RTCSessionDescription(type: .answer, sdp: sdp)
+            let remoteSdp = RTCSessionDescription(type: .answer, sdp: filteredRemoteSdp(sdp))
             try await wrapper.setRemoteDescription(remoteSdp)
             await drainPendingRemoteCandidates(on: wrapper)
 

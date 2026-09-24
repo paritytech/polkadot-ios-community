@@ -115,6 +115,11 @@ class CallCreator {
         await applyRemoteCandidates(accepted, on: wrapper)
     }
 
+    func filteredRemoteSdp(_ sdp: String) -> String {
+        guard let candidateFilter else { return sdp }
+        return SdpCandidateLineFilter(candidateFilter).apply(to: sdp)
+    }
+
     private func filterIncomingCandidates(
         _ candidates: [PeerConnectionCandidate]
     ) -> [PeerConnectionCandidate] {
