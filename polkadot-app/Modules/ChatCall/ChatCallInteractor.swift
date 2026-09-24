@@ -21,6 +21,7 @@ final class ChatCallInteractor {
     private var callKitEndTask: Task<Void, Never>?
     private var callKitMutedTask: Task<Void, Never>?
     private var audioRouteTask: Task<Void, Never>?
+    private var remoteMediaStateTask: Task<Void, Never>?
     private(set) var isEnding: Bool = false
 
     init(
@@ -47,6 +48,7 @@ final class ChatCallInteractor {
         self.callType = callType
         setupCallKit()
         observeCallEngineState()
+        observeRemoteMediaState()
     }
 
     deinit {
@@ -67,16 +69,10 @@ private extension ChatCallInteractor {
     }
 
     func provideRemoteRendererModel() async {
-        switch callType {
-        case .audio:
-            let remoteModel = ChatCallRendererModel(attach: nil)
-            await presenter?.didReceiveRemoteRenderer(model: remoteModel)
-        case .video:
-            let remoteModel = ChatCallRendererModel { [weak callEngine] view in
-                callEngine?.attach(remoteRenderer: view)
-            }
-            await presenter?.didReceiveRemoteRenderer(model: remoteModel)
+        let remoteModel = ChatCallRendererModel { [weak callEngine] view in
+            callEngine?.attach(remoteRenderer: view)
         }
+        await presenter?.didReceiveRemoteRenderer(model: remoteModel)
     }
 
     func setupCallKit() {
@@ -141,6 +137,9 @@ private extension ChatCallInteractor {
 
         audioRouteTask?.cancel()
         audioRouteTask = nil
+
+        remoteMediaStateTask?.cancel()
+        remoteMediaStateTask = nil
     }
 
     func observeCallEngineState() {
@@ -156,6 +155,22 @@ private extension ChatCallInteractor {
                 }
             } catch {
                 self?.logger.error("State observation failed: \(error)")
+            }
+        }
+    }
+
+    func observeRemoteMediaState() {
+        remoteMediaStateTask = Task { [weak self] in
+            guard let sequence = self?.callEngine.observeRemoteMediaState() else {
+                return
+            }
+
+            do {
+                for try await state in sequence {
+                    await self?.presenter?.didUpdateRemoteMediaState(state)
+                }
+            } catch {
+                self?.logger.error("Remote media state observation failed: \(error)")
             }
         }
     }

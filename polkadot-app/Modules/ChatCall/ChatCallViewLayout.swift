@@ -30,6 +30,7 @@ struct ChatCallViewLayout: View {
                         .ignoresSafeArea() // extend under safe areas
                         .aspectRatio(contentMode: .fill) // SwiftUI side fill
                         .clipped()
+                        .opacity(viewModel.shouldShowRemoteVideo ? 1 : 0)
                 }
 
                 if let localModel = viewModel.localRenderingModel, localModel.hasVideo {
@@ -54,9 +55,7 @@ struct ChatCallViewLayout: View {
                         )
                 }
 
-                // Show avatar only when video is not available or call is not connected
-                if viewModel.remoteRenderingModel == nil ||
-                    viewModel.remoteRenderingModel?.hasVideo == false {
+                if !viewModel.shouldShowRemoteVideo {
                     // Overlay content
                     VStack(spacing: 0) {
                         // Avatar with animated rings

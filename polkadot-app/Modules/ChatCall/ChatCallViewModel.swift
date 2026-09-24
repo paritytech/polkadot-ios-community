@@ -14,6 +14,7 @@ protocol ChatCallViewModelProtocol {
     var isIncoming: Bool { get set }
     var isMuted: Bool { get set }
     var isVideoEnabled: Bool { get set }
+    var remoteMediaState: CallRemoteMediaState { get set }
     var onAcceptCall: (() -> Void)? { get set }
     var onEndCall: (() -> Void)? { get set }
     var onToggleMute: (() -> Void)? { get set }
@@ -33,6 +34,7 @@ class ChatCallViewModel: ChatCallViewModelProtocol {
     var isIncoming: Bool = false
     var isMuted: Bool = false
     var isVideoEnabled: Bool = false
+    var remoteMediaState = CallRemoteMediaState(isCameraEnabled: false, isMicrophoneEnabled: true)
     var capability: ChatCallCapability = .none
     var audioRouteState: CallAudioRouteState = .unknown
     var onAcceptCall: (() -> Void)?
@@ -59,6 +61,10 @@ class ChatCallViewModel: ChatCallViewModelProtocol {
 
     var shouldDisplayVideoToggle: Bool {
         capability.contains(.video) && onCall
+    }
+
+    var shouldShowRemoteVideo: Bool {
+        remoteRenderingModel?.hasVideo == true && remoteMediaState.isCameraEnabled
     }
 
     var shouldDisplayAudioRoute: Bool {

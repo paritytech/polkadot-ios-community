@@ -92,4 +92,8 @@ extension ChatCallViewController: ChatCallViewProtocol {
     func didReceiveCapability(_ capability: ChatCallCapability) {
         rootView.viewModel.capability = capability
     }
+
+    func didUpdateRemoteMediaState(_ state: CallRemoteMediaState) {
+        rootView.viewModel.remoteMediaState = state
+    }
 }

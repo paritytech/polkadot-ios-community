@@ -13,6 +13,7 @@ protocol ChatCallViewProtocol: ControllerBackedProtocol {
     func didUpdateMuteState(_ muted: Bool)
     func didUpdateVideoState(_ isEnabled: Bool)
     func didReceiveCapability(_ capability: ChatCallCapability)
+    func didUpdateRemoteMediaState(_ state: CallRemoteMediaState)
 }
 
 @MainActor
@@ -46,6 +47,7 @@ protocol ChatCallInteractorOutputProtocol: AnyObject {
     func didUpdateMuteState(_ muted: Bool)
     func didUpdateVideoState(_ isEnabled: Bool)
     func didReceiveCapability(_ capability: ChatCallCapability)
+    func didUpdateRemoteMediaState(_ state: CallRemoteMediaState)
 }
 
 @MainActor

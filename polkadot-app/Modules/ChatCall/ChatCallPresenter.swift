@@ -92,6 +92,10 @@ extension ChatCallPresenter: ChatCallInteractorOutputProtocol {
     func didReceiveCapability(_ capability: ChatCallCapability) {
         view?.didReceiveCapability(capability)
     }
+
+    func didUpdateRemoteMediaState(_ state: CallRemoteMediaState) {
+        view?.didUpdateRemoteMediaState(state)
+    }
 }
 
 private extension ChatCallPresenter {

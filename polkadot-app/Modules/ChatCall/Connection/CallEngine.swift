@@ -10,6 +10,7 @@ enum CallEngineError: Error {
 
 protocol CallEngineProtocol: AnyObject {
     func observeState() -> AnyAsyncSequence<CallEngineState>
+    func observeRemoteMediaState() -> AnyAsyncSequence<CallRemoteMediaState>
     func connect()
     func endCall(notifiesRemote: Bool) async
 
@@ -47,6 +48,7 @@ private actor CallEngineActor {
 
     var callCreator: CallCreatorProtocol?
     var connectionWrapper: AsyncPeerConnectionWrapper?
+    var mediaStateChannel: CallMediaStateChannel?
 
     var isMuted: Bool = false
     var isVideoEnabled: Bool
@@ -124,6 +126,10 @@ private actor CallEngineActor {
         self.connectionWrapper = connectionWrapper
     }
 
+    func setMediaStateChannel(_ channel: CallMediaStateChannel) {
+        mediaStateChannel = channel
+    }
+
     func clearVideoCapture() {
         videoCapturer?.stopAnyCapture()
         videoCapturer = nil
@@ -142,6 +148,7 @@ private actor CallEngineActor {
         remoteTracks = nil
         remoteRenderer = nil
 
+        mediaStateChannel = nil
         videoCapturer = nil
     }
 
@@ -202,6 +209,8 @@ final class CallEngine {
     private var remoteCloseTask: Task<Void, Never>?
     private var offerDeliveryTask: Task<Void, Never>?
     private var iceFailureTask: Task<Void, Never>?
+    private let remoteMediaStateSubject: AsyncCurrentValueSubject<CallRemoteMediaState>
+    private var remoteMediaStateTask: Task<Void, Never>?
 
     var supportsAudio: Bool {
         #if targetEnvironment(simulator)
@@ -238,6 +247,10 @@ final class CallEngine {
         case .acceptor:
             stateSubject = .init(.waiting)
         }
+
+        remoteMediaStateSubject = .init(
+            CallRemoteMediaState(isCameraEnabled: initialCallType == .video, isMicrophoneEnabled: true)
+        )
 
         observeRemoteClose()
     }
@@ -424,6 +437,8 @@ private extension CallEngine {
 
         let callCreator = makeCallCreator(for: dataChannelConnected, tracks: localTracks)
 
+        await startMediaStateExchange(on: callCreator.multiplexedChannel)
+
         logger.debug("Upgrading to call")
 
         callCreator.setup()
@@ -507,6 +522,11 @@ private extension CallEngine {
         iceFailureTask = nil
     }
 
+    func clearRemoteMediaStateTask() {
+        remoteMediaStateTask?.cancel()
+        remoteMediaStateTask = nil
+    }
+
     func observeOfferDelivery() {
         guard role == .initiator else {
             return
@@ -562,6 +582,43 @@ private extension CallEngine {
             } catch {
                 logger.error("Remote close observation failed: \(error)")
             }
+        }
+    }
+
+    func startMediaStateExchange(on multiplexedChannel: MultiplexedDataChannel) async {
+        let channel = CallMediaStateChannel(multiplexedChannel: multiplexedChannel, logger: logger)
+        await stateModel.setMediaStateChannel(channel)
+        receiveRemoteMediaState(from: channel)
+
+        let isVideoEnabled = await stateModel.isVideoEnabled
+
+        if isVideoEnabled != (callType == .video) {
+            await sendMediaState(.cameraEnabled(isVideoEnabled))
+        }
+    }
+
+    func receiveRemoteMediaState(from channel: CallMediaStateChannel) {
+        remoteMediaStateTask = Task { [remoteMediaStateSubject, logger] in
+            do {
+                for try await signal in channel.signals {
+                    logger.debug("Remote media state signal: \(signal)")
+                    remoteMediaStateSubject.send(remoteMediaStateSubject.value.applying(signal))
+                }
+            } catch {
+                logger.error("Remote media state observation failed: \(error)")
+            }
+        }
+    }
+
+    func sendMediaState(_ signal: CallMediaStateSignal) async {
+        guard let channel = await stateModel.mediaStateChannel else {
+            return
+        }
+
+        do {
+            try await channel.send(signal)
+        } catch {
+            logger.error("Media state send failed: \(error)")
         }
     }
 
@@ -642,6 +699,7 @@ extension CallEngine: CallEngineProtocol {
         clearRemoteCloseTask()
         clearOfferDeliveryTask()
         clearIceFailureTask()
+        clearRemoteMediaStateTask()
 
         let closedSentTask = notifiesRemote ? await sendRemoteClosed() : nil
 
@@ -734,6 +792,11 @@ extension CallEngine: CallEngineProtocol {
 
         let result = await stateModel.isVideoEnabled
         logger.debug("Video enabled: \(result)")
+        await sendMediaState(.cameraEnabled(result))
         return result
+    }
+
+    func observeRemoteMediaState() -> AnyAsyncSequence<CallRemoteMediaState> {
+        remoteMediaStateSubject.eraseToAnyAsyncSequence()
     }
 }
