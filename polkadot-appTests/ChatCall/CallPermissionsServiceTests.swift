@@ -79,7 +79,7 @@ struct CallPermissionsServiceTests {
             requester: RecordPermissionRequesterSpy(grants: true)
         )
 
-        #expect(await sut.ensurePermissions(for: .audio) == scenario.2)
+        #expect(await sut.ensurePermissions() == scenario.2)
     }
 
     @Test("Refused prompt fails audio call permissions")
@@ -90,7 +90,7 @@ struct CallPermissionsServiceTests {
             requester: RecordPermissionRequesterSpy(grants: false)
         )
 
-        #expect(await sut.ensurePermissions(for: .audio) == false)
+        #expect(await sut.ensurePermissions() == false)
     }
 }
 

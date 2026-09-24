@@ -18,6 +18,22 @@ protocol CallEngineProtocol: AnyObject {
 
     var isMuted: Bool { get async }
     func setMuted(_ isMuted: Bool) async -> Bool
+
+    var isVideoEnabled: Bool { get async }
+    func setVideoEnabled(_ isEnabled: Bool) async -> Bool
+}
+
+private extension RTCVideoCapturer {
+    func stopAnyCapture() {
+        switch self {
+        case let cameraCapturer as RTCCameraVideoCapturer:
+            cameraCapturer.stopCapture()
+        case let fileCapturer as RTCFileVideoCapturer:
+            fileCapturer.stopCapture()
+        default:
+            break
+        }
+    }
 }
 
 private actor CallEngineActor {
@@ -53,9 +69,7 @@ private actor CallEngineActor {
             audioTrack.isEnabled = !isMuted
         }
 
-        if let videoTrack = localTracks?.videoTrack {
-            videoTrack.isEnabled = isVideoEnabled
-        }
+        applyVideoEnabledState()
     }
 
     func getLocalTracks() -> CallTracks? {
@@ -111,15 +125,7 @@ private actor CallEngineActor {
     }
 
     func clearVideoCapture() {
-        switch videoCapturer {
-        case let cameraCapturer as RTCCameraVideoCapturer:
-            cameraCapturer.stopCapture()
-        case let fileCapturer as RTCFileVideoCapturer:
-            fileCapturer.stopCapture()
-        default:
-            break
-        }
-
+        videoCapturer?.stopAnyCapture()
         videoCapturer = nil
     }
 
@@ -161,6 +167,18 @@ private actor CallEngineActor {
 
     func getMuteState() -> Bool {
         isMuted
+    }
+
+    func setVideoEnabled(_ isEnabled: Bool) {
+        isVideoEnabled = isEnabled
+    }
+
+    func applyVideoEnabledState() {
+        localTracks?.videoTrack?.isEnabled = isVideoEnabled
+    }
+
+    func isCurrentVideoCapturer(_ capturer: RTCVideoCapturer) -> Bool {
+        videoCapturer === capturer
     }
 }
 
@@ -430,6 +448,22 @@ private extension CallEngine {
         default:
             break
         }
+
+        if await !stateModel.isCurrentVideoCapturer(capturer) {
+            capturer.stopAnyCapture()
+        }
+    }
+
+    private func startLocalVideoCapture() async {
+        if let videoTrack = await stateModel.localTracks?.videoTrack {
+            do {
+                try await startVideoCaptureIfNeeded(from: videoTrack)
+            } catch {
+                logger.error("Failed to start video capture: \(error)")
+            }
+        }
+
+        await stateModel.applyVideoEnabledState()
     }
 
     private func startCameraVideoCapture(_ capturer: RTCCameraVideoCapturer) async throws {
@@ -681,6 +715,25 @@ extension CallEngine: CallEngineProtocol {
     func setMuted(_ isMuted: Bool) async -> Bool {
         let result = await stateModel.setMuted(isMuted)
         logger.debug("Audio muted: \(result)")
+        return result
+    }
+
+    var isVideoEnabled: Bool {
+        get async { await stateModel.isVideoEnabled }
+    }
+
+    func setVideoEnabled(_ isEnabled: Bool) async -> Bool {
+        await stateModel.setVideoEnabled(isEnabled)
+
+        if isEnabled {
+            await startLocalVideoCapture()
+        } else {
+            await stateModel.applyVideoEnabledState()
+            await stateModel.clearVideoCapture()
+        }
+
+        let result = await stateModel.isVideoEnabled
+        logger.debug("Video enabled: \(result)")
         return result
     }
 }

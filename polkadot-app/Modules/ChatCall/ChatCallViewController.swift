@@ -44,6 +44,9 @@ final class ChatCallViewController: UIHostingController<ChatCallViewLayout> {
         rootView.viewModel.onToggleMute = { [weak self] in
             self?.presenter.toggleMute()
         }
+        rootView.viewModel.onToggleVideo = { [weak self] in
+            self?.presenter.toggleVideo()
+        }
         rootView.viewModel.onSelectAudioRoute = { [weak self] route in
             self?.presenter.selectAudioRoute(route)
         }
@@ -80,6 +83,10 @@ extension ChatCallViewController: ChatCallViewProtocol {
 
     func didUpdateMuteState(_ muted: Bool) {
         rootView.viewModel.isMuted = muted
+    }
+
+    func didUpdateVideoState(_ isEnabled: Bool) {
+        rootView.viewModel.isVideoEnabled = isEnabled
     }
 
     func didReceiveCapability(_ capability: ChatCallCapability) {

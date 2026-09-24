@@ -11,6 +11,7 @@ protocol ChatCallViewProtocol: ControllerBackedProtocol {
     func didReceiveLocalRenderer(model: ChatCallRendererModel)
     func didUpdateAudioRoute(_ state: CallAudioRouteState)
     func didUpdateMuteState(_ muted: Bool)
+    func didUpdateVideoState(_ isEnabled: Bool)
     func didReceiveCapability(_ capability: ChatCallCapability)
 }
 
@@ -20,6 +21,7 @@ protocol ChatCallPresenterProtocol: AnyObject {
     func acceptCall()
     func endCall()
     func toggleMute()
+    func toggleVideo()
     func selectAudioRoute(_ route: CallAudioRoute)
 }
 
@@ -28,6 +30,7 @@ protocol ChatCallInteractorInputProtocol: AnyObject {
     func acceptCall()
     func endCall()
     func toggleMute()
+    func toggleVideo()
     func selectAudioRoute(_ route: CallAudioRoute)
 }
 
@@ -41,6 +44,7 @@ protocol ChatCallInteractorOutputProtocol: AnyObject {
     func didReceiveLocalRenderer(model: ChatCallRendererModel)
     func didUpdateAudioRoute(_ state: CallAudioRouteState)
     func didUpdateMuteState(_ muted: Bool)
+    func didUpdateVideoState(_ isEnabled: Bool)
     func didReceiveCapability(_ capability: ChatCallCapability)
 }
 

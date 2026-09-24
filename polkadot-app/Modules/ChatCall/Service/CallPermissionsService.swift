@@ -15,14 +15,14 @@ enum MicrophonePromptPolicy {
 
 protocol CallPermissionsServicing: AnyObject {
     var isMicrophoneGranted: Bool { get }
+    var isCameraGranted: Bool { get }
 
     var isMicrophoneDenied: Bool { get }
 
     func resolveMicrophoneAccess(prompting policy: MicrophonePromptPolicy) async -> CallMicrophoneAccess
 
-    func requestCameraAccessIfNeeded(for callType: ChatCallType) async
-
-    func ensurePermissions(for callType: ChatCallType) async -> Bool
+    func ensurePermissions() async -> Bool
+    func ensureCameraAccess() async -> Bool
 }
 
 final class CallPermissionsService {
@@ -88,27 +88,23 @@ extension CallPermissionsService: CallPermissionsServicing {
         }
     }
 
-    func requestCameraAccessIfNeeded(for callType: ChatCallType) async {
-        guard
-            callType == .video,
-            AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined,
-            await canPresentPermissionPrompt
-        else {
-            return
-        }
-
-        _ = await AVCaptureDevice.requestAccess(for: .video)
+    var isCameraGranted: Bool {
+        AVCaptureDevice.authorizationStatus(for: .video) == .authorized
     }
 
-    func ensurePermissions(for callType: ChatCallType) async -> Bool {
-        guard await resolveMicrophoneAccess(prompting: .whenActive) == .granted else {
+    func ensurePermissions() async -> Bool {
+        await resolveMicrophoneAccess(prompting: .whenActive) == .granted
+    }
+
+    func ensureCameraAccess() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            guard await canPresentPermissionPrompt else { return false }
+            return await AVCaptureDevice.requestAccess(for: .video)
+        default:
             return false
         }
-
-        // Camera denial is tolerated: the call degrades to audio-only,
-        // so only the microphone is a hard requirement.
-        await requestCameraAccessIfNeeded(for: callType)
-
-        return true
     }
 }

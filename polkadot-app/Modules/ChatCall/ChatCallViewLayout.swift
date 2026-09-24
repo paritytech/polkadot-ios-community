@@ -46,6 +46,7 @@ struct ChatCallViewLayout: View {
                                 .stroke(.white.opacity(0.4), lineWidth: 1)
                         )
                         .shadow(radius: 6)
+                        .opacity(viewModel.isVideoEnabled ? 1 : 0)
                         // Center-based positioning in the top-right corner
                         .position(
                             x: proxy.size.width - pipWidth / 2 - trailingPadding,
@@ -82,7 +83,7 @@ struct ChatCallViewLayout: View {
                 Spacer()
 
                 // Call action buttons
-                HStack(spacing: 40) {
+                HStack(spacing: 24) {
                     // Accept button (only for incoming calls in ringing state)
                     if viewModel.isIncoming, viewModel.callState == .ringing {
                         Button {
@@ -121,6 +122,21 @@ struct ChatCallViewLayout: View {
                                 )
                         }
                         .accessibilityId(AccessibilityID.InCall.muteButton)
+                    }
+
+                    if viewModel.shouldDisplayVideoToggle {
+                        Button {
+                            viewModel.onToggleVideo?()
+                        } label: {
+                            Image(systemName: viewModel.isVideoEnabled ? "video.fill" : "video.slash.fill")
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(Color.fgPrimary)
+                                .frame(width: 64, height: 64)
+                                .background(
+                                    Color.bgActionTertiary,
+                                    in: Circle()
+                                )
+                        }
                     }
 
                     if viewModel.canEndCall {

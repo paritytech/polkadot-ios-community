@@ -13,9 +13,11 @@ protocol ChatCallViewModelProtocol {
     var localRenderingModel: ChatCallRendererModel? { get set }
     var isIncoming: Bool { get set }
     var isMuted: Bool { get set }
+    var isVideoEnabled: Bool { get set }
     var onAcceptCall: (() -> Void)? { get set }
     var onEndCall: (() -> Void)? { get set }
     var onToggleMute: (() -> Void)? { get set }
+    var onToggleVideo: (() -> Void)? { get set }
     var onSelectAudioRoute: ((CallAudioRoute) -> Void)? { get set }
 }
 
@@ -30,11 +32,13 @@ class ChatCallViewModel: ChatCallViewModelProtocol {
     var localRenderingModel: ChatCallRendererModel?
     var isIncoming: Bool = false
     var isMuted: Bool = false
+    var isVideoEnabled: Bool = false
     var capability: ChatCallCapability = .none
     var audioRouteState: CallAudioRouteState = .unknown
     var onAcceptCall: (() -> Void)?
     var onEndCall: (() -> Void)?
     var onToggleMute: (() -> Void)?
+    var onToggleVideo: (() -> Void)?
     var onSelectAudioRoute: ((CallAudioRoute) -> Void)?
 
     var onCall: Bool {
@@ -51,6 +55,10 @@ class ChatCallViewModel: ChatCallViewModelProtocol {
 
     var shouldDisplayMute: Bool {
         capability.contains(.mute) && onCall
+    }
+
+    var shouldDisplayVideoToggle: Bool {
+        capability.contains(.video) && onCall
     }
 
     var shouldDisplayAudioRoute: Bool {

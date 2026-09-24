@@ -60,16 +60,10 @@ final class ChatCallInteractor {
 
 private extension ChatCallInteractor {
     func provideLocalRendererModel() async {
-        switch callType {
-        case .audio:
-            let localModel = ChatCallRendererModel(attach: nil)
-            await presenter?.didReceiveLocalRenderer(model: localModel)
-        case .video:
-            let localModel = ChatCallRendererModel { [weak callEngine] view in
-                callEngine?.attach(localRenderer: view)
-            }
-            await presenter?.didReceiveLocalRenderer(model: localModel)
+        let localModel = ChatCallRendererModel { [weak callEngine] view in
+            callEngine?.attach(localRenderer: view)
         }
+        await presenter?.didReceiveLocalRenderer(model: localModel)
     }
 
     func provideRemoteRendererModel() async {
@@ -223,6 +217,8 @@ private extension ChatCallInteractor {
             return
         }
 
+        await applyInitialVideoState()
+
         callKitManager.startOutgoingCall(with: makeCallKitInput())
         discoverCapabilities()
         callEngine.connect()
@@ -237,7 +233,8 @@ private extension ChatCallInteractor {
         }
 
         let microphoneAccess = await permissionsService.resolveMicrophoneAccess(prompting: .whenActive)
-        await permissionsService.requestCameraAccessIfNeeded(for: callType)
+
+        await applyInitialVideoState()
 
         if notifiesCallKit {
             callKitManager.answerFromAppOrEnsureStarted(with: makeCallKitInput())
@@ -320,9 +317,15 @@ private extension ChatCallInteractor {
         logger.debug("Call ended")
     }
 
+    func applyInitialVideoState() async {
+        let isEnabled = callType == .video && permissionsService.isCameraGranted
+        let result = await callEngine.setVideoEnabled(isEnabled)
+        await presenter?.didUpdateVideoState(result)
+    }
+
     @MainActor
     func ensureCallPermissions() async -> Bool {
-        guard await permissionsService.ensurePermissions(for: callType) else {
+        guard await permissionsService.ensurePermissions() else {
             logger.warning("Microphone permission denied, ending the call")
             await performEndCall(notifiesCallKit: true, notifiesRemote: true)
             return false
@@ -358,7 +361,7 @@ private extension ChatCallInteractor {
 
     func discoverCapabilities() {
         Task { [weak self] in
-            await self?.presenter?.didReceiveCapability([.mute, .audioRoute])
+            await self?.presenter?.didReceiveCapability([.mute, .audioRoute, .video])
         }
     }
 }
@@ -389,6 +392,20 @@ extension ChatCallInteractor: ChatCallInteractorInputProtocol {
             } else {
                 await setMuted(true, notifiesCallKit: true)
             }
+        }
+    }
+
+    func toggleVideo() {
+        Task {
+            let isEnabled = await callEngine.isVideoEnabled
+            if !isEnabled {
+                guard await permissionsService.ensureCameraAccess() else {
+                    return
+                }
+            }
+
+            let result = await callEngine.setVideoEnabled(!isEnabled)
+            await presenter?.didUpdateVideoState(result)
         }
     }
 
