@@ -1379,7 +1379,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Balance"
+            "value": "Total"
           }
         }
       }
@@ -3407,7 +3407,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Balance card"
+            "value": "%@ Card"
           }
         }
       }

@@ -5,8 +5,8 @@ import SubstrateSdk
 import Foundation
 
 struct CoinageBalanceBreakdownViewModel {
-    /// Bare amounts, no symbol: the headline carries ``symbol`` once, in small type, and the
-    /// two figures below it are read against that.
+    /// Fiat-signed amounts ("$30"): the headline carries ``symbol`` once, in lighter type, and
+    /// the two figures below it are read against that.
     let totalBalance: String
     let availableNowBalance: String
     let gainingPrivacyBalance: String
