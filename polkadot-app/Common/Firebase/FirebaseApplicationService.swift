@@ -51,14 +51,19 @@ final class FirebaseApplicationService: RemoteConfigManaging {
     func fetchRemoteConfigValues() {
         Task {
             do {
-                let signal: CustomSignal = .environment
-                try await remoteConfig.setCustomSignals([signal.key: signal.value])
-                let status = try await remoteConfig.fetchAndActivate()
-                handleRemoteConfigStatus(status)
+                try await fetchAndActivateRemoteConfig()
+                delegate?.remoteConfig(didFinishLoading: .success(()))
             } catch {
                 delegate?.remoteConfig(didFinishLoading: .failure(error))
             }
         }
+    }
+
+    func fetchAndActivateRemoteConfig() async throws {
+        let signal: CustomSignal = .environment
+        try await remoteConfig.setCustomSignals([signal.key: signal.value])
+        let status = try await remoteConfig.fetchAndActivate()
+        handleRemoteConfigStatus(status)
     }
 
     func asyncWaitChainsForRemoteConfigValues() -> CompoundOperationWrapper<[RemoteChainModel]> {
@@ -126,13 +131,11 @@ private extension FirebaseApplicationService {
     private func configurationRemoteConfigSettings() {
         let remoteConfigSettings = RemoteConfigSettings()
         remoteConfigSettings.minimumFetchInterval = .zero
+        remoteConfigSettings.fetchTimeout = 10
         remoteConfig.configSettings = remoteConfigSettings
     }
 
     private func handleRemoteConfigStatus(_ status: RemoteConfigFetchAndActivateStatus) {
-        defer {
-            delegate?.remoteConfig(didFinishLoading: .success(()))
-        }
         switch status {
         case .successFetchedFromRemote:
             logger.info("RemoteConfig fetched from remote and activated")
