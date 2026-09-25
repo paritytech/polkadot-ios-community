@@ -13,6 +13,7 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
     }
 
     let previewView = CameraPreviewView()
+    private var previewSide: CGFloat = 0
 
     override func setupLayout() {
         backgroundColor = .clear
@@ -29,9 +30,6 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
         }
 
         qrFrameView.addSubview(previewView)
-        previewView.snp.makeConstraints { make in
-            make.edges.equalToSuperview()
-        }
 
         messageLabel.textColor = .fgPrimary
         addSubview(messageLabel)
@@ -51,5 +49,29 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
     /// cut-out are already absent from this layout, so nothing else needs suppressing.
     func setPreviewCompact(_ compact: Bool) {
         messageLabel.isHidden = compact
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutPreview()
+    }
+}
+
+private extension EmbeddedQRScannerViewLayout {
+    /// A resized `AVCaptureVideoPreviewLayer` lays its video out at the final size immediately, pinned to
+    /// the top-left, so the preview keeps the widest size it has had and is scaled around its center.
+    func layoutPreview() {
+        let side = qrFrameView.bounds.width
+
+        guard side > 0 else {
+            return
+        }
+
+        previewSide = max(previewSide, side)
+        previewView.bounds = CGRect(x: 0, y: 0, width: previewSide, height: previewSide)
+        previewView.center = CGPoint(x: qrFrameView.bounds.midX, y: qrFrameView.bounds.midY)
+
+        let scale = side / previewSide
+        previewView.transform = CGAffineTransform(scaleX: scale, y: scale)
     }
 }
