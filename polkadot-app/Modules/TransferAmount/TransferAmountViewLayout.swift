@@ -132,7 +132,7 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
         addSubview(cashLabel)
         cashLabel.snp.makeConstraints { make in
             make.centerX.equalToSuperview()
-            make.top.equalTo(amountInputView.snp.bottom).offset(DSSpacings.extraMedium)
+            make.top.equalTo(amountInputView.snp.bottom).offset(DSSpacings.tiny)
         }
 
         let bottomView = UIView.vStack(spacing: 12 * heightScaleMultiplier, [feeView, confirmView])
