@@ -122,7 +122,7 @@ struct ClaimRebuildTests {
 private extension ClaimRebuildTests {
     func makeRebuild() -> ClaimRebuild {
         ClaimRebuild(
-            coinQuery: StubCoinQuery(),
+            coinQuery: StubCoinOnChainQuery(),
             builder: ClaimExtrinsicBuilder(
                 originFactory: StubOriginFactory(),
                 factory: StubTxFactory(),

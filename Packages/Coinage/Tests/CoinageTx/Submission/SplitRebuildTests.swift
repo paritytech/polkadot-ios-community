@@ -174,7 +174,7 @@ private extension SplitRebuildTests {
     func makeRebuild(coinService: any CoinServiceProtocol) -> SplitRebuild {
         SplitRebuild(
             coinService: coinService,
-            coinQuery: StubCoinQuery(),
+            coinQuery: StubCoinOnChainQuery(),
             builder: SplitExtrinsicBuilder(
                 coinKeyFactory: StubCoinKeyFactory(),
                 originFactory: StubOriginFactory(),
