@@ -286,3 +286,43 @@ extension SdpCoder.IP4Address: ScaleCodable {
         try comp4.encode(scaleEncoder: scaleEncoder)
     }
 }
+
+extension SdpCoder.IP4Address {
+    var isPrivateOrLinkLocal: Bool {
+        switch comp1 {
+        case 10,
+             127:
+            true
+        case 172:
+            (16 ... 31).contains(comp2)
+        case 192:
+            comp2 == 168
+        case 169:
+            comp2 == 254
+        default:
+            false
+        }
+    }
+}
+
+extension SdpCoder.IP6Address {
+    var isPrivateOrLinkLocal: Bool {
+        let isUniqueLocal = comp1 & 0xFE00 == 0xFC00
+        let isLinkLocal = comp1 & 0xFFC0 == 0xFE80
+        let isLoopback = [comp1, comp2, comp3, comp4, comp5, comp6, comp7].allSatisfy { $0 == 0 }
+            && comp8 == 1
+
+        return isUniqueLocal || isLinkLocal || isLoopback
+    }
+}
+
+extension SdpCoder.MinimalCandidate.IPAddress {
+    var isPrivateOrLinkLocal: Bool {
+        switch self {
+        case let .ipv4(address):
+            address.isPrivateOrLinkLocal
+        case let .ipv6(address):
+            address.isPrivateOrLinkLocal
+        }
+    }
+}

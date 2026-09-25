@@ -18,3 +18,26 @@ struct TcpHostCandidateFilter: ConnectionCandidateFiltering {
         !candidate.isTCPHost
     }
 }
+
+/// Drops `typ host` candidates on private, link-local or loopback addresses.
+///
+/// Once Local Network access is denied, iOS closes any socket that sends to the local network —
+/// and a reflexive candidate shares its per-interface socket with that interface's host
+/// candidate, so probing a peer's LAN address can take the reflexive path down with it.
+struct PrivateHostCandidateFilter: ConnectionCandidateFiltering {
+    func shouldAccept(_ candidate: PeerConnectionCandidate) -> Bool {
+        !candidate.isPrivateHost
+    }
+}
+
+struct CompositeCandidateFilter: ConnectionCandidateFiltering {
+    let filters: [ConnectionCandidateFiltering]
+
+    init(_ filters: [ConnectionCandidateFiltering]) {
+        self.filters = filters
+    }
+
+    func shouldAccept(_ candidate: PeerConnectionCandidate) -> Bool {
+        filters.allSatisfy { $0.shouldAccept(candidate) }
+    }
+}

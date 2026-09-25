@@ -129,6 +129,13 @@ extension PeerConnectionCandidate {
         guard let parsed = try? SdpCoder.parseCandidate(self) else { return false }
         return parsed.transportType == .tcp && parsed.candidateType == .host
     }
+
+    /// Globally-routable host candidates are deliberately kept: iOS hands out public IPv6
+    /// host addresses on cellular, and those never touch the local network.
+    var isPrivateHost: Bool {
+        guard let parsed = try? SdpCoder.parseCandidate(self) else { return false }
+        return parsed.candidateType == .host && parsed.address.isPrivateOrLinkLocal
+    }
 }
 
 extension SdpCoder: SdpCoding {

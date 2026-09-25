@@ -147,6 +147,7 @@ final class CallEngine {
     let logger: LoggerProtocol
     let peerConnectionFactory: RTCPeerConnectionFactory
     let configFactory: WebRTCConfigMaking
+    let candidateFilter: ConnectionCandidateFiltering
     let purpose: String
 
     private var callType: ChatCallType
@@ -179,6 +180,7 @@ final class CallEngine {
         initialCallType: ChatCallType,
         purpose: String,
         configFactory: WebRTCConfigMaking,
+        candidateFilter: ConnectionCandidateFiltering,
         peerConnectionFactory: RTCPeerConnectionFactory,
         logger: LoggerProtocol
     ) {
@@ -187,6 +189,7 @@ final class CallEngine {
         callType = initialCallType
         self.purpose = purpose
         self.configFactory = configFactory
+        self.candidateFilter = candidateFilter
         self.peerConnectionFactory = peerConnectionFactory
         self.logger = logger
 
@@ -255,6 +258,7 @@ private extension CallEngine {
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
                 purpose: purpose,
+                candidateFilter: candidateFilter,
                 logger: logger
             )
         case .acceptor:
@@ -262,6 +266,7 @@ private extension CallEngine {
                 signaling: signaling,
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
+                candidateFilter: candidateFilter,
                 logger: logger
             )
         }
@@ -284,6 +289,7 @@ private extension CallEngine {
                 dataChannelWrapper: dataConnected.dataChannel,
                 localTracks: tracks,
                 transceiverConfigStrategy: transceiverConfigStrategy,
+                candidateFilter: candidateFilter,
                 logger: logger
             )
         case .acceptor:
@@ -292,6 +298,7 @@ private extension CallEngine {
                 dataChannelWrapper: dataConnected.dataChannel,
                 localTracks: tracks,
                 transceiverConfigStrategy: transceiverConfigStrategy,
+                candidateFilter: candidateFilter,
                 logger: logger
             )
         }
