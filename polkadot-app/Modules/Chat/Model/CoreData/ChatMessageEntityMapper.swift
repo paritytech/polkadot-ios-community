@@ -11,18 +11,13 @@ final class ChatMessageEntityMapper {
     typealias CoreDataEntity = CDChatMessage
 
     private let orderAllocator: ChatMessageOrderAllocating
-    private let inheritedOrder: Int64?
 
     var entityIdentifierFieldName: String {
         #keyPath(CDChatMessage.messageId)
     }
 
-    init(
-        orderAllocator: ChatMessageOrderAllocating = FileChatMessageOrderAllocator.shared,
-        inheritedOrder: Int64? = nil
-    ) {
+    init(orderAllocator: ChatMessageOrderAllocating = FileChatMessageOrderAllocator.shared) {
         self.orderAllocator = orderAllocator
-        self.inheritedOrder = inheritedOrder
     }
 }
 
@@ -98,6 +93,18 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
         from model: DataProviderModel,
         using context: NSManagedObjectContext
     ) throws {
+        try populate(entity: entity, from: model, inheritingOrder: nil, using: context)
+    }
+}
+
+extension ChatMessageEntityMapper {
+    /// `inheritedOrder` places a new row at an existing position, e.g. messages expanded from a compacted one.
+    func populate(
+        entity: CoreDataEntity,
+        from model: DataProviderModel,
+        inheritingOrder inheritedOrder: Int64?,
+        using context: NSManagedObjectContext
+    ) throws {
         guard let messageState = ensureValidMessage(entity: entity, from: model) else {
             throw MapperError.invalidMessage
         }
@@ -129,7 +136,7 @@ extension ChatMessageEntityMapper: CoreDataMapperProtocol {
             .mapOrThrow(MapperError.missingChat)
 
         if messageState.isNew {
-            entity.order = try newOrder(for: model, in: chat, using: context)
+            entity.order = try inheritedOrder ?? newOrder(for: model, in: chat, using: context)
         }
 
         entity.chat = chat
@@ -238,10 +245,6 @@ private extension ChatMessageEntityMapper {
         in chat: CDChat,
         using context: NSManagedObjectContext
     ) throws -> Int64 {
-        if let inheritedOrder {
-            return inheritedOrder
-        }
-
         if model.creationSource == .deviceSync,
            let latestTimestamp = try latestTimestamp(in: chat, using: context),
            model.timestamp < latestTimestamp {

@@ -39,7 +39,7 @@ extension CompactedExpansionMessageMapper: CoreDataMapperProtocol {
 
         entity.contentExpanded = true
 
-        let expandedMessageMapper = ChatMessageEntityMapper(inheritedOrder: entity.order)
+        let expandedMessageMapper = ChatMessageEntityMapper()
 
         for remoteMessage in model.expandedMessages {
             if let localMessage = Chat.LocalMessage(
@@ -56,6 +56,7 @@ extension CompactedExpansionMessageMapper: CoreDataMapperProtocol {
                 try expandedMessageMapper.populate(
                     entity: expandedEntity,
                     from: localMessage,
+                    inheritingOrder: entity.order,
                     using: context
                 )
             }
