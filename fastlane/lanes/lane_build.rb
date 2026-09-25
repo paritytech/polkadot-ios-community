@@ -11,6 +11,17 @@ lane :base_build_app do |options|
   scheme = options[:scheme]
   target = options[:target]
   configuration = options[:configuration]
+
+  # Sentry is linked only when Packages/IssueMonitoring resolves with ISSUE_MONITORING set.
+  # Release leaves it unset so sentry-cocoa never enters the dependency graph. The resolved
+  # package cache is keyed per flavour so a cached checkout cannot carry Sentry into Release.
+  issue_monitoring_enabled = configuration != "Release"
+  if issue_monitoring_enabled
+    ENV["ISSUE_MONITORING"] = "sentry"
+  else
+    ENV.delete("ISSUE_MONITORING")
+  end
+  source_packages_path = issue_monitoring_enabled ? "source_packages" : "source_packages_release"
   debug_mode = options[:debug] == true || options[:debug] == 'true'
   app_identifier = ENV["IOS_BUNDLE_ID"]
   extension_identifier = ENV["IOS_EXTENSION_BUNDLE_ID"]
@@ -89,7 +100,7 @@ lane :base_build_app do |options|
     xcargs: "-skipPackagePluginValidation -skipMacroValidation RUN_IN_CI=#{ENV['RUN_IN_CI']}",
     clean: true,
     result_bundle: result_bundle,
-    cloned_source_packages_path: 'source_packages',
+    cloned_source_packages_path: source_packages_path,
     export_options: {
       method: export_method,
       provisioningProfiles: provisioning_profiles,
@@ -109,4 +120,34 @@ lane :base_build_app do |options|
   end
 
   gym(gym_params)
+
+  verify_no_issue_monitoring unless issue_monitoring_enabled
+end
+
+desc "Fails when the archived Release app still carries the Sentry SDK"
+desc "Example usage: fastlane verify_no_issue_monitoring"
+lane :verify_no_issue_monitoring do
+  ipa_path = lane_context[SharedValues::IPA_OUTPUT_PATH]
+  UI.user_error!("No .ipa produced, cannot verify Sentry exclusion") if ipa_path.to_s.empty?
+
+  require "shellwords"
+  require "tmpdir"
+
+  Dir.mktmpdir do |unpack_dir|
+    sh("unzip", "-q", ipa_path, "-d", unpack_dir)
+
+    app_bundle = Dir.glob(File.join(unpack_dir, "Payload", "*.app")).first
+    UI.user_error!("No .app inside #{ipa_path}") if app_bundle.nil?
+
+    embedded = Dir.glob(File.join(app_bundle, "Frameworks", "Sentry*"))
+    unless embedded.empty?
+      UI.user_error!("Release bundle embeds Sentry: #{embedded.map { |p| File.basename(p) }.join(', ')}")
+    end
+
+    binary = File.join(app_bundle, File.basename(app_bundle, ".app"))
+    symbols = `strings -a #{binary.shellescape} | grep -c SentrySDK`.strip.to_i
+    UI.user_error!("Release binary contains #{symbols} SentrySDK references") if symbols > 0
+  end
+
+  UI.success("Release bundle contains no Sentry SDK")
 end
