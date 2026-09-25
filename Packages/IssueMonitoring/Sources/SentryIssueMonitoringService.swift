@@ -1,15 +1,17 @@
-#if TESTNET_FEATURE
+#if SENTRY_ENABLED
     import Foundation
     import Sentry
 
-    protocol IssueMonitoringServicing {
-        func setup()
-    }
+    final class SentryIssueMonitoringService: IssueMonitoringServicing {
+        private let dsn: String
 
-    final class IssueMonitoringService: IssueMonitoringServicing {
+        init(dsn: String) {
+            self.dsn = dsn
+        }
+
         func setup() {
-            SentrySDK.start { options in
-                options.dsn = GeneratedSecrets.sentryDSN
+            SentrySDK.start { [dsn] options in
+                options.dsn = dsn
 
                 // Adds IP for users.
                 // For more information, visit: https://docs.sentry.io/platforms/apple/data-management/data-collected/
