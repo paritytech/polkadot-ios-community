@@ -243,13 +243,13 @@ private struct CoinageBalanceBreakdownView: View {
     private var totalHeadline: some View {
         HStack(alignment: .firstTextBaseline, spacing: DSSpacings.small) {
             Text(breakdown.totalBalance)
+                .typography(.displaySmall)
                 .accessibilityId(AccessibilityID.Wallet.coinageTotalBalanceValue)
 
             Text(breakdown.symbol)
-                .fontWeight(.regular)
+                .typography(.smallCapsDisplaySmall)
                 .foregroundStyle(Color.fgSecondary)
         }
-        .typography(.displaySmall)
         .lineLimit(1)
         .foregroundStyle(Color.fgPrimary)
         .frame(maxWidth: .infinity, alignment: .leading)

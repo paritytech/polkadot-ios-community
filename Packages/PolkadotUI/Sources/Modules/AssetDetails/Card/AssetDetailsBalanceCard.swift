@@ -62,11 +62,11 @@ public struct AssetDetailsBalanceCard: View {
                     if !isExpanded, let balance = viewModel.balance {
                         HStack(alignment: .firstTextBaseline, spacing: DSSpacings.tiny) {
                             Text(balance)
+                                .typography(.headlineMedium)
                                 .accessibilityId(AccessibilityID.Wallet.cashCardBalance)
                             Text(viewModel.symbol ?? String(localized: .walletCardTitle))
-                                .fontWeight(.regular)
+                                .typography(.smallCapsHeadlineMedium)
                         }
-                        .typography(.headlineMedium)
                         .foregroundStyle(Color.fgStaticWhite)
                         .transition(.opacity)
                     }
