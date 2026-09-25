@@ -35,7 +35,7 @@ final class TransferAmountViewLayout: UIView, AdaptiveDesignable {
     }
 
     let cashLabel: PolkadotUI.Label = .create {
-        $0.typography = .headlineSmall
+        $0.typography = .smallCapsHeadlineMedium
         $0.textColor = .fgSecondary
     }
 
