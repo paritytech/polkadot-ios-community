@@ -59,7 +59,7 @@ final class AssetDetailsPresenter {
 
     private func provideAssetBalance() {
         let balanceViewModelFactory = PrimitiveBalanceViewModelFactory(
-            targetAssetInfo: chainAsset.asset.digitalDollarDisplayInfo.withoutSymbol,
+            targetAssetInfo: chainAsset.asset.digitalDollarFiatDisplayInfo,
             formatterFactory: balanceFormatterFactory
         )
 
@@ -289,10 +289,9 @@ private extension AssetDetailsPresenter {
 
 private extension AssetDetailsPresenter {
     func provideCoinageBreakdown() {
-        func formatted(from decimal: Decimal, includeSymbol: Bool = true) -> String {
-            let assetInfo = chainAsset.asset.digitalDollarDisplayInfo
+        func formatted(from decimal: Decimal, with assetInfo: AssetBalanceDisplayInfo) -> String {
             let balanceViewModelFactory = PrimitiveBalanceViewModelFactory(
-                targetAssetInfo: includeSymbol ? assetInfo : assetInfo.withoutSymbol,
+                targetAssetInfo: assetInfo,
                 formatterFactory: balanceFormatterFactory
             )
             return balanceViewModelFactory.balanceFromPrice(
@@ -303,6 +302,8 @@ private extension AssetDetailsPresenter {
             .amount
         }
 
+        let fiatAssetInfo = chainAsset.asset.digitalDollarFiatDisplayInfo
+        let bareAssetInfo = chainAsset.asset.digitalDollarDisplayInfo.withoutSymbol
         let context = denominationContext
         let holdings = holdings
 
@@ -310,7 +311,7 @@ private extension AssetDetailsPresenter {
         func amount(forExponent exponent: Int16) -> String? {
             guard let context else { return nil }
 
-            return formatted(from: context.amount(forExponent: exponent), includeSymbol: false)
+            return formatted(from: context.amount(forExponent: exponent), with: bareAssetInfo)
         }
 
         let rows = CoinageBreakdownFactory.rows(from: holdings).map { row in
@@ -324,9 +325,9 @@ private extension AssetDetailsPresenter {
         let amounts = coinageAmounts ?? .zero
 
         let breakdown = CoinageBalanceBreakdownViewModel(
-            totalBalance: formatted(from: amounts.total, includeSymbol: false),
-            availableNowBalance: formatted(from: amounts.availableNow, includeSymbol: false),
-            gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, includeSymbol: false),
+            totalBalance: formatted(from: amounts.total, with: fiatAssetInfo),
+            availableNowBalance: formatted(from: amounts.availableNow, with: fiatAssetInfo),
+            gainingPrivacyBalance: formatted(from: amounts.gainingPrivacy, with: fiatAssetInfo),
             symbol: chainAsset.asset.digitalDollarDisplayInfo.symbol,
             composition: context.map {
                 CoinageBreakdownFactory.composition(of: holdings, context: $0)

@@ -55,18 +55,20 @@ public struct AssetDetailsBalanceCard: View {
                             .frame(height: Constants.logoHeight)
                     } else {
                         Image(.iconCashLogo)
-                        Text(viewModel.symbol ?? String(localized: .walletCardTitle))
-                            .textStyle(.title18SemiBold())
                     }
 
                     Spacer()
 
                     if !isExpanded, let balance = viewModel.balance {
-                        Text(balance)
-                            .typography(.titleLarge)
-                            .foregroundStyle(Color.fgStaticWhite)
-                            .transition(.opacity)
-                            .accessibilityId(AccessibilityID.Wallet.cashCardBalance)
+                        HStack(alignment: .firstTextBaseline, spacing: DSSpacings.tiny) {
+                            Text(balance)
+                                .typography(.headlineMedium)
+                                .accessibilityId(AccessibilityID.Wallet.cashCardBalance)
+                            Text(viewModel.symbol ?? String(localized: .walletCardTitle))
+                                .typography(.smallCapsHeadlineMedium)
+                        }
+                        .foregroundStyle(Color.fgStaticWhite)
+                        .transition(.opacity)
                     }
                 }
                 .animation(.easeInOut, value: isExpanded)
