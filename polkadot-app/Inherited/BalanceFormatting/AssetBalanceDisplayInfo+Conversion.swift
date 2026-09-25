@@ -24,6 +24,17 @@ extension AssetModel {
             icon: nil
         )
     }
+
+    var digitalDollarFiatDisplayInfo: AssetBalanceDisplayInfo {
+        AssetBalanceDisplayInfo(
+            displayPrecision: 2,
+            assetPrecision: Int16(bitPattern: precision),
+            symbol: AppConfig.Brand.fiatSymbol,
+            symbolValueSeparator: "",
+            symbolPosition: .prefix,
+            icon: nil
+        )
+    }
 }
 
 extension ChainAsset {
