@@ -112,8 +112,8 @@ let dependencyConfigs: [DependencyConfig] = [
     ),
     .init(
         name: "AsyncExtensions",
-        url: "https://github.com/sideeffect-io/AsyncExtensions",
-        version: .exact("0.5.4"),
+        url: "https://github.com/ERussel/AsyncExtensions",
+        version: .exact("0.5.6"),
         products: ["AsyncExtensions"]
     ),
     .init(

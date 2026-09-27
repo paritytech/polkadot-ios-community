@@ -4,10 +4,10 @@
     {
       "identity" : "asyncextensions",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/sideeffect-io/AsyncExtensions",
+      "location" : "https://github.com/ERussel/AsyncExtensions",
       "state" : {
-        "revision" : "735748a3ffb7ec880aa252e1c38ec0a65929cb87",
-        "version" : "0.5.4"
+        "revision" : "d0355c9f209098dbc4d208c2cee3d2b94df2404f",
+        "version" : "0.5.6"
       }
     },
     {
