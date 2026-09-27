@@ -26,7 +26,7 @@ let package = Package(
             from: "0.0.1"
         ),
         .package(
-            url: "https://github.com/ERussel/AsyncExtensions",
+            url: "https://github.com/paritytech/AsyncExtensions",
             exact: "0.5.6"
         ),
         .package(path: "../StructuredConcurrency"),

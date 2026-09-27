@@ -112,7 +112,7 @@ let dependencyConfigs: [DependencyConfig] = [
     ),
     .init(
         name: "AsyncExtensions",
-        url: "https://github.com/ERussel/AsyncExtensions",
+        url: "https://github.com/paritytech/AsyncExtensions",
         version: .exact("0.5.6"),
         products: ["AsyncExtensions"]
     ),

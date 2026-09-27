@@ -22,9 +22,9 @@
     {
       "identity" : "asyncextensions",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/ERussel/AsyncExtensions",
+      "location" : "https://github.com/paritytech/AsyncExtensions",
       "state" : {
-        "revision" : "d0355c9f209098dbc4d208c2cee3d2b94df2404f",
+        "revision" : "9fd3785a5d9b84e55f3e7950a5758378cd134da9",
         "version" : "0.5.6"
       }
     },
