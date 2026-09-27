@@ -45,7 +45,6 @@
 		CC0CC0502FBA000100CCAA05 /* EventCenter in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0602FBA000100CCAA06 /* EventCenter */; };
 		CC0CC0702FBA000100CCAA07 /* EventCenter in Frameworks */ = {isa = PBXBuildFile; productRef = CC0CC0802FBA000100CCAA08 /* EventCenter */; };
 		D0D0D0022FDA0000000D0002 /* DurableTransactions in Frameworks */ = {isa = PBXBuildFile; productRef = D0D0D0012FDA0000000D0001 /* DurableTransactions */; };
-		E9C7172E2ECDD6730014841F /* JailbreakDetection in Frameworks */ = {isa = PBXBuildFile; productRef = E9C7172D2ECDD6730014841F /* JailbreakDetection */; };
 		EA11ACCE000000000000B001 /* ExternalAccessibility in Frameworks */ = {isa = PBXBuildFile; productRef = EA11ACCE000000000000B002 /* ExternalAccessibility */; };
 /* End PBXBuildFile section */
 
@@ -342,7 +341,6 @@
 				0C6058402FB598D70008050F /* AssetsManagement in Frameworks */,
 				0C148EF42EAA61E8002497EC /* XcmDefinition in Frameworks */,
 				0C148EF02EAA61DC002497EC /* HydrationSdk in Frameworks */,
-				E9C7172E2ECDD6730014841F /* JailbreakDetection in Frameworks */,
 				0C0DFC2F2F90983800D9D574 /* Individuality in Frameworks */,
 				0CA3EA882EAA711100C43F10 /* AssetHubSdk in Frameworks */,
 				A5B437012E96B82E00CFF21D /* MessageExchangeKit in Frameworks */,
@@ -537,7 +535,6 @@
 				0C148EF32EAA61E8002497EC /* XcmDefinition */,
 				0CA3EA872EAA711100C43F10 /* AssetHubSdk */,
 				A526CB2F2EBBA06D00D2987B /* PolkadotUI */,
-				E9C7172D2ECDD6730014841F /* JailbreakDetection */,
 				0CEC59AB2F08EBFC0009CC37 /* FoundationExt */,
 				EA11ACCE000000000000B002 /* ExternalAccessibility */,
 				A57CAF652F45ECB70066D722 /* StructuredConcurrency */,
@@ -1978,10 +1975,6 @@
 		D0D0D0012FDA0000000D0001 /* DurableTransactions */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DurableTransactions;
-		};
-		E9C7172D2ECDD6730014841F /* JailbreakDetection */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = JailbreakDetection;
 		};
 		EA11ACCE000000000000B002 /* ExternalAccessibility */ = {
 			isa = XCSwiftPackageProductDependency;
