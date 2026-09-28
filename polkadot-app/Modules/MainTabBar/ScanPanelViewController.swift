@@ -74,7 +74,6 @@ extension ScanPanelViewController: TabBarKeyboardTrackingContent {
 
     func setKeyboardInputFocused(_ focused: Bool) {
         scannerController.setCaptureActive(!focused)
-        scannerController.setPreviewCompact(focused)
         rootView.setSearchFocused(focused)
     }
 }

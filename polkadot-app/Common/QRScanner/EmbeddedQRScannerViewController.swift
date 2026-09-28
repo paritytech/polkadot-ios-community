@@ -2,10 +2,9 @@ import AVFoundation
 import UIKit
 
 /// What the scan panel needs from its scanner: capture stops while the collapsed preview shows
-/// nothing, and the compact flag suppresses the overlay message.
+/// nothing.
 protocol ScanPanelScannerControlling: AnyObject {
     func setCaptureActive(_ active: Bool)
-    func setPreviewCompact(_ compact: Bool)
 }
 
 /// Hosted as a child of the tab bar panel rather than presented, so it drops the framed
@@ -33,13 +32,15 @@ final class EmbeddedQRScannerViewController: QRScannerViewController, ScanPanelS
     func setCaptureActive(_ active: Bool) {
         presenter.setCaptureActive(active)
 
-        guard !active else {
-            return
-        }
-        (view as? EmbeddedQRScannerViewLayout)?.hidePreview()
+        guard !active else { return }
+        layout?.hidePreview()
     }
+}
 
-    func setPreviewCompact(_ compact: Bool) {
-        (view as? EmbeddedQRScannerViewLayout)?.setPreviewCompact(compact)
+// MARK: - Private
+
+private extension EmbeddedQRScannerViewController {
+    var layout: EmbeddedQRScannerViewLayout? {
+        view as? EmbeddedQRScannerViewLayout
     }
 }

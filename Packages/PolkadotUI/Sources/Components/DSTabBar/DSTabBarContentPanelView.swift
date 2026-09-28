@@ -15,6 +15,7 @@ public final class DSTabBarContentPanelView: UIView {
     override public init(frame: CGRect) {
         super.init(frame: frame)
 
+        // Clipping cut the hosted content's soft glass edge into a seam along the panel's bottom.
         container.clipsToBounds = false
         container.alpha = 0
         // A closed panel keeps the open panel's frame and would otherwise

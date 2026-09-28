@@ -1,6 +1,12 @@
 import UIKit
 
 final class DSTabBarKeyboardShadowView: UIView {
+    private enum Constants {
+        static let shadowOpacity: CGFloat = 0.75
+        /// The ramp starts a tenth down the capsule so its top edge stays clear.
+        static let gradientStart: NSNumber = 0.1
+    }
+
     override class var layerClass: AnyClass {
         CAGradientLayer.self
     }
@@ -17,9 +23,9 @@ final class DSTabBarKeyboardShadowView: UIView {
 
         gradientLayer.colors = [
             UIColor.black.withAlphaComponent(0).cgColor,
-            UIColor.black.withAlphaComponent(0.75).cgColor
+            UIColor.black.withAlphaComponent(Constants.shadowOpacity).cgColor
         ]
-        gradientLayer.locations = [0.1, 1]
+        gradientLayer.locations = [Constants.gradientStart, 1]
     }
 
     @available(*, unavailable)

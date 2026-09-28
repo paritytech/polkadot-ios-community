@@ -15,7 +15,6 @@ final class TabBarChromeSurfaceView: UIView {
     private var glassContainerHeightConstraint: Constraint?
     private var appliedGlassContainerHeight: CGFloat = 0
     private var glassContainerBottomConstraint: Constraint?
-    private var panelBottomConstraints: [Constraint] = []
     private var barBottomConstraint: Constraint?
     private var isPanelTrackingKeyboard = false
     private var isContentFilling = false
@@ -26,14 +25,10 @@ final class TabBarChromeSurfaceView: UIView {
     private static let restingBottomOffset = -DSTabBarView.bottomGap
     private static let keyboardBottomOffset = DSTabBarView.capsuleHeight / 2
 
-    var capsuleLayoutReference: UIView {
-        glassContainer.contentView
-    }
-
     var availablePanelHeight: CGFloat {
         let occupiedHeight: CGFloat =
             if isPanelTrackingKeyboard {
-                bounds.height - keyboardLayoutGuide.layoutFrame.minY - DSTabBarView.capsuleHeight / 2
+                bounds.height - keyboardLayoutGuide.layoutFrame.minY - Self.keyboardBottomOffset
             } else {
                 DSTabBarView.preferredHeight()
             }
@@ -189,10 +184,8 @@ private extension TabBarChromeSurfaceView {
 
         panel.snp.makeConstraints { make in
             make.top.leading.trailing.equalTo(glassContainer.contentView)
-            panelBottomConstraints.append(
-                make.bottom.equalTo(glassContainer.contentView)
-                    .offset(-DSTabBarView.capsuleHeight).constraint
-            )
+            make.bottom.equalTo(glassContainer.contentView)
+                .offset(-DSTabBarView.capsuleHeight)
         }
     }
 }

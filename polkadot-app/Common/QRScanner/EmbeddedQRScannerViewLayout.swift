@@ -47,14 +47,9 @@ final class EmbeddedQRScannerViewLayout: QRScannerViewLayout {
 
     /// Drops the preview back to the placeholder while the session is stopped: a restarted session
     /// renders black until its first frame, which would otherwise blink through the expand.
+    /// `didAttachPreview` fades it back when the presenter reports the restarted session.
     func hidePreview() {
         qrFrameView.alpha = 0
-    }
-
-    /// Hides the overlay message while the preview is a thumbnail. The reticle, title and dimming
-    /// cut-out are already absent from this layout, so nothing else needs suppressing.
-    func setPreviewCompact(_ compact: Bool) {
-        messageLabel.isHidden = compact
     }
 
     override func layoutSubviews() {
