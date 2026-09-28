@@ -37,7 +37,16 @@ final class TabBarChromeSurfaceView: UIView {
                 DSTabBarView.preferredHeight()
             }
 
-        return bounds.height - safeAreaInsets.top - occupiedHeight
+        return bounds.height - topInset - occupiedHeight
+    }
+
+    /// The chain-status strip reaches the chrome as an additional top safe-area inset. A filling
+    /// panel passes under it and stops at the status bar; every other state keeps clear of it.
+    private var topInset: CGFloat {
+        guard isContentFilling, let windowInset = window?.safeAreaInsets.top else {
+            return safeAreaInsets.top
+        }
+        return windowInset
     }
 
     var onChipTapped: ((UUID) -> Void)?
