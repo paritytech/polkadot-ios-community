@@ -72,10 +72,8 @@ extension ScanPanelViewController: TabBarKeyboardTrackingContent {
         rootView.searchRow.searchField.isFirstResponder
     }
 
-    /// Focusing the field shrinks the camera to a thumbnail and disarms recognition, so a code
-    /// cannot be picked up from the sliver of preview left behind the keyboard.
     func setKeyboardInputFocused(_ focused: Bool) {
-        scannerController.setRecognitionArmed(!focused)
+        scannerController.setCaptureActive(!focused)
         scannerController.setPreviewCompact(focused)
         rootView.setSearchFocused(focused)
     }

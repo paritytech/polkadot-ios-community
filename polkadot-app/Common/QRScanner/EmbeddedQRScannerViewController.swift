@@ -1,10 +1,10 @@
 import AVFoundation
 import UIKit
 
-/// What the scan panel needs from its scanner: the two states are independent — the preview
-/// stays live while recognition is disarmed.
+/// What the scan panel needs from its scanner: capture stops while the collapsed preview shows
+/// nothing, and the compact flag suppresses the overlay message.
 protocol ScanPanelScannerControlling: AnyObject {
-    func setRecognitionArmed(_ armed: Bool)
+    func setCaptureActive(_ active: Bool)
     func setPreviewCompact(_ compact: Bool)
 }
 
@@ -30,8 +30,8 @@ final class EmbeddedQRScannerViewController: QRScannerViewController, ScanPanelS
         layout.didAttachPreview()
     }
 
-    func setRecognitionArmed(_ armed: Bool) {
-        presenter.setRecognitionArmed(armed)
+    func setCaptureActive(_ active: Bool) {
+        presenter.setCaptureActive(active)
     }
 
     func setPreviewCompact(_ compact: Bool) {
