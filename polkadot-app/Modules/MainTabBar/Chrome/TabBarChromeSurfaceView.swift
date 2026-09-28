@@ -13,11 +13,17 @@ final class TabBarChromeSurfaceView: UIView {
 
     private var glassContainerHeightConstraint: Constraint?
     private var appliedGlassContainerHeight: CGFloat = 0
-    private var glassContainerBottomSuperviewConstraint: Constraint?
-    private var glassContainerBottomKeyboardConstraint: Constraint?
+    private var glassContainerBottomConstraint: Constraint?
     private var panelBottomConstraints: [Constraint] = []
+    private var barBottomConstraint: Constraint?
     private var isPanelTrackingKeyboard = false
     private var isContentFilling = false
+
+    /// At rest the guide sits on the view's bottom edge, so the chrome only clears the home
+    /// indicator gap. Over the keys the whole chrome rises as one block, sunk by half a capsule
+    /// so the capsule's lower half hides behind them.
+    private static let restingBottomOffset = -DSTabBarView.bottomGap
+    private static let keyboardBottomOffset = DSTabBarView.capsuleHeight / 2
 
     var capsuleLayoutReference: UIView {
         glassContainer.contentView
@@ -26,7 +32,7 @@ final class TabBarChromeSurfaceView: UIView {
     var availablePanelHeight: CGFloat {
         let occupiedHeight: CGFloat =
             if isPanelTrackingKeyboard {
-                bounds.height - keyboardLayoutGuide.layoutFrame.minY
+                bounds.height - keyboardLayoutGuide.layoutFrame.minY - DSTabBarView.capsuleHeight / 2
             } else {
                 DSTabBarView.preferredHeight()
             }
@@ -39,6 +45,10 @@ final class TabBarChromeSurfaceView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+
+        // Without the safe area the guide rests on the view's bottom edge, so one anchor per view
+        // spans both states and only its offset changes when the keys come up.
+        keyboardLayoutGuide.usesBottomSafeArea = false
 
         installGlassContainer()
         installTabsPanel()
@@ -57,6 +67,13 @@ final class TabBarChromeSurfaceView: UIView {
 
     func addBar(_ bar: UIView) {
         addSubview(bar)
+
+        bar.snp.makeConstraints { make in
+            make.leading.trailing.equalTo(glassContainer.contentView)
+            make.height.equalTo(DSTabBarView.capsuleHeight)
+            barBottomConstraint = make.bottom.equalTo(keyboardLayoutGuide.snp.top)
+                .offset(Self.restingBottomOffset).constraint
+        }
     }
 
     func setPanelsOpen(_ kind: TabBarPanelKind?, animator: UIViewPropertyAnimator?) {
@@ -116,15 +133,9 @@ final class TabBarChromeSurfaceView: UIView {
 
         isPanelTrackingKeyboard = tracking
 
-        if tracking {
-            glassContainerBottomSuperviewConstraint?.deactivate()
-            glassContainerBottomKeyboardConstraint?.activate()
-            panelBottomConstraints.forEach { $0.update(offset: 0) }
-        } else {
-            glassContainerBottomKeyboardConstraint?.deactivate()
-            glassContainerBottomSuperviewConstraint?.activate()
-            panelBottomConstraints.forEach { $0.update(offset: -DSTabBarView.capsuleHeight) }
-        }
+        let offset = tracking ? Self.keyboardBottomOffset : Self.restingBottomOffset
+        glassContainerBottomConstraint?.update(offset: offset)
+        barBottomConstraint?.update(offset: offset)
     }
 
     /// While a search is active the content panel fills the available height instead of fitting its rows.
@@ -142,16 +153,10 @@ private extension TabBarChromeSurfaceView {
             make.centerX.equalToSuperview()
             make.width.lessThanOrEqualTo(DSTabBarView.maxWidth)
             make.width.equalToSuperview().offset(-DSTabBarView.horizontalMargin * 2).priority(.high)
-            glassContainerBottomSuperviewConstraint = make.bottom.equalToSuperview()
-                .offset(-DSTabBarView.bottomGap).constraint
+            glassContainerBottomConstraint = make.bottom.equalTo(keyboardLayoutGuide.snp.top)
+                .offset(Self.restingBottomOffset).constraint
             glassContainerHeightConstraint = make.height.equalTo(DSTabBarView.capsuleHeight).constraint
         }
-
-        // Resting constraint offsets the home indicator; keyboard tracking sits flush on the keys
-        glassContainer.snp.makeConstraints { make in
-            glassContainerBottomKeyboardConstraint = make.bottom.equalTo(keyboardLayoutGuide.snp.top).constraint
-        }
-        glassContainerBottomKeyboardConstraint?.deactivate()
     }
 
     func installTabsPanel() {
@@ -166,7 +171,7 @@ private extension TabBarChromeSurfaceView {
     }
 
     /// Both panels fill the glass above the capsule, which stays uncovered at the bottom,
-    /// and fill it edge to edge while the glass tracks the keyboard and the capsule is hidden.
+    /// and always stop a capsule short of the glass bottom, at rest and over the keyboard alike.
     func installPanel(_ panel: UIView) {
         addSubview(panel)
 
