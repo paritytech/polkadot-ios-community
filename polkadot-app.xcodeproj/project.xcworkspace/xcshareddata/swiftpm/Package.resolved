@@ -1,5 +1,5 @@
 {
-  "originHash" : "bfec2943e782eef1984bb815ebb59468a851d97a8d43164b2e12da3da7e09987",
+  "originHash" : "1927bd9fea18809db3590d6653c29c81a3b4cec530d06c49ff1263753bbc1a69",
   "pins" : [
     {
       "identity" : "abseil-cpp-binary",
@@ -591,8 +591,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/novasamatech/web3swift.git",
       "state" : {
-        "revision" : "d70a03dfa19e69ac7400a675df8a6ecc25ea43eb",
-        "version" : "3.3.1"
+        "revision" : "3453dcda98b701bcca4b1a8b12df2de8de820afa",
+        "version" : "3.3.2"
       }
     },
     {
