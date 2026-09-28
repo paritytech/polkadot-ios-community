@@ -32,6 +32,11 @@ final class EmbeddedQRScannerViewController: QRScannerViewController, ScanPanelS
 
     func setCaptureActive(_ active: Bool) {
         presenter.setCaptureActive(active)
+
+        guard !active else {
+            return
+        }
+        (view as? EmbeddedQRScannerViewLayout)?.hidePreview()
     }
 
     func setPreviewCompact(_ compact: Bool) {
