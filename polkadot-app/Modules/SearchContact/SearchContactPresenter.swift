@@ -84,8 +84,7 @@ private extension SearchContactPresenter {
             selection = [:]
             provideViewModel(sections: AccountSearchSections(recent: [], contacts: [], global: []))
         case .started,
-             .waiting,
-             .waitingLong:
+             .waiting:
             provideStatus()
         }
     }
@@ -93,8 +92,7 @@ private extension SearchContactPresenter {
     func makeStatus() -> SearchContactResultsView.StatusViewModel {
         SearchContactResultsView.StatusViewModel(
             message: makeStatusMessage(),
-            showsLoader: currentSearch.showsLoader,
-            loaderText: currentSearch.loaderText
+            showsLoader: currentSearch.showsLoader
         )
     }
 
@@ -207,8 +205,7 @@ private extension SearchContactPresenter {
         var isSearching: Bool {
             switch state {
             case .started,
-                 .waiting,
-                 .waitingLong:
+                 .waiting:
                 true
             case .result:
                 false
@@ -217,20 +214,12 @@ private extension SearchContactPresenter {
 
         var showsLoader: Bool {
             switch state {
-            case .waiting,
-                 .waitingLong:
+            case .waiting:
                 true
             case .started,
                  .result:
                 false
             }
-        }
-
-        var loaderText: String? {
-            guard case .waitingLong = state else {
-                return nil
-            }
-            return String(localized: .searchContactLoadingLong)
         }
     }
 }

@@ -2545,17 +2545,6 @@
         }
       }
     },
-    "searchContact.loading.long" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search is taking longer than usual"
-          }
-        }
-      }
-    },
     "searchContact.noRecentSearches" : {
       "extractionState" : "manual",
       "localizations" : {

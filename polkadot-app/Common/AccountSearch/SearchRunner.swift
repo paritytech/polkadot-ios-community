@@ -4,28 +4,25 @@ final class SearchRunner {
     enum State<SearchResult> {
         case started
         case waiting
-        case waitingLong
         case result(SearchResult)
     }
 
     private enum Constants {
         static let debounceDelay: Duration = .milliseconds(300)
         static let waitingDelay: Duration = .milliseconds(500)
-        static let waitingLongDelay: Duration = .milliseconds(1_500)
+        static let minLoaderDuration: Duration = .milliseconds(500)
     }
 
     func run<SearchResult>(
         _ operation: @escaping () async -> SearchResult?
     ) -> AsyncStream<State<SearchResult>> {
         AsyncStream { continuation in
+            let loaderShownAt = ContinuousClock.now + Constants.debounceDelay + Constants.waitingDelay
+
             let loaderTask = Task {
-                try? await Task.sleep(for: Constants.debounceDelay + Constants.waitingDelay)
+                try? await Task.sleep(until: loaderShownAt, clock: .continuous)
                 guard !Task.isCancelled else { return }
                 continuation.yield(.waiting)
-
-                try? await Task.sleep(for: Constants.waitingLongDelay)
-                guard !Task.isCancelled else { return }
-                continuation.yield(.waitingLong)
             }
 
             let searchTask = Task {
@@ -39,6 +36,14 @@ final class SearchRunner {
 
                 let result = await operation()
                 loaderTask.cancel()
+
+                // Keep a loader that already appeared on screen long enough to read.
+                if ContinuousClock.now >= loaderShownAt {
+                    try? await Task.sleep(
+                        until: loaderShownAt + Constants.minLoaderDuration,
+                        clock: .continuous
+                    )
+                }
 
                 guard !Task.isCancelled else {
                     continuation.finish()

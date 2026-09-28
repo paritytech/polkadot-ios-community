@@ -118,8 +118,7 @@ extension SearchAccountPresenter: SearchAccountInteractorOutputProtocol {
     func didReceive(searchState: SearchAccountSearchState) {
         switch searchState {
         case .started,
-             .waiting,
-             .waitingLong:
+             .waiting:
             view?.didStartLoading()
         case let .result(result):
             view?.didStopLoading()
