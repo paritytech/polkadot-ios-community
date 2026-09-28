@@ -88,11 +88,6 @@
 
 /* Begin PBXFileReference section */
 		0C6EC9592EC629FB00C9B292 /* NotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = NotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		0C88BDA32FEED6A800895B94 /* MetadataShortenerApi.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MetadataShortenerApi.xcodeproj; sourceTree = "<group>"; };
-		0C88CD992FEED62E00895B94 /* MetadataShortenerApi.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = MetadataShortenerApi.xcodeproj; sourceTree = "<group>"; };
-		0CA025802F74DBAF0000CDC9 /* ProtocolBuffers_iOS.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_iOS.xcodeproj; sourceTree = "<group>"; };
-		0CA025812F74DBAF0000CDC9 /* ProtocolBuffers_OSX.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_OSX.xcodeproj; sourceTree = "<group>"; };
-		0CA025822F74DBAF0000CDC9 /* ProtocolBuffers_tvOS.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ProtocolBuffers_tvOS.xcodeproj; sourceTree = "<group>"; };
 		65E2C5D62E971DC0004FBA34 /* polkadot-appIntegrationTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "polkadot-appIntegrationTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5EDAAD52E93ECAF005DDA62 /* polkadot-app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "polkadot-app.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5EDAAE32E93ECB0005DDA62 /* polkadot-appTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "polkadot-appTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -379,41 +374,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0C88C2662FEED6A800895B94 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		0C88CD9C2FEED62E00895B94 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		0CA02DE42F74DBAF0000CDC9 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		0CA02DE62F74DBAF0000CDC9 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
-		0CA02DE82F74DBAF0000CDC9 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		0CEC59AA2F08EBFC0009CC37 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -621,28 +581,6 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A5EDAAD62E93ECAF005DDA62 /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = 0C88CD9C2FEED62E00895B94 /* Products */;
-					ProjectRef = 0C88CD992FEED62E00895B94 /* MetadataShortenerApi.xcodeproj */;
-				},
-				{
-					ProductGroup = 0C88C2662FEED6A800895B94 /* Products */;
-					ProjectRef = 0C88BDA32FEED6A800895B94 /* MetadataShortenerApi.xcodeproj */;
-				},
-				{
-					ProductGroup = 0CA02DE42F74DBAF0000CDC9 /* Products */;
-					ProjectRef = 0CA025802F74DBAF0000CDC9 /* ProtocolBuffers_iOS.xcodeproj */;
-				},
-				{
-					ProductGroup = 0CA02DE62F74DBAF0000CDC9 /* Products */;
-					ProjectRef = 0CA025812F74DBAF0000CDC9 /* ProtocolBuffers_OSX.xcodeproj */;
-				},
-				{
-					ProductGroup = 0CA02DE82F74DBAF0000CDC9 /* Products */;
-					ProjectRef = 0CA025822F74DBAF0000CDC9 /* ProtocolBuffers_tvOS.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				A5EDAAD42E93ECAF005DDA62 /* polkadot-app */,
