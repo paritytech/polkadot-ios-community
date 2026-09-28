@@ -11,6 +11,7 @@ final class TabBarChromeSurfaceView: UIView {
     private let tabsPanelView = DSTabBarTabsPanelView()
     private let contentPanelView = DSTabBarContentPanelView()
 
+    private weak var barView: DSTabBarView?
     private var glassContainerHeightConstraint: Constraint?
     private var appliedGlassContainerHeight: CGFloat = 0
     private var glassContainerBottomConstraint: Constraint?
@@ -74,8 +75,9 @@ final class TabBarChromeSurfaceView: UIView {
         return hitView === self ? nil : hitView
     }
 
-    func addBar(_ bar: UIView) {
+    func addBar(_ bar: DSTabBarView) {
         addSubview(bar)
+        barView = bar
 
         bar.snp.makeConstraints { make in
             make.leading.trailing.equalTo(glassContainer.contentView)
@@ -145,6 +147,7 @@ final class TabBarChromeSurfaceView: UIView {
         let offset = tracking ? Self.keyboardBottomOffset : Self.restingBottomOffset
         glassContainerBottomConstraint?.update(offset: offset)
         barBottomConstraint?.update(offset: offset)
+        barView?.setKeyboardShadowVisible(tracking)
     }
 
     /// While a search is active the content panel fills the available height instead of fitting its rows.
