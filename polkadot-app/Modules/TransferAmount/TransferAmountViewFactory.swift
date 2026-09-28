@@ -121,7 +121,7 @@ enum TransferAmountViewFactory {
             targetAssetInfo: displayInfo
         )
         let availableBalanceViewModelFactory = BalanceViewModelFactory(
-            targetAssetInfo: chainAsset.asset.digitalDollarFiatDisplayInfo
+            targetAssetInfo: displayInfo.withFiatSymbol
         )
 
         let inputStrategy = AmountInputTokenStrategy(
