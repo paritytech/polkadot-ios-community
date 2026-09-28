@@ -46,10 +46,6 @@ final class ScanPanelViewController: UIViewController, ViewHolder {
 
 private extension ScanPanelViewController {
     func setupHandlers() {
-        rootView.searchRow.cancelHandler = { [weak self] in
-            self?.cancelSearch()
-        }
-
         rootView.onCameraTapped = { [weak self] in
             self?.cancelSearch()
         }
