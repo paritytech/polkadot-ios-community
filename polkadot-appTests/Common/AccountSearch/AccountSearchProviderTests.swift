@@ -272,7 +272,7 @@ struct AccountSearchProviderTests {
         localSearch.contacts = [contact]
 
         let remoteSearch = MockRemoteContactOperationFactory()
-        remoteSearch.searchError = NSError(domain: "test", code: 1)
+        remoteSearch.searchError = AccountSearchTestError.lookupFailed
 
         let ownAccountId = try Data.randomOrError(of: 32)
 
@@ -395,6 +395,223 @@ struct AccountSearchProviderTests {
         #expect(result.global.count == 1)
         #expect(result.global[0].username?.value == "search_result")
     }
+
+    // MARK: - Phased search
+
+    @Test("Non-empty query yields a pending phase and then a loaded phase")
+    func queryYieldsPendingThenLoadedPhase() async throws {
+        let context = try await makeQueryContext()
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+
+        #expect(phases.count == 2)
+
+        let pending = try #require(phases.first)
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.recent.count == 1)
+        #expect(pending.contacts.count == 1)
+        #expect(pending.global.isEmpty)
+
+        let loaded = try #require(phases.last)
+        #expect(loaded.globalOutcome == .loaded)
+        #expect(loaded.recent.count == 1)
+        #expect(loaded.contacts.count == 1)
+        #expect(loaded.global.count == 1)
+    }
+
+    @Test("Global failure yields a failed phase keeping recent and contacts")
+    func globalFailureYieldsFailedPhase() async throws {
+        let context = try await makeQueryContext(globalFails: true)
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+
+        #expect(phases.count == 2)
+
+        let failed = try #require(phases.last)
+        #expect(failed.globalOutcome == .failed)
+        #expect(failed.global.isEmpty)
+        #expect(failed.recent.count == 1)
+        #expect(failed.contacts.count == 1)
+    }
+
+    @Test("Empty query yields a single loaded phase without global results")
+    func emptyQueryYieldsSingleLoadedPhase() async throws {
+        let context = try await makeQueryContext()
+        let phases = try await collectPhases(from: context.provider, query: "")
+
+        #expect(phases.count == 1)
+        #expect(phases[0].globalOutcome == .loaded)
+        #expect(phases[0].global.isEmpty)
+        #expect(context.remoteSearch.receivedSearchQuery == nil)
+    }
+
+    @Test("Nil query yields a single loaded phase without global results")
+    func nilQueryYieldsSingleLoadedPhase() async throws {
+        let context = try await makeQueryContext()
+        let phases = try await collectPhases(from: context.provider, query: nil)
+
+        #expect(phases.count == 1)
+        #expect(phases[0].globalOutcome == .loaded)
+        #expect(phases[0].global.isEmpty)
+        #expect(context.remoteSearch.receivedSearchQuery == nil)
+    }
+
+    @Test("Local contacts failure finishes the stream with the thrown error")
+    func contactsFailureFinishesStreamWithError() async throws {
+        let context = try await makeQueryContext()
+        context.localSearch.contactsError = AccountSearchTestError.lookupFailed
+
+        await #expect(throws: (any Error).self) {
+            _ = try await collectPhases(from: context.provider, query: "alice")
+        }
+
+        await #expect(throws: (any Error).self) {
+            _ = try await context.provider.search(query: "alice")
+        }
+    }
+
+    @Test("Blocked contacts failure finishes the stream with the thrown error")
+    func blockedFailureFinishesStreamWithError() async throws {
+        let context = try await makeQueryContext()
+        context.localSearch.blockedContactsError = AccountSearchTestError.lookupFailed
+
+        await #expect(throws: (any Error).self) {
+            _ = try await collectPhases(from: context.provider, query: "alice")
+        }
+    }
+
+    @Test("Awaited search returns the last phase of a non-empty query")
+    func awaitedSearchReturnsLastPhase() async throws {
+        let context = try await makeQueryContext()
+        let result = try await context.provider.search(query: "alice")
+
+        #expect(result.globalOutcome == .loaded)
+        #expect(result.global.count == 1)
+        #expect(result.contacts.count == 1)
+        #expect(result.recent.count == 1)
+    }
+
+    @Test("Awaited search returns the single loaded phase of an empty query")
+    func awaitedSearchReturnsEmptyQueryPhase() async throws {
+        let context = try await makeQueryContext()
+        let result = try await context.provider.search(query: "")
+
+        #expect(result.globalOutcome == .loaded)
+        #expect(result.global.isEmpty)
+    }
+
+    @Test("Awaited search returns the failed phase when the global lookup fails")
+    func awaitedSearchReturnsFailedPhase() async throws {
+        let context = try await makeQueryContext(globalFails: true)
+        let result = try await context.provider.search(query: "alice")
+
+        #expect(result.globalOutcome == .failed)
+        #expect(result.global.isEmpty)
+        #expect(result.contacts.count == 1)
+    }
+
+    // MARK: - Cancellation
+
+    @Test("A cancelled global lookup finishes after the pending phase without a failed phase")
+    func cancelledGlobalLookupYieldsNoFailedPhase() async throws {
+        let context = try await makeQueryContext()
+        context.remoteSearch.fetchError = CancellationError()
+
+        let address = try SS58AddressFactory().address(fromAccountId: Data.randomOrError(of: 32), type: 0)
+
+        let phases = try await collectPhases(from: context.provider, query: address)
+
+        #expect(phases.count == 1)
+        #expect(!phases.contains { $0.globalOutcome == .failed })
+
+        let pending = try #require(phases.first)
+        #expect(pending.globalOutcome == .pending)
+
+        let result = try await context.provider.search(query: address)
+        #expect(result.globalOutcome == .pending)
+    }
+
+    @Test("Cancelling while the global lookup is in flight yields no failed phase")
+    func cancellingDuringGlobalLookupYieldsNoFailedPhase() async throws {
+        let context = try await makeQueryContext()
+        let gate = RemoteFetchGate()
+        context.remoteSearch.fetchGate = gate
+        context.remoteSearch.fetchError = AccountSearchTestError.lookupFailed
+
+        let address = try SS58AddressFactory().address(fromAccountId: Data.randomOrError(of: 32), type: 0)
+
+        let collector = Task { try await collectPhases(from: context.provider, query: address) }
+
+        await gate.waitUntilEntered()
+        collector.cancel()
+        gate.open()
+
+        let phases = try await collector.value
+
+        #expect(phases.count <= 1)
+        #expect(!phases.contains { $0.globalOutcome == .failed })
+    }
+}
+
+private enum AccountSearchTestError: Error {
+    case lookupFailed
+}
+
+// MARK: - Phased search helpers
+
+private struct QueryContext {
+    let provider: AccountSearchProvider<Int>
+    let localSearch: MockLocalContactSearch
+    let remoteSearch: MockRemoteContactOperationFactory
+}
+
+/// Seeds one recent row, one local contact and one remote match, all matching the "alice" prefix.
+private func makeQueryContext(globalFails: Bool = false) async throws -> QueryContext {
+    let localSearch = MockLocalContactSearch()
+    localSearch.contacts = try [makeContact(accountId: Data.randomOrError(of: 32), username: "alice_local")]
+
+    let remoteSearch = MockRemoteContactOperationFactory()
+    if globalFails {
+        remoteSearch.searchError = AccountSearchTestError.lookupFailed
+    } else {
+        remoteSearch.searchResult = try [
+            makeRemoteContact(accountId: Data.randomOrError(of: 32), username: "alice_remote")
+        ]
+    }
+
+    let recentRow = try SearchRow(
+        accountId: Data.randomOrError(of: 32),
+        username: Username(value: "alice_recent"),
+        matchTerms: ["alice_recent"],
+        payload: 0
+    )
+
+    let (recentsStream, continuation) = AsyncStream<[SearchRow<Int>]>.makeStream()
+    let provider = try AccountSearchProvider<Int>(
+        recentRowsStream: { recentsStream.eraseToAnyAsyncSequence() },
+        localContactSearch: localSearch,
+        remoteContactSearch: remoteSearch,
+        ownAccountId: Data.randomOrError(of: 32),
+        logger: MockLogger()
+    )
+
+    var sourcesChangedIterator = provider.sourcesChanged().makeAsyncIterator()
+    provider.setup()
+    continuation.yield([recentRow])
+    _ = try await sourcesChangedIterator.next()
+
+    return QueryContext(provider: provider, localSearch: localSearch, remoteSearch: remoteSearch)
+}
+
+private func collectPhases(
+    from provider: AccountSearchProvider<Int>,
+    query: String?
+) async throws -> [AccountSearchSections<Int, ContactSearchPayload>] {
+    var phases: [AccountSearchSections<Int, ContactSearchPayload>] = []
+
+    for try await phase in provider.searchPhases(query: query) {
+        phases.append(phase)
+    }
+
+    return phases
 }
 
 // MARK: - Helpers
