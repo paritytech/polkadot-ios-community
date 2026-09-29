@@ -94,6 +94,8 @@ private extension AccountSearchProvider {
     }
 
     func emitPhases(query: String?, continuation: PhaseContinuation) async {
+        defer { continuation.finish() }
+
         do {
             if let query, !query.isEmpty {
                 try await emitQueryPhases(query: query, continuation: continuation)
@@ -119,7 +121,6 @@ private extension AccountSearchProvider {
         )
 
         continuation.yield(context.sections())
-        continuation.finish()
     }
 
     func emitQueryPhases(query: String, continuation: PhaseContinuation) async throws {
@@ -147,14 +148,12 @@ private extension AccountSearchProvider {
         do {
             global = try await fetchGlobalContacts(query: normalizedQuery, accountId: accountId)
         } catch {
-            continuation.finish()
             return
         }
 
         // asyncExecute() routes cancellation through the operation coordinator, which does not
         // guarantee a CancellationError, so a superseded search must not surface as a failure.
         guard !Task.isCancelled else {
-            continuation.finish()
             return
         }
 
@@ -171,8 +170,6 @@ private extension AccountSearchProvider {
             clearCachedGlobal()
             continuation.yield(context.sections(global: .failed))
         }
-
-        continuation.finish()
     }
 
     func currentRecentRows() -> [SearchRow<RecentPayload>] {
