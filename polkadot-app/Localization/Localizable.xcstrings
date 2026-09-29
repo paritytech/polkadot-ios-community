@@ -125,6 +125,17 @@
         }
       }
     },
+    "accountSearch.globalFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't search all users"
+          }
+        }
+      }
+    },
     "action.send.cash" : {
       "extractionState" : "manual",
       "localizations" : {

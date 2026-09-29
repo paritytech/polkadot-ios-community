@@ -119,7 +119,6 @@ public final class SearchContactResultsView: DiffableCollectionViewProviderView<
         noResultsLabel.attributedText = status.message
         noResultsLabel.setHidden(status.message == nil)
         loadingView.setLoading(status.showsLoader)
-        listContainer.setHidden(status.showsLoader)
     }
 
     public func bind(viewModel: ViewModel) {

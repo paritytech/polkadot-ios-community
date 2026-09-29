@@ -41,10 +41,10 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
 
         stateLock.withLock { $0.currentQuery = username }
 
-        let task = Task { [weak self, weak presenter, searchRunner] in
-            let stateStream = searchRunner.run {
-                await self?.makeSearchResult(for: username)
-            }
+        let task = Task { [weak presenter, searchRunner, accountSearching] in
+            let stateStream = searchRunner.run({
+                Self.makeSearchStream(from: accountSearching, query: username)
+            }, hasContent: Self.hasContent)
             for await state in stateStream {
                 guard !Task.isCancelled else { return }
                 await presenter?.didReceive(searchState: state, for: username)
@@ -127,9 +127,10 @@ private extension SearchContactInteractor {
         let task = Task { [weak self, weak presenter] in
             guard let self else { return }
             do {
-                let sections = try await accountSearching.search(query: nil)
-                guard !Task.isCancelled else { return }
-                await presenter?.didReceive(searchState: .result(.sections(sections)), for: "")
+                for try await sections in accountSearching.searchPhases(query: nil) {
+                    guard !Task.isCancelled else { return }
+                    await presenter?.didReceive(searchState: .result(.sections(sections)), for: "")
+                }
             } catch {
                 guard !Task.isCancelled else { return }
                 await presenter?.didReceive(error: error)
@@ -139,14 +140,34 @@ private extension SearchContactInteractor {
         replaceSearchTask(with: task)
     }
 
-    func makeSearchResult(for query: String) async -> SearchContactSearchResult? {
-        do {
-            let sections = try await accountSearching.search(query: query)
-            try Task.checkCancellation()
-            return .sections(sections)
-        } catch {
-            guard !Task.isCancelled else { return nil }
-            return .error(error)
+    static func makeSearchStream(
+        from accountSearching: any AccountSearching<ContactSearchPayload, ContactSearchPayload>,
+        query: String
+    ) -> AsyncStream<SearchContactSearchResult> {
+        AsyncStream { continuation in
+            let task = Task {
+                do {
+                    for try await sections in accountSearching.searchPhases(query: query) {
+                        continuation.yield(.sections(sections))
+                    }
+                } catch {
+                    if !Task.isCancelled {
+                        continuation.yield(.error(error))
+                    }
+                }
+
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    static func hasContent(_ result: SearchContactSearchResult) -> Bool {
+        guard case let .sections(sections) = result else {
+            return false
+        }
+
+        return !sections.recent.isEmpty || !sections.contacts.isEmpty || !sections.global.isEmpty
     }
 }
