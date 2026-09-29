@@ -543,6 +543,74 @@ struct AccountSearchProviderTests {
         #expect(loaded.global[0].username?.value == "alice_remote_2")
     }
 
+    @Test("Extending the query keeps the still-matching preserved rows")
+    func extendedQueryKeepsMatchingPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        let phases = try await collectPhases(from: context.provider, query: "alice_r")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.count == 1)
+        #expect(pending.global[0].username?.value == "alice_remote")
+    }
+
+    @Test("Extending the query drops the preserved rows that no longer match")
+    func extendedQueryDropsNonMatchingPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        let phases = try await collectPhases(from: context.provider, query: "alice_x")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isEmpty)
+    }
+
+    @Test("Shortening the query keeps the preserved rows")
+    func shortenedQueryKeepsPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice_rem")
+
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.count == 1)
+        #expect(pending.global[0].username?.value == "alice_remote")
+    }
+
+    @Test("An account id query yields an empty global in the pending phase despite cached rows")
+    func accountIdQueryIgnoresPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        let targetAccountId = try Data.randomOrError(of: 32)
+        context.remoteSearch.fetchResult = try makeRemoteContact(accountId: targetAccountId, username: "alice_by_id")
+        let address = try SS58AddressFactory().address(fromAccountId: targetAccountId, type: 0)
+
+        let phases = try await collectPhases(from: context.provider, query: address)
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isEmpty)
+    }
+
+    @Test("Rows cached for an unrelated query are not surfaced even when a row matches the new query")
+    func unrelatedCachedQueryDoesNotSurfaceMatchingRows() async throws {
+        let context = try await makeQueryContext()
+
+        // Caches the "alice_remote" row under the unrelated query "bob".
+        _ = try await collectPhases(from: context.provider, query: "bob")
+
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isEmpty)
+    }
+
     // MARK: - Cancellation
 
     @Test("A cancelled global lookup finishes after the pending phase without a failed phase")

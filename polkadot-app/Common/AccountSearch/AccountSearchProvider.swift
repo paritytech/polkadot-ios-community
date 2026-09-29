@@ -68,7 +68,7 @@ private extension AccountSearchProvider {
     }
 
     /// The last successful global rows and the normalized query they belong to, so a restart of
-    /// the same query keeps them on screen instead of blanking for one round trip.
+    /// the same or a related query keeps them on screen instead of blanking for one round trip.
     struct CachedGlobal {
         let query: String
         let rows: [SearchRow<MatchPayload>]
@@ -141,9 +141,11 @@ private extension AccountSearchProvider {
             excluded: excluded
         )
 
-        continuation.yield(
-            context.sections(global: cachedGlobalRows(for: normalizedQuery), outcome: .pending)
-        )
+        // An account id lookup is an exact fetch rather than a prefix search, so cached prefix
+        // rows say nothing about it.
+        let preservedGlobal = accountId == nil ? cachedGlobalRows(for: normalizedQuery) : []
+
+        continuation.yield(context.sections(global: preservedGlobal, outcome: .pending))
 
         let global: [SearchRow<MatchPayload>]?
         do {
@@ -161,7 +163,12 @@ private extension AccountSearchProvider {
         }
 
         if let global {
-            storeCachedGlobal(rows: global, query: normalizedQuery)
+            // An exact account id fetch is not a prefix search, so its rows cannot serve any later
+            // prefix query: caching them under an address key is write-only state that can only mislead.
+            if accountId == nil {
+                storeCachedGlobal(rows: global, query: normalizedQuery)
+            }
+
             continuation.yield(context.sections(global: global, outcome: .loaded))
         } else {
             // A failed lookup must not leave stale rows standing as though they were fresh.
@@ -176,10 +183,25 @@ private extension AccountSearchProvider {
         stateLock.withLock { $0.recentRows }
     }
 
+    /// Global search matches by prefix, so results for one query are a subset of results for any
+    /// shorter prefix of it: rows cached under a related query, refiltered, can only be incomplete,
+    /// never wrong, which beats blanking the section on every keystroke.
     func cachedGlobalRows(for query: String) -> [SearchRow<MatchPayload>] {
-        stateLock.withLock { state in
-            guard let cached = state.cachedGlobal, cached.query == query else { return [] }
-            return cached.rows
+        let lowercasedQuery = query.lowercased()
+
+        return stateLock.withLock { state in
+            guard let cached = state.cachedGlobal else { return [] }
+
+            let cachedQuery = cached.query.lowercased()
+            guard cachedQuery.hasPrefix(lowercasedQuery) || lowercasedQuery.hasPrefix(cachedQuery) else {
+                return []
+            }
+
+            return cached.rows.filter { row in
+                row.matchTerms.contains { term in
+                    term.lowercased().hasPrefix(lowercasedQuery)
+                }
+            }
         }
     }
 
