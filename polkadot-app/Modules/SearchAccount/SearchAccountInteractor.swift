@@ -216,7 +216,7 @@ private extension SearchAccountInteractor {
         )
     }
 
-    static func hasContent(_ result: SearchAccountResult) -> Bool {
+    @Sendable static func hasContent(_ result: SearchAccountResult) -> Bool {
         !result.recent.isEmpty || !result.contacts.isEmpty || !result.global.rows.isEmpty
     }
 

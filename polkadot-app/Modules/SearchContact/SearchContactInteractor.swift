@@ -165,7 +165,7 @@ private extension SearchContactInteractor {
         }
     }
 
-    static func hasContent(_ result: SearchContactSearchResult) -> Bool {
+    @Sendable static func hasContent(_ result: SearchContactSearchResult) -> Bool {
         guard case let .sections(sections) = result else {
             return false
         }
