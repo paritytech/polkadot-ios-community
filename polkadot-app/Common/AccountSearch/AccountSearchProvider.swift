@@ -64,6 +64,14 @@ private extension AccountSearchProvider {
     struct State {
         var recentRows: [SearchRow<RecentPayload>] = []
         var recentSubscriptionTask: Task<Void, Never>?
+        var cachedGlobal: CachedGlobal?
+    }
+
+    /// The last successful global rows and the normalized query they belong to, so a restart of
+    /// the same query keeps them on screen instead of blanking for one round trip.
+    struct CachedGlobal {
+        let query: String
+        let rows: [SearchRow<MatchPayload>]
     }
 
     /// Everything a phase needs except the global rows, so successive phases of one search
@@ -133,7 +141,9 @@ private extension AccountSearchProvider {
             excluded: excluded
         )
 
-        continuation.yield(context.sections(outcome: .pending))
+        continuation.yield(
+            context.sections(global: cachedGlobalRows(for: normalizedQuery), outcome: .pending)
+        )
 
         let global: [SearchRow<MatchPayload>]?
         do {
@@ -151,8 +161,11 @@ private extension AccountSearchProvider {
         }
 
         if let global {
+            storeCachedGlobal(rows: global, query: normalizedQuery)
             continuation.yield(context.sections(global: global, outcome: .loaded))
         } else {
+            // A failed lookup must not leave stale rows standing as though they were fresh.
+            clearCachedGlobal()
             continuation.yield(context.sections(outcome: .failed))
         }
 
@@ -161,6 +174,21 @@ private extension AccountSearchProvider {
 
     func currentRecentRows() -> [SearchRow<RecentPayload>] {
         stateLock.withLock { $0.recentRows }
+    }
+
+    func cachedGlobalRows(for query: String) -> [SearchRow<MatchPayload>] {
+        stateLock.withLock { state in
+            guard let cached = state.cachedGlobal, cached.query == query else { return [] }
+            return cached.rows
+        }
+    }
+
+    func storeCachedGlobal(rows: [SearchRow<MatchPayload>], query: String) {
+        stateLock.withLock { $0.cachedGlobal = CachedGlobal(query: query, rows: rows) }
+    }
+
+    func clearCachedGlobal() {
+        stateLock.withLock { $0.cachedGlobal = nil }
     }
 
     func subscribeToRecent() {

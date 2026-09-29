@@ -481,6 +481,68 @@ struct AccountSearchProviderTests {
         }
     }
 
+    // MARK: - Preserved global rows across restarts
+
+    @Test("Restarting the same query keeps the previous global rows in the pending phase")
+    func sameQueryRestartKeepsGlobalRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.count == 1)
+        #expect(pending.global[0].username?.value == "alice_remote")
+    }
+
+    @Test("Restarting with a different query yields an empty global in the pending phase")
+    func differentQueryRestartEmptiesGlobalRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        let phases = try await collectPhases(from: context.provider, query: "bob")
+        let pending = try #require(phases.first)
+
+        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isEmpty)
+    }
+
+    @Test("A failed global lookup clears the preserved rows")
+    func globalFailureClearsPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        context.remoteSearch.searchError = AccountSearchTestError.lookupFailed
+        let failedPhases = try await collectPhases(from: context.provider, query: "alice")
+        let failed = try #require(failedPhases.last)
+
+        #expect(failed.globalOutcome == .failed)
+        #expect(failed.global.isEmpty)
+
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+        let pending = try #require(phases.first)
+
+        #expect(pending.global.isEmpty)
+    }
+
+    @Test("The loaded phase replaces the preserved rows instead of appending to them")
+    func loadedPhaseReplacesPreservedRows() async throws {
+        let context = try await makeQueryContext()
+        _ = try await collectPhases(from: context.provider, query: "alice")
+
+        context.remoteSearch.searchResult = try [
+            makeRemoteContact(accountId: Data.randomOrError(of: 32), username: "alice_remote_2")
+        ]
+
+        let phases = try await collectPhases(from: context.provider, query: "alice")
+        let loaded = try #require(phases.last)
+
+        #expect(loaded.globalOutcome == .loaded)
+        #expect(loaded.global.count == 1)
+        #expect(loaded.global[0].username?.value == "alice_remote_2")
+    }
+
     // MARK: - Cancellation
 
     @Test("A cancelled global lookup finishes after the pending phase without a failed phase")
