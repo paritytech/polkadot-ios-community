@@ -148,17 +148,17 @@ private extension SearchContactInteractor {
     ) -> AsyncStream<SearchContactSearchResult> {
         AsyncStream { continuation in
             let task = Task {
+                defer { continuation.finish() }
+
                 do {
                     for try await sections in accountSearching.searchPhases(query: query) {
                         continuation.yield(.sections(sections))
                     }
                 } catch {
-                    if !Task.isCancelled {
-                        continuation.yield(.error(error))
-                    }
-                }
+                    guard !Task.isCancelled else { return }
 
-                continuation.finish()
+                    continuation.yield(.error(error))
+                }
             }
 
             continuation.onTermination = { _ in task.cancel() }

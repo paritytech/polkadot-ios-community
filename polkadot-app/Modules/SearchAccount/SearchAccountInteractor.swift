@@ -171,24 +171,21 @@ private extension SearchAccountInteractor {
     func makeSearchStream(for query: String) -> AsyncStream<SearchAccountResult> {
         AsyncStream { continuation in
             let task = Task { [weak self] in
-                guard let self else {
-                    continuation.finish()
-                    return
-                }
+                defer { continuation.finish() }
+
+                guard let self else { return }
 
                 do {
                     for try await sections in accountSearching.searchPhases(query: query) {
                         continuation.yield(makeResult(from: sections))
                     }
                 } catch {
-                    if !Task.isCancelled {
-                        logger.error("Search failed: \(error)")
-                        await presenter?.didReceiveSearchError(message: error.localizedDescription)
-                        continuation.yield(SearchAccountResult(recent: [], contacts: []))
-                    }
-                }
+                    guard !Task.isCancelled else { return }
 
-                continuation.finish()
+                    logger.error("Search failed: \(error)")
+                    await presenter?.didReceiveSearchError(message: error.localizedDescription)
+                    continuation.yield(SearchAccountResult(recent: [], contacts: []))
+                }
             }
 
             continuation.onTermination = { _ in task.cancel() }
