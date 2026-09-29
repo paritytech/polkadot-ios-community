@@ -12,7 +12,7 @@ final class SearchContactPresenter {
 
     private var currentSearch = CurrentSearch(
         query: "",
-        latestResult: .sections(AccountSearchSections(recent: [], contacts: [], global: [])),
+        latestResult: .sections(AccountSearchSections(recent: [], contacts: [])),
         didReceiveWaiting: false
     )
 
@@ -30,7 +30,7 @@ final class SearchContactPresenter {
 extension SearchContactPresenter: SearchContactPresenterProtocol {
     func setup() {
         interactor.setup()
-        provideViewModel(sections: AccountSearchSections(recent: [], contacts: [], global: []))
+        provideViewModel(sections: AccountSearchSections(recent: [], contacts: []))
     }
 
     func search(username: String) {
@@ -76,14 +76,14 @@ private extension SearchContactPresenter {
         switch state {
         case let .result(.sections(sections)):
             selection = Dictionary(
-                (sections.recent + sections.contacts + sections.global)
+                (sections.recent + sections.contacts + sections.global.rows)
                     .map { ($0.payload.accountId.toHex(), $0.payload) },
                 uniquingKeysWith: { first, _ in first }
             )
             provideViewModel(sections: sections)
         case .result(.error):
             selection = [:]
-            provideViewModel(sections: AccountSearchSections(recent: [], contacts: [], global: []))
+            provideViewModel(sections: AccountSearchSections(recent: [], contacts: []))
         case .started,
              .waiting:
             provideStatus()
@@ -176,7 +176,7 @@ private extension SearchContactPresenter {
             makeViewSection(
                 id: "global",
                 title: String(localized: .transactionSearchAllUsers),
-                rows: sections.global
+                rows: sections.global.rows
             )
         ].compactMap { $0 }
     }
@@ -230,7 +230,7 @@ private extension SearchContactPresenter {
         }
 
         var globalFailed: Bool {
-            sections?.globalOutcome == .failed
+            sections?.global.hasFailed == true
         }
 
         /// A phase whose global lookup is still pending counts as searching, so the no-results
@@ -239,7 +239,7 @@ private extension SearchContactPresenter {
             guard latestResult != nil else {
                 return true
             }
-            return sections?.globalOutcome == .pending
+            return sections?.global.isPending == true
         }
 
         var showsLoader: Bool {
@@ -249,7 +249,7 @@ private extension SearchContactPresenter {
             guard latestResult != nil else {
                 return true
             }
-            guard let sections, sections.globalOutcome == .pending else {
+            guard let sections, sections.global.isPending else {
                 return false
             }
             return sections.recent.isEmpty && sections.contacts.isEmpty

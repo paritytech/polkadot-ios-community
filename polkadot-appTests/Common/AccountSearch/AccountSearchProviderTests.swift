@@ -232,7 +232,7 @@ struct AccountSearchProviderTests {
         let result = try #require(phases.last)
 
         // Should not contain the blocked account in global results
-        #expect(result.global.allSatisfy { $0.accountId != blockedAccountId })
+        #expect(result.global.rows.allSatisfy { $0.accountId != blockedAccountId })
     }
 
     // MARK: - Filtering: own account id
@@ -292,7 +292,7 @@ struct AccountSearchProviderTests {
         let result = try #require(phases.last)
 
         #expect(result.contacts.count == 1)
-        #expect(result.global.isEmpty)
+        #expect(result.global.rows.isEmpty)
     }
 
     // MARK: - Recents stream updates
@@ -368,8 +368,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: provider, query: address)
         let result = try #require(phases.last)
 
-        #expect(result.global.count == 1)
-        #expect(result.global[0].username?.value == "remote_user")
+        #expect(result.global.rows.count == 1)
+        #expect(result.global.rows[0].username?.value == "remote_user")
     }
 
     // MARK: - Global search returns results
@@ -399,8 +399,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: provider, query: "search")
         let result = try #require(phases.last)
 
-        #expect(result.global.count == 1)
-        #expect(result.global[0].username?.value == "search_result")
+        #expect(result.global.rows.count == 1)
+        #expect(result.global.rows[0].username?.value == "search_result")
     }
 
     // MARK: - Phased search
@@ -413,16 +413,16 @@ struct AccountSearchProviderTests {
         #expect(phases.count == 2)
 
         let pending = try #require(phases.first)
-        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isPending)
         #expect(pending.recent.count == 1)
         #expect(pending.contacts.count == 1)
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.rows.isEmpty)
 
         let loaded = try #require(phases.last)
-        #expect(loaded.globalOutcome == .loaded)
+        #expect(loaded.global.isLoaded)
         #expect(loaded.recent.count == 1)
         #expect(loaded.contacts.count == 1)
-        #expect(loaded.global.count == 1)
+        #expect(loaded.global.rows.count == 1)
     }
 
     @Test("Global failure yields a failed phase keeping recent and contacts")
@@ -433,8 +433,8 @@ struct AccountSearchProviderTests {
         #expect(phases.count == 2)
 
         let failed = try #require(phases.last)
-        #expect(failed.globalOutcome == .failed)
-        #expect(failed.global.isEmpty)
+        #expect(failed.global.hasFailed)
+        #expect(failed.global.rows.isEmpty)
         #expect(failed.recent.count == 1)
         #expect(failed.contacts.count == 1)
     }
@@ -445,8 +445,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "")
 
         #expect(phases.count == 1)
-        #expect(phases[0].globalOutcome == .loaded)
-        #expect(phases[0].global.isEmpty)
+        #expect(phases[0].global.isLoaded)
+        #expect(phases[0].global.rows.isEmpty)
         #expect(context.remoteSearch.receivedSearchQuery == nil)
     }
 
@@ -456,8 +456,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: nil)
 
         #expect(phases.count == 1)
-        #expect(phases[0].globalOutcome == .loaded)
-        #expect(phases[0].global.isEmpty)
+        #expect(phases[0].global.isLoaded)
+        #expect(phases[0].global.rows.isEmpty)
         #expect(context.remoteSearch.receivedSearchQuery == nil)
     }
 
@@ -491,9 +491,9 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.count == 1)
-        #expect(pending.global[0].username?.value == "alice_remote")
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.count == 1)
+        #expect(pending.global.rows[0].username?.value == "alice_remote")
     }
 
     @Test("Restarting with a different query yields an empty global in the pending phase")
@@ -504,8 +504,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "bob")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.isEmpty)
     }
 
     @Test("A failed global lookup clears the preserved rows")
@@ -517,13 +517,12 @@ struct AccountSearchProviderTests {
         let failedPhases = try await collectPhases(from: context.provider, query: "alice")
         let failed = try #require(failedPhases.last)
 
-        #expect(failed.globalOutcome == .failed)
-        #expect(failed.global.isEmpty)
+        #expect(failed.global.hasFailed)
 
         let phases = try await collectPhases(from: context.provider, query: "alice")
         let pending = try #require(phases.first)
 
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.rows.isEmpty)
     }
 
     @Test("The loaded phase replaces the preserved rows instead of appending to them")
@@ -538,9 +537,9 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice")
         let loaded = try #require(phases.last)
 
-        #expect(loaded.globalOutcome == .loaded)
-        #expect(loaded.global.count == 1)
-        #expect(loaded.global[0].username?.value == "alice_remote_2")
+        #expect(loaded.global.isLoaded)
+        #expect(loaded.global.rows.count == 1)
+        #expect(loaded.global.rows[0].username?.value == "alice_remote_2")
     }
 
     @Test("Extending the query keeps the still-matching preserved rows")
@@ -551,9 +550,9 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice_r")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.count == 1)
-        #expect(pending.global[0].username?.value == "alice_remote")
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.count == 1)
+        #expect(pending.global.rows[0].username?.value == "alice_remote")
     }
 
     @Test("Extending the query drops the preserved rows that no longer match")
@@ -564,8 +563,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice_x")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.isEmpty)
     }
 
     @Test("Shortening the query keeps the preserved rows")
@@ -576,9 +575,9 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.count == 1)
-        #expect(pending.global[0].username?.value == "alice_remote")
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.count == 1)
+        #expect(pending.global.rows[0].username?.value == "alice_remote")
     }
 
     @Test("An account id query yields an empty global in the pending phase despite cached rows")
@@ -593,8 +592,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: address)
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.isEmpty)
     }
 
     @Test("Rows cached for an unrelated query are not surfaced even when a row matches the new query")
@@ -607,8 +606,8 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: "alice")
         let pending = try #require(phases.first)
 
-        #expect(pending.globalOutcome == .pending)
-        #expect(pending.global.isEmpty)
+        #expect(pending.global.isPending)
+        #expect(pending.global.rows.isEmpty)
     }
 
     // MARK: - Cancellation
@@ -623,10 +622,10 @@ struct AccountSearchProviderTests {
         let phases = try await collectPhases(from: context.provider, query: address)
 
         #expect(phases.count == 1)
-        #expect(!phases.contains { $0.globalOutcome == .failed })
+        #expect(!phases.contains { $0.global.hasFailed })
 
         let pending = try #require(phases.first)
-        #expect(pending.globalOutcome == .pending)
+        #expect(pending.global.isPending)
     }
 
     @Test("Cancelling while the global lookup is in flight yields no failed phase")
@@ -647,7 +646,7 @@ struct AccountSearchProviderTests {
         let phases = try await collector.value
 
         #expect(phases.count <= 1)
-        #expect(!phases.contains { $0.globalOutcome == .failed })
+        #expect(!phases.contains { $0.global.hasFailed })
     }
 }
 

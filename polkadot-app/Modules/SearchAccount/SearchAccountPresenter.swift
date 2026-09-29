@@ -130,7 +130,7 @@ extension SearchAccountPresenter: SearchAccountInteractorOutputProtocol {
                 content: SearchAccountViewModel.Content(
                     recent: recipientViewModelFactory.createRecentContacts(from: result.recent),
                     contacts: result.contacts.map(Self.mapToAccountType),
-                    global: result.global.map(Self.mapToAccountType)
+                    global: result.global.rows.map(Self.mapToAccountType)
                 )
             )
             provideStatus()
@@ -189,11 +189,11 @@ private extension SearchAccountPresenter {
             guard let latestResult else {
                 return true
             }
-            return latestResult.recent.isEmpty && latestResult.contacts.isEmpty && latestResult.global.isEmpty
+            return latestResult.recent.isEmpty && latestResult.contacts.isEmpty && latestResult.global.rows.isEmpty
         }
 
         var globalFailed: Bool {
-            latestResult?.globalOutcome == .failed
+            latestResult?.global.hasFailed == true
         }
 
         /// A phase whose global lookup is still pending counts as searching, so the no-results
@@ -202,7 +202,7 @@ private extension SearchAccountPresenter {
             guard let latestResult else {
                 return true
             }
-            return latestResult.globalOutcome == .pending
+            return latestResult.global.isPending
         }
 
         var showsLoader: Bool {
@@ -212,7 +212,7 @@ private extension SearchAccountPresenter {
             guard let latestResult else {
                 return true
             }
-            guard latestResult.globalOutcome == .pending else {
+            guard latestResult.global.isPending else {
                 return false
             }
             return latestResult.recent.isEmpty && latestResult.contacts.isEmpty

@@ -82,17 +82,13 @@ private extension AccountSearchProvider {
         let contacts: [SearchRow<MatchPayload>]
         let excluded: Set<AccountId>
 
-        func sections(
-            global: [SearchRow<MatchPayload>] = [],
-            outcome: AccountSearchGlobalOutcome = .loaded
-        ) -> Sections {
+        func sections(global: AccountSearchGlobal<SearchRow<MatchPayload>> = .loaded([])) -> Sections {
             AccountSearchComposer.compose(
                 query: query,
                 recent: recent,
                 contacts: contacts,
                 global: global,
-                excluding: excluded,
-                globalOutcome: outcome
+                excluding: excluded
             )
         }
     }
@@ -145,7 +141,7 @@ private extension AccountSearchProvider {
         // rows say nothing about it.
         let preservedGlobal = accountId == nil ? cachedGlobalRows(for: normalizedQuery) : []
 
-        continuation.yield(context.sections(global: preservedGlobal, outcome: .pending))
+        continuation.yield(context.sections(global: .pending(preservedGlobal)))
 
         let global: [SearchRow<MatchPayload>]?
         do {
@@ -169,11 +165,11 @@ private extension AccountSearchProvider {
                 storeCachedGlobal(rows: global, query: normalizedQuery)
             }
 
-            continuation.yield(context.sections(global: global, outcome: .loaded))
+            continuation.yield(context.sections(global: .loaded(global)))
         } else {
             // A failed lookup must not leave stale rows standing as though they were fresh.
             clearCachedGlobal()
-            continuation.yield(context.sections(outcome: .failed))
+            continuation.yield(context.sections(global: .failed))
         }
 
         continuation.finish()

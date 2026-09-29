@@ -68,7 +68,7 @@ extension SearchAccountInteractor: SearchAccountInteractorInputProtocol {
         stateLock.withLock { $0.query = query }
 
         guard isSearchable(query) else {
-            emit(.result(SearchAccountResult(recent: [], contacts: [], global: [])), for: query)
+            emit(.result(SearchAccountResult(recent: [], contacts: [])), for: query)
             return
         }
 
@@ -184,7 +184,7 @@ private extension SearchAccountInteractor {
                     if !Task.isCancelled {
                         logger.error("Search failed: \(error)")
                         await presenter?.didReceiveSearchError(message: error.localizedDescription)
-                        continuation.yield(SearchAccountResult(recent: [], contacts: [], global: []))
+                        continuation.yield(SearchAccountResult(recent: [], contacts: []))
                     }
                 }
 
@@ -198,7 +198,7 @@ private extension SearchAccountInteractor {
     func makeResult(
         from sections: AccountSearchSections<RecentContactModelWithUsername, ContactSearchPayload>
     ) -> SearchAccountResult {
-        let globalContacts = sections.global.compactMap { row -> (AccountId, Chat.RemoteContact)? in
+        let globalContacts = sections.global.rows.compactMap { row -> (AccountId, Chat.RemoteContact)? in
             switch row.payload {
             case let .remote(contact): (row.accountId, contact)
             case .local: nil
@@ -212,13 +212,12 @@ private extension SearchAccountInteractor {
         return SearchAccountResult(
             recent: sections.recent.map(\.payload),
             contacts: mapToContacts(sections.contacts),
-            global: mapToContacts(sections.global),
-            globalOutcome: sections.globalOutcome
+            global: sections.global.map(mapToContacts)
         )
     }
 
     static func hasContent(_ result: SearchAccountResult) -> Bool {
-        !result.recent.isEmpty || !result.contacts.isEmpty || !result.global.isEmpty
+        !result.recent.isEmpty || !result.contacts.isEmpty || !result.global.rows.isEmpty
     }
 
     func mapToContacts(_ rows: [SearchRow<ContactSearchPayload>]) -> [SearchAccountResult.Contact] {

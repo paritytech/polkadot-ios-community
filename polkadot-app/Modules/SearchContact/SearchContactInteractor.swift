@@ -170,6 +170,6 @@ private extension SearchContactInteractor {
             return false
         }
 
-        return !sections.recent.isEmpty || !sections.contacts.isEmpty || !sections.global.isEmpty
+        return !sections.recent.isEmpty || !sections.contacts.isEmpty || !sections.global.rows.isEmpty
     }
 }

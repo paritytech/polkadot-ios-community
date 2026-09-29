@@ -1,28 +1,64 @@
 import SubstrateSdk
 import Foundation
 
-enum AccountSearchGlobalOutcome {
-    case pending
-    case loaded
+/// The global section's state together with its rows: `.failed` has no associated rows, so a
+/// failed lookup cannot be represented as still carrying results.
+enum AccountSearchGlobal<Row> {
+    /// Rows preserved from a related query while the current lookup is in flight.
+    case pending([Row])
+    case loaded([Row])
     case failed
+
+    var rows: [Row] {
+        switch self {
+        case let .pending(rows),
+             let .loaded(rows):
+            rows
+        case .failed:
+            []
+        }
+    }
+
+    var isPending: Bool {
+        guard case .pending = self else { return false }
+        return true
+    }
+
+    var hasFailed: Bool {
+        guard case .failed = self else { return false }
+        return true
+    }
+
+    var isLoaded: Bool {
+        guard case .loaded = self else { return false }
+        return true
+    }
+
+    func map<Other>(_ transform: ([Row]) -> [Other]) -> AccountSearchGlobal<Other> {
+        switch self {
+        case let .pending(rows):
+            .pending(transform(rows))
+        case let .loaded(rows):
+            .loaded(transform(rows))
+        case .failed:
+            .failed
+        }
+    }
 }
 
 struct AccountSearchSections<RecentPayload, MatchPayload> {
     let recent: [SearchRow<RecentPayload>]
     let contacts: [SearchRow<MatchPayload>]
-    let global: [SearchRow<MatchPayload>]
-    let globalOutcome: AccountSearchGlobalOutcome
+    let global: AccountSearchGlobal<SearchRow<MatchPayload>>
 
     init(
         recent: [SearchRow<RecentPayload>],
         contacts: [SearchRow<MatchPayload>],
-        global: [SearchRow<MatchPayload>],
-        globalOutcome: AccountSearchGlobalOutcome = .loaded
+        global: AccountSearchGlobal<SearchRow<MatchPayload>> = .loaded([])
     ) {
         self.recent = recent
         self.contacts = contacts
         self.global = global
-        self.globalOutcome = globalOutcome
     }
 }
 
@@ -31,10 +67,9 @@ enum AccountSearchComposer {
         query: String?,
         recent: [SearchRow<RecentPayload>],
         contacts: [SearchRow<MatchPayload>],
-        global: [SearchRow<MatchPayload>],
+        global: AccountSearchGlobal<SearchRow<MatchPayload>> = .loaded([]),
         excluding: Set<AccountId>,
-        maxRecent: Int = 5,
-        globalOutcome: AccountSearchGlobalOutcome = .loaded
+        maxRecent: Int = 5
     ) -> AccountSearchSections<RecentPayload, MatchPayload> {
         let filteredRecents = recent.filter { !excluding.contains($0.accountId) }
 
@@ -59,24 +94,38 @@ enum AccountSearchComposer {
             sortByUsername(lhs.username, rhs.username)
         }
 
-        let globalSection: [SearchRow<MatchPayload>]
-        if let query, !query.isEmpty {
-            let filteredGlobal = global.filter { !excluding.contains($0.accountId) }
-            let allRecentAndContactIds = recentIds.union(dedupedContacts.map(\.accountId))
-            let dedupedGlobal = filteredGlobal.filter { !allRecentAndContactIds.contains($0.accountId) }
-            globalSection = dedupedGlobal.sorted { lhs, rhs in
-                sortByUsername(lhs.username, rhs.username)
-            }
-        } else {
-            globalSection = []
-        }
+        let allRecentAndContactIds = recentIds.union(dedupedContacts.map(\.accountId))
 
         return AccountSearchSections(
             recent: recentSection,
             contacts: contactsSection,
-            global: globalSection,
-            globalOutcome: globalOutcome
+            global: global.map { rows in
+                globalSection(
+                    from: rows,
+                    query: query,
+                    excluding: excluding,
+                    deduping: allRecentAndContactIds
+                )
+            }
         )
+    }
+
+    private static func globalSection<MatchPayload>(
+        from rows: [SearchRow<MatchPayload>],
+        query: String?,
+        excluding: Set<AccountId>,
+        deduping shownIds: Set<AccountId>
+    ) -> [SearchRow<MatchPayload>] {
+        guard let query, !query.isEmpty else {
+            return []
+        }
+
+        return rows
+            .filter { !excluding.contains($0.accountId) }
+            .filter { !shownIds.contains($0.accountId) }
+            .sorted { lhs, rhs in
+                sortByUsername(lhs.username, rhs.username)
+            }
     }
 
     private static func sortByUsername(_ lhs: Username?, _ rhs: Username?) -> Bool {
