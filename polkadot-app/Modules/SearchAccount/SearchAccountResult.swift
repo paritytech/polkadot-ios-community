@@ -10,4 +10,17 @@ struct SearchAccountResult {
     let recent: [RecentContactModelWithUsername]
     let contacts: [Contact]
     let global: [Contact]
+    let globalOutcome: AccountSearchGlobalOutcome
+
+    init(
+        recent: [RecentContactModelWithUsername],
+        contacts: [Contact],
+        global: [Contact],
+        globalOutcome: AccountSearchGlobalOutcome = .loaded
+    ) {
+        self.recent = recent
+        self.contacts = contacts
+        self.global = global
+        self.globalOutcome = globalOutcome
+    }
 }

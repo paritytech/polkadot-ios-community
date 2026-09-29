@@ -138,13 +138,10 @@ private extension SearchAccountInteractor {
             guard let self else { return }
 
             do {
-                let sections = try await accountSearching.search(query: nil)
-                let result = SearchAccountResult(
-                    recent: sections.recent.map(\.payload),
-                    contacts: mapToContacts(sections.contacts),
-                    global: []
-                )
-                emit(.result(result), for: nil)
+                for try await sections in accountSearching.searchPhases(query: nil) {
+                    guard !Task.isCancelled else { return }
+                    emit(.result(makeResult(from: sections)), for: nil)
+                }
             } catch {
                 logger.error("Load idle state failed: \(error)")
             }
@@ -155,46 +152,73 @@ private extension SearchAccountInteractor {
 
     func performSearch(query: String) {
         let task = Task { [weak self, searchRunner] in
-            let stream = searchRunner.run { await self?.makeSearchResult(for: query) }
+            guard let self else { return }
+
+            let stream = searchRunner.run(
+                { self.makeSearchStream(for: query) },
+                hasContent: Self.hasContent
+            )
 
             for await state in stream {
                 guard !Task.isCancelled else { return }
-                self?.emit(state, for: query)
+                emit(state, for: query)
             }
         }
 
         replaceSearchTask(with: task)
     }
 
-    func makeSearchResult(for query: String) async -> SearchAccountResult? {
-        do {
-            let sections = try await accountSearching.search(query: query)
-            try Task.checkCancellation()
-
-            let globalContacts = sections.global.compactMap { row -> (AccountId, Chat.RemoteContact)? in
-                switch row.payload {
-                case let .remote(contact): (row.accountId, contact)
-                case .local: nil
+    func makeSearchStream(for query: String) -> AsyncStream<SearchAccountResult> {
+        AsyncStream { continuation in
+            let task = Task { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
                 }
+
+                do {
+                    for try await sections in accountSearching.searchPhases(query: query) {
+                        continuation.yield(makeResult(from: sections))
+                    }
+                } catch {
+                    if !Task.isCancelled {
+                        logger.error("Search failed: \(error)")
+                        await presenter?.didReceiveSearchError(message: error.localizedDescription)
+                        continuation.yield(SearchAccountResult(recent: [], contacts: [], global: []))
+                    }
+                }
+
+                continuation.finish()
             }
 
-            stateLock.withLock { state in
-                state.globalContacts = Dictionary(uniqueKeysWithValues: globalContacts)
-            }
-
-            return SearchAccountResult(
-                recent: sections.recent.map(\.payload),
-                contacts: mapToContacts(sections.contacts),
-                global: mapToContacts(sections.global)
-            )
-        } catch {
-            guard !Task.isCancelled else { return nil }
-
-            logger.error("Search failed: \(error)")
-            await presenter?.didReceiveSearchError(message: error.localizedDescription)
-
-            return SearchAccountResult(recent: [], contacts: [], global: [])
+            continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    func makeResult(
+        from sections: AccountSearchSections<RecentContactModelWithUsername, ContactSearchPayload>
+    ) -> SearchAccountResult {
+        let globalContacts = sections.global.compactMap { row -> (AccountId, Chat.RemoteContact)? in
+            switch row.payload {
+            case let .remote(contact): (row.accountId, contact)
+            case .local: nil
+            }
+        }
+
+        stateLock.withLock { state in
+            state.globalContacts = Dictionary(uniqueKeysWithValues: globalContacts)
+        }
+
+        return SearchAccountResult(
+            recent: sections.recent.map(\.payload),
+            contacts: mapToContacts(sections.contacts),
+            global: mapToContacts(sections.global),
+            globalOutcome: sections.globalOutcome
+        )
+    }
+
+    static func hasContent(_ result: SearchAccountResult) -> Bool {
+        !result.recent.isEmpty || !result.contacts.isEmpty || !result.global.isEmpty
     }
 
     func mapToContacts(_ rows: [SearchRow<ContactSearchPayload>]) -> [SearchAccountResult.Contact] {
