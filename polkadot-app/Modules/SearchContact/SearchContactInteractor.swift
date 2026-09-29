@@ -89,6 +89,8 @@ private extension SearchContactInteractor {
                     let query = stateLock.withLock { $0.currentQuery }
                     if let query, !query.isEmpty {
                         search(username: query)
+                    } else {
+                        loadIdleState()
                     }
                 }
             } catch {
