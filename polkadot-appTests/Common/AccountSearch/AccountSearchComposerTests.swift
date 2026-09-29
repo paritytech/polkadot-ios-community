@@ -403,6 +403,38 @@ struct AccountSearchComposerTests {
 
         #expect(result.recent.count == 2)
     }
+
+    // MARK: - Global Outcome Tests
+
+    @Test("Global outcome defaults to loaded")
+    func globalOutcomeDefaultsToLoaded() {
+        let result = AccountSearchComposer.compose(
+            query: "search",
+            recent: [SearchRow<Int>](),
+            contacts: [SearchRow<Int>](),
+            global: [SearchRow<Int>](),
+            excluding: []
+        )
+
+        #expect(result.globalOutcome == .loaded)
+    }
+
+    @Test(
+        "Global outcome passes through",
+        arguments: [AccountSearchGlobalOutcome.pending, .loaded, .failed]
+    )
+    func globalOutcomePassesThrough(outcome: AccountSearchGlobalOutcome) {
+        let result = AccountSearchComposer.compose(
+            query: "search",
+            recent: [SearchRow<Int>](),
+            contacts: [SearchRow<Int>](),
+            global: [SearchRow<Int>](),
+            excluding: [],
+            globalOutcome: outcome
+        )
+
+        #expect(result.globalOutcome == outcome)
+    }
 }
 
 // MARK: - Helpers

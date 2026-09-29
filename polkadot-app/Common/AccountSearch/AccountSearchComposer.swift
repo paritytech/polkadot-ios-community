@@ -1,10 +1,29 @@
 import SubstrateSdk
 import Foundation
 
+enum AccountSearchGlobalOutcome {
+    case pending
+    case loaded
+    case failed
+}
+
 struct AccountSearchSections<RecentPayload, MatchPayload> {
     let recent: [SearchRow<RecentPayload>]
     let contacts: [SearchRow<MatchPayload>]
     let global: [SearchRow<MatchPayload>]
+    let globalOutcome: AccountSearchGlobalOutcome
+
+    init(
+        recent: [SearchRow<RecentPayload>],
+        contacts: [SearchRow<MatchPayload>],
+        global: [SearchRow<MatchPayload>],
+        globalOutcome: AccountSearchGlobalOutcome = .loaded
+    ) {
+        self.recent = recent
+        self.contacts = contacts
+        self.global = global
+        self.globalOutcome = globalOutcome
+    }
 }
 
 enum AccountSearchComposer {
@@ -14,7 +33,8 @@ enum AccountSearchComposer {
         contacts: [SearchRow<MatchPayload>],
         global: [SearchRow<MatchPayload>],
         excluding: Set<AccountId>,
-        maxRecent: Int = 5
+        maxRecent: Int = 5,
+        globalOutcome: AccountSearchGlobalOutcome = .loaded
     ) -> AccountSearchSections<RecentPayload, MatchPayload> {
         let filteredRecents = recent.filter { !excluding.contains($0.accountId) }
 
@@ -54,7 +74,8 @@ enum AccountSearchComposer {
         return AccountSearchSections(
             recent: recentSection,
             contacts: contactsSection,
-            global: globalSection
+            global: globalSection,
+            globalOutcome: globalOutcome
         )
     }
 
