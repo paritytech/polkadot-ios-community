@@ -21,50 +21,6 @@ final class SearchRunner {
     }
 
     func run<SearchResult>(
-        _ operation: @escaping () async -> SearchResult?
-    ) -> AsyncStream<State<SearchResult>> {
-        AsyncStream { continuation in
-            let clock = clock
-            let loaderState = SearchLoaderState()
-            let loaderTask = makeLoaderTask(loaderState: loaderState) { continuation.yield(.waiting) }
-
-            let searchTask = Task {
-                continuation.yield(.started)
-
-                try? await clock.sleep(for: Constants.debounceDelay)
-                guard !Task.isCancelled else {
-                    continuation.finish()
-                    return
-                }
-
-                let result = await operation()
-
-                if loaderState.isLoaderShown {
-                    await loaderTask.value
-                } else {
-                    loaderState.complete()
-                    loaderTask.cancel()
-                }
-
-                guard !Task.isCancelled else {
-                    continuation.finish()
-                    return
-                }
-
-                if let result {
-                    continuation.yield(.result(result))
-                }
-                continuation.finish()
-            }
-
-            continuation.onTermination = { _ in
-                loaderTask.cancel()
-                searchTask.cancel()
-            }
-        }
-    }
-
-    func run<SearchResult>(
         _ operation: @escaping () -> AsyncStream<SearchResult>,
         hasContent: @escaping @Sendable (SearchResult) -> Bool
     ) -> AsyncStream<State<SearchResult>> {

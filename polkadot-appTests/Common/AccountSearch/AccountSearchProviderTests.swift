@@ -25,7 +25,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: "")
+        _ = try await collectPhases(from: provider, query: "")
 
         #expect(localSearch.didRequestAllContacts)
         #expect(localSearch.receivedUsernamePrefix == nil)
@@ -49,7 +49,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: nil)
+        _ = try await collectPhases(from: provider, query: nil)
 
         #expect(localSearch.didRequestAllContacts)
         #expect(localSearch.receivedUsernamePrefix == nil)
@@ -74,7 +74,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: "alice")
+        _ = try await collectPhases(from: provider, query: "alice")
 
         #expect(localSearch.receivedUsernamePrefix == "alice")
         #expect(localSearch.receivedAccountId == nil)
@@ -104,7 +104,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: address)
+        _ = try await collectPhases(from: provider, query: address)
 
         #expect(localSearch.receivedAccountId == targetAccountId)
         #expect(localSearch.receivedUsernamePrefix == nil)
@@ -130,7 +130,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: "alice.dot")
+        _ = try await collectPhases(from: provider, query: "alice.dot")
 
         #expect(localSearch.receivedUsernamePrefix == "alice")
         #expect(remoteSearch.receivedSearchQuery == "alice")
@@ -151,7 +151,7 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        _ = try await provider.search(query: "alice.dotty")
+        _ = try await collectPhases(from: provider, query: "alice.dotty")
 
         #expect(localSearch.receivedUsernamePrefix == "alice.dotty")
         #expect(remoteSearch.receivedSearchQuery == "alice.dotty")
@@ -187,7 +187,8 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        let result = try await provider.search(query: nil)
+        let phases = try await collectPhases(from: provider, query: nil)
+        let result = try #require(phases.last)
 
         #expect(result.contacts.count == 1)
         #expect(result.contacts[0].username?.value == "allowed_user")
@@ -227,7 +228,8 @@ struct AccountSearchProviderTests {
         provider.setup()
 
         // Search with a query that won't match "blocked_remote" locally
-        let result = try await provider.search(query: "xyz")
+        let phases = try await collectPhases(from: provider, query: "xyz")
+        let result = try #require(phases.last)
 
         // Should not contain the blocked account in global results
         #expect(result.global.allSatisfy { $0.accountId != blockedAccountId })
@@ -257,7 +259,8 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        let result = try await provider.search(query: nil)
+        let phases = try await collectPhases(from: provider, query: nil)
+        let result = try #require(phases.last)
 
         #expect(result.contacts.count == 1)
         #expect(result.contacts[0].username?.value == "other")
@@ -285,7 +288,8 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        let result = try await provider.search(query: "search")
+        let phases = try await collectPhases(from: provider, query: "search")
+        let result = try #require(phases.last)
 
         #expect(result.contacts.count == 1)
         #expect(result.global.isEmpty)
@@ -325,7 +329,8 @@ struct AccountSearchProviderTests {
         continuation.yield([recentRow])
         _ = try await sourcesChangedIterator.next()
 
-        let result = try await provider.search(query: nil)
+        let phases = try await collectPhases(from: provider, query: nil)
+        let result = try #require(phases.last)
 
         #expect(result.recent.count == 1)
         #expect(result.recent[0].username?.value == "recent_user")
@@ -360,7 +365,8 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        let result = try await provider.search(query: address)
+        let phases = try await collectPhases(from: provider, query: address)
+        let result = try #require(phases.last)
 
         #expect(result.global.count == 1)
         #expect(result.global[0].username?.value == "remote_user")
@@ -390,7 +396,8 @@ struct AccountSearchProviderTests {
         )
         provider.setup()
 
-        let result = try await provider.search(query: "search")
+        let phases = try await collectPhases(from: provider, query: "search")
+        let result = try #require(phases.last)
 
         #expect(result.global.count == 1)
         #expect(result.global[0].username?.value == "search_result")
@@ -462,10 +469,6 @@ struct AccountSearchProviderTests {
         await #expect(throws: (any Error).self) {
             _ = try await collectPhases(from: context.provider, query: "alice")
         }
-
-        await #expect(throws: (any Error).self) {
-            _ = try await context.provider.search(query: "alice")
-        }
     }
 
     @Test("Blocked contacts failure finishes the stream with the thrown error")
@@ -476,36 +479,6 @@ struct AccountSearchProviderTests {
         await #expect(throws: (any Error).self) {
             _ = try await collectPhases(from: context.provider, query: "alice")
         }
-    }
-
-    @Test("Awaited search returns the last phase of a non-empty query")
-    func awaitedSearchReturnsLastPhase() async throws {
-        let context = try await makeQueryContext()
-        let result = try await context.provider.search(query: "alice")
-
-        #expect(result.globalOutcome == .loaded)
-        #expect(result.global.count == 1)
-        #expect(result.contacts.count == 1)
-        #expect(result.recent.count == 1)
-    }
-
-    @Test("Awaited search returns the single loaded phase of an empty query")
-    func awaitedSearchReturnsEmptyQueryPhase() async throws {
-        let context = try await makeQueryContext()
-        let result = try await context.provider.search(query: "")
-
-        #expect(result.globalOutcome == .loaded)
-        #expect(result.global.isEmpty)
-    }
-
-    @Test("Awaited search returns the failed phase when the global lookup fails")
-    func awaitedSearchReturnsFailedPhase() async throws {
-        let context = try await makeQueryContext(globalFails: true)
-        let result = try await context.provider.search(query: "alice")
-
-        #expect(result.globalOutcome == .failed)
-        #expect(result.global.isEmpty)
-        #expect(result.contacts.count == 1)
     }
 
     // MARK: - Cancellation
@@ -524,9 +497,6 @@ struct AccountSearchProviderTests {
 
         let pending = try #require(phases.first)
         #expect(pending.globalOutcome == .pending)
-
-        let result = try await context.provider.search(query: address)
-        #expect(result.globalOutcome == .pending)
     }
 
     @Test("Cancelling while the global lookup is in flight yields no failed phase")
