@@ -1,6 +1,5 @@
 import Foundation
 import AsyncExtensions
-import StructuredConcurrency
 import os
 
 final class SearchContactInteractor {
@@ -46,7 +45,7 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
                 accountSearching.searchPhases(query: username)
                     .mapToResult()
                     .map(\.searchResult)
-            }, hasContent: Self.hasContent)
+            }, hasContent: \.hasContent)
             for await state in stateStream {
                 guard !Task.isCancelled else { return }
                 await presenter?.didReceive(searchState: state, for: username)
@@ -143,14 +142,6 @@ private extension SearchContactInteractor {
 
         replaceSearchTask(with: task)
     }
-
-    @Sendable static func hasContent(_ result: SearchContactSearchResult) -> Bool {
-        guard case let .sections(sections) = result else {
-            return false
-        }
-
-        return !sections.recent.isEmpty || !sections.contacts.isEmpty || !sections.global.rows.isEmpty
-    }
 }
 
 private extension Result where
@@ -163,5 +154,13 @@ private extension Result where
         case let .failure(error):
             .error(error)
         }
+    }
+}
+
+private extension SearchContactSearchResult {
+    var hasContent: Bool {
+        guard case let .sections(sections) = self else { return false }
+
+        return sections.hasContent
     }
 }

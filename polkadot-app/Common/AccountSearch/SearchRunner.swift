@@ -20,6 +20,7 @@ final class SearchRunner {
         self.clock = clock
     }
 
+    /// A failure from `operation()` ends the stream, so callers map their own errors into elements.
     func run<Source: AsyncSequence>(
         _ operation: @escaping () -> Source,
         hasContent: @escaping @Sendable (Source.Element) -> Bool
@@ -39,8 +40,6 @@ final class SearchRunner {
                 }
 
                 do {
-                    // Callers erase their own failures into elements before reaching here, so a
-                    // thrown error only means the sequence ended; the teardown below must still run.
                     for try await element in operation() {
                         // Only an empty phase waits out the loader floor, content replaces the loader at once.
                         if !hasContent(element), loaderState.isLoaderShown {
@@ -51,7 +50,9 @@ final class SearchRunner {
 
                         continuation.yield(.result(element))
                     }
-                } catch {}
+                } catch {
+                    // Sequence ended
+                }
 
                 loaderState.complete()
                 loaderTask.cancel()

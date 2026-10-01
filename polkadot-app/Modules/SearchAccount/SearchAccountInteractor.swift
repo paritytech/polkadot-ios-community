@@ -1,10 +1,10 @@
-import Operation_iOS
 import SubstrateSdk
-import SubstrateSdkExt
 import ChainRegistry
 import Foundation_iOS
 import os
 import AsyncExtensions
+
+private typealias SearchAccountSections = AccountSearchSections<RecentContactModelWithUsername, ContactSearchPayload>
 
 final class SearchAccountInteractor {
     // MARK: Properties
@@ -151,50 +151,44 @@ private extension SearchAccountInteractor {
     }
 
     func performSearch(query: String) {
-        let task = Task { [weak self, searchRunner] in
+        let task = Task { [weak self, searchRunner, accountSearching] in
             guard let self else { return }
 
             let stream = searchRunner.run(
-                { self.makeSearchStream(for: query) },
-                hasContent: Self.hasContent
+                { accountSearching.searchPhases(query: query).mapToResult() },
+                hasContent: \.hasContent
             )
 
             for await state in stream {
                 guard !Task.isCancelled else { return }
-                emit(state, for: query)
+
+                await handle(state, for: query)
             }
         }
 
         replaceSearchTask(with: task)
     }
 
-    func makeSearchStream(for query: String) -> AsyncStream<SearchAccountResult> {
-        AsyncStream { continuation in
-            let task = Task { [weak self] in
-                defer { continuation.finish() }
-
-                guard let self else { return }
-
-                do {
-                    for try await sections in accountSearching.searchPhases(query: query) {
-                        continuation.yield(makeResult(from: sections))
-                    }
-                } catch {
-                    guard !Task.isCancelled else { return }
-
-                    logger.error("Search failed: \(error)")
-                    await presenter?.didReceiveSearchError(message: error.localizedDescription)
-                    continuation.yield(SearchAccountResult(recent: [], contacts: []))
-                }
-            }
-
-            continuation.onTermination = { _ in task.cancel() }
+    /// A failure empties the list so that stale rows do not outlive a failed search.
+    func handle(
+        _ state: SearchRunner.State<Result<SearchAccountSections, Error>>,
+        for query: String
+    ) async {
+        switch state {
+        case .started:
+            emit(.started, for: query)
+        case .waiting:
+            emit(.waiting, for: query)
+        case let .result(.success(sections)):
+            emit(.result(makeResult(from: sections)), for: query)
+        case let .result(.failure(error)):
+            logger.error("Search failed: \(error)")
+            await presenter?.didReceiveSearchError(message: error.localizedDescription)
+            emit(.result(SearchAccountResult(recent: [], contacts: [])), for: query)
         }
     }
 
-    func makeResult(
-        from sections: AccountSearchSections<RecentContactModelWithUsername, ContactSearchPayload>
-    ) -> SearchAccountResult {
+    func makeResult(from sections: SearchAccountSections) -> SearchAccountResult {
         let globalContacts = sections.global.rows.compactMap { row -> (AccountId, Chat.RemoteContact)? in
             switch row.payload {
             case let .remote(contact): (row.accountId, contact)
@@ -211,10 +205,6 @@ private extension SearchAccountInteractor {
             contacts: mapToContacts(sections.contacts),
             global: sections.global.map(mapToContacts)
         )
-    }
-
-    @Sendable static func hasContent(_ result: SearchAccountResult) -> Bool {
-        !result.recent.isEmpty || !result.contacts.isEmpty || !result.global.rows.isEmpty
     }
 
     func mapToContacts(_ rows: [SearchRow<ContactSearchPayload>]) -> [SearchAccountResult.Contact] {
@@ -256,5 +246,13 @@ private extension SearchAccountInteractor {
         }
 
         previous?.cancel()
+    }
+}
+
+private extension Result where Success == SearchAccountSections, Failure == Error {
+    var hasContent: Bool {
+        guard case let .success(sections) = self else { return false }
+
+        return sections.hasContent
     }
 }

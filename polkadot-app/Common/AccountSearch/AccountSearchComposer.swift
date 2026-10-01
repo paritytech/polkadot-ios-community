@@ -60,6 +60,10 @@ struct AccountSearchSections<RecentPayload, MatchPayload> {
         self.contacts = contacts
         self.global = global
     }
+
+    var hasContent: Bool {
+        !recent.isEmpty || !contacts.isEmpty || !global.rows.isEmpty
+    }
 }
 
 enum AccountSearchComposer {
