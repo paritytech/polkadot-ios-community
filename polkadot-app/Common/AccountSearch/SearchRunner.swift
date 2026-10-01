@@ -20,10 +20,10 @@ final class SearchRunner {
         self.clock = clock
     }
 
-    func run<SearchResult>(
-        _ operation: @escaping () -> AsyncStream<SearchResult>,
-        hasContent: @escaping @Sendable (SearchResult) -> Bool
-    ) -> AsyncStream<State<SearchResult>> {
+    func run<Source: AsyncSequence>(
+        _ operation: @escaping () -> Source,
+        hasContent: @escaping @Sendable (Source.Element) -> Bool
+    ) -> AsyncStream<State<Source.Element>> {
         AsyncStream { continuation in
             let clock = clock
             let loaderState = SearchLoaderState()
@@ -38,16 +38,20 @@ final class SearchRunner {
                     return
                 }
 
-                for await element in operation() {
-                    // Only an empty phase waits out the loader floor, content replaces the loader at once.
-                    if !hasContent(element), loaderState.isLoaderShown {
-                        await loaderTask.value
+                do {
+                    // Callers erase their own failures into elements before reaching here, so a
+                    // thrown error only means the sequence ended; the teardown below must still run.
+                    for try await element in operation() {
+                        // Only an empty phase waits out the loader floor, content replaces the loader at once.
+                        if !hasContent(element), loaderState.isLoaderShown {
+                            await loaderTask.value
+                        }
+
+                        guard !Task.isCancelled else { break }
+
+                        continuation.yield(.result(element))
                     }
-
-                    guard !Task.isCancelled else { break }
-
-                    continuation.yield(.result(element))
-                }
+                } catch {}
 
                 loaderState.complete()
                 loaderTask.cancel()

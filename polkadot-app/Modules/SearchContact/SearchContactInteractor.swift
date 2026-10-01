@@ -43,7 +43,9 @@ extension SearchContactInteractor: SearchContactInteractorInputProtocol {
 
         let task = Task { [weak presenter, searchRunner, accountSearching] in
             let stateStream = searchRunner.run({
-                Self.makeSearchStream(from: accountSearching, query: username)
+                accountSearching.searchPhases(query: username)
+                    .mapToResult()
+                    .map(\.searchResult)
             }, hasContent: Self.hasContent)
             for await state in stateStream {
                 guard !Task.isCancelled else { return }
@@ -142,34 +144,24 @@ private extension SearchContactInteractor {
         replaceSearchTask(with: task)
     }
 
-    static func makeSearchStream(
-        from accountSearching: any AccountSearching<ContactSearchPayload, ContactSearchPayload>,
-        query: String
-    ) -> AsyncStream<SearchContactSearchResult> {
-        AsyncStream { continuation in
-            let task = Task {
-                defer { continuation.finish() }
-
-                do {
-                    for try await sections in accountSearching.searchPhases(query: query) {
-                        continuation.yield(.sections(sections))
-                    }
-                } catch {
-                    guard !Task.isCancelled else { return }
-
-                    continuation.yield(.error(error))
-                }
-            }
-
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
     @Sendable static func hasContent(_ result: SearchContactSearchResult) -> Bool {
         guard case let .sections(sections) = result else {
             return false
         }
 
         return !sections.recent.isEmpty || !sections.contacts.isEmpty || !sections.global.rows.isEmpty
+    }
+}
+
+private extension Result where
+    Success == AccountSearchSections<ContactSearchPayload, ContactSearchPayload>,
+    Failure == Error {
+    var searchResult: SearchContactSearchResult {
+        switch self {
+        case let .success(sections):
+            .sections(sections)
+        case let .failure(error):
+            .error(error)
+        }
     }
 }
