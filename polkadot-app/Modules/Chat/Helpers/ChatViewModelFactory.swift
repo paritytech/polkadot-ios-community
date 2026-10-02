@@ -40,7 +40,6 @@ final class ChatViewModelFactory {
     let productRepository: AnyDataProviderRepository<Product>
     let productNameCache: ProductNameCaching
     let flowState: SPAFlowState
-    let paymentAssetBranding: PaymentAssetBrandingProviding
     let logger: LoggerProtocol
 
     init(
@@ -53,7 +52,6 @@ final class ChatViewModelFactory {
         productRepository: AnyDataProviderRepository<Product>,
         productNameCache: ProductNameCaching,
         flowState: SPAFlowState,
-        paymentAssetBranding: PaymentAssetBrandingProviding = PaymentAssetBranding.shared,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.timeFormatter = timeFormatter
@@ -64,7 +62,6 @@ final class ChatViewModelFactory {
         self.productRepository = productRepository
         self.productNameCache = productNameCache
         self.flowState = flowState
-        self.paymentAssetBranding = paymentAssetBranding
         self.logger = logger
         customDecodersById = customDecoders.reduce(into: [:]) {
             $0[$1.identifier.rawValue] = $1
@@ -754,9 +751,9 @@ private extension ChatViewModelFactory {
             statusConfiguration = .inbox(date: deliveryDate, formatter: timeFormatter)
 
             configuration = ChatTransferMessageConfiguration.inbox(
+                currencySymbol: AppConfig.Brand.fiatSymbol,
                 amount: amountString,
                 tokenSymbol: tokenSymbol,
-                assetIcon: paymentAssetBranding.current.squareIcon,
                 originalAmount: originalAmountString,
                 from: peerMetadata.name,
                 state: content.incomingViewState,
@@ -773,9 +770,9 @@ private extension ChatViewModelFactory {
             )
 
             configuration = ChatTransferMessageConfiguration.outbox(
+                currencySymbol: AppConfig.Brand.fiatSymbol,
                 amount: amountString,
                 tokenSymbol: tokenSymbol,
-                assetIcon: paymentAssetBranding.current.squareIcon,
                 originalAmount: originalAmountString,
                 state: content.outgoingViewState,
                 statusConfiguration: statusConfiguration,

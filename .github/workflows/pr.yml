@@ -162,6 +162,25 @@ jobs:
             bundle exec fastlane run_unit_tests
           fi
 
+      # Runs even when the lane fails: a red suite is exactly when the report is wanted.
+      - name: Publish test results
+        if: always()
+        uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d # v6.5.0
+        with:
+          report_paths: ./fastlane/test_output/report.junit
+          check_name: Unit tests
+          detailed_summary: true
+          include_passed: false
+          fail_on_failure: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results-${{ github.run_number }}
+          path: ./fastlane/test_output/
+          retention-days: 3
+
       # Upload test artifacts for debugging - only when DEBUG_CI is enabled
       - name: Upload test artifacts
         if: env.DEBUG_CI == 'true' && (failure() || success())

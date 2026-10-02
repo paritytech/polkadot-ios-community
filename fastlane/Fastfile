@@ -94,11 +94,15 @@ platform :ios do
       groups: distribute_external && !external_group.empty? ? [external_group] : nil
     )
 
-    sentry_debug_files_upload(
-      org_slug: 'paritytech',
-      project_slug: 'polkadot-ios',
-      include_sources: true
-    )
+    # Release links no Sentry, so there is nothing to symbolicate and no reason
+    # to ship sources to a third party. Mirrors base_build_app's issue_monitoring_enabled.
+    if testflight_distribution_configuration != "Release"
+      sentry_debug_files_upload(
+        org_slug: 'paritytech',
+        project_slug: 'polkadot-ios',
+        include_sources: true
+      )
+    end
   end
 
   desc "Update signing data"
