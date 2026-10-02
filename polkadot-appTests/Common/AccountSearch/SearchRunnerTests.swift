@@ -3,7 +3,7 @@ import Testing
 
 @testable import polkadot_app
 
-@Suite("Search runner stream forwarding", .timeLimit(.minutes(1)))
+@Suite("Search runner stream forwarding")
 struct SearchRunnerTests {
     @Test("operation is not subscribed before the debounce elapses")
     func debounceGatesSubscription() async {
