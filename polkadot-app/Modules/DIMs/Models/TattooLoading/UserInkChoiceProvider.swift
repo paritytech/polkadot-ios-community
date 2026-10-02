@@ -79,7 +79,7 @@ extension UserInkChoiceProvider: UserInkChoiceProviding {
 
 private extension UserInkChoiceProvider {
     /// Adapted from:
-    /// https://github.com/paritytech/individuality/blob/main/pallets/proof-of-ink/src/lib.rs#L1141
+    /// https://github.com/paritytech/individuality-community/blob/main/pallets/proof-of-ink/src/lib.rs#L1141
     func entropyToSeed(entropy: [UInt8], variant: ProofOfInkPallet.VariantIndex) -> ProofOfInkPallet.ProceduralSeed {
         var seed = [UInt8](repeating: 0, count: 4)
         let variantAsInt = Int(variant)
