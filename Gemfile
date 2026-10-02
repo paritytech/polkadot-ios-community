@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-ruby "3.1.3"
+ruby "3.3.12"
 
 gem "fastlane", ">= 2.240.0"
 
