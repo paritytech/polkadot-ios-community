@@ -450,18 +450,24 @@ private extension CallEngine {
         RTCAudioSessionConfiguration.webRTC()
     }
 
-    private func startVideoCaptureIfNeeded(from track: RTCVideoTrack) async throws {
+    private func startVideoCaptureIfNeeded(from track: RTCVideoTrack) async {
         guard let capturer = await stateModel.makeVideoCapturerIfNeeded(for: track) else {
             return
         }
 
-        switch capturer {
-        case let fileCapturer as RTCFileVideoCapturer:
-            fileCapturer.startCapturing(fromFileNamed: "test.mp4")
-        case let cameraCapturer as RTCCameraVideoCapturer:
-            try await startCameraVideoCapture(cameraCapturer)
-        default:
-            break
+        do {
+            switch capturer {
+            case let fileCapturer as RTCFileVideoCapturer:
+                fileCapturer.startCapturing(fromFileNamed: "test.mp4")
+            case let cameraCapturer as RTCCameraVideoCapturer:
+                try await startCameraVideoCapture(cameraCapturer)
+            default:
+                break
+            }
+        } catch {
+            // Capture failure degrades the call to audio only, it must not break the connection
+            logger.error("Failed to start video capture: \(error)")
+            return
         }
 
         if await !stateModel.isCurrentVideoCapturer(capturer) {
@@ -471,11 +477,7 @@ private extension CallEngine {
 
     private func startLocalVideoCapture() async {
         if let videoTrack = await stateModel.localTracks?.videoTrack {
-            do {
-                try await startVideoCaptureIfNeeded(from: videoTrack)
-            } catch {
-                logger.error("Failed to start video capture: \(error)")
-            }
+            await startVideoCaptureIfNeeded(from: videoTrack)
         }
 
         await stateModel.applyVideoEnabledState()
@@ -603,13 +605,20 @@ private extension CallEngine {
 
     func receiveRemoteMediaState(from channel: CallMediaStateChannel) {
         remoteMediaStateTask = Task { [remoteMediaStateSubject, logger] in
-            do {
-                for try await signal in channel.signals {
-                    logger.debug("Remote media state signal: \(signal)")
-                    remoteMediaStateSubject.send(remoteMediaStateSubject.value.applying(signal))
+            // The multiplexer back-pressures on send, so dropping this subscriber would stall
+            // every use case on the connection. Only cancellation or the stream finishing
+            // may end this loop.
+            while !Task.isCancelled {
+                do {
+                    for try await signal in channel.signals {
+                        logger.debug("Remote media state signal: \(signal)")
+                        remoteMediaStateSubject.send(remoteMediaStateSubject.value.applying(signal))
+                    }
+
+                    return
+                } catch {
+                    logger.error("Remote media state observation failed, resuming: \(error)")
                 }
-            } catch {
-                logger.error("Remote media state observation failed: \(error)")
             }
         }
     }
@@ -744,12 +753,7 @@ extension CallEngine: CallEngineProtocol {
 
             videoTrack.add(localRenderer)
 
-            do {
-                try await startVideoCaptureIfNeeded(from: videoTrack)
-            } catch {
-                logger.error("Failed to start video capture: \(error)")
-                // Video capture failure doesn't break the call, but should be logged
-            }
+            await startVideoCaptureIfNeeded(from: videoTrack)
         }
     }
 

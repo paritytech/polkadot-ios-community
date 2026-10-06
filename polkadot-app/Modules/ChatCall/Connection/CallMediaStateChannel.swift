@@ -5,24 +5,23 @@ import AsyncExtensions
 final class CallMediaStateChannel {
     static let useCaseId = "webrtc_media_state_use_case"
 
-    private let multiplexedChannel: MultiplexedDataChannel
-    private let logger: LoggerProtocol
+    let signals: AnyAsyncSequence<CallMediaStateSignal>
 
-    private let subscribedStream: AnyAsyncSequence<Data>
+    private let multiplexedChannel: MultiplexedDataChannel
 
     init(multiplexedChannel: MultiplexedDataChannel, logger: LoggerProtocol) {
         self.multiplexedChannel = multiplexedChannel
-        self.logger = logger
-        subscribedStream = multiplexedChannel.subscribe(useCaseId: Self.useCaseId)
-    }
 
-    var signals: AnyAsyncSequence<CallMediaStateSignal> {
-        subscribedStream
-            .compactMap { [logger] data in
+        signals = multiplexedChannel
+            .subscribe(useCaseId: Self.useCaseId)
+            .compactMap { data in
                 do {
                     let decoder = try ScaleDecoder(data: data)
                     return try CallMediaStateSignal(scaleDecoder: decoder)
                 } catch {
+                    // The multiplexer demuxes on one task and back-pressures on send, so a
+                    // subscriber that stops draining stalls every use case on the connection,
+                    // renegotiation included. Drop the frame instead of propagating.
                     logger.error("Media state decoding failed: \(error)")
                     return nil
                 }

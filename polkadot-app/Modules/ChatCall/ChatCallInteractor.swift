@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 final class ChatCallInteractor {
     static let terminalStateDwellSeconds: TimeInterval = 1.5
@@ -22,6 +23,7 @@ final class ChatCallInteractor {
     private var callKitMutedTask: Task<Void, Never>?
     private var audioRouteTask: Task<Void, Never>?
     private var remoteMediaStateTask: Task<Void, Never>?
+    private let videoToggleTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
     private(set) var isEnding: Bool = false
 
     init(
@@ -140,6 +142,11 @@ private extension ChatCallInteractor {
 
         remoteMediaStateTask?.cancel()
         remoteMediaStateTask = nil
+
+        videoToggleTask.withLock { task in
+            task?.cancel()
+            task = nil
+        }
     }
 
     func observeCallEngineState() {
@@ -338,6 +345,19 @@ private extension ChatCallInteractor {
         await presenter?.didUpdateVideoState(result)
     }
 
+    func performVideoToggle() async {
+        let isEnabled = await callEngine.isVideoEnabled
+
+        if !isEnabled {
+            guard await permissionsService.ensureCameraAccess() else {
+                return
+            }
+        }
+
+        let result = await callEngine.setVideoEnabled(!isEnabled)
+        await presenter?.didUpdateVideoState(result)
+    }
+
     @MainActor
     func ensureCallPermissions() async -> Bool {
         guard await permissionsService.ensurePermissions() else {
@@ -411,16 +431,15 @@ extension ChatCallInteractor: ChatCallInteractorInputProtocol {
     }
 
     func toggleVideo() {
-        Task {
-            let isEnabled = await callEngine.isVideoEnabled
-            if !isEnabled {
-                guard await permissionsService.ensureCameraAccess() else {
-                    return
-                }
+        videoToggleTask.withLock { task in
+            guard task == nil else {
+                return
             }
 
-            let result = await callEngine.setVideoEnabled(!isEnabled)
-            await presenter?.didUpdateVideoState(result)
+            task = Task { [weak self] in
+                await self?.performVideoToggle()
+                self?.videoToggleTask.withLock { $0 = nil }
+            }
         }
     }
 
