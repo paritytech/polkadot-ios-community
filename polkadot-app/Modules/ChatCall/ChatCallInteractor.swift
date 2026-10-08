@@ -480,9 +480,7 @@ extension ChatCallInteractor: ChatCallInteractorInputProtocol {
 
     func toggleVideo() {
         videoToggleTask.withLock { task in
-            guard task == nil else {
-                return
-            }
+            guard task == nil else { return }
 
             task = Task { [weak self] in
                 await self?.performVideoToggle()
