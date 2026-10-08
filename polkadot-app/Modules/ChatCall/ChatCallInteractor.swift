@@ -23,6 +23,8 @@ final class ChatCallInteractor {
     private var callKitMutedTask: Task<Void, Never>?
     private var audioRouteTask: Task<Void, Never>?
     private var remoteMediaStateTask: Task<Void, Never>?
+    private var videoStateTask: Task<Void, Never>?
+    private var videoCaptureFailureTask: Task<Void, Never>?
     private let videoToggleTask = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
     private(set) var isEnding: Bool = false
 
@@ -143,6 +145,12 @@ private extension ChatCallInteractor {
         remoteMediaStateTask?.cancel()
         remoteMediaStateTask = nil
 
+        videoStateTask?.cancel()
+        videoStateTask = nil
+
+        videoCaptureFailureTask?.cancel()
+        videoCaptureFailureTask = nil
+
         videoToggleTask.withLock { task in
             task?.cancel()
             task = nil
@@ -178,6 +186,38 @@ private extension ChatCallInteractor {
                 }
             } catch {
                 self?.logger.error("Remote media state observation failed: \(error)")
+            }
+        }
+    }
+
+    func observeVideoState() {
+        videoStateTask = Task { [weak self] in
+            guard let sequence = self?.callEngine.observeVideoState() else {
+                return
+            }
+
+            do {
+                for try await isEnabled in sequence {
+                    await self?.presenter?.didUpdateVideoState(isEnabled)
+                }
+            } catch {
+                self?.logger.error("Video state observation failed: \(error)")
+            }
+        }
+    }
+
+    func observeVideoCaptureFailure() {
+        videoCaptureFailureTask = Task { [weak self] in
+            guard let sequence = self?.callEngine.observeVideoCaptureFailure() else {
+                return
+            }
+
+            do {
+                for try await _ in sequence {
+                    await self?.presenter?.didFailVideoCapture()
+                }
+            } catch {
+                self?.logger.error("Video capture failure observation failed: \(error)")
             }
         }
     }
@@ -340,22 +380,27 @@ private extension ChatCallInteractor {
     }
 
     func applyInitialVideoState() async {
-        let isEnabled = callType == .video && permissionsService.isCameraGranted
-        let result = await callEngine.setVideoEnabled(isEnabled)
-        await presenter?.didUpdateVideoState(result)
+        await callEngine.setVideoEnabled(callType == .video && permissionsService.isCameraGranted)
     }
 
     func performVideoToggle() async {
-        let isEnabled = await callEngine.isVideoEnabled
+        if await callEngine.isVideoEnabled {
+            await callEngine.setVideoEnabled(false)
+        } else {
+            await enableVideoIfPermitted()
+        }
+    }
 
-        if !isEnabled {
-            guard await permissionsService.ensureCameraAccess() else {
-                return
+    func enableVideoIfPermitted() async {
+        guard await permissionsService.ensureCameraAccess() else {
+            if permissionsService.isCameraDenied {
+                await presenter?.didRequireCameraAccess()
             }
+
+            return
         }
 
-        let result = await callEngine.setVideoEnabled(!isEnabled)
-        await presenter?.didUpdateVideoState(result)
+        await callEngine.setVideoEnabled(true)
     }
 
     @MainActor
@@ -403,6 +448,9 @@ private extension ChatCallInteractor {
 
 extension ChatCallInteractor: ChatCallInteractorInputProtocol {
     func setup() {
+        observeVideoState()
+        observeVideoCaptureFailure()
+
         Task {
             await performSetup()
         }
