@@ -444,6 +444,28 @@
         }
       }
     },
+    "chat.call.camera.access.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow camera access in Settings to turn on video during calls."
+          }
+        }
+      }
+    },
+    "chat.call.camera.access.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Access Required"
+          }
+        }
+      }
+    },
     "chat.call.mic.access.message" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -462,6 +484,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Microphone Access Required"
+          }
+        }
+      }
+    },
+    "chat.call.video.unavailable.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Video could not be started. The call continues with audio only."
+          }
+        }
+      }
+    },
+    "chat.call.video.unavailable.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera Unavailable"
           }
         }
       }
@@ -877,6 +921,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You left the chat"
+          }
+        }
+      }
+    },
+    "chatCallRemoteMicOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@'s microphone is off"
+          }
+        }
+      }
+    },
+    "chatCallSelfMicOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your microphone is off"
           }
         }
       }
