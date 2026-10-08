@@ -136,6 +136,28 @@
         }
       }
     },
+    "action.get" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get"
+          }
+        }
+      }
+    },
+    "action.get.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add CASH via bank, crypto or credit card"
+          }
+        }
+      }
+    },
     "action.send.cash" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -143,6 +165,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Send"
+          }
+        }
+      }
+    },
+    "action.send.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move CASH to your bank, crypto wallet or contacts"
           }
         }
       }
