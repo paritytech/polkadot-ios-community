@@ -180,17 +180,6 @@
         }
       }
     },
-    "action.withdraw" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Withdraw"
-          }
-        }
-      }
-    },
     "address.copied" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2530,6 +2519,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This is taking longer than usual"
+          }
+        }
+      }
+    },
+    "searchAccount.selfTransfer.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bank account or crypto wallet"
+          }
+        }
+      }
+    },
+    "searchAccount.selfTransfer.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send to yourself"
           }
         }
       }

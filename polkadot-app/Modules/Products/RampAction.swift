@@ -1,8 +1,8 @@
 import Foundation
 import Products
 
-/// The two funding-product entry points on the CASH card; each opens the page remote config names.
-enum RampAction: Sendable, Hashable, CaseIterable {
+/// The two funding-product entry points; each opens the page remote config names.
+enum RampAction: Sendable {
     case topUp
     case withdraw
 
