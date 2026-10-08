@@ -137,11 +137,16 @@ private extension MixnetUploadService {
         }
     }
 
+    /// `retry_after_secs` from a `RateLimited` response is only rendered into the error message
+    /// string — the node sends no structured `data` — so these retry on our own backoff rather
+    /// than the delay the node suggests.
     static func isRetryableUploadError(_ error: Error) -> Bool {
         switch error {
         case JSONRPCEngineError.remoteCancelled,
              is URLError:
             true
+        case let rpcError as JSONRPCError:
+            rpcError.code == HOPErrorCode.poolFull || rpcError.code == HOPErrorCode.rateLimited
         default:
             false
         }
