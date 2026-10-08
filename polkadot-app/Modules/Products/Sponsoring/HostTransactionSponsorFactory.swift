@@ -51,7 +51,8 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             keyResolver: keyResolver,
             operationQueue: operationQueue,
             chainTimeProvider: bulletInTimeProvider,
-            resourcesParameters: ResourcesParametersFacade.shared
+            resourcesParameters: ResourcesParametersFacade.shared,
+            networkSuffixProvider: DotNsTldProviderFacade.shared
         )
 
         return PreimageSubmitSponsor(
@@ -106,6 +107,7 @@ final class HostTransactionSponsorFactory: TransactionSponsorMaking {
             chainId: AppConfig.Chains.chatChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory,
+            networkSuffixProvider: DotNsTldProviderFacade.shared,
             resourcesParameters: ResourcesParametersFacade.shared,
             chainTimeProvider: timeProvider,
             originPersonProvider: originPersonProvider,

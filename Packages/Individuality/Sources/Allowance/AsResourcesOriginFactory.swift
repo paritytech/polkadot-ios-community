@@ -32,18 +32,18 @@ public final class AsResourcesOriginFactory: AsResourcesOriginCreating {
     private let wallet: WalletManaging
     private let keyResolver: BandersnatchKeyResolving
     private let chainRegistry: ChainResourceProtocol
-    private let storageRequestFactory: StorageRequestFactoryProtocol
+    private let networkSuffixProvider: NetworkSuffixProviding
 
     public init(
         wallet: WalletManaging,
         keyResolver: BandersnatchKeyResolving,
         chainRegistry: ChainResourceProtocol,
-        storageRequestFactory: StorageRequestFactoryProtocol
+        networkSuffixProvider: NetworkSuffixProviding
     ) {
         self.wallet = wallet
         self.keyResolver = keyResolver
         self.chainRegistry = chainRegistry
-        self.storageRequestFactory = storageRequestFactory
+        self.networkSuffixProvider = networkSuffixProvider
     }
 
     public func createSSSOrigin(
@@ -97,14 +97,7 @@ private extension AsResourcesOriginFactory {
         chain: ChainId
     ) async throws -> ExtrinsicOriginDefining {
         let personDeps = try await makePersonDeps(personOrigin: personOrigin, chain: chain)
-        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chain)
-        let connection = try chainRegistry.getRpcConnectionOrError(for: chain)
-        let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
-        let networkSuffix = try await storageRequestFactory.readNetworkSuffix(
-            connection: connection,
-            codingFactory: codingFactory
-        )
-        let proofContext = try suffix.context(networkSuffix: networkSuffix)
+        let proofContext = try await suffix.context(networkSuffix: networkSuffixProvider.networkSuffix())
 
         let asResourcesOrigin = AsResourcesOriginDefinition(
             input: AsResourcesOriginInput(personDeps: personDeps, proofContext: proofContext, kind: kind)

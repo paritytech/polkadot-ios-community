@@ -39,7 +39,7 @@ extension BulletInAllowanceManager {
             wallet: wallet,
             keyResolver: keyResolver,
             chainRegistry: chainRegistry,
-            storageRequestFactory: storageRequestFactory
+            networkSuffixProvider: tldProvider
         )
 
         let extrinsicFacade = ExtrinsicSubmissionMonitorFacade(
@@ -68,7 +68,8 @@ extension BulletInAllowanceManager {
             keyResolver: keyResolver,
             operationQueue: operationQueue,
             chainTimeProvider: chainTimeProvider,
-            resourcesParameters: ResourcesParametersFacade.shared
+            resourcesParameters: ResourcesParametersFacade.shared,
+            networkSuffixProvider: tldProvider
         )
 
         let allocator = BulletinSlotAllocator(
