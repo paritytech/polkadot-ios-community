@@ -136,6 +136,28 @@
         }
       }
     },
+    "action.get" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Get"
+          }
+        }
+      }
+    },
+    "action.get.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add CASH via bank, crypto or credit card"
+          }
+        }
+      }
+    },
     "action.send.cash" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -147,13 +169,13 @@
         }
       }
     },
-    "action.withdraw" : {
+    "action.send.subtitle" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Withdraw"
+            "value" : "Move CASH to your bank, crypto wallet or contacts"
           }
         }
       }
@@ -2541,6 +2563,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This is taking longer than usual"
+          }
+        }
+      }
+    },
+    "searchAccount.selfTransfer.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bank account or crypto wallet"
+          }
+        }
+      }
+    },
+    "searchAccount.selfTransfer.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send to yourself"
           }
         }
       }
