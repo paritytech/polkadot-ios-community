@@ -16,6 +16,7 @@ enum MicrophonePromptPolicy {
 protocol CallPermissionsServicing: AnyObject {
     var isMicrophoneGranted: Bool { get }
     var isCameraGranted: Bool { get }
+    var isCameraDenied: Bool { get }
 
     var isMicrophoneDenied: Bool { get }
 
@@ -29,17 +30,20 @@ final class CallPermissionsService {
     private let applicationStateProvider: @MainActor () -> UIApplication.State
     private let recordPermissionProvider: RecordPermissionProviding
     private let recordPermissionRequester: RecordPermissionRequesting
+    private let cameraPermissionService: CameraPermissionServicing
 
     init(
         applicationStateProvider: @escaping @MainActor () -> UIApplication.State = {
             UIApplication.shared.applicationState
         },
         recordPermissionProvider: RecordPermissionProviding = RecordPermissionService(),
-        recordPermissionRequester: RecordPermissionRequesting = RecordPermissionService()
+        recordPermissionRequester: RecordPermissionRequesting = RecordPermissionService(),
+        cameraPermissionService: CameraPermissionServicing = CameraPermissionService()
     ) {
         self.applicationStateProvider = applicationStateProvider
         self.recordPermissionProvider = recordPermissionProvider
         self.recordPermissionRequester = recordPermissionRequester
+        self.cameraPermissionService = cameraPermissionService
     }
 }
 
@@ -89,7 +93,11 @@ extension CallPermissionsService: CallPermissionsServicing {
     }
 
     var isCameraGranted: Bool {
-        AVCaptureDevice.authorizationStatus(for: .video) == .authorized
+        cameraPermissionService.permission() == .authorized
+    }
+
+    var isCameraDenied: Bool {
+        cameraPermissionService.permission() == .denied
     }
 
     func ensurePermissions() async -> Bool {
@@ -97,13 +105,16 @@ extension CallPermissionsService: CallPermissionsServicing {
     }
 
     func ensureCameraAccess() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        switch cameraPermissionService.permission() {
         case .authorized:
             return true
         case .notDetermined:
-            guard await canPresentPermissionPrompt else { return false }
-            return await AVCaptureDevice.requestAccess(for: .video)
-        default:
+            guard await canPresentPermissionPrompt else {
+                return false
+            }
+
+            return await cameraPermissionService.requestPermission() == .authorized
+        case .denied:
             return false
         }
     }
