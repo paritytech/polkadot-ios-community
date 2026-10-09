@@ -3,11 +3,6 @@ import SubstrateSdk
 
 public extension ResourcesPallet {
     struct StatementAllowance: Decodable {
-        enum CodingKeys: String, CodingKey {
-            case maxCount = "max_count"
-            case maxSize = "max_size"
-        }
-
         @StringCodable public var maxCount: UInt32
         @StringCodable public var maxSize: UInt32
     }
