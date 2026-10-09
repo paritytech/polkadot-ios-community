@@ -5,7 +5,6 @@
 //                      results and keyboard-tracking panel; without it the
 //                      panel shows a search button that opens full-screen
 //                      search                                   (Debug, DevCI, Nightly).
-// FEATURE_PRODUCTS   — the browse tab                            (Debug, DevCI, Nightly).
 // FEATURE_SIGN_IN    — sign in with Polkadot: the `pair` deeplink
 //                      and the linked-devices settings row       (Debug, DevCI, Nightly).
 //
