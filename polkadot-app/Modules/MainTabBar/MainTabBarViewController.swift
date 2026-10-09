@@ -13,6 +13,16 @@ final class MainTabBarViewController: UIViewController {
 
     let chromeController = TabBarBottomChromeController()
 
+    lazy var widgetController = TabBarWidgetController { [weak self] in
+        self?.updateWidgetLayout()
+    }
+
+    // Extensions cannot hold stored properties, so the widget layout
+    // in MainTabBarViewController+Widgets.swift reads these from here.
+    weak var contentSafeAreaAdjustedViewController: UIViewController?
+    weak var appliedTabController: UIViewController?
+    weak var appliedContentController: UIViewController?
+
     private lazy var statusBarHost = UIHostingController(rootView: ChainConnectionStatusBarView(models: []))
 
     /// The rings sit at the trailing end of the full-width strip, so the tip anchors here
@@ -57,6 +67,7 @@ final class MainTabBarViewController: UIViewController {
         installStatusBar()
 
         installChromeController()
+        installWidgets()
 
         chromeController.statusStripAnchorProvider = { [weak self] in self?.chainStatusAnchorGuide }
 
@@ -87,7 +98,14 @@ final class MainTabBarViewController: UIViewController {
             guard let self else {
                 return
             }
-            chromeController.applyLayout(chromeContext(for: container.selectedController))
+            applyWidgetLayout(for: chromeContext(for: container.selectedController))
+        }
+
+        chromeController.onBottomClearanceInvalidated = { [weak self] in
+            guard let self else {
+                return
+            }
+            applyWidgetLayout(for: chromeContext(for: container.selectedController))
         }
 
         presenter.setup()
@@ -96,7 +114,7 @@ final class MainTabBarViewController: UIViewController {
     override func viewSafeAreaInsetsDidChange() {
         super.viewSafeAreaInsetsDidChange()
 
-        chromeController.applyLayout(chromeContext(for: container.selectedController))
+        applyWidgetLayout(for: chromeContext(for: container.selectedController))
     }
 
     override var childForStatusBarStyle: UIViewController? {
@@ -144,6 +162,10 @@ private extension MainTabBarViewController {
             make.edges.equalToSuperview()
         }
         chromeController.didMove(toParent: self)
+    }
+
+    func installWidgets() {
+        widgetController.install(in: view, below: chromeController.view)
     }
 
     func chromeContext(for controller: UIViewController?) -> TabBarChromeContext {
@@ -232,14 +254,14 @@ private extension MainTabBarViewController {
             let coordinator = navigationController.transitionCoordinator,
             coordinator.isInteractive
         else {
-            chromeController.apply(
+            applyChrome(
                 incoming,
                 animatingAlongside: animated ? navigationController.transitionCoordinator : nil
             )
             return
         }
 
-        chromeController.applyLayout(incoming, animatingAlongside: coordinator)
+        applyWidgetLayout(for: incoming, animatingAlongside: coordinator)
 
         let targetState = chromeController.resolvedState(for: incoming)
         coordinator.animate(alongsideTransition: { [weak self] _ in
@@ -253,7 +275,7 @@ private extension MainTabBarViewController {
             let staying = context.isCancelled
                 ? stayingChromeContext(in: navigationController, context: context)
                 : nil
-            chromeController.apply(staying ?? incoming)
+            applyChrome(staying ?? incoming)
         }
     }
 }
@@ -401,7 +423,7 @@ extension MainTabBarViewController: AppNavigationControllerTransitionObserving {
         didShow viewController: UIViewController,
         animated _: Bool
     ) {
-        chromeController.apply(chromeContext(
+        applyChrome(chromeContext(
             tabController: navigationController,
             stack: navigationController.viewControllers,
             showing: viewController
@@ -417,15 +439,23 @@ extension MainTabBarViewController: TopmostChildProviding {
 
 extension MainTabBarViewController {
     func refreshChrome() {
-        chromeController.apply(chromeContext(for: container.selectedController))
+        applyChrome(chromeContext(for: container.selectedController))
         applyChips()
     }
 
+    func applyChrome(
+        _ context: TabBarChromeContext,
+        animatingAlongside transitionCoordinator: UIViewControllerTransitionCoordinator? = nil
+    ) {
+        chromeController.apply(context)
+        applyWidgetLayout(for: context, animatingAlongside: transitionCoordinator)
+    }
+
     func attachWidget(_ configuration: any HashableContentConfiguration, for id: AppWidgetID) {
-        chromeController.attachWidget(configuration, for: id)
+        widgetController.attach(configuration, for: id)
     }
 
     func detachWidget(for id: AppWidgetID) {
-        chromeController.detachWidget(for: id)
+        widgetController.detach(for: id)
     }
 }
