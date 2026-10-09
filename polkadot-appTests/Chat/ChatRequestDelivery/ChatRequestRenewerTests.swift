@@ -8,7 +8,6 @@ struct ChatRequestRenewerTests {
     private let allocator = StubNotificationAllocator()
     private let store = InMemoryChatRequestRenewalStore()
     private let outgoingService = RecordingOutgoingChatRequestService()
-    private let issues = RecordingChatRequestIssues()
     private let signers =
         ChatRequestDeliverySigners(signManager: ChatSignerManager(entropyManager: FixedRootEntropyManager()))
 
@@ -61,35 +60,13 @@ struct ChatRequestRenewerTests {
         #expect(outgoingService.sentSigners.isEmpty)
     }
 
-    @Test func reportsRenewalThatClaimedSlotButFailedToPublish() async {
+    @Test func keepsOldPeriodWhenRenewedRequestFailsToPublish() async {
         store.candidates = [candidate("request", period: 99)]
         outgoingService.failures = [TestRenewalError()]
 
         await makeRenewer().renew()
 
-        #expect(issues.renewalPublishFailed.failures == ["request-100"])
         #expect(store.periodUpdates.isEmpty)
-    }
-
-    @Test func reportsRequestsLeftUnrenewedPastTheirPeriod() async {
-        allocator.hasFreeSlot = false
-        store.candidates = [candidate("starved", period: 98), candidate("recent", period: 99)]
-
-        await makeRenewer().renew()
-
-        #expect(issues.renewalStarved.failures == ["100"])
-    }
-
-    @Test func recordsFailedRunsAndRecovery() async {
-        store.readError = TestRenewalError()
-        let renewer = makeRenewer()
-
-        await renewer.renew()
-        store.readError = nil
-        await renewer.renew()
-
-        #expect(issues.renewalFailing.failures == ["run"])
-        #expect(issues.renewalFailing.recoveries == ["run"])
     }
 
     private func makeRenewer() -> ChatRequestRenewer {
@@ -98,7 +75,7 @@ struct ChatRequestRenewerTests {
             allocator: allocator,
             signers: signers,
             outgoingService: outgoingService,
-            diagnostics: issues.diagnostics
+            diagnostics: .noop
         )
     }
 

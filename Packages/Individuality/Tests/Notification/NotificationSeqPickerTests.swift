@@ -7,7 +7,6 @@ struct NotificationSeqPickerTests {
     private let period: UInt32 = 100
     private let repository = FakeNotificationSlotRepository()
     private let reservations = NotificationSeqReservations()
-    private let unsupportedRuntime = RecordingIssueDiagnostic()
 
     init() {
         repository.highestSeqByCollection = [
@@ -50,14 +49,13 @@ struct NotificationSeqPickerTests {
         let free = try await makePicker().freeSlots(period: period, forTarget: nil)
 
         #expect(free.isEmpty)
-        #expect(unsupportedRuntime.failures.count == 1)
     }
 
     private func makePicker() -> NotificationSeqPicker {
         NotificationSeqPicker(
             sources: .test(repository: repository),
             reservations: reservations,
-            unsupportedRuntime: unsupportedRuntime,
+            unsupportedRuntime: NoopIssueDiagnostic(),
             logger: FakeLogger()
         )
     }

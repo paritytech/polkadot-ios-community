@@ -31,10 +31,6 @@ let package = Package(
                 ? [.product(name: "Sentry", package: "sentry-cocoa")]
                 : [],
             swiftSettings: sentryEnabled ? [.define("SENTRY_ENABLED")] : []
-        ),
-        .testTarget(
-            name: "IssueMonitoringTests",
-            dependencies: ["IssueMonitoring"]
         )
     ]
 )

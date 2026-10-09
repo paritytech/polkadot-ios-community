@@ -174,46 +174,6 @@ final class FakeDurableTxMaking: DurableTxMaking, @unchecked Sendable {
     }
 }
 
-// MARK: - RecordingIssueDiagnostic
-
-final class RecordingIssueDiagnostic: IssueDiagnostic, @unchecked Sendable {
-    private let state = OSAllocatedUnfairLock<(failures: [String], recoveries: [String])>(
-        initialState: ([], [])
-    )
-
-    var failures: [String] {
-        state.withLock { $0.failures }
-    }
-
-    var recoveries: [String] {
-        state.withLock { $0.recoveries }
-    }
-
-    func recordFailure(for key: String, error _: Error?, counters _: [String: Int]) {
-        state.withLock { $0.failures.append(key) }
-    }
-
-    func recordRecovery(for key: String) {
-        state.withLock { $0.recoveries.append(key) }
-    }
-}
-
-extension NotificationSlotIssueDiagnostics {
-    static func recording(
-        unsupportedRuntime: IssueDiagnostic = RecordingIssueDiagnostic(),
-        claimGaveUp: IssueDiagnostic = RecordingIssueDiagnostic(),
-        claimFailing: IssueDiagnostic = RecordingIssueDiagnostic(),
-        claimUnbuildable: IssueDiagnostic = RecordingIssueDiagnostic()
-    ) -> Self {
-        Self(
-            unsupportedRuntime: unsupportedRuntime,
-            claimGaveUp: claimGaveUp,
-            claimFailing: claimFailing,
-            claimUnbuildable: claimUnbuildable
-        )
-    }
-}
-
 // MARK: - Helpers
 
 extension NotificationSlotDependencies {
@@ -221,7 +181,7 @@ extension NotificationSlotDependencies {
         repository: NotificationSlotRepositoryProtocol,
         origins: [PersonOrigin] = [NotificationPersons.full, NotificationPersons.lite],
         period: UInt32 = 100,
-        issueDiagnostics: NotificationSlotIssueDiagnostics = .recording()
+        issueDiagnostics: NotificationSlotIssueDiagnostics = .make(reporter: NoopIssueReporter())
     ) -> NotificationSlotDependencies {
         NotificationSlotDependencies(
             chainId: "people",

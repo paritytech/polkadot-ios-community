@@ -1,4 +1,5 @@
 import Foundation
+import IssueMonitoring
 import MessageExchangeKit
 import os
 import StatementStore
@@ -41,12 +42,10 @@ final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @
 
 final class InMemoryChatRequestRenewalStore: ChatRequestRenewalStoring, @unchecked Sendable {
     var candidates: [ChatRequestRenewalCandidate] = []
-    var readError: Error?
     private(set) var periodUpdates: [(requestId: String, period: UInt32)] = []
 
     func renewalCandidates() async throws -> [ChatRequestRenewalCandidate] {
-        if let readError { throw readError }
-        return candidates
+        candidates
     }
 
     func updateAnonymousPeriod(requestId: String, period: UInt32) async throws {
@@ -99,25 +98,8 @@ final class InMemoryChatRequestDeliveryStore: ChatRequestDeliveryStoring, @unche
     }
 }
 
-final class RecordingChatRequestIssues {
-    let oversizedRequest = RecordingIssueDiagnostic()
-    let deliveryStalled = RecordingIssueDiagnostic()
-    let deliveryStateUnreadable = RecordingIssueDiagnostic()
-    let renewalPublishFailed = RecordingIssueDiagnostic()
-    let renewalStarved = RecordingIssueDiagnostic()
-    let renewalFailing = RecordingIssueDiagnostic()
-
-    var diagnostics: ChatRequestDiagnostics {
-        ChatRequestDiagnostics(
-            logger: MockLogger(),
-            issues: ChatRequestIssueDiagnostics(
-                oversizedRequest: oversizedRequest,
-                deliveryStalled: deliveryStalled,
-                deliveryStateUnreadable: deliveryStateUnreadable,
-                renewalPublishFailed: renewalPublishFailed,
-                renewalStarved: renewalStarved,
-                renewalFailing: renewalFailing
-            )
-        )
+extension ChatRequestDiagnostics {
+    static var noop: Self {
+        ChatRequestDiagnostics(logger: MockLogger(), issues: .make(reporter: NoopIssueReporter()))
     }
 }

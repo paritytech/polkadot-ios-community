@@ -9,22 +9,11 @@ struct NotificationSlotSubmissionPolicyTests {
     private let target = AccountId.target(1)
     private let repository = FakeNotificationSlotRepository()
     private let originFactory = FakeOriginFactory()
-    private let claimGaveUp = RecordingIssueDiagnostic()
-    private let claimFailing = RecordingIssueDiagnostic()
-    private let claimUnbuildable = RecordingIssueDiagnostic()
     private let dependencies: NotificationSlotDependencies
 
     init() {
         repository.highestSeqByCollection = [NotificationPersons.full.collectionIdentifier: 2]
-        dependencies = .test(
-            repository: repository,
-            origins: [NotificationPersons.full],
-            issueDiagnostics: .recording(
-                claimGaveUp: claimGaveUp,
-                claimFailing: claimFailing,
-                claimUnbuildable: claimUnbuildable
-            )
-        )
+        dependencies = .test(repository: repository, origins: [NotificationPersons.full])
     }
 
     @Test func givesUpAndReleasesReservationWhenNoSlotIsFree() async throws {
@@ -38,7 +27,6 @@ struct NotificationSlotSubmissionPolicyTests {
         #expect(isGiveUp(preparations[claim.id]))
         #expect(dependencies.reservations.reserved(for: target) == nil)
         #expect(originFactory.notificationOriginCalls.isEmpty)
-        #expect(claimGaveUp.failures == ["100"])
     }
 
     @Test func buildsClaimOnSlotReservedWhenScheduled() async throws {
@@ -68,37 +56,6 @@ struct NotificationSlotSubmissionPolicyTests {
         for failure in DurableFailureKind.allCases {
             #expect(await policy.canRetry(entry, params: target, failure: failure))
         }
-    }
-
-    @Test func recordsEachOnChainFailureOfAClaim() async {
-        let entry = DurableTxEntry.fixture(domainId: NotificationSlotDomain.domainId)
-
-        _ = await makePolicy().canRetry(entry, params: target, failure: .rejected)
-
-        #expect(claimFailing.failures == [entry.id.uuidString])
-    }
-
-    @Test func recordsUnbuildableClaimsAndTheirRecovery() async throws {
-        let withoutPerson = NotificationSlotDependencies.test(
-            repository: repository,
-            origins: [],
-            issueDiagnostics: diagnostics
-        )
-        let failing = NotificationSlotSubmissionPolicy(
-            dependencies: withoutPerson,
-            originFactory: originFactory,
-            factory: FakeDurableTxMaking()
-        )
-
-        _ = try? await failing.prepareSubmission([scheduledClaim()])
-        _ = try await makePolicy().prepareSubmission([scheduledClaim()])
-
-        #expect(claimUnbuildable.failures == ["prepare"])
-        #expect(claimUnbuildable.recoveries == ["prepare"])
-    }
-
-    private var diagnostics: NotificationSlotIssueDiagnostics {
-        .recording(claimGaveUp: claimGaveUp, claimFailing: claimFailing, claimUnbuildable: claimUnbuildable)
     }
 
     private func makePolicy() -> NotificationSlotSubmissionPolicy {

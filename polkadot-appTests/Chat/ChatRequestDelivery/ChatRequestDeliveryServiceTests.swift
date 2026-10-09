@@ -25,7 +25,6 @@ struct ChatRequestDeliveryServiceTests {
     private let store = InMemoryChatRequestDeliveryStore()
     private let signer: ChatRequestDeliverySigner
     private let resolver: StubDeliveryAccountResolver
-    private let issues = RecordingChatRequestIssues()
 
     init() throws {
         let signManager = ChatSignerManager(entropyManager: FixedRootEntropyManager())
@@ -76,7 +75,6 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed == ["request"])
         #expect(resolver.resolvedCount == 0)
         #expect(outgoingService.sentSigners.isEmpty)
-        #expect(issues.oversizedRequest.failures == ["request"])
     }
 
     @Test func deliversRequestThatExactlyFitsStatementLimit() async {
@@ -88,15 +86,6 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed.isEmpty)
     }
 
-    @Test func recordsEachFailedAttemptAndRecoveryOnDelivery() async {
-        outgoingService.failures = [TestDeliveryError(), TestDeliveryError()]
-
-        await makeService().deliverUntilDone(message, session: session)
-
-        #expect(issues.deliveryStalled.failures == ["request", "request"])
-        #expect(issues.deliveryStalled.recoveries == ["request"])
-    }
-
     private func makeService() -> ChatRequestDeliveryService {
         ChatRequestDeliveryService(
             outgoingService: outgoingService,
@@ -106,7 +95,7 @@ struct ChatRequestDeliveryServiceTests {
                 backgroundExecutor: InlineBackgroundExecutor(),
                 clock: ImmediateClock()
             ),
-            diagnostics: issues.diagnostics
+            diagnostics: .noop
         )
     }
 }

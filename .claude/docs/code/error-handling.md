@@ -56,7 +56,9 @@ Sentry has event limits, so report only **critical** issues:
 3. **No sensitive data** — static `flow`/`kind`, the error's type name or `ReportableError.reportCode`, numeric
    counters only. Never ids, keys, account ids or aliases, usernames, message content, hashes, derivation paths,
    `localizedDescription` or `String(describing: error)`.
-4. **Inject `IssueReporting`**; tests use the no-op.
+4. **Keep thresholds out of business logic** — feature code only calls `recordFailure`/`recordRecovery` on injected
+   `IssueDiagnostic`s. A per-feature factory owns the thresholds and returns no-op diagnostics when the build has no
+   reporting SDK.
 
 ## Notification Cleanup
 
