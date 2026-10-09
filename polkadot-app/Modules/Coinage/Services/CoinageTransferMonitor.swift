@@ -104,17 +104,16 @@ private extension CoinageTransferMonitor {
             do {
                 let context = try await denominationContext()
 
-                // Anchored to this device's first attempt so two devices' clocks never decide the window.
-                let retryUntil = try await transferStateStore
-                    .beginIncoming(messageId: messageId)
-                    .addingTimeInterval(CoinageConstants.claimRetryWindow)
+                _ = try await transferStateStore.beginIncoming(messageId: messageId)
 
                 logger.debug("Starting processing incoming coinage message=\(messageId)")
 
                 let states = claimCoinsService.claim(
                     coinKeys: memo.entries,
                     groupId: messageId,
-                    retryUntil: retryUntil,
+                    // Never give up: nothing proves the coins won't arrive, and the app may not see the chain
+                    // for hours. Persisted in every durable claim's params — changing it needs a migration.
+                    retryUntil: .distantFuture,
                     context: context
                 )
                 .map(\.incomingState)

@@ -40,6 +40,23 @@ struct CoinageTransferMonitorTests {
         #expect(claims.calls.first?.groupId == message.messageId)
     }
 
+    @Test("an incoming claim is never given a deadline")
+    func incomingClaimHasNoDeadline() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.claimed(amount: 10, finalized: true)])
+        let states = world.stateStream(of: message.messageId)
+
+        let monitor = makeMonitor(world: world, claims: claims)
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        _ = try await states.collect { $0 == .incoming(.init(status: .claimed, actualValue: 10)) }
+
+        #expect(claims.calls.map(\.retryUntil) == [.distantFuture])
+    }
+
     @Test("a terminal row keeps the message out of the monitor on the next launch")
     func terminalRowIsNeverReprocessed() async throws {
         let world = TransferStateTestWorld()

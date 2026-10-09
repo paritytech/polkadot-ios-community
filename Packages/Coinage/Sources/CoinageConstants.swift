@@ -7,12 +7,11 @@ public enum CoinageConstants {
     /// Interval at which the background recycling task is scheduled (24 hours).
     public static let backgroundRecyclingInterval: TimeInterval = 24 * 60 * 60
 
-    /// How long a received transfer's coins are still worth trying to claim (6 hours). Bounds the
-    /// claim retry loop; measured from when the message is first seen.
-    public static let claimRetryWindow: TimeInterval = 6 * 60 * 60
+    /// How long a sent chat payment's transfer keeps being rebuilt before giving up (6 hours).
+    public static let chatPaymentRetryWindow: TimeInterval = 6 * 60 * 60
 
     /// How long a claim from raw secret keys (top-up / recovery) keeps retrying before giving up.
-    /// Shorter than ``claimRetryWindow`` — these callers await the outcome inline.
+    /// Bounded because these callers await the outcome inline.
     public static let secretKeyClaimTimeout: TimeInterval = 60
 
     /// How long an incoming top-up keeps trying before whatever it has is all it will ever have (1
