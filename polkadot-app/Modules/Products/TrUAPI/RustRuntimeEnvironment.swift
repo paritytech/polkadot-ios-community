@@ -48,9 +48,7 @@ struct RustRuntimeEnvironment {
         try makeExecution(productId: productId, routers: routers, kind: .app)
     }
 
-    /// Open a chat execution for `productId`. Mirrors ``makeSPAExecution``.
-    /// TODO(chat PR): open with ``RustChatExecutionBridge`` and pass it as
-    /// `chat:` to wire the native chat surface once the integration lands.
+    /// Open a chat execution for `productId`. Mirrors ``makeSPAExecution``
     func makeChatExecution(productId: ProductId, routers: ProductRoutersFacadeProtocol) throws -> ExecutionModel {
         try makeExecution(productId: productId, routers: routers, kind: .worker)
     }
