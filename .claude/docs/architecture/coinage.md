@@ -140,9 +140,7 @@ written and tested once.
 - **Params** (`CoinageSubmissionParams`) are SCALE and persisted with the row, so a shape change needs
   a versioned decoder. A transfer carries `buildUntil` + `retryFailures`; a claim carries `retryUntil`
   and the peer's key, which only the payment message holds. The transfer window is
-  `CoinageConstants.chatPaymentRetryWindow` (6h). A chat payment's claim has no window
-  (`retryUntil = .distantFuture`, Android parity): nothing proves the coins won't arrive. The value is
-  persisted in every claim's params, so changing it needs a migration of the stored rows.
+  `CoinageConstants.chatPaymentRetryWindow` (6h). A chat payment's claim has no window.
 - **Bounding**: `retryableFailure` lets an `.expired` attempt be rebuilt however late, but a
   `.dispatchFailed` or `.rejected` one only while the window is open — nothing else stops a failure
   that always repeats from being rebuilt for ever.
