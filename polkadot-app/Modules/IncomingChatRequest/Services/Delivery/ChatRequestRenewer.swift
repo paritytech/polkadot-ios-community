@@ -1,19 +1,18 @@
 import Foundation
 import Individuality
-import IssueMonitoring
-import os
 
 protocol ChatRequestRenewing: Sendable {
     func renew() async
 }
 
 final class ChatRequestRenewer: @unchecked Sendable {
+    private static let runKey = "run"
+
     private let store: ChatRequestRenewalStoring
     private let allocator: NotificationStatementAccountAllocating
     private let signers: ChatRequestDeliverySigning
     private let outgoingService: OutgoingChatRequestServicing
     private let diagnostics: ChatRequestDiagnostics
-    private let consecutiveFailedRuns = OSAllocatedUnfairLock(initialState: 0)
 
     init(
         store: ChatRequestRenewalStoring,
@@ -42,10 +41,10 @@ extension ChatRequestRenewer: ChatRequestRenewing {
 
             try await renewStale(stale, into: period)
             await resendMissing(current)
-            consecutiveFailedRuns.withLock { $0 = 0 }
+            diagnostics.issues.renewalFailing.recordRecovery(for: Self.runKey)
         } catch {
             diagnostics.logger.error("Chat request renewal failed: \(error)")
-            reportIfFailing(error)
+            diagnostics.issues.renewalFailing.recordFailure(for: Self.runKey, error: error, counters: [:])
         }
     }
 }
@@ -86,7 +85,11 @@ private extension ChatRequestRenewer {
             try await store.updateAnonymousPeriod(requestId: requestId, period: signer.period)
         } catch {
             diagnostics.logger.error("Chat request \(requestId) renewal into \(signer.period) failed: \(error)")
-            report("renewal-publish-failed", error: error, onceFor: "\(requestId)-\(signer.period)")
+            diagnostics.issues.renewalPublishFailed.recordFailure(
+                for: "\(requestId)-\(signer.period)",
+                error: error,
+                counters: [:]
+            )
         }
     }
 
@@ -115,24 +118,10 @@ private extension ChatRequestRenewer {
 
         guard starved > 0 else { return }
 
-        report("renewal-starved", counters: ["skipped": starved, "period": Int(period)], onceFor: "\(period)")
-    }
-
-    func reportIfFailing(_ error: Error) {
-        let failures = consecutiveFailedRuns.withLock { count in
-            count += 1
-            return count
-        }
-
-        guard failures == ChatRequestDiagnostics.failingRenewalRuns else { return }
-
-        report("renewal-failing", error: error, counters: ["runs": failures], onceFor: "runs")
-    }
-
-    func report(_ kind: StaticString, error: Error? = nil, counters: [String: Int] = [:], onceFor key: String) {
-        diagnostics.issueReporter.report(
-            CriticalIssue(flow: ChatRequestDiagnostics.flow, kind: kind, error: error, counters: counters),
-            onceFor: "\(kind)-\(key)"
+        diagnostics.issues.renewalStarved.recordFailure(
+            for: "\(period)",
+            error: nil,
+            counters: ["skipped": starved, "period": Int(period)]
         )
     }
 

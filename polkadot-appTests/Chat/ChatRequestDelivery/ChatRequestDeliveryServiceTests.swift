@@ -25,7 +25,7 @@ struct ChatRequestDeliveryServiceTests {
     private let store = InMemoryChatRequestDeliveryStore()
     private let signer: ChatRequestDeliverySigner
     private let resolver: StubDeliveryAccountResolver
-    private let issueReporter = RecordingIssueReporter()
+    private let issues = RecordingChatRequestIssues()
 
     init() throws {
         let signManager = ChatSignerManager(entropyManager: FixedRootEntropyManager())
@@ -76,7 +76,7 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed == ["request"])
         #expect(resolver.resolvedCount == 0)
         #expect(outgoingService.sentSigners.isEmpty)
-        #expect(issueReporter.kinds == ["oversized-request"])
+        #expect(issues.oversizedRequest.failures == ["request"])
     }
 
     @Test func deliversRequestThatExactlyFitsStatementLimit() async {
@@ -88,22 +88,13 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed.isEmpty)
     }
 
-    @Test func reportsDeliveryStalledAfterAttemptThreshold() async {
-        let stalled = ChatRequestDiagnostics.stalledDeliveryAttempts
-        outgoingService.failures = Array(repeating: TestDeliveryError(), count: stalled + 2)
-
-        await makeService().deliverUntilDone(message, session: session)
-
-        #expect(issueReporter.kinds == ["delivery-stalled"])
-        #expect(store.delivered.count == 1)
-    }
-
-    @Test func doesNotReportTransientFailures() async {
+    @Test func recordsEachFailedAttemptAndRecoveryOnDelivery() async {
         outgoingService.failures = [TestDeliveryError(), TestDeliveryError()]
 
         await makeService().deliverUntilDone(message, session: session)
 
-        #expect(issueReporter.kinds.isEmpty)
+        #expect(issues.deliveryStalled.failures == ["request", "request"])
+        #expect(issues.deliveryStalled.recoveries == ["request"])
     }
 
     private func makeService() -> ChatRequestDeliveryService {
@@ -115,7 +106,7 @@ struct ChatRequestDeliveryServiceTests {
                 backgroundExecutor: InlineBackgroundExecutor(),
                 clock: ImmediateClock()
             ),
-            diagnostics: ChatRequestDiagnostics(logger: MockLogger(), issueReporter: issueReporter)
+            diagnostics: issues.diagnostics
         )
     }
 }

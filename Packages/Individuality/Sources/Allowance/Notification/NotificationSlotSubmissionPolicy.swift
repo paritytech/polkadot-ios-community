@@ -1,8 +1,6 @@
 import DurableTransactions
 @preconcurrency import ExtrinsicService
 import Foundation
-import IssueMonitoring
-import os
 import SDKLogger
 import StructuredConcurrency
 import SubstrateSdk
@@ -10,6 +8,8 @@ import SubstrateSdk
 /// Builds notification slot claims. Every build picks a free seq of the current period, so a claim that
 /// collided on its seq, outlived its period or expired lands on a different slot when built again.
 public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @unchecked Sendable {
+    private static let prepareKey = "prepare"
+
     public let chainId: ChainId
 
     private let picker: NotificationSeqPicker
@@ -18,10 +18,8 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
     private let originFactory: AsResourcesOriginCreating
     private let factory: any DurableTxMaking
     private let parameters: NotificationParametersProviding
-    private let issueReporter: IssueReporting
+    private let issueDiagnostics: NotificationSlotIssueDiagnostics
     private let logger: SDKLoggerProtocol
-    private let failuresByClaim = OSAllocatedUnfairLock<[DurableTxId: Int]>(initialState: [:])
-    private let consecutivePrepareFailures = OSAllocatedUnfairLock(initialState: 0)
 
     public init(
         dependencies: NotificationSlotDependencies,
@@ -33,7 +31,7 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
         reservations = dependencies.reservations
         serialQueue = dependencies.serialQueue
         parameters = dependencies.parameters
-        issueReporter = dependencies.issueReporter
+        issueDiagnostics = dependencies.issueDiagnostics
         logger = dependencies.logger
         self.originFactory = originFactory
         self.factory = factory
@@ -42,7 +40,11 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
     // Unbounded on purpose: a rebuild re-picks period and seq, so no failure repeats on the same effects.
     public func canRetry(_ entry: DurableTxEntry, params _: Data, failure: DurableFailureKind) async -> Bool {
         logger.info("Notification slot claim \(entry.id) failed (\(failure)); rebuilding on a fresh seq")
-        reportIfFailing(entry.id, failure: failure)
+        issueDiagnostics.claimFailing.recordFailure(
+            for: entry.id.uuidString,
+            error: nil,
+            counters: ["failureKind": DurableFailureKind.allCases.firstIndex(of: failure) ?? -1]
+        )
         return true
     }
 
@@ -51,10 +53,10 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
     ) async throws -> [DurableTxId: SubmissionPreparation] {
         do {
             let preparations = try await prepare(transactions)
-            consecutivePrepareFailures.withLock { $0 = 0 }
+            issueDiagnostics.claimUnbuildable.recordRecovery(for: Self.prepareKey)
             return preparations
         } catch {
-            reportIfUnbuildable(error)
+            issueDiagnostics.claimUnbuildable.recordFailure(for: Self.prepareKey, error: error, counters: [:])
             throw error
         }
     }
@@ -70,13 +72,10 @@ private extension NotificationSlotSubmissionPolicy {
 
             guard let slot = try await reserveSlot(for: target, period: period) else {
                 logger.warning("No free notification slot in period \(period); giving up claim \(transaction.id)")
-                issueReporter.report(
-                    CriticalIssue(
-                        flow: NotificationSlotIssue.flow,
-                        kind: "slot-claim-gave-up",
-                        counters: ["period": Int(period)]
-                    ),
-                    onceFor: "slot-claim-gave-up-\(period)"
+                issueDiagnostics.claimGaveUp.recordFailure(
+                    for: "\(period)",
+                    error: nil,
+                    counters: ["period": Int(period)]
                 )
                 preparations[transaction.id] = .giveUp
                 continue
@@ -86,41 +85,6 @@ private extension NotificationSlotSubmissionPolicy {
         }
 
         return preparations
-    }
-
-    func reportIfFailing(_ claim: DurableTxId, failure: DurableFailureKind) {
-        let failures = failuresByClaim.withLock { counts in
-            counts[claim, default: 0] += 1
-            return counts[claim, default: 0]
-        }
-
-        guard failures == NotificationSlotIssue.failingClaimThreshold else { return }
-
-        issueReporter.report(
-            CriticalIssue(
-                flow: NotificationSlotIssue.flow,
-                kind: "slot-claim-failing",
-                counters: [
-                    "failures": failures,
-                    "failureKind": DurableFailureKind.allCases.firstIndex(of: failure) ?? -1
-                ]
-            ),
-            onceFor: "slot-claim-failing-\(claim)"
-        )
-    }
-
-    func reportIfUnbuildable(_ error: Error) {
-        let failures = consecutivePrepareFailures.withLock { count in
-            count += 1
-            return count
-        }
-
-        guard failures == NotificationSlotIssue.unbuildableClaimThreshold else { return }
-
-        issueReporter.report(
-            CriticalIssue(flow: NotificationSlotIssue.flow, kind: "slot-claim-unbuildable", error: error),
-            onceFor: "slot-claim-unbuildable-\(String(reflecting: type(of: error)))"
-        )
     }
 
     /// Keeps the slot reserved at scheduling while it is still unregistered, otherwise moves to a free one.

@@ -1,6 +1,5 @@
 import BackgroundExecution
 import Foundation
-import IssueMonitoring
 import MessageExchangeKit
 
 struct ChatRequestDeliveryExecution {
@@ -47,13 +46,14 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
         while await isAwaitingDelivery(message.messageId) {
             do {
                 try await execution.backgroundExecutor.execute { try await self.deliver(message, session: session) }
+                diagnostics.issues.deliveryStalled.recordRecovery(for: message.messageId)
                 diagnostics.logger.debug("Chat request \(message.messageId) finished after \(attempt + 1) attempt(s)")
                 return
             } catch {
                 attempt += 1
                 let retryIn = Self.retryDelay(forAttempt: attempt)
                 diagnostics.logger.error("Chat request \(message.messageId) attempt \(attempt) failed: \(error)")
-                reportIfStalled(message.messageId, attempt: attempt, lastError: error)
+                diagnostics.issues.deliveryStalled.recordFailure(for: message.messageId, error: error, counters: [:])
 
                 do {
                     try await execution.clock.sleep(for: retryIn)
@@ -72,7 +72,11 @@ private extension ChatRequestDeliveryService {
         guard try await size <= resolver.maxStatementSize() else {
             diagnostics.logger.error("Chat request \(message.messageId) is \(size) bytes; marking it undeliverable")
             try await store.markFailed(requestId: message.messageId)
-            report("oversized-request", requestId: message.messageId, counters: ["size": size])
+            diagnostics.issues.oversizedRequest.recordFailure(
+                for: message.messageId,
+                error: nil,
+                counters: ["size": size]
+            )
             return
         }
 
@@ -89,22 +93,9 @@ private extension ChatRequestDeliveryService {
             return try await store.isAwaitingDelivery(requestId: requestId)
         } catch {
             diagnostics.logger.error("Chat request \(requestId) delivery state unreadable: \(error)")
-            report("delivery-state-unreadable", requestId: requestId, error: error)
+            diagnostics.issues.deliveryStateUnreadable.recordFailure(for: requestId, error: error, counters: [:])
             return false
         }
-    }
-
-    func reportIfStalled(_ requestId: String, attempt: Int, lastError: Error) {
-        guard attempt == ChatRequestDiagnostics.stalledDeliveryAttempts else { return }
-
-        report("delivery-stalled", requestId: requestId, error: lastError, counters: ["attempts": attempt])
-    }
-
-    func report(_ kind: StaticString, requestId: String, error: Error? = nil, counters: [String: Int] = [:]) {
-        diagnostics.issueReporter.report(
-            CriticalIssue(flow: ChatRequestDiagnostics.flow, kind: kind, error: error, counters: counters),
-            onceFor: "\(kind)-\(requestId)"
-        )
     }
 
     static func retryDelay(forAttempt attempt: Int) -> Duration {

@@ -15,6 +15,15 @@ public enum IssueMonitoringFactory {
         #endif
     }
 
+    /// Whether this build links a reporting SDK; feature diagnostics are no-ops otherwise.
+    public static var isReportingSupported: Bool {
+        #if SENTRY_ENABLED
+            true
+        #else
+            false
+        #endif
+    }
+
     /// Reports through the SDK `IssueMonitoringServiceProtocol.setup()` started; a no-op until then and in Release.
     public static func createReporter() -> IssueReporting {
         #if SENTRY_ENABLED

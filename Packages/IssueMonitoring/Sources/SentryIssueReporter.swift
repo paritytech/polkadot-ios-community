@@ -1,14 +1,9 @@
 #if SENTRY_ENABLED
     import Foundation
-    import os
     import Sentry
 
-    final class SentryIssueReporter: IssueReporting {
-        private let reportedKeys = OSAllocatedUnfairLock<Set<String>>(initialState: [])
-
-        func report(_ issue: CriticalIssue, onceFor key: String) {
-            guard reportedKeys.withLock({ $0.insert(key).inserted }) else { return }
-
+    struct SentryIssueReporter: IssueReporting {
+        func report(_ issue: CriticalIssue) {
             SentrySDK.capture(message: "\(issue.flow).\(issue.kind)") { scope in
                 scope.setFingerprint([issue.flow, issue.kind])
                 scope.setTag(value: issue.flow, key: "flow")

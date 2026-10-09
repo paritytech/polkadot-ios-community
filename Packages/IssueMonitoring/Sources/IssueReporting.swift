@@ -1,9 +1,8 @@
 import Foundation
 
-/// Reports critical, flow-breaking issues. See `.claude/docs/code/error-handling.md`.
+/// Sends critical, flow-breaking issues. See `.claude/docs/code/error-handling.md`.
 public protocol IssueReporting: Sendable {
-    /// Reports `issue` the first time `key` is seen in this process. `key` stays on the device.
-    func report(_ issue: CriticalIssue, onceFor key: String)
+    func report(_ issue: CriticalIssue)
 }
 
 /// An error that names its case for reporting without exposing associated values.
@@ -30,5 +29,5 @@ public struct CriticalIssue: Sendable {
 public struct NoopIssueReporter: IssueReporting {
     public init() {}
 
-    public func report(_: CriticalIssue, onceFor _: String) {}
+    public func report(_: CriticalIssue) {}
 }

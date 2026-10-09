@@ -98,3 +98,26 @@ final class InMemoryChatRequestDeliveryStore: ChatRequestDeliveryStoring, @unche
         isAwaiting = false
     }
 }
+
+final class RecordingChatRequestIssues {
+    let oversizedRequest = RecordingIssueDiagnostic()
+    let deliveryStalled = RecordingIssueDiagnostic()
+    let deliveryStateUnreadable = RecordingIssueDiagnostic()
+    let renewalPublishFailed = RecordingIssueDiagnostic()
+    let renewalStarved = RecordingIssueDiagnostic()
+    let renewalFailing = RecordingIssueDiagnostic()
+
+    var diagnostics: ChatRequestDiagnostics {
+        ChatRequestDiagnostics(
+            logger: MockLogger(),
+            issues: ChatRequestIssueDiagnostics(
+                oversizedRequest: oversizedRequest,
+                deliveryStalled: deliveryStalled,
+                deliveryStateUnreadable: deliveryStateUnreadable,
+                renewalPublishFailed: renewalPublishFailed,
+                renewalStarved: renewalStarved,
+                renewalFailing: renewalFailing
+            )
+        )
+    }
+}

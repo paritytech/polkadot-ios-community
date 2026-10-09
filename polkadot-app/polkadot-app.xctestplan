@@ -115,6 +115,13 @@
     },
     {
       "target" : {
+        "containerPath" : "container:Packages\/IssueMonitoring",
+        "identifier" : "IssueMonitoringTests",
+        "name" : "IssueMonitoringTests"
+      }
+    },
+    {
+      "target" : {
         "containerPath" : "container:Packages\/PolkadotUI",
         "identifier" : "PolkadotUITests",
         "name" : "PolkadotUITests"

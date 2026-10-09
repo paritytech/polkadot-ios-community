@@ -174,17 +174,43 @@ final class FakeDurableTxMaking: DurableTxMaking, @unchecked Sendable {
     }
 }
 
-// MARK: - RecordingIssueReporter
+// MARK: - RecordingIssueDiagnostic
 
-final class RecordingIssueReporter: IssueReporting, @unchecked Sendable {
-    private let state = OSAllocatedUnfairLock<[(kind: String, key: String)]>(initialState: [])
+final class RecordingIssueDiagnostic: IssueDiagnostic, @unchecked Sendable {
+    private let state = OSAllocatedUnfairLock<(failures: [String], recoveries: [String])>(
+        initialState: ([], [])
+    )
 
-    var reports: [(kind: String, key: String)] {
-        state.withLock { $0 }
+    var failures: [String] {
+        state.withLock { $0.failures }
     }
 
-    func report(_ issue: CriticalIssue, onceFor key: String) {
-        state.withLock { $0.append((issue.kind, key)) }
+    var recoveries: [String] {
+        state.withLock { $0.recoveries }
+    }
+
+    func recordFailure(for key: String, error _: Error?, counters _: [String: Int]) {
+        state.withLock { $0.failures.append(key) }
+    }
+
+    func recordRecovery(for key: String) {
+        state.withLock { $0.recoveries.append(key) }
+    }
+}
+
+extension NotificationSlotIssueDiagnostics {
+    static func recording(
+        unsupportedRuntime: IssueDiagnostic = RecordingIssueDiagnostic(),
+        claimGaveUp: IssueDiagnostic = RecordingIssueDiagnostic(),
+        claimFailing: IssueDiagnostic = RecordingIssueDiagnostic(),
+        claimUnbuildable: IssueDiagnostic = RecordingIssueDiagnostic()
+    ) -> Self {
+        Self(
+            unsupportedRuntime: unsupportedRuntime,
+            claimGaveUp: claimGaveUp,
+            claimFailing: claimFailing,
+            claimUnbuildable: claimUnbuildable
+        )
     }
 }
 
@@ -195,13 +221,13 @@ extension NotificationSlotDependencies {
         repository: NotificationSlotRepositoryProtocol,
         origins: [PersonOrigin] = [NotificationPersons.full, NotificationPersons.lite],
         period: UInt32 = 100,
-        issueReporter: IssueReporting = RecordingIssueReporter()
+        issueDiagnostics: NotificationSlotIssueDiagnostics = .recording()
     ) -> NotificationSlotDependencies {
         NotificationSlotDependencies(
             chainId: "people",
             sources: .test(repository: repository, origins: origins),
             parameters: FixedNotificationParameters(period: period),
-            issueReporter: issueReporter,
+            issueDiagnostics: issueDiagnostics,
             logger: FakeLogger()
         )
     }

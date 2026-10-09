@@ -43,6 +43,7 @@ actor ChatRequestServiceFactory {
     private var connection: StatementStoreConnecting?
     private var accountSignManager: StatementStoreSignerManaging?
     private var accountEncryptionManager: MessageExchangeEncryptionManaging?
+    private var diagnostics: ChatRequestDiagnostics?
 
     init(
         remoteContactResolver: RemoteContactResolving,
@@ -185,7 +186,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             resolver: resolver,
             store: ChatRequestDeliveryStore(storageFacade: storageFacade),
             execution: ChatRequestDeliveryExecution(backgroundExecutor: backgroundExecutor),
-            diagnostics: ChatRequestDiagnostics(logger: logger, issueReporter: issueReporter)
+            diagnostics: makeDiagnostics()
         )
     }
 
@@ -195,12 +196,26 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             allocator: notificationAllocator,
             signers: ChatRequestDeliverySigners(signManager: makeAccountSignManager()),
             outgoingService: makeOutgoingChatRequestService(),
-            diagnostics: ChatRequestDiagnostics(logger: logger, issueReporter: issueReporter)
+            diagnostics: makeDiagnostics()
         )
     }
 }
 
 private extension ChatRequestServiceFactory {
+    func makeDiagnostics() -> ChatRequestDiagnostics {
+        if let diagnostics {
+            return diagnostics
+        }
+
+        let diagnostics = ChatRequestDiagnostics(
+            logger: logger,
+            issues: ChatRequestIssueDiagnostics.make(reporter: issueReporter)
+        )
+        self.diagnostics = diagnostics
+
+        return diagnostics
+    }
+
     func makeConnection() async throws -> StatementStoreConnecting {
         if let connection {
             return connection
