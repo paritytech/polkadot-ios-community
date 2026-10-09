@@ -13,6 +13,12 @@ protocol OutgoingChatRequestServicing {
         ownKeyId: MessageExchange.Own,
         signer: StatementStoreSigning
     ) async throws
+
+    func encodedSize(
+        of message: Chat.RequestMessage,
+        to peer: MessageExchange.Peer,
+        ownKeyId: MessageExchange.Own
+    ) throws -> Int
 }
 
 enum OutgoingChatRequestServiceError: Error {
@@ -20,6 +26,8 @@ enum OutgoingChatRequestServiceError: Error {
 }
 
 final class OutgoingChatRequestService {
+    private static let topicCount = 3
+
     private let statementStoreSubmitter: StatementStoreSubmitting
     private let priorityFactory: StatementPriorityMaking
     private let requestFactory: ChatRequestFactoryProtocol
@@ -56,15 +64,7 @@ extension OutgoingChatRequestService: OutgoingChatRequestServicing {
         let topic2 = try ChatRequest.paginationTopic(from: peer.accountId, day: pagination.day)
         let channel = try channelFactory.outgoingChannel(with: peer, ownKeyId: ownKeyId)
 
-        let remoteRequest = try requestFactory.createRemoteRequest(
-            from: message,
-            peerEncryptionPubKey: peer.publicKey,
-            peerAccountId: peer.accountId,
-            ownKeyId: ownKeyId
-        )
-
-        let payload = try remoteRequest.scaleEncoded()
-        let scaleEncodedPayload = try payload.scaleEncoded()
+        let scaleEncodedPayload = try makePayload(message: message, to: peer, ownKeyId: ownKeyId)
 
         let builder = StatementSubmitParametersBuilder(
             signer: signer,
@@ -78,5 +78,31 @@ extension OutgoingChatRequestService: OutgoingChatRequestServicing {
         .addScaleEncodedPayload(scaleEncodedPayload)
 
         try await statementStoreSubmitter.submitStatement(with: builder)
+    }
+
+    func encodedSize(
+        of message: Chat.RequestMessage,
+        to peer: MessageExchange.Peer,
+        ownKeyId: MessageExchange.Own
+    ) throws -> Int {
+        try makePayload(message: message, to: peer, ownKeyId: ownKeyId).count
+            + StatementSize.overhead(topicCount: Self.topicCount)
+    }
+}
+
+private extension OutgoingChatRequestService {
+    func makePayload(
+        message: Chat.RequestMessage,
+        to peer: MessageExchange.Peer,
+        ownKeyId: MessageExchange.Own
+    ) throws -> Data {
+        let remoteRequest = try requestFactory.createRemoteRequest(
+            from: message,
+            peerEncryptionPubKey: peer.publicKey,
+            peerAccountId: peer.accountId,
+            ownKeyId: ownKeyId
+        )
+
+        return try remoteRequest.scaleEncoded().scaleEncoded()
     }
 }

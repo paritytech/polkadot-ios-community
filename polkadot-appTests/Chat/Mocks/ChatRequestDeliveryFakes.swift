@@ -8,6 +8,7 @@ import SubstrateSdk
 final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @unchecked Sendable {
     /// Failures thrown by the leading sends; later sends succeed.
     var failures: [Error] = []
+    var encodedSize = 1_000
     private(set) var sentSigners: [AccountId] = []
 
     func send(
@@ -19,17 +20,32 @@ final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @
         if !failures.isEmpty { throw failures.removeFirst() }
         sentSigners.append(signer.accountId)
     }
+
+    func encodedSize(
+        of _: Chat.RequestMessage,
+        to _: MessageExchange.Peer,
+        ownKeyId _: MessageExchange.Own
+    ) throws -> Int {
+        encodedSize
+    }
 }
 
 final class StubDeliveryAccountResolver: ChatRequestDeliveryAccountResolving, @unchecked Sendable {
     let signer: ChatRequestDeliverySigner
+    var statementSize = 10 * 1_024
+    private(set) var resolvedCount = 0
 
     init(signer: ChatRequestDeliverySigner) {
         self.signer = signer
     }
 
+    func maxStatementSize() async throws -> Int {
+        statementSize
+    }
+
     func resolveFirstDelivery(requestId _: String) async throws -> ChatRequestDeliverySigner {
-        signer
+        resolvedCount += 1
+        return signer
     }
 }
 
@@ -38,6 +54,7 @@ final class InMemoryChatRequestDeliveryStore: ChatRequestDeliveryStoring, @unche
     /// Stops awaiting after this many reads; nil keeps `isAwaiting` as is.
     var awaitingReadsLeft: Int?
     private(set) var delivered: [(requestId: String, anonymousPeriod: UInt32)] = []
+    private(set) var failed: [String] = []
 
     func isAwaitingDelivery(requestId _: String) async throws -> Bool {
         if let left = awaitingReadsLeft {
@@ -49,6 +66,11 @@ final class InMemoryChatRequestDeliveryStore: ChatRequestDeliveryStoring, @unche
 
     func markDelivered(requestId: String, anonymousPeriod: UInt32) async throws {
         delivered.append((requestId, anonymousPeriod))
+        isAwaiting = false
+    }
+
+    func markFailed(requestId: String) async throws {
+        failed.append(requestId)
         isAwaiting = false
     }
 }

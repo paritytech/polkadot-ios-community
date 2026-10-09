@@ -10,6 +10,8 @@ protocol ChatRequestDeliveryStoring {
 
     /// Marks the welcome message sent and records which period's account delivered it, in one write.
     func markDelivered(requestId: String, anonymousPeriod: UInt32) async throws
+
+    func markFailed(requestId: String) async throws
 }
 
 final class ChatRequestDeliveryStore {
@@ -37,6 +39,16 @@ extension ChatRequestDeliveryStore: ChatRequestDeliveryStoring {
 
             request.anonymousDeliveryPeriod = NSNumber(value: Int32(bitPattern: anonymousPeriod))
             request.message?.status = Chat.LocalMessage.Status.outgoing(.sent).rawValue
+            request.message?.touchParent()
+            request.touchParent()
+        }
+    }
+
+    func markFailed(requestId: String) async throws {
+        try await databaseService.performWrite { context in
+            guard let request = try Self.fetchRequest(requestId, in: context) else { return }
+
+            request.message?.status = Chat.LocalMessage.Status.outgoing(.failed).rawValue
             request.message?.touchParent()
             request.touchParent()
         }

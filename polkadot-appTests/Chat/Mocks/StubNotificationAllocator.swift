@@ -5,6 +5,7 @@ import SubstrateSdk
 
 final class StubNotificationAllocator: NotificationStatementAccountAllocating, @unchecked Sendable {
     var period: UInt32 = 100
+    var statementSize = 10 * 1_024
     var hasFreeSlot = true
     var awaitResult: Result<Void, Error> = .success(())
     private let initiated = OSAllocatedUnfairLock<[AccountId]>(initialState: [])
@@ -15,6 +16,10 @@ final class StubNotificationAllocator: NotificationStatementAccountAllocating, @
 
     func currentPeriod() async throws -> UInt32 {
         period
+    }
+
+    func maxStatementSize() async throws -> Int {
+        statementSize
     }
 
     func initiateAllocations(for targets: [AccountId]) async throws -> [AccountId] {

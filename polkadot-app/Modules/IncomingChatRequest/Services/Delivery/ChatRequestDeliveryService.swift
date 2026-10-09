@@ -40,7 +40,7 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
         while await isAwaitingDelivery(message.messageId) {
             do {
                 try await deliver(message, session: session)
-                logger.debug("Chat request \(message.messageId) delivered after \(attempt + 1) attempt(s)")
+                logger.debug("Chat request \(message.messageId) finished after \(attempt + 1) attempt(s)")
                 return
             } catch {
                 attempt += 1
@@ -59,6 +59,14 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
 
 private extension ChatRequestDeliveryService {
     func deliver(_ message: Chat.RequestMessage, session: MessageExchange.SessionRequest) async throws {
+        let size = try outgoingService.encodedSize(of: message, to: session.peer, ownKeyId: session.own)
+
+        guard try await size <= resolver.maxStatementSize() else {
+            logger.error("Chat request \(message.messageId) is \(size) bytes; marking it undeliverable")
+            try await store.markFailed(requestId: message.messageId)
+            return
+        }
+
         let signer = try await resolver.resolveFirstDelivery(requestId: message.messageId)
 
         try await outgoingService.send(message: message, to: session.peer, ownKeyId: session.own, signer: signer.signer)

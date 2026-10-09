@@ -2,6 +2,7 @@ import Foundation
 import Individuality
 
 protocol ChatRequestDeliveryAccountResolving {
+    func maxStatementSize() async throws -> Int
     func resolveFirstDelivery(requestId: String) async throws -> ChatRequestDeliverySigner
 }
 
@@ -20,6 +21,10 @@ final class ChatRequestDeliveryAccountResolver {
 }
 
 extension ChatRequestDeliveryAccountResolver: ChatRequestDeliveryAccountResolving {
+    func maxStatementSize() async throws -> Int {
+        try await allocator.maxStatementSize()
+    }
+
     func resolveFirstDelivery(requestId: String) async throws -> ChatRequestDeliverySigner {
         let period = try await allocator.currentPeriod()
         let anonymous = try signers.anonymous(requestId: requestId, period: period)

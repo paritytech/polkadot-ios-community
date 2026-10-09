@@ -44,6 +44,18 @@ struct ChatRequestDeliveryStoreTests {
         #expect(try await readBack().period == UInt32.max)
     }
 
+    @Test func markFailedEndsDeliveryWithTerminalStatus() async throws {
+        try await insertRequest()
+        let store = makeStore()
+
+        try await store.markFailed(requestId: requestId)
+
+        let (period, status) = try await readBack()
+        #expect(status == Chat.LocalMessage.Status.outgoing(.failed).rawValue)
+        #expect(period == nil)
+        #expect(try await !store.isAwaitingDelivery(requestId: requestId))
+    }
+
     private func makeStore() -> ChatRequestDeliveryStore {
         ChatRequestDeliveryStore(storageFacade: facade)
     }

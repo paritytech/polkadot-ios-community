@@ -12,6 +12,8 @@ public protocol NotificationStatementAccountAllocating: Sendable {
     /// The period slots are claimed in right now.
     func currentPeriod() async throws -> UInt32
 
+    func maxStatementSize() async throws -> Int
+
     /// Reserves a free slot of the current period for each target and schedules its durable claim, in order
     /// of preference: when fewer slots are free than targets, only the leading ones are scheduled. A target
     /// whose claim is already live is left as is. Returns once the claims are recorded, not when they land:
@@ -73,13 +75,13 @@ public struct NotificationSlotDependencies: @unchecked Sendable {
     let picker: NotificationSeqPicker
     let reservations: NotificationSeqReservations
     let serialQueue: SerialOperationQueue
-    let chainTimeProvider: ChainTimeProviding
+    let parameters: NotificationParametersProviding
     let logger: SDKLoggerProtocol
 
     public init(
         chainId: ChainId,
         sources: NotificationSlotSources,
-        chainTimeProvider: ChainTimeProviding,
+        parameters: NotificationParametersProviding,
         logger: SDKLoggerProtocol
     ) {
         let reservations = NotificationSeqReservations()
@@ -88,7 +90,7 @@ public struct NotificationSlotDependencies: @unchecked Sendable {
         picker = NotificationSeqPicker(sources: sources, reservations: reservations, logger: logger)
         self.reservations = reservations
         serialQueue = SerialOperationQueue()
-        self.chainTimeProvider = chainTimeProvider
+        self.parameters = parameters
         self.logger = logger
     }
 }
@@ -98,7 +100,7 @@ public final class NotificationStatementAccountAllocator: @unchecked Sendable {
     private let picker: NotificationSeqPicker
     private let reservations: NotificationSeqReservations
     private let serialQueue: SerialOperationQueue
-    private let chainTimeProvider: ChainTimeProviding
+    private let parameters: NotificationParametersProviding
     private let clock: any Clock<Duration>
     private let logger: SDKLoggerProtocol
 
@@ -110,7 +112,7 @@ public final class NotificationStatementAccountAllocator: @unchecked Sendable {
         picker = dependencies.picker
         reservations = dependencies.reservations
         serialQueue = dependencies.serialQueue
-        chainTimeProvider = dependencies.chainTimeProvider
+        parameters = dependencies.parameters
         logger = dependencies.logger
         self.ledger = ledger
         self.clock = clock
@@ -119,14 +121,18 @@ public final class NotificationStatementAccountAllocator: @unchecked Sendable {
 
 extension NotificationStatementAccountAllocator: NotificationStatementAccountAllocating {
     public func currentPeriod() async throws -> UInt32 {
-        try await chainTimeProvider.currentPeriod()
+        try await parameters.currentPeriod()
+    }
+
+    public func maxStatementSize() async throws -> Int {
+        try await parameters.maxStatementSize()
     }
 
     public func initiateAllocations(for targets: [AccountId]) async throws -> [AccountId] {
         try await serialQueue.run { [self] in
             let claimed = try await liveClaims(among: targets)
             let unclaimed = targets.filter { !claimed.contains($0) }
-            let period = try await chainTimeProvider.currentPeriod()
+            let period = try await parameters.currentPeriod()
             let free = try await picker.freeSlots(period: period, forTarget: nil)
 
             var scheduled = Set<AccountId>()

@@ -62,10 +62,14 @@ private extension ServiceCoordinator {
                 ),
                 networkSuffixProvider: tldProvider
             ),
-            chainTimeProvider: ChainTimeProvider(
+            parameters: NotificationParametersProvider(
                 chainId: chainId,
                 chainRegistry: chainRegistry,
-                storageRequestFactory: storageRequestFactory
+                chainTimeProvider: ChainTimeProvider(
+                    chainId: chainId,
+                    chainRegistry: chainRegistry,
+                    storageRequestFactory: storageRequestFactory
+                )
             ),
             logger: Logger.shared
         )

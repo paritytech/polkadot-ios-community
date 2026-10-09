@@ -113,6 +113,21 @@ final class FakeNotificationSlotRepository: NotificationSlotRepositoryProtocol, 
     }
 }
 
+// MARK: - FixedNotificationParameters
+
+struct FixedNotificationParameters: NotificationParametersProviding {
+    var period: UInt32 = 100
+    var statementSize = 10 * 1_024
+
+    func currentPeriod() async throws -> UInt32 {
+        period
+    }
+
+    func maxStatementSize() async throws -> Int {
+        statementSize
+    }
+}
+
 // MARK: - FakeClaimLedger
 
 final class FakeClaimLedger: NotificationClaimLedger, @unchecked Sendable {
@@ -169,7 +184,7 @@ extension NotificationSlotDependencies {
         NotificationSlotDependencies(
             chainId: "people",
             sources: .test(repository: repository, origins: origins),
-            chainTimeProvider: FakeChainTimeProvider(period: period),
+            parameters: FixedNotificationParameters(period: period),
             logger: FakeLogger()
         )
     }

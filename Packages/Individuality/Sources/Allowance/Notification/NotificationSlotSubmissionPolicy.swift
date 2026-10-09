@@ -15,7 +15,7 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
     private let serialQueue: SerialOperationQueue
     private let originFactory: AsResourcesOriginCreating
     private let factory: any DurableTxMaking
-    private let chainTimeProvider: ChainTimeProviding
+    private let parameters: NotificationParametersProviding
     private let logger: SDKLoggerProtocol
 
     public init(
@@ -27,7 +27,7 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
         picker = dependencies.picker
         reservations = dependencies.reservations
         serialQueue = dependencies.serialQueue
-        chainTimeProvider = dependencies.chainTimeProvider
+        parameters = dependencies.parameters
         logger = dependencies.logger
         self.originFactory = originFactory
         self.factory = factory
@@ -42,7 +42,7 @@ public final class NotificationSlotSubmissionPolicy: DurableSubmissionPolicy, @u
     public func prepareSubmission(
         _ transactions: [ScheduledDurableTx]
     ) async throws -> [DurableTxId: SubmissionPreparation] {
-        let period = try await chainTimeProvider.currentPeriod()
+        let period = try await parameters.currentPeriod()
         var preparations: [DurableTxId: SubmissionPreparation] = [:]
 
         for transaction in transactions {

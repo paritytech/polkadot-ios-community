@@ -24,10 +24,12 @@ struct ChatRequestDeliveryServiceTests {
     private let outgoingService = RecordingOutgoingChatRequestService()
     private let store = InMemoryChatRequestDeliveryStore()
     private let signer: ChatRequestDeliverySigner
+    private let resolver: StubDeliveryAccountResolver
 
     init() throws {
         let signManager = ChatSignerManager(entropyManager: FixedRootEntropyManager())
         signer = try ChatRequestDeliverySigners(signManager: signManager).anonymous(requestId: "request", period: 7)
+        resolver = StubDeliveryAccountResolver(signer: signer)
     }
 
     @Test func publishesWithResolvedSignerAndRecordsItsPeriod() async {
@@ -65,10 +67,29 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.delivered.isEmpty)
     }
 
+    @Test func marksOversizedRequestFailedWithoutClaimingSlot() async {
+        outgoingService.encodedSize = resolver.statementSize + 1
+
+        await makeService().deliverUntilDone(message, session: session)
+
+        #expect(store.failed == ["request"])
+        #expect(resolver.resolvedCount == 0)
+        #expect(outgoingService.sentSigners.isEmpty)
+    }
+
+    @Test func deliversRequestThatExactlyFitsStatementLimit() async {
+        outgoingService.encodedSize = resolver.statementSize
+
+        await makeService().deliverUntilDone(message, session: session)
+
+        #expect(store.delivered.count == 1)
+        #expect(store.failed.isEmpty)
+    }
+
     private func makeService() -> ChatRequestDeliveryService {
         ChatRequestDeliveryService(
             outgoingService: outgoingService,
-            resolver: StubDeliveryAccountResolver(signer: signer),
+            resolver: resolver,
             store: store,
             clock: ImmediateClock(),
             logger: MockLogger()
