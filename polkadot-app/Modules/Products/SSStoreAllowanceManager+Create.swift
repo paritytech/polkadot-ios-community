@@ -107,6 +107,7 @@ extension SSStoreAllowanceManager {
             originFactory: originFactory,
             chainTimeProvider: timeProvider,
             serialQueue: serialQueue,
+            issueDiagnostics: .make(reporter: IssueReportingFacade.shared),
             logger: logger
         )
 
@@ -115,7 +116,8 @@ extension SSStoreAllowanceManager {
             allocator: allocator,
             slotInfoProvider: slotInfoProvider,
             renewer: renewer,
-            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry)
+            backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
+            issueDiagnostics: .make(flow: "statement-store-allowance", reporter: IssueReportingFacade.shared)
         )
 
         return manager

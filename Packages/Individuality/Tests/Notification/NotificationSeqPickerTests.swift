@@ -1,4 +1,5 @@
 import Foundation
+import IssueMonitoring
 import SubstrateSdk
 import Testing
 @testable import Individuality
