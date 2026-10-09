@@ -37,7 +37,6 @@ final class MainTabBarViewController: UIViewController {
     lazy var container = TabBarContainer(hostController: self)
 
     private var tabs: [TabBarItem] = []
-    private var badges: [TabBarItem: TabBarBadge] = [:]
     private var controllerByItem: [TabBarItem: UIViewController] = [:]
     var spaChipViewModels: [SPATabChipViewModel] = []
 
@@ -316,7 +315,6 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
 
         chromeController.setItems(slots)
         chromeController.setSelectedIndex(index)
-        badges.forEach { setBadge($0.value, for: $0.key) }
         container.setControllers(content.map(\.controller), selecting: index)
         refreshChrome()
     }
@@ -329,14 +327,6 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         chromeController.setSelectedIndex(index)
         container.select(index: index)
         refreshChrome()
-    }
-
-    func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem) {
-        badges[tab] = badge
-        guard let index = tabs.firstIndex(of: tab) else {
-            return
-        }
-        chromeController.setBadge(badge.map { _ in .attention }, at: index)
     }
 
     func setLabels(visible: Bool) {
