@@ -40,7 +40,7 @@ extension ChatRequestCoordinatorService: ChatRequestCoordinatorServicing {
             do {
                 let discoveryService = try await serviceFactory.makeDiscoveryService()
                 let incomingRequestService = try await serviceFactory.makeIncomingChatRequestService()
-                let outgoingRequestService = try await serviceFactory.makeOutgoingChatRequestService()
+                let deliveryService = try await serviceFactory.makeChatRequestDeliveryService()
                 let incomingContext = try await serviceFactory.makeIncomingChatRequestContext()
                 let outgoingContext = try await serviceFactory.makeOutgoingChatRequestContext()
 
@@ -48,36 +48,36 @@ extension ChatRequestCoordinatorService: ChatRequestCoordinatorServicing {
 
                 logger.debug("Service started")
 
-                for try await contacts in allContactsStream {
-                    await incomingContext.update(
-                        contacts: contacts,
-                        discoverTaskBuilder: { ownKeyId in
-                            setupDiscoveryTask(
-                                using: discoveryService,
-                                ownKeyId: ownKeyId,
-                                with: incomingContext
-                            )
-                        }, incomingRequestTaskBuilder: { contacts, ownKeyId in
-                            setupIncomingRequestsTask(
-                                for: contacts,
-                                ownKeyId: ownKeyId,
-                                using: incomingRequestService,
-                                context: incomingContext
-                            )
-                        }
-                    )
+                try await withTaskCancellationHandler {
+                    for try await contacts in allContactsStream {
+                        await incomingContext.update(
+                            contacts: contacts,
+                            discoverTaskBuilder: { ownKeyId in
+                                setupDiscoveryTask(
+                                    using: discoveryService,
+                                    ownKeyId: ownKeyId,
+                                    with: incomingContext
+                                )
+                            }, incomingRequestTaskBuilder: { contacts, ownKeyId in
+                                setupIncomingRequestsTask(
+                                    for: contacts,
+                                    ownKeyId: ownKeyId,
+                                    using: incomingRequestService,
+                                    context: incomingContext
+                                )
+                            }
+                        )
 
-                    await outgoingContext.update(
-                        contacts: contacts,
-                        outgoingRequestTaskBuilder: {
-                            setupOutgoingRequestsTask(
-                                outgoingService: outgoingRequestService,
-                                context: outgoingContext
-                            )
-                        }
-                    )
+                        await updateOutgoing(
+                            contacts: contacts,
+                            deliveryService: deliveryService,
+                            context: outgoingContext
+                        )
 
-                    logger.debug("Handled contacts: \(contacts.count)")
+                        logger.debug("Handled contacts: \(contacts.count)")
+                    }
+                } onCancel: {
+                    Task { await outgoingContext.cancelAll() }
                 }
             } catch {
                 logger.error("Contacts subscription failed: \(error)")
@@ -152,8 +152,21 @@ private extension ChatRequestCoordinatorService {
         }
     }
 
+    func updateOutgoing(
+        contacts: [Chat.Contact],
+        deliveryService: ChatRequestDelivering,
+        context: OutgoingChatRequestCoordinationContext
+    ) async {
+        await context.update(
+            contacts: contacts,
+            outgoingRequestTaskBuilder: {
+                setupOutgoingRequestsTask(deliveryService: deliveryService, context: context)
+            }
+        )
+    }
+
     func setupOutgoingRequestsTask(
-        outgoingService: OutgoingChatRequestServicing,
+        deliveryService: ChatRequestDelivering,
         context: OutgoingChatRequestCoordinationContext
     ) -> Task<Void, Never> {
         Task {
@@ -161,8 +174,8 @@ private extension ChatRequestCoordinatorService {
 
             do {
                 for try await requestMessages in outgoingRequestsStream {
-                    try await context.process(requestMessages: requestMessages) { message, peer, own in
-                        try await outgoingService.send(message: message, to: peer, ownKeyId: own)
+                    await context.process(requestMessages: requestMessages) { message, session in
+                        await deliveryService.deliverUntilDone(message, session: session)
                     }
                 }
             } catch {

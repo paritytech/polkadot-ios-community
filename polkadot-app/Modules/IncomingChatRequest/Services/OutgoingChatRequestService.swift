@@ -6,10 +6,12 @@ import Operation_iOS
 import SDKLogger
 
 protocol OutgoingChatRequestServicing {
+    /// Only the outer statement is signed by `signer`; the inner proof and the session stay on `ownKeyId`.
     func send(
         message: Chat.RequestMessage,
         to peer: MessageExchange.Peer,
-        ownKeyId: MessageExchange.Own
+        ownKeyId: MessageExchange.Own,
+        signer: StatementStoreSigning
     ) async throws
 }
 
@@ -19,7 +21,6 @@ enum OutgoingChatRequestServiceError: Error {
 
 final class OutgoingChatRequestService {
     private let statementStoreSubmitter: StatementStoreSubmitting
-    private let statementSignManager: StatementStoreSignerManaging
     private let priorityFactory: StatementPriorityMaking
     private let requestFactory: ChatRequestFactoryProtocol
     private let channelFactory: ChatRequestChannelFactoryProtocol
@@ -27,14 +28,12 @@ final class OutgoingChatRequestService {
 
     init(
         statementStoreSubmitter: StatementStoreSubmitting,
-        statementSignManager: StatementStoreSignerManaging,
         requestFactory: ChatRequestFactoryProtocol,
         priorityFactory: StatementPriorityMaking,
         channelFactory: ChatRequestChannelFactoryProtocol,
         logger: SDKLoggerProtocol
     ) {
         self.statementStoreSubmitter = statementStoreSubmitter
-        self.statementSignManager = statementSignManager
         self.priorityFactory = priorityFactory
         self.channelFactory = channelFactory
         self.requestFactory = requestFactory
@@ -46,7 +45,8 @@ extension OutgoingChatRequestService: OutgoingChatRequestServicing {
     func send(
         message: Chat.RequestMessage,
         to peer: MessageExchange.Peer,
-        ownKeyId: MessageExchange.Own
+        ownKeyId: MessageExchange.Own,
+        signer: StatementStoreSigning
     ) async throws {
         guard let pagination = ChatRequest.paginationDay(from: Date()) else {
             throw OutgoingChatRequestServiceError.unexpected("Invalid pagination day")
@@ -63,13 +63,11 @@ extension OutgoingChatRequestService: OutgoingChatRequestServicing {
             ownKeyId: ownKeyId
         )
 
-        let statementSigner = try statementSignManager.makeSigner(for: ownKeyId.signKeyId)
-
         let payload = try remoteRequest.scaleEncoded()
         let scaleEncodedPayload = try payload.scaleEncoded()
 
         let builder = StatementSubmitParametersBuilder(
-            signer: statementSigner,
+            signer: signer,
             logger: logger
         )
         .addTopic1(topic1)

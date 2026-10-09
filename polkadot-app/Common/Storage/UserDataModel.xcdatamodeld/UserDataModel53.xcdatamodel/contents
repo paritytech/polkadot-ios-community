@@ -95,6 +95,7 @@
         <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatMessage" inverseName="reactions" inverseEntity="CDChatMessage"/>
     </entity>
     <entity name="CDChatRequest" representedClassName="CDChatRequest" syncable="YES" codeGenerationType="class">
+        <attribute name="anonymousDeliveryPeriod" optional="YES" attributeType="Integer 32" usesScalarValueType="NO"/>
         <attribute name="contactId" optional="YES" attributeType="String"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
         <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>

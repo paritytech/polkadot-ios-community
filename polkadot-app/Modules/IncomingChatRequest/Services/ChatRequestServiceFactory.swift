@@ -7,6 +7,7 @@ import Keystore_iOS
 import SDKLogger
 import KeyDerivation
 import ChainRegistry
+import Individuality
 
 protocol ChatRequestServiceMaking {
     func makeDiscoveryService() async throws -> ChatDiscoveryServicing
@@ -14,6 +15,8 @@ protocol ChatRequestServiceMaking {
     func makeIncomingChatRequestService() async throws -> IncomingChatRequestServicing
 
     func makeOutgoingChatRequestService() async throws -> OutgoingChatRequestServicing
+
+    func makeChatRequestDeliveryService() async throws -> ChatRequestDelivering
 
     func makeIncomingChatRequestContext() async throws -> IncomingChatRequestCoordinationContext
 
@@ -29,6 +32,7 @@ actor ChatRequestServiceFactory {
     let operationQueue: OperationQueue
     let logger: LoggerProtocol
     let remoteContactResolver: RemoteContactResolving
+    let notificationAllocator: NotificationStatementAccountAllocating
 
     private var connection: StatementStoreConnecting?
     private var accountSignManager: StatementStoreSignerManaging?
@@ -36,6 +40,7 @@ actor ChatRequestServiceFactory {
 
     init(
         remoteContactResolver: RemoteContactResolving,
+        notificationAllocator: NotificationStatementAccountAllocating,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
@@ -45,6 +50,7 @@ actor ChatRequestServiceFactory {
         logger: SDKLoggerProtocol = Logger.shared
     ) {
         self.remoteContactResolver = remoteContactResolver
+        self.notificationAllocator = notificationAllocator
         self.chatChainId = chatChainId
         self.chainRegistry = chainRegistry
         self.entropyManager = entropyManager
@@ -102,9 +108,6 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
     }
 
     func makeOutgoingChatRequestService() async throws -> OutgoingChatRequestServicing {
-        // TODO: Implement alias signer when available
-        let aliasSignManager = makeAccountSignManager()
-
         let connection = try await makeConnection()
         let encryptionManager = makeAccountEncryptionManager()
         let accountSignManager = makeAccountSignManager()
@@ -123,7 +126,6 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
 
         return OutgoingChatRequestService(
             statementStoreSubmitter: connection,
-            statementSignManager: aliasSignManager,
             requestFactory: chatRequestFactory,
             priorityFactory: StatementPriorityFactory(),
             channelFactory: channelFactory,
@@ -159,14 +161,19 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
     }
 
     func makeOutgoingChatRequestContext() async throws -> OutgoingChatRequestCoordinationContext {
-        let messageStoreService = MessagesLocalStorageService(
-            repositoryFactory: ChatMessageRepositoryFactory(storageFacade: storageFacade),
-            statusUpdateRepositoryFactory: ChatMessageStatusUpdateRepositoryFactory(storageFacade: storageFacade),
-            logger: logger
+        OutgoingChatRequestCoordinationContext(logger: logger)
+    }
+
+    func makeChatRequestDeliveryService() async throws -> ChatRequestDelivering {
+        let resolver = ChatRequestDeliveryAccountResolver(
+            allocator: notificationAllocator,
+            signers: ChatRequestDeliverySigners(signManager: makeAccountSignManager())
         )
 
-        return OutgoingChatRequestCoordinationContext(
-            messageStoreService: messageStoreService,
+        return try await ChatRequestDeliveryService(
+            outgoingService: makeOutgoingChatRequestService(),
+            resolver: resolver,
+            store: ChatRequestDeliveryStore(storageFacade: storageFacade),
             logger: logger
         )
     }
