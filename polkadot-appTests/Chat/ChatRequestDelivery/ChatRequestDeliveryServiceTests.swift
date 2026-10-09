@@ -91,7 +91,10 @@ struct ChatRequestDeliveryServiceTests {
             outgoingService: outgoingService,
             resolver: resolver,
             store: store,
-            clock: ImmediateClock(),
+            execution: ChatRequestDeliveryExecution(
+                backgroundExecutor: InlineBackgroundExecutor(),
+                clock: ImmediateClock()
+            ),
             logger: MockLogger()
         )
     }

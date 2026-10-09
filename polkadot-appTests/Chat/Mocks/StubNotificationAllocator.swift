@@ -7,6 +7,7 @@ final class StubNotificationAllocator: NotificationStatementAccountAllocating, @
     var period: UInt32 = 100
     var statementSize = 10 * 1_024
     var hasFreeSlot = true
+    var freeSlotCount: Int?
     var awaitResult: Result<Void, Error> = .success(())
     private let initiated = OSAllocatedUnfairLock<[AccountId]>(initialState: [])
 
@@ -25,8 +26,9 @@ final class StubNotificationAllocator: NotificationStatementAccountAllocating, @
     func initiateAllocations(for targets: [AccountId]) async throws -> [AccountId] {
         guard hasFreeSlot else { return [] }
 
-        initiated.withLock { $0.append(contentsOf: targets) }
-        return targets
+        let scheduled = freeSlotCount.map { Array(targets.prefix($0)) } ?? targets
+        initiated.withLock { $0.append(contentsOf: scheduled) }
+        return scheduled
     }
 
     func awaitAllocated(_: AccountId, timeout _: Duration) async throws {

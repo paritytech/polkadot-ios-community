@@ -1,4 +1,5 @@
 import Foundation
+import BackgroundExecution
 import Keystore_iOS
 import Operation_iOS
 import AssetExchange
@@ -497,6 +498,7 @@ private extension ServiceCoordinator {
         let storageFacade = UserDataStorageFacade.shared
         let operationQueue = OperationManagerFacade.sharedDefaultQueue
         let logger = Logger.shared
+        let backgroundExecutor = ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry)
 
         return ChatRequestCoordinatorService(
             contactsProviderFactory: ChatContactDataProviderFactory(
@@ -516,8 +518,10 @@ private extension ServiceCoordinator {
                     ],
                     logger: Logger.shared
                 ),
-                notificationAllocator: notificationAllocator
+                notificationAllocator: notificationAllocator,
+                backgroundExecutor: backgroundExecutor
             ),
+            backgroundExecutor: backgroundExecutor,
             logger: Logger.shared
         )
     }

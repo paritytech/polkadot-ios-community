@@ -6,6 +6,7 @@ import NovaCrypto
 import Keystore_iOS
 import SDKLogger
 import KeyDerivation
+import BackgroundExecution
 import ChainRegistry
 import Individuality
 
@@ -17,6 +18,8 @@ protocol ChatRequestServiceMaking {
     func makeOutgoingChatRequestService() async throws -> OutgoingChatRequestServicing
 
     func makeChatRequestDeliveryService() async throws -> ChatRequestDelivering
+
+    func makeChatRequestRenewer() async throws -> ChatRequestRenewing
 
     func makeIncomingChatRequestContext() async throws -> IncomingChatRequestCoordinationContext
 
@@ -33,6 +36,7 @@ actor ChatRequestServiceFactory {
     let logger: LoggerProtocol
     let remoteContactResolver: RemoteContactResolving
     let notificationAllocator: NotificationStatementAccountAllocating
+    let backgroundExecutor: BackgroundExecuting
 
     private var connection: StatementStoreConnecting?
     private var accountSignManager: StatementStoreSignerManaging?
@@ -41,6 +45,7 @@ actor ChatRequestServiceFactory {
     init(
         remoteContactResolver: RemoteContactResolving,
         notificationAllocator: NotificationStatementAccountAllocating,
+        backgroundExecutor: BackgroundExecuting,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
@@ -51,6 +56,7 @@ actor ChatRequestServiceFactory {
     ) {
         self.remoteContactResolver = remoteContactResolver
         self.notificationAllocator = notificationAllocator
+        self.backgroundExecutor = backgroundExecutor
         self.chatChainId = chatChainId
         self.chainRegistry = chainRegistry
         self.entropyManager = entropyManager
@@ -125,7 +131,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
         )
 
         return OutgoingChatRequestService(
-            statementStoreSubmitter: connection,
+            statementStoreConnection: connection,
             requestFactory: chatRequestFactory,
             priorityFactory: StatementPriorityFactory(),
             channelFactory: channelFactory,
@@ -174,6 +180,17 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             outgoingService: makeOutgoingChatRequestService(),
             resolver: resolver,
             store: ChatRequestDeliveryStore(storageFacade: storageFacade),
+            execution: ChatRequestDeliveryExecution(backgroundExecutor: backgroundExecutor),
+            logger: logger
+        )
+    }
+
+    func makeChatRequestRenewer() async throws -> ChatRequestRenewing {
+        try await ChatRequestRenewer(
+            store: ChatRequestDeliveryStore(storageFacade: storageFacade),
+            allocator: notificationAllocator,
+            signers: ChatRequestDeliverySigners(signManager: makeAccountSignManager()),
+            outgoingService: makeOutgoingChatRequestService(),
             logger: logger
         )
     }

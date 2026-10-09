@@ -9,6 +9,7 @@ final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @
     /// Failures thrown by the leading sends; later sends succeed.
     var failures: [Error] = []
     var encodedSize = 1_000
+    var storedSigners: Set<AccountId> = []
     private(set) var sentSigners: [AccountId] = []
 
     func send(
@@ -27,6 +28,27 @@ final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @
         ownKeyId _: MessageExchange.Own
     ) throws -> Int {
         encodedSize
+    }
+
+    func isStored(
+        to _: MessageExchange.Peer,
+        ownKeyId _: MessageExchange.Own,
+        signedBy accountId: AccountId
+    ) async throws -> Bool {
+        storedSigners.contains(accountId)
+    }
+}
+
+final class InMemoryChatRequestRenewalStore: ChatRequestRenewalStoring, @unchecked Sendable {
+    var candidates: [ChatRequestRenewalCandidate] = []
+    private(set) var periodUpdates: [(requestId: String, period: UInt32)] = []
+
+    func renewalCandidates() async throws -> [ChatRequestRenewalCandidate] {
+        candidates
+    }
+
+    func updateAnonymousPeriod(requestId: String, period: UInt32) async throws {
+        periodUpdates.append((requestId, period))
     }
 }
 

@@ -1,5 +1,11 @@
+import BackgroundExecution
 import Foundation
 import MessageExchangeKit
+
+struct ChatRequestDeliveryExecution {
+    let backgroundExecutor: BackgroundExecuting
+    var clock: any Clock<Duration> = ContinuousClock()
+}
 
 protocol ChatRequestDelivering: Sendable {
     /// Delivers a recorded outgoing request, retrying with backoff for as long as it still awaits delivery.
@@ -15,20 +21,20 @@ final class ChatRequestDeliveryService: @unchecked Sendable {
     private let outgoingService: OutgoingChatRequestServicing
     private let resolver: ChatRequestDeliveryAccountResolving
     private let store: ChatRequestDeliveryStoring
-    private let clock: any Clock<Duration>
+    private let execution: ChatRequestDeliveryExecution
     private let logger: LoggerProtocol
 
     init(
         outgoingService: OutgoingChatRequestServicing,
         resolver: ChatRequestDeliveryAccountResolving,
         store: ChatRequestDeliveryStoring,
-        clock: any Clock<Duration> = ContinuousClock(),
+        execution: ChatRequestDeliveryExecution,
         logger: LoggerProtocol
     ) {
         self.outgoingService = outgoingService
         self.resolver = resolver
         self.store = store
-        self.clock = clock
+        self.execution = execution
         self.logger = logger
     }
 }
@@ -39,7 +45,7 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
 
         while await isAwaitingDelivery(message.messageId) {
             do {
-                try await deliver(message, session: session)
+                try await execution.backgroundExecutor.execute { try await self.deliver(message, session: session) }
                 logger.debug("Chat request \(message.messageId) finished after \(attempt + 1) attempt(s)")
                 return
             } catch {
@@ -48,7 +54,7 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
                 logger.error("Chat request \(message.messageId) attempt \(attempt) failed: \(error)")
 
                 do {
-                    try await clock.sleep(for: retryIn)
+                    try await execution.clock.sleep(for: retryIn)
                 } catch {
                     return
                 }
