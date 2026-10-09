@@ -1,6 +1,7 @@
 import AsyncExtensions
 import DurableTransactions
 import Foundation
+import IssueMonitoring
 import SDKLogger
 import StructuredConcurrency
 import SubstrateSdk
@@ -76,21 +77,29 @@ public struct NotificationSlotDependencies: @unchecked Sendable {
     let reservations: NotificationSeqReservations
     let serialQueue: SerialOperationQueue
     let parameters: NotificationParametersProviding
+    let issueReporter: IssueReporting
     let logger: SDKLoggerProtocol
 
     public init(
         chainId: ChainId,
         sources: NotificationSlotSources,
         parameters: NotificationParametersProviding,
+        issueReporter: IssueReporting,
         logger: SDKLoggerProtocol
     ) {
         let reservations = NotificationSeqReservations()
 
         self.chainId = chainId
-        picker = NotificationSeqPicker(sources: sources, reservations: reservations, logger: logger)
+        picker = NotificationSeqPicker(
+            sources: sources,
+            reservations: reservations,
+            issueReporter: issueReporter,
+            logger: logger
+        )
         self.reservations = reservations
         serialQueue = SerialOperationQueue()
         self.parameters = parameters
+        self.issueReporter = issueReporter
         self.logger = logger
     }
 }

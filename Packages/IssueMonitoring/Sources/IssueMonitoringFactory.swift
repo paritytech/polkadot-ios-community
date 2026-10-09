@@ -14,4 +14,13 @@ public enum IssueMonitoringFactory {
             return NoopIssueMonitoringService()
         #endif
     }
+
+    /// Reports through the SDK `IssueMonitoringServiceProtocol.setup()` started; a no-op until then and in Release.
+    public static func createReporter() -> IssueReporting {
+        #if SENTRY_ENABLED
+            SentryIssueReporter()
+        #else
+            NoopIssueReporter()
+        #endif
+    }
 }

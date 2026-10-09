@@ -8,6 +8,7 @@ struct ChatRequestRenewerTests {
     private let allocator = StubNotificationAllocator()
     private let store = InMemoryChatRequestRenewalStore()
     private let outgoingService = RecordingOutgoingChatRequestService()
+    private let issueReporter = RecordingIssueReporter()
     private let signers =
         ChatRequestDeliverySigners(signManager: ChatSignerManager(entropyManager: FixedRootEntropyManager()))
 
@@ -60,13 +61,43 @@ struct ChatRequestRenewerTests {
         #expect(outgoingService.sentSigners.isEmpty)
     }
 
+    @Test func reportsRenewalThatClaimedSlotButFailedToPublish() async {
+        store.candidates = [candidate("request", period: 99)]
+        outgoingService.failures = [TestRenewalError()]
+
+        await makeRenewer().renew()
+
+        #expect(issueReporter.kinds == ["renewal-publish-failed"])
+        #expect(store.periodUpdates.isEmpty)
+    }
+
+    @Test func reportsRequestsLeftUnrenewedPastTheirPeriod() async {
+        allocator.hasFreeSlot = false
+        store.candidates = [candidate("starved", period: 98), candidate("recent", period: 99)]
+
+        await makeRenewer().renew()
+
+        #expect(issueReporter.kinds == ["renewal-starved"])
+    }
+
+    @Test func reportsRenewalFailingRunAfterRun() async {
+        store.readError = TestRenewalError()
+        let renewer = makeRenewer()
+
+        for _ in 0 ..< ChatRequestDiagnostics.failingRenewalRuns + 1 {
+            await renewer.renew()
+        }
+
+        #expect(issueReporter.kinds == ["renewal-failing"])
+    }
+
     private func makeRenewer() -> ChatRequestRenewer {
         ChatRequestRenewer(
             store: store,
             allocator: allocator,
             signers: signers,
             outgoingService: outgoingService,
-            logger: MockLogger()
+            diagnostics: ChatRequestDiagnostics(logger: MockLogger(), issueReporter: issueReporter)
         )
     }
 
@@ -94,3 +125,5 @@ struct ChatRequestRenewerTests {
         )
     }
 }
+
+private struct TestRenewalError: Error {}

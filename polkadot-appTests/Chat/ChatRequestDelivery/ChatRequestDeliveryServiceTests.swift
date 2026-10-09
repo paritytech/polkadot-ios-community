@@ -25,6 +25,7 @@ struct ChatRequestDeliveryServiceTests {
     private let store = InMemoryChatRequestDeliveryStore()
     private let signer: ChatRequestDeliverySigner
     private let resolver: StubDeliveryAccountResolver
+    private let issueReporter = RecordingIssueReporter()
 
     init() throws {
         let signManager = ChatSignerManager(entropyManager: FixedRootEntropyManager())
@@ -75,6 +76,7 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed == ["request"])
         #expect(resolver.resolvedCount == 0)
         #expect(outgoingService.sentSigners.isEmpty)
+        #expect(issueReporter.kinds == ["oversized-request"])
     }
 
     @Test func deliversRequestThatExactlyFitsStatementLimit() async {
@@ -86,6 +88,24 @@ struct ChatRequestDeliveryServiceTests {
         #expect(store.failed.isEmpty)
     }
 
+    @Test func reportsDeliveryStalledAfterAttemptThreshold() async {
+        let stalled = ChatRequestDiagnostics.stalledDeliveryAttempts
+        outgoingService.failures = Array(repeating: TestDeliveryError(), count: stalled + 2)
+
+        await makeService().deliverUntilDone(message, session: session)
+
+        #expect(issueReporter.kinds == ["delivery-stalled"])
+        #expect(store.delivered.count == 1)
+    }
+
+    @Test func doesNotReportTransientFailures() async {
+        outgoingService.failures = [TestDeliveryError(), TestDeliveryError()]
+
+        await makeService().deliverUntilDone(message, session: session)
+
+        #expect(issueReporter.kinds.isEmpty)
+    }
+
     private func makeService() -> ChatRequestDeliveryService {
         ChatRequestDeliveryService(
             outgoingService: outgoingService,
@@ -95,7 +115,7 @@ struct ChatRequestDeliveryServiceTests {
                 backgroundExecutor: InlineBackgroundExecutor(),
                 clock: ImmediateClock()
             ),
-            logger: MockLogger()
+            diagnostics: ChatRequestDiagnostics(logger: MockLogger(), issueReporter: issueReporter)
         )
     }
 }

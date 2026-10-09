@@ -4,6 +4,7 @@ import DurableTransactions
 import DurableTransactionsTestSupport
 import ExtrinsicService
 import Foundation
+import IssueMonitoring
 import KeyDerivation
 import os
 import SubstrateSdk
@@ -173,18 +174,34 @@ final class FakeDurableTxMaking: DurableTxMaking, @unchecked Sendable {
     }
 }
 
+// MARK: - RecordingIssueReporter
+
+final class RecordingIssueReporter: IssueReporting, @unchecked Sendable {
+    private let state = OSAllocatedUnfairLock<[(kind: String, key: String)]>(initialState: [])
+
+    var reports: [(kind: String, key: String)] {
+        state.withLock { $0 }
+    }
+
+    func report(_ issue: CriticalIssue, onceFor key: String) {
+        state.withLock { $0.append((issue.kind, key)) }
+    }
+}
+
 // MARK: - Helpers
 
 extension NotificationSlotDependencies {
     static func test(
         repository: NotificationSlotRepositoryProtocol,
         origins: [PersonOrigin] = [NotificationPersons.full, NotificationPersons.lite],
-        period: UInt32 = 100
+        period: UInt32 = 100,
+        issueReporter: IssueReporting = RecordingIssueReporter()
     ) -> NotificationSlotDependencies {
         NotificationSlotDependencies(
             chainId: "people",
             sources: .test(repository: repository, origins: origins),
             parameters: FixedNotificationParameters(period: period),
+            issueReporter: issueReporter,
             logger: FakeLogger()
         )
     }

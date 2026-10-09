@@ -9,11 +9,12 @@ struct NotificationSlotSubmissionPolicyTests {
     private let target = AccountId.target(1)
     private let repository = FakeNotificationSlotRepository()
     private let originFactory = FakeOriginFactory()
+    private let issueReporter = RecordingIssueReporter()
     private let dependencies: NotificationSlotDependencies
 
     init() {
         repository.highestSeqByCollection = [NotificationPersons.full.collectionIdentifier: 2]
-        dependencies = .test(repository: repository, origins: [NotificationPersons.full])
+        dependencies = .test(repository: repository, origins: [NotificationPersons.full], issueReporter: issueReporter)
     }
 
     @Test func givesUpAndReleasesReservationWhenNoSlotIsFree() async throws {
@@ -27,6 +28,7 @@ struct NotificationSlotSubmissionPolicyTests {
         #expect(isGiveUp(preparations[claim.id]))
         #expect(dependencies.reservations.reserved(for: target) == nil)
         #expect(originFactory.notificationOriginCalls.isEmpty)
+        #expect(issueReporter.reports.map(\.key) == ["slot-claim-gave-up-100"])
     }
 
     @Test func buildsClaimOnSlotReservedWhenScheduled() async throws {
@@ -56,6 +58,36 @@ struct NotificationSlotSubmissionPolicyTests {
         for failure in DurableFailureKind.allCases {
             #expect(await policy.canRetry(entry, params: target, failure: failure))
         }
+    }
+
+    @Test func reportsClaimOnceItKeepsFailingOnChain() async {
+        let policy = makePolicy()
+        let entry = DurableTxEntry.fixture(domainId: NotificationSlotDomain.domainId)
+
+        for _ in 0 ..< NotificationSlotIssue.failingClaimThreshold + 1 {
+            _ = await policy.canRetry(entry, params: target, failure: .rejected)
+        }
+
+        #expect(issueReporter.reports.map(\.kind) == ["slot-claim-failing"])
+    }
+
+    @Test func reportsWhenClaimsCannotBeBuiltRepeatedly() async {
+        let withoutPerson = NotificationSlotDependencies.test(
+            repository: repository,
+            origins: [],
+            issueReporter: issueReporter
+        )
+        let policy = NotificationSlotSubmissionPolicy(
+            dependencies: withoutPerson,
+            originFactory: originFactory,
+            factory: FakeDurableTxMaking()
+        )
+
+        for _ in 0 ..< NotificationSlotIssue.unbuildableClaimThreshold {
+            _ = try? await policy.prepareSubmission([scheduledClaim()])
+        }
+
+        #expect(issueReporter.reports.map(\.kind) == ["slot-claim-unbuildable"])
     }
 
     private func makePolicy() -> NotificationSlotSubmissionPolicy {

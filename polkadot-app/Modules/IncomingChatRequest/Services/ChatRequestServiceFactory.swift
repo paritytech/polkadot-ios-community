@@ -9,6 +9,7 @@ import KeyDerivation
 import BackgroundExecution
 import ChainRegistry
 import Individuality
+import IssueMonitoring
 
 protocol ChatRequestServiceMaking {
     func makeDiscoveryService() async throws -> ChatDiscoveryServicing
@@ -37,6 +38,7 @@ actor ChatRequestServiceFactory {
     let remoteContactResolver: RemoteContactResolving
     let notificationAllocator: NotificationStatementAccountAllocating
     let backgroundExecutor: BackgroundExecuting
+    let issueReporter: IssueReporting
 
     private var connection: StatementStoreConnecting?
     private var accountSignManager: StatementStoreSignerManaging?
@@ -46,6 +48,7 @@ actor ChatRequestServiceFactory {
         remoteContactResolver: RemoteContactResolving,
         notificationAllocator: NotificationStatementAccountAllocating,
         backgroundExecutor: BackgroundExecuting,
+        issueReporter: IssueReporting,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
@@ -57,6 +60,7 @@ actor ChatRequestServiceFactory {
         self.remoteContactResolver = remoteContactResolver
         self.notificationAllocator = notificationAllocator
         self.backgroundExecutor = backgroundExecutor
+        self.issueReporter = issueReporter
         self.chatChainId = chatChainId
         self.chainRegistry = chainRegistry
         self.entropyManager = entropyManager
@@ -181,7 +185,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             resolver: resolver,
             store: ChatRequestDeliveryStore(storageFacade: storageFacade),
             execution: ChatRequestDeliveryExecution(backgroundExecutor: backgroundExecutor),
-            logger: logger
+            diagnostics: ChatRequestDiagnostics(logger: logger, issueReporter: issueReporter)
         )
     }
 
@@ -191,7 +195,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             allocator: notificationAllocator,
             signers: ChatRequestDeliverySigners(signManager: makeAccountSignManager()),
             outgoingService: makeOutgoingChatRequestService(),
-            logger: logger
+            diagnostics: ChatRequestDiagnostics(logger: logger, issueReporter: issueReporter)
         )
     }
 }

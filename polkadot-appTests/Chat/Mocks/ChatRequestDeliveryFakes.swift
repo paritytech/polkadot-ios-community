@@ -41,10 +41,12 @@ final class RecordingOutgoingChatRequestService: OutgoingChatRequestServicing, @
 
 final class InMemoryChatRequestRenewalStore: ChatRequestRenewalStoring, @unchecked Sendable {
     var candidates: [ChatRequestRenewalCandidate] = []
+    var readError: Error?
     private(set) var periodUpdates: [(requestId: String, period: UInt32)] = []
 
     func renewalCandidates() async throws -> [ChatRequestRenewalCandidate] {
-        candidates
+        if let readError { throw readError }
+        return candidates
     }
 
     func updateAnonymousPeriod(requestId: String, period: UInt32) async throws {
