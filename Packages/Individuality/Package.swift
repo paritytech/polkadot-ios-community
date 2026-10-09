@@ -32,7 +32,8 @@ let package = Package(
         .package(path: "../SubstrateOperation"),
         .package(path: "../BulletinChain"),
         .package(path: "../BackgroundExecution"),
-        .package(path: "../DurableTransactions")
+        .package(path: "../DurableTransactions"),
+        .package(path: "../IssueMonitoring")
     ],
     targets: [
         .target(
@@ -49,7 +50,8 @@ let package = Package(
                 "SubstrateOperation",
                 "BulletinChain",
                 "BackgroundExecution",
-                "DurableTransactions"
+                "DurableTransactions",
+                "IssueMonitoring"
             ],
             path: "Sources"
         ),

@@ -95,7 +95,7 @@ struct ChatRequestDeliveryServiceTests {
                 backgroundExecutor: InlineBackgroundExecutor(),
                 clock: ImmediateClock()
             ),
-            logger: MockLogger()
+            diagnostics: .noop
         )
     }
 }

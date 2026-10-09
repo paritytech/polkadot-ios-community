@@ -71,6 +71,7 @@ private extension ServiceCoordinator {
                     storageRequestFactory: storageRequestFactory
                 )
             ),
+            issueDiagnostics: NotificationSlotIssueDiagnostics.make(reporter: IssueReportingFacade.shared),
             logger: Logger.shared
         )
     }

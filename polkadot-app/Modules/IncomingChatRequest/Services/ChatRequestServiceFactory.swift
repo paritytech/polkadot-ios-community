@@ -9,6 +9,7 @@ import KeyDerivation
 import BackgroundExecution
 import ChainRegistry
 import Individuality
+import IssueMonitoring
 
 protocol ChatRequestServiceMaking {
     func makeDiscoveryService() async throws -> ChatDiscoveryServicing
@@ -37,15 +38,18 @@ actor ChatRequestServiceFactory {
     let remoteContactResolver: RemoteContactResolving
     let notificationAllocator: NotificationStatementAccountAllocating
     let backgroundExecutor: BackgroundExecuting
+    let issueReporter: IssueReporting
 
     private var connection: StatementStoreConnecting?
     private var accountSignManager: StatementStoreSignerManaging?
     private var accountEncryptionManager: MessageExchangeEncryptionManaging?
+    private var diagnostics: ChatRequestDiagnostics?
 
     init(
         remoteContactResolver: RemoteContactResolving,
         notificationAllocator: NotificationStatementAccountAllocating,
         backgroundExecutor: BackgroundExecuting,
+        issueReporter: IssueReporting,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
@@ -57,6 +61,7 @@ actor ChatRequestServiceFactory {
         self.remoteContactResolver = remoteContactResolver
         self.notificationAllocator = notificationAllocator
         self.backgroundExecutor = backgroundExecutor
+        self.issueReporter = issueReporter
         self.chatChainId = chatChainId
         self.chainRegistry = chainRegistry
         self.entropyManager = entropyManager
@@ -181,7 +186,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             resolver: resolver,
             store: ChatRequestDeliveryStore(storageFacade: storageFacade),
             execution: ChatRequestDeliveryExecution(backgroundExecutor: backgroundExecutor),
-            logger: logger
+            diagnostics: makeDiagnostics()
         )
     }
 
@@ -191,12 +196,26 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             allocator: notificationAllocator,
             signers: ChatRequestDeliverySigners(signManager: makeAccountSignManager()),
             outgoingService: makeOutgoingChatRequestService(),
-            logger: logger
+            diagnostics: makeDiagnostics()
         )
     }
 }
 
 private extension ChatRequestServiceFactory {
+    func makeDiagnostics() -> ChatRequestDiagnostics {
+        if let diagnostics {
+            return diagnostics
+        }
+
+        let diagnostics = ChatRequestDiagnostics(
+            logger: logger,
+            issues: ChatRequestIssueDiagnostics.make(reporter: issueReporter)
+        )
+        self.diagnostics = diagnostics
+
+        return diagnostics
+    }
+
     func makeConnection() async throws -> StatementStoreConnecting {
         if let connection {
             return connection

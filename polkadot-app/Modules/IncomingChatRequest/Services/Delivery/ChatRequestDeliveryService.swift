@@ -22,20 +22,20 @@ final class ChatRequestDeliveryService: @unchecked Sendable {
     private let resolver: ChatRequestDeliveryAccountResolving
     private let store: ChatRequestDeliveryStoring
     private let execution: ChatRequestDeliveryExecution
-    private let logger: LoggerProtocol
+    private let diagnostics: ChatRequestDiagnostics
 
     init(
         outgoingService: OutgoingChatRequestServicing,
         resolver: ChatRequestDeliveryAccountResolving,
         store: ChatRequestDeliveryStoring,
         execution: ChatRequestDeliveryExecution,
-        logger: LoggerProtocol
+        diagnostics: ChatRequestDiagnostics
     ) {
         self.outgoingService = outgoingService
         self.resolver = resolver
         self.store = store
         self.execution = execution
-        self.logger = logger
+        self.diagnostics = diagnostics
     }
 }
 
@@ -46,12 +46,14 @@ extension ChatRequestDeliveryService: ChatRequestDelivering {
         while await isAwaitingDelivery(message.messageId) {
             do {
                 try await execution.backgroundExecutor.execute { try await self.deliver(message, session: session) }
-                logger.debug("Chat request \(message.messageId) finished after \(attempt + 1) attempt(s)")
+                diagnostics.issues.deliveryStalled.recordRecovery(for: message.messageId)
+                diagnostics.logger.debug("Chat request \(message.messageId) finished after \(attempt + 1) attempt(s)")
                 return
             } catch {
                 attempt += 1
                 let retryIn = Self.retryDelay(forAttempt: attempt)
-                logger.error("Chat request \(message.messageId) attempt \(attempt) failed: \(error)")
+                diagnostics.logger.error("Chat request \(message.messageId) attempt \(attempt) failed: \(error)")
+                diagnostics.issues.deliveryStalled.recordFailure(for: message.messageId, error: error, counters: [:])
 
                 do {
                     try await execution.clock.sleep(for: retryIn)
@@ -68,8 +70,13 @@ private extension ChatRequestDeliveryService {
         let size = try outgoingService.encodedSize(of: message, to: session.peer, ownKeyId: session.own)
 
         guard try await size <= resolver.maxStatementSize() else {
-            logger.error("Chat request \(message.messageId) is \(size) bytes; marking it undeliverable")
+            diagnostics.logger.error("Chat request \(message.messageId) is \(size) bytes; marking it undeliverable")
             try await store.markFailed(requestId: message.messageId)
+            diagnostics.issues.oversizedRequest.recordFailure(
+                for: message.messageId,
+                error: nil,
+                counters: ["size": size]
+            )
             return
         }
 
@@ -85,7 +92,8 @@ private extension ChatRequestDeliveryService {
         do {
             return try await store.isAwaitingDelivery(requestId: requestId)
         } catch {
-            logger.error("Chat request \(requestId) delivery state unreadable: \(error)")
+            diagnostics.logger.error("Chat request \(requestId) delivery state unreadable: \(error)")
+            diagnostics.issues.deliveryStateUnreadable.recordFailure(for: requestId, error: error, counters: [:])
             return false
         }
     }

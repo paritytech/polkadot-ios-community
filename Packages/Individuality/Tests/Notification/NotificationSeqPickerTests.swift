@@ -1,4 +1,5 @@
 import Foundation
+import IssueMonitoring
 import SubstrateSdk
 import Testing
 @testable import Individuality
@@ -52,7 +53,12 @@ struct NotificationSeqPickerTests {
     }
 
     private func makePicker() -> NotificationSeqPicker {
-        NotificationSeqPicker(sources: .test(repository: repository), reservations: reservations, logger: FakeLogger())
+        NotificationSeqPicker(
+            sources: .test(repository: repository),
+            reservations: reservations,
+            unsupportedRuntime: NoopIssueDiagnostic(),
+            logger: FakeLogger()
+        )
     }
 
     private func key(_ origin: PersonOrigin, seq: UInt8) -> NotificationSlot.Key {

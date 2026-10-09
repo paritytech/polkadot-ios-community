@@ -4,6 +4,7 @@ import DurableTransactions
 import DurableTransactionsTestSupport
 import ExtrinsicService
 import Foundation
+import IssueMonitoring
 import KeyDerivation
 import os
 import SubstrateSdk
@@ -179,12 +180,14 @@ extension NotificationSlotDependencies {
     static func test(
         repository: NotificationSlotRepositoryProtocol,
         origins: [PersonOrigin] = [NotificationPersons.full, NotificationPersons.lite],
-        period: UInt32 = 100
+        period: UInt32 = 100,
+        issueDiagnostics: NotificationSlotIssueDiagnostics = .make(reporter: NoopIssueReporter())
     ) -> NotificationSlotDependencies {
         NotificationSlotDependencies(
             chainId: "people",
             sources: .test(repository: repository, origins: origins),
             parameters: FixedNotificationParameters(period: period),
+            issueDiagnostics: issueDiagnostics,
             logger: FakeLogger()
         )
     }

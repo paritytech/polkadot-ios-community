@@ -6,24 +6,26 @@ protocol ChatRequestRenewing: Sendable {
 }
 
 final class ChatRequestRenewer: @unchecked Sendable {
+    private static let runKey = "run"
+
     private let store: ChatRequestRenewalStoring
     private let allocator: NotificationStatementAccountAllocating
     private let signers: ChatRequestDeliverySigning
     private let outgoingService: OutgoingChatRequestServicing
-    private let logger: LoggerProtocol
+    private let diagnostics: ChatRequestDiagnostics
 
     init(
         store: ChatRequestRenewalStoring,
         allocator: NotificationStatementAccountAllocating,
         signers: ChatRequestDeliverySigning,
         outgoingService: OutgoingChatRequestServicing,
-        logger: LoggerProtocol
+        diagnostics: ChatRequestDiagnostics
     ) {
         self.store = store
         self.allocator = allocator
         self.signers = signers
         self.outgoingService = outgoingService
-        self.logger = logger
+        self.diagnostics = diagnostics
     }
 }
 
@@ -35,12 +37,14 @@ extension ChatRequestRenewer: ChatRequestRenewing {
             let stale = candidates.filter { $0.period < period }
             let current = candidates.filter { $0.period >= period }
 
-            logger.debug("Chat request renewal: \(stale.count) stale, \(current.count) of period \(period)")
+            diagnostics.logger.debug("Chat request renewal: \(stale.count) stale, \(current.count) of period \(period)")
 
             try await renewStale(stale, into: period)
             await resendMissing(current)
+            diagnostics.issues.renewalFailing.recordRecovery(for: Self.runKey)
         } catch {
-            logger.error("Chat request renewal failed: \(error)")
+            diagnostics.logger.error("Chat request renewal failed: \(error)")
+            diagnostics.issues.renewalFailing.recordFailure(for: Self.runKey, error: error, counters: [:])
         }
     }
 }
@@ -54,6 +58,7 @@ private extension ChatRequestRenewer {
         }
 
         let claimed = try await Set(allocator.initiateAllocations(for: renewals.map(\.1.signer.accountId)))
+        reportIfStarved(renewals.filter { !claimed.contains($0.1.signer.accountId) }.map(\.0), period: period)
 
         await withTaskGroup(of: Void.self) { group in
             for (candidate, signer) in renewals where claimed.contains(signer.signer.accountId) {
@@ -63,15 +68,28 @@ private extension ChatRequestRenewer {
     }
 
     func publishOnceAllocated(_ candidate: ChatRequestRenewalCandidate, from signer: ChatRequestDeliverySigner) async {
+        let requestId = candidate.message.messageId
+
         do {
             try await allocator.awaitAllocated(
                 signer.signer.accountId,
                 timeout: ChatRequestDeliveryAccountResolver.allocationTimeout
             )
-            try await publish(candidate, from: signer)
-            try await store.updateAnonymousPeriod(requestId: candidate.message.messageId, period: signer.period)
         } catch {
-            logger.error("Chat request \(candidate.message.messageId) renewal into \(signer.period) failed: \(error)")
+            diagnostics.logger.error("Chat request \(requestId) slot for \(signer.period) not claimed: \(error)")
+            return
+        }
+
+        do {
+            try await publish(candidate, from: signer)
+            try await store.updateAnonymousPeriod(requestId: requestId, period: signer.period)
+        } catch {
+            diagnostics.logger.error("Chat request \(requestId) renewal into \(signer.period) failed: \(error)")
+            diagnostics.issues.renewalPublishFailed.recordFailure(
+                for: "\(requestId)-\(signer.period)",
+                error: error,
+                counters: [:]
+            )
         }
     }
 
@@ -89,9 +107,22 @@ private extension ChatRequestRenewer {
 
                 try await publish(candidate, from: signer)
             } catch {
-                logger.error("Chat request \(candidate.message.messageId) re-send failed: \(error)")
+                diagnostics.logger.error("Chat request \(candidate.message.messageId) re-send failed: \(error)")
             }
         }
+    }
+
+    // A copy is evicted once its period and the grace window pass, so a request skipped beyond that is lost.
+    func reportIfStarved(_ unclaimed: [ChatRequestRenewalCandidate], period: UInt32) {
+        let starved = unclaimed.filter { $0.period + 1 < period }.count
+
+        guard starved > 0 else { return }
+
+        diagnostics.issues.renewalStarved.recordFailure(
+            for: "\(period)",
+            error: nil,
+            counters: ["skipped": starved, "period": Int(period)]
+        )
     }
 
     func publish(_ candidate: ChatRequestRenewalCandidate, from signer: ChatRequestDeliverySigner) async throws {

@@ -60,13 +60,22 @@ struct ChatRequestRenewerTests {
         #expect(outgoingService.sentSigners.isEmpty)
     }
 
+    @Test func keepsOldPeriodWhenRenewedRequestFailsToPublish() async {
+        store.candidates = [candidate("request", period: 99)]
+        outgoingService.failures = [TestRenewalError()]
+
+        await makeRenewer().renew()
+
+        #expect(store.periodUpdates.isEmpty)
+    }
+
     private func makeRenewer() -> ChatRequestRenewer {
         ChatRequestRenewer(
             store: store,
             allocator: allocator,
             signers: signers,
             outgoingService: outgoingService,
-            logger: MockLogger()
+            diagnostics: .noop
         )
     }
 
@@ -94,3 +103,5 @@ struct ChatRequestRenewerTests {
         )
     }
 }
+
+private struct TestRenewalError: Error {}

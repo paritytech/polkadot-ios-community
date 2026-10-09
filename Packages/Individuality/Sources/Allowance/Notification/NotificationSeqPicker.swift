@@ -1,4 +1,5 @@
 import Foundation
+import IssueMonitoring
 import SDKLogger
 import SubstrateSdk
 
@@ -7,17 +8,25 @@ import SubstrateSdk
 final class NotificationSeqPicker: @unchecked Sendable {
     private let sources: NotificationSlotSources
     private let reservations: NotificationSeqReservations
+    private let unsupportedRuntime: IssueDiagnostic
     private let logger: SDKLoggerProtocol
 
-    init(sources: NotificationSlotSources, reservations: NotificationSeqReservations, logger: SDKLoggerProtocol) {
+    init(
+        sources: NotificationSlotSources,
+        reservations: NotificationSeqReservations,
+        unsupportedRuntime: IssueDiagnostic,
+        logger: SDKLoggerProtocol
+    ) {
         self.sources = sources
         self.reservations = reservations
+        self.unsupportedRuntime = unsupportedRuntime
         self.logger = logger
     }
 
     func freeSlots(period: UInt32, forTarget target: AccountId?) async throws -> [NotificationSlot] {
         guard try await sources.repository.isSupported() else {
             logger.warning("Notification slots are not supported by the runtime")
+            unsupportedRuntime.recordFailure(for: "runtime", error: nil, counters: [:])
             return []
         }
 

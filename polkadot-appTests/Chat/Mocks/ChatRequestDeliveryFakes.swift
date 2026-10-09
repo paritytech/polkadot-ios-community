@@ -1,4 +1,5 @@
 import Foundation
+import IssueMonitoring
 import MessageExchangeKit
 import os
 import StatementStore
@@ -94,5 +95,11 @@ final class InMemoryChatRequestDeliveryStore: ChatRequestDeliveryStoring, @unche
     func markFailed(requestId: String) async throws {
         failed.append(requestId)
         isAwaiting = false
+    }
+}
+
+extension ChatRequestDiagnostics {
+    static var noop: Self {
+        ChatRequestDiagnostics(logger: MockLogger(), issues: .make(reporter: NoopIssueReporter()))
     }
 }

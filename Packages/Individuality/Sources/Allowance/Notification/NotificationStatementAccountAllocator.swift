@@ -76,21 +76,29 @@ public struct NotificationSlotDependencies: @unchecked Sendable {
     let reservations: NotificationSeqReservations
     let serialQueue: SerialOperationQueue
     let parameters: NotificationParametersProviding
+    let issueDiagnostics: NotificationSlotIssueDiagnostics
     let logger: SDKLoggerProtocol
 
     public init(
         chainId: ChainId,
         sources: NotificationSlotSources,
         parameters: NotificationParametersProviding,
+        issueDiagnostics: NotificationSlotIssueDiagnostics,
         logger: SDKLoggerProtocol
     ) {
         let reservations = NotificationSeqReservations()
 
         self.chainId = chainId
-        picker = NotificationSeqPicker(sources: sources, reservations: reservations, logger: logger)
+        picker = NotificationSeqPicker(
+            sources: sources,
+            reservations: reservations,
+            unsupportedRuntime: issueDiagnostics.unsupportedRuntime,
+            logger: logger
+        )
         self.reservations = reservations
         serialQueue = SerialOperationQueue()
         self.parameters = parameters
+        self.issueDiagnostics = issueDiagnostics
         self.logger = logger
     }
 }

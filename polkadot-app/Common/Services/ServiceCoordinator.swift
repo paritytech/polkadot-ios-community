@@ -519,7 +519,8 @@ private extension ServiceCoordinator {
                     logger: Logger.shared
                 ),
                 notificationAllocator: notificationAllocator,
-                backgroundExecutor: backgroundExecutor
+                backgroundExecutor: backgroundExecutor,
+                issueReporter: IssueReportingFacade.shared
             ),
             backgroundExecutor: backgroundExecutor,
             logger: Logger.shared
