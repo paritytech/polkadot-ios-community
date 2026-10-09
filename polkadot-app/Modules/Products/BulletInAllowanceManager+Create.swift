@@ -56,7 +56,7 @@ extension BulletInAllowanceManager {
         }
 
         let chainTimeProvider = ChainTimeProvider(
-            chainId: AppConfig.Chains.bulletInChain,
+            chainId: AppConfig.Chains.usernameChain,
             chainRegistry: chainRegistry,
             storageRequestFactory: storageRequestFactory
         )
@@ -83,6 +83,7 @@ extension BulletInAllowanceManager {
             infoProvider: infoProvider,
             allocator: allocator,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
+            issueDiagnostics: .make(flow: "bulletin-allowance", reporter: IssueReportingFacade.shared),
             logger: Logger.shared
         )
     }

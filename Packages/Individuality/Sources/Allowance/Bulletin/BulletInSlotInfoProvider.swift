@@ -10,6 +10,7 @@ import SubstrateSdkExt
 import SubstrateOperation
 import StructuredConcurrency
 import AsyncExtensions
+import IssueMonitoring
 
 public struct BulletInFreeSlotInfo {
     public let counter: UInt8
@@ -59,6 +60,10 @@ public protocol BulletInSlotInfoProviding {
 enum BulletInSlotInfoProviderError: Error {
     case noAuthorization
     case authorizationWaitTimeout
+}
+
+extension BulletInSlotInfoProviderError: ReportableError {
+    var reportCode: String { "\(self)" }
 }
 
 public final class BulletInSlotInfoProvider {
