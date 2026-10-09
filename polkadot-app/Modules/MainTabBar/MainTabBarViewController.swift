@@ -81,6 +81,10 @@ final class MainTabBarViewController: UIViewController {
             self?.presenter.didRequestContentPanel(for: action)
         }
 
+        chromeController.onConnectionStatusTapped = { [weak self] in
+            self?.presenter.didRequestConnectionStatus()
+        }
+
         chromeController.onChipTapped = { [weak self] id in
             guard let self, let tab = browserCoordinator.tabs.first(where: { $0.id == id }) else {
                 return
@@ -340,10 +344,6 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
     func showSPATabs(_ viewModels: [SPATabChipViewModel]) {
         spaChipViewModels = viewModels
         applyChips()
-    }
-
-    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction) {
-        chromeController.setContentPanel(configuration, for: action)
     }
 
     func showScanPanel() {

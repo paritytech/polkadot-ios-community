@@ -49,6 +49,11 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
             view?.controller.present(search.controller, animated: true)
         }
     #endif
+
+    func showConnectionStatus(_ viewModel: ConnectionStatusSheetViewModel, from view: MainTabBarViewProtocol?) {
+        let sheet = ConnectionStatusSheetViewFactory.createView(viewModel: viewModel)
+        view?.controller.present(sheet, animated: true)
+    }
 }
 
 private extension MainTabBarWireframe {
