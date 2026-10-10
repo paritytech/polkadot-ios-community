@@ -84,7 +84,13 @@ final class MainTabBarViewController: UIViewController {
         }
 
         chromeController.onConnectionStatusTapped = { [weak self] in
+            self?.chromeController.setPanel(nil, animated: true)
             self?.presenter.didRequestConnectionStatus()
+        }
+
+        chromeController.onSettingsTapped = { [weak self] in
+            self?.chromeController.setPanel(nil, animated: true)
+            self?.presenter.didRequestSettings()
         }
 
         chromeController.onChipTapped = { [weak self] id in
@@ -356,6 +362,10 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
         statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
         let width = max(1, ChainConnectionStatusBarView.ringsWidth(count: models.count))
         chainStatusAnchorWidth?.update(offset: width)
+    }
+
+    func makeSettingsNavigation() -> UINavigationController? {
+        viewFactory.makeSettingsNavigation()
     }
 }
 
