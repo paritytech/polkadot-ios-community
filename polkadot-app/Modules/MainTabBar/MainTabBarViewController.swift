@@ -45,6 +45,8 @@ final class MainTabBarViewController: UIViewController {
         private weak var scanPanel: ScanPanelViewController?
     #endif
 
+    private weak var scanPanelController: (UIViewController & ScanPanelScannerControlling)?
+
     init(
         presenter: MainTabBarPresenterProtocol,
         viewFactory: TabFactoryProtocol,
@@ -96,6 +98,10 @@ final class MainTabBarViewController: UIViewController {
                 )
             }
         #endif
+
+        chromeController.onCenterPanelDidChangeOpen = { [weak self] isOpen in
+            self?.scanPanelController?.setCaptureActive(isOpen)
+        }
 
         chromeController.onSelect = { [weak self] index, isReselection in
             self?.handleSelection(index: index, isReselection: isReselection)
@@ -392,6 +398,8 @@ extension MainTabBarViewController {
 
     func makeScanPanel() -> UIViewController? {
         let controller = viewFactory.makeScanController()
+        scanPanelController = controller
+        controller?.setCaptureActive(false)
 
         #if FEATURE_INPUT
             // Opening the chat selects its tab, and tab selection already closes the panel, so this
