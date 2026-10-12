@@ -90,9 +90,13 @@ enum CoinageScene {
 
     /// Reads the field's live spring values rather than the layout's targets, so what is drawn is
     /// wherever each coin has actually got to.
+    /// `window` is how far down the field the drawing surface starts: the surface is one screen
+    /// tall and pinned to the visible part of a grid, so a coin is drawn that much higher than it
+    /// is laid out.
     static func batches(
         for field: CoinageCoinField,
-        designs: [CoinageAssetStore.Design]
+        designs: [CoinageAssetStore.Design],
+        window: CGFloat = 0
     ) -> [CoinageMetalRenderer.Batch] {
         var batches: [String: CoinageMetalRenderer.Batch] = [:]
         var order: [String] = []
@@ -111,10 +115,39 @@ enum CoinageScene {
                 order.append(key)
             }
 
-            batches[key]?.instances.append(instance(member, design: design, distance: distance))
+            batches[key]?.instances.append(
+                instance(member, design: design, distance: distance, window: window)
+            )
         }
 
         return order.compactMap { batches[$0] }
+    }
+
+    /// Which coin is under a touch, reading where each one has actually got to rather than where
+    /// it is heading. The nearest the viewer wins where two overlap.
+    ///
+    /// A coin turned edge-on covers a point or two, so the touch is taken against a floor wide
+    /// enough to land on: a finger cannot be expected to hit a line.
+    static func coin(at point: CGPoint, in field: CoinageCoinField) -> String? {
+        field.members
+            .filter { contains($0, point) }
+            .max { $0.channels.lift.value < $1.channels.lift.value }?
+            .coin.id
+    }
+
+    /// The least a coin is taken to cover across, so an edge-on one can still be tapped.
+    static let touchFloor: CGFloat = 16
+
+    /// Only the face counts: the edge of a turned coin is a few points at most, under the floor.
+    private static func contains(_ member: CoinageCoinField.Member, _ point: CGPoint) -> Bool {
+        let channels = member.channels
+        let half = channels.height.value / 2
+        let faceWidth = geometry(forExponent: member.coin.exponent).faceWidth
+        let visible = half * faceWidth * abs(cos(channels.turn.value))
+        let reach = max(visible, touchFloor / 2)
+
+        return abs(point.x - channels.centreX.value) <= reach
+            && abs(point.y - channels.centreY.value) <= half
     }
 }
 
@@ -124,7 +157,8 @@ private extension CoinageScene {
     static func instance(
         _ member: CoinageCoinField.Member,
         design: CoinageAssetStore.Design,
-        distance: CGFloat
+        distance: CGFloat,
+        window: CGFloat
     ) -> CoinageMetalRenderer.Instance {
         let palette = metals(forExponent: member.coin.exponent)
         let channels = member.channels
@@ -135,7 +169,7 @@ private extension CoinageScene {
             // World y runs up, so screen y is negated here and never in the shader.
             position: SIMD4(
                 Float(channels.centreX.value),
-                Float(-channels.centreY.value),
+                Float(window - channels.centreY.value),
                 Float(channels.lift.value),
                 Float(channels.height.value)
             ),
@@ -155,7 +189,7 @@ private extension CoinageScene {
             effects: SIMD4(
                 reeds(forExponent: member.coin.exponent),
                 Float(channels.luster.value * landing * landing),
-                0,
+                Float(channels.recede.value),
                 Float(channels.calm.value)
             ),
             // Streaks follow the animated wear, so a coin visibly cleans up as its ring fills.
