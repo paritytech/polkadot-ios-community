@@ -132,7 +132,19 @@ extension CoinageAssetStore {
                 raw.native.envSharpen, raw.material.haze, raw.material.polish,
                 raw.material.tone, raw.material.grime, raw.material.engraveDark,
                 raw.material.frost, raw.material.wallRough, raw.material.aaVariance,
-                raw.material.aaThreshold, raw.material.reliefBias
+                raw.material.aaThreshold, raw.material.reliefBias,
+                Tuning.ambient, Tuning.reliefGain, Tuning.roomLift
+            ] + Tuning.panels.prefix(Tuning.panelCount).flatMap(Self.packed)
+        }
+
+        /// A panel as the shader reads it: unit direction, cosine of the half angle, gain.
+        private static func packed(_ panel: Tuning.Panel) -> [Float] {
+            let direction = panel.direction
+            let length = max((direction * direction).sum().squareRoot(), 1e-6)
+
+            return [
+                direction.x / length, direction.y / length, direction.z / length,
+                cos(panel.halfAngle), panel.gain
             ]
         }
 
