@@ -43,8 +43,6 @@ final class MainTabBarViewController: UIViewController {
     /// The live scan panel, read for its declared height. Nil while the centre control has no content.
     private weak var scanPanel: ScanPanelViewController?
 
-    private weak var scanPanelController: (UIViewController & ScanPanelScannerControlling)?
-
     init(
         presenter: MainTabBarPresenterProtocol,
         viewFactory: TabFactoryProtocol,
@@ -85,7 +83,7 @@ final class MainTabBarViewController: UIViewController {
         // here can race the preview layer's session attach.
         chromeController.onCenterPanelDidChangeOpen = { [weak self] isOpen in
             guard isOpen else { return }
-            self?.scanPanelController?.setCaptureActive(true)
+            self?.scanPanel?.setCaptureActive(true)
         }
 
         chromeController.onSelect = { [weak self] index, isReselection in
@@ -383,12 +381,11 @@ extension MainTabBarViewController {
 
     func makeScanPanel() -> UIViewController? {
         let controller = viewFactory.makeScanController()
-        scanPanelController = controller
+        scanPanel = controller
         controller?.setCaptureActive(false)
 
         // Opening the chat selects its tab, and tab selection already closes the panel, so this
         // path does not close it again.
-        scanPanel = controller
         controller?.onChatFound = { [weak self] model in
             self?.presenter.didFindChat(model)
         }
