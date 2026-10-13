@@ -10,8 +10,6 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
     func setLabels(visible: Bool)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
     func showChainStatus(_ rows: [ChainConnectionStatusViewModel])
-    /// A fresh settings navigation stack each call, so a presentation never inherits the last one's pages.
-    func makeSettingsNavigation() -> UINavigationController?
 }
 
 @MainActor
@@ -73,12 +71,12 @@ enum TabBarItem: String, CaseIterable {
 }
 
 extension TabBarItem {
-    func makeBarItem(showsLabel: Bool) -> DSTabBarItem {
-        DSTabBarItem(
+    func makeBarItem(showsLabel: Bool) -> TabBarBarItem {
+        TabBarBarItem(
             icon: image,
             title: showsLabel ? title : nil,
             accessibilityLabel: title,
-            accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue
+            accessibilityID: AccessibilityID.Tab.item(for: self)
         )
     }
 }
