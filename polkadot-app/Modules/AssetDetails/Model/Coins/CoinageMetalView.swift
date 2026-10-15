@@ -125,8 +125,6 @@ final class CoinageMetalView: MTKView {
         didSet { swipes.forEach { $0.isEnabled = listensForSwipes } }
     }
 
-    private weak var deferringScrollView: UIScrollView?
-
     override init(frame: CGRect, device: MTLDevice?) {
         // Only a flick down, which unfurls the strip. A flick up used to gather the grid back and
         // collided with scrolling up through it; the grid closes on a tap on empty ground instead.
@@ -144,6 +142,7 @@ final class CoinageMetalView: MTKView {
 
         for swipe in swipes {
             swipe.addTarget(self, action: #selector(swiped))
+            swipe.delegate = self
             addGestureRecognizer(swipe)
         }
     }
@@ -180,37 +179,23 @@ final class CoinageMetalView: MTKView {
         metalLayer.presentsWithTransaction = false
     }
 
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-
-        guard window != nil, let scrollView = enclosingScrollView, scrollView !== deferringScrollView else {
-            return
-        }
-
-        for swipe in swipes {
-            scrollView.panGestureRecognizer.require(toFail: swipe)
-        }
-
-        deferringScrollView = scrollView
-    }
-
-    private var enclosingScrollView: UIScrollView? {
-        var ancestor = superview
-
-        while let current = ancestor {
-            if let scrollView = current as? UIScrollView { return scrollView }
-
-            ancestor = current.superview
-        }
-
-        return nil
-    }
-
     @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
         onTap?(recognizer.location(in: self))
     }
 
     @objc private func swiped(_: UISwipeGestureRecognizer) {
         onSwipe?(.downward)
+    }
+}
+
+extension CoinageMetalView: UIGestureRecognizerDelegate {
+    /// The scroll view's pan waits for a flick on the coins to fail, and only for a touch that
+    /// is on them. Asking the pan outright, with `require(toFail:)`, held every touch on the
+    /// page until the swipe gave up, and a quick tap on a switch further down was dropped.
+    func gestureRecognizer(
+        _: UIGestureRecognizer,
+        shouldBeRequiredToFailBy other: UIGestureRecognizer
+    ) -> Bool {
+        other is UIPanGestureRecognizer && other.view is UIScrollView
     }
 }
