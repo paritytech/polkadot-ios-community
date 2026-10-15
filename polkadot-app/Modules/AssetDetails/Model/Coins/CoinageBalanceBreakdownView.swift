@@ -7,6 +7,8 @@ import SwiftUI
 /// rules under the strip's runs.
 struct CoinageBalanceBreakdownView: View {
     let breakdown: CoinageBalanceBreakdownViewModel
+    /// Which coins the denominations are drawn as. Only the debug switch ever changes it.
+    var coinSet: CoinageScene.CoinSet = .shipped
 
     @State private var showDetails = false
     /// The coin picked out by a tap, if any, drawn large with its trace beside it.
@@ -134,6 +136,7 @@ struct CoinageBalanceBreakdownView: View {
             coins: breakdown.strip,
             isExpanded: showDetails,
             focus: focus,
+            coinSet: coinSet,
             metrics: $coinMetrics,
             onTap: { tapped($0, scroll: scroll) },
             onSwipe: { swiped($0, scroll: scroll) }

@@ -82,6 +82,27 @@
         }
     }
 
+    /// Plain or varied coins, side by side: plain ships, varied is kept to compare against.
+    struct CoinageCoinSetSwitch: View {
+        @Binding var set: CoinageScene.CoinSet
+
+        var body: some View {
+            HStack(spacing: DSSpacings.small) {
+                Text(verbatim: "Coins")
+                    .typography(.bodySmall)
+                    .foregroundStyle(Color.fgPrimary)
+
+                Picker(selection: $set) {
+                    Text(verbatim: "Plain").tag(CoinageScene.CoinSet.plain)
+                    Text(verbatim: "Varied").tag(CoinageScene.CoinSet.varied)
+                } label: {
+                    Text(verbatim: "Coins")
+                }
+                .pickerStyle(.segmented)
+            }
+        }
+    }
+
     // MARK: - Generators
 
     enum CoinageTestData {

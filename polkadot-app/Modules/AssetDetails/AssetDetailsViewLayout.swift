@@ -13,6 +13,8 @@ struct AssetDetailsView: View {
     #if TESTNET_FEATURE
         /// Which holdings the coins draw, for reviewing the depiction. Debug builds only.
         @State private var testDataMode = CoinageTestDataMode.live
+        /// Plain or varied coins, while the two are being compared. Debug builds only.
+        @State private var coinSet = CoinageScene.CoinSet.shipped
     #endif
 
     init(
@@ -63,7 +65,8 @@ struct AssetDetailsView: View {
                 // sets are most useful.
                 if viewModel.balanceCardModel != nil {
                     CoinageBalanceBreakdownView(
-                        breakdown: testDataMode.applied(to: viewModel.coinageBreakdown ?? .testDataPlaceholder)
+                        breakdown: testDataMode.applied(to: viewModel.coinageBreakdown ?? .testDataPlaceholder),
+                        coinSet: coinSet
                     )
                 }
 
@@ -76,6 +79,8 @@ struct AssetDetailsView: View {
                 }
 
                 CoinageTestDataSwitch(mode: $testDataMode)
+
+                CoinageCoinSetSwitch(set: $coinSet)
 
                 testnetTopUpButton()
             #else

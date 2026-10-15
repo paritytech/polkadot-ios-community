@@ -46,6 +46,7 @@ struct CoinageCoinsView: UIViewRepresentable {
     let coins: [CoinageScene.Coin]
     let isExpanded: Bool
     var focus: CoinageArrangement.Focus?
+    var coinSet: CoinageScene.CoinSet = .shipped
     @Binding var metrics: Metrics
     var stripHeight: CGFloat = CoinageStripLayout.Options().height
     /// The coin under a tap, or `nil` for a tap on empty ground.
@@ -112,6 +113,7 @@ struct CoinageCoinsView: UIViewRepresentable {
     func updateUIView(_: CoinageFieldView, context: Context) {
         context.coordinator.onTap = onTap
         context.coordinator.onSwipe = onSwipe
+        context.coordinator.coinSet = coinSet
         context.coordinator.update(coins: coins, isExpanded: isExpanded, focus: focus)
     }
 
@@ -134,6 +136,17 @@ extension CoinageCoinsView {
 
         var onTap: (String?) -> Void = { _ in }
         var onSwipe: (Swipe) -> Void = { _ in }
+
+        /// Which coins the denominations are drawn as. A change is a relayout: the outlines
+        /// decide how wide the strip is.
+        var coinSet: CoinageScene.CoinSet = .shipped {
+            didSet {
+                guard coinSet != oldValue else { return }
+
+                laidOut = .zero
+                run()
+            }
+        }
 
         var window: CGFloat = 0 {
             didSet { if window != oldValue { run() } }
@@ -244,7 +257,12 @@ extension CoinageCoinsView {
 
             let moved = advance()
 
-            let batches = CoinageScene.batches(for: field, designs: renderer.store.designs, window: window)
+            let batches = CoinageScene.batches(
+                for: field,
+                designs: renderer.store.designs,
+                window: window,
+                set: coinSet
+            )
 
             renderer.draw(
                 batches,
@@ -355,7 +373,8 @@ private extension CoinageCoinsView.Coordinator {
             focus: anchored,
             area: CGSize(width: width, height: gridBudget),
             designs: designs,
-            stripHeight: stripHeight
+            stripHeight: stripHeight,
+            set: coinSet
         )
 
         field.retarget(

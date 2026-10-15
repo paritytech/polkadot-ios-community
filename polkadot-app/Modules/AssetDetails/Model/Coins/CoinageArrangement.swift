@@ -69,11 +69,12 @@ enum CoinageArrangement {
         focus: Focus? = nil,
         area: CGSize,
         designs: [CoinageAssetStore.Design],
-        stripHeight: CGFloat
+        stripHeight: CGFloat,
+        set: CoinageScene.CoinSet = .shipped
     ) -> Result {
         let laid =
             switch arrangement {
-            case .strip: strip(coins, width: area.width, designs: designs, height: stripHeight)
+            case .strip: strip(coins, width: area.width, designs: designs, height: stripHeight, set: set)
             case .grid: grid(coins, area: area, designs: designs)
             }
 
@@ -97,7 +98,8 @@ private extension CoinageArrangement {
         _ coins: [CoinageScene.Coin],
         width: CGFloat,
         designs: [CoinageAssetStore.Design],
-        height: CGFloat
+        height: CGFloat,
+        set: CoinageScene.CoinSet
     ) -> Result {
         var options = CoinageStripLayout.Options()
         options.height = height
@@ -106,7 +108,7 @@ private extension CoinageArrangement {
             coins.map { coin in
                 CoinageStripLayout.Coin(
                     size: CoinageCoinDesign.design(forExponent: coin.exponent).size,
-                    width: CoinageScene.geometry(forExponent: coin.exponent).faceWidth,
+                    width: CoinageScene.geometry(forExponent: coin.exponent, set: set).faceWidth,
                     thickness: CGFloat(design(for: coin, in: designs)?.thickness ?? 0.075),
                     partition: coin.partition
                 )
