@@ -1,4 +1,4 @@
-#if TESTNET_FEATURE
+#if DEBUG
     import DesignSystem
     import PolkadotUI
     import SwiftUI

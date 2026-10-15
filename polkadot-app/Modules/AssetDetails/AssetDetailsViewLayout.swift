@@ -10,7 +10,7 @@ struct AssetDetailsView: View {
     var overscroll: CGFloat = 0
     var onCollapse: (() -> Void)?
 
-    #if TESTNET_FEATURE
+    #if DEBUG
         /// Which holdings the coins draw, for reviewing the depiction. Debug builds only.
         @State private var testDataMode = CoinageTestDataMode.live
         /// Plain or varied coins, while the two are being compared. Debug builds only.
@@ -60,7 +60,7 @@ struct AssetDetailsView: View {
             } else {
                 actions()
             }
-            #if TESTNET_FEATURE
+            #if DEBUG
                 // The card stays on a wallet that holds no coinage, which is where the test
                 // sets are most useful.
                 if viewModel.balanceCardModel != nil {
@@ -69,7 +69,14 @@ struct AssetDetailsView: View {
                         coinSet: coinSet
                     )
                 }
+            #else
+                if let breakdown = viewModel.coinageBreakdown,
+                   viewModel.balanceCardModel != nil {
+                    CoinageBalanceBreakdownView(breakdown: breakdown)
+                }
+            #endif
 
+            #if DEBUG || TESTNET_FEATURE
                 HStack {
                     VStack { Divider().background(Color.fgPrimary) }
                     Text(verbatim: "Debug features")
@@ -77,17 +84,16 @@ struct AssetDetailsView: View {
                         .foregroundStyle(Color.fgPrimary)
                     VStack { Divider().background(Color.fgPrimary) }
                 }
+            #endif
 
+            #if DEBUG
                 CoinageTestDataSwitch(mode: $testDataMode)
 
                 CoinageCoinSetSwitch(set: $coinSet)
+            #endif
 
+            #if TESTNET_FEATURE
                 testnetTopUpButton()
-            #else
-                if let breakdown = viewModel.coinageBreakdown,
-                   viewModel.balanceCardModel != nil {
-                    CoinageBalanceBreakdownView(breakdown: breakdown)
-                }
             #endif
         }
     }
