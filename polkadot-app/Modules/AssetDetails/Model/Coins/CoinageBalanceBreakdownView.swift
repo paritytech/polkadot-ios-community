@@ -11,6 +11,8 @@ struct CoinageBalanceBreakdownView: View {
     @State private var showDetails = false
     /// The coin picked out by a tap, if any, drawn large with its trace beside it.
     @State private var focusedCoin: String?
+    /// Whether the picked coin's quality is being explained.
+    @State private var isExplainingQuality = false
     /// How the coins came out, reported by the view as it lays them out.
     @State private var coinMetrics = CoinageCoinsView.Metrics()
     /// How tall the coins are actually drawn, as opposed to how much room the card gives them.
@@ -114,6 +116,7 @@ struct CoinageBalanceBreakdownView: View {
         withAnimation(.easeInOut(duration: Self.collapse)) {
             showDetails.toggle()
             focusedCoin = nil
+            isExplainingQuality = false
 
             guard isCollapsing else { return }
 
@@ -146,7 +149,10 @@ struct CoinageBalanceBreakdownView: View {
             return nil
         }
 
-        return CoinageArrangement.Focus(id: focusedCoin, band: CoinageTraceView.height(for: trace))
+        return CoinageArrangement.Focus(
+            id: focusedCoin,
+            band: CoinageTraceView.height(for: trace)
+        )
     }
 
     /// In the strip any tap unfurls the coins: they are too small and too close to pick one out
@@ -164,6 +170,7 @@ struct CoinageBalanceBreakdownView: View {
         withAnimation(.easeInOut(duration: Self.collapse)) {
             if let coin, coin != focusedCoin {
                 focusedCoin = coin
+                isExplainingQuality = false
             } else {
                 unfocus()
             }
@@ -183,6 +190,7 @@ struct CoinageBalanceBreakdownView: View {
         guard let focus else { return }
 
         focusedCoin = nil
+        isExplainingQuality = false
         coinMetrics.isMoving = true
 
         // Only a band that sat below the coins made the field taller; one floating over them did
@@ -196,11 +204,14 @@ struct CoinageBalanceBreakdownView: View {
     @ViewBuilder
     private var tracePanel: some View {
         if let focus, let trace = breakdown.traces[focus.id] {
-            CoinageTraceView(trace: trace)
+            CoinageTraceView(trace: trace, isExplainingQuality: $isExplainingQuality)
                 .padding(.horizontal, DSSpacings.small)
-                .frame(height: focus.band, alignment: .top)
-                // The band floats over the faded coins, so the text gets a ground of its own.
+                // The box wraps what it holds and grows downward while the quality is being
+                // explained. The band it sits in is placed for the box at its tallest, so the box
+                // never has to move; it only reaches further down, and never off the screen.
                 .background(.bgSurfaceContainer.opacity(0.92), in: RoundedRectangle(cornerRadius: DSRadii.medium))
+                .animation(.easeInOut(duration: 0.2), value: isExplainingQuality)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, CoinageArrangement.focusDiameter + CoinageArrangement.focusInset * 2)
                 .offset(y: coinMetrics.focusTop ?? 0)
                 .transition(.opacity)

@@ -1415,7 +1415,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hops since last clearing: %lld"
+            "value" : "Prior owners: %lld"
           }
         }
       }
@@ -1426,7 +1426,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clearing quality: %@"
+            "value" : "Coin Quality: %@"
           }
         }
       }
@@ -1460,6 +1460,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "High"
+          }
+        }
+      }
+    },
+    "coinageTraceQualityInfo" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The degree to which the coin is indistinguishable from other coins"
+          }
+        }
+      }
+    },
+    "coinageTraceQualityInfoAside" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(also known as fungibility)"
           }
         }
       }

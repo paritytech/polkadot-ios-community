@@ -127,7 +127,7 @@ struct CoinageTraceTests {
     func bandFitsTheCoin() {
         let trace = CoinageCoinTrace(value: "", partition: .ready, hops: 3, quality: .fair)
 
-        #expect(CoinageTraceView.height(for: trace) == CoinageArrangement.focusBandMinimum)
+        #expect(CoinageTraceView.height(for: trace) >= CoinageArrangement.focusBandMinimum)
     }
 }
 
