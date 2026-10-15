@@ -32,12 +32,4 @@ public extension MotionShineParameters {
         width: 0.18,
         center: 0.35
     )
-
-    static let balanceCardIcon = MotionShineParameters(
-        intensity: 1.0,
-        dimming: 0,
-        width: 0.12,
-        length: 0.25,
-        center: 0.5
-    )
 }
