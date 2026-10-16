@@ -8,7 +8,7 @@ import SwiftUI
 
 /// What the shader has to know about the picture: its size in pixels, for the texel step the
 /// relief is measured over, and where the brass button is.
-public struct WalletLeatherImage {
+public struct WalletLeatherImage: Sendable {
     public let pixelSize: CGSize
     /// The button's centre as a fraction of the picture, and its radius as a fraction of the width.
     public let buttonCentre: CGPoint
@@ -50,7 +50,7 @@ struct WalletLeatherModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isActive {
             content
-                .visualEffect { [tilt] content, proxy in
+                .visualEffect { [image, tilt] content, proxy in
                     content.layerEffect(
                         Self.shader(size: proxy.size, image: image, tilt: tilt),
                         maxSampleOffset: CGSize(width: 4, height: 4)
@@ -72,7 +72,7 @@ struct WalletLeatherModifier: ViewModifier {
         )
     }
 
-    private static func shader(size: CGSize, image: WalletLeatherImage, tilt: CGPoint) -> Shader {
+    private nonisolated static func shader(size: CGSize, image: WalletLeatherImage, tilt: CGPoint) -> Shader {
         ShaderLibrary.bundle(.module).walletLeather(
             .float2(Float(size.width), Float(size.height)),
             .float2(Float(image.pixelSize.width), Float(image.pixelSize.height)),
