@@ -89,7 +89,7 @@ Services are set up on app launch via ServiceCoordinator, throttled when backgro
 ### Build Configuration Guards
 - Sentry must not run in unit tests or preview builds
 - Guard with environment checks in `AppDelegate` initialization
-- Build scripts excluded for Debug configuration
+- Build scripts excluded for Debug configuration, except lint and check phases that only print warnings
 - Build phase scripts for symbol upload (Sentry dSYMs) must exclude Debug
 
 ## Seams

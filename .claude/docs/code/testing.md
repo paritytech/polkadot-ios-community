@@ -158,7 +158,7 @@ Rules:
 
 1. **Sentry must not run in tests** — guard with environment check
 2. **Test actual behavior, not implementation** — mock boundaries, not internals
-3. **Build scripts excluded for Debug** — CI scripts should be gated per config
+3. **Build scripts excluded for Debug** — CI scripts should be gated per config; lint and check phases that only print warnings run in every configuration
 
 ## Debugging
 

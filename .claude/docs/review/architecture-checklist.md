@@ -134,7 +134,7 @@ Walk through each applicable section. For each rule violated, note the severity 
 - [ ] Structured concurrency used for new code (Operation-iOS migrated when touched)
 - [ ] All user-visible strings localized
 - [ ] Build config guards (Sentry not running in tests/previews)
-- [ ] Build phase scripts exclude Debug configuration
+- [ ] Build phase scripts exclude Debug configuration, except lint and check phases that only print warnings
 - [ ] File size reasonable (<500 lines per file)
 - [ ] Type aliases used for domain concepts (ProductId, not String)
 - [ ] API boundary params parsed into typed models immediately

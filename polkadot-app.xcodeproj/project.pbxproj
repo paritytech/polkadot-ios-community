@@ -473,6 +473,7 @@
 				A5C0DE010000000000000001 /* Generate Secrets */,
 				A574D8672E93FF2100BA6060 /* Run Swiftformat */,
 				A574D8682E93FF3700BA6060 /* Run Swiftlint */,
+				A5C0DE010000000000000002 /* Check Hardcoded Strings */,
 				A574D8662E93F8AE00BA6060 /* Google info */,
 				A5EDAAD12E93ECAF005DDA62 /* Sources */,
 				A5EDAAD22E93ECAF005DDA62 /* Frameworks */,
@@ -707,6 +708,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ \"$RUN_IN_CI\" = \"true\" ]; then\n    echo \"Skipping secrets generation in CI\"\n    exit 0\nfi\n\n\"${SRCROOT}/Runscripts/generate_secrets.sh\"\n";
+		};
+		A5C0DE010000000000000002 /* Check Hardcoded Strings */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Check Hardcoded Strings";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"${SRCROOT}/Runscripts/check_hardcoded_strings.py\" \"${SRCROOT}\"\n";
 		};
 		F06E600066544128849BC813 /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;

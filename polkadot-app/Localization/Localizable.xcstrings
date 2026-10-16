@@ -1519,6 +1519,17 @@
         }
       }
     },
+    "currencyPicker.searchPlaceholder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search"
+          }
+        }
+      }
+    },
     "deposit.copy.action" : {
       "extractionState" : "manual",
       "localizations" : {
