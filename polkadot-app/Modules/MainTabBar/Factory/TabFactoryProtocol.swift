@@ -6,7 +6,11 @@ import Keystore_iOS
 protocol TabFactoryProtocol {
     func view(for item: TabBarItem) -> UIViewController?
     func makeSettingsNavigation() -> UINavigationController?
-    func makeScanController() -> ScanPanelViewController?
+    #if FEATURE_INPUT
+        func makeScanController() -> ScanPanelViewController?
+    #else
+        func makeScanController() -> ScanPanelPlainViewController?
+    #endif
 }
 
 final class TabFactory: TabFactoryProtocol {
@@ -39,6 +43,8 @@ final class TabFactory: TabFactoryProtocol {
                 createWalletTab()
             case .browse:
                 createBrowseTab()
+            case .settings:
+                makeSettingsNavigation()
             }
 
         return mainContentVC
@@ -60,25 +66,38 @@ final class TabFactory: TabFactoryProtocol {
         return navigation
     }
 
-    func makeScanController() -> ScanPanelViewController? {
-        let scannerView = WalletQRScanViewFactory.createView(for: scanResultHandler, presentation: .embedded)
+    #if FEATURE_INPUT
+        func makeScanController() -> ScanPanelViewController? {
+            let scannerView = WalletQRScanViewFactory.createView(for: scanResultHandler, presentation: .embedded)
 
-        guard let scanner = scannerView?.controller as? (UIViewController & ScanPanelScannerControlling) else {
-            return nil
+            guard let scanner = scannerView?.controller as? (UIViewController & ScanPanelScannerControlling) else {
+                return nil
+            }
+
+            guard let search = SearchContactModuleFactory.makeModule() else {
+                return nil
+            }
+
+            let controller = ScanPanelViewController(scannerController: scanner, presenter: search.presenter)
+            search.presenter.view = controller
+            search.wireframe.onChatFound = { [weak controller] model in
+                controller?.onChatFound?(model)
+            }
+
+            return controller
         }
+    #else
+        func makeScanController() -> ScanPanelPlainViewController? {
+            guard let scanner = WalletQRScanViewFactory.createView(
+                for: scanResultHandler,
+                presentation: .embedded
+            )?.controller as? (UIViewController & ScanPanelScannerControlling) else {
+                return nil
+            }
 
-        guard let search = SearchContactModuleFactory.makeModule() else {
-            return nil
+            return ScanPanelPlainViewController(scannerController: scanner)
         }
-
-        let controller = ScanPanelViewController(scannerController: scanner, presenter: search.presenter)
-        search.presenter.view = controller
-        search.wireframe.onChatFound = { [weak controller] model in
-            controller?.onChatFound?(model)
-        }
-
-        return controller
-    }
+    #endif
 }
 
 // MARK: Tab content

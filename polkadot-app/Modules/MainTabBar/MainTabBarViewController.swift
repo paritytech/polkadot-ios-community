@@ -34,8 +34,12 @@ final class MainTabBarViewController: UIViewController {
     private var controllerByItem: [TabBarItem: UIViewController] = [:]
     var spaChipViewModels: [SPATabChipViewModel] = []
 
-    /// The live scan panel, read for its declared height. Nil while the centre control has no content.
-    private weak var scanPanel: ScanPanelViewController?
+    /// The live scan panel. Nil while the centre control has no content.
+    #if FEATURE_INPUT
+        private weak var scanPanel: ScanPanelViewController?
+    #else
+        private weak var scanPanel: ScanPanelPlainViewController?
+    #endif
 
     init(
         presenter: MainTabBarPresenterProtocol,
@@ -67,11 +71,18 @@ final class MainTabBarViewController: UIViewController {
 
         chromeController.statusStripAnchorProvider = { [weak self] in self?.chainStatusAnchorGuide }
         chromeController.makeCenterContent = { [weak self] in self?.makeScanPanel() }
-        chromeController.contentHeightForCenterPanel = { [weak self] width in
-            self?.scanPanel?.declaredContentHeight(forPanelWidth: width)
-                ?? .fits(ScanPanelViewLayout.declaredHeight(forWidth: width))
-        }
-        chromeController.onCenterPanelWillClose = { [weak self] in self?.scanPanel?.prepareForClose() }
+        #if FEATURE_INPUT
+            chromeController.contentHeightForCenterPanel = { [weak self] width in
+                self?.scanPanel?.declaredContentHeight(forPanelWidth: width)
+                    ?? .fits(ScanPanelViewLayout.declaredHeight(forWidth: width))
+            }
+            chromeController.onCenterPanelWillClose = { [weak self] in self?.scanPanel?.prepareForClose() }
+        #else
+            chromeController.contentHeightForCenterPanel = { width in
+                .fits(ScanPanelPlainViewLayout.declaredHeight(forWidth: width))
+            }
+            chromeController.onCenterPanelWillClose = { [weak self] in self?.scanPanel?.setCaptureActive(false) }
+        #endif
 
         // Close does not stop capture: the panel's teardown releases the camera, and an explicit stop
         // here can race the preview layer's session attach.
@@ -357,6 +368,7 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
 
     func showChainStatus(_ models: [ChainConnectionStatusViewModel]) {
         statusBarHost.rootView = ChainConnectionStatusBarView(models: models)
+        chromeController.setChainStatus(models)
         let width = max(1, ChainConnectionStatusBarView.ringsWidth(count: models.count))
         chainStatusAnchorWidth?.update(offset: width)
     }
@@ -374,17 +386,24 @@ extension MainTabBarViewController {
         scanPanel = controller
         controller?.setCaptureActive(false)
 
-        // Opening the chat selects its tab, and tab selection already closes the panel, so this
-        // path does not close it again.
-        controller?.onChatFound = { [weak self] model in
-            self?.presenter.didFindChat(model)
-        }
-        controller?.onContentHeightChanged = { [weak self] in
-            self?.chromeController.refreshCenterContentHeight()
-        }
-        controller?.onSearchFocusChanged = { [weak self] focused in
-            self?.chromeController.setBarHidden(focused)
-        }
+        #if FEATURE_INPUT
+            // Opening the chat selects its tab, and tab selection already closes the panel, so this
+            // path does not close it again.
+            controller?.onChatFound = { [weak self] model in
+                self?.presenter.didFindChat(model)
+            }
+            controller?.onContentHeightChanged = { [weak self] in
+                self?.chromeController.refreshCenterContentHeight()
+            }
+            controller?.onSearchFocusChanged = { [weak self] focused in
+                self?.chromeController.setBarHidden(focused)
+            }
+        #else
+            controller?.onSearchTap = { [weak self] in
+                self?.chromeController.setPanel(nil)
+                self?.presenter.didRequestContactSearch()
+            }
+        #endif
         return controller
     }
 }

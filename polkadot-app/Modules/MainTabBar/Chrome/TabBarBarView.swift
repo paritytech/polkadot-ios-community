@@ -5,7 +5,7 @@ import SwiftUI
 import UIKit
 
 /// The bar row: four fixed slots around the centre hole, with the centre control in the hole and the
-/// product shelf growing above it.
+/// shelf growing above it: open products, or the chain connection list in builds without products.
 struct TabBarBarView: View {
     @Bindable var model: TabBarBarViewModel
 
@@ -31,15 +31,19 @@ struct TabBarBarView: View {
                 }
             },
             shelf: {
-                TabBarShelfView(
-                    chips: model.shelfChips,
-                    mountedChipId: model.mountedChipId,
-                    pillProductId: pillProductId,
-                    onChipTapped: { model.onShelfChipTapped?($0) },
-                    onChipCloseRequested: { model.onShelfChipCloseRequested?($0) },
-                    onConnectionStatusTapped: { model.onShelfConnectionStatusTapped?() },
-                    onSettingsTapped: { model.onShelfSettingsTapped?() }
-                )
+                #if FEATURE_PRODUCTS
+                    TabBarShelfView(
+                        chips: model.shelfChips,
+                        mountedChipId: model.mountedChipId,
+                        pillProductId: pillProductId,
+                        onChipTapped: { model.onShelfChipTapped?($0) },
+                        onChipCloseRequested: { model.onShelfChipCloseRequested?($0) },
+                        onConnectionStatusTapped: { model.onShelfConnectionStatusTapped?() },
+                        onSettingsTapped: { model.onShelfSettingsTapped?() }
+                    )
+                #else
+                    ConnectionStatusPanelView(rows: model.chainStatusRows)
+                #endif
             }
         )
         // The bar sits at the bottom of a host sized once to the room above it.

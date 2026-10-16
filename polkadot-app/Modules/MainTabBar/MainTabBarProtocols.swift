@@ -18,7 +18,11 @@ protocol MainTabBarPresenterProtocol: AnyObject {
     func configureViews()
     func didRequestConnectionStatus()
     func didRequestSettings()
-    func didFindChat(_ model: ChatOpenModel)
+    #if FEATURE_INPUT
+        func didFindChat(_ model: ChatOpenModel)
+    #else
+        func didRequestContactSearch()
+    #endif
 }
 
 protocol MainTabBarInteractorInputProtocol: AnyObject {
@@ -41,7 +45,11 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
 @MainActor
 protocol MainTabBarWireframeProtocol: AnyObject {
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?)
-    func openChat(_ model: ChatOpenModel)
+    #if FEATURE_INPUT
+        func openChat(_ model: ChatOpenModel)
+    #else
+        func showSearchContact(from view: MainTabBarViewProtocol?)
+    #endif
     func showConnectionStatus(_ viewModel: ConnectionStatusSheetViewModel, from view: MainTabBarViewProtocol?)
     func showSettings(from view: MainTabBarViewProtocol?)
 }
@@ -50,6 +58,7 @@ enum TabBarItem: String, CaseIterable {
     case chat
     case wallet
     case browse
+    case settings
 
     var image: UIImage {
         let asset: UIImage =
@@ -57,6 +66,7 @@ enum TabBarItem: String, CaseIterable {
             case .chat: .tabChat
             case .wallet: .tabWallet
             case .browse: .tabBrowse
+            case .settings: .tabSettings
             }
         return asset.withRenderingMode(.alwaysTemplate)
     }
@@ -66,6 +76,7 @@ enum TabBarItem: String, CaseIterable {
         case .chat: String(localized: .tabChat)
         case .wallet: String(localized: .tabWallet)
         case .browse: String(localized: .tabBrowse)
+        case .settings: String(localized: .tabSettings)
         }
     }
 }
@@ -84,7 +95,6 @@ extension TabBarItem {
 @MainActor
 protocol SPAHosting: AnyObject {
     func openProduct(page: ProductPage)
-    func presentProduct(page: ProductPage)
     func minimizeSPA()
     func closeSPA(tabId: UUID)
 }

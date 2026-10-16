@@ -16,9 +16,6 @@ struct SPAConfiguration {
     let contentSource: SPAContentSource
     let isBrowserTab: Bool
     let browserTabId: UUID?
-    /// Whether the screen carries the browser chrome: the floating top pills, chrome collapse and
-    /// minimize. A product presented as a modal has none of them.
-    let usesBrowserChrome: Bool
 
     init(
         title: String?,
@@ -27,8 +24,7 @@ struct SPAConfiguration {
         page: ProductPage,
         contentSource: SPAContentSource = .dotNs,
         isBrowserTab: Bool = false,
-        browserTabId: UUID? = nil,
-        usesBrowserChrome: Bool = true
+        browserTabId: UUID? = nil
     ) {
         self.title = title
         self.isRootScreen = isRootScreen
@@ -37,7 +33,6 @@ struct SPAConfiguration {
         self.contentSource = contentSource
         self.isBrowserTab = isBrowserTab
         self.browserTabId = browserTabId
-        self.usesBrowserChrome = usesBrowserChrome
     }
 }
 

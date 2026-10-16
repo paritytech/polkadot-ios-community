@@ -189,6 +189,10 @@ final class TabBarBottomChromeController: UIViewController {
         updateActiveActionIndex()
     }
 
+    func setChainStatus(_ rows: [ChainConnectionStatusViewModel]) {
+        barModel.chainStatusRows = rows
+    }
+
     func setPanel(_ kind: TabBarPanelKind?) {
         panelController.setPanel(kind)
     }
@@ -369,7 +373,11 @@ private extension TabBarBottomChromeController {
     func handleAction(_ action: TabBarAction) {
         switch action {
         case .connectionStatus:
-            onConnectionStatusTapped?()
+            #if FEATURE_PRODUCTS
+                onConnectionStatusTapped?()
+            #else
+                panelController.togglePanel(.shelf)
+            #endif
         case .spaTabs:
             panelController.togglePanel(.shelf)
         case .scan:

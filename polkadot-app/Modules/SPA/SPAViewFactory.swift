@@ -244,8 +244,8 @@ extension SPAViewFactory {
 // MARK: - Private
 
 private extension SPAViewFactory {
-    /// The browser chrome: floating pills, chrome collapse, minimize, only makes sense where a
-    /// product lives on as a tab, so a modal product gets the simplified screen.
+    /// The browser chrome — floating pills, chrome collapse, minimize — only makes sense where
+    /// products live on as tabs, so builds without the browse tab get the simplified screen.
     @MainActor
     static func createViewController(
         presenter: SPAPresenterProtocol,
@@ -253,7 +253,15 @@ private extension SPAViewFactory {
         schemeHandlerProxy: SchemeHandlerProxy,
         hostProvider: ProductHostProviding
     ) -> SPAViewProtocol {
-        guard configuration.usesBrowserChrome else {
+        #if FEATURE_PRODUCTS
+            return SPAViewController(
+                presenter: presenter,
+                configuration: configuration,
+                schemeHandlerProxy: schemeHandlerProxy,
+                logger: Logger.shared,
+                hostProvider: hostProvider
+            )
+        #else
             return SPASimplifiedViewController(
                 presenter: presenter,
                 configuration: configuration,
@@ -261,14 +269,6 @@ private extension SPAViewFactory {
                 logger: Logger.shared,
                 hostProvider: hostProvider
             )
-        }
-
-        return SPAViewController(
-            presenter: presenter,
-            configuration: configuration,
-            schemeHandlerProxy: schemeHandlerProxy,
-            logger: Logger.shared,
-            hostProvider: hostProvider
-        )
+        #endif
     }
 }

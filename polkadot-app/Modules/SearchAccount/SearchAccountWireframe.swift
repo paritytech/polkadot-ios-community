@@ -44,7 +44,7 @@ final class SearchAccountWireframe: SearchAccountWireframeProtocol {
     }
 
     func showProduct(page: ProductPage) {
-        moduleNavigator.presentProduct(page: page)
+        moduleNavigator.openProduct(page: page)
     }
 
     func close(from view: SearchAccountViewProtocol?) {

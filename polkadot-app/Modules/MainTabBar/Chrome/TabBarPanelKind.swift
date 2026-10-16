@@ -1,5 +1,6 @@
 enum TabBarPanelKind: Equatable {
-    /// The product shelf that grows above the bar row from the Apps item.
+    /// The shelf that grows above the bar row from the Apps item, or from the Network item in builds
+    /// without products.
     case shelf
     case content(TabBarAction)
 
@@ -7,7 +8,11 @@ enum TabBarPanelKind: Equatable {
     var action: TabBarAction {
         switch self {
         case .shelf:
-            .spaTabs
+            #if FEATURE_PRODUCTS
+                .spaTabs
+            #else
+                .connectionStatus
+            #endif
         case let .content(action):
             action
         }

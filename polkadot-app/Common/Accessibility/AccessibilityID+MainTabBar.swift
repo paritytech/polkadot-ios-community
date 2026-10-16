@@ -7,6 +7,8 @@ extension AccessibilityID.Tab {
             chat
         case .wallet:
             wallet
+        case .settings:
+            settings
         default:
             nil
         }

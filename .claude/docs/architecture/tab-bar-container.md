@@ -53,7 +53,7 @@ MainTabBarViewController            container, status strip, widget and inset la
 | Slot-to-tab index mapping | `polkadot-app/Modules/MainTabBar/Chrome/TabBarSlotMap.swift` |
 | Tab items | `TabBarItem` in `polkadot-app/Modules/MainTabBar/MainTabBarProtocols.swift` |
 | Center panel height declaration | `polkadot-app/Modules/MainTabBar/Chrome/TabBarCenterContentHeight.swift` (`.fits(CGFloat)` or `.fill`) |
-| Center panel content (scanner) | `polkadot-app/Modules/MainTabBar/ScanPanelViewController.swift` |
+| Center panel content (scanner) | `polkadot-app/Modules/MainTabBar/ScanPanelViewController.swift`, `ScanPanelPlainViewController.swift` (chosen by `FEATURE_INPUT`) |
 | Onboarding tips | `polkadot-app/Modules/MainTabBar/Chrome/TabBarTipController.swift`, `polkadot-app/Modules/MainTabBar/Tips/` |
 | Floating widgets | `polkadot-app/Modules/MainTabBar/TabBarWidgetController.swift`, `MainTabBarFloatingWidgetStackView.swift` |
 | Bar, center control, shelf container | `Packages/PolkadotUI/Sources/Components/DSTabBarShell/DSTabBarContainer.swift`, `DSTabBarCenterControl.swift` |
@@ -69,7 +69,7 @@ MainTabBarViewController            container, status strip, widget and inset la
 
 ## Bar Row
 
-`DSTabBarContainer` lays out two slots left of the center hole and two right of it. The bar row is 62 pt tall (`DSTabBarStyle.height`) with a 21 pt bottom gap. The bar row takes four `TabBarSlot` values, in the order the presenter lists them: Chat, Pocket (`wallet`), Browse, and Apps (`.action(.spaTabs)`).
+`DSTabBarContainer` lays out two slots left of the center hole and two right of it. The bar row is 62 pt tall (`DSTabBarStyle.height`) with a 21 pt bottom gap. The bar row takes four `TabBarSlot` values, in the order the presenter lists them. Under `FEATURE_PRODUCTS` they are Chat, Pocket (`wallet`), Browse, and Apps (`.action(.spaTabs)`). Without it they are Chat, Pocket, Settings (`.tab(.settings)`), and Network (`.action(.connectionStatus)`). Network opens the shelf, which then lists the chain connections the connection status sheet shows, and funding products open as a modal sheet instead of a tab.
 
 The row is an accessibility container with the tab-bar trait.
 
@@ -151,6 +151,8 @@ The three states are `shown`, `folded` and `hidden`.
 1. A tab root is always `shown`. A tab root never folds.
 2. A per-screen user override (`folded` or `shown`) wins.
 3. Otherwise the derived state applies.
+
+Without `FEATURE_PRODUCTS`, every screen other than a tab root is `hidden`.
 
 The derived state comes from `TabBarHiddenPolicy.deriveFoldState(in:showing:)`. It is `hidden` when the target opts out. It is `folded` when any controller above the root, up to the target, sets `hidesBottomBarWhenPushed`. The root is excluded, so a tab root that sets the flag does not fold.
 

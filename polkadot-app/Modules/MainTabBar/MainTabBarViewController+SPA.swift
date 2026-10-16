@@ -7,37 +7,12 @@ import Products
 
 extension MainTabBarViewController: SPAHosting {
     func openProduct(page: ProductPage) {
-        let tab = browserCoordinator.findOrCreateTab(for: page)
-        mountSPA(for: tab)
-    }
-
-    /// A funding product is a one-shot rather than a peer of the tabs: it is presented over the
-    /// container, so it never enters the tab store and closing it leaves no chip behind.
-    func presentProduct(page: ProductPage) {
-        let configuration = SPAConfiguration(
-            title: nil,
-            isRootScreen: false,
-            showMoreButton: true,
-            page: page,
-            isBrowserTab: true,
-            usesBrowserChrome: false
-        )
-
-        guard let view = SPAViewFactory.createView(
-            configuration: configuration,
-            flowState: flowStateProvider.flowState()
-        ) else {
-            return
-        }
-
-        view.controller.modalPresentationStyle = .pageSheet
-        view.controller.sheetPresentationController?.detents = [
-            .custom { $0.maximumDetentValue * 0.92 }
-        ]
-        view.controller.sheetPresentationController?.prefersGrabberVisible = true
-
-        let host = UIWindow.keyWindow?.topmostViewController ?? self
-        host.present(view.controller, animated: true)
+        #if FEATURE_PRODUCTS
+            let tab = browserCoordinator.findOrCreateTab(for: page)
+            mountSPA(for: tab)
+        #else
+            presentProduct(page: page)
+        #endif
     }
 
     func minimizeSPA() {
@@ -78,6 +53,30 @@ extension MainTabBarViewController {
 // MARK: - Private
 
 private extension MainTabBarViewController {
+    #if !FEATURE_PRODUCTS
+        /// Without the browse tab a product is a one-shot rather than a peer of the tabs: it is
+        /// presented over the container, so it never enters the tab store and closing it leaves
+        /// no chip behind.
+        func presentProduct(page: ProductPage) {
+            guard let view = SPAViewFactory.createView(
+                page: page,
+                flowState: flowStateProvider.flowState(),
+                isBrowserTab: true
+            ) else {
+                return
+            }
+
+            view.controller.modalPresentationStyle = .pageSheet
+            view.controller.sheetPresentationController?.detents = [
+                .custom { $0.maximumDetentValue * 0.92 }
+            ]
+            view.controller.sheetPresentationController?.prefersGrabberVisible = true
+
+            let host = UIWindow.keyWindow?.topmostViewController ?? self
+            host.present(view.controller, animated: true)
+        }
+    #endif
+
     var mountedSPATabId: UUID? {
         guard case let .spa(id) = container.selection else {
             return nil

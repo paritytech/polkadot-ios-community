@@ -159,12 +159,16 @@ enum MainTabBarViewFactory {
             coinageService: serviceCoordinator.coinageService,
             moduleNavigator: moduleNavigator
         )
-        let productHandlers: [URLHandlingServiceProtocol] = [
-            ProductSPAOpenService(
-                moduleNavigator: moduleNavigator,
-                hostProvider: hostProvider
-            )
-        ]
+        #if FEATURE_PRODUCTS
+            let productHandlers: [URLHandlingServiceProtocol] = [
+                ProductSPAOpenService(
+                    moduleNavigator: moduleNavigator,
+                    hostProvider: hostProvider
+                )
+            ]
+        #else
+            let productHandlers: [URLHandlingServiceProtocol] = []
+        #endif
 
         let historyStorage = W3sPaymentHistoryCoreDataStore(storageFacade: UserDataStorageFacade.shared)
 
