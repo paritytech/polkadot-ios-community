@@ -57,3 +57,7 @@ public extension MessageExchange.ResponseCode {
         }
     }
 }
+
+extension MessageExchange.ResponseCode: Equatable {}
+
+extension MessageExchange.Response: Equatable {}

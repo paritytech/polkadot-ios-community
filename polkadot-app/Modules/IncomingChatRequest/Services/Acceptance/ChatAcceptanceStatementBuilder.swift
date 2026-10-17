@@ -11,6 +11,7 @@ enum ChatAcceptanceStatementBuilderError: Error {
 struct ChatAcceptanceStatementBuilder: @unchecked Sendable {
     let encryptionManager: MessageExchangeEncryptionManaging
     let signerManager: StatementStoreSignerManaging
+    let padding: StatementPayloadPadding
     var sessionIdFactory: PeerSessionIdFactoryProtocol = PeerSessionIdFactory()
     var channelFactory: StatementChannelMaking = ChatStatementChannelFactory()
     var priorityFactory: StatementPriorityMaking = StatementPriorityFactory()
@@ -29,10 +30,8 @@ extension ChatAcceptanceStatementBuilder: OutgoingStatementBuilding {
             messages: [Chat.OpaqueMessage(remoteMessage: remoteMessage)]
         )
 
-        let payload = try StatementDataCoder(encryptor: encryptor, logger: nil).encodeToScaleEncodedPayload(
-            StatementData.request(request),
-            route: .identity
-        )
+        let payload = try StatementDataCoder(encryptor: encryptor, padding: padding, logger: nil)
+            .encodeToScaleEncodedPayload(StatementData.request(request), route: .identity)
 
         return try UnsignedStatement()
             .addTopic1(sessionId.own)

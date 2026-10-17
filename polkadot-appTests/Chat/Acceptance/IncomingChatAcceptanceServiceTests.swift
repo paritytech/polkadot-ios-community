@@ -28,6 +28,7 @@ struct IncomingChatAcceptanceServiceTests {
         let service = IncomingChatAcceptanceService(
             encryptionManager: requester.encryptionManager(),
             signerManager: requester.signerManager(),
+            padding: .chatTest,
             connection: store,
             logger: MockLogger()
         )
@@ -95,7 +96,11 @@ private struct ListenerParticipant {
     }
 
     func statementBuilder() -> ChatAcceptanceStatementBuilder {
-        ChatAcceptanceStatementBuilder(encryptionManager: encryptionManager(), signerManager: signerManager())
+        ChatAcceptanceStatementBuilder(
+            encryptionManager: encryptionManager(),
+            signerManager: signerManager(),
+            padding: .chatTest
+        )
     }
 
     func contact(of peer: ListenerParticipant) -> Chat.Contact {

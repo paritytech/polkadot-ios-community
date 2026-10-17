@@ -6,15 +6,21 @@ public enum StatementData<M: MessageExchange.CodableMessage> {
     case response(MessageExchange.Response)
     case multirequest(MultiDeviceRequest)
     case multiresponse(MultiDeviceResponse)
+    case state(MessageExchange.SessionState<M>)
+    case multistate(MultiDeviceState)
 }
 
 extension StatementData: ScaleCodable {
+    static var stateScaleIndex: UInt8 { 4 }
+
     private var scaleIndex: UInt8 {
         switch self {
         case .request: 0
         case .response: 1
         case .multirequest: 2
         case .multiresponse: 3
+        case .state: Self.stateScaleIndex
+        case .multistate: 5
         }
     }
 
@@ -34,6 +40,12 @@ extension StatementData: ScaleCodable {
         case 3:
             let value = try MultiDeviceResponse(scaleDecoder: scaleDecoder)
             self = .multiresponse(value)
+        case Self.stateScaleIndex:
+            let value = try MessageExchange.SessionState<M>(scaleDecoder: scaleDecoder)
+            self = .state(value)
+        case 5:
+            let value = try MultiDeviceState(scaleDecoder: scaleDecoder)
+            self = .multistate(value)
         default:
             throw DynamicScaleDecoderError.unexpectedEnumCase
         }
@@ -51,6 +63,12 @@ extension StatementData: ScaleCodable {
             try value.encode(scaleEncoder: scaleEncoder)
         case let .multiresponse(value):
             try value.encode(scaleEncoder: scaleEncoder)
+        case let .state(value):
+            try value.encode(scaleEncoder: scaleEncoder)
+        case let .multistate(value):
+            try value.encode(scaleEncoder: scaleEncoder)
         }
     }
 }
+
+extension StatementData: Equatable {}

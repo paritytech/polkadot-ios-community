@@ -58,6 +58,18 @@ public protocol MultiDeviceStatementDataCoding {
         ownStatementAccountId: Data,
         peerDevicePublicKey: Data
     ) throws -> MessageExchange.Response
+
+    func encodeMultiDeviceState(
+        _ state: MessageExchange.SessionState<some MessageExchange.CodableMessage>,
+        recipients: [RecipientDeviceInfo]
+    ) throws -> MultiDeviceState
+
+    /// Returns `.statementData(.state)` or, when only the messages fail to decode, `.partial`.
+    func decodeMultiDeviceState<M: MessageExchange.CodableMessage>(
+        _ multiState: MultiDeviceState,
+        ownStatementAccountId: Data,
+        peerDevicePublicKey: Data
+    ) throws -> StatementDataDecodingResult<M>
 }
 
 // MARK: - Implementation
@@ -164,6 +176,61 @@ public final class MultiDeviceStatementDataCoder: MultiDeviceStatementDataCoding
             return try MessageExchange.Response(scaleDecoder: decoder)
         } catch {
             logger?.error("Failed to decode inner response: \(error)")
+            throw MultiDeviceDecodingError.payloadDecodingFailed
+        }
+    }
+}
+
+// MARK: - State
+
+public extension MultiDeviceStatementDataCoder {
+    func encodeMultiDeviceState(
+        _ state: MessageExchange.SessionState<some MessageExchange.CodableMessage>,
+        recipients: [RecipientDeviceInfo]
+    ) throws -> MultiDeviceState {
+        let stateData: Data
+
+        do {
+            stateData = try state.scaleEncoded()
+        } catch {
+            logger?.error("Failed to encode state: \(error)")
+            throw MultiDeviceEncodingError.payloadEncodingFailed
+        }
+
+        let (encryptedPayload, devicesInfo) = try encryptForDevices(
+            payload: stateData,
+            recipients: recipients
+        )
+
+        return MultiDeviceState(encryptedState: encryptedPayload, devicesInfo: devicesInfo)
+    }
+
+    func decodeMultiDeviceState<M: MessageExchange.CodableMessage>(
+        _ multiState: MultiDeviceState,
+        ownStatementAccountId: Data,
+        peerDevicePublicKey: Data
+    ) throws -> StatementDataDecodingResult<M> {
+        let decryptedData = try decryptFromDevice(
+            encryptedPayload: multiState.encryptedState,
+            devicesInfo: multiState.devicesInfo,
+            ownStatementAccountId: ownStatementAccountId,
+            peerDevicePublicKey: peerDevicePublicKey
+        )
+
+        do {
+            let decoder = try ScaleDecoder(data: decryptedData)
+            return try .statementData(.state(MessageExchange.SessionState<M>(scaleDecoder: decoder)))
+        } catch {
+            if
+                let decoder = try? ScaleDecoder(data: decryptedData),
+                let partial: StatementDataDecodingResult<M> = SessionStateFallbackData.decodePartial(
+                    from: decoder,
+                    error: error
+                ) {
+                return partial
+            }
+
+            logger?.error("Failed to decode inner state: \(error)")
             throw MultiDeviceDecodingError.payloadDecodingFailed
         }
     }

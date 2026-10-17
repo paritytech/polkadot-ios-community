@@ -261,7 +261,7 @@ private extension PeerSessionInitializer {
                     statement: statement,
                     route: sessionStatement.route
                 )
-            case let .requestId(requestId, _):
+            case let .partial(_, requestId, _):
                 // it is ok to return statement data for compatibility reason here
                 // since we don't respond to requests in the initializer
                 return DecodedStatement(

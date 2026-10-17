@@ -84,10 +84,21 @@ private extension MultiDeviceAwareStatementDataCoder {
             try encodeRequest(request)
         case let .response(response):
             try encodeResponse(response, as: M.self)
+        case let .state(state):
+            try encodeState(state)
         case .multirequest,
-             .multiresponse:
+             .multiresponse,
+             .multistate:
             try outgoingCoder.encodeToScaleEncodedPayload(statementData, route: .device)
         }
+    }
+
+    func encodeState<M: MessageExchange.CodableMessage>(_ state: MessageExchange.SessionState<M>) throws -> Data {
+        let multiState = try multiDeviceCoder.encodeMultiDeviceState(state, recipients: recipientDevices)
+        return try outgoingCoder.encodeToScaleEncodedPayload(
+            StatementData<M>.multistate(multiState),
+            route: .device
+        )
     }
 
     func encodeRequest<M: MessageExchange.CodableMessage>(_ request: MessageExchange.Request<M>) throws -> Data {
@@ -138,16 +149,34 @@ private extension MultiDeviceAwareStatementDataCoder {
         senderAccountId: Data?
     ) throws -> StatementDataDecodingResult<M> {
         switch result {
-        case .requestId:
+        case .partial:
             result
+        case let .statementData(.multistate(multiState)):
+            try decodeMultistate(multiState, senderAccountId: senderAccountId)
         case let .statementData(.multirequest(multiRequest)):
             try decodeMultirequest(multiRequest, senderAccountId: senderAccountId)
         case let .statementData(.multiresponse(multiResponse)):
             try decodeMultiresponse(multiResponse, senderAccountId: senderAccountId)
         case .statementData(.request),
-             .statementData(.response):
+             .statementData(.response),
+             .statementData(.state):
             result
         }
+    }
+
+    func decodeMultistate<M: MessageExchange.CodableMessage>(
+        _ multiState: MultiDeviceState,
+        senderAccountId: Data?
+    ) throws -> StatementDataDecodingResult<M> {
+        let (entryAccountId, devicePublicKey) = try resolveDecryptionContext(
+            senderAccountId: senderAccountId,
+            devicesInfo: multiState.devicesInfo
+        )
+        return try multiDeviceCoder.decodeMultiDeviceState(
+            multiState,
+            ownStatementAccountId: entryAccountId,
+            peerDevicePublicKey: devicePublicKey
+        )
     }
 
     func decodeMultirequest<M: MessageExchange.CodableMessage>(

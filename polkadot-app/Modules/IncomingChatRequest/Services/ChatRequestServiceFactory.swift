@@ -171,6 +171,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
         try await IncomingChatAcceptanceService(
             encryptionManager: makeAccountEncryptionManager(),
             signerManager: makeAccountSignManager(),
+            padding: statementPadding,
             connection: makeConnection(),
             logger: logger
         )
@@ -224,6 +225,13 @@ private struct ChatStatementPipeline<Input: ChatNotificationStatementInput> {
 }
 
 private extension ChatRequestServiceFactory {
+    var statementPadding: StatementPayloadPadding {
+        StatementPayloadPadding(
+            maxPayloadSize: MessageExchangeCoordinatorFactory.Constants.maxChatStatementSize
+                - StatementSize.overhead(topicCount: 1)
+        )
+    }
+
     func makeRequestPipeline() async throws -> ChatStatementPipeline<OutgoingChatRequestInput> {
         if let requestPipeline {
             return requestPipeline
@@ -252,7 +260,8 @@ private extension ChatRequestServiceFactory {
             store: ChatAcceptanceOutgoingStore(storageFacade: storageFacade),
             builder: ChatAcceptanceStatementBuilder(
                 encryptionManager: makeAccountEncryptionManager(),
-                signerManager: makeAccountSignManager()
+                signerManager: makeAccountSignManager(),
+                padding: statementPadding
             ),
             postDelivery: makeAcceptanceNotifier(),
             renewalStarved: nil,

@@ -24,3 +24,5 @@ extension MessageExchange.Request: ScaleCodable {
         try messages.encode(scaleEncoder: scaleEncoder)
     }
 }
+
+extension MessageExchange.Request: Equatable {}

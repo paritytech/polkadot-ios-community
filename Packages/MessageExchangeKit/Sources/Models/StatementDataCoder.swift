@@ -15,7 +15,8 @@ public enum StatementDataEncodingError: Error {
 
 public enum StatementDataDecodingResult<M: MessageExchange.CodableMessage> {
     case statementData(StatementData<M>)
-    case requestId(String, Error)
+    /// The messages could not be decoded; what survived is the response (if any) and the request id.
+    case partial(response: MessageExchange.Response?, requestId: String, error: Error)
 }
 
 public protocol StatementDataCoding {
@@ -33,13 +34,16 @@ public protocol StatementDataCoding {
 
 public final class StatementDataCoder: StatementDataCoding {
     private let encryptor: MessageExchangeEncrypting
+    private let padding: StatementPayloadPadding
     private let logger: SDKLoggerProtocol?
 
     public init(
         encryptor: MessageExchangeEncrypting,
+        padding: StatementPayloadPadding,
         logger: SDKLoggerProtocol?
     ) {
         self.encryptor = encryptor
+        self.padding = padding
         self.logger = logger
     }
 
@@ -70,14 +74,12 @@ public final class StatementDataCoder: StatementDataCoding {
 
             return .statementData(statementData)
         } catch {
-            do {
-                // try to decode just requestId
-                let decoder = try ScaleDecoder(data: decryptedData)
-                let fallbackStatement = try StatementFallbackRequestData(scaleDecoder: decoder)
-                return .requestId(fallbackStatement.requestId, error)
-            } catch {
+            guard let partial: StatementDataDecodingResult<M> = Self.decodePartial(from: decryptedData, error: error)
+            else {
                 throw StatementDataDecodingError.decodingFailed
             }
+
+            return partial
         }
     }
 
@@ -96,7 +98,7 @@ public final class StatementDataCoder: StatementDataCoding {
         }
 
         do {
-            encryptedData = try encryptor.encrypt(statementScaleData)
+            encryptedData = try encryptor.encrypt(padding.pad(statementScaleData))
         } catch {
             throw StatementDataEncodingError.encryptionFailed
         }
@@ -111,16 +113,45 @@ public final class StatementDataCoder: StatementDataCoding {
     }
 }
 
-struct StatementFallbackRequestData: ScaleDecodable {
-    let requestId: String
-
-    init(scaleDecoder: any ScaleDecoding) throws {
-        let index = try UInt8(scaleDecoder: scaleDecoder)
-
-        guard index == 0 else {
-            throw ScaleCodingError.unexpectedDecodedValue
+private extension StatementDataCoder {
+    static func decodePartial<M: MessageExchange.CodableMessage>(
+        from decryptedData: Data,
+        error: Error
+    ) -> StatementDataDecodingResult<M>? {
+        guard
+            let decoder = try? ScaleDecoder(data: decryptedData),
+            let index = try? UInt8(scaleDecoder: decoder)
+        else {
+            return nil
         }
 
-        requestId = try String(scaleDecoder: scaleDecoder)
+        switch index {
+        case 0:
+            guard let requestId = try? String(scaleDecoder: decoder) else {
+                return nil
+            }
+
+            return .partial(response: nil, requestId: requestId, error: error)
+        case StatementData<M>.stateScaleIndex:
+            return SessionStateFallbackData.decodePartial(from: decoder, error: error)
+        default:
+            return nil
+        }
+    }
+}
+
+extension SessionStateFallbackData {
+    static func decodePartial<M: MessageExchange.CodableMessage>(
+        from decoder: ScaleDecoding,
+        error: Error
+    ) -> StatementDataDecodingResult<M>? {
+        guard
+            let fallback = try? SessionStateFallbackData(scaleDecoder: decoder),
+            let requestId = fallback.requestId
+        else {
+            return nil
+        }
+
+        return .partial(response: fallback.response, requestId: requestId, error: error)
     }
 }

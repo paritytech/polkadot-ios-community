@@ -246,6 +246,12 @@ extension PeerSessionFactory: PeerSessionMaking {
 }
 
 private extension PeerSessionFactory {
+    var statementPadding: StatementPayloadPadding {
+        StatementPayloadPadding(
+            maxPayloadSize: OutgoingRequestSizeValidator(maxStatementSize: maxStatementSize).maxPayloadSize
+        )
+    }
+
     struct RouteConfiguration<Message: MessageExchange.CodableMessage> {
         let supportedRoutes: [PeerSessionRoute]
         let effectiveRouteSelector: PeerSessionRouteSelector<Message>
@@ -285,7 +291,11 @@ private extension PeerSessionFactory {
         identityEncryptionKeyFactory: MessageExchangeEncryptionMaking,
         ownAccountId: AccountId
     ) throws -> StatementDataCoding {
-        let identityCoder = StatementDataCoder(encryptor: identityEncryptor, logger: logger)
+        let identityCoder = StatementDataCoder(
+            encryptor: identityEncryptor,
+            padding: statementPadding,
+            logger: logger
+        )
 
         switch messageExchangeMode {
         case .identity:
@@ -350,7 +360,7 @@ private extension PeerSessionFactory {
         peerPublicKey: Data
     ) throws -> StatementDataCoding {
         let encryptor = try deviceEncryptionKeyFactory.makeEncryptor(remotePublicKey: peerPublicKey)
-        return StatementDataCoder(encryptor: encryptor, logger: logger)
+        return StatementDataCoder(encryptor: encryptor, padding: statementPadding, logger: logger)
     }
 
     func makeMultiDeviceIncomingCoders(
@@ -362,10 +372,12 @@ private extension PeerSessionFactory {
                 let encryptor = try identityEncryptionKeyFactory.makeEncryptor(
                     remotePublicKey: device.encryptionPublicKey
                 )
-                return (
-                    device.statementAccountId,
-                    StatementDataCoder(encryptor: encryptor, logger: logger) as StatementDataCoding
+                let coder: StatementDataCoding = StatementDataCoder(
+                    encryptor: encryptor,
+                    padding: statementPadding,
+                    logger: logger
                 )
+                return (device.statementAccountId, coder)
             },
             uniquingKeysWith: { _, latest in latest }
         )

@@ -45,7 +45,8 @@ private extension ChatAcceptanceStatementBuilderTests {
             encryptionManager: ClosureEncryptionManager { [identityEncryptionKey] _ in
                 X25519ChaChaPolyEncryptorFactory(privateKey: identityEncryptionKey)
             },
-            signerManager: ChatSignerManager(entropyManager: FixedRootEntropyManager())
+            signerManager: ChatSignerManager(entropyManager: FixedRootEntropyManager()),
+            padding: .chatTest
         )
     }
 

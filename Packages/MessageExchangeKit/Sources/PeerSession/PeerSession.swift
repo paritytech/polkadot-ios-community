@@ -280,8 +280,10 @@ private extension PeerSession {
             switch outcome {
             case let .statementData(statementData):
                 return handleStatementData(statementData, route: sessionStatement.route)
-            case let .requestId(requestId, error):
-                return handleFailedPeerRequest(requestId, error: error, route: sessionStatement.route)
+            case let .partial(response, requestId, error):
+                let handledResponse = response.map { handlePeerResponse($0, route: sessionStatement.route) } ?? false
+                let handledRequest = handleFailedPeerRequest(requestId, error: error, route: sessionStatement.route)
+                return handledResponse || handledRequest
             }
         } catch {
             return handleIncomingMessageError(makeIncomingMessageError(error: error), for: sessionStatement)
@@ -297,8 +299,11 @@ private extension PeerSession {
             return handlePeerRequest(request, route: route)
         case let .response(response):
             return handlePeerResponse(response, route: route)
+        case let .state(state):
+            return handlePeerState(state, route: route)
         case .multirequest,
-             .multiresponse:
+             .multiresponse,
+             .multistate:
             // Peer sent a multi-device envelope but this session uses a legacy coder
             // that cannot decrypt the inner payload. This happens when the peer's
             // device_added message hasn't been received yet.
@@ -331,6 +336,15 @@ private extension PeerSession {
         }
 
         return true
+    }
+
+    func handlePeerState(
+        _ state: MessageExchange.SessionState<Message>,
+        route: PeerSessionRoute
+    ) -> StatementHandlingStatus {
+        let handledResponse = state.response.map { handlePeerResponse($0, route: route) } ?? false
+        let handledRequest = state.request.map { handlePeerRequest($0, route: route) } ?? false
+        return handledResponse || handledRequest
     }
 
     func handleFailedPeerRequest(

@@ -22,11 +22,16 @@ final class IncomingChatAcceptanceService: @unchecked Sendable {
     init(
         encryptionManager: MessageExchangeEncryptionManaging,
         signerManager: StatementStoreSignerManaging,
+        padding: StatementPayloadPadding,
         connection: StatementStoreConnecting,
         logger: SDKLoggerProtocol
     ) {
         incomingService = IncomingStatementService(
-            decoder: ChatAcceptanceStatementDecoder(encryptionManager: encryptionManager, signerManager: signerManager),
+            decoder: ChatAcceptanceStatementDecoder(
+                encryptionManager: encryptionManager,
+                signerManager: signerManager,
+                padding: padding
+            ),
             connection: connection,
             logger: logger,
             workQueue: DispatchQueue(label: "io.chat.acceptance.incoming.queue")
@@ -45,6 +50,7 @@ extension IncomingChatAcceptanceService: IncomingStatementServicing {
 private struct ChatAcceptanceStatementDecoder: IncomingStatementDecoding, @unchecked Sendable {
     let encryptionManager: MessageExchangeEncryptionManaging
     let signerManager: StatementStoreSignerManaging
+    let padding: StatementPayloadPadding
     var sessionIdFactory: PeerSessionIdFactoryProtocol = PeerSessionIdFactory()
 
     func topicFilter(for target: MessageExchange.SessionRequest) throws -> TopicFilter {
@@ -60,6 +66,7 @@ private struct ChatAcceptanceStatementDecoder: IncomingStatementDecoding, @unche
 
         let result: StatementDataDecodingResult<Chat.OpaqueMessage> = try StatementDataCoder(
             encryptor: makeEncryptor(for: target),
+            padding: padding,
             logger: nil
         )
         .decodeFromScaleEncodedPayload(payload, senderAccountId: nil, route: .identity)
