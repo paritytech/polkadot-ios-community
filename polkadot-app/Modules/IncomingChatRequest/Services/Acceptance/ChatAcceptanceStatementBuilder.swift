@@ -35,7 +35,7 @@ extension ChatAcceptanceStatementBuilder: OutgoingStatementBuilding {
 
         return try UnsignedStatement()
             .addTopic1(sessionId.own)
-            .addChannel(channelFactory.createRequestChannel(for: sessionId))
+            .addChannel(channelFactory.createStateChannel(for: sessionId))
             .addExpiry(priorityFactory.makeTimestampPriority())
             .addScaleEncodedPayload(payload)
     }

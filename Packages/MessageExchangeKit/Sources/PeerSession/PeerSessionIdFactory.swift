@@ -50,7 +50,8 @@ extension PeerSessionIdFactory: PeerSessionIdFactoryProtocol {
             own: own.id,
             peer: peer.id,
             ownParameter: own.parameter,
-            peerParameter: peer.parameter
+            peerParameter: peer.parameter,
+            channelKey: params.sharedSecret
         )
     }
 }
