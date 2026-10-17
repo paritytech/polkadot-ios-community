@@ -31,7 +31,7 @@ extension ChatAcceptanceStatementBuilder: OutgoingStatementBuilding {
         )
 
         let payload = try StatementDataCoder(encryptor: encryptor, padding: padding, logger: nil)
-            .encodeToScaleEncodedPayload(StatementData.request(request), route: .identity)
+            .encodeToScaleEncodedPayload(StatementData.state(.init(response: nil, request: request)), route: .identity)
 
         return try UnsignedStatement()
             .addTopic1(sessionId.own)

@@ -37,28 +37,6 @@ public enum MultiDeviceDecodingError: Error {
 // MARK: - Protocol
 
 public protocol MultiDeviceStatementDataCoding {
-    func encodeMultiDeviceRequest(
-        _ request: MessageExchange.Request<some MessageExchange.CodableMessage>,
-        recipients: [RecipientDeviceInfo]
-    ) throws -> MultiDeviceRequest
-
-    func encodeMultiDeviceResponse(
-        _ response: MessageExchange.Response,
-        recipients: [RecipientDeviceInfo]
-    ) throws -> MultiDeviceResponse
-
-    func decodeMultiDeviceRequest<M: MessageExchange.CodableMessage>(
-        _ multiRequest: MultiDeviceRequest,
-        ownStatementAccountId: Data,
-        peerDevicePublicKey: Data
-    ) throws -> MessageExchange.Request<M>
-
-    func decodeMultiDeviceResponse(
-        _ multiResponse: MultiDeviceResponse,
-        ownStatementAccountId: Data,
-        peerDevicePublicKey: Data
-    ) throws -> MessageExchange.Response
-
     func encodeMultiDeviceState(
         _ state: MessageExchange.SessionState<some MessageExchange.CodableMessage>,
         recipients: [RecipientDeviceInfo]
@@ -84,100 +62,6 @@ public final class MultiDeviceStatementDataCoder: MultiDeviceStatementDataCoding
     ) {
         self.deviceEncryptionKeyFactory = deviceEncryptionKeyFactory
         self.logger = logger
-    }
-
-    // MARK: - Encoding
-
-    public func encodeMultiDeviceRequest(
-        _ request: MessageExchange.Request<some MessageExchange.CodableMessage>,
-        recipients: [RecipientDeviceInfo]
-    ) throws -> MultiDeviceRequest {
-        let requestData: Data
-
-        do {
-            requestData = try request.scaleEncoded()
-        } catch {
-            logger?.error("Failed to encode request: \(error)")
-            throw MultiDeviceEncodingError.payloadEncodingFailed
-        }
-
-        let (encryptedPayload, devicesInfo) = try encryptForDevices(
-            payload: requestData,
-            recipients: recipients
-        )
-
-        return MultiDeviceRequest(
-            encryptedRequest: encryptedPayload,
-            devicesInfo: devicesInfo
-        )
-    }
-
-    public func encodeMultiDeviceResponse(
-        _ response: MessageExchange.Response,
-        recipients: [RecipientDeviceInfo]
-    ) throws -> MultiDeviceResponse {
-        let responseData: Data
-
-        do {
-            responseData = try response.scaleEncoded()
-        } catch {
-            logger?.error("Failed to encode response: \(error)")
-            throw MultiDeviceEncodingError.payloadEncodingFailed
-        }
-
-        let (encryptedPayload, devicesInfo) = try encryptForDevices(
-            payload: responseData,
-            recipients: recipients
-        )
-
-        return MultiDeviceResponse(
-            encryptedResponse: encryptedPayload,
-            devicesInfo: devicesInfo
-        )
-    }
-
-    // MARK: - Decoding
-
-    public func decodeMultiDeviceRequest<M: MessageExchange.CodableMessage>(
-        _ multiRequest: MultiDeviceRequest,
-        ownStatementAccountId: Data,
-        peerDevicePublicKey: Data
-    ) throws -> MessageExchange.Request<M> {
-        let decryptedData = try decryptFromDevice(
-            encryptedPayload: multiRequest.encryptedRequest,
-            devicesInfo: multiRequest.devicesInfo,
-            ownStatementAccountId: ownStatementAccountId,
-            peerDevicePublicKey: peerDevicePublicKey
-        )
-
-        do {
-            let decoder = try ScaleDecoder(data: decryptedData)
-            return try MessageExchange.Request<M>(scaleDecoder: decoder)
-        } catch {
-            logger?.error("Failed to decode inner request: \(error)")
-            throw MultiDeviceDecodingError.payloadDecodingFailed
-        }
-    }
-
-    public func decodeMultiDeviceResponse(
-        _ multiResponse: MultiDeviceResponse,
-        ownStatementAccountId: Data,
-        peerDevicePublicKey: Data
-    ) throws -> MessageExchange.Response {
-        let decryptedData = try decryptFromDevice(
-            encryptedPayload: multiResponse.encryptedResponse,
-            devicesInfo: multiResponse.devicesInfo,
-            ownStatementAccountId: ownStatementAccountId,
-            peerDevicePublicKey: peerDevicePublicKey
-        )
-
-        do {
-            let decoder = try ScaleDecoder(data: decryptedData)
-            return try MessageExchange.Response(scaleDecoder: decoder)
-        } catch {
-            logger?.error("Failed to decode inner response: \(error)")
-            throw MultiDeviceDecodingError.payloadDecodingFailed
-        }
     }
 }
 

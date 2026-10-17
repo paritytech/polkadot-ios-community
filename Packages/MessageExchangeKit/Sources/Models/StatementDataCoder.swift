@@ -125,18 +125,11 @@ private extension StatementDataCoder {
             return nil
         }
 
-        switch index {
-        case 0:
-            guard let requestId = try? String(scaleDecoder: decoder) else {
-                return nil
-            }
-
-            return .partial(response: nil, requestId: requestId, error: error)
-        case StatementData<M>.stateScaleIndex:
-            return SessionStateFallbackData.decodePartial(from: decoder, error: error)
-        default:
+        guard index == StatementData<M>.stateScaleIndex else {
             return nil
         }
+
+        return SessionStateFallbackData.decodePartial(from: decoder, error: error)
     }
 }
 

@@ -217,6 +217,7 @@ extension PeerSessionFactory: PeerSessionMaking {
                 sessionId: primarySessionId,
                 outgoingChannel: outgoingInterface,
                 incomingChannel: AnyIncomingMessageChannel(incomingChannel),
+                statePublisher: statePublisher,
                 peerSubscription: peerSubscription,
                 initializer: sessionInitializer,
                 priorityProvider: priorityProvider,

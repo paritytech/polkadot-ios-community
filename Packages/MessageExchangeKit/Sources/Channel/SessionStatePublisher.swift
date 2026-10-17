@@ -16,8 +16,8 @@ protocol SessionStatePublishing<Message>: AnyObject {
     /// Sets the pending request and publishes the state carrying it.
     func publishRequest(_ request: OutgoingRequest<Message>)
 
-    /// Sets a request that is already in our latest statement, without publishing.
-    func restoreRequest(_ request: OutgoingRequest<Message>)
+    /// Adopts our latest published states after a restart, without publishing; restored acks stay sticky.
+    func restore(_ states: [PeerSessionRoute: MessageExchange.SessionState<Message>])
 
     /// Drops the pending request once it is acked; the next publish carries no request.
     func clearRequest(requestId: String, route: PeerSessionRoute)
@@ -74,9 +74,19 @@ extension SessionStatePublisher: SessionStatePublishing {
         publish(route: request.route)
     }
 
-    func restoreRequest(_ request: OutgoingRequest<M>) {
-        routeStates[request.route, default: .init()].request = request
-        routeStates[request.route]?.postedRequestId = request.requestId
+    func restore(_ states: [PeerSessionRoute: MessageExchange.SessionState<M>]) {
+        for (route, state) in states {
+            let request = state.request.map {
+                OutgoingRequest(requestId: $0.requestId, messages: $0.messages, route: route)
+            }
+
+            routeStates[route] = RouteState(
+                request: request,
+                response: state.response,
+                lastPublishedPlaintext: try? StatementData<M>.state(state).scaleEncoded(),
+                postedRequestId: request?.requestId
+            )
+        }
     }
 
     func clearRequest(requestId: String, route: PeerSessionRoute) {
@@ -136,11 +146,12 @@ private extension SessionStatePublisher {
     ) throws -> UnsignedStatement {
         let payload = try statementDataCoder.encodeToScaleEncodedPayload(StatementData<M>.state(state), route: route)
         let routeContext = routeContexts.context(for: route)
+        let expiry = try priorityProvider.incrementedExpiry()
 
         return UnsignedStatement()
             .addTopic1(routeContext.sessionId.own)
             .addChannel(routeContext.channelId)
-            .addExpiry(priorityProvider.incrementedExpiry())
+            .addExpiry(expiry)
             .addScaleEncodedPayload(payload)
     }
 

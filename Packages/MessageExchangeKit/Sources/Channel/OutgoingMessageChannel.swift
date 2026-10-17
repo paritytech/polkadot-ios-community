@@ -61,7 +61,6 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
 
     func activate(restoringState requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
         requestQueue.currentRequests = requests
-        requests.values.forEach(publisher.restoreRequest)
         isActive = true
 
         logger?.debug("Trying to send messages as channel became active")

@@ -11,21 +11,26 @@ protocol PeerSessionInitializing {
 struct SessionInitializationSuccess<Message: MessageExchange.CodableMessage> {
     let outgoingState: OutgoingInitializationState<Message>
     let incomingState: IncomingInitializationState<Message>
+    /// Our latest published state per route, for the publisher to continue from.
+    let ownStates: [PeerSessionRoute: MessageExchange.SessionState<Message>]
     let priority: UInt64
 
     init(
         outgoingState: OutgoingInitializationState<Message>,
         incomingState: IncomingInitializationState<Message>,
+        ownStates: [PeerSessionRoute: MessageExchange.SessionState<Message>],
         priority: UInt64
     ) {
         self.outgoingState = outgoingState
         self.incomingState = incomingState
+        self.ownStates = ownStates
         self.priority = priority
     }
 
     init(priority: UInt64) {
         outgoingState = .empty
         incomingState = .empty
+        ownStates = [:]
 
         self.priority = priority
     }
@@ -111,10 +116,17 @@ extension PeerSessionInitializer: PeerSessionInitializing {
 }
 
 private extension PeerSessionInitializer {
-    struct DecodedStatement {
-        let statementData: StatementData<Message>
+    /// A statement that decrypted under the session key: decryption is the only proof it came from us or the peer.
+    struct AuthenticState {
+        let state: MessageExchange.SessionState<Message>
         let statement: Statement
         let route: PeerSessionRoute
+        let topicAccountId: AccountId
+    }
+
+    struct TopicKey: Hashable {
+        let route: PeerSessionRoute
+        let topicAccountId: AccountId
     }
 
     func performSessionInitialization() {
@@ -158,8 +170,7 @@ private extension PeerSessionInitializer {
             self?.continueAfterFetch(
                 ownStatements: ownStatements,
                 peerStatements: peerStatements,
-                ownError: ownError,
-                peerError: peerError
+                pollingError: [ownError, peerError].compactMap { $0 }.first(where: Self.isFatal)
             )
         }
     }
@@ -167,216 +178,132 @@ private extension PeerSessionInitializer {
     func continueAfterFetch(
         ownStatements: [PeerSessionStatement],
         peerStatements: [PeerSessionStatement],
-        ownError: StatementSubscriptionError?,
-        peerError: StatementSubscriptionError?
+        pollingError: StatementSubscriptionError?
     ) {
         logger?.debug("Own statements count \(ownStatements.count)")
         logger?.debug("Peer statements count \(peerStatements.count)")
-        if let ownError { logger?.error("Own error: \(ownError)") }
-        if let peerError { logger?.error("Peer error: \(peerError)") }
 
-        let expiry = priorityProvider.initialExpiry(from: ownStatements.map(\.statement))
+        let ownStates = authenticStates(from: ownStatements)
+        let expiry = priorityProvider.initialExpiry(from: ownStates.map(\.statement))
 
         logger?.debug("Resolved priority: \(expiry)")
 
-        do {
-            if let pollingError = ownError ?? peerError {
-                throw pollingError
-            }
+        isInitializing = false
 
-            let sortedOwnStatements = ownStatements
-                .sorted { ($0.statement.getExpiry() ?? 0) > ($1.statement.getExpiry() ?? 0) }
-            let sortedPeerStatements = peerStatements
-                .sorted { ($0.statement.getExpiry() ?? 0) > ($1.statement.getExpiry() ?? 0) }
-
-            let ownStatementDataList = try makeStatementDataList(from: sortedOwnStatements)
-            let peerStatementDataList = try makeStatementDataList(from: sortedPeerStatements)
-
-            let incomingState = try makeIncomingState(
-                ownStatementDataList: ownStatementDataList,
-                peerStatementDataList: peerStatementDataList
-            )
-
-            let outgoingState = try makeOutgoingState(
-                ownStatementDataList: ownStatementDataList,
-                peerStatementDataList: peerStatementDataList
-            )
-
-            isInitializing = false
-
-            delegate?.sessionInitializer(
-                self,
-                didInitializeWith: .init(
-                    outgoingState: outgoingState,
-                    incomingState: incomingState,
-                    priority: expiry
-                )
-            )
-        } catch {
-            isInitializing = false
-
-            let initError = makeInitializationError(error: error)
-            logger?.error("Session initialization failed: \(initError) (underlying: \(error))")
-
+        if let pollingError {
+            logger?.error("Session initialization failed: \(pollingError)")
             delegate?.sessionInitializer(
                 self,
                 didFailToInitializeWith: .init(
-                    error: initError,
+                    error: makeInitializationError(pollingError: pollingError),
                     expiry: expiry
                 )
             )
+            return
         }
+
+        let latestOwnStates = latestStatePerRoute(in: ownStates)
+        let latestPeerStates = latestStatePerTopic(in: authenticStates(from: peerStatements))
+        let outgoingState = makeOutgoingState(ownStates: latestOwnStates, peerStates: latestPeerStates)
+
+        delegate?.sessionInitializer(
+            self,
+            didInitializeWith: .init(
+                outgoingState: outgoingState,
+                incomingState: makeIncomingState(ownStates: latestOwnStates, peerStates: latestPeerStates),
+                ownStates: restorableStates(latestOwnStates, pendingRequests: outgoingState.outgoingRequests),
+                priority: expiry
+            )
+        )
     }
 
-    func makeStatementDataList(
-        from statements: [PeerSessionStatement]
-    ) throws -> [DecodedStatement] {
-        try statements.flatMap { sessionStatement -> [DecodedStatement] in
-            let statement = sessionStatement.statement
-
-            guard let payload = statement.getScaleEncodedPayload() else {
-                return []
-            }
-
-            let senderAccountId = sessionStatement.topicAccountId
-            let result: StatementDataDecodingResult<Message>
-
-            do {
-                result = try statementDataCoder.decodeFromScaleEncodedPayload(
-                    payload,
-                    senderAccountId: senderAccountId,
-                    route: sessionStatement.route
-                )
-            } catch {
-                if shouldSkipInitializerDecodeError(error, route: sessionStatement.route) {
-                    return []
+    /// Newest first; anything that fails to decrypt or decode is skipped, since anyone can publish under a topic.
+    func authenticStates(from statements: [PeerSessionStatement]) -> [AuthenticState] {
+        statements
+            .compactMap { sessionStatement -> AuthenticState? in
+                guard let state = decodeState(from: sessionStatement) else {
+                    return nil
                 }
-                throw error
-            }
 
-            return splitIntoParts(result).map {
-                DecodedStatement(statementData: $0, statement: statement, route: sessionStatement.route)
+                return AuthenticState(
+                    state: state,
+                    statement: sessionStatement.statement,
+                    route: sessionStatement.route,
+                    topicAccountId: sessionStatement.topicAccountId
+                )
             }
-        }
+            .sorted { ($0.statement.getExpiry() ?? 0) > ($1.statement.getExpiry() ?? 0) }
     }
 
-    // A state carries a request and an ack at once; the restore logic matches them as separate parts.
-    func splitIntoParts(_ result: StatementDataDecodingResult<Message>) -> [StatementData<Message>] {
-        switch result {
-        case let .statementData(.state(state)):
-            [state.response.map(StatementData.response), state.request.map(StatementData.request)].compactMap { $0 }
-        case let .statementData(statementData):
-            [statementData]
-        case let .partial(response, requestId, _):
-            // Messages are not needed here: the initializer never answers requests.
-            [response.map(StatementData.response), .request(.init(requestId: requestId, messages: []))]
-                .compactMap { $0 }
-        }
-    }
-
-    func shouldSkipInitializerDecodeError(
-        _ error: Error,
-        route: PeerSessionRoute
-    ) -> Bool {
-        guard route == .device else {
-            return false
+    func decodeState(from sessionStatement: PeerSessionStatement) -> MessageExchange.SessionState<Message>? {
+        guard let payload = sessionStatement.statement.getScaleEncodedPayload() else {
+            return nil
         }
 
-        guard let decodingError = error as? MultiDeviceDecodingError else {
-            return false
-        }
-
-        switch decodingError {
-        case .deviceEntryNotFound,
-             .oneshotKeyDecryptionFailed,
-             .payloadDecryptionFailed:
-            return true
-        case .payloadDecodingFailed:
-            return false
-        }
-    }
-
-    func makeIncomingState(
-        ownStatementDataList: [DecodedStatement],
-        peerStatementDataList: [DecodedStatement]
-    ) throws -> IncomingInitializationState<Message> {
-        let pendingPeerRequests = peerStatementDataList.compactMap { decodedStatement
-            -> PeerSessionRequest<Message>? in
-            guard case let .request(peerRequest) = decodedStatement.statementData else {
-                return nil
-            }
-
-            // TODO: Response statements share the same response channel, so init
-            // can only match request ids whose ACK is still visible in fetched peer
-            // statements. Revisit this if sender-side ACK recovery must cover every
-            // outstanding request id.
-            let responseStatementData = matchingResponseStatementData(
-                forRequestStatementData: decodedStatement,
-                in: ownStatementDataList
+        do {
+            let result: StatementDataDecodingResult<Message> = try statementDataCoder.decodeFromScaleEncodedPayload(
+                payload,
+                senderAccountId: sessionStatement.topicAccountId,
+                route: sessionStatement.route
             )
 
-            if responseStatementData == nil {
-                return .init(request: peerRequest, route: decodedStatement.route)
-            } else {
+            switch result {
+            case let .statementData(.state(state)):
+                return state
+            case .statementData(.multistate):
                 return nil
+            case let .partial(response, requestId, _):
+                // Messages are not needed here: restore only matches request ids against acks.
+                return .init(response: response, request: .init(requestId: requestId, messages: []))
+            }
+        } catch {
+            logger?.debug("Skipping undecodable statement on route \(sessionStatement.route): \(error)")
+            return nil
+        }
+    }
+
+    func latestStatePerRoute(in states: [AuthenticState]) -> [PeerSessionRoute: AuthenticState] {
+        states.reduce(into: [:]) { result, state in
+            if result[state.route] == nil {
+                result[state.route] = state
             }
         }
+    }
 
-        guard !pendingPeerRequests.isEmpty else {
-            return .empty
-        }
+    // Every peer device publishes its own state on its own topic.
+    func latestStatePerTopic(in states: [AuthenticState]) -> [AuthenticState] {
+        var seen = Set<TopicKey>()
 
-        return .init(peerRequests: pendingPeerRequests)
+        return states.filter { seen.insert(TopicKey(route: $0.route, topicAccountId: $0.topicAccountId)).inserted }
     }
 
     func makeOutgoingState(
-        ownStatementDataList: [DecodedStatement],
-        peerStatementDataList: [DecodedStatement]
-    ) throws -> OutgoingInitializationState<Message> {
-        let outgoingRequestStatements = supportedRoutes.compactMap { route in
-            ownStatementDataList.first(where: { decodedStatement in
-                if decodedStatement.route == route,
-                   case .request = decodedStatement.statementData {
-                    true
-                } else {
-                    false
-                }
-            })
-        }
-
-        guard !outgoingRequestStatements.isEmpty else {
-            return .empty
-        }
-
+        ownStates: [PeerSessionRoute: AuthenticState],
+        peerStates: [AuthenticState]
+    ) -> OutgoingInitializationState<Message> {
         var outgoingRequests = [PeerSessionRoute: OutgoingRequest<Message>]()
         var peerResponses = [PeerSessionRoute: MessageExchange.Response]()
         var initializedMessages = [Message]()
 
-        for outgoingRequestStatement in outgoingRequestStatements {
-            guard case let .request(request) = outgoingRequestStatement.statementData else {
+        for route in supportedRoutes {
+            guard let request = ownStates[route]?.state.request else {
                 continue
             }
 
-            let responseStatementData = matchingResponseStatementData(
-                forRequestStatementData: outgoingRequestStatement,
-                in: peerStatementDataList
-            )
+            let pendingRequest = OutgoingRequest(requestId: request.requestId, messages: request.messages, route: route)
+            let peerResponse = peerStates
+                .first { $0.route == route && $0.state.response?.requestId == request.requestId }?
+                .state.response
 
-            if case let .response(response) = responseStatementData {
-                if response.requestId != lastHandledResponseIds[outgoingRequestStatement.route] {
-                    outgoingRequests[outgoingRequestStatement.route] = .init(
-                        requestId: request.requestId,
-                        messages: request.messages,
-                        route: outgoingRequestStatement.route
-                    )
-                    peerResponses[outgoingRequestStatement.route] = response
+            if let peerResponse {
+                guard peerResponse.requestId != lastHandledResponseIds[route] else {
+                    continue
                 }
+
+                outgoingRequests[route] = pendingRequest
+                peerResponses[route] = peerResponse
             } else {
-                outgoingRequests[outgoingRequestStatement.route] = .init(
-                    requestId: request.requestId,
-                    messages: request.messages,
-                    route: outgoingRequestStatement.route
-                )
+                outgoingRequests[route] = pendingRequest
                 initializedMessages += request.messages
             }
         }
@@ -388,34 +315,42 @@ private extension PeerSessionInitializer {
         )
     }
 
-    func matchingResponseStatementData(
-        forRequestStatementData requestStatementData: DecodedStatement,
-        in statementDataList: [DecodedStatement]
-    ) -> StatementData<Message>? {
-        statementDataList.first(where: { decodedStatement in
-            if decodedStatement.route == requestStatementData.route,
-               case let .response(response) = decodedStatement.statementData,
-               case let .request(request) = requestStatementData.statementData,
-               response.requestId == request.requestId {
-                true
-            } else {
-                false
+    func makeIncomingState(
+        ownStates: [PeerSessionRoute: AuthenticState],
+        peerStates: [AuthenticState]
+    ) -> IncomingInitializationState<Message> {
+        let pendingPeerRequests = peerStates.compactMap { peerState -> PeerSessionRequest<Message>? in
+            guard
+                let request = peerState.state.request,
+                ownStates[peerState.route]?.state.response?.requestId != request.requestId
+            else {
+                return nil
             }
-        })?.statementData
+
+            return .init(request: request, route: peerState.route)
+        }
+
+        return .init(peerRequests: pendingPeerRequests)
     }
 
-    func makeInitializationError(error: Error) -> MessageExchange.InitializationError {
-        switch error {
-        case let initializationError as MessageExchange.InitializationError:
-            initializationError
-        case let pollingError as StatementSubscriptionError:
-            makeInitializationError(pollingError: pollingError)
-        case let incomingMessageError as MessageExchange.IncomingMessageError:
-            makeInitializationError(incomingMessageError: incomingMessageError)
-        case let decodingError as StatementDataDecodingError:
-            makeInitializationError(decodingError: decodingError)
-        default:
-            .other(error)
+    /// Our states without requests the restore already treats as finished, so they are not republished.
+    func restorableStates(
+        _ ownStates: [PeerSessionRoute: AuthenticState],
+        pendingRequests: [PeerSessionRoute: OutgoingRequest<Message>]
+    ) -> [PeerSessionRoute: MessageExchange.SessionState<Message>] {
+        ownStates.mapValues { ownState in
+            let isPending = pendingRequests[ownState.route]?.requestId == ownState.state.request?.requestId
+            return .init(response: ownState.state.response, request: isPending ? ownState.state.request : nil)
+        }
+    }
+
+    // A statement the store accepted but we can't parse is junk anyone could post; the rest was still delivered.
+    static func isFatal(_ pollingError: StatementSubscriptionError) -> Bool {
+        switch pollingError {
+        case .statementDecodingFailed:
+            false
+        case .other:
+            true
         }
     }
 
@@ -425,25 +360,6 @@ private extension PeerSessionInitializer {
             .statementDecodingFailed
         case let .other(error):
             .other(error)
-        }
-    }
-
-    func makeInitializationError(incomingMessageError: MessageExchange.IncomingMessageError) -> MessageExchange
-        .InitializationError {
-        switch incomingMessageError {
-        case .decryptionFailed:
-            .statementPayloadDecryptionFailed
-        case .decodingFailed:
-            .statementPayloadDecodingFailed
-        }
-    }
-
-    func makeInitializationError(decodingError: StatementDataDecodingError) -> MessageExchange.InitializationError {
-        switch decodingError {
-        case .decodingFailed:
-            .statementPayloadDecodingFailed
-        case .decryptionFailed:
-            .statementPayloadDecryptionFailed
         }
     }
 }

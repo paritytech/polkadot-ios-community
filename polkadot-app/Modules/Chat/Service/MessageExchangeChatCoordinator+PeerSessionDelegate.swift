@@ -104,23 +104,6 @@ extension MessageExchangeChatCoordinator: PeerSessionDelegate, TypeErasedDelegat
 
     func peerSession(
         _: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter _: MessageExchange.IncomingMessageError
-    ) -> Bool {
-//        if statement decoding failed:
-//                no action (should be just ignored by TransportLayer)
-//            else if statement data decryption failed:
-//                if Contact already up to date:
-//                    allow session to proceed (forget about broken statements)
-//                else:
-//                    update Contact public key
-//                    recreate session
-//            else if statement data decoding failed:
-//                allow session to proceed
-        true
-    }
-
-    func peerSession(
-        _: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError _: Error
     ) -> Bool { true }
 

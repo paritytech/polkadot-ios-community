@@ -48,11 +48,6 @@ public protocol PeerSessionDelegate: AnyObject {
         respondHandler: @escaping (MessageExchange.ResponseCode) -> Void
     )
 
-    func peerSession(
-        _ peerSession: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter error: MessageExchange.IncomingMessageError
-    ) -> Bool
-
     /// Called when the transport surfaces a submit error that is not handled
     /// automatically by the session. In particular, `StatementSubmitError.rejected(.channelPriorityTooLow)`
     /// is delegated here so the app can decide whether to reinitialize: it
@@ -118,11 +113,6 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
         any PeerSessionProtocol,
         @escaping (MessageExchange.ResponseCode) -> Void
     ) -> Void
-
-    private let shouldIgnoreStatementClosure: (
-        any PeerSessionProtocol,
-        MessageExchange.IncomingMessageError
-    ) -> Bool
 
     private let shouldReinitializeClosure: (
         any PeerSessionProtocol,
@@ -193,13 +183,6 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
                 peerSession,
                 respondHandler: respondHandler
             )
-        }
-
-        shouldIgnoreStatementClosure = { [weak targetDelegate] peerSession, error in
-            targetDelegate?.peerSession(
-                peerSession,
-                shouldIgnoreStatementAfter: error
-            ) ?? MessageExchange.shouldIgnoreStatement
         }
 
         shouldReinitializeClosure = { [weak targetDelegate] peerSession, error in
@@ -278,13 +261,6 @@ public final class AnyPeerSessionDelegate<M: MessageExchange.CodableMessage>: Pe
         respondHandler: @escaping (MessageExchange.ResponseCode) -> Void
     ) {
         didReceiveMessagesErrorClosure(peerSession, respondHandler)
-    }
-
-    public func peerSession(
-        _ peerSession: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter error: MessageExchange.IncomingMessageError
-    ) -> Bool {
-        shouldIgnoreStatementClosure(peerSession, error)
     }
 
     public func peerSession(

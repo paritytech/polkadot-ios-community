@@ -94,11 +94,6 @@ final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
 
     func peerSession(
         _: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter _: MessageExchange.IncomingMessageError
-    ) -> Bool { true }
-
-    func peerSession(
-        _: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError error: Error
     ) -> Bool {
         if case StatementSubmitError.rejected(.channelPriorityTooLow) = error { return false }

@@ -71,7 +71,7 @@ private struct ChatAcceptanceStatementDecoder: IncomingStatementDecoding, @unche
         )
         .decodeFromScaleEncodedPayload(payload, senderAccountId: nil, route: .identity)
 
-        guard case let .statementData(.request(peerRequest)) = result else { return [] }
+        guard case let .statementData(.state(state)) = result, let peerRequest = state.request else { return [] }
 
         return peerRequest.messages.compactMap { message in
             guard case let .multiChatAccepted(accepted) = message.remoteMessage.versioned.ensureV1()?.content else {

@@ -58,16 +58,51 @@ struct SessionStatePublisherTests {
         #expect(coder.states == [state(response: "q1", request: nil), state(response: "q1", request: "r1")])
     }
 
-    @Test func restoredRequestIsCarriedByTheNextPublishWithoutPublishingItself() async throws {
+    @Test func restoredStateIsCarriedByTheNextPublishWithoutPublishingItself() async throws {
         let publisher = makePublisher()
 
         await run {
-            publisher.restoreRequest(request("r1"))
+            publisher.restore([.device: state(response: "q0", request: "r1")])
             publisher.publishResponse(ack("q1"), route: .device)
         }
         try await submitter.waitForSubmissions(1)
 
         #expect(coder.states == [state(response: "q1", request: "r1")])
+    }
+
+    @Test func restoredAckIsKeptWhenANewRequestIsPublished() async throws {
+        let publisher = makePublisher()
+
+        await run {
+            publisher.restore([.device: state(response: "q0", request: nil)])
+            publisher.publishRequest(request("r2"))
+        }
+        try await submitter.waitForSubmissions(1)
+
+        #expect(coder.states == [state(response: "q0", request: "r2")])
+    }
+
+    @Test func republishingTheRestoredStateIsSkipped() async throws {
+        let publisher = makePublisher()
+
+        await run {
+            publisher.restore([.device: state(response: "q0", request: nil)])
+            publisher.publishResponse(ack("q0"), route: .device)
+            publisher.publishResponse(ack("q1"), route: .device)
+        }
+        try await submitter.waitForSubmissions(1)
+
+        #expect(coder.states == [state(response: "q1", request: nil)])
+    }
+
+    @Test func exhaustedExpiryFailsThePublishInsteadOfTrapping() async throws {
+        let publisher = makePublisher()
+        expiry.exhaust()
+
+        await run { publisher.publishRequest(request("r1")) }
+        try await events.waitFor(.submissionFailed)
+
+        #expect(events.recorded == [.requestFailed("r1"), .submissionFailed])
     }
 
     @Test func everyPublishTakesAHigherExpiry() async throws {
@@ -235,17 +270,30 @@ final class ScriptedSubmitter: PeerSessionStatementSubmitting, @unchecked Sendab
 }
 
 final class CountingExpiryProvider: PeerSessionPriorityProviding, @unchecked Sendable {
-    private let lock = OSAllocatedUnfairLock(initialState: [UInt64]())
+    private struct State {
+        var issued: [UInt64] = []
+        var isExhausted = false
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: State())
 
     var expiry: UInt64 = 0
-    var issued: [UInt64] { lock.withLock { $0 } }
+    var issued: [UInt64] { lock.withLock { $0.issued } }
+
+    func exhaust() {
+        lock.withLock { $0.isExhausted = true }
+    }
 
     func initialExpiry(from _: [Statement]) -> UInt64 { 0 }
 
-    func incrementedExpiry() -> UInt64 {
-        lock.withLock { issued in
-            let next = (issued.last ?? 0) + 1
-            issued.append(next)
+    func incrementedExpiry() throws -> UInt64 {
+        try lock.withLock { state in
+            guard !state.isExhausted else {
+                throw PeerSessionPriorityError.expiryExhausted
+            }
+
+            let next = (state.issued.last ?? 0) + 1
+            state.issued.append(next)
             return next
         }
     }

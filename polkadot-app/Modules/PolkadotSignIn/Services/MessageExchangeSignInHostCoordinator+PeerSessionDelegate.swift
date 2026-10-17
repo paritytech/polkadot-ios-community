@@ -85,11 +85,6 @@ extension MessageExchangeSignInHostCoordinator: PeerSessionDelegate, TypeErasedD
 
     func peerSession(
         _: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter _: MessageExchange.IncomingMessageError
-    ) -> Bool { true }
-
-    func peerSession(
-        _: any PeerSessionProtocol,
         shouldReinitializeAfterSubmitError _: any Error
     ) -> Bool { true }
 

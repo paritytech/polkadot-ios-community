@@ -15,6 +15,7 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
     private let workQueue: DispatchQueue
     private let outgoingChannel: AnyOutgoingMessageChannel<M>
     private let incomingChannel: AnyIncomingMessageChannel<M>
+    private let statePublisher: any SessionStatePublishing<M>
     private let peerSubscription: any PeerSessionStatementSubscribing
     private let initializer: PeerSessionInitializing
     private let priorityProvider: PeerSessionPriorityProviding
@@ -25,12 +26,15 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         didSet { didSetState() }
     }
 
+    private var lastHandledPeerRequestIds = [PeerSessionRoute: String]()
+
     init(
         workQueue: DispatchQueue,
         peer: MessageExchange.Peer,
         sessionId: MessageExchange.SessionId,
         outgoingChannel: AnyOutgoingMessageChannel<M>,
         incomingChannel: AnyIncomingMessageChannel<M>,
+        statePublisher: any SessionStatePublishing<M>,
         peerSubscription: any PeerSessionStatementSubscribing,
         initializer: PeerSessionInitializing,
         priorityProvider: PeerSessionPriorityProviding,
@@ -42,6 +46,7 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         self.sessionId = sessionId
         self.outgoingChannel = outgoingChannel
         self.incomingChannel = incomingChannel
+        self.statePublisher = statePublisher
         self.peerSubscription = peerSubscription
         self.initializer = initializer
         self.priorityProvider = priorityProvider
@@ -71,6 +76,10 @@ extension PeerSession: PeerSessionInitializerDelegate {
         }
 
         priorityProvider.expiry = result.priority
+        statePublisher.restore(result.ownStates)
+        for (route, ownState) in result.ownStates {
+            lastHandledPeerRequestIds[route] = ownState.response?.requestId
+        }
         state = .active(restoredRequests: result.outgoingState.outgoingRequests)
 
         delegate?.peerSession(
@@ -78,10 +87,6 @@ extension PeerSession: PeerSessionInitializerDelegate {
             didInitializeWithOutgoingMessages: result.outgoingState.initializedMessages
         )
 
-        // TODO: Response statements share the same response channel, so replying to
-        // multiple restored requests can leave only the latest ACK visible to an
-        // offline sender. Message delivery is still done per request here; revisit
-        // the protocol if sender-side ACK recovery must cover every request id.
         result.incomingState.peerRequests.forEach { peerRequest in
             _ = handlePeerRequest(peerRequest.request, route: peerRequest.route)
         }
@@ -258,55 +263,45 @@ private extension PeerSession {
             return false
         }
 
-        let statement = sessionStatement.statement
-
-        guard let encodedDataPayload = statement.getScaleEncodedPayload() else {
-            return handleIncomingMessageError(.decodingFailed, for: sessionStatement)
-        }
-
-        let senderAccountId = sessionStatement.topicAccountId
+        let route = sessionStatement.route
 
         do {
-            let outcome: StatementDataDecodingResult<Message> = try statementDataCoder
-                .decodeFromScaleEncodedPayload(
-                    encodedDataPayload,
-                    senderAccountId: senderAccountId,
-                    route: sessionStatement.route
-                )
+            guard let payload = sessionStatement.statement.getScaleEncodedPayload() else {
+                throw StatementDataDecodingError.decodingFailed
+            }
+
+            let outcome: StatementDataDecodingResult<Message> = try statementDataCoder.decodeFromScaleEncodedPayload(
+                payload,
+                senderAccountId: sessionStatement.topicAccountId,
+                route: route
+            )
 
             switch outcome {
-            case let .statementData(statementData):
-                return handleStatementData(statementData, route: sessionStatement.route)
+            case let .statementData(.state(state)):
+                return handlePeerState(state, route: route)
+            case .statementData(.multistate):
+                // The peer's devices aren't known yet (before DeviceChatAccepted), so the envelope can't be opened.
+                logger?.warning("Skipping multi-device envelope: peer devices not yet known")
+                return false
             case let .partial(response, requestId, error):
-                let handledResponse = response.map { handlePeerResponse($0, route: sessionStatement.route) } ?? false
-                let handledRequest = handleFailedPeerRequest(requestId, error: error, route: sessionStatement.route)
+                let handledResponse = response.map { handlePeerResponse($0, route: route) } ?? false
+                let handledRequest = handleFailedPeerRequest(requestId, error: error, route: route)
                 return handledResponse || handledRequest
             }
         } catch {
-            return handleIncomingMessageError(makeIncomingMessageError(error: error), for: sessionStatement)
+            // Anyone can publish under a topic; only statements that decrypt under the session key count.
+            logger?.debug("Skipping undecodable statement on route \(route): \(error)")
+            return true
         }
     }
 
-    func handleStatementData(
-        _ statementData: StatementData<Message>,
+    func handlePeerState(
+        _ state: MessageExchange.SessionState<Message>,
         route: PeerSessionRoute
     ) -> StatementHandlingStatus {
-        switch statementData {
-        case let .request(request):
-            return handlePeerRequest(request, route: route)
-        case let .response(response):
-            return handlePeerResponse(response, route: route)
-        case let .state(state):
-            return handlePeerState(state, route: route)
-        case .multirequest,
-             .multiresponse,
-             .multistate:
-            // Peer sent a multi-device envelope but this session uses a legacy coder
-            // that cannot decrypt the inner payload. This happens when the peer's
-            // device_added message hasn't been received yet.
-            logger?.warning("Skipping multi-device envelope: peer devices not yet known")
-            return false
-        }
+        let handledResponse = state.response.map { handlePeerResponse($0, route: route) } ?? false
+        let handledRequest = state.request.map { handlePeerRequest($0, route: route) } ?? false
+        return handledResponse || handledRequest
     }
 
     func handlePeerRequest(
@@ -314,6 +309,14 @@ private extension PeerSession {
         route: PeerSessionRoute
     ) -> StatementHandlingStatus {
         let requestId = request.requestId
+
+        // The peer republishes its state for every ack it gives, re-delivering the same pending request.
+        guard lastHandledPeerRequestIds[route] != requestId else {
+            logger?.debug("Request \(requestId) on route \(route) was already handled")
+            return true
+        }
+
+        lastHandledPeerRequestIds[route] = requestId
 
         logger?.debug(
             "Successfully received request \(requestId) with \(request.messages.count) messages on route \(route)"
@@ -335,20 +338,17 @@ private extension PeerSession {
         return true
     }
 
-    func handlePeerState(
-        _ state: MessageExchange.SessionState<Message>,
-        route: PeerSessionRoute
-    ) -> StatementHandlingStatus {
-        let handledResponse = state.response.map { handlePeerResponse($0, route: route) } ?? false
-        let handledRequest = state.request.map { handlePeerRequest($0, route: route) } ?? false
-        return handledResponse || handledRequest
-    }
-
     func handleFailedPeerRequest(
         _ requestId: String,
         error: Error,
         route: PeerSessionRoute
     ) -> StatementHandlingStatus {
+        guard lastHandledPeerRequestIds[route] != requestId else {
+            return true
+        }
+
+        lastHandledPeerRequestIds[route] = requestId
+
         logger?.debug("Received failed decoding request \(requestId) \(error)")
 
         delegate?.peerSessionDidReceiveMessagesError(self) { [weak self] responseCode in
@@ -374,56 +374,6 @@ private extension PeerSession {
         } else {
             logger?.debug("Response \(response.requestId) on route \(route) was not handled by outgoing channel")
             return false
-        }
-    }
-
-    func handleIncomingMessageError(
-        _ error: MessageExchange.IncomingMessageError,
-        for sessionStatement: PeerSessionStatement
-    ) -> StatementHandlingStatus {
-        let shouldIgnore = delegate?.peerSession(
-            self,
-            shouldIgnoreStatementAfter: error
-        ) ?? MessageExchange.shouldIgnoreStatement
-
-        logger?.error("Failed to handle incoming statement on route \(sessionStatement.route): \(error)")
-
-        return shouldIgnore
-    }
-
-    func makeIncomingMessageError(error: Error) -> MessageExchange.IncomingMessageError {
-        switch error {
-        case let decodingError as StatementDataDecodingError:
-            return makeIncomingMessageError(decodingError: decodingError)
-        case let multiDeviceError as MultiDeviceDecodingError:
-            return makeIncomingMessageError(multiDeviceError: multiDeviceError)
-        default:
-            logger?.error("Unexpected error: \(error)")
-            return .decodingFailed
-        }
-    }
-
-    func makeIncomingMessageError(
-        decodingError: StatementDataDecodingError
-    ) -> MessageExchange.IncomingMessageError {
-        switch decodingError {
-        case .decodingFailed:
-            .decodingFailed
-        case .decryptionFailed:
-            .decryptionFailed
-        }
-    }
-
-    func makeIncomingMessageError(
-        multiDeviceError: MultiDeviceDecodingError
-    ) -> MessageExchange.IncomingMessageError {
-        switch multiDeviceError {
-        case .payloadDecodingFailed:
-            .decodingFailed
-        case .deviceEntryNotFound,
-             .oneshotKeyDecryptionFailed,
-             .payloadDecryptionFailed:
-            .decryptionFailed
         }
     }
 }

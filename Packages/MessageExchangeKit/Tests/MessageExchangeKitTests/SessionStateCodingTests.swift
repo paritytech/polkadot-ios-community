@@ -73,23 +73,6 @@ struct SessionStateCodingTests {
         #expect(requestId == "own-request")
     }
 
-    @Test func undecodableLegacyRequestKeepsRequestId() throws {
-        let payload = try makeCoder().encodeToScaleEncodedPayload(
-            StatementData<RejectedMessage>.request(.init(requestId: "legacy", messages: [RejectedMessage()])),
-            route: .identity
-        )
-
-        let result: StatementDataDecodingResult<RejectedMessage> = try makeCoder(keys: (bob, alice))
-            .decodeFromScaleEncodedPayload(payload, senderAccountId: nil, route: .identity)
-
-        guard case let .partial(response, requestId, _) = result else {
-            Issue.record("Expected a partial result, got \(result)")
-            return
-        }
-        #expect(response == nil)
-        #expect(requestId == "legacy")
-    }
-
     @Test func multiDeviceStateRoundTrips() throws {
         let recipientDevice = Curve25519.KeyAgreement.PrivateKey()
         let recipientAccountId = Data(repeating: 9, count: 32)
@@ -122,10 +105,11 @@ struct SessionStateCodingTests {
         #expect(envelope.devicesInfo.map(\.statementAccountId) == [recipientAccountId])
     }
 
-    @Test func unknownVariantFailsDecoding() throws {
+    @Test(arguments: [UInt8(0), 1, 2, 3, 9])
+    func retiredOrUnknownVariantFailsDecoding(index: UInt8) throws {
         let encryptor = try X25519ChaChaPolyEncryptorFactory(privateKey: alice)
             .makeEncryptor(remotePublicKey: bob.publicKey.rawRepresentation)
-        let payload = try encryptor.encrypt(Data([9, 0, 0])).scaleEncoded()
+        let payload = try encryptor.encrypt(Data([index, 0, 0])).scaleEncoded()
 
         #expect(throws: StatementDataDecodingError.self) {
             let _: StatementDataDecodingResult<TestMessage> = try makeCoder(keys: (bob, alice))

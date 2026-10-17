@@ -33,66 +33,6 @@ extension RequestDeviceInfo: ScaleCodable {
     }
 }
 
-// MARK: - MultiDeviceRequest
-
-/// Multi-device request envelope.
-/// `encryptedRequest` contains a `Request<M>` encrypted with a one-shot ChaCha20-Poly1305 key (REQ_PK).
-/// `devicesInfo` contains REQ_PK encrypted individually for each recipient device.
-public struct MultiDeviceRequest: Equatable {
-    public let encryptedRequest: Data
-    public let devicesInfo: [RequestDeviceInfo]
-
-    public init(
-        encryptedRequest: Data,
-        devicesInfo: [RequestDeviceInfo]
-    ) {
-        self.encryptedRequest = encryptedRequest
-        self.devicesInfo = devicesInfo
-    }
-}
-
-extension MultiDeviceRequest: ScaleCodable {
-    public init(scaleDecoder: any ScaleDecoding) throws {
-        encryptedRequest = try Data(scaleDecoder: scaleDecoder)
-        devicesInfo = try [RequestDeviceInfo](scaleDecoder: scaleDecoder)
-    }
-
-    public func encode(scaleEncoder: any ScaleEncoding) throws {
-        try encryptedRequest.encode(scaleEncoder: scaleEncoder)
-        try devicesInfo.encode(scaleEncoder: scaleEncoder)
-    }
-}
-
-// MARK: - MultiDeviceResponse
-
-/// Multi-device response envelope.
-/// `encryptedResponse` contains a `Response` encrypted with a one-shot ChaCha20-Poly1305 key (RES_PK).
-/// `devicesInfo` contains RES_PK encrypted individually for each recipient device.
-public struct MultiDeviceResponse: Equatable {
-    public let encryptedResponse: Data
-    public let devicesInfo: [RequestDeviceInfo]
-
-    public init(
-        encryptedResponse: Data,
-        devicesInfo: [RequestDeviceInfo]
-    ) {
-        self.encryptedResponse = encryptedResponse
-        self.devicesInfo = devicesInfo
-    }
-}
-
-extension MultiDeviceResponse: ScaleCodable {
-    public init(scaleDecoder: any ScaleDecoding) throws {
-        encryptedResponse = try Data(scaleDecoder: scaleDecoder)
-        devicesInfo = try [RequestDeviceInfo](scaleDecoder: scaleDecoder)
-    }
-
-    public func encode(scaleEncoder: any ScaleEncoding) throws {
-        try encryptedResponse.encode(scaleEncoder: scaleEncoder)
-        try devicesInfo.encode(scaleEncoder: scaleEncoder)
-    }
-}
-
 // MARK: - MultiDeviceState
 
 /// Multi-device state envelope.

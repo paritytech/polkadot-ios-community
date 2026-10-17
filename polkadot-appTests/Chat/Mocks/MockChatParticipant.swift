@@ -52,11 +52,6 @@ final class MockChatParticipant: TypeErasedDelegateStoring {
         @escaping (MessageExchange.ResponseCode) -> Void
     ) -> Void)?
 
-    var shouldIgnoreStatementClosure: ((
-        any PeerSessionProtocol,
-        MessageExchange.IncomingMessageError
-    ) -> Bool)?
-
     var shouldReinitializeClosure: ((
         any PeerSessionProtocol,
         Error
@@ -130,13 +125,6 @@ extension MockChatParticipant: PeerSessionDelegate {
         respondHandler: @escaping (MessageExchange.ResponseCode) -> Void
     ) {
         didReceiveMessagesClosure?(peerSession, [], respondHandler)
-    }
-
-    func peerSession(
-        _ peerSession: any PeerSessionProtocol,
-        shouldIgnoreStatementAfter error: MessageExchange.IncomingMessageError
-    ) -> Bool {
-        shouldIgnoreStatementClosure?(peerSession, error) ?? true
     }
 
     func peerSession(
