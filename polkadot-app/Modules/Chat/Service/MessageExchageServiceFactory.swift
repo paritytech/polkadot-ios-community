@@ -112,7 +112,6 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
             subscriptionFactory: subscriptionFactory,
             maxStatementSize: maxStatementSize,
             compactorFactory: compactorFactory,
-            operationQueue: operationQueue,
             logger: logger
         )
 

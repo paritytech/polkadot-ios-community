@@ -27,10 +27,7 @@ final class OutgoingRequestQueueBatchTests: XCTestCase {
             statementDataCoder: FakeStatementDataCoder(headerSize: 10, messageSize: 10),
             maxPayloadSize: 30
         )
-        queue.currentRequests[.device] = makeRequest(
-            statementDataCoder: FakeStatementDataCoder(headerSize: 10, messageSize: 10),
-            messages: [TestMessage(id: 0)]
-        )
+        queue.currentRequests[.device] = makeRequest(messages: [TestMessage(id: 0)])
 
         let results = queue.addMessages(
             [TestMessage(id: 1), TestMessage(id: 2), TestMessage(id: 3)],
@@ -164,19 +161,11 @@ private extension OutgoingRequestQueueBatchTests {
         )
     }
 
-    func makeRequest(
-        statementDataCoder: StatementDataCoding = FakeStatementDataCoder(headerSize: 10, messageSize: 10),
-        messages: [TestMessage]
-    ) -> OutgoingRequest<TestMessage> {
-        let request = MessageExchange.Request(requestId: "seed", messages: messages)
-        // swiftlint:disable:next force_try
-        let route = messages.first?.route ?? .device
-        let payload = try! statementDataCoder.encodeToScaleEncodedPayload(.request(request), route: route)
-        return OutgoingRequest(
-            requestId: request.requestId,
+    func makeRequest(messages: [TestMessage]) -> OutgoingRequest<TestMessage> {
+        OutgoingRequest(
+            requestId: "seed",
             messages: messages,
-            scaleEncodedPayload: payload,
-            route: route
+            route: messages.first?.route ?? .device
         )
     }
 
@@ -250,7 +239,7 @@ private final class FakeStatementDataCoder: StatementDataCoding {
         _ statementData: StatementData<some MessageExchange.CodableMessage>,
         route _: PeerSessionRoute
     ) throws -> Data {
-        guard case let .request(request) = statementData else {
+        guard case let .state(state) = statementData, let request = state.request else {
             return Data(count: headerSize)
         }
 

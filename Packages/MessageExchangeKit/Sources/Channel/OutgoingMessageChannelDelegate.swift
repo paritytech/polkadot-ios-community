@@ -1,6 +1,10 @@
 import Foundation
 import Foundation_iOS
 
+protocol MessageChannelDelegate: AnyObject {
+    func statementSubmitFailed(with error: Error)
+}
+
 protocol OutgoingMessageChannelDelegate: MessageChannelDelegate {
     associatedtype Message: MessageExchange.CodableMessage
 

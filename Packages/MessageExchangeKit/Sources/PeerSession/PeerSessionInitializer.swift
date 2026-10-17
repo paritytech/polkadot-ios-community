@@ -231,11 +231,11 @@ private extension PeerSessionInitializer {
     func makeStatementDataList(
         from statements: [PeerSessionStatement]
     ) throws -> [DecodedStatement] {
-        try statements.compactMap { sessionStatement -> DecodedStatement? in
+        try statements.flatMap { sessionStatement -> [DecodedStatement] in
             let statement = sessionStatement.statement
 
             guard let payload = statement.getScaleEncodedPayload() else {
-                return nil
+                return []
             }
 
             let senderAccountId = sessionStatement.topicAccountId
@@ -249,29 +249,28 @@ private extension PeerSessionInitializer {
                 )
             } catch {
                 if shouldSkipInitializerDecodeError(error, route: sessionStatement.route) {
-                    return nil
+                    return []
                 }
                 throw error
             }
 
-            switch result {
-            case let .statementData(statementData):
-                return DecodedStatement(
-                    statementData: statementData,
-                    statement: statement,
-                    route: sessionStatement.route
-                )
-            case let .partial(_, requestId, _):
-                // it is ok to return statement data for compatibility reason here
-                // since we don't respond to requests in the initializer
-                return DecodedStatement(
-                    statementData: StatementData.request(
-                        .init(requestId: requestId, messages: [])
-                    ),
-                    statement: statement,
-                    route: sessionStatement.route
-                )
+            return splitIntoParts(result).map {
+                DecodedStatement(statementData: $0, statement: statement, route: sessionStatement.route)
             }
+        }
+    }
+
+    // A state carries a request and an ack at once; the restore logic matches them as separate parts.
+    func splitIntoParts(_ result: StatementDataDecodingResult<Message>) -> [StatementData<Message>] {
+        switch result {
+        case let .statementData(.state(state)):
+            [state.response.map(StatementData.response), state.request.map(StatementData.request)].compactMap { $0 }
+        case let .statementData(statementData):
+            [statementData]
+        case let .partial(response, requestId, _):
+            // Messages are not needed here: the initializer never answers requests.
+            [response.map(StatementData.response), .request(.init(requestId: requestId, messages: []))]
+                .compactMap { $0 }
         }
     }
 
@@ -354,10 +353,7 @@ private extension PeerSessionInitializer {
         var initializedMessages = [Message]()
 
         for outgoingRequestStatement in outgoingRequestStatements {
-            guard
-                case let .request(request) = outgoingRequestStatement.statementData,
-                let scaleEncodedPayload = outgoingRequestStatement.statement.getScaleEncodedPayload()
-            else {
+            guard case let .request(request) = outgoingRequestStatement.statementData else {
                 continue
             }
 
@@ -371,7 +367,6 @@ private extension PeerSessionInitializer {
                     outgoingRequests[outgoingRequestStatement.route] = .init(
                         requestId: request.requestId,
                         messages: request.messages,
-                        scaleEncodedPayload: scaleEncodedPayload,
                         route: outgoingRequestStatement.route
                     )
                     peerResponses[outgoingRequestStatement.route] = response
@@ -380,7 +375,6 @@ private extension PeerSessionInitializer {
                 outgoingRequests[outgoingRequestStatement.route] = .init(
                     requestId: request.requestId,
                     messages: request.messages,
-                    scaleEncodedPayload: scaleEncodedPayload,
                     route: outgoingRequestStatement.route
                 )
                 initializedMessages += request.messages

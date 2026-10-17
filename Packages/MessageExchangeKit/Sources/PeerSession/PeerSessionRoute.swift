@@ -7,9 +7,7 @@ public enum PeerSessionRoute: Hashable, Sendable {
 
     struct Context {
         let sessionId: MessageExchange.SessionId
-        let requestChannelId: StatementFixedFieldConvertible
-        let responseChannelId: StatementFixedFieldConvertible
-        let peerRequestChannelId: StatementFixedFieldConvertible
+        let channelId: StatementFixedFieldConvertible
     }
 
     struct Contexts {

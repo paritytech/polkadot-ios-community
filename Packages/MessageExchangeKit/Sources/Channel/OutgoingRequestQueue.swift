@@ -80,7 +80,7 @@ extension OutgoingRequestQueue: OutgoingRequestQueueing {
         let queue = queuedMessages[route] ?? []
         let requestId = UUID().uuidString
         var messages = [M]()
-        var scaleEncodedData = Data()
+        var encodedSize = 0
         var index = 0
 
         while true {
@@ -91,17 +91,15 @@ extension OutgoingRequestQueue: OutgoingRequestQueueing {
 
                 let newMessages = messages + [queue[index]]
 
-                let newData = try statementDataCoder.encodeToScaleEncodedPayload(
-                    .request(.init(
-                        requestId: requestId,
-                        messages: newMessages
-                    )),
+                let newData = try statementDataCoder.encodeForSizing(
+                    requestId: requestId,
+                    messages: newMessages,
                     route: route
                 )
 
                 if sizeValidator.scaleEncodedPayloadFits(newData) {
                     messages = newMessages
-                    scaleEncodedData = newData
+                    encodedSize = newData.count
                     index += 1
                 } else {
                     break
@@ -117,19 +115,18 @@ extension OutgoingRequestQueue: OutgoingRequestQueueing {
             }
         }
 
-        guard !messages.isEmpty, !scaleEncodedData.isEmpty else {
+        guard !messages.isEmpty else {
             logger?.error("Data is empty")
             return nil
         }
 
         queuedMessages[route]?.removeFirst(index)
 
-        logger?.debug("Added \(messages.count) for size \(scaleEncodedData.count)")
+        logger?.debug("Added \(messages.count) for size \(encodedSize)")
 
         return .init(
             requestId: requestId,
             messages: messages,
-            scaleEncodedPayload: scaleEncodedData,
             route: route
         )
     }
@@ -165,13 +162,9 @@ private extension OutgoingRequestQueue {
                 return .failure(.unsupportedRoute(route))
             }
 
-            // TODO: We use the randow request id and a single value array to check the size
-            // Should be redone properly
-            let scaleEncodedPayload = try statementDataCoder.encodeToScaleEncodedPayload(
-                .request(.init(
-                    requestId: UUID().uuidString,
-                    messages: [message]
-                )),
+            let scaleEncodedPayload = try statementDataCoder.encodeForSizing(
+                requestId: UUID().uuidString,
+                messages: [message],
                 route: route
             )
 
@@ -218,11 +211,9 @@ private extension OutgoingRequestQueue {
         do {
             let newRequestId = UUID().uuidString
 
-            let scaleEncodedData = try statementDataCoder.encodeToScaleEncodedPayload(
-                .request(.init(
-                    requestId: newRequestId,
-                    messages: newMessages
-                )),
+            let scaleEncodedData = try statementDataCoder.encodeForSizing(
+                requestId: newRequestId,
+                messages: newMessages,
                 route: route
             )
 
@@ -230,7 +221,6 @@ private extension OutgoingRequestQueue {
                 currentRequests[route] = .init(
                     requestId: newRequestId,
                     messages: newMessages,
-                    scaleEncodedPayload: scaleEncodedData,
                     route: route
                 )
                 return .appendedToCurrentRequest(route: route)

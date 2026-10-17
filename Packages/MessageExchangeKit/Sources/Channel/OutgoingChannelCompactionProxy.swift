@@ -228,8 +228,9 @@ private extension OutgoingChannelCompactionProxy {
         }
 
         do {
-            let payload = try statementDataCoder.encodeToScaleEncodedPayload(
-                .request(.init(requestId: UUID().uuidString, messages: messages)),
+            let payload = try statementDataCoder.encodeForSizing(
+                requestId: UUID().uuidString,
+                messages: messages,
                 route: route
             )
 

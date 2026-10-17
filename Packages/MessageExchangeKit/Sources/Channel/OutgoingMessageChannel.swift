@@ -1,5 +1,4 @@
 import Foundation
-import Operation_iOS
 import StatementStore
 import SDKLogger
 
@@ -8,35 +7,22 @@ final class OutgoingMessageChannel<M: MessageExchange.CodableMessage>: @unchecke
 
     weak var delegate: AnyOutgoingMessageChannelDelegate<M>?
 
-    private let workQueue: DispatchQueue
-    private let routeContexts: PeerSessionRoute.Contexts
-    private let submitter: PeerSessionStatementSubmitting
+    private let publisher: any SessionStatePublishing<M>
     private let preSendHandler: AnyPeerSessionPreSendHandler<M>
-    private let priorityProvider: PeerSessionPriorityProviding
     private let requestQueue: AnyOutgoingRequestQueue<M>
-    private let operationQueue: OperationQueue
     private let logger: SDKLoggerProtocol?
-    private var submissionTasks = [PeerSessionRoute: Task<Void, Never>]()
 
     private var isActive = false
 
     init(
-        workQueue: DispatchQueue,
-        routeContexts: PeerSessionRoute.Contexts,
-        submitter: PeerSessionStatementSubmitting,
+        publisher: any SessionStatePublishing<M>,
         preSendHandler: AnyPeerSessionPreSendHandler<M>,
-        priorityProvider: PeerSessionPriorityProviding,
         requestQueue: AnyOutgoingRequestQueue<M>,
-        operationQueue: OperationQueue,
         logger: SDKLoggerProtocol?
     ) {
-        self.workQueue = workQueue
-        self.routeContexts = routeContexts
-        self.submitter = submitter
+        self.publisher = publisher
         self.preSendHandler = preSendHandler
-        self.priorityProvider = priorityProvider
         self.requestQueue = requestQueue
-        self.operationQueue = operationQueue
         self.logger = logger
     }
 }
@@ -75,6 +61,7 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
 
     func activate(restoringState requests: [PeerSessionRoute: OutgoingRequest<Message>]) {
         requestQueue.currentRequests = requests
+        requests.values.forEach(publisher.restoreRequest)
         isActive = true
 
         logger?.debug("Trying to send messages as channel became active")
@@ -126,9 +113,32 @@ extension OutgoingMessageChannel: OutgoingMessageChanneling {
     }
 
     func reset(route: PeerSessionRoute) {
-        submissionTasks[route]?.cancel()
-        submissionTasks[route] = nil
+        publisher.reset(route: route)
         requestQueue.reset(route: route)
+    }
+}
+
+extension OutgoingMessageChannel: SessionStatePublisherDelegate {
+    func publisher(didPostRequest requestId: String, route: PeerSessionRoute) {
+        guard requestQueue.currentRequests[route]?.requestId == requestId else {
+            return
+        }
+
+        logger?.debug("Request \(requestId) sent successfully")
+        handleMessagePostingFinish(with: nil, route: route)
+    }
+
+    func publisher(didFailRequest requestId: String, route: PeerSessionRoute, error: Error) {
+        guard requestQueue.currentRequests[route]?.requestId == requestId else {
+            return
+        }
+
+        logger?.error("Failed to send request \(requestId): \(error)")
+        handleMessagePostingFinish(with: error, route: route)
+    }
+
+    func publisher(didFailSubmissionWith error: Error) {
+        delegate?.statementSubmitFailed(with: error)
     }
 }
 
@@ -236,51 +246,18 @@ private extension OutgoingMessageChannel {
     }
 
     func finishRequestSending(route: PeerSessionRoute) {
+        if let requestId = requestQueue.currentRequests[route]?.requestId {
+            publisher.clearRequest(requestId: requestId, route: route)
+        }
+
         requestQueue.currentRequests[route] = nil
-        submissionTasks[route] = nil
 
         logger?.debug("Finished request on route \(route), trying to send more messages")
         sendQueuedRequests()
     }
 
     func sendOutgoingRequest(_ outgoingRequest: OutgoingRequest<Message>) {
-        let requestId = outgoingRequest.requestId
-        let route = outgoingRequest.route
-
-        let expiry = priorityProvider.incrementedExpiry()
-        let routeContext = routeContexts.context(for: route)
-
-        let statement = UnsignedStatement()
-            .addTopic1(routeContext.sessionId.own)
-            .addChannel(routeContext.requestChannelId)
-            .addExpiry(expiry)
-            .addScaleEncodedPayload(outgoingRequest.scaleEncodedPayload)
-
-        logger?.debug("Going to send request \(requestId) with priority \(expiry)")
-
-        submissionTasks[route]?.cancel()
-
-        submissionTasks[route] = Task { [weak self] in
-            do {
-                try await self?.submitter.submit(statement)
-                self?.logger?.debug("Request \(requestId) sent successfully")
-
-                self?.workQueue.async {
-                    self?.handleMessagePostingFinish(with: nil, route: route)
-                }
-
-            } catch {
-                guard !Task.isCancelled else {
-                    return
-                }
-
-                self?.logger?.error("Failed to send request \(requestId): \(error)")
-
-                self?.workQueue.async {
-                    self?.handleMessagePostingFinish(with: error, route: route)
-                    self?.delegate?.statementSubmitFailed(with: error)
-                }
-            }
-        }
+        logger?.debug("Going to send request \(outgoingRequest.requestId)")
+        publisher.publishRequest(outgoingRequest)
     }
 }

@@ -3,8 +3,23 @@ import Foundation
 struct OutgoingRequest<M: MessageExchange.CodableMessage> {
     let requestId: String
     let messages: [M]
-    let scaleEncodedPayload: Data
     let route: PeerSessionRoute
+}
+
+extension StatementDataCoding {
+    /// Encodes a request inside a state that also carries an ack, the largest shape it is published in.
+    func encodeForSizing<M: MessageExchange.CodableMessage>(
+        requestId: String,
+        messages: [M],
+        route: PeerSessionRoute
+    ) throws -> Data {
+        let state = MessageExchange.SessionState(
+            response: MessageExchange.Response(requestId: UUID().uuidString, responseCode: .failure(.max)),
+            request: MessageExchange.Request(requestId: requestId, messages: messages)
+        )
+
+        return try encodeToScaleEncodedPayload(StatementData<M>.state(state), route: route)
+    }
 }
 
 extension MessageExchange {

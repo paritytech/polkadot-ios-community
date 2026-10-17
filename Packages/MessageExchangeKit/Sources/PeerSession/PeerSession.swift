@@ -19,7 +19,6 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
     private let initializer: PeerSessionInitializing
     private let priorityProvider: PeerSessionPriorityProviding
     private let statementDataCoder: StatementDataCoding
-    private let routeContexts: PeerSessionRoute.Contexts
     private let logger: SDKLoggerProtocol?
 
     private var state = InternalSessionState<M>.idle {
@@ -36,7 +35,6 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         initializer: PeerSessionInitializing,
         priorityProvider: PeerSessionPriorityProviding,
         statementDataCoder: StatementDataCoding,
-        routeContexts: PeerSessionRoute.Contexts,
         logger: SDKLoggerProtocol?
     ) {
         self.workQueue = workQueue
@@ -48,7 +46,6 @@ final class PeerSession<M: MessageExchange.CodableMessage>: TypeErasedDelegateSt
         self.initializer = initializer
         self.priorityProvider = priorityProvider
         self.statementDataCoder = statementDataCoder
-        self.routeContexts = routeContexts
         self.logger = logger
 
         initializeSession()
@@ -123,7 +120,7 @@ extension PeerSession: PeerSessionInitializerDelegate {
     }
 }
 
-extension PeerSession: IncomingMessageChannelDelegate, OutgoingMessageChannelDelegate {
+extension PeerSession: OutgoingMessageChannelDelegate {
     func messageChannel(
         _: any OutgoingMessageChanneling,
         didFinishAddingMessageToQueue message: Message,
@@ -384,26 +381,12 @@ private extension PeerSession {
         _ error: MessageExchange.IncomingMessageError,
         for sessionStatement: PeerSessionStatement
     ) -> StatementHandlingStatus {
-        let statement = sessionStatement.statement
         let shouldIgnore = delegate?.peerSession(
             self,
             shouldIgnoreStatementAfter: error
         ) ?? MessageExchange.shouldIgnoreStatement
 
-        let peerRequestChannelId = routeContexts
-            .context(for: sessionStatement.route)
-            .peerRequestChannelId
-
-        guard
-            let channel = statement.getChannel(),
-            let requestChannel = try? peerRequestChannelId.fixedStatementFieldData(),
-            channel == requestChannel
-        else {
-            logger?.error("Failed to handle incoming message: \(error)")
-            return shouldIgnore
-        }
-
-        logger?.error("Failed to handle incoming request: \(error)")
+        logger?.error("Failed to handle incoming statement on route \(sessionStatement.route): \(error)")
 
         return shouldIgnore
     }
