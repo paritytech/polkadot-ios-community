@@ -18,11 +18,12 @@ struct CoinageTraceView: View {
     private static let inset: CGFloat = CoinageArrangement.focusInset
 
     /// How tall the band has to be for the trace to fit beside the coin at its tallest: the two
-    /// lines under the headline and the explanation's room. The band hangs from the foot of the
-    /// screen, so it is placed for the open explanation from the start; the box inside it wraps
-    /// its content and only reaches further down when the explanation opens.
+    /// lines under the headline, a second line for the quality where a narrow screen wraps it,
+    /// and the explanation's room. The band hangs from the foot of the screen, so it is placed
+    /// for all of that from the start; the box inside it wraps its content and only reaches
+    /// further down when the explanation opens.
     static func height(for _: CoinageCoinTrace) -> CGFloat {
-        max(CoinageArrangement.focusBandMinimum, inset * 2 + headline + line * 2 + explanation)
+        max(CoinageArrangement.focusBandMinimum, inset * 2 + headline + line * 3 + explanation)
     }
 
     var body: some View {
@@ -40,19 +41,23 @@ struct CoinageTraceView: View {
 
             line(String(localized: .coinageTraceHops(trace.hops)))
 
-            HStack(spacing: DSSpacings.extraSmall) {
-                line(String(localized: .coinageTraceQuality(Self.grade(trace.quality))))
-
-                Button {
-                    isExplainingQuality.toggle()
-                } label: {
-                    Image(systemName: isExplainingQuality ? "info.circle.fill" : "info.circle")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.fgSecondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(.coinageTraceQualityInfo))
+            // The grade may not fit on one line beside the coin on a narrow screen, so this line
+            // alone may take a second, and the mark runs on after the last word rather than
+            // holding a place of its own that would push the grade down alone.
+            Button {
+                isExplainingQuality.toggle()
+            } label: {
+                (Text(String(localized: .coinageTraceQuality(Self.grade(trace.quality))))
+                    + Text(verbatim: " ")
+                    + Text(Image(systemName: isExplainingQuality ? "info.circle.fill" : "info.circle")))
+                    .typography(.bodyMedium)
+                    .foregroundStyle(Color.fgSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(minHeight: Self.line, alignment: .leading)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(.coinageTraceQualityInfo))
 
             if isExplainingQuality {
                 explanation
