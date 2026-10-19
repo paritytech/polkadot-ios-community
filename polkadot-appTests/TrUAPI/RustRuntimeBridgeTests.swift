@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import DesignSystem
 import ChainRegistry
 import Products
 import SubstrateSdk
@@ -14,13 +15,11 @@ import UIKitExt
 
 // MARK: - Helpers
 
-private func makeRegistryPool(chainRegistry: ChainRegistryProtocol) -> TrUAPIChainConnectionPool {
-    TrUAPIChainConnectionPool(
-        engineResolver: { genesisHash in
-            chainRegistry.getChainByGenesis(for: genesisHash.toHex()).flatMap { chain in
-                chainRegistry.getConnection(for: chain.chainId)
-            }
-        },
+private func makeRegistryPool(chainRegistry: ChainRegistryProtocol) -> TrUAPIV2SpecConnectionPool {
+    TrUAPIV2SpecConnectionPool(
+        chainRegistry: chainRegistry,
+        applicationHandler: MockApplicationHandler(),
+        dateProvider: MockDateProvider(),
         logger: Logger.shared
     )
 }
@@ -80,9 +79,11 @@ private func makeBridge(
     confirmationPresenter: MockConfirmationPresenter = MockConfirmationPresenter(),
     preimageCache: TrUAPIPreimageCache = TrUAPIPreimageCache { _ in nil },
     productStorageFails: Bool = false,
-    hostProvider: ProductHostProviding = StubHostProvider()
+    hostProvider: ProductHostProviding = StubHostProvider(),
+    themeManager: MockThemeManager? = nil
 ) -> RustProductExecutionBridge {
     let router = MockNavigationRouter()
+    let themeManager = themeManager ?? MockThemeManager()
     let pool = makeRegistryPool(chainRegistry: chainRegistry)
     let productStorage: TrUAPILocalStoring = productStorageFails
         ? FailingProductStorage()
@@ -102,8 +103,16 @@ private func makeBridge(
         confirmationPresenter: confirmationPresenter,
         preimageCache: preimageCache,
         hostProvider: hostProvider,
+        themeManager: themeManager,
         logger: Logger.shared
     ))
+}
+
+@MainActor
+private func waitUntil(_ condition: () -> Bool) async {
+    for _ in 0 ..< 200 where !condition() {
+        try? await Task.sleep(for: .milliseconds(5))
+    }
 }
 
 // MARK: - Tests
@@ -430,14 +439,6 @@ struct RustRuntimeBridgeTests {
         #expect(!verdict)
     }
 
-    // MARK: currentTheme
-
-    @Test func currentThemeReturnsDark() throws {
-        let bridge = makeBridge()
-        let theme = try bridge.currentTheme()
-        #expect(theme == .dark)
-    }
-
     // MARK: attach
 
     /// Not attached: event forwarding is a no-op and must not crash.
@@ -483,6 +484,7 @@ struct RustRuntimeBridgeTests {
             confirmationPresenter: MockConfirmationPresenter(),
             preimageCache: TrUAPIPreimageCache { _ in nil },
             hostProvider: StubHostProvider(),
+            themeManager: MockThemeManager(),
             logger: Logger.shared
         ))
 
@@ -507,6 +509,46 @@ struct RustRuntimeBridgeTests {
         #expect(execution.chainResponses.first?.0 == 7)
         #expect(execution.chainResponses.first?.1 == "{\"ok\":true}")
         #expect(execution.chainClosed == [7])
+    }
+
+    @Test func currentThemeBeforeAttachIsDefaultDark() throws {
+        let bridge = makeBridge()
+
+        let current = try bridge.currentTheme()
+        #expect(current == HostThemeSubscribeItem(name: ThemeName.default, variant: ThemeVariant.dark))
+    }
+
+    @Test func attachReportsManagerThemeAndNotifiesExecution() async throws {
+        let themeManager = MockThemeManager(selection: .berlinDay)
+        let bridge = makeBridge(themeManager: themeManager)
+        let execution = MockProductExecution()
+        bridge.attach(execution)
+
+        await waitUntil { !execution.themeChanges.isEmpty }
+
+        let expected = HostThemeSubscribeItem(
+            name: ThemeName.custom(themeManager.theme.id),
+            variant: ThemeVariant.light
+        )
+        let current = try bridge.currentTheme()
+        #expect(current == expected)
+        #expect(execution.themeChanges == [expected])
+    }
+
+    @Test func themeChangeNotifiesAttachedExecution() async throws {
+        let themeManager = MockThemeManager(selection: .berlinNight)
+        let bridge = makeBridge(themeManager: themeManager)
+        let execution = MockProductExecution()
+        bridge.attach(execution)
+        await waitUntil { execution.themeChanges.count == 1 }
+
+        themeManager.select(.app(.berlinDay))
+        await waitUntil { execution.themeChanges.count == 2 }
+
+        let current = try bridge.currentTheme()
+        #expect(execution.themeChanges.map(\.variant) == [ThemeVariant.dark, ThemeVariant.light])
+        #expect(execution.themeChanges.last?.name == ThemeName.custom(themeManager.theme.id))
+        #expect(current.variant == ThemeVariant.light)
     }
 
     /// Core storage keys (`Data`) are hex-encoded for the underlying store;

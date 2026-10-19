@@ -969,6 +969,17 @@
         }
       }
     },
+    "chatCallStatusConnecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting..."
+          }
+        }
+      }
+    },
     "chatCallStatusContacting" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3542,17 +3553,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Wallet creation failed with error %@. Please, contact support"
-          }
-        }
-      }
-    },
-    "wallet.main.balanceCard" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ Card"
           }
         }
       }
