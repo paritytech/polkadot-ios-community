@@ -22,7 +22,7 @@ struct CoinParams {
   float lightTurnY;      // about it, so a wrist roll and a lifted edge stay different turns
   float lightTurnZ;
   float exposure, luster, rimLuster, lusterMinPx, studioRadius, studioScale;
-  float basin, rollGloss, rollReliefHaze, envSharpen, haze, polish, tone, grime;
+  float rollGloss, rollReliefHaze, envSharpen, haze, polish, tone, grime;
   float engraveDark, frost, wallRough, aaVariance, aaThreshold, reliefBias;
   float ambient;         // how much of the studio's own average every reflection is pulled toward
   float reliefGain;      // how much harder than the atlas the struck relief slopes
@@ -280,10 +280,6 @@ fragment float4 coinFragment(VertexOut in [[stage_in]],
   float height = texel.a * 2.0 - 1.0;
   float mask = in.surf.w * (1.0 - smoothstep(RELIEF_RADIUS - 0.015, RELIEF_RADIUS + 0.01, length(lp.xy)));
   float2 slope = float2(nr.x * side, nr.y) / max(nr.z, 0.2) * P.reliefGain;
-  float rr = length(lp.xy);
-  float k = PI_F / 2.0 / RELIEF_RADIUS;
-  float basinSlope = P.basin * k * sin(rr * 2.0 * k) * (rr < RELIEF_RADIUS ? 1.0 : 0.0);
-  slope -= lp.xy / max(rr, 1e-4) * basinSlope;
   // ---- wear marks ----
   float2 markSlope = float2(0.0);
   float markShade = 1.0;

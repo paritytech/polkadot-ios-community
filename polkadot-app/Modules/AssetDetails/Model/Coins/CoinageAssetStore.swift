@@ -128,7 +128,7 @@ extension CoinageAssetStore {
             material = [
                 raw.material.exposure, raw.material.luster, raw.material.rimLuster,
                 raw.material.lusterMinPx, raw.material.studioRadius, raw.material.studioScale,
-                raw.material.basin, raw.material.rollGloss, raw.material.rollReliefHaze,
+                raw.material.rollGloss, raw.material.rollReliefHaze,
                 raw.native.envSharpen, raw.material.haze, raw.material.polish,
                 raw.material.tone, raw.material.grime, raw.material.engraveDark,
                 raw.material.frost, raw.material.wallRough, raw.material.aaVariance,
@@ -253,7 +253,7 @@ private extension CoinageAssetStore {
 
         struct Material: Decodable {
             let exposure, luster, rimLuster, lusterMinPx, studioRadius, studioScale: Float
-            let basin, rollGloss, rollReliefHaze, haze, polish, tone, grime: Float
+            let rollGloss, rollReliefHaze, haze, polish, tone, grime: Float
             let engraveDark, frost, wallRough, aaVariance, aaThreshold, reliefBias: Float
         }
 
