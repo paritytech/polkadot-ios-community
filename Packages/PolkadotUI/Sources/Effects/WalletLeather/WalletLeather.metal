@@ -86,6 +86,18 @@ half4 walletLeather(float2 position,
     // Layer y runs down the screen; the lighting's y runs up.
     float3 N = normalize(float3(-slope.x * m.relief * 7.0 - ax * 1.4, slope.y * m.relief * 7.0 + ay * 1.4, 1.0));
 
+    // Where the photograph is itself in shadow, under the flap and in the folds, no light reaches,
+    // but the steep edge of that shadow reads as a steep slope and used to catch a highlight. The
+    // darkest luminance within 7 texels, 8 taps around this pixel, finds the shadow and the rim
+    // beside it; there the relief is flattened and the highlights, sheen and coat kept out.
+    float darkest = dot(base, float3(0.3, 0.59, 0.11));
+    for (int k = 0; k < 8; k++) {
+        float a = float(k) * 0.785398;
+        darkest = min(darkest, lum(layer, position + float2(cos(a), sin(a)) * e * 7.0));
+    }
+    float occlusion = ss(0.03, 0.14, darkest);
+    N = normalize(float3(N.xy * occlusion, N.z));
+
     float2 t = tilt;
     float3 V = float3(0.0, 0.0, 1.0);
     // The light never lines up with the view: tipped away it only lowers to 0.3, so the leather's
@@ -99,13 +111,13 @@ half4 walletLeather(float2 position,
     R = normalize(R);
 
     float shin = mix(500.0, 10.0, m.rough);
-    float spec = precise::pow(ndh, shin) * (1.0 - m.rough) * (1.0 - m.rough) * 2.2;
+    float spec = precise::pow(ndh, shin) * (1.0 - m.rough) * (1.0 - m.rough) * 2.2 * occlusion;
     float3 dif = base * (0.78 + 0.34 * ndl);
     float3 env = envC(R, m.rough);
     float3 metalC = base * 0.32 * (0.7 + 0.3 * ndl) + env * base * 1.05 + spec * base * 1.8;
     float3 col = mix(dif + float3(spec) * 0.35 * (1.0 - m.metal), metalC, m.metal * 0.7);
-    col += m.sheen * precise::pow(ndh, 5.0) * 0.18 * (base + 0.4);
-    col += m.coat * (precise::pow(ndh, 320.0) * 1.1
+    col += m.sheen * precise::pow(ndh, 5.0) * 0.18 * (base + 0.4) * occlusion;
+    col += m.coat * occlusion * (precise::pow(ndh, 320.0) * 1.1
                      + envC(reflect(-V, normalize(float3(N.xy * 0.3, 1.0))) + float3(-t.x, t.y, 0.0), 0.05).r * 0.05);
 
     return half4(half3(col * float(c.a)), c.a);
