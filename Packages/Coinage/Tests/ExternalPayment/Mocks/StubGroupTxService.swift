@@ -102,6 +102,14 @@ final class StubGroupTxService: CoinageTxServicing, @unchecked Sendable {
         []
     }
 
+    @discardableResult
+    func scheduleTransactions(
+        _: [CoinageScheduledTxRequest],
+        groupId _: CoinageTxGroupId
+    ) async throws -> [CoinageTxId] {
+        []
+    }
+
     func subscribeTransactionStatus(_: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
         AsyncStream<CoinageTxStatus> { $0.finish() }.eraseToAnyAsyncSequence()
     }

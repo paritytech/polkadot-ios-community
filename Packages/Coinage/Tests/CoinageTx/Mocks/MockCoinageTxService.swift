@@ -3,6 +3,7 @@ import os
 import Operation_iOS
 import ExtrinsicService
 import AsyncExtensions
+import DurableTransactionsTestSupport
 @testable import Coinage
 import DurableTransactions
 
@@ -150,6 +151,14 @@ actor MockCoinageTxService: CoinageTxServicing {
         }
 
         return ids
+    }
+
+    @discardableResult
+    func scheduleTransactions(
+        _ requests: [CoinageScheduledTxRequest],
+        groupId: CoinageTxGroupId
+    ) async throws -> [CoinageTxId] {
+        try scheduleTransactions(requests, groupId: groupId, joining: InMemoryRegistrationScope())
     }
 
     nonisolated func subscribeTransactionStatus(_ id: CoinageTxId) -> AnyAsyncSequence<CoinageTxStatus> {
