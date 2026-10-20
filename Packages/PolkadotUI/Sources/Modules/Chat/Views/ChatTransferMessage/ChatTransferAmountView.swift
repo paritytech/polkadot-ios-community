@@ -51,7 +51,7 @@ final class ChatTransferAmountView: UIView {
         )
     }
 
-    func bind(currencySymbol: String, amount: String, unit: String) {
+    func bind(currencySymbol: String, amount: String, unit: String, isStruckThrough: Bool = false) {
         let amountText = currencySymbol + amount
 
         typography = Constants.typographyLadder.first { fits(amountText: amountText, unit: unit, typography: $0) }
@@ -60,6 +60,12 @@ final class ChatTransferAmountView: UIView {
         let font = UIFont.app(typography)
         amountLabel.font = font
         amountLabel.text = amountText
+        if isStruckThrough {
+            amountLabel.attributedText = NSAttributedString(
+                string: amountText,
+                attributes: [.strikethroughStyle: NSUnderlineStyle.single.rawValue]
+            )
+        }
         unitLabel.attributedText = CashLogo.unit(unit, fallback: unitFont(for: font))
         unitLabel.accessibilityLabel = unit
 

@@ -65,6 +65,8 @@ private extension IncomingTransferState.Status {
         case .claiming: .claiming
         case .claimed: .claimed
         case .failed: .failed
+        case .returnedToSender,
+             .returnedToSenderWatching: .returnedToSender
         }
     }
 }

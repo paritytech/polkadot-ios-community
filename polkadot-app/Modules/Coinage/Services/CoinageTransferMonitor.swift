@@ -110,8 +110,13 @@ private extension CoinageTransferMonitor {
         guard await taskRegistry.contains(messageId) == false else { return }
 
         let memo = content.transferMemo
+        let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
+        let windowEvents = windowCloses(at: closesAt)
 
-        let task = Task { [claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger] in
+        let task = Task { [
+            claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger,
+            timing, closesAt, windowEvents
+        ] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
                 let context = try await denominationContext()
@@ -123,17 +128,33 @@ private extension CoinageTransferMonitor {
 
                 logger.debug("Starting processing incoming coinage message=\(messageId)")
 
-                let states = claimCoinsService.claim(
+                let detections = claimCoinsService.claim(
                     coinKeys: memo.entries,
                     groupId: messageId,
                     retryUntil: retryUntil,
                     context: context
                 )
-                .map(\.incomingState)
-                .removeDuplicates()
 
-                for try await state in states {
-                    try await transferStateStore.updateIncoming(messageId: messageId, state: state)
+                var isWindowClosed = await timing.dateProvider.read() >= closesAt
+                var latestDetection: CoinageTransferDetection?
+                var lastState: IncomingTransferState?
+                let events = merge(
+                    detections.map { MonitorEvent.update($0) },
+                    windowEvents.map { _ in MonitorEvent<CoinageTransferDetection>.windowClosed }
+                )
+                for try await event in events {
+                    switch event {
+                    case let .update(detection): latestDetection = detection
+                    case .windowClosed: isWindowClosed = true
+                    }
+                    guard let detection = latestDetection else { continue }
+                    let state = detection.incomingState(windowClosed: isWindowClosed)
+                    if state != lastState {
+                        lastState = state
+                        try await transferStateStore.updateIncoming(messageId: messageId, state: state)
+                    }
+                    // Without this the loop would wait out the window after the claim's last word.
+                    if detection.isLastWord, state.isTerminal { break }
                 }
             } catch {
                 // Not a status: the message is retried on the next snapshot or launch.
@@ -174,9 +195,10 @@ private extension CoinageTransferMonitor {
 
         let memo = content.transferMemo
         let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
-        let windowStatus = windowClosed(at: closesAt)
+        let windowEvents = windowCloses(at: closesAt)
         let task = Task { [
-            transferStatusService, denominationContext, transferStateStore, taskRegistry, logger, windowStatus
+            transferStatusService, denominationContext, transferStateStore, taskRegistry, logger,
+            timing, closesAt, windowEvents
         ] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
@@ -184,13 +206,20 @@ private extension CoinageTransferMonitor {
 
                 logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
 
+                var isWindowClosed = await timing.dateProvider.read() >= closesAt
+                var latestCoinStates: [PublicKey: CoinageTransferState]?
                 // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
                 var lastState: OutgoingTransferState?
-                let statuses = combineLatest(
-                    transferStatusService.subscribeStatuses(coinKeys: memo.entries),
-                    windowStatus
+                let events = merge(
+                    transferStatusService.subscribeStatuses(coinKeys: memo.entries).map { MonitorEvent.update($0) },
+                    windowEvents.map { _ in MonitorEvent<[PublicKey: CoinageTransferState]>.windowClosed }
                 )
-                for try await (coinStates, isWindowClosed) in statuses {
+                for try await event in events {
+                    switch event {
+                    case let .update(coinStates): latestCoinStates = coinStates
+                    case .windowClosed: isWindowClosed = true
+                    }
+                    guard let coinStates = latestCoinStates else { continue }
                     let state = coinStates.outgoingState(context: context, windowClosed: isWindowClosed)
                     if state != lastState {
                         lastState = state
@@ -206,21 +235,21 @@ private extension CoinageTransferMonitor {
         await taskRegistry.register(task, forMessageId: messageId)
     }
 
-    func windowClosed(at closesAt: Date) -> AsyncStream<Bool> {
+    /// Fires once when the claim window closes. An already-closed window fires at once without sleeping.
+    func windowCloses(at closesAt: Date) -> AsyncStream<Void> {
         let timing = timing
         return AsyncStream { continuation in
             let task = Task {
                 let now = await timing.dateProvider.read()
                 let remaining = closesAt.timeIntervalSince(now)
                 if remaining > 0 {
-                    continuation.yield(false)
                     do {
                         try await timing.clock.sleep(for: .seconds(remaining))
                     } catch {
                         return
                     }
                 }
-                continuation.yield(true)
+                continuation.yield()
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
@@ -232,6 +261,12 @@ private extension Chat.LocalMessage.Content.Transfer {
     var transferMemo: TransferMemo {
         TransferMemo(entries: coinKeys, totalValue: totalValue)
     }
+}
+
+/// One input to the monitor loop: a service update, or the one-time close of the claim window.
+private enum MonitorEvent<Update: Sendable>: Sendable {
+    case update(Update)
+    case windowClosed
 }
 
 // MARK: - Active Task Registry

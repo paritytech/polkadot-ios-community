@@ -22,7 +22,20 @@ struct TransferStateMappingTests {
         ]
     )
     func incomingMapping(detection: CoinageTransferDetection, expected: IncomingTransferState) {
-        #expect(detection.incomingState == expected)
+        #expect(detection.incomingState(windowClosed: false) == expected)
+    }
+
+    @Test(
+        "an absent or unclaimed payment projects onto the window state",
+        arguments: [
+            (CoinageTransferDetection.absent, false, IncomingTransferState(status: .detecting)),
+            (.absent, true, IncomingTransferState(status: .returnedToSenderWatching)),
+            (.notClaimed, false, IncomingTransferState(status: .failed)),
+            (.notClaimed, true, IncomingTransferState(status: .returnedToSender))
+        ]
+    )
+    func windowedMapping(detection: CoinageTransferDetection, windowClosed: Bool, expected: IncomingTransferState) {
+        #expect(detection.incomingState(windowClosed: windowClosed) == expected)
     }
 
     @Test("no coin states yet means sending")
@@ -133,6 +146,8 @@ struct TransferStateMappingTests {
         #expect(IncomingTransferState.Status.failed.isTerminal)
         #expect(!IncomingTransferState.Status.detecting.isTerminal)
         #expect(!IncomingTransferState.Status.claiming.isTerminal)
+        #expect(IncomingTransferState.Status.returnedToSender.isTerminal)
+        #expect(!IncomingTransferState.Status.returnedToSenderWatching.isTerminal)
         #expect(OutgoingTransferState.Status.claimed.isTerminal)
         #expect(OutgoingTransferState.Status.failed.isTerminal)
         #expect(!OutgoingTransferState.Status.sending.isTerminal)

@@ -84,7 +84,8 @@ private extension ChatTransferMessageConfiguration.IncomingState {
     func inboxTitle(username: String) -> String {
         switch self {
         case .claimed,
-             .failed:
+             .failed,
+             .returnedToSender:
             String(localized: .chatTransferInbox(username: username))
         case .detecting,
              .claiming:

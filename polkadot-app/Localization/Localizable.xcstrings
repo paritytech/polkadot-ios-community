@@ -902,6 +902,17 @@
         }
       }
     },
+    "chat.transfer.returnedToSender" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$(amount)@ from %1$(username)@ expired"
+          }
+        }
+      }
+    },
     "chat.transfer.sent" : {
       "extractionState" : "manual",
       "localizations" : {

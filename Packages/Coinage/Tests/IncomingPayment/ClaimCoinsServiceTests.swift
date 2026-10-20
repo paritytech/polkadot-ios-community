@@ -99,6 +99,72 @@ struct ClaimCoinsServiceTests {
         #expect(!run.isFinished)
         run.cancel()
     }
+
+    @Test
+    func silentPassIsNotAbsent() async throws {
+        let rig = try Rig(windowFromNow: 60)
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        run.cancel()
+
+        #expect(await !(run.detections()).contains(.absent))
+    }
+
+    @Test
+    func emptyLookWithNothingClaimedIsAbsentOnceAndNeverDetectingAfter() async throws {
+        let rig = try Rig(windowFromNow: 60)
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        rig.moveNow(by: 120)
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        let detections = await run.detections()
+
+        let firstAbsent = try #require(detections.firstIndex(of: .absent))
+        #expect(!detections[firstAbsent...].contains(.detecting))
+        #expect(detections.last == .notClaimed)
+    }
+
+    @Test
+    func absentGivesWayToDetectingWhenCoinsAppear() async throws {
+        let rig = try Rig(windowFromNow: 60)
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        rig.query.send([rig.coinPublicKey: Self.coinInfo])
+        await rig.submitter.waitForSubmissions(1)
+        rig.moveNow(by: 120)
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        let detections = await run.detections()
+
+        let firstAbsent = try #require(detections.firstIndex(of: .absent))
+        #expect(detections[firstAbsent...].contains(.detecting))
+        #expect(detections.last == .notClaimed)
+    }
+
+    @Test
+    func noAbsentWhileWeAlreadyHoldAClaim() async throws {
+        let rig = try Rig(windowFromNow: -1)
+        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.siblingPublicKey, status: .finalizedSuccess)
+        let run = rig.start(coinKeys: [rig.coinSecret, rig.siblingSecret])
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        let detections = await run.detections()
+
+        #expect(!detections.contains(.absent))
+        #expect(detections.last == .claimedPartially(claimed: 0))
+    }
 }
 
 private extension ClaimCoinsServiceTests {
@@ -111,6 +177,9 @@ private extension ClaimCoinsServiceTests {
         let submitter: RecordingClaimSubmitter
         let coinSecret: Data
         let coinPublicKey: Data
+        let siblingSecret: Data
+        let siblingPublicKey: Data
+        let txService: StubGroupTxService
         let retryUntil: Date
 
         private let dateProvider: MovableDateProvider
@@ -119,14 +188,16 @@ private extension ClaimCoinsServiceTests {
         init(windowFromNow: TimeInterval) throws {
             let keyFactory = SNKeyFactory()
             let keypair = try keyFactory.createKeypair(fromSeed: Data(repeating: 0xAB, count: 32))
+            let sibling = try keyFactory.createKeypair(fromSeed: Data(repeating: 0xCD, count: 32))
             let start = Date()
             let dateProvider = MovableDateProvider(now: start)
             let clock = ManualClock()
             let query = ScriptedCoinInfoQuery()
             let submitter = RecordingClaimSubmitter()
+            let txService = StubGroupTxService()
 
             service = ClaimCoinsService(
-                txService: MockCoinageTxService(),
+                txService: txService,
                 coinOnChainQuery: query,
                 claimSubmitter: submitter,
                 snKeyFactory: keyFactory,
@@ -143,14 +214,17 @@ private extension ClaimCoinsServiceTests {
             self.query = query
             self.submitter = submitter
             self.dateProvider = dateProvider
+            self.txService = txService
             coinSecret = keypair.privateKey().rawData()
             coinPublicKey = keypair.publicKey().rawData()
+            siblingSecret = sibling.privateKey().rawData()
+            siblingPublicKey = sibling.publicKey().rawData()
             retryUntil = start.addingTimeInterval(windowFromNow)
         }
 
-        func start() -> ClaimRun {
+        func start(coinKeys: [Data]? = nil) -> ClaimRun {
             ClaimRun(stream: service.claim(
-                coinKeys: [coinSecret],
+                coinKeys: coinKeys ?? [coinSecret],
                 groupId: "claim-coins-test",
                 retryUntil: retryUntil,
                 context: ClaimCoinsServiceTests.denomination

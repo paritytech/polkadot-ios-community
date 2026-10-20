@@ -9,8 +9,18 @@ struct IncomingTransferState: Equatable, Sendable {
         case claiming = 1
         case claimed = 2
         case failed = 3
+        /// The claim gave up after the window. Kept apart from `failed`: the chat row tells the recipient the
+        /// sender can reclaim the funds.
+        case returnedToSender = 4
+        /// Nothing on chain after the window, while this device's claim still runs: late coins can still be
+        /// claimed, so the row is not terminal yet.
+        case returnedToSenderWatching = 5
 
-        static let nonTerminalRawValues: [Int16] = [Self.detecting.rawValue, Self.claiming.rawValue]
+        static let nonTerminalRawValues: [Int16] = [
+            Self.detecting.rawValue,
+            Self.claiming.rawValue,
+            Self.returnedToSenderWatching.rawValue,
+        ]
 
         var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
     }

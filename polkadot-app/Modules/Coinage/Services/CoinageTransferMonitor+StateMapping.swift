@@ -5,10 +5,12 @@ import SubstrateSdk
 
 extension CoinageTransferDetection {
     /// `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
-    var incomingState: IncomingTransferState {
+    func incomingState(windowClosed: Bool) -> IncomingTransferState {
         switch self {
         case .detecting:
             IncomingTransferState(status: .detecting)
+        case .absent:
+            IncomingTransferState(status: windowClosed ? .returnedToSenderWatching : .detecting)
         case .claiming,
              .claimingRest:
             IncomingTransferState(status: .claiming)
@@ -17,7 +19,7 @@ extension CoinageTransferDetection {
         case let .claimedPartially(claimed):
             IncomingTransferState(status: .claimed, actualValue: claimed)
         case .notClaimed:
-            IncomingTransferState(status: .failed)
+            IncomingTransferState(status: windowClosed ? .returnedToSender : .failed)
         }
     }
 }

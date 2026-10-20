@@ -189,6 +189,112 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .outgoing(.init(status: .unclaimed)))
     }
 
+    @Test("an absent claim past its window is returned to the sender while late coins are still watched")
+    func absentAfterWindowIsWatched() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.absent])
+        let watching = IncomingTransferState(status: .returnedToSenderWatching)
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(watching) }
+        #expect(seen.last == .incoming(watching))
+    }
+
+    @Test("an absent claim becomes watched when the window closes while it is still running")
+    func absentBeforeWindowIsWatchedAfterIt() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let clock = ManualClock()
+        let watching = IncomingTransferState(status: .returnedToSenderWatching)
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: MockClaimCoinsService(detections: [.absent]),
+            timing: monitorTiming(for: message, elapsed: 3_600, clock: clock)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        _ = try await world.stateStream(of: message.messageId)
+            .collect { $0 == .incoming(.init(status: .detecting)) }
+        await clock.resumeSleep(for: .seconds(CoinageConstants.claimWindow - 3_600))
+
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(watching) }
+        #expect(seen.last == .incoming(watching))
+    }
+
+    @Test("a late claim still lands after the payment was returned to the sender")
+    func lateClaimAfterAbsentIsClaimed() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.absent, .claimed(amount: 10, finalized: true)])
+        let claimed = IncomingTransferState(status: .claimed, actualValue: 10)
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(claimed) }
+        #expect(seen.last == .incoming(claimed))
+    }
+
+    @Test("a claim that gave up after the window is returned to the sender")
+    func notClaimedAfterWindowIsReturned() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.notClaimed])
+        let returned = IncomingTransferState(status: .returnedToSender)
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(returned) }
+        #expect(seen.last == .incoming(returned))
+    }
+
+    @Test("a watched row re-enters the incoming candidates while a returned one does not")
+    func watchedRowIsReprocessedReturnedIsNot() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let watched = try await world.saveTransfer(.incoming)
+        try await world.store.updateIncoming(
+            messageId: watched.messageId,
+            state: .init(status: .returnedToSenderWatching)
+        )
+        let returned = try await world.saveTransfer(.incoming)
+        try await world.store.updateIncoming(
+            messageId: returned.messageId,
+            state: .init(status: .returnedToSender)
+        )
+
+        let candidates = world.messageProviderFactory.subscribeMessages(with: .incomingCoinageSendMessages())
+        for try await messages in candidates {
+            #expect(messages.map(\.messageId) == [watched.messageId])
+            break
+        }
+    }
+
     @Test("an unclaimed row stays in the outgoing candidates on the next launch")
     func unclaimedRowIsReprocessed() async throws {
         let world = TransferStateTestWorld()

@@ -37,6 +37,7 @@ public extension ChatTransferMessageConfiguration {
         case claiming
         case claimed
         case failed
+        case returnedToSender
     }
 
     enum OutgoingState: Hashable {
@@ -191,7 +192,8 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         amountView.bind(
             currencySymbol: configuration.currencySymbol,
             amount: configuration.amountText,
-            unit: configuration.tokenSymbol
+            unit: configuration.tokenSymbol,
+            isStruckThrough: configuration.state.isStruckThrough
         )
         amountView.amountLabel.textColor = configuration.amountTextColor
         amountView.unitLabel.textColor = configuration.tokenSymbolColor
@@ -259,9 +261,14 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         case .incoming(.failed),
              .outgoing(.failed):
             UIImage(resource: .iconTransferError)
-        case .outgoing(.unclaimed):
+        case .outgoing(.unclaimed),
+             .incoming(.returnedToSender):
             nil
         }
+    }
+
+    var isStruckThrough: Bool {
+        self == .incoming(.returnedToSender)
     }
 
     var color: UIColor {
@@ -269,7 +276,8 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         case .incoming(.failed),
              .outgoing(.failed):
             .fgError
-        case .outgoing(.unclaimed):
+        case .outgoing(.unclaimed),
+             .incoming(.returnedToSender):
             .fgWarning
         case .incoming:
             .fgSecondary
@@ -299,6 +307,8 @@ private extension ChatTransferMessageConfiguration.IncomingState {
             String(localized: .transferStatusFinished)
         case .failed:
             String(localized: .transferStatusError)
+        case .returnedToSender:
+            String(localized: .transferStatusReturnedToSender)
         }
     }
 }

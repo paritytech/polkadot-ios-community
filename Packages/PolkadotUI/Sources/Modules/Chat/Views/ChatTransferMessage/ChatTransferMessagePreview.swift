@@ -32,7 +32,8 @@
                 (.claiming, nil),
                 (.claimed, nil),
                 (.claimed, "55"),
-                (.failed, nil)
+                (.failed, nil),
+                (.returnedToSender, nil)
             ]
             return states.map { state, originalAmount in
                 let configuration = ChatTransferMessageConfiguration.inbox(
