@@ -2,10 +2,6 @@ import BigInt
 import Foundation
 import SubstrateSdk
 
-enum TransferStateStatus {
-    static let firstTerminalRawValue: Int16 = 2
-}
-
 /// A partial claim is `claimed` with `actualValue` short of the message total; there is no partial status.
 struct IncomingTransferState: Equatable, Sendable {
     enum Status: Int16, Sendable {
@@ -14,7 +10,9 @@ struct IncomingTransferState: Equatable, Sendable {
         case claimed = 2
         case failed = 3
 
-        var isTerminal: Bool { rawValue >= TransferStateStatus.firstTerminalRawValue }
+        static let nonTerminalRawValues: [Int16] = [Self.detecting.rawValue, Self.claiming.rawValue]
+
+        var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
     }
 
     let status: Status
@@ -36,7 +34,9 @@ struct OutgoingTransferState: Equatable, Sendable {
         case claimed = 2
         case failed = 3
 
-        var isTerminal: Bool { rawValue >= TransferStateStatus.firstTerminalRawValue }
+        static let nonTerminalRawValues: [Int16] = [Self.sending.rawValue, Self.sent.rawValue]
+
+        var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
     }
 
     let status: Status
