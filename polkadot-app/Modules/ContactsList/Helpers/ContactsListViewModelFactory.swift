@@ -343,6 +343,7 @@ private extension ContactsListViewModelFactory {
         transferState: Chat.LocalMessage.Content.Transfer.State? = nil
     ) -> String {
         let formattedAmount = tokenFormatter.amount(from: amount)
+        let reclaimedAmount = transferState?.reclaimedValue.map { tokenFormatter.amount(from: $0) }
         let message =
             switch messageStatus {
             case .incoming where transferState?.isReturnedToSender == true:
@@ -350,7 +351,8 @@ private extension ContactsListViewModelFactory {
             case .incoming:
                 String(localized: .chatTransferReceived(contact: peerName, amount: formattedAmount))
             case .outgoing:
-                String(localized: .chatTransferSent(amount: formattedAmount))
+                reclaimedAmount.map { String(localized: .chatTransferReclaimed(amount: $0)) }
+                    ?? String(localized: .chatTransferSent(amount: formattedAmount))
             }
 
         return message
@@ -361,5 +363,10 @@ private extension Chat.LocalMessage.Content.Transfer.State {
     var isReturnedToSender: Bool {
         guard case let .incoming(incoming) = self else { return false }
         return incoming.status == .returnedToSender || incoming.status == .returnedToSenderWatching
+    }
+
+    var reclaimedValue: Balance? {
+        guard case let .outgoing(outgoing) = self, outgoing.status == .reclaimed else { return nil }
+        return outgoing.actualValue
     }
 }

@@ -17,6 +17,7 @@ final class ChatPresenter {
     private var metadata: MessageListMetadata?
     private var footer: (any HashableContentConfiguration)?
     private var paymentAssetViewModel: PaymentAssetViewModelProtocol?
+    private var pendingReclaimMessageIds: Set<String> = []
 
     init(
         interactor: ChatInteractorInputProtocol,
@@ -152,6 +153,23 @@ extension ChatPresenter: ChatInteractorOutputProtocol {
     func didDeclineChatRequest() {
         wireframe.dismissChat(from: view)
     }
+
+    func didReclaim(messageId: Chat.MessageId) {
+        pendingReclaimMessageIds.remove(messageId)
+    }
+
+    func didFailReclaim(messageId: Chat.MessageId, error: Error) {
+        pendingReclaimMessageIds.remove(messageId)
+
+        if !wireframe.present(error: error, from: view) {
+            wireframe.present(
+                message: String(localized: .Common.errorMessage),
+                title: nil,
+                closeAction: String(localized: .Common.close),
+                from: view
+            )
+        }
+    }
 }
 
 private extension ChatPresenter {
@@ -219,6 +237,9 @@ private extension ChatPresenter {
                 Task {
                     @MainActor in moduleNavigator.openProduct(page: productPage)
                 }
+            },
+            reclaimTransfer: { [weak self] messageId in
+                self?.handleReclaimTransfer(for: messageId)
             }
         )
 
@@ -396,6 +417,20 @@ private extension ChatPresenter {
                 messageId: messageId
             )
         }
+    }
+
+    func handleReclaimTransfer(for messageId: String) {
+        guard
+            !pendingReclaimMessageIds.contains(messageId),
+            let message = listModel?.getMessage(by: messageId),
+            case let .coinageSend(content) = message.content,
+            content.isReclaimable
+        else {
+            return
+        }
+
+        pendingReclaimMessageIds.insert(messageId)
+        interactor.reclaimTransfer(messageId: messageId, coinKeys: content.coinKeys)
     }
 
     func handleShowFile(at url: URL) {

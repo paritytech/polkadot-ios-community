@@ -38,6 +38,7 @@ actor MockCoinageTxService: CoinageTxServicing {
         var inputs: [[CoinageTxInput]] = []
         var outputs: [[OwnAsset]] = []
         var scheduled: [CoinageScheduledTxRequest] = []
+        var scheduledGroupIds: [CoinageTxGroupId] = []
     }
 
     private nonisolated let recorded = OSAllocatedUnfairLock<Recorded>(initialState: Recorded())
@@ -121,6 +122,10 @@ actor MockCoinageTxService: CoinageTxServicing {
         recorded.withLock { $0.scheduled }
     }
 
+    nonisolated var scheduledGroupIds: [CoinageTxGroupId] {
+        recorded.withLock { $0.scheduledGroupIds }
+    }
+
     @discardableResult
     nonisolated func scheduleTransactions(
         _ requests: [CoinageScheduledTxRequest],
@@ -129,6 +134,7 @@ actor MockCoinageTxService: CoinageTxServicing {
     ) throws -> [CoinageTxId] {
         recorded.withLock { current in
             current.scheduled.append(contentsOf: requests)
+            current.scheduledGroupIds.append(groupId)
             current.inputs.append(contentsOf: requests.map(\.inputs))
             current.outputs.append(contentsOf: requests.map(\.outputs))
         }

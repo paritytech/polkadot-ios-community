@@ -902,6 +902,17 @@
         }
       }
     },
+    "chat.transfer.reclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You reclaimed %1$(amount)@"
+          }
+        }
+      }
+    },
     "chat.transfer.returnedToSender" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3520,6 +3531,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Claimed"
+          }
+        }
+      }
+    },
+    "transfer.status.reclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaimed"
+          }
+        }
+      }
+    },
+    "transfer.status.reclaimFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaiming failed"
+          }
+        }
+      }
+    },
+    "transfer.status.reclaiming" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaiming funds…"
           }
         }
       }

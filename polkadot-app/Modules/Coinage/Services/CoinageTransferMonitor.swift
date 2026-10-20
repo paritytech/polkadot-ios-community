@@ -1,4 +1,5 @@
 import AsyncAlgorithms
+import AsyncExtensions
 import BigInt
 import Coinage
 import CommonService
@@ -24,6 +25,7 @@ final class CoinageTransferMonitor {
     }
 
     private let claimCoinsService: any ClaimCoinsServicing
+    private let reclaimCoinsService: any ReclaimCoinsServicing
     private let transferStatusService: any CoinageTransferStatusServicing
     private let denominationContext: DenominationContextProvider
     private let transferStateStore: any TransferStateStoring
@@ -41,6 +43,7 @@ final class CoinageTransferMonitor {
 
     init(
         claimCoinsService: any ClaimCoinsServicing,
+        reclaimCoinsService: any ReclaimCoinsServicing,
         transferStatusService: any CoinageTransferStatusServicing,
         denominationContext: @escaping DenominationContextProvider,
         transferStateStore: any TransferStateStoring,
@@ -50,6 +53,7 @@ final class CoinageTransferMonitor {
         logger: LoggerProtocol = Logger.shared
     ) {
         self.claimCoinsService = claimCoinsService
+        self.reclaimCoinsService = reclaimCoinsService
         self.transferStatusService = transferStatusService
         self.denominationContext = denominationContext
         self.transferStateStore = transferStateStore
@@ -112,6 +116,7 @@ private extension CoinageTransferMonitor {
         let memo = content.transferMemo
         let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
         let windowEvents = windowCloses(at: closesAt)
+        let storedState = content.storedIncomingState
 
         let task = Task { [
             claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger,
@@ -134,34 +139,68 @@ private extension CoinageTransferMonitor {
                     retryUntil: retryUntil,
                     context: context
                 )
-
-                var isWindowClosed = await timing.dateProvider.read() >= closesAt
-                var latestDetection: CoinageTransferDetection?
-                var lastState: IncomingTransferState?
-                let events = merge(
-                    detections.map { MonitorEvent.update($0) },
-                    windowEvents.map { _ in MonitorEvent<CoinageTransferDetection>.windowClosed }
+                let isWindowClosed = await timing.dateProvider.read() >= closesAt
+                let feed = IncomingFeed(
+                    messageId: messageId,
+                    detections: detections,
+                    windowEvents: windowEvents,
+                    store: transferStateStore
                 )
-                for try await event in events {
-                    switch event {
-                    case let .update(detection): latestDetection = detection
-                    case .windowClosed: isWindowClosed = true
-                    }
-                    guard let detection = latestDetection else { continue }
-                    let state = detection.incomingState(windowClosed: isWindowClosed)
-                    if state != lastState {
-                        lastState = state
-                        try await transferStateStore.updateIncoming(messageId: messageId, state: state)
-                    }
-                    // Without this the loop would wait out the window after the claim's last word.
-                    if detection.isLastWord, state.isTerminal { break }
-                }
+                try await CoinageTransferMonitor.followIncoming(
+                    feed,
+                    isWindowClosed: isWindowClosed,
+                    storedState: storedState
+                )
             } catch {
                 // Not a status: the message is retried on the next snapshot or launch.
                 logger.error("Failed to claim coinage for \(messageId): \(error)")
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
+    }
+}
+
+private extension CoinageTransferMonitor {
+    /// The claim's detections and the window's close, for one incoming message.
+    struct IncomingFeed {
+        let messageId: Chat.MessageId
+        let detections: AnyAsyncSequence<CoinageTransferDetection>
+        let windowEvents: AsyncStream<Void>
+        let store: any TransferStateStoring
+    }
+
+    static func followIncoming(
+        _ feed: IncomingFeed,
+        isWindowClosed: Bool,
+        storedState: IncomingTransferState?
+    ) async throws {
+        var windowClosed = isWindowClosed
+        var latestDetection: CoinageTransferDetection?
+        var lastState = storedState
+        let events = merge(
+            feed.detections.map { MonitorEvent.update($0) },
+            feed.windowEvents.map { _ in MonitorEvent<CoinageTransferDetection>.windowClosed }
+        )
+        for try await event in events {
+            switch event {
+            case let .update(detection): latestDetection = detection
+            case .windowClosed: windowClosed = true
+            }
+            guard let detection = latestDetection else { continue }
+            let state = detection.incomingState(windowClosed: windowClosed)
+            if isNewIncomingState(state, after: lastState) {
+                lastState = state
+                try await feed.store.updateIncoming(messageId: feed.messageId, state: state)
+            }
+            // Without this the loop would wait out the window after the claim's last word.
+            if detection.isLastWord, state.isTerminal { break }
+        }
+    }
+
+    /// A stored watch is not downgraded to `detecting` by the claim's first pass after a relaunch.
+    static func isNewIncomingState(_ state: IncomingTransferState, after lastState: IncomingTransferState?) -> Bool {
+        guard state != lastState else { return false }
+        return !(lastState?.status == .returnedToSenderWatching && state.status == .detecting)
     }
 }
 
@@ -197,7 +236,7 @@ private extension CoinageTransferMonitor {
         let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
         let windowEvents = windowCloses(at: closesAt)
         let task = Task { [
-            transferStatusService, denominationContext, transferStateStore, taskRegistry, logger,
+            transferStatusService, reclaimCoinsService, denominationContext, transferStateStore, taskRegistry, logger,
             timing, closesAt, windowEvents
         ] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
@@ -206,28 +245,22 @@ private extension CoinageTransferMonitor {
 
                 logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
 
-                var isWindowClosed = await timing.dateProvider.read() >= closesAt
-                var latestCoinStates: [PublicKey: CoinageTransferState]?
-                // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
-                var lastState: OutgoingTransferState?
-                let events = merge(
-                    transferStatusService.subscribeStatuses(coinKeys: memo.entries).map { MonitorEvent.update($0) },
-                    windowEvents.map { _ in MonitorEvent<[PublicKey: CoinageTransferState]>.windowClosed }
+                let isWindowClosed = await timing.dateProvider.read() >= closesAt
+                let feed = OutgoingFeed(
+                    messageId: messageId,
+                    statuses: transferStatusService.subscribeStatuses(coinKeys: memo.entries),
+                    failedReclaims: reclaimCoinsService.subscribeFailedReclaims(
+                        groupId: ChatTransferGroups.reclaim(messageId)
+                    ),
+                    windowEvents: windowEvents,
+                    store: transferStateStore,
+                    logger: logger
                 )
-                for try await event in events {
-                    switch event {
-                    case let .update(coinStates): latestCoinStates = coinStates
-                    case .windowClosed: isWindowClosed = true
-                    }
-                    guard let coinStates = latestCoinStates else { continue }
-                    let state = coinStates.outgoingState(context: context, windowClosed: isWindowClosed)
-                    if state != lastState {
-                        lastState = state
-                        logger.debug("Status=\(state) message=\(messageId)")
-                        try await transferStateStore.updateOutgoing(messageId: messageId, state: state)
-                    }
-                    if coinStates.isSettled { break }
-                }
+                try await CoinageTransferMonitor.followOutgoing(
+                    feed,
+                    context: context,
+                    isWindowClosed: isWindowClosed
+                )
             } catch {
                 logger.error("Send status monitoring failed for \(messageId): \(error)")
             }
@@ -240,14 +273,14 @@ private extension CoinageTransferMonitor {
         let timing = timing
         return AsyncStream { continuation in
             let task = Task {
-                let now = await timing.dateProvider.read()
-                let remaining = closesAt.timeIntervalSince(now)
-                if remaining > 0 {
-                    do {
-                        try await timing.clock.sleep(for: .seconds(remaining))
-                    } catch {
-                        return
+                do {
+                    var now = await timing.dateProvider.read()
+                    while now < closesAt {
+                        try await timing.clock.sleep(for: .seconds(closesAt.timeIntervalSince(now)))
+                        now = await timing.dateProvider.read()
                     }
+                } catch {
+                    return
                 }
                 continuation.yield()
                 continuation.finish()
@@ -261,11 +294,93 @@ private extension Chat.LocalMessage.Content.Transfer {
     var transferMemo: TransferMemo {
         TransferMemo(entries: coinKeys, totalValue: totalValue)
     }
+
+    var storedIncomingState: IncomingTransferState? {
+        guard case let .incoming(stored)? = state else { return nil }
+        return stored
+    }
+}
+
+private extension CoinageTransferMonitor {
+    /// The coin statuses, the failed reclaims and the window's close, for one outgoing message.
+    struct OutgoingFeed {
+        let messageId: Chat.MessageId
+        let statuses: AnyAsyncSequence<[PublicKey: CoinageTransferState]>
+        let failedReclaims: AnyAsyncSequence<Set<PublicKey>>
+        let windowEvents: AsyncStream<Void>
+        let store: any TransferStateStoring
+        let logger: LoggerProtocol
+    }
+
+    static func followOutgoing(
+        _ feed: OutgoingFeed,
+        context: DenominationBreakdownContext,
+        isWindowClosed: Bool
+    ) async throws {
+        var windowClosed = isWindowClosed
+        var failedIterator = feed.failedReclaims.makeAsyncIterator()
+        // Seeded with the current failed set, so no status is read before its failed reclaims are known.
+        var latestFailedReclaims = try await failedIterator.next() ?? []
+        var latestCoinStates: [PublicKey: CoinageTransferState]?
+        // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
+        var lastState: OutgoingTransferState?
+        let events = merge(
+            feed.statuses.map { OutgoingMonitorEvent.statuses($0) },
+            laterFailedReclaims(failedIterator).map { OutgoingMonitorEvent.failedReclaims($0) },
+            feed.windowEvents.map { _ in OutgoingMonitorEvent.windowClosed }
+        )
+        for try await event in events {
+            switch event {
+            case let .statuses(coinStates): latestCoinStates = coinStates
+            case let .failedReclaims(failedKeys): latestFailedReclaims = failedKeys
+            case .windowClosed: windowClosed = true
+            }
+            guard let coinStates = latestCoinStates else { continue }
+            let state = coinStates.outgoingState(
+                context: context,
+                failedReclaims: latestFailedReclaims,
+                windowClosed: windowClosed
+            )
+            if state != lastState {
+                lastState = state
+                feed.logger.debug("Status=\(state) message=\(feed.messageId)")
+                try await feed.store.updateOutgoing(messageId: feed.messageId, state: state)
+            }
+            if coinStates.isSettled { break }
+        }
+    }
+
+    /// The failed reclaims after the first value, pulled from the iterator that already produced that value.
+    static func laterFailedReclaims(
+        _ iterator: AnyAsyncSequence<Set<PublicKey>>.AsyncIterator
+    ) -> AsyncThrowingStream<Set<PublicKey>, Error> {
+        AsyncThrowingStream { continuation in
+            var iterator = iterator
+            let pump = Task {
+                do {
+                    while let failed = try await iterator.next() {
+                        continuation.yield(failed)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in pump.cancel() }
+        }
+    }
 }
 
 /// One input to the monitor loop: a service update, or the one-time close of the claim window.
 private enum MonitorEvent<Update: Sendable>: Sendable {
     case update(Update)
+    case windowClosed
+}
+
+/// One input to the outgoing loop: coin statuses, the failed reclaims, or the one-time close of the claim window.
+private enum OutgoingMonitorEvent: Sendable {
+    case statuses([PublicKey: CoinageTransferState])
+    case failedReclaims(Set<PublicKey>)
     case windowClosed
 }
 

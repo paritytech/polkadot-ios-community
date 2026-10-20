@@ -49,9 +49,10 @@ public extension ChatTransferMessageConfiguration {
         state: ChatTransferMessageConfiguration.OutgoingState,
         statusConfiguration: ChatMessageStatusViewConfiguration,
         addReaction: ChatMessageContainerConfiguration.AddReactionViewModel? = nil,
-        messageReaction: ChatMessageContainerConfiguration.MessageReactionViewModel? = nil
+        messageReaction: ChatMessageContainerConfiguration.MessageReactionViewModel? = nil,
+        reclaimAction: ChatTransferMessageConfiguration.ReclaimAction? = nil
     ) -> ChatMessageContainerConfiguration {
-        let configuration = ChatTransferMessageConfiguration(
+        var configuration = ChatTransferMessageConfiguration(
             title: String(localized: .chatTransferOutbox),
             currencySymbol: currencySymbol,
             amountText: amount,
@@ -67,6 +68,7 @@ public extension ChatTransferMessageConfiguration {
             originalAmountTextColor: .fgSecondaryInverted,
             side: .trailing
         )
+        configuration.reclaimAction = reclaimAction
 
         return ChatMessageContainerConfiguration(
             innerContent: configuration,

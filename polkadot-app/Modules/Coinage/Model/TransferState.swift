@@ -44,8 +44,20 @@ struct OutgoingTransferState: Equatable, Sendable {
         case claimed = 2
         case failed = 3
         case unclaimed = 4
+        /// Our reclaim of the unclaimed coins is in flight. Not terminal: it may still fail or be reclaimed.
+        case reclaiming = 5
+        /// The reclaim landed. `actualValue` is the reclaimed amount, which may be short of the message total.
+        case reclaimed = 6
+        /// The reclaim failed and the sender may try again.
+        case reclaimFailed = 7
 
-        static let nonTerminalRawValues: [Int16] = [Self.sending.rawValue, Self.sent.rawValue, Self.unclaimed.rawValue]
+        static let nonTerminalRawValues: [Int16] = [
+            Self.sending.rawValue,
+            Self.sent.rawValue,
+            Self.unclaimed.rawValue,
+            Self.reclaiming.rawValue,
+            Self.reclaimFailed.rawValue,
+        ]
 
         var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
     }

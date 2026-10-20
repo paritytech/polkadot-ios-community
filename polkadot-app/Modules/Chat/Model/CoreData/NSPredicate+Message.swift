@@ -198,7 +198,7 @@ extension NSPredicate {
         )
     }
 
-    /// A claimed or failed transfer never re-enters the monitor.
+    /// A transfer in a terminal state (claimed, failed, reclaimed, returned to sender) never re-enters the monitor.
     static func withoutTerminalTransferState(_ relationship: String, nonTerminal: [Int16]) -> NSPredicate {
         NSPredicate(
             format: "%K == nil OR %K IN %@",

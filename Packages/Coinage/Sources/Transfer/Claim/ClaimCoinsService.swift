@@ -85,6 +85,7 @@ public final class ClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
         context: DenominationBreakdownContext
     ) -> AnyAsyncSequence<CoinageTransferDetection> {
         AsyncStream { continuation in
+            let lastReported = OSAllocatedUnfairLock<CoinageTransferDetection?>(initialState: nil)
             let task = Task {
                 await self.runClaim(
                     coinKeys: coinKeys,
@@ -92,6 +93,11 @@ public final class ClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
                     retryUntil: retryUntil,
                     context: context
                 ) { detection in
+                    let isRepeatedAbsent = lastReported.withLock { last -> Bool in
+                        defer { last = detection }
+                        return detection == .absent && last == .absent
+                    }
+                    guard !isRepeatedAbsent else { return }
                     continuation.yield(detection)
                 }
                 continuation.finish()

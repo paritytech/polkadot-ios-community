@@ -7,6 +7,7 @@ public struct DSButtonStyle: ButtonStyle {
     public enum Style {
         case primary
         case secondary
+        case secondaryInverted
         case tertiary
         case destructive
         case ghost
@@ -99,6 +100,7 @@ extension DSButtonStyle.Style {
         switch self {
         case .primary: .bgActionPrimary
         case .secondary: .bgActionSecondary
+        case .secondaryInverted: .bgActionSecondaryInverted
         case .tertiary: .bgActionTertiary
         case .destructive: .bgStatusError
         case .ghost: .clear
@@ -114,7 +116,8 @@ extension DSButtonStyle.Style {
 
     var foregroundColor: Color {
         switch self {
-        case .primary: .fgPrimaryInverted
+        case .primary,
+             .secondaryInverted: .fgPrimaryInverted
         case .destructive: .fgStaticWhite
         default: .fgPrimary
         }

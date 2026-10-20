@@ -18,6 +18,7 @@ public struct ChatTransferMessageConfiguration: HashableContentConfiguration {
     let tokenSymbolColor: UIColor
     let originalAmountTextColor: UIColor
     let side: ChatBubbleTailSide
+    var reclaimAction: ReclaimAction?
 
     public func makeContentView() -> any UIView & UIContentView {
         ChatTransferMessageView(configuration: self)
@@ -46,6 +47,22 @@ public extension ChatTransferMessageConfiguration {
         case claimed
         case failed
         case unclaimed
+        case reclaiming
+        case reclaimed(partialAmount: String?)
+        case reclaimFailed
+    }
+
+    /// Equality ignores the handler: the action is identified by its message, not by the closure it carries.
+    struct ReclaimAction: Hashable {
+        public let onReclaim: () -> Void
+
+        public init(onReclaim: @escaping () -> Void) {
+            self.onReclaim = onReclaim
+        }
+
+        public static func == (_: Self, _: Self) -> Bool { true }
+
+        public func hash(into _: inout Hasher) {}
     }
 }
 
@@ -106,10 +123,20 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         $0.spacing = 4
     }
 
+    private let reclaimButton = DSButtonView(
+        "",
+        style: .secondaryInverted,
+        shape: .rounded,
+        size: .medium,
+        expands: true
+    )
+
     private lazy var statusView = appliedConfiguration.statusConfiguration.makeContentView()
 
     private var bubbleLeadingConstraint: Constraint?
     private var bubbleTrailingConstraint: Constraint?
+    private var statusTopBelowSubtitleConstraint: Constraint?
+    private var statusTopBelowReclaimConstraint: Constraint?
 
     private var appliedConfiguration: ChatTransferMessageConfiguration
 
@@ -143,6 +170,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         bubbleView.addSubview(titleLabel)
         bubbleView.addSubview(amountContainerView)
         bubbleView.addSubview(subtitleStackView)
+        bubbleView.addSubview(reclaimButton)
         bubbleView.addSubview(statusView)
 
         bubbleView.snp.makeConstraints {
@@ -176,12 +204,22 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
             $0.top.equalTo(amountContainerView.snp.bottom).offset(Constants.rowSpacing)
         }
 
+        reclaimButton.snp.makeConstraints {
+            $0.leading.equalToSuperview().offset(Constants.bubbleLeadingInset)
+            $0.trailing.equalToSuperview().inset(Constants.bubbleTrailingInset)
+            $0.top.equalTo(subtitleStackView.snp.bottom).offset(Constants.rowSpacing)
+        }
+
         statusView.snp.makeConstraints {
             $0.leading.greaterThanOrEqualToSuperview().offset(Constants.bubbleLeadingInset)
             $0.trailing.equalToSuperview().inset(Constants.bubbleTrailingInset)
-            $0.top.equalTo(subtitleStackView.snp.bottom).offset(Constants.rowSpacing)
             $0.bottom.equalToSuperview().inset(DSSpacings.small)
+            statusTopBelowSubtitleConstraint = $0.top
+                .equalTo(subtitleStackView.snp.bottom).offset(Constants.rowSpacing).constraint
+            statusTopBelowReclaimConstraint = $0.top
+                .equalTo(reclaimButton.snp.bottom).offset(Constants.rowSpacing).constraint
         }
+        statusTopBelowReclaimConstraint?.isActive = false
     }
 
     private func apply(_ any: UIContentConfiguration) {
@@ -243,6 +281,8 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
             bubbleLeadingConstraint?.isActive = false
             bubbleTrailingConstraint?.isActive = true
         }
+
+        applyReclaim(configuration)
     }
 }
 
@@ -255,6 +295,8 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         case .outgoing(.sending),
              .outgoing(.sent):
             UIImage(resource: .iconTransferOut)
+        case .outgoing(.reclaiming):
+            UIImage(resource: .iconRefreshing).withHorizontallyFlippedOrientation()
         case .incoming(.claimed),
              .outgoing(.claimed):
             UIImage(resource: .iconTransferDone)
@@ -262,19 +304,40 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
              .outgoing(.failed):
             UIImage(resource: .iconTransferError)
         case .outgoing(.unclaimed),
+             .outgoing(.reclaimed),
+             .outgoing(.reclaimFailed),
              .incoming(.returnedToSender):
             nil
         }
     }
 
     var isStruckThrough: Bool {
-        self == .incoming(.returnedToSender)
+        switch self {
+        case .incoming(.returnedToSender),
+             .outgoing(.reclaimed):
+            true
+        default:
+            false
+        }
+    }
+
+    var bubbleAlpha: CGFloat {
+        if case .outgoing(.reclaimed) = self { 0.55 } else { 1 }
+    }
+
+    var reclaimTitle: String {
+        if case .outgoing(.reclaimFailed) = self {
+            String(localized: .transferReclaimRetryAction)
+        } else {
+            String(localized: .transferReclaimAction)
+        }
     }
 
     var color: UIColor {
         switch self {
         case .incoming(.failed),
-             .outgoing(.failed):
+             .outgoing(.failed),
+             .outgoing(.reclaimFailed):
             .fgError
         case .outgoing(.unclaimed),
              .incoming(.returnedToSender):
@@ -326,6 +389,16 @@ private extension ChatTransferMessageConfiguration.OutgoingState {
             String(localized: .transferStatusError)
         case .unclaimed:
             String(localized: .transferStatusUnclaimed)
+        case .reclaiming:
+            String(localized: .transferStatusReclaiming)
+        case let .reclaimed(partialAmount):
+            if let partialAmount {
+                String(localized: .transferStatusReclaimedPartially(amount: partialAmount))
+            } else {
+                String(localized: .transferStatusReclaimed)
+            }
+        case .reclaimFailed:
+            String(localized: .transferStatusReclaimFailed)
         }
     }
 }
@@ -347,5 +420,34 @@ private extension ChatTransferMessageView {
         static let bubbleTrailingInset = DSSpacings.small
         static let rowSpacing = DSSpacings.small
         static let statusIconSize: CGFloat = 14
+        static let spinAnimationKey = "reclaimSpin"
+    }
+
+    func applyReclaim(_ configuration: ChatTransferMessageConfiguration) {
+        let hasReclaim = configuration.reclaimAction != nil
+        reclaimButton.isHidden = !hasReclaim
+        reclaimButton.title = configuration.state.reclaimTitle
+        reclaimButton.onTap = configuration.reclaimAction?.onReclaim
+        statusTopBelowSubtitleConstraint?.isActive = !hasReclaim
+        statusTopBelowReclaimConstraint?.isActive = hasReclaim
+
+        bubbleView.alpha = configuration.state.bubbleAlpha
+        updateIconSpin(isSpinning: configuration.state == .outgoing(.reclaiming))
+    }
+
+    func updateIconSpin(isSpinning: Bool) {
+        let layer = subtitleIconView.layer
+        guard isSpinning else {
+            layer.removeAnimation(forKey: Constants.spinAnimationKey)
+            return
+        }
+        guard layer.animation(forKey: Constants.spinAnimationKey) == nil else { return }
+
+        let spin = CABasicAnimation(keyPath: "transform.rotation.z")
+        spin.fromValue = 0
+        spin.toValue = -2 * Double.pi
+        spin.duration = 1
+        spin.repeatCount = .infinity
+        layer.add(spin, forKey: Constants.spinAnimationKey)
     }
 }

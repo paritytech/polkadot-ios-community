@@ -62,7 +62,11 @@
                 (.unclaimed, nil),
                 (.claimed, nil),
                 (.claimed, "99"),
-                (.failed, nil)
+                (.failed, nil),
+                (.reclaiming, nil),
+                (.reclaimed(partialAmount: nil), nil),
+                (.reclaimed(partialAmount: "40"), nil),
+                (.reclaimFailed, nil)
             ]
             return states.map { state, originalAmount in
                 let configuration = ChatTransferMessageConfiguration.outbox(

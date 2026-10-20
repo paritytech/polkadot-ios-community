@@ -127,6 +127,7 @@ struct ClaimCoinsServiceTests {
         let detections = await run.detections()
 
         let firstAbsent = try #require(detections.firstIndex(of: .absent))
+        #expect(detections.filter { $0 == .absent }.count == 1)
         #expect(!detections[firstAbsent...].contains(.detecting))
         #expect(detections.last == .notClaimed)
     }
