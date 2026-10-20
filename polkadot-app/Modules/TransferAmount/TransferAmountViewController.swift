@@ -167,6 +167,8 @@ private extension OutgoingTransferState.Status {
             String(localized: .transferStatusFinished)
         case .failed:
             String(localized: .transferStatusError)
+        case .unclaimed:
+            String(localized: .transferStatusUnclaimed)
         }
     }
 }

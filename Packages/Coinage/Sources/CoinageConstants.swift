@@ -11,6 +11,10 @@ public enum CoinageConstants {
     /// claim retry loop; measured from when the message is first seen.
     public static let claimRetryWindow: TimeInterval = 6 * 60 * 60
 
+    /// How long a payment's recipient has to claim it, counted from the message's send timestamp on both devices.
+    /// The sender's own mint retries (`retriedTransfer`, counted from declare time) have ended by then.
+    public static let claimWindow: TimeInterval = 6 * 60 * 60
+
     /// How long a claim from raw secret keys (top-up / recovery) keeps retrying before giving up.
     /// Shorter than ``claimRetryWindow`` — these callers await the outcome inline.
     public static let secretKeyClaimTimeout: TimeInterval = 60

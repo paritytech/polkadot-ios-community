@@ -3535,6 +3535,17 @@
         }
       }
     },
+    "transfer.status.unclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recipient didn't claim it in time"
+          }
+        }
+      }
+    },
     "video.call" : {
       "extractionState" : "manual",
       "localizations" : {

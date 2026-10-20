@@ -24,8 +24,9 @@ extension CoinageTransferDetection {
 
 extension [PublicKey: CoinageTransferState] {
     /// Mirrors Android's `toPaymentStatus`: any coin still to be taken keeps the message at
-    /// `sending`/`sent`; once nothing is outstanding, the claimed value is final.
-    func outgoingState(context: DenominationBreakdownContext) -> OutgoingTransferState {
+    /// `sending`/`sent`; once nothing is outstanding, the claimed value is final. Once the claim window
+    /// has closed, a coin still awaiting its claim makes the payment `unclaimed`.
+    func outgoingState(context: DenominationBreakdownContext, windowClosed: Bool) -> OutgoingTransferState {
         let states = Array(values)
         guard !states.isEmpty else { return OutgoingTransferState(status: .sending) }
 
@@ -33,6 +34,9 @@ extension [PublicKey: CoinageTransferState] {
         let awaiting = states.filter { $0.status == .awaitingClaim }
         let outstanding = states.filter { $0.status == .awaitingClaim || $0.status == .detecting }
 
+        if windowClosed, !awaiting.isEmpty {
+            return OutgoingTransferState(status: .unclaimed)
+        }
         if !outstanding.isEmpty {
             return OutgoingTransferState(status: awaiting.isEmpty && claimed.isEmpty ? .sending : .sent)
         }

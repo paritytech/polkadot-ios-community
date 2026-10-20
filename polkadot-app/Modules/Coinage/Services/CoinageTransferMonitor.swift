@@ -3,6 +3,7 @@ import BigInt
 import Coinage
 import CommonService
 import Foundation
+import FoundationExt
 import Operation_iOS
 import SubstrateSdk
 
@@ -14,11 +15,20 @@ protocol CoinageTransferMonitoring: AsyncApplicationServicing {}
 final class CoinageTransferMonitor {
     typealias DenominationContextProvider = @Sendable () async throws -> DenominationBreakdownContext
 
+    /// The clock and date the claim window is checked against. Injected so tests drive the window from a test clock.
+    struct Timing: Sendable {
+        let clock: any Clock<Duration>
+        let dateProvider: any DateProviding
+
+        static let live = Timing(clock: ContinuousClock(), dateProvider: NowDateProvider())
+    }
+
     private let claimCoinsService: any ClaimCoinsServicing
     private let transferStatusService: any CoinageTransferStatusServicing
     private let denominationContext: DenominationContextProvider
     private let transferStateStore: any TransferStateStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
+    private let timing: Timing
     private let logger: LoggerProtocol
 
     /// Top-level tasks that listen to the CoreData message streams.
@@ -36,12 +46,14 @@ final class CoinageTransferMonitor {
         transferStateStore: any TransferStateStoring,
         storageFacade: StorageFacadeProtocol,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
+        timing: Timing = .live,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
         self.denominationContext = denominationContext
         self.transferStateStore = transferStateStore
+        self.timing = timing
         self.logger = logger
 
         let repositoryFactory = ChatMessageRepositoryFactory(storageFacade: storageFacade)
@@ -161,7 +173,11 @@ private extension CoinageTransferMonitor {
         guard await taskRegistry.contains(messageId) == false else { return }
 
         let memo = content.transferMemo
-        let task = Task { [transferStatusService, denominationContext, transferStateStore, taskRegistry, logger] in
+        let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
+        let windowStatus = windowClosed(at: closesAt)
+        let task = Task { [
+            transferStatusService, denominationContext, transferStateStore, taskRegistry, logger, windowStatus
+        ] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
                 let context = try await denominationContext()
@@ -170,8 +186,12 @@ private extension CoinageTransferMonitor {
 
                 // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
                 var lastState: OutgoingTransferState?
-                for try await coinStates in transferStatusService.subscribeStatuses(coinKeys: memo.entries) {
-                    let state = coinStates.outgoingState(context: context)
+                let statuses = combineLatest(
+                    transferStatusService.subscribeStatuses(coinKeys: memo.entries),
+                    windowStatus
+                )
+                for try await (coinStates, isWindowClosed) in statuses {
+                    let state = coinStates.outgoingState(context: context, windowClosed: isWindowClosed)
                     if state != lastState {
                         lastState = state
                         logger.debug("Status=\(state) message=\(messageId)")
@@ -184,6 +204,27 @@ private extension CoinageTransferMonitor {
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
+    }
+
+    func windowClosed(at closesAt: Date) -> AsyncStream<Bool> {
+        let timing = timing
+        return AsyncStream { continuation in
+            let task = Task {
+                let now = await timing.dateProvider.read()
+                let remaining = closesAt.timeIntervalSince(now)
+                if remaining > 0 {
+                    continuation.yield(false)
+                    do {
+                        try await timing.clock.sleep(for: .seconds(remaining))
+                    } catch {
+                        return
+                    }
+                }
+                continuation.yield(true)
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 }
 

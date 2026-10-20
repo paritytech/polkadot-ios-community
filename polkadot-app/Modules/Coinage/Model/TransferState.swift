@@ -33,8 +33,9 @@ struct OutgoingTransferState: Equatable, Sendable {
         case sent = 1
         case claimed = 2
         case failed = 3
+        case unclaimed = 4
 
-        static let nonTerminalRawValues: [Int16] = [Self.sending.rawValue, Self.sent.rawValue]
+        static let nonTerminalRawValues: [Int16] = [Self.sending.rawValue, Self.sent.rawValue, Self.unclaimed.rawValue]
 
         var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
     }

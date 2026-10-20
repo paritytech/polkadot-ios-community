@@ -58,6 +58,7 @@
             let states: [(ChatTransferMessageConfiguration.OutgoingState, String?)] = [
                 (.sending, nil),
                 (.sent, nil),
+                (.unclaimed, nil),
                 (.claimed, nil),
                 (.claimed, "99"),
                 (.failed, nil)

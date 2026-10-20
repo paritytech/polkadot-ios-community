@@ -44,6 +44,7 @@ public extension ChatTransferMessageConfiguration {
         case sent
         case claimed
         case failed
+        case unclaimed
     }
 }
 
@@ -218,7 +219,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
             originalAmountLabel.isHidden = true
             subtitleLabel.text = configuration.state.title
             subtitleLabel.textColor = configuration.state.color
-            subtitleIconView.isHidden = false
+            subtitleIconView.isHidden = configuration.state.icon == nil
             subtitleIconView.image = configuration.state.icon
             subtitleIconView.tintColor = configuration.state.color
         }
@@ -258,6 +259,8 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         case .incoming(.failed),
              .outgoing(.failed):
             UIImage(resource: .iconTransferError)
+        case .outgoing(.unclaimed):
+            nil
         }
     }
 
@@ -266,6 +269,8 @@ private extension ChatTransferMessageConfiguration.DirectionalState {
         case .incoming(.failed),
              .outgoing(.failed):
             .fgError
+        case .outgoing(.unclaimed):
+            .fgWarning
         case .incoming:
             .fgSecondary
         case .outgoing:
@@ -309,6 +314,8 @@ private extension ChatTransferMessageConfiguration.OutgoingState {
             String(localized: .transferStatusFinished)
         case .failed:
             String(localized: .transferStatusError)
+        case .unclaimed:
+            String(localized: .transferStatusUnclaimed)
         }
     }
 }

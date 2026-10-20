@@ -74,6 +74,7 @@ private extension OutgoingTransferState.Status {
         switch self {
         case .sending: .sending
         case .sent: .sent
+        case .unclaimed: .unclaimed
         case .claimed: .claimed
         case .failed: .failed
         }
