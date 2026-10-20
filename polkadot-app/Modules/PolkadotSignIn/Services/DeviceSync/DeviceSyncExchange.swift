@@ -23,6 +23,7 @@ actor DeviceSyncExchange {
     private let handlers: DeviceSyncExchangeHandlers
 
     private var sessionTask: Task<Void, Never>?
+    private var fileTransfer: (any DeviceSyncFileTransferring)?
     private var ackTimeoutTasks: [UInt32: Task<Void, Never>] = [:]
 
     private var snapshotAccounting = DeviceSyncSnapshotAccounting()
@@ -74,6 +75,7 @@ actor DeviceSyncExchange {
         isFailed = true
         snapshotAccounting.reset()
 
+        await closeFileTransfer()
         await sessionTask?.value
     }
 }
@@ -110,6 +112,7 @@ private extension DeviceSyncExchange {
 
         sessionTask?.cancel()
         cancelAllAckTimeouts()
+        await closeFileTransfer()
 
         await handlers.failure(failure)
     }
@@ -128,6 +131,7 @@ private extension DeviceSyncExchange {
                     let wasConnected = isDataChannelConnected
                     isDataChannelConnected = true
                     if !wasConnected {
+                        await startFileTransferIfNeeded()
                         await requestPushUpdate()
                     }
                 case .disconnected:
@@ -140,6 +144,20 @@ private extension DeviceSyncExchange {
             peerLogger.error("Data channel state observation failed: \(error)")
             await failSession(.disconnected)
         }
+    }
+
+    func startFileTransferIfNeeded() async {
+        guard fileTransfer == nil, !isFailed, let factory = dependencies.fileTransferFactory else { return }
+
+        let transfer = factory.makeTransfer(flow: flow, peerLogger: peerLogger)
+        fileTransfer = transfer
+        await transfer.start()
+    }
+
+    func closeFileTransfer() async {
+        let transfer = fileTransfer
+        fileTransfer = nil
+        await transfer?.close()
     }
 
     func observeLocalChanges() async {

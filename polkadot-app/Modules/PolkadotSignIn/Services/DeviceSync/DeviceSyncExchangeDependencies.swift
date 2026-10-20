@@ -21,6 +21,8 @@ struct DeviceSyncExchangeDependencies {
     let contactsStorageService: ContactsLocalStorageServicing
     let storageFacade: StorageFacadeProtocol
     let updateIdProvider: DeviceSyncUpdateIdProviding
+    /// `nil` keeps the `device-sync-file` use case off for this exchange.
+    var fileTransferFactory: (any DeviceSyncFileTransferMaking)?
 }
 
 extension DeviceSyncExchangeDependencies {
