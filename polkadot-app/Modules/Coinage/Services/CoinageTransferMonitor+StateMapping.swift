@@ -4,13 +4,13 @@ import Foundation
 import SubstrateSdk
 
 extension CoinageTransferDetection {
-    /// `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
-    func incomingState(windowClosed: Bool) -> IncomingTransferState {
+    /// A chat claim only gives up after its retry window, so a give-up always reads as expired.
+    var incomingState: IncomingTransferState {
         switch self {
-        case .detecting:
+        case .detecting,
+             .absent:
             IncomingTransferState(status: .detecting)
-        case .absent:
-            IncomingTransferState(status: windowClosed ? .returnedToSenderWatching : .detecting)
+        // `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
         case .claiming,
              .claimingRest:
             IncomingTransferState(status: .claiming)
@@ -19,7 +19,7 @@ extension CoinageTransferDetection {
         case let .claimedPartially(claimed):
             IncomingTransferState(status: .claimed, actualValue: claimed)
         case .notClaimed:
-            IncomingTransferState(status: windowClosed ? .returnedToSender : .failed)
+            IncomingTransferState(status: .returnedToSender)
         }
     }
 }

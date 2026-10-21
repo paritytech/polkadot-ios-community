@@ -362,7 +362,7 @@ private extension ContactsListViewModelFactory {
 private extension Chat.LocalMessage.Content.Transfer.State {
     var isReturnedToSender: Bool {
         guard case let .incoming(incoming) = self else { return false }
-        return incoming.status == .returnedToSender || incoming.status == .returnedToSenderWatching
+        return incoming.status == .returnedToSender
     }
 
     var reclaimedValue: Balance? {

@@ -114,14 +114,9 @@ private extension CoinageTransferMonitor {
         guard await taskRegistry.contains(messageId) == false else { return }
 
         let memo = content.transferMemo
-        let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
-        let windowEvents = windowCloses(at: closesAt)
         let storedState = content.storedIncomingState
 
-        let task = Task { [
-            claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger,
-            timing, closesAt, windowEvents
-        ] in
+        let task = Task { [claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
                 let context = try await denominationContext()
@@ -139,18 +134,12 @@ private extension CoinageTransferMonitor {
                     retryUntil: retryUntil,
                     context: context
                 )
-                let isWindowClosed = await timing.dateProvider.read() >= closesAt
                 let feed = IncomingFeed(
                     messageId: messageId,
                     detections: detections,
-                    windowEvents: windowEvents,
                     store: transferStateStore
                 )
-                try await CoinageTransferMonitor.followIncoming(
-                    feed,
-                    isWindowClosed: isWindowClosed,
-                    storedState: storedState
-                )
+                try await CoinageTransferMonitor.followIncoming(feed, storedState: storedState)
             } catch {
                 // Not a status: the message is retried on the next snapshot or launch.
                 logger.error("Failed to claim coinage for \(messageId): \(error)")
@@ -161,46 +150,27 @@ private extension CoinageTransferMonitor {
 }
 
 private extension CoinageTransferMonitor {
-    /// The claim's detections and the window's close, for one incoming message.
+    /// The claim's detections for one incoming message.
     struct IncomingFeed {
         let messageId: Chat.MessageId
         let detections: AnyAsyncSequence<CoinageTransferDetection>
-        let windowEvents: AsyncStream<Void>
         let store: any TransferStateStoring
     }
 
     static func followIncoming(
         _ feed: IncomingFeed,
-        isWindowClosed: Bool,
         storedState: IncomingTransferState?
     ) async throws {
-        var windowClosed = isWindowClosed
-        var latestDetection: CoinageTransferDetection?
         var lastState = storedState
-        let events = merge(
-            feed.detections.map { MonitorEvent.update($0) },
-            feed.windowEvents.map { _ in MonitorEvent<CoinageTransferDetection>.windowClosed }
-        )
-        for try await event in events {
-            switch event {
-            case let .update(detection): latestDetection = detection
-            case .windowClosed: windowClosed = true
-            }
-            guard let detection = latestDetection else { continue }
-            let state = detection.incomingState(windowClosed: windowClosed)
-            if isNewIncomingState(state, after: lastState) {
+        for try await detection in feed.detections {
+            let state = detection.incomingState
+            if state != lastState {
                 lastState = state
                 try await feed.store.updateIncoming(messageId: feed.messageId, state: state)
             }
             // Without this the loop would wait out the window after the claim's last word.
             if detection.isLastWord, state.isTerminal { break }
         }
-    }
-
-    /// A stored watch is not downgraded to `detecting` by the claim's first pass after a relaunch.
-    static func isNewIncomingState(_ state: IncomingTransferState, after lastState: IncomingTransferState?) -> Bool {
-        guard state != lastState else { return false }
-        return !(lastState?.status == .returnedToSenderWatching && state.status == .detecting)
     }
 }
 
@@ -369,12 +339,6 @@ private extension CoinageTransferMonitor {
             continuation.onTermination = { _ in pump.cancel() }
         }
     }
-}
-
-/// One input to the monitor loop: a service update, or the one-time close of the claim window.
-private enum MonitorEvent<Update: Sendable>: Sendable {
-    case update(Update)
-    case windowClosed
 }
 
 /// One input to the outgoing loop: coin statuses, the failed reclaims, or the one-time close of the claim window.

@@ -12,30 +12,18 @@ struct TransferStateMappingTests {
     @Test(
         "receiver detections project onto the incoming state",
         arguments: [
-            (CoinageTransferDetection.detecting, IncomingTransferState(status: .detecting)),
+            (CoinageTransferDetection.absent, IncomingTransferState(status: .detecting)),
+            (.detecting, IncomingTransferState(status: .detecting)),
             (.claiming, IncomingTransferState(status: .claiming)),
             (.claimingRest(claimed: 4), IncomingTransferState(status: .claiming)),
             (.claimed(amount: 10, finalized: false), IncomingTransferState(status: .claimed, actualValue: 10)),
             (.claimed(amount: 10, finalized: true), IncomingTransferState(status: .claimed, actualValue: 10)),
             (.claimedPartially(claimed: 6), IncomingTransferState(status: .claimed, actualValue: 6)),
-            (.notClaimed, IncomingTransferState(status: .failed))
+            (.notClaimed, IncomingTransferState(status: .returnedToSender))
         ]
     )
     func incomingMapping(detection: CoinageTransferDetection, expected: IncomingTransferState) {
-        #expect(detection.incomingState(windowClosed: false) == expected)
-    }
-
-    @Test(
-        "an absent or unclaimed payment projects onto the window state",
-        arguments: [
-            (CoinageTransferDetection.absent, false, IncomingTransferState(status: .detecting)),
-            (.absent, true, IncomingTransferState(status: .returnedToSenderWatching)),
-            (.notClaimed, false, IncomingTransferState(status: .failed)),
-            (.notClaimed, true, IncomingTransferState(status: .returnedToSender))
-        ]
-    )
-    func windowedMapping(detection: CoinageTransferDetection, windowClosed: Bool, expected: IncomingTransferState) {
-        #expect(detection.incomingState(windowClosed: windowClosed) == expected)
+        #expect(detection.incomingState == expected)
     }
 
     @Test("no coin states yet means sending")
@@ -228,7 +216,6 @@ struct TransferStateMappingTests {
         #expect(!IncomingTransferState.Status.detecting.isTerminal)
         #expect(!IncomingTransferState.Status.claiming.isTerminal)
         #expect(IncomingTransferState.Status.returnedToSender.isTerminal)
-        #expect(!IncomingTransferState.Status.returnedToSenderWatching.isTerminal)
         #expect(OutgoingTransferState.Status.claimed.isTerminal)
         #expect(OutgoingTransferState.Status.failed.isTerminal)
         #expect(!OutgoingTransferState.Status.sending.isTerminal)
