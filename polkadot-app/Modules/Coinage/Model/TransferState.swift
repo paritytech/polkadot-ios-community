@@ -52,7 +52,7 @@ struct OutgoingTransferState: Equatable, Sendable {
             Self.sent.rawValue,
             Self.unclaimed.rawValue,
             Self.reclaiming.rawValue,
-            Self.reclaimFailed.rawValue,
+            Self.reclaimFailed.rawValue
         ]
 
         var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }

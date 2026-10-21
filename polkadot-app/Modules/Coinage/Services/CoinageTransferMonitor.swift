@@ -25,8 +25,7 @@ final class CoinageTransferMonitor {
     }
 
     private let claimCoinsService: any ClaimCoinsServicing
-    private let reclaimCoinsService: any ReclaimCoinsServicing
-    private let transferStatusService: any CoinageTransferStatusServicing
+    private let outgoing: OutgoingDependencies
     private let denominationContext: DenominationContextProvider
     private let transferStateStore: any TransferStateStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
@@ -53,12 +52,18 @@ final class CoinageTransferMonitor {
         logger: LoggerProtocol = Logger.shared
     ) {
         self.claimCoinsService = claimCoinsService
-        self.reclaimCoinsService = reclaimCoinsService
-        self.transferStatusService = transferStatusService
         self.denominationContext = denominationContext
         self.transferStateStore = transferStateStore
         self.timing = timing
         self.logger = logger
+        outgoing = OutgoingDependencies(
+            transferStatusService: transferStatusService,
+            reclaimCoinsService: reclaimCoinsService,
+            denominationContext: denominationContext,
+            transferStateStore: transferStateStore,
+            logger: logger,
+            timing: timing
+        )
 
         let repositoryFactory = ChatMessageRepositoryFactory(storageFacade: storageFacade)
         messageProviderFactory = ChatMessageDataProviderFactory(
@@ -205,26 +210,23 @@ private extension CoinageTransferMonitor {
         let memo = content.transferMemo
         let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
         let windowEvents = windowCloses(at: closesAt)
-        let task = Task { [
-            transferStatusService, reclaimCoinsService, denominationContext, transferStateStore, taskRegistry, logger,
-            timing, closesAt, windowEvents
-        ] in
+        let task = Task { [outgoing, taskRegistry, closesAt, windowEvents] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
-                let context = try await denominationContext()
+                let context = try await outgoing.denominationContext()
 
-                logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
+                outgoing.logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
 
-                let isWindowClosed = await timing.dateProvider.read() >= closesAt
+                let isWindowClosed = await outgoing.timing.dateProvider.read() >= closesAt
                 let feed = OutgoingFeed(
                     messageId: messageId,
-                    statuses: transferStatusService.subscribeStatuses(coinKeys: memo.entries),
-                    failedReclaims: reclaimCoinsService.subscribeFailedReclaims(
+                    statuses: outgoing.transferStatusService.subscribeStatuses(coinKeys: memo.entries),
+                    failedReclaims: outgoing.reclaimCoinsService.subscribeFailedReclaims(
                         groupId: ChatTransferGroups.reclaim(messageId)
                     ),
                     windowEvents: windowEvents,
-                    store: transferStateStore,
-                    logger: logger
+                    store: outgoing.transferStateStore,
+                    logger: outgoing.logger
                 )
                 try await CoinageTransferMonitor.followOutgoing(
                     feed,
@@ -232,7 +234,7 @@ private extension CoinageTransferMonitor {
                     isWindowClosed: isWindowClosed
                 )
             } catch {
-                logger.error("Send status monitoring failed for \(messageId): \(error)")
+                outgoing.logger.error("Send status monitoring failed for \(messageId): \(error)")
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
@@ -339,6 +341,15 @@ private extension CoinageTransferMonitor {
             continuation.onTermination = { _ in pump.cancel() }
         }
     }
+}
+
+private struct OutgoingDependencies {
+    let transferStatusService: any CoinageTransferStatusServicing
+    let reclaimCoinsService: any ReclaimCoinsServicing
+    let denominationContext: CoinageTransferMonitor.DenominationContextProvider
+    let transferStateStore: any TransferStateStoring
+    let logger: LoggerProtocol
+    let timing: CoinageTransferMonitor.Timing
 }
 
 /// One input to the outgoing loop: coin statuses, the failed reclaims, or the one-time close of the claim window.
