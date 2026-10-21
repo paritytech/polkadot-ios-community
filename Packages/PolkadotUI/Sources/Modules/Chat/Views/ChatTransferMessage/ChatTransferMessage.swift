@@ -112,7 +112,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
 
     let subtitleLabel: Label = create {
         $0.typography = .bodyMedium
-        $0.numberOfLines = 2
+        $0.numberOfLines = 3
         $0.textAlignment = .left
         $0.setContentCompressionResistancePriority(.fittingSizeLevel, for: .horizontal)
     }
@@ -128,7 +128,8 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         style: .secondaryInverted,
         shape: .rounded,
         size: .medium,
-        expands: true
+        expands: true,
+        horizontalPadding: DSSpacings.extraLarge
     )
 
     private lazy var statusView = appliedConfiguration.statusConfiguration.makeContentView()
@@ -432,7 +433,9 @@ private extension ChatTransferMessageView {
         statusTopBelowReclaimConstraint?.isActive = hasReclaim
 
         bubbleView.alpha = configuration.state.bubbleAlpha
-        updateIconSpin(isSpinning: configuration.state == .outgoing(.reclaiming))
+        let isReclaiming = configuration.state == .outgoing(.reclaiming)
+        updateIconSpin(isSpinning: isReclaiming)
+        amountView.setShimmering(isReclaiming)
     }
 
     func updateIconSpin(isSpinning: Bool) {
@@ -445,7 +448,7 @@ private extension ChatTransferMessageView {
 
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = 0
-        spin.toValue = -2 * Double.pi
+        spin.toValue = 2 * Double.pi
         spin.duration = 1
         spin.repeatCount = .infinity
         layer.add(spin, forKey: Constants.spinAnimationKey)
