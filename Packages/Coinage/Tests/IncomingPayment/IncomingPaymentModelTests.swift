@@ -39,6 +39,7 @@ struct IncomingPaymentModelTests {
 
     @Test func statusMapsFromDetection() {
         #expect(IncomingPaymentStatus(detection: .detecting) == .detecting)
+        #expect(IncomingPaymentStatus(detection: .absent) == .detecting)
         #expect(IncomingPaymentStatus(detection: .claiming) == .claiming)
         #expect(IncomingPaymentStatus(detection: .claimingRest(claimed: 3)) == .claiming)
         #expect(IncomingPaymentStatus(detection: .claimed(amount: 10, finalized: true)) == .claimed(finalized: true))

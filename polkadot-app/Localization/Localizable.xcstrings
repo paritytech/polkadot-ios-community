@@ -957,6 +957,28 @@
         }
       }
     },
+    "chat.transfer.reclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You reclaimed %1$(amount)@"
+          }
+        }
+      }
+    },
+    "chat.transfer.returnedToSender" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$(amount)@ from %1$(username)@ expired"
+          }
+        }
+      }
+    },
     "chat.transfer.sent" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3580,6 +3602,39 @@
         }
       }
     },
+    "transfer.status.reclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaimed"
+          }
+        }
+      }
+    },
+    "transfer.status.reclaimFailed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaiming failed"
+          }
+        }
+      }
+    },
+    "transfer.status.reclaiming" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reclaiming funds…"
+          }
+        }
+      }
+    },
     "transfer.status.sending" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3598,6 +3653,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Sent, waiting to be claimed"
+          }
+        }
+      }
+    },
+    "transfer.status.unclaimed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recipient didn't claim it in time"
           }
         }
       }

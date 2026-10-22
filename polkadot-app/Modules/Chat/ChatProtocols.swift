@@ -56,6 +56,7 @@ protocol ChatInteractorInputProtocol: AnyObject {
     func declineChatRequest()
     func processAction(_ action: Chat.Action)
     func isMicrophoneDenied() -> Bool
+    func reclaimTransfer(messageId: String, coinKeys: [Data])
 }
 
 @MainActor
@@ -71,10 +72,14 @@ protocol ChatInteractorOutputProtocol: AnyObject {
     func didBlockUser()
 
     func didDeclineChatRequest()
+
+    func didReclaim(messageId: Chat.MessageId)
+
+    func didFailReclaim(messageId: Chat.MessageId, error: Error)
 }
 
 @MainActor
-protocol ChatWireframeProtocol: AnyObject, AlertPresentable {
+protocol ChatWireframeProtocol: AnyObject, AlertPresentable, ErrorPresentable {
     func showSendAsset(
         from view: ControllerBackedProtocol?,
         chatMetadata: ChatMetadata

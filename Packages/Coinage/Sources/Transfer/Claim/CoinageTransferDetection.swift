@@ -7,6 +7,9 @@ public enum CoinageTransferDetection: Equatable, Sendable {
     /// Nothing the keys control is on chain yet, so there is nothing to claim.
     case detecting
 
+    /// The chain was looked at, none of the coins is on it, and we hold no claim of our own.
+    case absent
+
     /// Claims are under way and none of the coins is ours yet. No failures so far.
     case claiming
 
@@ -26,6 +29,22 @@ public enum CoinageTransferDetection: Equatable, Sendable {
 }
 
 public extension CoinageTransferDetection {
+    /// Whether nothing further will be reported for this claim.
+    var isLastWord: Bool {
+        switch self {
+        case .claimed(_, finalized: true),
+             .claimedPartially,
+             .notClaimed:
+            true
+        case .detecting,
+             .absent,
+             .claiming,
+             .claimingRest,
+             .claimed(_, finalized: false):
+            false
+        }
+    }
+
     /// The last word for a claim valued by what finalized: the full `amount` is `claimed`, anything
     /// less that still claimed something is `claimedPartially`, nothing is `notClaimed`.
     static func verdict(finalized value: Balance, of amount: Balance) -> CoinageTransferDetection {

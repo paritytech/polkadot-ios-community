@@ -85,6 +85,7 @@ public final class ClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
         context: DenominationBreakdownContext
     ) -> AnyAsyncSequence<CoinageTransferDetection> {
         AsyncStream { continuation in
+            let lastReported = OSAllocatedUnfairLock<CoinageTransferDetection?>(initialState: nil)
             let task = Task {
                 await self.runClaim(
                     coinKeys: coinKeys,
@@ -92,6 +93,11 @@ public final class ClaimCoinsService: ClaimCoinsServicing, @unchecked Sendable {
                     retryUntil: retryUntil,
                     context: context
                 ) { detection in
+                    let isRepeatedAbsent = lastReported.withLock { last -> Bool in
+                        defer { last = detection }
+                        return detection == .absent && last == .absent
+                    }
+                    guard !isRepeatedAbsent else { return }
                     continuation.yield(detection)
                 }
                 continuation.finish()
@@ -165,12 +171,13 @@ private extension ClaimCoinsService {
         let coins = Set(keypairs.keys)
         var settled: [CoinageTxEntry] = []
         var hasLooked = false
+        var nothingOnChain = false
 
         while !Task.isCancelled {
             logger?.debug("Awaiting settles coins=\(coins.count) with group=\(groupId)")
 
             settled = try await awaitKnownOperationsSettled(
-                groupId: groupId, coins: coins, context: context, report: report
+                groupId: groupId, coins: coins, nothingOnChain: nothingOnChain, context: context, report: report
             )
             // Each coin is registered once: rebuilding a claim that failed is its submission policy's
             // job, into the coin that claim recorded. A second claim here would mint into a coin
@@ -179,8 +186,8 @@ private extension ClaimCoinsService {
             // `receivedPublicKeys()` counts terminal entries too, so a coin whose policy has already
             // given up reads as registered and is not re-registered here. That is deliberate — see the
             // note on `CoinageClaimSubmitting` — and it means no layer retries such a coin: the policy
-            // is dead and this loop treats it as handled. It stays on chain, claimable by nobody, until
-            // the sender-side reclaim UI exists.
+            // is dead and this loop treats it as handled. It stays on chain, claimable by nobody, and the
+            // sender can reclaim it once the claim window closes.
             let unregistered = coins.subtracting(settled.receivedPublicKeys())
             if unregistered.isEmpty {
                 logger?.debug("Every coin has a claim group=\(groupId)")
@@ -193,6 +200,13 @@ private extension ClaimCoinsService {
             hasLooked = hasLooked || look.looked
 
             logger?.debug("Claimable \(look.claimable.count) coins for group=\(groupId)")
+
+            if look.looked, look.claimable.isEmpty, settled.isEmpty, !nothingOnChain {
+                nothingOnChain = true
+                report(.absent)
+            } else if !look.claimable.isEmpty {
+                nothingOnChain = false
+            }
 
             if !look.claimable.isEmpty {
                 await submit(
@@ -217,6 +231,7 @@ private extension ClaimCoinsService {
     func awaitKnownOperationsSettled(
         groupId: CoinageTxGroupId,
         coins: Set<PublicKey>,
+        nothingOnChain: Bool,
         context: DenominationBreakdownContext,
         report: @Sendable (CoinageTransferDetection) -> Void
     ) async throws -> [CoinageTxEntry] {
@@ -224,7 +239,7 @@ private extension ClaimCoinsService {
         do {
             for try await states in txService.subscribeOperationGroupStatuses(groupId) {
                 last = states
-                try await report(toProgress(states, coins: coins, context: context))
+                try await report(toProgress(states, coins: coins, nothingOnChain: nothingOnChain, context: context))
                 if states.allSatisfy({ !$0.status.isLive }) { break }
             }
         } catch let error as ClaimValuationError {
@@ -341,6 +356,7 @@ private extension ClaimCoinsService {
     func toProgress(
         _ states: [CoinageTxEntry],
         coins: Set<PublicKey>,
+        nothingOnChain: Bool,
         context: DenominationBreakdownContext
     ) async throws -> CoinageTransferDetection {
         let arrived = states.filter(\.status.isArrived)
@@ -358,7 +374,7 @@ private extension ClaimCoinsService {
             return try await .claimingRest(claimed: valueMinted(by: arrived, context: context))
         }
 
-        return states.isEmpty ? .detecting : .claiming
+        return states.isEmpty ? (nothingOnChain ? .absent : .detecting) : .claiming
     }
 
     /// The last word, once nothing further will be attempted — the only place a shortfall may be final.
