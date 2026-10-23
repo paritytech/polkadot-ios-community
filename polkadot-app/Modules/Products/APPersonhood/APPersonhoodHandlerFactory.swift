@@ -63,6 +63,11 @@ extension APPersonhoodHandlerFactory: APPersonhoodHandlerMaking {
     func makeSignVrfHandler(callingProductId: ProductId?) -> APSignVrfHandling {
         APSignVrfHandler(
             callingProductId: callingProductId,
+            isBlessed: { [tldProvider] productId in
+                guard let tld = try? tldProvider.currentTldOrError() else { return false }
+
+                return BlessedProducts.isBlessed(productId, tld: tld)
+            },
             confirmationRequester: SignVrfConfirmationRequester(router: routers.productsRouter),
             walletFactory: { try DynamicDerivedWallet(derivationPath: $0.derivationPath()) },
             logger: logger
