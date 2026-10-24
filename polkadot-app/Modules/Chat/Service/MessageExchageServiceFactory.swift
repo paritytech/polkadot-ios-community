@@ -105,7 +105,7 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: deviceEncryptionKeyFactory,
             messageExchangeModeProvider: messageExchangeModeProvider,
-            signerManager: signManager,
+            accountProvider: SignerSessionAccountProvider(signerManager: signManager),
             sessionIdFactory: PeerSessionIdFactory(),
             channelFactory: ChatStatementChannelFactory(),
             preSendHandler: AnyPeerSessionPreSendHandler.empty(),
