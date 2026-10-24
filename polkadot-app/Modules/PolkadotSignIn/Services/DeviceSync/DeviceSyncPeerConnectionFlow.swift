@@ -1,6 +1,7 @@
 import Foundation
 import WebRTC
 import SubstrateSdk
+import SubstrateSdkExt
 import AsyncExtensions
 
 enum DeviceSyncDataChannelState {
@@ -17,16 +18,19 @@ protocol DeviceSyncPeerConnectionFlowing: Actor {
     var updates: AnyAsyncSequence<Chat.DeviceSyncUpdate> { get async }
     var acks: AnyAsyncSequence<Chat.DeviceSyncUpdateAck> { get async }
     var states: AnyAsyncSequence<DeviceSyncDataChannelState> { get async }
+    var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> { get async }
 
     func start() async throws
     func sendUpdate(_ update: Chat.DeviceSyncUpdate) async throws
     func sendAck(_ ack: Chat.DeviceSyncUpdateAck) async throws
+    func sendFileMessage(_ message: Chat.DeviceSyncFileMessage) async throws
     func cancel() async
 }
 
 actor DeviceSyncPeerConnectionFlow {
     private static let purpose = "sync"
     private static let useCaseId = "device-sync"
+    private static let fileUseCaseId = "device-sync-file"
 
     private let signaler: DeviceSyncSignalingSession
     private let role: CallRole
@@ -42,6 +46,7 @@ actor DeviceSyncPeerConnectionFlow {
     private let updateSubject = AsyncPassthroughSubject<Chat.DeviceSyncUpdate>()
     private let ackSubject = AsyncPassthroughSubject<Chat.DeviceSyncUpdateAck>()
     private let stateSubject = AsyncPassthroughSubject<DeviceSyncDataChannelState>()
+    private let fileMessageSubject = AsyncPassthroughSubject<Chat.DeviceSyncFileMessage>()
 
     private var connectTask: Task<PeerDataConnectionState.Connected?, Never>?
     private var receiveTask: Task<Void, Never>?
@@ -80,6 +85,10 @@ extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
 
     var states: AnyAsyncSequence<DeviceSyncDataChannelState> {
         stateSubject.eraseToAnyAsyncSequence()
+    }
+
+    var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
+        fileMessageSubject.eraseToAnyAsyncSequence()
     }
 
     func start() async throws {
@@ -154,6 +163,10 @@ extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
     func sendAck(_ ack: Chat.DeviceSyncUpdateAck) async throws {
         let syncMessage = Chat.DeviceSyncMessage.ack(ack)
         try await sendSyncMessage(syncMessage)
+    }
+
+    func sendFileMessage(_ message: Chat.DeviceSyncFileMessage) async throws {
+        try await send(message.scaleEncoded(), useCaseId: Self.fileUseCaseId)
     }
 
     func cancel() async {
@@ -334,20 +347,42 @@ private extension DeviceSyncPeerConnectionFlow {
 
     func startReceiving(from muxChannel: MultiplexedDataChannel) {
         let syncStream = muxChannel.subscribe(useCaseId: Self.useCaseId)
+        let fileStream = muxChannel.subscribe(useCaseId: Self.fileUseCaseId)
 
         receiveTask = Task { [weak self] in
-            do {
-                for try await data in syncStream {
-                    guard !Task.isCancelled else { return }
-                    await self?.handleReceivedData(data)
-                }
-
-                guard !Task.isCancelled else { return }
-                await self?.handleReceiveTermination()
-            } catch {
-                guard !Task.isCancelled else { return }
-                await self?.handleReceiveTermination(error)
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self?.receiveSyncData(from: syncStream) }
+                group.addTask { await self?.receiveFileData(from: fileStream) }
             }
+        }
+    }
+
+    func receiveSyncData(from syncStream: AnyAsyncSequence<Data>) async {
+        do {
+            for try await data in syncStream {
+                guard !Task.isCancelled else { return }
+                handleReceivedData(data)
+            }
+
+            guard !Task.isCancelled else { return }
+            handleReceiveTermination()
+        } catch {
+            guard !Task.isCancelled else { return }
+            handleReceiveTermination(error)
+        }
+    }
+
+    // Always drained: the mux awaits each subscriber, so an unread file stream would stall sync.
+    // Its end is not reported, the sync stream already signals the channel loss.
+    func receiveFileData(from fileStream: AnyAsyncSequence<Data>) async {
+        do {
+            for try await data in fileStream {
+                guard !Task.isCancelled else { return }
+                handleReceivedFileData(data)
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            peerLogger.error("Sync file stream failed: \(error)")
         }
     }
 
@@ -361,14 +396,26 @@ private extension DeviceSyncPeerConnectionFlow {
     }
 
     func sendSyncMessage(_ syncMessage: Chat.DeviceSyncMessage) async throws {
+        try await send(syncMessage.scaleEncoded(), useCaseId: Self.useCaseId)
+    }
+
+    func send(_ data: Data, useCaseId: String) async throws {
         guard let muxChannel = multiplexedChannel else {
-            peerLogger.warning("Cannot send sync data: channel not connected")
+            peerLogger.warning("Cannot send \(useCaseId) data: channel not connected")
             throw DeviceSyncDataChannelError.notConnected
         }
 
-        let syncData = try syncMessage.scaleEncoded()
-        peerLogger.debug("Sending \(syncData.count) bytes")
-        try await muxChannel.send(data: syncData, useCaseId: Self.useCaseId)
+        peerLogger.debug("Sending \(data.count) bytes on \(useCaseId)")
+        try await muxChannel.send(data: data, useCaseId: useCaseId)
+    }
+
+    func handleReceivedFileData(_ data: Data) {
+        do {
+            let fileMessage = try Chat.DeviceSyncFileMessage.fromScaleEncoded(data)
+            fileMessageSubject.send(fileMessage)
+        } catch {
+            peerLogger.error("Sync file message decoding failed: \(error)")
+        }
     }
 
     func handleReceivedData(_ data: Data) {

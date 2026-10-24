@@ -27,6 +27,47 @@ struct DeviceSyncExchangeTests {
         #expect(counts.states == 1)
     }
 
+    @Test("The first connected state starts one file transfer and closing the exchange closes it")
+    func fileTransferFollowsConnection() async {
+        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let fileTransfers = MockDeviceSyncFileTransferFactory()
+        let session = makeSession(
+            peerAccountId: Data(repeating: 4, count: 32),
+            flow: dataChannel,
+            fileTransferFactory: fileTransfers
+        )
+
+        await session.start()
+        await dataChannel.waitForObserverSubscriptions()
+        await dataChannel.sendState(.connected)
+        await dataChannel.sendState(.connected)
+
+        #expect(await fileTransfers.events.waitForCount(1) == [.started(1)])
+
+        await session.close()
+        #expect(await fileTransfers.events.waitForCount(2) == [.started(1), .closed(1)])
+    }
+
+    @Test("Losing the data channel closes the file transfer")
+    func disconnectClosesFileTransfer() async {
+        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let fileTransfers = MockDeviceSyncFileTransferFactory()
+        let session = makeSession(
+            peerAccountId: Data(repeating: 5, count: 32),
+            flow: dataChannel,
+            fileTransferFactory: fileTransfers
+        )
+
+        await session.start()
+        await dataChannel.waitForObserverSubscriptions()
+        await dataChannel.sendState(.connected)
+        _ = await fileTransfers.events.waitForCount(1)
+        await dataChannel.sendState(.disconnected)
+
+        #expect(await fileTransfers.events.waitForCount(2) == [.started(1), .closed(1)])
+        await session.close()
+    }
+
     @Test("Terminal flow state fails the exchange")
     func terminalFlowStateFailsExchange() async throws {
         let peerAccountId = Data(repeating: 3, count: 32)

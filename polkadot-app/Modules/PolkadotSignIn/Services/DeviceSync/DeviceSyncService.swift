@@ -52,6 +52,7 @@ actor DeviceSyncService {
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         updateIdProvider: DeviceSyncUpdateIdProviding = DeviceSyncUpdateIdProvider(),
         restartDelayPolicy: DeviceSyncRestartDelayPolicy = DeviceSyncRestartDelayPolicy(),
+        fileTransferFactory: (any DeviceSyncFileTransferMaking)? = nil,
         logger: LoggerProtocol = Logger.shared,
         peerEngineFactory: @escaping PeerEngineFactory = { peerAccountId, contextFactory in
             DeviceSyncPeerEngine(
@@ -85,7 +86,8 @@ actor DeviceSyncService {
             ownSignKeyIds: ownSignKeyIds,
             contactsStorageService: contactsStorageService,
             storageFacade: storageFacade,
-            updateIdProvider: updateIdProvider
+            updateIdProvider: updateIdProvider,
+            fileTransferFactory: fileTransferFactory
         )
         self.peerEngineFactory = peerEngineFactory
     }

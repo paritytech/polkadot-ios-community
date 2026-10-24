@@ -7,19 +7,24 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
     private nonisolated let failUpdates: Bool
     private nonisolated let sentUpdateEvents = DeviceSyncTestEventRecorder<Chat.DeviceSyncUpdate>()
     private nonisolated let sentAckEvents = DeviceSyncTestEventRecorder<Chat.DeviceSyncUpdateAck>()
+    private nonisolated let sentFileMessageEvents = DeviceSyncTestEventRecorder<Chat.DeviceSyncFileMessage>()
+    private nonisolated let fileObserverEvents = DeviceSyncTestEventRecorder<Void>()
     private nonisolated let observerEvents = DeviceSyncTestEventRecorder<Void>()
     private let startResult: Result<Void, Error>
     private let sendUpdateResult: Result<Void, Error>
     private let sendAckResult: Result<Void, Error>
+    private let sendFileMessageResult: Result<Void, Error>
     private let suspendConnect: Bool
     private let suspendUpdateAtIndex: Int?
     private nonisolated let blockedSendEvents = DeviceSyncTestEventRecorder<Void>()
     private(set) var didClose = false
     private(set) var sentAcks = [Chat.DeviceSyncUpdateAck]()
     private(set) var sentUpdates = [Chat.DeviceSyncUpdate]()
+    private(set) var sentFileMessages = [Chat.DeviceSyncFileMessage]()
     private var stateContinuations = [AsyncStream<DeviceSyncDataChannelState>.Continuation]()
     private var updateContinuations = [AsyncStream<Chat.DeviceSyncUpdate>.Continuation]()
     private var ackContinuations = [AsyncStream<Chat.DeviceSyncUpdateAck>.Continuation]()
+    private var fileMessageContinuations = [AsyncStream<Chat.DeviceSyncFileMessage>.Continuation]()
     private var connectContinuation: CheckedContinuation<Void, Error>?
     private var blockedSendContinuation: CheckedContinuation<Void, Never>?
     private var sendIndex = 0
@@ -28,6 +33,7 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         startResult: Result<Void, Error>,
         sendUpdateResult: Result<Void, Error> = .success(()),
         sendAckResult: Result<Void, Error> = .success(()),
+        sendFileMessageResult: Result<Void, Error> = .success(()),
         suspendConnect: Bool = false,
         suspendUpdateAtIndex: Int? = nil,
         failUpdates: Bool = false
@@ -36,6 +42,7 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         self.startResult = startResult
         self.sendUpdateResult = sendUpdateResult
         self.sendAckResult = sendAckResult
+        self.sendFileMessageResult = sendFileMessageResult
         self.suspendConnect = suspendConnect
         self.suspendUpdateAtIndex = suspendUpdateAtIndex
     }
@@ -61,6 +68,12 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
     var states: AnyAsyncSequence<DeviceSyncDataChannelState> {
         AsyncStream<DeviceSyncDataChannelState> { continuation in
             addStateContinuation(continuation)
+        }.eraseToAnyAsyncSequence()
+    }
+
+    var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
+        AsyncStream<Chat.DeviceSyncFileMessage> { continuation in
+            addFileMessageContinuation(continuation)
         }.eraseToAnyAsyncSequence()
     }
 
@@ -96,6 +109,12 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         sentAckEvents.record(ack)
     }
 
+    func sendFileMessage(_ message: Chat.DeviceSyncFileMessage) async throws {
+        try sendFileMessageResult.get()
+        sentFileMessages.append(message)
+        sentFileMessageEvents.record(message)
+    }
+
     func cancel() async {
         didClose = true
         connectContinuation?.resume(throwing: MockDeviceSyncError.connectCancelled)
@@ -125,6 +144,14 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         return acks[0]
     }
 
+    nonisolated func waitForSentFileMessageCount(_ count: Int) async -> [Chat.DeviceSyncFileMessage] {
+        await sentFileMessageEvents.waitForCount(count)
+    }
+
+    nonisolated func waitForFileMessageSubscription() async {
+        _ = await fileObserverEvents.waitForCount(1)
+    }
+
     nonisolated func waitForObserverSubscriptions() async {
         _ = await observerEvents.waitForCount(3)
     }
@@ -145,6 +172,10 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         ackContinuations.forEach { $0.yield(ack) }
     }
 
+    func emitFileMessage(_ message: Chat.DeviceSyncFileMessage) {
+        fileMessageContinuations.forEach { $0.yield(message) }
+    }
+
     private func addStateContinuation(_ continuation: AsyncStream<DeviceSyncDataChannelState>.Continuation) {
         stateContinuations.append(continuation)
         observerEvents.record(())
@@ -158,5 +189,12 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
     private func addAckContinuation(_ continuation: AsyncStream<Chat.DeviceSyncUpdateAck>.Continuation) {
         ackContinuations.append(continuation)
         observerEvents.record(())
+    }
+
+    private func addFileMessageContinuation(
+        _ continuation: AsyncStream<Chat.DeviceSyncFileMessage>.Continuation
+    ) {
+        fileMessageContinuations.append(continuation)
+        fileObserverEvents.record(())
     }
 }

@@ -88,6 +88,7 @@ xcuserdata
 # Claude
 
 .claude/PLAN.md
+.claude/PLAN.*.md
 .claude/worktrees
 docs/superpowers/
 

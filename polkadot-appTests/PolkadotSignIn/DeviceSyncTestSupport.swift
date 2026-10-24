@@ -21,7 +21,8 @@ extension DeviceSyncExchangeTests {
             MockOutgoingUpdateTimeRepositoryFactory(),
         ackTimeout: Duration = .seconds(3_600),
         sleep: @escaping DeviceSyncSleep = liveDeviceSyncSleep,
-        entityChunker: DeviceSyncEntityChunker = .init()
+        entityChunker: DeviceSyncEntityChunker = .init(),
+        fileTransferFactory: (any DeviceSyncFileTransferMaking)? = nil
     ) -> DeviceSyncExchange {
         let storageFacade = UnusedDeviceSyncStorageFacade()
 
@@ -44,7 +45,8 @@ extension DeviceSyncExchangeTests {
                     logger: MockLogger()
                 ),
                 storageFacade: storageFacade,
-                updateIdProvider: MockDeviceSyncUpdateIdProvider()
+                updateIdProvider: MockDeviceSyncUpdateIdProvider(),
+                fileTransferFactory: fileTransferFactory
             ),
             peerLogger: MockLogger(),
             behavior: .init(
