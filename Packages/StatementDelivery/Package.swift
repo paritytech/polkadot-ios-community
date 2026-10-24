@@ -51,7 +51,8 @@ let package = Package(
             name: "StatementDeliveryTests",
             dependencies: [
                 "StatementDelivery",
-                .product(name: "Clocks", package: "swift-clocks")
+                .product(name: "Clocks", package: "swift-clocks"),
+                .product(name: "FoundationExtTestSupport", package: "FoundationExt")
             ],
             path: "Tests"
         )

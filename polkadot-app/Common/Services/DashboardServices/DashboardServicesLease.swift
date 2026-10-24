@@ -1,3 +1,4 @@
+import ChainRegistry
 import Foundation
 import os
 
@@ -6,14 +7,12 @@ enum DashboardServicesDemand: Hashable {
     case durability
 }
 
-/// A caller's claim on the dashboard services: the dashboard holds an interactive one for its lifetime, a background
-/// renewal run a durability one for the run. Releasing twice is a no-op.
 final class DashboardServicesLease<Coordinator: DashboardServicesCoordinating>: @unchecked Sendable {
     let coordinator: Coordinator
     let demand: DashboardServicesDemand
     let generation: UInt64
 
-    private let connectionHold: (any ConnectionHold)?
+    private let connectionToken: (any ConnectionTokenProtocol)?
     private let onRelease: @MainActor (DashboardServicesLease) -> Void
     private let isReleased = OSAllocatedUnfairLock(initialState: false)
 
@@ -21,13 +20,13 @@ final class DashboardServicesLease<Coordinator: DashboardServicesCoordinating>: 
         coordinator: Coordinator,
         demand: DashboardServicesDemand,
         generation: UInt64,
-        connectionHold: (any ConnectionHold)?,
+        connectionToken: (any ConnectionTokenProtocol)?,
         onRelease: @escaping @MainActor (DashboardServicesLease) -> Void
     ) {
         self.coordinator = coordinator
         self.demand = demand
         self.generation = generation
-        self.connectionHold = connectionHold
+        self.connectionToken = connectionToken
         self.onRelease = onRelease
     }
 
@@ -39,7 +38,7 @@ final class DashboardServicesLease<Coordinator: DashboardServicesCoordinating>: 
 
         guard !wasReleased else { return }
 
-        connectionHold?.release()
+        connectionToken?.release()
         Task { @MainActor [onRelease] in onRelease(self) }
     }
 }

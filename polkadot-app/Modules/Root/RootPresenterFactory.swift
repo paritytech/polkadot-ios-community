@@ -67,12 +67,11 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
 
         let interactor = RootInteractor(
             chainRegistryClosure: chainRegistryClosure,
-            launchBootstrapper: LaunchBootstrapper.shared,
+            initializer: AppSharedInitializer.shared,
             logger: Logger.shared,
             resolver: resolver,
             tokenManager: JWTTokenManager.shared,
             remoteConfigManager: FirebaseFacade.shared,
-            chainRegistryConfigurator: FirebaseFacade.shared,
             productPrewarmer: productPrewarmer,
             observer: RootSetupObserver(pathMonitor: NetworkPathMonitor())
         )

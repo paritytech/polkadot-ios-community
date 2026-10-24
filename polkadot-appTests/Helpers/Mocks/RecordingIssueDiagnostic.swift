@@ -2,7 +2,6 @@ import Foundation
 import IssueMonitoring
 import os
 
-/// Records failures with their counters, and recoveries, without reporting anything.
 final class RecordingIssueDiagnostic: IssueDiagnostic, @unchecked Sendable {
     private struct State {
         var failures: [[String: Int]] = []

@@ -164,7 +164,7 @@ private extension OutgoingStatementDeliveryService {
     }
 
     static func retryDelay(forAttempt attempt: Int) -> Duration {
-        let doublings = min(attempt, maxBackoffDoublings)
+        let doublings = min(attempt - 1, maxBackoffDoublings)
         return min(firstRetryDelay * (1 << doublings), maxRetryDelay)
     }
 }

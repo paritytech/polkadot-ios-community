@@ -2,8 +2,8 @@ import Foundation
 import Keystore_iOS
 
 enum SettingsKey: String {
-    case username = "username.v4"
-    case usernameClaimed = "usernameClaimed.v4"
+    case username = "username.v3"
+    case usernameClaimed = "usernameClaimed.v3"
     case waitingRoomNotificationDate
     case gameStartNotificationDate
     case registrationStartNotificationDates
@@ -17,15 +17,13 @@ enum SettingsKey: String {
     case gameAlarmId
     case gameAlarmFireDate
     case gameAlarmTimingSeconds
-    // Balance restored notification
-    case deviceEncryptId = "deviceEncryptId.v4"
-    // App Group suite; indexes the Keychain items, so a suffix bump starts a new wallet.
-    case installationKeyId = "io.polkadot.app.entropy.id.v4"
-    case nextSyncUpdateId = "nextSyncUpdateId.v4"
-    case themeSelected = "themeSelected.v4"
+    case deviceEncryptId = "deviceEncryptId.v3"
+    case installationKeyId = "io.polkadot.app.entropy.id.v3"
+    case nextSyncUpdateId = "nextSyncUpdateId.v3"
+    case themeSelected = "themeSelected.v3"
     case gameCalendarReminder
     case localNetworkPermissionRequested
-    case backendSessionId = "backendSessionId.v4"
+    case backendSessionId = "backendSessionId.v3"
     case showTransferStrategyDebug
     case truApiRuntimeEnabled
     case coinageRecyclingStrategy

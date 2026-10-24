@@ -2,7 +2,6 @@ import Foundation
 
 @testable import polkadot_app
 
-/// Builds a fresh spy per call and keeps every one it built.
 @MainActor
 final class DashboardServicesCoordinatorFactorySpy: DashboardServicesCoordinatorMaking {
     private(set) var made: [DashboardServicesCoordinatorSpy] = []

@@ -35,6 +35,7 @@ let package = Package(
                 "BackgroundExecution",
                 .product(name: "ChainRegistry", package: "ChainRegistry"),
                 .product(name: "FoundationExt", package: "FoundationExt"),
+                .product(name: "FoundationExtTestSupport", package: "FoundationExt"),
             ]
         )
     ]

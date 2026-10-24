@@ -2,9 +2,6 @@ import BackgroundExecution
 import Foundation
 import StatementDelivery
 
-/// One background run: borrow the dashboard services (booting them headless when the app was not running) and renew
-/// statements and allowances. Coinage setup inside the durability part also starts the recycling evaluator's own
-/// schedule, which recycles for as long as the process runs.
 struct StatementRenewalBackgroundWork: Sendable {
     func callAsFunction() async -> BackgroundTaskWorkOutcome {
         let manager = await DashboardServices.manager
@@ -14,8 +11,7 @@ struct StatementRenewalBackgroundWork: Sendable {
             return .skipped(reason: "notReady launchKind=\(launchKind)")
         }
 
-        // Released after the run unwinds, never from the expiration handler, so stopping durability cannot race a
-        // claim that is still in flight.
+        // Not from the expiration handler: stopping durability must not race a claim still in flight.
         defer { lease.release() }
 
         let renewal = await lease.coordinator.durabilityRenewal.renewAll()

@@ -227,12 +227,6 @@ struct InlineExecutor: BackgroundExecuting {
     }
 }
 
-struct FixedDateProvider: DateProviding {
-    let now: Date
-
-    func read() async -> Date { now }
-}
-
 final class SilentLogger: SDKLoggerProtocol {
     func verbose(message _: () -> String, file _: String, function _: String, line _: Int) {}
     func debug(message _: () -> String, file _: String, function _: String, line _: Int) {}

@@ -11,7 +11,6 @@ final class ChatRequestCoordinatorService {
     let contactsProviderFactory: ChatContactDataProviderMaking
     let messageProviderFactory: ChatMessageDataProviderMaking
     let serviceFactory: ChatRequestServiceMaking
-    let renewalLoop: ChatRequestRenewalLoop
     let logger: SDKLoggerProtocol
 
     private var coordinationTask: Task<Void, Never>?
@@ -20,13 +19,11 @@ final class ChatRequestCoordinatorService {
         contactsProviderFactory: ChatContactDataProviderMaking,
         messageProviderFactory: ChatMessageDataProviderMaking,
         serviceFactory: ChatRequestServiceMaking,
-        renewalLoop: ChatRequestRenewalLoop,
         logger: SDKLoggerProtocol
     ) {
         self.contactsProviderFactory = contactsProviderFactory
         self.messageProviderFactory = messageProviderFactory
         self.serviceFactory = serviceFactory
-        self.renewalLoop = renewalLoop
         self.logger = logger
     }
 }
@@ -51,11 +48,6 @@ extension ChatRequestCoordinatorService: ChatRequestCoordinatorServicing {
                 let outgoingAcceptanceContext = await serviceFactory.makeOutgoingChatAcceptanceContext()
                 let incomingAcceptanceService = try await serviceFactory.makeIncomingChatAcceptanceService()
                 let incomingAcceptanceContext = await serviceFactory.makeIncomingChatAcceptanceContext()
-
-                let renewalTask = Task { [renewalLoop] in
-                    await renewalLoop.run()
-                }
-                defer { renewalTask.cancel() }
 
                 let allContactsStream = contactsProviderFactory.subscribeAllContacts()
 

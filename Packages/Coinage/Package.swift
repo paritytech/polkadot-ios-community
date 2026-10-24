@@ -113,6 +113,7 @@ let package = Package(
                 "Revive",
                 .product(name: "DurableTransactionsTestSupport", package: "DurableTransactions"),
                 .product(name: "StructuredConcurrencyTestSupport", package: "StructuredConcurrency"),
+                .product(name: "FoundationExtTestSupport", package: "FoundationExt"),
                 .product(name: "Clocks", package: "swift-clocks")
             ],
             path: "Tests"

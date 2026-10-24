@@ -12,20 +12,17 @@ final class DebugSettingsInteractor {
     let logsDraftFactory: LogsEmailDraftMaking
     let keystore: KeystoreProtocol
     let entropyManager: RootEntropyManaging
-    let renewal: DebugRenewalTools
 
     init(
         mnemonicBackupHelper: MnemonicBackupHelperProtocol,
         logsDraftFactory: LogsEmailDraftMaking,
         keystore: KeystoreProtocol,
-        entropyManager: RootEntropyManaging,
-        renewal: DebugRenewalTools
+        entropyManager: RootEntropyManaging
     ) {
         self.mnemonicBackupHelper = mnemonicBackupHelper
         self.logsDraftFactory = logsDraftFactory
         self.keystore = keystore
         self.entropyManager = entropyManager
-        self.renewal = renewal
     }
 }
 
@@ -37,7 +34,6 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
             provideJWTTokenState()
             provideStrategyDebugState()
             provideTruApiRuntimeState()
-            provideRenewalState()
         }
     }
 
@@ -102,24 +98,6 @@ extension DebugSettingsInteractor: DebugSettingsInteractorInputProtocol {
             SettingsManager.shared.set(value: true, for: .tipsResetPending)
         #endif
     }
-
-    func scheduleRenewal() {
-        Task { [weak self, renewal] in
-            await renewal.task?.schedule()
-            self?.provideRenewalState()
-        }
-    }
-
-    func runRenewalNow() {
-        Task { [weak presenter, renewal] in
-            let summary =
-                switch await renewal.work() {
-                case let .completed(logFields): logFields.replacingOccurrences(of: " ", with: "\n")
-                case let .skipped(reason): "skipped: \(reason)"
-                }
-            await presenter?.didCompleteRenewalRun(summary: summary)
-        }
-    }
 }
 
 private extension DebugSettingsInteractor {
@@ -153,13 +131,6 @@ private extension DebugSettingsInteractor {
         let enabled = SettingsManager.shared.bool(for: SettingsKey.showTransferStrategyDebug.rawValue) ?? true
         Task { @MainActor [weak presenter] in
             presenter?.didReceive(strategyDebugEnabled: enabled)
-        }
-    }
-
-    func provideRenewalState() {
-        Task { [weak presenter, renewal] in
-            let isPending = await renewal.task?.isRequestPending() ?? false
-            await presenter?.didReceive(renewalRequestPending: isPending)
         }
     }
 

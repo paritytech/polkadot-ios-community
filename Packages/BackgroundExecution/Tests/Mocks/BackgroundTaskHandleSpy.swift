@@ -1,7 +1,6 @@
 import os
 @testable import BackgroundExecution
 
-/// Records completions and lets a test fire the OS expiration on demand.
 final class BackgroundTaskHandleSpy: BackgroundTaskHandle, @unchecked Sendable {
     private struct State {
         var expirationHandler: (@Sendable () -> Void)?
@@ -29,7 +28,6 @@ final class BackgroundTaskHandleSpy: BackgroundTaskHandle, @unchecked Sendable {
         expirationHandler?()
     }
 
-    /// Waits for the first completion; later ones stay visible through `completions`.
     func waitForCompletion() async -> Bool? {
         for await success in completed.stream {
             return success

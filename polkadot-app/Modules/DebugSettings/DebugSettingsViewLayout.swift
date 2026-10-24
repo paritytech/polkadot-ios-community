@@ -57,22 +57,6 @@ final class DebugSettingsViewLayout: UIView {
         button.imageWithTitleView?.title = "Reset Tips"
     }
 
-    let renewalStatusLabel: Label = .create { (view: Label) in
-        view.typography = .bodyMedium
-        view.textColor = .fgSecondary
-        view.text = "Background renewal: …"
-    }
-
-    let scheduleRenewalButton: RoundedButton = .create { button in
-        button.applyMainStyle()
-        button.imageWithTitleView?.title = "Schedule Renewal Now"
-    }
-
-    let runRenewalButton: RoundedButton = .create { button in
-        button.applyMainStyle()
-        button.imageWithTitleView?.title = "Run Renewal Now"
-    }
-
     let strategyDebugSwitch = UISwitch()
 
     private let strategyDebugLabel: Label = .create { (view: Label) in
@@ -166,10 +150,7 @@ final class DebugSettingsViewLayout: UIView {
             simulateCrash,
             replaceEntropyButton,
             themeSelectionButton,
-            resetTipsButton,
-            renewalStatusLabel,
-            scheduleRenewalButton,
-            runRenewalButton
+            resetTipsButton
         ]
 
         #if DEBUG

@@ -93,6 +93,9 @@ extension ChatRequestFactory: ChatRequestFactoryProtocol {
 
         let decryptedModel = try ChatRequest.RemoteModel(scaleDecoder: ScaleDecoder(data: decryptedData))
 
+        // Accepting derives a one-shot signer from the peer's request id.
+        try ChatKeyPaths.validateRequestId(decryptedModel.message.messageId)
+
         let myAccountId = try signManager.makeSigner(for: ownKeyId.signKeyId).accountId
 
         guard case let .sr25519(signature, signer) = decryptedModel.proof else {

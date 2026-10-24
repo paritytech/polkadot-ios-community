@@ -43,8 +43,12 @@ extension OutgoingStatementService: OutgoingStatementServicing {
 
         let statements = try await connection.fetchStatements(with: builder.storageTopicFilter(for: input))
 
-        return try statements.contains { data in
-            let statement = try Statement(scaleDecoder: ScaleDecoder(data: data))
+        // Anyone can post under the topic, so a statement we can't parse is skipped rather than failing the check.
+        return statements.contains { data in
+            guard let statement = try? Statement(scaleDecoder: ScaleDecoder(data: data)) else {
+                return false
+            }
+
             return statement.getSenderAccountId().map(copySigners.contains) ?? false
         }
     }

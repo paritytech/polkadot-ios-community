@@ -18,7 +18,7 @@ struct DashboardServicesManagerTests {
     }
 
     @Test func durabilityLeaseReusesLiveCoordinatorWithoutBooting() async throws {
-        let bootstrapper = LaunchBootstrapperStub()
+        let bootstrapper = BackgroundTaskBootstrapperStub()
         let factory = DashboardServicesCoordinatorFactorySpy()
         let manager = makeManager(bootstrapper: bootstrapper, factory: factory)
 
@@ -26,18 +26,18 @@ struct DashboardServicesManagerTests {
         let durability = try #require(await manager.acquireDurability())
 
         #expect(durability.coordinator === interactive.coordinator)
-        #expect(bootstrapper.startCallCount == 0)
+        #expect(bootstrapper.waitCallCount == 0)
         #expect(durability.coordinator.startDurabilityCallCount == 1)
     }
 
     @Test func coldDurabilityLeaseBootsHeadlessAndStartsOnlyDurability() async throws {
-        let bootstrapper = LaunchBootstrapperStub(readiness: .dashboard)
+        let bootstrapper = BackgroundTaskBootstrapperStub(readiness: .dashboard)
         let factory = DashboardServicesCoordinatorFactorySpy()
         let manager = makeManager(bootstrapper: bootstrapper, factory: factory)
 
         let lease = try #require(await manager.acquireDurability())
 
-        #expect(bootstrapper.startCallCount == 1)
+        #expect(bootstrapper.waitCallCount == 1)
         #expect(factory.made.count == 1)
         #expect(lease.coordinator.startDurabilityCallCount == 1)
         #expect(lease.coordinator.startInteractiveCallCount == 0)
@@ -45,7 +45,10 @@ struct DashboardServicesManagerTests {
 
     @Test func coldDurabilityLeaseIsRefusedWhenNotReady() async {
         let factory = DashboardServicesCoordinatorFactorySpy()
-        let manager = makeManager(bootstrapper: LaunchBootstrapperStub(readiness: .notOnboarded), factory: factory)
+        let manager = makeManager(
+            bootstrapper: BackgroundTaskBootstrapperStub(readiness: .notOnboarded),
+            factory: factory
+        )
 
         let lease = await manager.acquireDurability()
 
@@ -54,7 +57,7 @@ struct DashboardServicesManagerTests {
     }
 
     @Test func concurrentColdDurabilityLeasesBootOnce() async throws {
-        let bootstrapper = LaunchBootstrapperStub(holdsReadiness: true)
+        let bootstrapper = BackgroundTaskBootstrapperStub(holdsReadiness: true)
         let factory = DashboardServicesCoordinatorFactorySpy()
         let manager = makeManager(bootstrapper: bootstrapper, factory: factory)
 
@@ -71,7 +74,7 @@ struct DashboardServicesManagerTests {
     }
 
     @Test func dashboardCreatedDuringHeadlessBootIsReused() async throws {
-        let bootstrapper = LaunchBootstrapperStub(holdsReadiness: true)
+        let bootstrapper = BackgroundTaskBootstrapperStub(holdsReadiness: true)
         let factory = DashboardServicesCoordinatorFactorySpy()
         let manager = makeManager(bootstrapper: bootstrapper, factory: factory)
 
@@ -176,7 +179,7 @@ struct DashboardServicesManagerTests {
 
 private extension DashboardServicesManagerTests {
     func makeManager(
-        bootstrapper: LaunchBootstrapperStub = LaunchBootstrapperStub(),
+        bootstrapper: BackgroundTaskBootstrapperStub = BackgroundTaskBootstrapperStub(),
         factory: DashboardServicesCoordinatorFactorySpy? = nil,
         connectionRetention: ConnectionRetentionSpy = ConnectionRetentionSpy()
     ) -> DashboardServicesManager<DashboardServicesCoordinatorSpy> {

@@ -1,13 +1,13 @@
 import Foundation
+import StructuredConcurrency
 import StatementDelivery
 
 protocol StatementDurabilityRenewing: Sendable {
-    /// Renews allowances first, then every outgoing statement kind. A caller arriving while a run is live joins it.
+    @discardableResult
     func renewAll() async -> StatementDurabilityRenewalReport
 }
 
 protocol AllowanceSlotsRenewing: Sendable {
-    /// Releases allowances no feature needs any more, then renews every remaining one.
     func renewAllowanceSlots() async
 }
 
@@ -23,59 +23,39 @@ struct StatementDurabilityRenewalReport: Sendable, Equatable {
     static let cancelled = StatementDurabilityRenewalReport(chatRequests: .incomplete, chatAcceptances: .incomplete)
 }
 
-/// The single entry point for keeping statements and their allowances alive: the hourly loop, the foreground hook and
-/// the background task all call it, so concurrent triggers share one run instead of publishing twice.
+/// Every trigger goes through here, so concurrent ones share one run instead of publishing twice.
 actor StatementDurabilityRenewalService {
     private let allowances: AllowanceSlotsRenewing
     private let renewers: StatementRenewerProviding
     private let issues: StatementRenewalIssueDiagnostics
+    private let sharedRun: any SharedRunning<StatementDurabilityRenewalReport>
     private let logger: LoggerProtocol
-
-    private var inFlight: Task<StatementDurabilityRenewalReport, Never>?
 
     init(
         allowances: AllowanceSlotsRenewing,
         renewers: StatementRenewerProviding,
         issues: StatementRenewalIssueDiagnostics,
+        sharedRun: any SharedRunning<StatementDurabilityRenewalReport>,
         logger: LoggerProtocol
     ) {
         self.allowances = allowances
         self.renewers = renewers
         self.issues = issues
+        self.sharedRun = sharedRun
         self.logger = logger
     }
 }
 
 extension StatementDurabilityRenewalService: StatementDurabilityRenewing {
+    @discardableResult
     func renewAll() async -> StatementDurabilityRenewalReport {
-        let run = liveRun()
-
-        let report = await withTaskCancellationHandler {
-            await run.value
-        } onCancel: {
-            run.cancel()
+        await sharedRun.run { [self] in
+            await performRun()
         }
-
-        if inFlight == run {
-            inFlight = nil
-        }
-
-        return report
     }
 }
 
 private extension StatementDurabilityRenewalService {
-    /// A cancelled run is never handed out: it was expired by the OS or torn down, and the caller still needs one.
-    func liveRun() -> Task<StatementDurabilityRenewalReport, Never> {
-        if let inFlight, !inFlight.isCancelled {
-            return inFlight
-        }
-
-        let run = Task { await performRun() }
-        inFlight = run
-        return run
-    }
-
     func performRun() async -> StatementDurabilityRenewalReport {
         await allowances.renewAllowanceSlots()
 

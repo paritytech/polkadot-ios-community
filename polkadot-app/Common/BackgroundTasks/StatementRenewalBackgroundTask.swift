@@ -2,8 +2,6 @@ import BackgroundExecution
 import Foundation
 import FoundationExt
 
-/// The background task that keeps statements, their allowances and coin recycling going while the app is closed.
-/// One per process: AppDelegate registers it at launch, the scene schedules it on every move to the background.
 enum StatementRenewalBackgroundTask {
     private static let identifierSuffix = ".statement-renewal"
     private static let logTag = "BGRenewal"

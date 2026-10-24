@@ -17,3 +17,5 @@ struct OutgoingChatRequestInput: ChatNotificationStatementInput, @unchecked Send
 }
 
 extension ChatSigningConsentError: OutgoingStatementTerminalError {}
+
+extension ChatKeyPathsError: OutgoingStatementTerminalError {}

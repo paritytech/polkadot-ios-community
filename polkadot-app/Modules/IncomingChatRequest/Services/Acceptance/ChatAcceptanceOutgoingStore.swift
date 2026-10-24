@@ -66,10 +66,18 @@ extension ChatAcceptanceOutgoingStore: OutgoingStatementStoring {
     }
 
     // The requester spoke on the device route after the acceptance, or answered one of our device-route messages.
+    // Ordered by local insertion, since the peer's timestamps come from the peer's clock.
     func isAcknowledged(_ input: OutgoingChatAcceptanceInput) async throws -> Bool {
         try await databaseService.performRead { context in
+            guard
+                let acceptance = try Self.fetchMessage(input.statementId, in: context),
+                let chat = acceptance.chat
+            else {
+                return false
+            }
+
             let fetchRequest = CDChatMessage.fetchRequest()
-            fetchRequest.predicate = Self.acknowledgementPredicate(for: input.message)
+            fetchRequest.predicate = Self.acknowledgementPredicate(in: chat, after: acceptance.order)
             fetchRequest.fetchLimit = 1
 
             return try context.count(for: fetchRequest) > 0
@@ -97,25 +105,27 @@ private extension ChatAcceptanceOutgoingStore {
         }
     }
 
-    static func acknowledgementPredicate(for message: Chat.LocalMessage) -> NSPredicate {
+    static func acknowledgementPredicate(in chat: CDChat, after acceptanceOrder: Int64) -> NSPredicate {
         let incoming = [Chat.LocalMessage.Status.incoming(.new), .incoming(.seen)].map(\.rawValue)
         let delivered = Chat.LocalMessage.Status.outgoing(.delivered).rawValue
+        // Inserted by this device while handling the request, not received from the requester.
+        let localContentTypes = [
+            Chat.LocalMessage.Content.ContentType.versionedChatRequest,
+            .chatRequest,
+            .deviceAdded
+        ].map(\.rawValue)
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
-            .localMessages(from: message.chatId),
+            .messages(in: chat),
+            NSPredicate(format: "%K > %lld", #keyPath(CDChatMessage.order), acceptanceOrder),
             NSPredicate(
-                format: "%K > %lld",
-                #keyPath(CDChatMessage.timestamp),
-                Int64(bitPattern: message.timestamp)
-            ),
-            NSPredicate(
-                format: "%K IN %@ OR (%K == %d AND %K != %@)",
+                format: "(%K IN %@ AND NOT (%K IN %@)) OR %K == %d",
                 #keyPath(CDChatMessage.status),
                 incoming,
+                #keyPath(CDChatMessage.contentType),
+                localContentTypes,
                 #keyPath(CDChatMessage.status),
-                delivered,
-                #keyPath(CDChatMessage.messageId),
-                message.messageId
+                delivered
             )
         ])
     }

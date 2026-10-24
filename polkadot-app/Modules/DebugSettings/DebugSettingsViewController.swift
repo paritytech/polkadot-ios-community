@@ -91,18 +91,6 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
             for: .touchUpInside
         )
 
-        rootView.scheduleRenewalButton.addTarget(
-            self,
-            action: #selector(actionScheduleRenewal),
-            for: .touchUpInside
-        )
-
-        rootView.runRenewalButton.addTarget(
-            self,
-            action: #selector(actionRunRenewal),
-            for: .touchUpInside
-        )
-
         rootView.strategyDebugSwitch.addTarget(
             self,
             action: #selector(actionToggleStrategyDebug),
@@ -165,14 +153,6 @@ final class DebugSettingsViewController: UIViewController, ViewHolder {
         presenter.resetTips()
     }
 
-    @objc func actionScheduleRenewal() {
-        presenter.scheduleRenewal()
-    }
-
-    @objc func actionRunRenewal() {
-        presenter.runRenewalNow()
-    }
-
     @objc func actionToggleStrategyDebug() {
         presenter.toggleStrategyDebug()
     }
@@ -208,9 +188,5 @@ extension DebugSettingsViewController: DebugSettingsViewProtocol {
 
     func didReceive(truApiRuntimeEnabled: Bool) {
         rootView.truApiRuntimeSwitch.isOn = truApiRuntimeEnabled
-    }
-
-    func didReceive(renewalRequestPending: Bool) {
-        rootView.renewalStatusLabel.text = "Background renewal: " + (renewalRequestPending ? "pending" : "not pending")
     }
 }

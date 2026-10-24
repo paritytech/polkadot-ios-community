@@ -1,23 +1,14 @@
 import ChainRegistry
 import Foundation
 
-/// Something that keeps chain connections awake until released.
-protocol ConnectionHold: Sendable {
-    func release()
-}
-
-extension ConnectionRetainToken: ConnectionHold {}
-
-/// Keeps chain connections awake while the app is in the background. The pool puts unretained connections to sleep on
-/// backgrounding and nothing wakes them during a background launch, so a durability run must hold one.
+/// The pool sleeps unretained connections on backgrounding and nothing wakes them during a background launch.
 protocol BackgroundConnectionRetaining: Sendable {
-    /// Retains every connection, including ones created while held.
-    func retainAllConnections() -> any ConnectionHold
+    func retainAllConnections() -> any ConnectionTokenProtocol
 }
 
-/// Reaches the registry only when called: creating it opens the chain store, which must wait for launch migrations.
+/// Creating the registry opens the chain store, so it is reached only after launch migrations.
 struct ChainRegistryConnectionRetention: BackgroundConnectionRetaining {
-    func retainAllConnections() -> any ConnectionHold {
+    func retainAllConnections() -> any ConnectionTokenProtocol {
         ChainRegistryFacade.sharedRegistry.retainConnections(.all)
     }
 }

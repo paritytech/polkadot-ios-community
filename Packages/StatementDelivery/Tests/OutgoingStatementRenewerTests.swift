@@ -2,6 +2,7 @@ import Clocks
 import Foundation
 import StatementDelivery
 import Testing
+import FoundationExtTestSupport
 
 @Suite(.timeLimit(.minutes(10)))
 struct OutgoingStatementRenewerTests {
@@ -123,7 +124,7 @@ private extension OutgoingStatementRenewerTests {
                 delivery: delivery
             ),
             bound: bound,
-            dateProvider: FixedDateProvider(now: now),
+            dateProvider: FixedDateProvider(now),
             diagnostics: .silent
         )
     }

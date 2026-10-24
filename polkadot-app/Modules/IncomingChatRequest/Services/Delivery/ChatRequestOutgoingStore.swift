@@ -117,13 +117,14 @@ private extension ChatRequestOutgoingStore {
         )
     }
 
+    // Without a recorded period (e.g. sent before the publication table existed) the copy counts as stale,
+    // so it renews into the current period.
     static func candidate(
         from contact: Chat.Contact,
         periods: [String: UInt32]
     ) -> PublishedStatement<OutgoingChatRequestInput>? {
         guard
             let request = contact.chatRequest,
-            let period = periods[request.requestId],
             let localMessage = request.message,
             let message = Chat.RequestMessage(localMessage: localMessage)
         else {
@@ -132,7 +133,7 @@ private extension ChatRequestOutgoingStore {
 
         return PublishedStatement(
             input: OutgoingChatRequestInput(message: message, session: contact.toMessageExchangeSessionRequest()),
-            period: period,
+            period: periods[request.requestId] ?? 0,
             createdAt: Date.fromChatTimestamp(message.timestamp)
         )
     }

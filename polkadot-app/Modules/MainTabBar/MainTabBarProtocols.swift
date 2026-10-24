@@ -7,11 +7,11 @@ import Products
 protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
     func show(slots: [TabBarSlot], selecting tab: TabBarItem)
     func select(tab: TabBarItem)
-    func setBadge(_ badge: TabBarBadge?, for tab: TabBarItem)
+    #if !FEATURE_PRODUCTS
+        func setAttention(_ isVisible: Bool, for tab: TabBarItem)
+    #endif
     func setLabels(visible: Bool)
     func showSPATabs(_ viewModels: [SPATabChipViewModel])
-    func showTabBarPanelContent(_ configuration: (any HashableContentConfiguration)?, for action: TabBarAction)
-    func showScanPanel()
     func showChainStatus(_ rows: [ChainConnectionStatusViewModel])
 }
 
@@ -19,7 +19,8 @@ protocol MainTabBarViewProtocol: ControllerBackedProtocol, AppWidgetManaging {
 protocol MainTabBarPresenterProtocol: AnyObject {
     func setup()
     func configureViews()
-    func didRequestContentPanel(for action: TabBarAction)
+    func didRequestConnectionStatus()
+    func didRequestSettings()
     #if FEATURE_INPUT
         func didFindChat(_ model: ChatOpenModel)
     #else
@@ -33,7 +34,9 @@ protocol MainTabBarInteractorInputProtocol: AnyObject {
 
 @MainActor
 protocol MainTabBarInteractorOutputProtocol: AnyObject {
-    func didUpdateSettingsAttention(isVisible: Bool)
+    #if !FEATURE_PRODUCTS
+        func didUpdateSettingsAttention(isVisible: Bool)
+    #endif
     func didReceiveWidget(
         configuration: any HashableContentConfiguration,
         for extensionId: ChatExtension.Id
@@ -43,16 +46,20 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didReceiveSPATabs(_ tabs: [SPATab])
     func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel])
     func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool)
+    func didReceivePaymentsSetupWaiting(_ isWaiting: Bool)
 }
 
 @MainActor
 protocol MainTabBarWireframeProtocol: AnyObject {
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?)
+    func showPaymentsSetupNotice(isVisible: Bool)
     #if FEATURE_INPUT
         func openChat(_ model: ChatOpenModel)
     #else
         func showSearchContact(from view: MainTabBarViewProtocol?)
     #endif
+    func showConnectionStatus(_ viewModel: ConnectionStatusSheetViewModel, from view: MainTabBarViewProtocol?)
+    func showSettings(from view: MainTabBarViewProtocol?)
 }
 
 enum TabBarItem: String, CaseIterable {
@@ -82,18 +89,15 @@ enum TabBarItem: String, CaseIterable {
     }
 }
 
-enum TabBarBadge: Equatable {
-    case attention
-}
-
 extension TabBarItem {
-    func makeBarItem(badge: DSTabBarItem.Badge?, showsLabel: Bool) -> DSTabBarItem {
-        DSTabBarItem(
+    func makeBarItem(showsLabel: Bool, showsAttention: Bool) -> TabBarBarItem {
+        TabBarBarItem(
             icon: image,
             title: showsLabel ? title : nil,
-            badge: badge,
             accessibilityLabel: title,
-            accessibilityIdentifier: AccessibilityID.Tab.item(for: self)?.rawValue
+            accessibilityID: AccessibilityID.Tab.item(for: self),
+            accessibilityValue: showsAttention ? String(localized: .tabSettingsBackupNeeded) : nil,
+            showsAttention: showsAttention
         )
     }
 }

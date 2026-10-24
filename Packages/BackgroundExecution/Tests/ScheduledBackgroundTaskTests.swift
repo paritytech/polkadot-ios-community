@@ -1,6 +1,7 @@
 import Foundation
 import os
 import Testing
+import FoundationExtTestSupport
 @testable import BackgroundExecution
 
 struct ScheduledBackgroundTaskTests {
@@ -156,7 +157,7 @@ private extension ScheduledBackgroundTaskTests {
             policy: Self.policy,
             dependencies: ScheduledBackgroundTaskDependencies(
                 scheduler: scheduler,
-                dateProvider: FixedDateProvider(date: Self.now),
+                dateProvider: FixedDateProvider(Self.now),
                 logger: logger
             ),
             work: work

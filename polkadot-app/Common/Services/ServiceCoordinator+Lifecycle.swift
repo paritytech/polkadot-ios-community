@@ -1,19 +1,13 @@
 import Foundation
 
-/// The two parts of the dashboard services. `DashboardServicesManager` is the only caller: the durability part serves
-/// both the dashboard and a background renewal run, the interactive part only a live dashboard.
 protocol DashboardServicesCoordinating: AnyObject {
-    /// Coinage setup and the durable transaction engine. Runs once per instance; later calls await the same run.
-    /// - Returns: `false` when coinage setup failed, so nothing that depends on it may start.
     @MainActor func startDurability() async -> Bool
 
-    /// Everything a live dashboard needs, in today's order; awaits the durability part where it used to run it.
     @MainActor func startInteractive()
 
-    /// Stops the interactive part and leaves the durable engine running for an ongoing background run.
+    /// Leaves the durable engine running for an ongoing background run.
     @MainActor func stopInteractive()
 
-    /// Stops both parts. The instance is not started again afterwards.
     @MainActor func stopAll()
 }
 
@@ -45,7 +39,7 @@ extension ServiceCoordinator {
         attachmentDownloadService.setup()
         notificationBadgeSyncService.setup()
         messageExpansionService.start()
-        allowanceRenewalService.setup()
+        statementRenewalLoop.setup()
 
         interactiveStart = Task { [self] in
             await chainStatusProvider.start()
@@ -74,7 +68,7 @@ extension ServiceCoordinator {
         attachmentUploadService.throttle()
         attachmentDownloadService.throttle()
         notificationBadgeSyncService.throttle()
-        allowanceRenewalService.throttle()
+        statementRenewalLoop.throttle()
 
         messageExpansionService.stop()
 

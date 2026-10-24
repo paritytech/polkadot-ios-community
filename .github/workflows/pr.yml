@@ -44,6 +44,31 @@ jobs:
             const skip = pr ? labels.includes('skip-ci') : false;
             core.setOutput('skip', skip.toString());
 
+  hardcoded-strings:
+    needs: check-skip-label
+    if: needs.check-skip-label.outputs.skip == 'false' && !startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup reviewdog
+        uses: reviewdog/action-setup@v1
+
+      - name: Check hardcoded UI strings (reviewdog)
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 Runscripts/check_hardcoded_strings.py "$GITHUB_WORKSPACE" --rdjsonl \
+            > hardcoded.jsonl 2> checker-errors.txt || true
+          if [ -s checker-errors.txt ]; then
+            cat checker-errors.txt
+            exit 1
+          fi
+          reviewdog -f=rdjsonl -name="hardcoded-strings" \
+            -reporter=github-pr-review -filter-mode=added -fail-level=any < hardcoded.jsonl
+
   build:
     needs: check-skip-label
     if: needs.check-skip-label.outputs.skip == 'false' && !startsWith(github.head_ref, 'release/')

@@ -7,7 +7,6 @@ protocol DebugSettingsViewProtocol: ControllerBackedProtocol {
     func didReceive(hasJWTToken: Bool)
     func didReceive(strategyDebugEnabled: Bool)
     func didReceive(truApiRuntimeEnabled: Bool)
-    func didReceive(renewalRequestPending: Bool)
 }
 
 @MainActor
@@ -25,8 +24,6 @@ protocol DebugSettingsPresenterProtocol: AnyObject {
     func toggleTruApiRuntime()
     func openTrUAPIPlayground()
     func resetTips()
-    func scheduleRenewal()
-    func runRenewalNow()
 }
 
 protocol DebugSettingsInteractorInputProtocol: AnyObject {
@@ -40,8 +37,6 @@ protocol DebugSettingsInteractorInputProtocol: AnyObject {
     func toggleTruApiRuntime()
     func restartApp()
     func resetTips()
-    func scheduleRenewal()
-    func runRenewalNow()
 }
 
 @MainActor
@@ -51,8 +46,6 @@ protocol DebugSettingsInteractorOutputProtocol: AnyObject {
     func didReceive(hasJWTToken: Bool)
     func didReceive(strategyDebugEnabled: Bool)
     func didReceive(truApiRuntimeEnabled: Bool)
-    func didReceive(renewalRequestPending: Bool)
-    func didCompleteRenewalRun(summary: String)
 }
 
 @MainActor

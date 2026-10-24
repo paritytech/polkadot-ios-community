@@ -53,7 +53,8 @@ struct WalletLeatherModifier: ViewModifier {
                 .visualEffect { [image, tilt] content, proxy in
                     content.layerEffect(
                         Self.shader(size: proxy.size, image: image, tilt: tilt),
-                        maxSampleOffset: CGSize(width: 4, height: 4)
+                        // The shadow taps reach 7 texels; a texel is under a point on any phone.
+                        maxSampleOffset: CGSize(width: 8, height: 8)
                     )
                 }
                 .onAppear { motion.retain() }

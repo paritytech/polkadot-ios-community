@@ -1,7 +1,6 @@
 import os
 import SDKLogger
 
-/// Keeps every logged line so tests can assert on the event trail.
 final class RecordingLogger: SDKLoggerProtocol, @unchecked Sendable {
     private let lines = OSAllocatedUnfairLock<[String]>(initialState: [])
 

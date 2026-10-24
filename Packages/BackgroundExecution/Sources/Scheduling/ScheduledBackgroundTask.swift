@@ -3,7 +3,6 @@ import FoundationExt
 import os
 import SDKLogger
 
-/// How every request for a task is built; the delay becomes an absolute date at each submit.
 public struct BackgroundTaskRequestPolicy: Sendable {
     public let earliestBeginDelay: TimeInterval
     public let constraints: BackgroundTaskConstraints
@@ -30,7 +29,6 @@ public struct ScheduledBackgroundTaskDependencies {
     }
 }
 
-/// What a run achieved; `logFields` are appended verbatim to the `finished` log line.
 public enum BackgroundTaskWorkOutcome: Sendable, Equatable {
     case completed(logFields: String)
     case skipped(reason: String)
@@ -38,8 +36,6 @@ public enum BackgroundTaskWorkOutcome: Sendable, Equatable {
 
 public typealias BackgroundTaskWork = @Sendable () async throws -> BackgroundTaskWorkOutcome
 
-/// Owns the OS contract for one background task: registered once, one request kept queued, the work cancelled on
-/// expiry and the task completed exactly once. Every step is logged as one event line; callers tag the logger.
 public final class ScheduledBackgroundTask {
     private let identifier: String
     private let policy: BackgroundTaskRequestPolicy
@@ -61,8 +57,7 @@ public final class ScheduledBackgroundTask {
 }
 
 extension ScheduledBackgroundTask: @unchecked Sendable {
-    /// Call synchronously before the app finishes launching. Repeated calls are ignored, because the OS kills
-    /// the app on a second registration of the same identifier.
+    /// Repeated calls are ignored: the OS kills the app on a second registration of the same identifier.
     public func register() {
         let wasRegistered = isRegistered.withLock { registered in
             defer { registered = true }
@@ -82,12 +77,10 @@ extension ScheduledBackgroundTask: @unchecked Sendable {
         }
     }
 
-    /// Whether the OS currently holds a request for this task.
     public func isRequestPending() async -> Bool {
         await dependencies.scheduler.pendingRequestIdentifiers().contains(identifier)
     }
 
-    /// Queues the next launch, replacing any pending request for this identifier.
     public func schedule() async {
         let now = await dependencies.dateProvider.read()
         let earliestBegin = now.addingTimeInterval(policy.earliestBeginDelay)
@@ -107,14 +100,14 @@ extension ScheduledBackgroundTask: @unchecked Sendable {
 }
 
 extension ScheduledBackgroundTask {
-    /// Runs one launch of the task. Returns the run so tests can await it; the OS path ignores it.
+    /// Returns the run so tests can await it.
     func handle(_ task: any BackgroundTaskHandle) -> Task<Void, Never> {
         let completion = TaskCompletion(task: task, identifier: identifier, logger: dependencies.logger)
 
         dependencies.logger.info("started id=\(identifier)")
 
         let run = Task { [self] in
-            // Queued first, so a crash or expiry inside the work never leaves the chain without a next launch.
+            // Queued first, so a crash or expiry inside the work still leaves a next launch.
             await schedule()
             let result = await runWork()
             completion.finish(with: result)
@@ -140,7 +133,7 @@ private extension ScheduledBackgroundTask {
     }
 }
 
-/// Completes a task at most once; expiry and the work finishing race to get here.
+/// Expiry and the work finishing race to complete the task.
 private final class TaskCompletion: @unchecked Sendable {
     enum Result {
         case finished(BackgroundTaskWorkOutcome)

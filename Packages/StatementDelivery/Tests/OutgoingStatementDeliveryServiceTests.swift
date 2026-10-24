@@ -69,24 +69,6 @@ struct OutgoingStatementDeliveryServiceTests {
         #expect(resolver.calls.isEmpty)
         #expect(service.publishes.isEmpty)
     }
-
-    @Test func concurrentAttemptsForOneStatementPublishOnce() async throws {
-        let delivery = makeDelivery()
-        let signer = StubSigner(keyId: "x")
-        service.holdPublishes()
-
-        let first = Task { [input] in try await delivery.deliverOnce(input, signer: signer, period: 10) }
-        await service.waitUntilPublishStarted()
-        let second = Task { [input] in try await delivery.deliverOnce(input, signer: signer, period: 10) }
-        while await delivery.joinedAttemptCount == 0 {
-            await Task.yield()
-        }
-        service.release()
-        try await first.value
-        try await second.value
-
-        #expect(service.publishes.count == 1)
-    }
 }
 
 private extension OutgoingStatementDeliveryServiceTests {

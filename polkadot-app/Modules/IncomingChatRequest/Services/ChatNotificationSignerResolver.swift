@@ -47,17 +47,26 @@ extension ChatNotificationSignerResolver: StatementSignerResolving {
         _ inputs: [Input],
         period: UInt32
     ) async throws -> [String: Result<StatementStoreSigning, Error>] {
-        let oneShots = try inputs.map { input in
-            try (input, signerManager.makeSigner(for: input.oneShotKeyId(period: period)))
+        // Per input, so one unusable request id fails only its own statement.
+        let oneShots = inputs.map { input in
+            (input, Result { try signerManager.makeSigner(for: input.oneShotKeyId(period: period)) })
         }
+        let accountIds = oneShots.compactMap { try? $0.1.get().accountId }
 
         // One batch in the given order, so the newest statements win when slots run short.
-        let claimed = try await Set(allocator.initiateAllocations(for: oneShots.map(\.1.accountId)))
+        let claimed = try await Set(allocator.initiateAllocations(for: accountIds))
 
         let resolved = await withTaskGroup(of: (String, Result<StatementStoreSigning, Error>).self) { group in
-            for (input, oneShot) in oneShots {
-                let isClaimed = claimed.contains(oneShot.accountId)
-                group.addTask { await (input.statementId, self.resolve(input, oneShot: oneShot, isClaimed: isClaimed)) }
+            for (input, oneShotResult) in oneShots {
+                group.addTask {
+                    switch oneShotResult {
+                    case let .success(oneShot):
+                        let isClaimed = claimed.contains(oneShot.accountId)
+                        return await (input.statementId, self.resolve(input, oneShot: oneShot, isClaimed: isClaimed))
+                    case let .failure(error):
+                        return (input.statementId, .failure(error))
+                    }
+                }
             }
 
             return await group.reduce(into: [String: Result<StatementStoreSigning, Error>]()) { $0[$1.0] = $1.1 }

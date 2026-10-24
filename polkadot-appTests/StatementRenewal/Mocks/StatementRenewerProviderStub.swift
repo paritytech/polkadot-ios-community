@@ -3,7 +3,6 @@ import StatementDelivery
 
 @testable import polkadot_app
 
-/// Hands out renewers that report a fixed summary per statement kind.
 struct StatementRenewerProviderStub: StatementRenewerProviding {
     let chatRequests: OutgoingStatementRenewalSummary
     let chatAcceptances: OutgoingStatementRenewalSummary

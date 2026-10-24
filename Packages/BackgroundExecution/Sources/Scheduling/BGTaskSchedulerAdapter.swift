@@ -1,6 +1,5 @@
 import BackgroundTasks
 
-/// The only type that talks to `BGTaskScheduler`; every request is a `BGProcessingTaskRequest`.
 public struct BGTaskSchedulerAdapter: BackgroundTaskScheduling {
     public init() {}
 
@@ -27,7 +26,6 @@ public struct BGTaskSchedulerAdapter: BackgroundTaskScheduling {
     }
 }
 
-/// `BGTask` is not `Sendable`; this wrapper is the single place that touches it.
 final class BGTaskHandle: BackgroundTaskHandle, @unchecked Sendable {
     private let task: BGTask
 

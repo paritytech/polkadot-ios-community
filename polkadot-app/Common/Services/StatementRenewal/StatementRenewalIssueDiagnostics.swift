@@ -2,8 +2,7 @@ import Foundation
 import IssueMonitoring
 import StatementDelivery
 
-/// Reports a statement kind going a whole period without a published copy: the peer may have missed it, which is
-/// what renewal exists to prevent. Once per lapse; a complete run without a gap resets it.
+/// Reported once per lapse; a complete run without a gap resets it.
 struct StatementRenewalIssueDiagnostics: Sendable {
     private static let lapseKey = "missed-period"
 

@@ -187,7 +187,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
     }
 }
 
-/// Renewers come from the same cached pipelines as first delivery, so both share one delivery actor per kind.
+/// Same cached pipelines as first delivery, so renewal and delivery share one delivery actor per kind.
 extension ChatRequestServiceFactory: StatementRenewerProviding {
     func makeChatAcceptanceRenewer() async throws -> OutgoingStatementRenewing {
         try await makeAcceptancePipeline().makeRenewer()

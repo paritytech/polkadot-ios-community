@@ -53,14 +53,13 @@ final class RootInteractor {
 
     let chainRegistryClosure: ChainRegistryLazyClosure
 
-    let launchBootstrapper: LaunchBootstrapping
+    let initializer: AppSharedInitializing
     let logger: LoggerProtocol
     let resolver: any DecisionResolver<RootDestination>
     let tokenManager: JWTTokenManaging
     let tldProvider: DotNsTldProviding
 
     let remoteConfigManager: RemoteConfigManaging
-    let chainRegistryConfigurator: ChainRegistryConfiguring
     let productPrewarmer: ProductContentPrewarming
     let observer: RootSetupObserver
     let appliedConfigReader: () -> RemoteAppConfig?
@@ -79,12 +78,11 @@ final class RootInteractor {
 
     init(
         chainRegistryClosure: @escaping ChainRegistryLazyClosure,
-        launchBootstrapper: LaunchBootstrapping,
+        initializer: AppSharedInitializing,
         logger: LoggerProtocol,
         resolver: any DecisionResolver<RootDestination>,
         tokenManager: JWTTokenManaging,
         remoteConfigManager: RemoteConfigManaging,
-        chainRegistryConfigurator: ChainRegistryConfiguring,
         productPrewarmer: ProductContentPrewarming,
         observer: RootSetupObserver,
         tldProvider: DotNsTldProviding = DotNsTldProviderFacade.shared,
@@ -94,12 +92,11 @@ final class RootInteractor {
     ) {
         self.chainRegistryClosure = chainRegistryClosure
 
-        self.launchBootstrapper = launchBootstrapper
+        self.initializer = initializer
         self.logger = logger
         self.resolver = resolver
         self.tokenManager = tokenManager
         self.remoteConfigManager = remoteConfigManager
-        self.chainRegistryConfigurator = chainRegistryConfigurator
         self.productPrewarmer = productPrewarmer
         self.observer = observer
         self.tldProvider = tldProvider
@@ -120,17 +117,6 @@ final class RootInteractor {
 
         startObservationIfNeeded()
         startSetupCompletionTask(for: chainRegistry)
-    }
-
-    private func setupChainUpdate(for registry: ChainRegistryProtocol) {
-        chainRegistryConfigurator.set(chainRegistry: registry)
-    }
-
-    private func fetchRemoteConfig() {
-        remoteConfigManager.fetchRemoteConfigValues()
-
-        // Follows every applied config, so the logos are fetched the moment one names them.
-        paymentAssetBranding.start()
     }
 
     private func setupJWTManager() {
@@ -275,8 +261,10 @@ extension RootInteractor: RootInteractorInputProtocol {
     }
 
     func setup() {
-        // Migrations, registry wiring and the first config fetch; a headless background launch may have run it already.
-        launchBootstrapper.start()
+        initializer.start()
+
+        paymentAssetBranding.start()
+
         let chainRegistry = chainRegistryClosure()
         beginSetupAttempt(with: chainRegistry)
 
@@ -287,10 +275,8 @@ extension RootInteractor: RootInteractorInputProtocol {
     }
 
     func retrySetup() {
-        let chainRegistry = chainRegistryClosure()
-        setupChainUpdate(for: chainRegistry)
-        fetchRemoteConfig()
-        beginSetupAttempt(with: chainRegistry)
+        initializer.refetchConfig()
+        beginSetupAttempt(with: chainRegistryClosure())
     }
 
     func completeWalletsCreation() {

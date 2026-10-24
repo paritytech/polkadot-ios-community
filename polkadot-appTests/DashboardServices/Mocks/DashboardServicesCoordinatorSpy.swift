@@ -2,7 +2,6 @@ import Foundation
 
 @testable import polkadot_app
 
-/// Counts lifecycle calls per part; `durabilityStarts` decides what `startDurability()` reports.
 @MainActor
 final class DashboardServicesCoordinatorSpy: DashboardServicesCoordinating {
     private(set) var startDurabilityCallCount = 0

@@ -23,6 +23,13 @@ enum ChatKeyPaths {
     static func accept(requestId: String, period: UInt32) throws -> String {
         try oneShotPath(namespace: "chat-accept", requestId: requestId, period: period)
     }
+
+    /// A request id becomes a path junction, so it can't be empty or contain the separator.
+    static func validateRequestId(_ requestId: String) throws {
+        guard !requestId.isEmpty, !requestId.contains("/") else {
+            throw ChatKeyPathsError.invalidJunction(requestId)
+        }
+    }
 }
 
 private extension ChatKeyPaths {
@@ -33,9 +40,7 @@ private extension ChatKeyPaths {
     }
 
     static func oneShotPath(namespace: String, requestId: String, period: UInt32) throws -> String {
-        guard !requestId.isEmpty, !requestId.contains("/") else {
-            throw ChatKeyPathsError.invalidJunction(requestId)
-        }
+        try validateRequestId(requestId)
 
         return "//\(namespace)//\(requestId)//\(period)"
     }

@@ -1,12 +1,10 @@
 import Foundation
 
-/// App-wide instances behind the dashboard: one flow state and one services manager per process, shared by the
-/// dashboard and background renewal.
 enum DashboardServices {
     static let flowStateProvider: SPAFlowStateProviding = SPAFlowStateProvider()
 
     @MainActor static let manager = DashboardServicesManager<ServiceCoordinator>(
-        bootstrapper: LaunchBootstrapper.shared,
+        bootstrapper: BackgroundTaskBootstrapper.makeDefault(),
         coordinatorFactory: ServiceCoordinatorFactory(flowStateProvider: flowStateProvider),
         connectionRetention: ChainRegistryConnectionRetention(),
         headlessBootDeadline: .seconds(20),

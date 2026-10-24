@@ -1,3 +1,4 @@
+import ChainRegistry
 import Foundation
 
 protocol DashboardServicesCoordinatorMaking<Coordinator> {
@@ -6,12 +7,10 @@ protocol DashboardServicesCoordinatorMaking<Coordinator> {
     @MainActor func makeCoordinator() -> Coordinator?
 }
 
-/// The single owner of the dashboard's service coordinator. The dashboard and a background renewal run each take a
-/// lease; the coordinator runs what the live leases need and is stopped and dropped once none are left, so a stopped
-/// instance is never started again.
+/// Once no lease is left the coordinator is stopped and dropped, so a stopped instance is never started again.
 @MainActor
 final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating> {
-    private let bootstrapper: LaunchBootstrapping
+    private let bootstrapper: BackgroundTaskBootstrapping
     private let coordinatorFactory: any DashboardServicesCoordinatorMaking<Coordinator>
     private let connectionRetention: BackgroundConnectionRetaining
     private let headlessBootDeadline: Duration
@@ -23,7 +22,7 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
     private var headlessBoot: Task<Coordinator?, Never>?
 
     init(
-        bootstrapper: LaunchBootstrapping,
+        bootstrapper: BackgroundTaskBootstrapping,
         coordinatorFactory: any DashboardServicesCoordinatorMaking<Coordinator>,
         connectionRetention: BackgroundConnectionRetaining,
         headlessBootDeadline: Duration,
@@ -36,12 +35,10 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
         self.logger = logger
     }
 
-    /// Whether services are already up, i.e. a background run reuses them instead of booting headless.
     var hasCoordinator: Bool {
         coordinator != nil
     }
 
-    /// Creates the coordinator on first use and starts its interactive part for the first interactive lease.
     func acquireInteractive() -> DashboardServicesLease<Coordinator>? {
         guard let coordinator = existingOrNewCoordinator() else { return nil }
 
@@ -49,18 +46,15 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
             coordinator.startInteractive()
         }
 
-        return makeLease(.interactive, for: coordinator, connectionHold: nil)
+        return makeLease(.interactive, for: coordinator, connectionToken: nil)
     }
 
-    /// Reuses the live coordinator or boots one headless, keeps every chain connection awake for the lease, then waits
-    /// for the durability part.
-    /// - Returns: `nil` when the app is not ready for dashboard services or the durability part failed to start.
     func acquireDurability() async -> DashboardServicesLease<Coordinator>? {
         guard let coordinator = await existingOrHeadlessCoordinator() else { return nil }
 
-        // After the boot, never before: reaching the registry opens the chain store, which migrations must precede.
-        let connectionHold = connectionRetention.retainAllConnections()
-        let lease = makeLease(.durability, for: coordinator, connectionHold: connectionHold)
+        // After the boot: reaching the registry opens the chain store, which migrations must precede.
+        let connectionToken = connectionRetention.retainAllConnections()
+        let lease = makeLease(.durability, for: coordinator, connectionToken: connectionToken)
 
         guard await coordinator.startDurability() else {
             lease.release()
@@ -70,7 +64,6 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
         return lease
     }
 
-    /// Stops and drops everything; leases issued before are ignored when released.
     func reset() {
         generation &+= 1
         headlessBoot?.cancel()
@@ -108,9 +101,7 @@ private extension DashboardServicesManager {
     }
 
     func bootHeadless(generation bootGeneration: UInt64) async -> Coordinator? {
-        bootstrapper.start()
-
-        let readiness = await bootstrapper.waitReady(deadline: headlessBootDeadline)
+        let readiness = await bootstrapper.waitWhenReady(deadline: headlessBootDeadline)
 
         guard readiness == .dashboard else {
             logger.info("Headless boot skipped: \(readiness)")
@@ -130,7 +121,7 @@ private extension DashboardServicesManager {
     func makeLease(
         _ demand: DashboardServicesDemand,
         for coordinator: Coordinator,
-        connectionHold: (any ConnectionHold)?
+        connectionToken: (any ConnectionTokenProtocol)?
     ) -> DashboardServicesLease<Coordinator> {
         leaseCounts[demand, default: 0] += 1
 
@@ -138,7 +129,7 @@ private extension DashboardServicesManager {
             coordinator: coordinator,
             demand: demand,
             generation: generation,
-            connectionHold: connectionHold
+            connectionToken: connectionToken
         ) { [weak self] in
             self?.didRelease($0)
         }

@@ -1,7 +1,6 @@
 import os
 @testable import BackgroundExecution
 
-/// Records registrations and submissions; `launch(_:)` plays the OS delivering a task.
 final class BackgroundTaskSchedulerSpy: BackgroundTaskScheduling, @unchecked Sendable {
     private struct State {
         var registeredIdentifiers: [String] = []

@@ -56,7 +56,7 @@ actor OutgoingChatAcceptanceCoordinationContext {
             }
 
             guard let input = OutgoingChatAcceptanceInput(message: message, contact: contact) else {
-                logger.error("Not an acceptance message, content: \(message.content)")
+                logger.error("Not an acceptance message")
                 continue
             }
 

@@ -172,17 +172,22 @@ extension NSPredicate {
 
     /// Messages compacted into a blob are excluded: their delivery is tracked
     /// through the compacted parent, so they must not re-enter sync logic.
+    /// The acceptance is excluded too: it is published on the identity route, so the session never lists it.
     static func sentLocalDeviceMessages(to chatId: Chat.Id) -> NSPredicate {
         let byStatus = byStatus(Chat.LocalMessage.Status.outgoing(.sent))
         let byContactId = localMessages(from: chatId)
         let byCreationSource = byCreationSource(.localDevice)
         let withoutCompaction = withoutCompaction()
+        let withoutAcceptance = NSCompoundPredicate(
+            notPredicateWithSubpredicate: messageByContentType(.multiChatAccepted)
+        )
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
             byContactId,
             byStatus,
             byCreationSource,
-            withoutCompaction
+            withoutCompaction,
+            withoutAcceptance
         ])
     }
 

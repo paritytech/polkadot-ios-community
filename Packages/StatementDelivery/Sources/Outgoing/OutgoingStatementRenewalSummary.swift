@@ -1,16 +1,12 @@
 import Foundation
 
-/// What one renewal run did, for logs and field diagnostics.
 public struct OutgoingStatementRenewalSummary: Sendable, Equatable {
-    /// `false` when the run stopped before it could decide which statements were due.
     public let isComplete: Bool
     public let candidates: Int
     public let due: Int
     public let republished: Int
     public let failed: Int
-    /// Due statements whose last copy is older than the previous period: a whole period passed without one.
     public let statementsWithMissedPeriods: Int
-    /// Sum of the whole periods those statements went without a copy.
     public let missedPeriods: Int
 
     public init(
