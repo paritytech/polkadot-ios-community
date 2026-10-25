@@ -39,6 +39,8 @@ final class MessageExchangeServiceFactory {
     let workQueue: DispatchQueue
     let operationQueue: OperationQueue
     let maxStatementSize: Int
+    let accountProvider: PeerSessionAccountProviding
+    let priorityFactory: StatementPriorityMaking
     let logger: LoggerProtocol
 
     init(
@@ -47,11 +49,15 @@ final class MessageExchangeServiceFactory {
         encryptionManager: MessageExchangeEncryptionManaging,
         deviceEncryptionKeyFactory: MessageExchangeEncryptionMaking?,
         maxStatementSize: Int,
+        accountProvider: PeerSessionAccountProviding? = nil,
+        priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         workQueue: DispatchQueue = DispatchQueue(label: "message.exchange.work.queue"),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.signManager = signManager
+        self.accountProvider = accountProvider ?? SignerSessionAccountProvider(signerManager: signManager)
+        self.priorityFactory = priorityFactory
         self.encryptionManager = encryptionManager
         self.deviceEncryptionKeyFactory = deviceEncryptionKeyFactory
         self.messageExchangeModeProvider = messageExchangeModeProvider
@@ -105,12 +111,13 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: deviceEncryptionKeyFactory,
             messageExchangeModeProvider: messageExchangeModeProvider,
-            accountProvider: SignerSessionAccountProvider(signerManager: signManager),
+            accountProvider: accountProvider,
             sessionIdFactory: PeerSessionIdFactory(),
             channelFactory: ChatStatementChannelFactory(),
             preSendHandler: AnyPeerSessionPreSendHandler.empty(),
             subscriptionFactory: subscriptionFactory,
             maxStatementSize: maxStatementSize,
+            priorityFactory: priorityFactory,
             compactorFactory: compactorFactory,
             operationQueue: operationQueue,
             logger: logger

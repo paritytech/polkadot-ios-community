@@ -23,17 +23,29 @@ protocol DeviceSyncMessageTransporting: Sendable {
 /// Used by `DeviceSyncSignalingSession` to carry WebRTC signaling
 /// messages for the device sync data channel.
 final class DeviceSyncMessageTransport: @unchecked Sendable {
-    private let serviceFactory: MessageExchangeServiceFactory
+    private let serviceFactory: MessageExchageServiceMaking
     private let signerResolver: PeerSessionSignerResolving
     private let connection: StatementStoreConnecting
-    private let peer: MessageExchange.Peer
-    private let ownSignKeyId: String
-    private let ownEncryptionKeyId: String
+    private let sessionRequest: MessageExchange.SessionRequest
     private let peerLogger: LoggerProtocol
 
     private let state = DeviceSyncMessageTransportState()
 
     init(
+        serviceFactory: MessageExchageServiceMaking,
+        signerResolver: PeerSessionSignerResolving,
+        connection: StatementStoreConnecting,
+        sessionRequest: MessageExchange.SessionRequest,
+        peerLogger: LoggerProtocol
+    ) {
+        self.serviceFactory = serviceFactory
+        self.signerResolver = signerResolver
+        self.connection = connection
+        self.sessionRequest = sessionRequest
+        self.peerLogger = peerLogger
+    }
+
+    convenience init(
         connection: StatementStoreConnecting,
         signerManager: StatementStoreSignerManaging,
         encryptionManager: MessageExchangeEncryptionManaging,
@@ -43,20 +55,7 @@ final class DeviceSyncMessageTransport: @unchecked Sendable {
         peerEncryptionPublicKey: Data,
         peerLogger: LoggerProtocol
     ) {
-        self.connection = connection
-        self.ownSignKeyId = ownSignKeyId
-        self.ownEncryptionKeyId = ownEncryptionKeyId
-        self.peerLogger = peerLogger
-        signerResolver = IdentitySignerResolver(signManager: signerManager)
-
-        peer = MessageExchange.Peer(
-            accountId: peerStatementAccountId,
-            publicKey: peerEncryptionPublicKey,
-            pin: nil,
-            devices: []
-        )
-
-        serviceFactory = MessageExchangeServiceFactory(
+        let serviceFactory = MessageExchangeServiceFactory(
             messageExchangeModeProvider: FixedMessageExchangeModeProvider(mode: .identity),
             signManager: signerManager,
             encryptionManager: encryptionManager,
@@ -64,6 +63,22 @@ final class DeviceSyncMessageTransport: @unchecked Sendable {
             maxStatementSize: MessageExchangeCoordinatorFactory.Constants.maxDeviceSyncStatementSize,
             workQueue: DispatchQueue(label: "device.sync.transport.queue"),
             logger: peerLogger
+        )
+
+        self.init(
+            serviceFactory: serviceFactory,
+            signerResolver: IdentitySignerResolver(signManager: signerManager),
+            connection: connection,
+            sessionRequest: MessageExchange.SessionRequest(
+                own: MessageExchange.Own(signKeyId: ownSignKeyId, encryptionKeyId: ownEncryptionKeyId, pin: nil),
+                peer: MessageExchange.Peer(
+                    accountId: peerStatementAccountId,
+                    publicKey: peerEncryptionPublicKey,
+                    pin: nil,
+                    devices: []
+                )
+            ),
+            peerLogger: peerLogger
         )
     }
 
@@ -103,17 +118,10 @@ extension DeviceSyncMessageTransport: DeviceSyncMessageTransporting {
             delegate: delegate
         )
 
-        let own = MessageExchange.Own(
-            signKeyId: ownSignKeyId,
-            encryptionKeyId: ownEncryptionKeyId,
-            pin: nil
-        )
-
-        let request = MessageExchange.SessionRequest(own: own, peer: peer)
         guard await state.installServiceIfOpen(service) else {
             throw CancellationError()
         }
-        service.updateSessions([request])
+        service.updateSessions([sessionRequest])
     }
 
     func close() async {
@@ -130,6 +138,6 @@ extension DeviceSyncMessageTransport: DeviceSyncMessageTransporting {
             return
         }
 
-        service.addMessagesToQueue(messages, for: peer)
+        service.addMessagesToQueue(messages, for: sessionRequest.peer)
     }
 }
