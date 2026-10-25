@@ -2,17 +2,24 @@ import Foundation
 
 extension [Chat.DeviceSyncEntity] {
     var syncLogSummary: String {
-        map { entity in
-            switch entity {
-            case let .devices(devices):
-                "devices:\(devices.count)"
-            case let .chatsAdded(chatIds):
-                "chatsAdded:\(chatIds.count)"
-            case let .chatsRemoved(chatIds):
-                "chatsRemoved:\(chatIds.count)"
-            case let .messages(messages):
-                "messages:\(messages.count)"
-            }
-        }.joined(separator: ";")
+        map { "\($0.logLabel):\($0.itemCount)" }.joined(separator: ";")
+    }
+}
+
+private extension Chat.DeviceSyncEntity {
+    var itemCount: Int {
+        switch self {
+        case let .devices(items): items.count
+        case let .chatsAdded(items): items.count
+        case let .chatsRemoved(items): items.count
+        case let .messages(items): items.count
+        case let .chatsBlocked(items): items.count
+        case let .incomingRequestsAdded(items): items.count
+        case let .incomingRequestsStatusUpdated(items): items.count
+        case let .outgoingRequestsAdded(items): items.count
+        case let .outgoingRequestsStatusUpdated(items): items.count
+        case let .coinsHandedOff(items): items.count
+        case let .coinageMessagesStatusUpdated(items): items.count
+        }
     }
 }

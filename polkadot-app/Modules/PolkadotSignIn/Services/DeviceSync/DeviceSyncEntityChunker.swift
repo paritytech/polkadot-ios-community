@@ -62,6 +62,7 @@ private extension DeviceSyncEntityChunker {
         return batches
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func splitOversized(_ entity: Chat.DeviceSyncEntity) throws -> [Chat.DeviceSyncEntity] {
         let encodedSize = try entity.scaleEncoded().count
 
@@ -78,6 +79,20 @@ private extension DeviceSyncEntityChunker {
             return try splitArray(items).map { .chatsRemoved($0) }
         case let .messages(items):
             return try splitArray(items).map { .messages($0) }
+        case let .chatsBlocked(items):
+            return try splitArray(items).map { .chatsBlocked($0) }
+        case let .incomingRequestsAdded(items):
+            return try splitArray(items).map { .incomingRequestsAdded($0) }
+        case let .incomingRequestsStatusUpdated(items):
+            return try splitArray(items).map { .incomingRequestsStatusUpdated($0) }
+        case let .outgoingRequestsAdded(items):
+            return try splitArray(items).map { .outgoingRequestsAdded($0) }
+        case let .outgoingRequestsStatusUpdated(items):
+            return try splitArray(items).map { .outgoingRequestsStatusUpdated($0) }
+        case let .coinsHandedOff(items):
+            return try splitArray(items).map { .coinsHandedOff($0) }
+        case let .coinageMessagesStatusUpdated(items):
+            return try splitArray(items).map { .coinageMessagesStatusUpdated($0) }
         }
     }
 
