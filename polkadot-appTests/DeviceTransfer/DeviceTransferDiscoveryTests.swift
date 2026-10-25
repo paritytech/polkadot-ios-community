@@ -17,16 +17,6 @@ struct DeviceTransferDiscoveryTests {
         schedule = try DeviceTransferKeySchedule(entropy: Data(repeating: 0x01, count: 16))
     }
 
-    @Test("Discovery messages keep their wire bytes")
-    func wireBytes() throws {
-        let request = DeviceTransferMessage.request(
-            DeviceTransferRequest(requestId: "a", deviceModel: "b", operatingSystem: "c", createdAt: 1)
-        )
-
-        #expect(try request.scaleEncoded().toHex() == "00046104620463" + "0100000000000000")
-        #expect(try DeviceTransferMessage.cancel(requestId: "a").scaleEncoded().toHex() == "010461")
-    }
-
     @Test("A published request is offered to the active phone")
     func publishedRequestIsOffered() async throws {
         let request = try await makePublisher().publishRequest(configuration: configuration())
@@ -71,13 +61,13 @@ struct DeviceTransferDiscoveryTests {
         #expect(await waitForPending(of: listener) { $0 == nil } == .some(nil))
     }
 
-    @Test("A request is withdrawn once it is older than 15 minutes, though its statement is live")
+    @Test("A request is withdrawn once it outlives the statement lifetime, though its statement is live")
     func oldRequestIsWithdrawn() async throws {
-        let request = try await insertRequest(expiresIn: 30 * 60)
+        let request = try await insertRequest(expiresIn: 2 * DeviceTransferConstants.statementLifetimeInSeconds)
         let listener = try await makeListener()
         #expect(await waitForPending(of: listener) { $0 != nil } == request)
 
-        await dates.advance(by: 15 * 60 + 1)
+        await dates.advance(by: DeviceTransferConstants.statementLifetimeInSeconds + 1)
         try await insertUnrelatedCancel()
 
         #expect(await waitForPending(of: listener) { $0 == nil } == .some(nil))

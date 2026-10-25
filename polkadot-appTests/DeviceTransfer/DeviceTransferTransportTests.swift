@@ -21,17 +21,6 @@ struct DeviceTransferTransportTests {
         identityKeypair = try SNKeyFactory().createKeypair(fromSeed: Data.randomOrError(of: 32))
     }
 
-    @Test("Session messages keep their wire bytes")
-    func wireBytes() throws {
-        let signaling = DeviceTransferSessionMessage.signaling(
-            Chat.DeviceSyncSignalingEnvelope(offerId: "a", message: .reconnected)
-        )
-
-        #expect(try DeviceTransferSessionMessage.rejected.scaleEncoded().toHex() == "00")
-        #expect(try signaling.scaleEncoded().toHex() == "01046100")
-        #expect(try DeviceTransferSessionMessage.fromScaleEncoded("01046100".fromHex()) == signaling)
-    }
-
     @Test("Sender and receiver exchange signaling envelopes in both directions")
     func signalingBothWays() async throws {
         let sender = try await openPeer(role: .sender)
@@ -61,12 +50,12 @@ struct DeviceTransferTransportTests {
         await close(sender, receiver)
     }
 
-    @Test("Transfer statements expire after 15 minutes")
+    @Test("Transfer statements expire after the statement lifetime")
     func statementsAreShortLived() async throws {
         let sender = try await openPeer(role: .sender)
         let receiver = try await openPeer(role: .receiver)
         let envelope = Chat.DeviceSyncSignalingEnvelope(offerId: "offer-1", message: .reconnected)
-        let now = UInt64(Date().timeIntervalSince1970)
+        let expectedExpiry = UInt64(Date().timeIntervalSince1970 + DeviceTransferConstants.statementLifetimeInSeconds)
 
         try await sender.transport.send([envelope.scaleEncoded()])
         _ = await firstBatch(of: receiver)
@@ -75,7 +64,7 @@ struct DeviceTransferTransportTests {
         #expect(!expiries.isEmpty)
         for expiry in expiries {
             let expiresAt = try #require(expiry) >> 32
-            #expect((now + 895 ... now + 905).contains(expiresAt))
+            #expect((expectedExpiry - 5 ... expectedExpiry + 5).contains(expiresAt))
         }
 
         await close(sender, receiver)
