@@ -125,7 +125,7 @@ private extension DeviceTransferDiscoveryTests {
         let listener = DeviceTransferRequestListener(
             keyScheduleFactory: keyScheduleFactory(),
             processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: storage),
-            eligibility: AsyncCurrentValueSubject(true).eraseToAnyAsyncSequence(),
+            installationObserver: ActiveInstallationStub(),
             dateProvider: dates,
             logger: MockLogger()
         )
@@ -180,5 +180,11 @@ private extension DeviceTransferDiscoveryTests {
             Issue.record("Pending request stream failed: \(error)")
         }
         return .none
+    }
+}
+
+private struct ActiveInstallationStub: CurrentInstallationObserving {
+    var statusStream: AnyAsyncSequence<InstallationStatus> {
+        AsyncCurrentValueSubject<InstallationStatus>(.active).eraseToAnyAsyncSequence()
     }
 }

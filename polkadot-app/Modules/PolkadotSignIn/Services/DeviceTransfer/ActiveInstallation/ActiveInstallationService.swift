@@ -4,6 +4,7 @@ import FoundationExt
 import MessageExchangeKit
 import StatementStore
 import SubstrateSdk
+import StructuredConcurrency
 import SubstrateSdkExt
 
 enum InstallationStatus: Equatable {
@@ -20,9 +21,11 @@ struct ActiveInstallationConfiguration {
     let signer: StatementStoreSigning
 }
 
-protocol ActiveInstallationServicing: Sendable {
+protocol CurrentInstallationObserving: Sendable {
     var statusStream: AnyAsyncSequence<InstallationStatus> { get async }
+}
 
+protocol ActiveInstallationServicing: CurrentInstallationObserving {
     func setup(configuration: ActiveInstallationConfiguration) async
     func throttle() async
     func publishSelf() async throws
@@ -30,6 +33,25 @@ protocol ActiveInstallationServicing: Sendable {
 
 enum ActiveInstallationServiceError: Error {
     case notConfigured
+}
+
+struct ActiveInstallationPublishSettings {
+    let deviceInfo: DeviceInfo
+    let priorityFactory: StatementPriorityMaking
+    let firstInstallAttempts: Int
+    let firstInstallRetryDelay: Duration
+
+    init(
+        deviceInfo: DeviceInfo,
+        priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
+        firstInstallAttempts: Int = 10,
+        firstInstallRetryDelay: Duration = .seconds(1)
+    ) {
+        self.deviceInfo = deviceInfo
+        self.priorityFactory = priorityFactory
+        self.firstInstallAttempts = firstInstallAttempts
+        self.firstInstallRetryDelay = firstInstallRetryDelay
+    }
 }
 
 /// Follows the active installation record on `active_device_topic` and works out whether this installation is the
@@ -43,37 +65,31 @@ actor ActiveInstallationService {
         let ownInstallationId: Data
     }
 
-    fileprivate enum ParsedRecord {
-        case readable(ActiveInstallation)
-        case unreadable
-    }
-
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let installationProvider: CurrentInstallationProviding
-    private let deviceInfo: DeviceInfo
+    private let publishSettings: ActiveInstallationPublishSettings
     private let dateProvider: any DateProviding
-    private let priorityFactory: StatementPriorityMaking
     private let logger: LoggerProtocol
 
     private let statusSubject = AsyncCurrentValueSubject<InstallationStatus>(.unknown)
     private var context: Context?
-    private var records: [Data: ParsedRecord] = [:]
-    private var publishedRecord: ActiveInstallation?
+    /// Only the newest readable record is kept, so statements flooding the topic can't grow memory.
+    private var latestRecord: ActiveInstallation?
+    private var hasUnreadableRecord = false
     private var followTask: Task<Void, Never>?
+    private var firstInstallTask: Task<Void, Never>?
 
     init(
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         installationProvider: CurrentInstallationProviding,
-        deviceInfo: DeviceInfo,
+        publishSettings: ActiveInstallationPublishSettings,
         dateProvider: any DateProviding = NowDateProvider(),
-        priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.installationProvider = installationProvider
-        self.deviceInfo = deviceInfo
+        self.publishSettings = publishSettings
         self.dateProvider = dateProvider
-        self.priorityFactory = priorityFactory
         self.logger = logger
     }
 }
@@ -92,14 +108,17 @@ extension ActiveInstallationService: ActiveInstallationServicing {
     }
 
     func throttle() async {
-        let task = followTask
+        let tasks = [followTask, firstInstallTask]
         followTask = nil
-        task?.cancel()
-        await task?.value
+        firstInstallTask = nil
+        tasks.forEach { $0?.cancel() }
+        for task in tasks {
+            await task?.value
+        }
 
         context = nil
-        records = [:]
-        publishedRecord = nil
+        latestRecord = nil
+        hasUnreadableRecord = false
     }
 
     func publishSelf() async throws {
@@ -110,20 +129,20 @@ extension ActiveInstallationService: ActiveInstallationServicing {
         let now = await dateProvider.read()
         let installation = ActiveInstallation(
             installationId: context.ownInstallationId,
-            deviceModel: deviceInfo.model,
-            operatingSystem: deviceInfo.operatingSystem,
+            deviceModel: publishSettings.deviceInfo.model,
+            operatingSystem: publishSettings.deviceInfo.operatingSystem,
             activatedAt: UInt64(now.timeIntervalSince1970.milliseconds)
         )
 
         let builder = try StatementSubmitParametersBuilder(signer: context.configuration.signer, logger: nil)
             .addTopic1(context.topic)
             .addChannel(context.topic)
-            .addExpiry(priorityFactory.makeTimestampPriority())
+            .addExpiry(publishSettings.priorityFactory.makeTimestampPriority())
             .addScaleEncodedPayload(context.cipher.seal(installation).scaleEncoded())
 
         try await context.configuration.connection.submitStatement(with: builder)
 
-        publishedRecord = installation
+        remember(installation)
         evaluate()
     }
 }
@@ -151,13 +170,35 @@ private extension ActiveInstallationService {
         }
     }
 
-    func publishAsFirstInstall() async {
-        do {
-            try await publishSelf()
-            logger.info("Published active installation record: no record existed")
-        } catch {
-            logger.error("Failed to publish active installation record: \(error)")
+    func startFirstInstallDelivery() {
+        let settings = publishSettings
+        let logger = logger
+
+        firstInstallTask = Task { [weak self] in
+            do {
+                try await withRetry(
+                    maxAttempts: settings.firstInstallAttempts,
+                    initialDelay: settings.firstInstallRetryDelay
+                ) { [weak self] in
+                    try await self?.deliverFirstInstall()
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                logger.error("Failed to publish active installation record: \(error)")
+            }
         }
+    }
+
+    /// A record that arrived while retrying means another installation got there first, so this one stays quiet.
+    func deliverFirstInstall() async throws {
+        guard isTopicEmpty else { return }
+
+        try await publishSelf()
+        logger.info("Published active installation record: no record existed")
+    }
+
+    var isTopicEmpty: Bool {
+        latestRecord == nil && !hasUnreadableRecord
     }
 
     /// The subscription starts with the stored history and always ends it with a complete page, even an empty one,
@@ -172,8 +213,8 @@ private extension ActiveInstallationService {
             if !isHistoryLoaded, page.isComplete {
                 isHistoryLoaded = true
 
-                if records.isEmpty {
-                    await publishAsFirstInstall()
+                if isTopicEmpty {
+                    startFirstInstallDelivery()
                 }
             }
 
@@ -186,40 +227,39 @@ private extension ActiveInstallationService {
     func ingest(_ encodedStatements: [Data]) {
         guard let context else { return }
 
-        for encoded in encodedStatements where records[encoded] == nil {
-            records[encoded] = parse(encoded, cipher: context.cipher)
+        for encoded in encodedStatements {
+            if let installation = parse(encoded, cipher: context.cipher) {
+                remember(installation)
+            } else {
+                hasUnreadableRecord = true
+            }
         }
     }
 
-    func parse(_ encoded: Data, cipher: ActiveInstallationRecordCipher) -> ParsedRecord {
+    func parse(_ encoded: Data, cipher: ActiveInstallationRecordCipher) -> ActiveInstallation? {
         guard
             let statement = try? Statement.fromScaleEncoded(encoded),
             let payload = statement.getScaleEncodedPayload(),
-            let sealed = try? Data.fromScaleEncoded(payload),
-            let installation = cipher.open(sealed)
+            let sealed = try? Data.fromScaleEncoded(payload)
         else {
-            return .unreadable
+            return nil
         }
 
-        return .readable(installation)
+        return cipher.open(sealed)
+    }
+
+    func remember(_ installation: ActiveInstallation) {
+        latestRecord = max(latestRecord ?? installation, installation)
     }
 
     func evaluate() {
         guard let context else { return }
 
-        let readable = records.values.compactMap { record -> ActiveInstallation? in
-            guard case let .readable(installation) = record else { return nil }
-            return installation
-        } + [publishedRecord].compactMap { $0 }
-
-        guard let current = readable.max(by: Self.precedes) else {
-            if !records.isEmpty {
-                update(.unreadable)
-            }
-            return
+        if let latestRecord {
+            update(latestRecord.installationId == context.ownInstallationId ? .active : .inactive(latestRecord))
+        } else if hasUnreadableRecord {
+            update(.unreadable)
         }
-
-        update(current.installationId == context.ownInstallationId ? .active : .inactive(current))
     }
 
     func update(_ status: InstallationStatus) {
@@ -227,15 +267,6 @@ private extension ActiveInstallationService {
 
         logger.info("Active installation status: \(status.logLabel)")
         statusSubject.send(status)
-    }
-
-    /// The current record has the greatest `activatedAt`; ties go to the greater installation id.
-    static func precedes(_ lhs: ActiveInstallation, _ rhs: ActiveInstallation) -> Bool {
-        if lhs.activatedAt != rhs.activatedAt {
-            return lhs.activatedAt < rhs.activatedAt
-        }
-
-        return lhs.installationId.lexicographicallyPrecedes(rhs.installationId)
     }
 }
 

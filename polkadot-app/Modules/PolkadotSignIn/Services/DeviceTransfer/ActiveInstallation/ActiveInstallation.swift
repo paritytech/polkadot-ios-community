@@ -12,6 +12,22 @@ struct ActiveInstallation: Equatable {
     let activatedAt: UInt64
 }
 
+extension ActiveInstallation: Comparable {
+    /// The current record has the greatest `activatedAt`; ties go to the greater installation id. The remaining
+    /// fields only keep the order consistent with `==`.
+    static func < (lhs: ActiveInstallation, rhs: ActiveInstallation) -> Bool {
+        if lhs.activatedAt != rhs.activatedAt {
+            return lhs.activatedAt < rhs.activatedAt
+        }
+
+        if lhs.installationId != rhs.installationId {
+            return lhs.installationId.lexicographicallyPrecedes(rhs.installationId)
+        }
+
+        return (lhs.deviceModel, lhs.operatingSystem) < (rhs.deviceModel, rhs.operatingSystem)
+    }
+}
+
 enum VersionedActiveDevice: Equatable {
     // swiftlint:disable:next identifier_name
     case v1(ActiveInstallation)

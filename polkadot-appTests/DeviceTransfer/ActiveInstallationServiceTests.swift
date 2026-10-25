@@ -27,6 +27,21 @@ struct ActiveInstallationServiceTests {
         #expect(try storedRecords().map(\.installationId) == [ownId])
     }
 
+    @Test("A failed first-install publish is retried until it lands")
+    func failedFirstInstallIsRetried() async throws {
+        let connection = FlakySubmitStatementStore(store: store, failingSubmits: 2)
+        let service = makeService(installationId: ownId)
+
+        await service.setup(configuration: ActiveInstallationConfiguration(
+            connection: connection,
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+        ))
+
+        #expect(await waitForStatus(of: service) { $0 == .active } == .active)
+        #expect(connection.submitAttempts == 3)
+        #expect(try storedRecords().map(\.installationId) == [ownId])
+    }
+
     @Test("Another installation's record makes this one inactive without publishing")
     func otherRecordMakesInactive() async throws {
         let other = makeService(installationId: otherId)
@@ -177,7 +192,10 @@ private extension ActiveInstallationServiceTests {
                 entropyManager: FixedRootEntropyManager(entropy: Data(repeating: 0x01, count: 16))
             ),
             installationProvider: FixedInstallationProvider(installationId: installationId),
-            deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+            publishSettings: ActiveInstallationPublishSettings(
+                deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                firstInstallRetryDelay: .milliseconds(1)
+            ),
             dateProvider: dates,
             logger: MockLogger()
         )
@@ -296,5 +314,42 @@ private final class PagedStatementStore: StatementStoreConnecting, @unchecked Se
 
     func submitStatement(with _: StatementSubmitParametersBuilding) async throws {
         lock.withLock { submits += 1 }
+    }
+}
+
+private final class FlakySubmitStatementStore: StatementStoreConnecting, @unchecked Sendable {
+    private let store: MockStatementStore
+    private let failingSubmits: Int
+    private let lock = NSLock()
+    private var attempts = 0
+
+    init(store: MockStatementStore, failingSubmits: Int) {
+        self.store = store
+        self.failingSubmits = failingSubmits
+    }
+
+    var submitAttempts: Int {
+        lock.withLock { attempts }
+    }
+
+    func fetchStatements(with filter: TopicFilter) async throws -> [Data] {
+        try await store.fetchStatements(with: filter)
+    }
+
+    func subscribeStatements(with filter: TopicFilter) throws -> AnyAsyncSequence<StatementsPage> {
+        store.subscribeStatements(with: filter)
+    }
+
+    func submitStatement(with builder: StatementSubmitParametersBuilding) async throws {
+        let attempt = lock.withLock {
+            attempts += 1
+            return attempts
+        }
+
+        guard attempt > failingSubmits else {
+            throw URLError(.timedOut)
+        }
+
+        try await store.submitStatement(with: builder)
     }
 }

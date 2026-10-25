@@ -49,14 +49,14 @@ final class MessageExchangeServiceFactory {
         encryptionManager: MessageExchangeEncryptionManaging,
         deviceEncryptionKeyFactory: MessageExchangeEncryptionMaking?,
         maxStatementSize: Int,
-        accountProvider: PeerSessionAccountProviding? = nil,
+        accountProvider: PeerSessionAccountProviding,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         workQueue: DispatchQueue = DispatchQueue(label: "message.exchange.work.queue"),
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.signManager = signManager
-        self.accountProvider = accountProvider ?? SignerSessionAccountProvider(signerManager: signManager)
+        self.accountProvider = accountProvider
         self.priorityFactory = priorityFactory
         self.encryptionManager = encryptionManager
         self.deviceEncryptionKeyFactory = deviceEncryptionKeyFactory
@@ -76,12 +76,15 @@ final class MessageExchangeServiceFactory {
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
         logger: LoggerProtocol = Logger.shared
     ) {
+        let signManager = ChatSignerManager(entropyManager: entropyManager)
+
         self.init(
             messageExchangeModeProvider: messageExchangeModeProvider,
-            signManager: ChatSignerManager(entropyManager: entropyManager),
+            signManager: signManager,
             encryptionManager: ChatEncryptionManager(entropyManager: entropyManager),
             deviceEncryptionKeyFactory: deviceEncryptionKeyFactory,
             maxStatementSize: maxStatementSize,
+            accountProvider: SignerSessionAccountProvider(signerManager: signManager),
             workQueue: workQueue,
             operationQueue: operationQueue,
             logger: logger

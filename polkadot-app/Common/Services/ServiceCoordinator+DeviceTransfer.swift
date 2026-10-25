@@ -10,7 +10,7 @@ extension ServiceCoordinator {
             installationProvider: CoinageCurrentInstallationProvider(
                 repository: CoinageCurrentInstallationCoreDataRepository(storageFacade: UserDataStorageFacade.shared)
             ),
-            deviceInfo: .current(),
+            publishSettings: ActiveInstallationPublishSettings(deviceInfo: .current()),
             logger: logger
         )
     }

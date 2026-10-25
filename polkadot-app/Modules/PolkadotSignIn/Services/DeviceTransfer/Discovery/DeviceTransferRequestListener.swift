@@ -1,5 +1,4 @@
 import Foundation
-import AsyncAlgorithms
 import AsyncExtensions
 import FoundationExt
 import StatementStore
@@ -13,48 +12,39 @@ protocol DeviceTransferRequestListening: Sendable {
     func throttle() async
 }
 
-/// The active phone's side of discovery. It follows `request_topic` only while `eligibility` is true and offers the
-/// newest request that hasn't expired, isn't older than 15 minutes, wasn't cancelled and wasn't processed.
+/// The active phone's side of discovery. It follows `request_topic` only while this installation is active and offers
+/// the newest request that hasn't expired, isn't older than 15 minutes, wasn't cancelled and wasn't processed.
 actor DeviceTransferRequestListener {
-    fileprivate struct ReceivedStatement {
-        let message: DeviceTransferMessage?
+    fileprivate struct ReceivedRequest {
+        let request: DeviceTransferRequest
         let expiresAt: UInt64
     }
 
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let processedStore: DeviceTransferProcessedStoring
-    private let eligibility: AnyAsyncSequence<Bool>
+    private let installationObserver: CurrentInstallationObserving
     private let dateProvider: any DateProviding
     private let logger: LoggerProtocol
 
     private let subject = AsyncCurrentValueSubject<DeviceTransferRequest?>(nil)
     private var runTask: Task<Void, Never>?
     private var followTask: Task<Void, Never>?
-    private var received: [Data: ReceivedStatement] = [:]
+    /// Only messages that decrypt are kept, keyed by request id, so statements flooding the topic can't grow memory.
+    private var requests: [String: ReceivedRequest] = [:]
+    private var cancellations: [String: UInt64] = [:]
 
     init(
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         processedStore: DeviceTransferProcessedStoring,
-        eligibility: AnyAsyncSequence<Bool>,
+        installationObserver: CurrentInstallationObserving,
         dateProvider: any DateProviding = NowDateProvider(),
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.processedStore = processedStore
-        self.eligibility = eligibility
+        self.installationObserver = installationObserver
         self.dateProvider = dateProvider
         self.logger = logger
-    }
-
-    /// Listening is allowed only on the active installation with its main screen in front (RFC §5).
-    static func eligibility(
-        installationStatus: AnyAsyncSequence<InstallationStatus>,
-        mainScreenVisibility: AnyAsyncSequence<Bool>
-    ) -> AnyAsyncSequence<Bool> {
-        combineLatest(installationStatus, mainScreenVisibility)
-            .map { status, isVisible in status == .active && isVisible }
-            .removeDuplicates()
-            .eraseToAnyAsyncSequence()
     }
 }
 
@@ -84,17 +74,21 @@ extension DeviceTransferRequestListener: DeviceTransferRequestListening {
 private extension DeviceTransferRequestListener {
     func run(connection: StatementStoreConnecting) async {
         do {
-            for try await isEligible in eligibility {
+            let activity = await installationObserver.statusStream
+                .map { $0 == .active }
+                .removeDuplicates()
+
+            for try await isActive in activity {
                 try Task.checkCancellation()
                 await stopFollowing()
 
-                if isEligible {
+                if isActive {
                     startFollowing(connection: connection)
                 }
             }
         } catch {
             guard !Task.isCancelled else { return }
-            logger.error("Device transfer eligibility stream failed: \(error)")
+            logger.error("Device transfer installation status stream failed: \(error)")
         }
     }
 
@@ -110,7 +104,8 @@ private extension DeviceTransferRequestListener {
         task?.cancel()
         await task?.value
 
-        received = [:]
+        requests = [:]
+        cancellations = [:]
         update(nil)
     }
 
@@ -131,24 +126,32 @@ private extension DeviceTransferRequestListener {
     }
 
     func ingest(_ encodedStatements: [Data], cipher: DeviceTransferMessageCipher) async throws {
-        for encoded in encodedStatements where received[encoded] == nil {
-            received[encoded] = parse(encoded, cipher: cipher)
+        for encoded in encodedStatements {
+            guard let (message, expiresAt) = parse(encoded, cipher: cipher) else { continue }
+
+            switch message {
+            case let .request(request):
+                requests[request.requestId.lowercased()] = ReceivedRequest(request: request, expiresAt: expiresAt)
+            case let .cancel(requestId):
+                cancellations[requestId.lowercased()] = expiresAt
+            }
         }
 
         try await evaluate()
     }
 
-    func parse(_ encoded: Data, cipher: DeviceTransferMessageCipher) -> ReceivedStatement? {
+    func parse(_ encoded: Data, cipher: DeviceTransferMessageCipher) -> (DeviceTransferMessage, UInt64)? {
         guard
             let statement = try? Statement.fromScaleEncoded(encoded),
             let expiry = statement.getExpiry(),
             let payload = statement.getScaleEncodedPayload(),
-            let sealed = try? Data.fromScaleEncoded(payload)
+            let sealed = try? Data.fromScaleEncoded(payload),
+            let message = try? cipher.open(sealed)
         else {
             return nil
         }
 
-        return ReceivedStatement(message: try? cipher.open(sealed), expiresAt: expiry >> 32)
+        return (message, expiry >> 32)
     }
 
     func evaluate() async throws {
@@ -170,22 +173,18 @@ private extension DeviceTransferRequestListener {
         let nowInMilliseconds = UInt64(date.timeIntervalSince1970.milliseconds)
         let maxAgeInMilliseconds = UInt64(DeviceTransferConstants.statementLifetimeInSeconds.milliseconds)
 
-        let live = received.values.filter { $0.expiresAt > nowInSeconds }
-        let cancelled = Set(live.compactMap { statement -> String? in
-            guard case let .cancel(requestId) = statement.message else { return nil }
-            return requestId.lowercased()
-        })
+        return requests.compactMap { requestId, received in
+            let isCancelled = cancellations[requestId].map { $0 > nowInSeconds } ?? false
 
-        return live.compactMap { statement in
             guard
-                case let .request(request) = statement.message,
-                !cancelled.contains(request.requestId.lowercased()),
-                nowInMilliseconds <= request.createdAt + maxAgeInMilliseconds
+                received.expiresAt > nowInSeconds,
+                !isCancelled,
+                nowInMilliseconds <= received.request.createdAt + maxAgeInMilliseconds
             else {
                 return nil
             }
 
-            return request
+            return received.request
         }
     }
 

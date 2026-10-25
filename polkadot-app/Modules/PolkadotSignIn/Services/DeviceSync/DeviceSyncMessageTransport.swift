@@ -61,6 +61,7 @@ final class DeviceSyncMessageTransport: @unchecked Sendable {
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: nil,
             maxStatementSize: MessageExchangeCoordinatorFactory.Constants.maxDeviceSyncStatementSize,
+            accountProvider: SignerSessionAccountProvider(signerManager: signerManager),
             workQueue: DispatchQueue(label: "device.sync.transport.queue"),
             logger: peerLogger
         )
