@@ -22,8 +22,6 @@ struct DeviceTransferSessionContext {
 /// short-lived. It wraps outgoing signaling envelopes in `DeviceTransferSessionMessage`, so
 /// `DeviceSyncSignalingSession` and the device sync delegate work over it unchanged.
 final class DeviceTransferTransport: @unchecked Sendable {
-    static let statementLifetimeInSeconds: UInt64 = 15 * 60
-
     let rejections: AsyncStream<Void>
 
     private let transport: DeviceSyncMessageTransport
@@ -44,7 +42,9 @@ final class DeviceTransferTransport: @unchecked Sendable {
             deviceEncryptionKeyFactory: nil,
             maxStatementSize: MessageExchangeCoordinatorFactory.Constants.maxDeviceSyncStatementSize,
             accountProvider: FixedSessionAccountProvider(accountId: ownLabel),
-            priorityFactory: ShortLivedStatementPriorityFactory(lifetimeInSeconds: Self.statementLifetimeInSeconds),
+            priorityFactory: ShortLivedStatementPriorityFactory(
+                lifetimeInSeconds: DeviceTransferConstants.statementLifetimeInSeconds
+            ),
             workQueue: DispatchQueue(label: "device.transfer.transport.queue"),
             logger: logger
         )

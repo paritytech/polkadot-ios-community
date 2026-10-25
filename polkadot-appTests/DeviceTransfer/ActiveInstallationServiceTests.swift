@@ -75,10 +75,31 @@ struct ActiveInstallationServiceTests {
             connection: connection,
             signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
         ))
-        await connection.waitForFetch()
+        await connection.waitForSubscription()
         await service.throttle()
 
         #expect(await currentStatus(of: service) == .unknown)
+        #expect(connection.submittedCount == 0)
+    }
+
+    @Test("An empty first page of a longer history doesn't count as a first install")
+    func incompleteHistoryIsNotAFirstInstall() async throws {
+        let other = makeService(installationId: otherId)
+        await other.setup(configuration: configuration())
+        _ = await waitForStatus(of: other) { $0 == .active }
+        let connection = try PagedStatementStore(pages: [
+            StatementsPage(statements: [], isComplete: false),
+            StatementsPage(statements: store.getStatements(with: topicFilter()), isComplete: true)
+        ])
+        let service = makeService(installationId: ownId)
+
+        await service.setup(configuration: ActiveInstallationConfiguration(
+            connection: connection,
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+        ))
+
+        let status = await waitForStatus(of: service) { $0 != .unknown }
+        #expect(try status == .inactive(#require(storedRecords().first)))
         #expect(connection.submittedCount == 0)
     }
 
@@ -222,7 +243,7 @@ private struct FixedInstallationProvider: CurrentInstallationProviding {
 }
 
 private final class UnreachableStatementStore: StatementStoreConnecting, @unchecked Sendable {
-    private let fetches = DeviceSyncTestEventRecorder<Void>()
+    private let subscriptions = DeviceSyncTestEventRecorder<Void>()
     private let lock = NSLock()
     private var submits = 0
 
@@ -230,17 +251,47 @@ private final class UnreachableStatementStore: StatementStoreConnecting, @unchec
         lock.withLock { submits }
     }
 
-    func waitForFetch() async {
-        _ = await fetches.waitForCount(1)
+    func waitForSubscription() async {
+        _ = await subscriptions.waitForCount(1)
     }
 
     func fetchStatements(with _: TopicFilter) async throws -> [Data] {
-        fetches.record(())
         throw URLError(.notConnectedToInternet)
     }
 
     func subscribeStatements(with _: TopicFilter) throws -> AnyAsyncSequence<StatementsPage> {
-        AsyncStream<StatementsPage> { _ in }.eraseToAnyAsyncSequence()
+        subscriptions.record(())
+        return AsyncThrowingStream<StatementsPage, Error> { $0.finish(throwing: URLError(.notConnectedToInternet)) }
+            .eraseToAnyAsyncSequence()
+    }
+
+    func submitStatement(with _: StatementSubmitParametersBuilding) async throws {
+        lock.withLock { submits += 1 }
+    }
+}
+
+private final class PagedStatementStore: StatementStoreConnecting, @unchecked Sendable {
+    private let pages: [StatementsPage]
+    private let lock = NSLock()
+    private var submits = 0
+
+    init(pages: [StatementsPage]) {
+        self.pages = pages
+    }
+
+    var submittedCount: Int {
+        lock.withLock { submits }
+    }
+
+    func fetchStatements(with _: TopicFilter) async throws -> [Data] {
+        []
+    }
+
+    func subscribeStatements(with _: TopicFilter) throws -> AnyAsyncSequence<StatementsPage> {
+        AsyncStream<StatementsPage> { [pages] continuation in
+            pages.forEach { continuation.yield($0) }
+        }
+        .eraseToAnyAsyncSequence()
     }
 
     func submitStatement(with _: StatementSubmitParametersBuilding) async throws {

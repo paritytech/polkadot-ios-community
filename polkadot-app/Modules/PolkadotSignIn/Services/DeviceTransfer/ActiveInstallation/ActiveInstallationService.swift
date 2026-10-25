@@ -141,28 +141,14 @@ private extension ActiveInstallationService {
                 ownInstallationId: ownInstallationId
             )
 
-            let filter = TopicFilter.matchAll([schedule.activeDeviceTopic])
-            await loadSnapshot(filter: filter, connection: configuration.connection)
-            try await follow(filter: filter, connection: configuration.connection)
+            try await follow(
+                filter: TopicFilter.matchAll([schedule.activeDeviceTopic]),
+                connection: configuration.connection
+            )
         } catch {
             guard !Task.isCancelled else { return }
             logger.error("Active installation tracking stopped: \(error)")
         }
-    }
-
-    func loadSnapshot(filter: TopicFilter, connection: StatementStoreConnecting) async {
-        do {
-            try await ingest(connection.fetchStatements(with: filter))
-        } catch {
-            logger.warning("Active installation record unreadable from store: \(error)")
-            return
-        }
-
-        if records.isEmpty {
-            await publishAsFirstInstall()
-        }
-
-        evaluate()
     }
 
     func publishAsFirstInstall() async {
@@ -174,11 +160,26 @@ private extension ActiveInstallationService {
         }
     }
 
+    /// The subscription starts with the stored history and always ends it with a complete page, even an empty one,
+    /// so the first complete page is where a first install is told apart from a known one.
     func follow(filter: TopicFilter, connection: StatementStoreConnecting) async throws {
+        var isHistoryLoaded = false
+
         for try await page in try connection.subscribeStatements(with: filter) {
             try Task.checkCancellation()
             ingest(page.statements)
-            evaluate()
+
+            if !isHistoryLoaded, page.isComplete {
+                isHistoryLoaded = true
+
+                if records.isEmpty {
+                    await publishAsFirstInstall()
+                }
+            }
+
+            if isHistoryLoaded {
+                evaluate()
+            }
         }
     }
 
