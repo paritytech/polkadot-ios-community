@@ -77,6 +77,14 @@ private extension DeviceSyncIncomingUpdateApplier {
             case let .messages(messages):
                 peerLogger.debug("Applying \(messages.count) message(s) from sync")
                 try await applyMessages(messages)
+            case .chatsBlocked,
+                 .incomingRequestsAdded,
+                 .incomingRequestsStatusUpdated,
+                 .outgoingRequestsAdded,
+                 .outgoingRequestsStatusUpdated,
+                 .coinsHandedOff,
+                 .coinageMessagesStatusUpdated:
+                peerLogger.debug("Ignoring \([entity].syncLogSummary) from sync: not applied yet")
             }
         } catch {
             peerLogger.error(
