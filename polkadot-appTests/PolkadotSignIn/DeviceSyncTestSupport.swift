@@ -99,5 +99,7 @@ private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
 
 private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_: [Chat.DeviceSyncHandedOffCoin]) async throws {}
-    func applyClaimStatuses(_: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws {}
+    func applyClaimStatuses(
+        _: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] { [] }
 }
