@@ -1,3 +1,4 @@
+import Coinage
 import Foundation
 import SubstrateSdk
 
@@ -6,12 +7,11 @@ import SubstrateSdk
 extension Chat {
     /// A coin this user handed off, given by its derivation so the receiving device can rebuild it from the seed.
     struct DeviceSyncHandedOffCoin: Equatable {
-        static let installationIdLength = 32
+        static let installationIdLength = CoinageInstallationId.sizeBytes
 
         let installationId: Data
         let derivationIndex: UInt64
         let exponent: Int16
-        let age: Int16?
     }
 
     enum DeviceSyncCoinageMessageStatus: UInt8, Equatable {
@@ -36,14 +36,12 @@ extension Chat.DeviceSyncHandedOffCoin: ScaleCodable {
         installationId = try scaleDecoder.readAndConfirm(count: Self.installationIdLength)
         derivationIndex = try UInt64(scaleDecoder: scaleDecoder)
         exponent = try Int16(scaleDecoder: scaleDecoder)
-        age = try ScaleOption<Int16>(scaleDecoder: scaleDecoder).value
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
         scaleEncoder.appendRaw(data: installationId)
         try derivationIndex.encode(scaleEncoder: scaleEncoder)
         try exponent.encode(scaleEncoder: scaleEncoder)
-        try ScaleOption(value: age).encode(scaleEncoder: scaleEncoder)
     }
 }
 
