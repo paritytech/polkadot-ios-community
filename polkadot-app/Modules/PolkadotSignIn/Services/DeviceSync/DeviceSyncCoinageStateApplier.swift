@@ -67,6 +67,8 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
 }
 
 private extension DeviceSyncCoinageStateApplier {
+    /// Saved as never seen on chain: chain sync fills in age and presence while the coin is there, and a coin
+    /// the recipient already claimed is never spendable here anyway.
     func rebuild(_ coin: Chat.DeviceSyncHandedOffCoin) throws -> Coin {
         let index = try CoinageKeyIndex(
             installation: CoinageInstallationId(value: coin.installationId),
@@ -76,8 +78,8 @@ private extension DeviceSyncCoinageStateApplier {
         return try Coin(
             exponent: coin.exponent,
             derivationIndex: index,
-            age: coin.age,
-            isOnchain: true,
+            age: nil,
+            isOnchain: false,
             handoffMark: .committed,
             publicKey: coinKeyDeriver.derivePublicKey(index: index)
         )

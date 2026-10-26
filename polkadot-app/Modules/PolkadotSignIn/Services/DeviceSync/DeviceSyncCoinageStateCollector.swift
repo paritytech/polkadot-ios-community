@@ -60,8 +60,7 @@ private extension DeviceSyncCoinageStateCollector {
             return Chat.DeviceSyncHandedOffCoin(
                 installationId: coin.derivationIndex.installation.value,
                 derivationIndex: coin.derivationIndex.item,
-                exponent: coin.exponent,
-                age: coin.age
+                exponent: coin.exponent
             )
         }
     }
