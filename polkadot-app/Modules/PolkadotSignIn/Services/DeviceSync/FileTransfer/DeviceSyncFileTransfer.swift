@@ -99,10 +99,9 @@ private extension DeviceSyncFileTransfer {
         case .header,
              .chunk,
              .unavailable,
-             .completed:
+             .completed,
+             .availabilityResponse:
             await requester.handle(message)
-        case .availabilityResponse:
-            peerLogger.debug("Ignoring unrequested sync file availability response")
         }
     }
 }

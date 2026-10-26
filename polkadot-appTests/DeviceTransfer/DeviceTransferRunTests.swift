@@ -9,9 +9,9 @@ import Operation_iOS
 import Testing
 
 /// Old phone (`sender`) and new phone (`receiver`) are real in-memory stores sharing a chat, joined by a
-/// loopback channel that runs both exchanges against each other.
+/// loopback channel that runs both exchanges against each other, files included.
 @Suite(.timeLimit(.minutes(1)))
-struct DeviceTransferRunTests {
+final class DeviceTransferRunTests {
     private let sender = TransferStateTestWorld()
     private let receiver = TransferStateTestWorld()
     private let senderInstallationId = Data(repeating: 0x5E, count: 32)
@@ -22,10 +22,18 @@ struct DeviceTransferRunTests {
         encryptionStorage: FixedDeviceEncryptionStorage(),
         logger: MockLogger()
     )
+    private let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("DeviceTransferRunTests-\(UUID().uuidString)", isDirectory: true)
+    private lazy var senderDownloads = AttachmentStore(baseDirectory: directory.appendingPathComponent("sender"))
+    private lazy var receiverDownloads = AttachmentStore(baseDirectory: directory.appendingPathComponent("receiver"))
 
     init() async throws {
         try await sender.setup()
         try await receiver.setup()
+    }
+
+    deinit {
+        try? FileManager.default.removeItem(at: directory)
     }
 
     @Test("The new phone ends up with the history at the old order, the old device key and the settled claims")
@@ -45,8 +53,27 @@ struct DeviceTransferRunTests {
         let claimState = try await receiver.transfer(claimed.messageId)?.state
         #expect(claimState == .incoming(IncomingTransferState(status: .failed)))
         #expect(try receiverKeyManager.getPublicKey() == oldDeviceKey.publicKey.rawRepresentation)
-        let last = try #require(progress.snapshot.last)
-        #expect(last.applied >= last.total)
+        let syncing = progress.snapshot.compactMap { progress -> (applied: Int, total: Int)? in
+            guard case let .syncing(applied, total) = progress else { return nil }
+            return (applied, total)
+        }
+        let lastSyncing = try #require(syncing.last)
+        #expect(lastSyncing.applied >= lastSyncing.total)
+    }
+
+    @Test("Attachments the new phone lacks are pulled from the old one, with progress in bytes")
+    func missingAttachmentsArePulled() async throws {
+        let contents = try Data.randomOrError(of: 150 * 1_024)
+        let fileVariant = try makeFileVariant(size: contents.count)
+        try senderDownloads.store(attachment: contents, filename: fileVariant.filename)
+        try await saveAttachmentMessage(fileVariant)
+        let progress = DeviceSyncTestEventRecorder<DeviceTransferProgress>()
+
+        try await runTransfer(onProgress: { progress.record($0) })
+
+        #expect(try receiverDownloads.loadAttachment(by: fileVariant.filename) == contents)
+        let size = UInt64(contents.count)
+        #expect(progress.snapshot.last == .files(DeviceTransferFileProgress(receivedBytes: size, totalBytes: size)))
     }
 
     @Test("A reconnect resumes from the receiver's checkpoint and carries only later changes")
@@ -66,7 +93,8 @@ struct DeviceTransferRunTests {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
         var controls = await senderSide.transferControls.makeAsyncIterator()
         var acks = await senderSide.acks.makeAsyncIterator()
-        let receiving = Task { try await makeReceiverExchange(flow: receiverSide).run { _ in } }
+        let receiverExchange = makeReceiverExchange(flow: receiverSide, requester: makeRequester(flow: receiverSide))
+        let receiving = Task { try await receiverExchange.run { _ in } }
 
         _ = try await controls.next()
         try await senderSide.sendTransferControl(
@@ -86,17 +114,46 @@ struct DeviceTransferRunTests {
 private extension DeviceTransferRunTests {
     @discardableResult
     func runTransfer(
-        onProgress: @escaping (DeviceTransferProgress) -> Void = { _ in }
+        onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void = { _ in }
     ) async throws -> LoopbackTransferFlow {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
+        let requester = makeRequester(flow: receiverSide)
+        let senderFiles = makeFileTransfer(flow: senderSide, requester: makeRequester(flow: senderSide))
+        let receiverFiles = makeFileTransfer(flow: receiverSide, requester: requester)
+        await senderFiles.start()
+        await receiverFiles.start()
+
         let senderExchange = makeSenderExchange(flow: senderSide)
-        let receiverExchange = makeReceiverExchange(flow: receiverSide)
+        let receiverExchange = makeReceiverExchange(flow: receiverSide, requester: requester)
 
         async let sending: Void = senderExchange.run()
         try await receiverExchange.run(onProgress: onProgress)
         try await sending
 
+        await senderFiles.close()
+        await receiverFiles.close()
         return senderSide
+    }
+
+    func makeRequester(flow: LoopbackTransferFlow) -> DeviceSyncFileRequester {
+        DeviceSyncFileRequester(flow: flow, downloadsStore: receiverDownloads, logger: MockLogger())
+    }
+
+    func makeFileTransfer(flow: LoopbackTransferFlow, requester: DeviceSyncFileRequester) -> DeviceSyncFileTransfer {
+        let locator = DeviceSyncFileLocator(
+            messageRepositoryFactory: ChatMessageRepositoryFactory(storageFacade: sender.facade),
+            uploadsStore: senderDownloads,
+            downloadsStore: senderDownloads,
+            logger: MockLogger()
+        )
+
+        return DeviceSyncFileTransfer(
+            flow: flow,
+            provider: DeviceSyncFileProvider(flow: flow, locator: locator, logger: MockLogger()),
+            requester: requester,
+            registry: DeviceSyncFileChannelRegistry(),
+            peerLogger: MockLogger()
+        )
     }
 
     func makeSenderExchange(flow: LoopbackTransferFlow) -> DeviceTransferSenderExchange {
@@ -123,7 +180,10 @@ private extension DeviceTransferRunTests {
         )
     }
 
-    func makeReceiverExchange(flow: LoopbackTransferFlow) -> DeviceTransferReceiverExchange {
+    func makeReceiverExchange(
+        flow: LoopbackTransferFlow,
+        requester: DeviceSyncFileRequester
+    ) -> DeviceTransferReceiverExchange {
         let facade = receiver.facade
         let coinageStateApplier = DeviceSyncCoinageStateApplier(
             databaseService: facade.databaseService,
@@ -161,6 +221,14 @@ private extension DeviceTransferRunTests {
                 coinageStateApplier: coinageStateApplier,
                 checkpointStore: checkpointStore,
                 deviceKeyManager: receiverKeyManager,
+                filePuller: DeviceTransferFilePuller(
+                    scanner: DeviceTransferMissingFileScanner(
+                        messageRepositoryFactory: ChatMessageRepositoryFactory(storageFacade: facade),
+                        downloadsStore: receiverDownloads
+                    ),
+                    requester: requester,
+                    logger: MockLogger()
+                ),
                 logger: MockLogger()
             )
         )
@@ -172,6 +240,22 @@ private extension DeviceTransferRunTests {
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
         return Dictionary(uniqueKeysWithValues: messages.map { ($0.messageId, $0.order) })
+    }
+
+    func makeFileVariant(size: Int) throws -> ChatRemoteMessageContent.FileVariant {
+        try .p2pMixnet(.init(
+            identifier: Data.randomOrError(of: 32),
+            claimTicket: Data.randomOrError(of: 32),
+            node: .wssUrl("wss://hop.example"),
+            meta: .general(.init(mimeType: "image/jpeg", fileSize: UInt32(size)))
+        ))
+    }
+
+    func saveAttachmentMessage(_ fileVariant: ChatRemoteMessageContent.FileVariant) async throws {
+        _ = try await sender.chatManager.sendMessage(
+            .richText(.init(text: nil, attachments: [.remoteDownloadable(fileVariant)])),
+            status: .incoming(.new)
+        )
     }
 
     func orphanClaim() throws -> Chat.DeviceSyncEntity {
@@ -197,6 +281,7 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
     private let incomingAcks = AsyncStream.makeStream(of: Chat.DeviceSyncUpdateAck.self)
     private let incomingControls = AsyncStream.makeStream(of: DeviceTransferControl.self)
     private let channelStates = AsyncStream.makeStream(of: DeviceSyncDataChannelState.self)
+    private let incomingFileMessages = AsyncStream.makeStream(of: Chat.DeviceSyncFileMessage.self)
     private var peer: LoopbackTransferFlow?
     private var sentUpdates: [Chat.DeviceSyncUpdate] = []
 
@@ -216,11 +301,15 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
     }
 
     var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
-        AsyncStream<Chat.DeviceSyncFileMessage> { _ in }.eraseToAnyAsyncSequence()
+        incomingFileMessages.stream.eraseToAnyAsyncSequence()
     }
 
     func start() async throws {}
-    func sendFileMessage(_: Chat.DeviceSyncFileMessage) async throws {}
+
+    func sendFileMessage(_ message: Chat.DeviceSyncFileMessage) async throws {
+        await peer?.receive(message)
+    }
+
     func cancel() async {}
 
     func sendUpdate(_ update: Chat.DeviceSyncUpdate) async throws {
@@ -257,5 +346,9 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
 
     private func receive(_ control: DeviceTransferControl) {
         incomingControls.continuation.yield(control)
+    }
+
+    private func receive(_ message: Chat.DeviceSyncFileMessage) {
+        incomingFileMessages.continuation.yield(message)
     }
 }

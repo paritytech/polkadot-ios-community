@@ -45,10 +45,10 @@ struct DeviceTransferEventStream {
     }
 
     /// The next event, failing on an abort, a lost channel, or nothing arriving within the timeout.
-    mutating func next() async throws -> DeviceTransferEvent {
+    mutating func next(within timeout: Duration? = nil) async throws -> DeviceTransferEvent {
         timeoutToken += 1
         let token = timeoutToken
-        let timer = startTimer(token: token)
+        let timer = startTimer(token: token, timeout: timeout ?? self.timeout)
         defer { timer.cancel() }
 
         while let signal = await signals.next() {
@@ -69,9 +69,12 @@ struct DeviceTransferEventStream {
         throw CancellationError()
     }
 
-    mutating func waitForControl<Result>(_ match: (DeviceTransferControl) -> Result?) async throws -> Result {
+    mutating func waitForControl<Result>(
+        within timeout: Duration? = nil,
+        _ match: (DeviceTransferControl) -> Result?
+    ) async throws -> Result {
         while true {
-            if case let .control(control) = try await next(), let result = match(control) {
+            if case let .control(control) = try await next(within: timeout), let result = match(control) {
                 return result
             }
         }
@@ -113,8 +116,7 @@ private extension DeviceTransferEventStream {
         }
     }
 
-    func startTimer(token: UInt64) -> Task<Void, Never> {
-        let timeout = timeout
+    func startTimer(token: UInt64, timeout: Duration) -> Task<Void, Never> {
         let sleep = sleep
         let continuation = continuation
 
