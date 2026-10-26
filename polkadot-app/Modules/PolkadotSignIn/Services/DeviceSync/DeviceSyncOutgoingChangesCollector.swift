@@ -62,6 +62,69 @@ struct DeviceSyncOutgoingChangesCollector {
     }
 }
 
+struct DeviceTransferMessagePage {
+    var messages: [Chat.DeviceSyncWireMessage]
+    /// `nil` once the set is exhausted.
+    var nextCursor: String?
+}
+
+protocol DeviceTransferChangesCollecting {
+    /// Everything but messages and devices, changed after `checkpoint`.
+    func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
+
+    /// Messages changed after `checkpoint` (and no later than `bound`), in message id order after `cursor`.
+    /// Keying on the id keeps paging stable: an edit moves a message into the next round instead of shifting pages.
+    func collectMessagePage(
+        since checkpoint: UInt64?,
+        upTo bound: UInt64?,
+        after cursor: String?,
+        limit: Int
+    ) async throws -> DeviceTransferMessagePage
+
+    func countMessages(since checkpoint: UInt64?, upTo bound: UInt64?) async throws -> Int
+}
+
+extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
+    func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
+        let cutoff = checkpoint.map { Date.fromChatTimestamp($0) }
+
+        return try await collectContactChanges(after: cutoff)
+            + collectRemovedChatChanges(after: cutoff)
+            + chatStateCollector.collect(after: cutoff)
+            + coinageStateCollector.collect(after: cutoff)
+    }
+
+    func collectMessagePage(
+        since checkpoint: UInt64?,
+        upTo bound: UInt64?,
+        after cursor: String?,
+        limit: Int
+    ) async throws -> DeviceTransferMessagePage {
+        let afterCursor = cursor.map { NSPredicate(format: "%K > %@", #keyPath(CDChatMessage.messageId), $0) }
+        let predicates = [transferMessagesPredicate(since: checkpoint, upTo: bound), afterCursor].compactMap { $0 }
+
+        let messages = try await messageRepositoryFactory
+            .createRepository(
+                forFilter: NSCompoundPredicate(andPredicateWithSubpredicates: predicates),
+                sortDescriptors: [NSSortDescriptor(key: #keyPath(CDChatMessage.messageId), ascending: true)]
+            )
+            .fetchOperation(by: RepositorySliceRequest(offset: 0, count: limit, reversed: false), options: .init())
+            .asyncExecute()
+
+        return DeviceTransferMessagePage(
+            messages: messages.compactMap { Chat.DeviceSyncWireMessage(from: $0) },
+            nextCursor: messages.count < limit ? nil : messages.last?.messageId
+        )
+    }
+
+    func countMessages(since checkpoint: UInt64?, upTo bound: UInt64?) async throws -> Int {
+        try await messageRepositoryFactory
+            .createRepository(forFilter: transferMessagesPredicate(since: checkpoint, upTo: bound))
+            .fetchCountOperation()
+            .asyncExecute()
+    }
+}
+
 private extension DeviceSyncOutgoingChangesCollector {
     func collectDeviceChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
         let deviceFilter = cutoff.map { NSPredicate.devicesCreatedAfter($0) }
@@ -118,5 +181,14 @@ private extension DeviceSyncOutgoingChangesCollector {
 
         let wireMessages = messages.compactMap { Chat.DeviceSyncWireMessage(from: $0) }
         return wireMessages.isEmpty ? [] : [.messages(wireMessages)]
+    }
+
+    func transferMessagesPredicate(since checkpoint: UInt64?, upTo bound: UInt64?) -> NSPredicate {
+        let predicates = [
+            NSPredicate.syncableMessagesForAcceptedContacts(since: checkpoint, ownSignKeyIds: ownSignKeyIds),
+            bound.map { NSCompoundPredicate(notPredicateWithSubpredicate: NSPredicate.messagesModifiedAfter($0)) }
+        ].compactMap { $0 }
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
     }
 }
