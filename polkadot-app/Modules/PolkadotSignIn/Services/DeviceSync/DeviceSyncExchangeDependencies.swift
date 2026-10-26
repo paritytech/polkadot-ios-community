@@ -31,7 +31,7 @@ struct DeviceSyncExchangeDependencies {
 
 extension DeviceSyncExchangeDependencies {
     func makeIncomingUpdateApplier(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         peerLogger: LoggerProtocol
     ) -> DeviceSyncIncomingUpdateApplier {
         DeviceSyncIncomingUpdateApplier(

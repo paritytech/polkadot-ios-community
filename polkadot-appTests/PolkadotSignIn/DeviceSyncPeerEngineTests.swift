@@ -351,9 +351,9 @@ private final class DeviceSyncPeerEngineRecorder: DeviceSyncPeerComponentMaking,
     var latestExchange: MockDeviceSyncExchange? { lock.withLock { _latestExchange } }
     var latestTransport: MockDeviceSyncMessageTransport? { lock.withLock { _latestTransport } }
     var latestSession: DeviceSyncSignalingSession? { lock.withLock { _latestSession } }
-    var latestFlow: MockDeviceSyncPeerConnectionFlow? { lock.withLock { _latestFlow } }
+    var latestFlow: MockDevicePeerConnectionFlow? { lock.withLock { _latestFlow } }
 
-    private var _latestFlow: MockDeviceSyncPeerConnectionFlow?
+    private var _latestFlow: MockDevicePeerConnectionFlow?
 
     init(
         role: CallRole = .initiator,
@@ -392,8 +392,8 @@ private final class DeviceSyncPeerEngineRecorder: DeviceSyncPeerComponentMaking,
 
     func makeConnectionFlow(
         session _: DeviceSyncSignalingSession
-    ) -> any DeviceSyncPeerConnectionFlowing {
-        let flow = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+    ) -> any DevicePeerConnectionFlowing {
+        let flow = MockDevicePeerConnectionFlow(startResult: .success(()))
         lock.withLock {
             _creationCount += 1
             _latestFlow = flow
@@ -405,7 +405,7 @@ private final class DeviceSyncPeerEngineRecorder: DeviceSyncPeerComponentMaking,
     }
 
     func makeExchange(
-        flow _: any DeviceSyncPeerConnectionFlowing,
+        flow _: any DevicePeerConnectionFlowing,
         failureHandler: @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
     ) async throws -> any DeviceSyncExchanging {
         let connection = creationCount

@@ -9,7 +9,7 @@ struct DeviceSyncExchangeTests {
 
     @Test("Closed exchange cannot be resurrected by start")
     func closedExchangeCannotBeRestarted() async throws {
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let session = makeSession(
             peerAccountId: Data(repeating: 2, count: 32),
             flow: dataChannel
@@ -29,7 +29,7 @@ struct DeviceSyncExchangeTests {
 
     @Test("The first connected state starts one file transfer and closing the exchange closes it")
     func fileTransferFollowsConnection() async {
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let fileTransfers = MockDeviceSyncFileTransferFactory()
         let session = makeSession(
             peerAccountId: Data(repeating: 4, count: 32),
@@ -50,7 +50,7 @@ struct DeviceSyncExchangeTests {
 
     @Test("Losing the data channel closes the file transfer")
     func disconnectClosesFileTransfer() async {
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let fileTransfers = MockDeviceSyncFileTransferFactory()
         let session = makeSession(
             peerAccountId: Data(repeating: 5, count: 32),
@@ -71,7 +71,7 @@ struct DeviceSyncExchangeTests {
     @Test("Terminal flow state fails the exchange")
     func terminalFlowStateFailsExchange() async throws {
         let peerAccountId = Data(repeating: 3, count: 32)
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let failureRecorder = DeviceSyncFailureRecorder()
         let session = makeSession(
             peerAccountId: peerAccountId,
@@ -95,7 +95,7 @@ struct DeviceSyncExchangeTests {
     @Test("Update stream failure notifies failure handler")
     func updateStreamFailureNotifiesFailureHandler() async throws {
         let peerAccountId = Data(repeating: 24, count: 32)
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(
+        let dataChannel = MockDevicePeerConnectionFlow(
             startResult: .success(()),
             failUpdates: true
         )
@@ -123,7 +123,7 @@ struct DeviceSyncExchangeTests {
     func incomingMessagesArePersistedAndAcked() async throws {
         let peerAccountId = Data(repeating: 30, count: 32)
         let messageRepositoryFactory = MockChatMessageRepositoryFactory()
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let localMessage = Chat.LocalMessage(
             messageId: "synced-message",
             chatId: .person(Data(repeating: 31, count: 32)),
@@ -166,7 +166,7 @@ struct DeviceSyncExchangeTests {
         let peerAccountId = Data(repeating: 38, count: 32)
         let contactAccountId = Data(repeating: 39, count: 32)
         let messageRepositoryFactory = MockChatMessageRepositoryFactory()
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let localMessage = Chat.LocalMessage(
             messageId: "message-after-failed-entity",
             chatId: .person(contactAccountId),
@@ -242,7 +242,7 @@ struct DeviceSyncExchangeTests {
         )
 
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: syncedMessage))
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let session = makeSession(
             peerAccountId: peerAccountId,
             flow: dataChannel,
@@ -303,7 +303,7 @@ struct DeviceSyncExchangeTests {
         )
 
         let wireMessage = try #require(Chat.DeviceSyncWireMessage(from: syncedMessage))
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let session = makeSession(
             peerAccountId: peerAccountId,
             flow: dataChannel,
@@ -337,7 +337,7 @@ struct DeviceSyncExchangeTests {
         let updateTimePoint: UInt64 = 8_912
         let contactRepositoryFactory = MockChatContactRepositoryFactory()
         let removedChatRepositoryFactory = MockRemovedChatRepositoryFactory()
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
 
         let session = makeSession(
             peerAccountId: peerAccountId,
@@ -370,7 +370,7 @@ struct DeviceSyncExchangeTests {
     @Test("Ack send failure notifies failure handler")
     func ackSendFailureNotifiesFailureHandler() async throws {
         let peerAccountId = Data(repeating: 6, count: 32)
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(
+        let dataChannel = MockDevicePeerConnectionFlow(
             startResult: .success(()),
             sendAckResult: .failure(MockDeviceSyncError.sendAckFailed)
         )

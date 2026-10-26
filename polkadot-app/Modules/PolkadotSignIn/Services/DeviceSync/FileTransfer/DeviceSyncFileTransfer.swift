@@ -8,7 +8,7 @@ protocol DeviceSyncFileTransferring: Sendable {
 
 protocol DeviceSyncFileTransferMaking: Sendable {
     func makeTransfer(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         peerLogger: LoggerProtocol
     ) -> any DeviceSyncFileTransferring
 }
@@ -17,7 +17,7 @@ protocol DeviceSyncFileTransferMaking: Sendable {
 /// available to the app while the channel is open. Request ids are scoped to this lifetime.
 actor DeviceSyncFileTransfer {
     private let connectionId = UUID()
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let provider: any DeviceSyncFileProviding
     private let requester: any DeviceSyncFileRequesting
     private let registry: any DeviceSyncFileChannelRegistering
@@ -27,7 +27,7 @@ actor DeviceSyncFileTransfer {
     private var isClosed = false
 
     init(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         provider: any DeviceSyncFileProviding,
         requester: any DeviceSyncFileRequesting,
         registry: any DeviceSyncFileChannelRegistering,
@@ -123,7 +123,7 @@ final class DeviceSyncFileTransferFactory: DeviceSyncFileTransferMaking {
     }
 
     func makeTransfer(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         peerLogger: LoggerProtocol
     ) -> any DeviceSyncFileTransferring {
         DeviceSyncFileTransfer(

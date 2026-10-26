@@ -9,7 +9,7 @@ final class DeviceSyncFileRequesterTests {
 
     private let directory: URL
     private let store: AttachmentStore
-    private let flow = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+    private let flow = MockDevicePeerConnectionFlow(startResult: .success(()))
     private let sleeper = ManualDeviceSyncSleeper()
 
     init() {

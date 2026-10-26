@@ -13,7 +13,7 @@ final class MockDeviceSyncFileTransferFactory: DeviceSyncFileTransferMaking, @un
     private var madeCount = 0
 
     func makeTransfer(
-        flow _: any DeviceSyncPeerConnectionFlowing,
+        flow _: any DevicePeerConnectionFlowing,
         peerLogger _: LoggerProtocol
     ) -> any DeviceSyncFileTransferring {
         let index = lock.withLock {

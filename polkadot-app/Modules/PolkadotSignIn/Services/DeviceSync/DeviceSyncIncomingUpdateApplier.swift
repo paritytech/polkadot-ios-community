@@ -12,7 +12,7 @@ final class DeviceSyncIncomingUpdateApplier {
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
     private let chatStateApplier: DeviceSyncChatStateApplying
     private let coinageStateApplier: DeviceSyncCoinageStateApplying
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let peerLogger: LoggerProtocol
 
     init(
@@ -23,7 +23,7 @@ final class DeviceSyncIncomingUpdateApplier {
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
         chatStateApplier: DeviceSyncChatStateApplying,
         coinageStateApplier: DeviceSyncCoinageStateApplying,
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         peerLogger: LoggerProtocol
