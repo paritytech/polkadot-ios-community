@@ -46,6 +46,10 @@ extension DeviceSyncExchangeTests {
                 ),
                 storageFacade: storageFacade,
                 updateIdProvider: MockDeviceSyncUpdateIdProvider(),
+                chatStateCollector: EmptyChatStateCollector(),
+                chatStateApplier: EmptyChatStateApplier(),
+                coinageStateCollector: EmptyCoinageStateCollector(),
+                coinageStateApplier: EmptyCoinageStateApplier(),
                 fileTransferFactory: fileTransferFactory
             ),
             peerLogger: MockLogger(),
@@ -75,4 +79,25 @@ private final class UnusedDeviceSyncStorageFacade: StorageFacadeProtocol {
     ) -> CoreDataRepository<T, U> where T: Identifiable, U: NSManagedObject {
         fatalError("Storage is not used by these device sync tests")
     }
+}
+
+private struct EmptyChatStateCollector: DeviceSyncChatStateCollecting {
+    func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+}
+
+private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
+    func applyBlockStates(_: [Chat.DeviceSyncChatBlockState]) async throws {}
+    func applyIncomingRequests(_: [Chat.DeviceSyncIncomingChatRequest]) async throws {}
+    func applyIncomingStatusUpdates(_: [Chat.DeviceSyncIncomingRequestStatusUpdate]) async throws {}
+    func applyOutgoingRequests(_: [Chat.DeviceSyncOutgoingChatRequest]) async throws {}
+    func applyOutgoingStatusUpdates(_: [Chat.DeviceSyncOutgoingRequestStatusUpdate]) async throws {}
+}
+
+private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
+    func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+}
+
+private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
+    func applyHandedOffCoins(_: [Chat.DeviceSyncHandedOffCoin]) async throws {}
+    func applyClaimStatuses(_: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws {}
 }

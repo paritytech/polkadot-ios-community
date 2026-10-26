@@ -32,6 +32,7 @@ extension DeclineIncomingChatRequestMapper: CoreDataMapperProtocol {
         }
 
         entity.status = Chat.RequestStatus.incoming(.declined).rawValue
+        entity.markModified()
 
         if let contact: CDChatContact = try? context.first(for: .contact(for: contactId)) {
             context.delete(contact)
