@@ -6,6 +6,8 @@ import KeyDerivation
 protocol DeviceEncryptionKeyManaging {
     func getOrCreatePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey
     func getPublicKey() throws -> Data
+    /// Replaces this device's key with the old phone's, so peers that know the old device reach this one.
+    func importPrivateKey(_ rawKey: Data) throws
 }
 
 final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
@@ -16,7 +18,7 @@ final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
     private let logger: LoggerProtocol
     private let lock = NSLock()
 
-    private init(
+    init(
         keychain: KeystoreProtocol = Keychain(),
         encryptionStorage: DeviceEncryptionStoring = DeviceEncryptionStorage(),
         logger: LoggerProtocol = Logger.shared
@@ -50,5 +52,14 @@ final class DeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
     func getPublicKey() throws -> Data {
         let privateKey = try getOrCreatePrivateKey()
         return privateKey.publicKey.rawRepresentation
+    }
+
+    func importPrivateKey(_ rawKey: Data) throws {
+        let privateKey = try Curve25519.KeyAgreement.PrivateKey(rawRepresentation: rawKey)
+        let tag = KeystoreTag.deviceEncryptionKeyTag(for: encryptionStorage.deviceEncryptId)
+
+        try lock.withLock {
+            try keychain.saveKey(privateKey.rawRepresentation, with: tag)
+        }
     }
 }
