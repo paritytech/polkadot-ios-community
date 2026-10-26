@@ -37,13 +37,14 @@ extension Chat {
         case cancelled = 2
     }
 
-    /// `requestId` is the request message's `messageId`; `peer` is the acceptor's identity account.
+    /// `requestId` is the request message's `messageId`; `peer` is the acceptor's identity account. `content` is the
+    /// stored request, so the receiving device republishes the same bytes.
     struct DeviceSyncOutgoingChatRequest: Equatable {
         let requestId: String
         let peer: Data
         let timestamp: UInt64
         let status: DeviceSyncOutgoingRequestStatus
-        let welcomeMessage: ChatRemoteMessageContent.RichText?
+        let content: VersionedRequestContent
     }
 
     struct DeviceSyncOutgoingRequestStatusUpdate: Equatable {
@@ -132,7 +133,7 @@ extension Chat.DeviceSyncOutgoingChatRequest: ScaleCodable {
         peer = try scaleDecoder.readAndConfirm(count: Chat.DeviceSyncWireMessage.peerIdLength)
         timestamp = try UInt64(scaleDecoder: scaleDecoder)
         status = try Chat.DeviceSyncOutgoingRequestStatus(scaleDecoder: scaleDecoder)
-        welcomeMessage = try ScaleOption<ChatRemoteMessageContent.RichText>(scaleDecoder: scaleDecoder).value
+        content = try Chat.VersionedRequestContent(scaleDecoder: scaleDecoder)
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
@@ -140,7 +141,7 @@ extension Chat.DeviceSyncOutgoingChatRequest: ScaleCodable {
         scaleEncoder.appendRaw(data: peer)
         try timestamp.encode(scaleEncoder: scaleEncoder)
         try status.encode(scaleEncoder: scaleEncoder)
-        try ScaleOption(value: welcomeMessage).encode(scaleEncoder: scaleEncoder)
+        try content.encode(scaleEncoder: scaleEncoder)
     }
 }
 

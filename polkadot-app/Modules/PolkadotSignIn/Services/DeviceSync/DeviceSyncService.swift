@@ -6,6 +6,7 @@ import MessageExchangeKit
 import AsyncExtensions
 import Operation_iOS
 import FoundationExt
+import Products
 @preconcurrency import WebRTC
 
 protocol DeviceSyncServicing {
@@ -87,6 +88,13 @@ actor DeviceSyncService {
             contactsStorageService: contactsStorageService,
             storageFacade: storageFacade,
             updateIdProvider: updateIdProvider,
+            chatStateCollector: DeviceSyncChatStateCollector(databaseService: storageFacade.databaseService),
+            chatStateApplier: DeviceSyncChatStateApplier(
+                databaseService: storageFacade.databaseService,
+                remoteContactResolver: remoteContactResolver,
+                tldProvider: DotNsTldProviderFacade.shared,
+                logger: logger
+            ),
             fileTransferFactory: fileTransferFactory
         )
         self.peerEngineFactory = peerEngineFactory

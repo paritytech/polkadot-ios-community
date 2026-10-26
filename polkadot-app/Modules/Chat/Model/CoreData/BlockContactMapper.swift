@@ -39,6 +39,7 @@ extension BlockContactMapper: CoreDataMapperProtocol {
         }
 
         entity.isBlocked = model.isBlocked
+        entity.modifiedAt = Date()
     }
 }
 

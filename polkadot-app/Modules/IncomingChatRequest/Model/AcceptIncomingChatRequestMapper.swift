@@ -99,6 +99,7 @@ private extension AcceptIncomingChatRequestMapper {
         }
 
         entity.status = Chat.RequestStatus.incoming(.accepted).rawValue
+        entity.markModified()
         entity.touchParent()
         entity.contact?.acceptedAt = Date()
         entity.contact?.pendingDevicesFanOut = true

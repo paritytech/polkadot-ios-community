@@ -56,6 +56,7 @@ extension ChatRequestMapper: CoreDataMapperProtocol {
         entity.timestamp = Int64(bitPattern: model.timestamp)
         entity.contactId = model.contactAccountId.toHex()
         entity.status = model.status.rawValue
+        entity.markModified()
         entity.touchParent()
     }
 }
@@ -72,4 +73,11 @@ private extension ChatRequestMapper {
 
 extension Chat.Request: Identifiable {
     var identifier: String { requestId }
+}
+
+extension CDChatRequest {
+    /// Lets incremental device sync pick up the status change. Writes applied from sync must not call it.
+    func markModified() {
+        modifiedAt = Date()
+    }
 }
