@@ -27,6 +27,7 @@
         <attribute name="imageData" optional="YES" attributeType="Binary"/>
         <attribute name="isBlocked" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="lastOwnToken" optional="YES" attributeType="Binary"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="ownEncryptionKeyId" optional="YES" attributeType="String"/>
         <attribute name="ownSignKeyId" optional="YES" attributeType="String"/>
         <attribute name="pendingDevicesFanOut" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -107,6 +108,7 @@
     <entity name="CDChatRequest" representedClassName="CDChatRequest" syncable="YES" codeGenerationType="class">
         <attribute name="contactId" optional="YES" attributeType="String"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="timestamp" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contact" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="chatRequest" inverseEntity="CDChatContact"/>

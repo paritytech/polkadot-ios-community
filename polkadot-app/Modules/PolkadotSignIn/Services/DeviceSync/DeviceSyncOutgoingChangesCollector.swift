@@ -12,6 +12,7 @@ struct DeviceSyncOutgoingChangesCollector {
     private let contactRepositoryFactory: ChatContactRepositoryMaking
     private let messageRepositoryFactory: ChatMessageRepositoryMaking
     private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
+    private let chatStateCollector: DeviceSyncChatStateCollecting
     private let ownSignKeyIds: Set<String>
 
     init(
@@ -19,12 +20,14 @@ struct DeviceSyncOutgoingChangesCollector {
         contactRepositoryFactory: ChatContactRepositoryMaking,
         messageRepositoryFactory: ChatMessageRepositoryMaking,
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
+        chatStateCollector: DeviceSyncChatStateCollecting,
         ownSignKeyIds: Set<String>
     ) {
         self.deviceRepositoryFactory = deviceRepositoryFactory
         self.contactRepositoryFactory = contactRepositoryFactory
         self.messageRepositoryFactory = messageRepositoryFactory
         self.removedChatRepositoryFactory = removedChatRepositoryFactory
+        self.chatStateCollector = chatStateCollector
         self.ownSignKeyIds = ownSignKeyIds
     }
 
@@ -38,11 +41,13 @@ struct DeviceSyncOutgoingChangesCollector {
         let deviceChanges = try await collectDeviceChanges(after: cutoff)
         let contactChanges = try await collectContactChanges(after: cutoff)
         let removedChatChanges = try await collectRemovedChatChanges(after: cutoff)
+        let chatStateChanges = try await chatStateCollector.collect(after: cutoff)
         let messageChanges = try await collectMessageChanges(since: checkpoint)
 
         entities.append(contentsOf: deviceChanges)
         entities.append(contentsOf: contactChanges)
         entities.append(contentsOf: removedChatChanges)
+        entities.append(contentsOf: chatStateChanges)
         entities.append(contentsOf: messageChanges)
 
         return DeviceSyncCollectedChanges(

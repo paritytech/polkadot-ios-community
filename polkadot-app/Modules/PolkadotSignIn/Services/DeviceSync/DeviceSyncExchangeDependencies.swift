@@ -21,6 +21,8 @@ struct DeviceSyncExchangeDependencies {
     let contactsStorageService: ContactsLocalStorageServicing
     let storageFacade: StorageFacadeProtocol
     let updateIdProvider: DeviceSyncUpdateIdProviding
+    let chatStateCollector: DeviceSyncChatStateCollecting
+    let chatStateApplier: DeviceSyncChatStateApplying
     /// `nil` keeps the `device-sync-file` use case off for this exchange.
     var fileTransferFactory: (any DeviceSyncFileTransferMaking)?
 }
@@ -36,6 +38,7 @@ extension DeviceSyncExchangeDependencies {
             chatRepositoryFactory: chatRepositoryFactory,
             messageRepositoryFactory: messageRepositoryFactory,
             removedChatRepositoryFactory: removedChatRepositoryFactory,
+            chatStateApplier: chatStateApplier,
             flow: flow,
             contactsStorageService: contactsStorageService,
             storageFacade: storageFacade,
@@ -49,6 +52,7 @@ extension DeviceSyncExchangeDependencies {
             contactRepositoryFactory: contactRepositoryFactory,
             messageRepositoryFactory: messageRepositoryFactory,
             removedChatRepositoryFactory: removedChatRepositoryFactory,
+            chatStateCollector: chatStateCollector,
             ownSignKeyIds: ownSignKeyIds
         )
     }

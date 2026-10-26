@@ -37,6 +37,7 @@ extension NewOutgoingChatRequestMapper: CoreDataMapperProtocol {
         entity.timestamp = Int64(bitPattern: model.message.timestamp)
         entity.contactId = model.remoteContact.accountId.toHex()
         entity.status = Chat.RequestStatus.outgoing.rawValue
+        entity.markModified()
 
         let contact = try setupContact(model: model, context: context)
 

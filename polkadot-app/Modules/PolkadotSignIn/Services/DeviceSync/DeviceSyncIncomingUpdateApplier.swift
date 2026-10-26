@@ -10,6 +10,7 @@ final class DeviceSyncIncomingUpdateApplier {
     private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
     private let chatAcceptedApplier: DeviceSyncChatAcceptedApplier
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
+    private let chatStateApplier: DeviceSyncChatStateApplying
     private let flow: any DeviceSyncPeerConnectionFlowing
     private let peerLogger: LoggerProtocol
 
@@ -19,6 +20,7 @@ final class DeviceSyncIncomingUpdateApplier {
         chatRepositoryFactory: ChatRepositoryMaking,
         messageRepositoryFactory: ChatMessageRepositoryMaking,
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
+        chatStateApplier: DeviceSyncChatStateApplying,
         flow: any DeviceSyncPeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
@@ -29,6 +31,7 @@ final class DeviceSyncIncomingUpdateApplier {
         self.chatRepositoryFactory = chatRepositoryFactory
         self.messageRepositoryFactory = messageRepositoryFactory
         self.removedChatRepositoryFactory = removedChatRepositoryFactory
+        self.chatStateApplier = chatStateApplier
         self.flow = flow
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
@@ -81,8 +84,9 @@ private extension DeviceSyncIncomingUpdateApplier {
                  .incomingRequestsAdded,
                  .incomingRequestsStatusUpdated,
                  .outgoingRequestsAdded,
-                 .outgoingRequestsStatusUpdated,
-                 .coinsHandedOff,
+                 .outgoingRequestsStatusUpdated:
+                try await applyChatState(entity)
+            case .coinsHandedOff,
                  .coinageMessagesStatusUpdated:
                 peerLogger.debug("Ignoring \([entity].syncLogSummary) from sync: not applied yet")
             }
@@ -91,6 +95,23 @@ private extension DeviceSyncIncomingUpdateApplier {
                 "Skipping failed entity in sync update id=\(updateId) " +
                     "entity=\([entity].syncLogSummary): \(error)"
             )
+        }
+    }
+
+    func applyChatState(_ entity: Chat.DeviceSyncEntity) async throws {
+        switch entity {
+        case let .chatsBlocked(states):
+            try await chatStateApplier.applyBlockStates(states)
+        case let .incomingRequestsAdded(requests):
+            try await chatStateApplier.applyIncomingRequests(requests)
+        case let .incomingRequestsStatusUpdated(updates):
+            try await chatStateApplier.applyIncomingStatusUpdates(updates)
+        case let .outgoingRequestsAdded(requests):
+            try await chatStateApplier.applyOutgoingRequests(requests)
+        case let .outgoingRequestsStatusUpdated(updates):
+            try await chatStateApplier.applyOutgoingStatusUpdates(updates)
+        default:
+            break
         }
     }
 
