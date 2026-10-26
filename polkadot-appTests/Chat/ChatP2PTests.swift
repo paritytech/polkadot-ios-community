@@ -102,7 +102,8 @@ private extension ChatP2PTests {
             signManager: signManager,
             encryptionManager: encryptionManager,
             deviceEncryptionKeyFactory: nil,
-            maxStatementSize: 1_024
+            maxStatementSize: 1_024,
+            accountProvider: SignerSessionAccountProvider(signerManager: signManager)
         ).makeService(
             statementStoreConnection: statementStore,
             statementSignerResolver: IdentitySignerResolver(signManager: signManager),

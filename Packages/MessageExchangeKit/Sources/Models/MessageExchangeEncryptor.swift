@@ -9,25 +9,27 @@ public protocol MessageExchangeEncrypting {
 }
 
 public final class ChaChaPolyEncryptor {
-    private let internalSharedSecret: SharedSecret
+    public let sharedSecret: Data
     private let internalSymmetricKey: SymmetricKey
 
-    public init(sharedSecret: SharedSecret) {
-        internalSharedSecret = sharedSecret
-        internalSymmetricKey = sharedSecret.hkdfDerivedSymmetricKey(
-            using: SHA256.self,
+    public convenience init(sharedSecret: SharedSecret) {
+        self.init(presharedKey: sharedSecret.withUnsafeBytes { Data($0) })
+    }
+
+    /// For sessions keyed by a secret both sides already hold instead of an X25519 agreement. The cipher key is
+    /// derived with the same HKDF as for an agreed `SharedSecret`.
+    public init(presharedKey: Data) {
+        sharedSecret = presharedKey
+        internalSymmetricKey = HKDF<SHA256>.deriveKey(
+            inputKeyMaterial: SymmetricKey(data: presharedKey),
             salt: Data(),
-            sharedInfo: Data(),
+            info: Data(),
             outputByteCount: 32
         )
     }
 }
 
 extension ChaChaPolyEncryptor: MessageExchangeEncrypting {
-    public var sharedSecret: Data {
-        internalSharedSecret.withUnsafeBytes { Data($0) }
-    }
-
     public func encrypt(_ message: Data) throws -> Data {
         try ChaChaPoly.seal(message, using: internalSymmetricKey).combined // nonce = 12, tag = 16
     }

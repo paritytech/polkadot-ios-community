@@ -72,6 +72,7 @@ final class ServiceCoordinator {
     let durabilityRenewal: StatementDurabilityRenewing
     let turnService: TURNCredentialsProviding
     let deviceSyncService: DeviceSyncServicing
+    let activeInstallationService: ActiveInstallationServicing
     let networkStatusService: NetworkStatusProviding
     let chainStatusProvider: ChainStatusProviding
     let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
@@ -117,6 +118,7 @@ final class ServiceCoordinator {
         paymentsSupport: PaymentsSupport,
         turnService: TURNCredentialsProviding,
         deviceSyncService: DeviceSyncServicing,
+        activeInstallationService: ActiveInstallationServicing,
         networkStatusService: NetworkStatusProviding,
         chainStatusProvider: ChainStatusProviding,
         truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
@@ -148,6 +150,7 @@ final class ServiceCoordinator {
         self.statementRenewalLoop = statementRenewalLoop
         self.durabilityRenewal = durabilityRenewal
         self.deviceSyncService = deviceSyncService
+        self.activeInstallationService = activeInstallationService
         self.networkStatusService = networkStatusService
         self.chainStatusProvider = chainStatusProvider
         self.truapiRuntimeProvider = truapiRuntimeProvider
@@ -400,6 +403,7 @@ extension ServiceCoordinator {
             paymentsSupport: paymentsSupport,
             turnService: turnService,
             deviceSyncService: deviceSyncService,
+            activeInstallationService: createActiveInstallationService(logger: logger),
             networkStatusService: networkStatusService,
             chainStatusProvider: chainStatusProvider,
             truapiRuntimeProvider: truapiRuntimeProvider,
