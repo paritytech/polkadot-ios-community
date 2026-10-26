@@ -14,7 +14,7 @@ extension Chat {
         case incomingRequestsStatusUpdated([DeviceSyncIncomingRequestStatusUpdate])
         case outgoingRequestsAdded([DeviceSyncOutgoingChatRequest])
         case outgoingRequestsStatusUpdated([DeviceSyncOutgoingRequestStatusUpdate])
-        case coinsHandedOff([DeviceSyncCoinKey])
+        case coinsHandedOff([DeviceSyncHandedOffCoin])
         case coinageMessagesStatusUpdated([DeviceSyncCoinageMessageStatusUpdate])
 
         var logLabel: String {
@@ -80,7 +80,7 @@ extension Chat.DeviceSyncEntity: ScaleCodable {
                 [Chat.DeviceSyncOutgoingRequestStatusUpdate](scaleDecoder: scaleDecoder)
             )
         case 9:
-            self = try .coinsHandedOff([Chat.DeviceSyncCoinKey](scaleDecoder: scaleDecoder))
+            self = try .coinsHandedOff([Chat.DeviceSyncHandedOffCoin](scaleDecoder: scaleDecoder))
         case 10:
             self = try .coinageMessagesStatusUpdated(
                 [Chat.DeviceSyncCoinageMessageStatusUpdate](scaleDecoder: scaleDecoder)

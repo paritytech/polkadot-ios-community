@@ -48,6 +48,8 @@ extension DeviceSyncExchangeTests {
                 updateIdProvider: MockDeviceSyncUpdateIdProvider(),
                 chatStateCollector: EmptyChatStateCollector(),
                 chatStateApplier: EmptyChatStateApplier(),
+                coinageStateCollector: EmptyCoinageStateCollector(),
+                coinageStateApplier: EmptyCoinageStateApplier(),
                 fileTransferFactory: fileTransferFactory
             ),
             peerLogger: MockLogger(),
@@ -89,4 +91,13 @@ private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
     func applyIncomingStatusUpdates(_: [Chat.DeviceSyncIncomingRequestStatusUpdate]) async throws {}
     func applyOutgoingRequests(_: [Chat.DeviceSyncOutgoingChatRequest]) async throws {}
     func applyOutgoingStatusUpdates(_: [Chat.DeviceSyncOutgoingRequestStatusUpdate]) async throws {}
+}
+
+private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
+    func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+}
+
+private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
+    func applyHandedOffCoins(_: [Chat.DeviceSyncHandedOffCoin]) async throws {}
+    func applyClaimStatuses(_: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws {}
 }
