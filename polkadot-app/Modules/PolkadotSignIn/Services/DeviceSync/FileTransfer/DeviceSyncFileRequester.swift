@@ -14,11 +14,29 @@ enum DeviceSyncFileRequestOutcome: Equatable {
     case interrupted
 }
 
+typealias DeviceSyncFileBytesHandler = @Sendable (UInt64) -> Void
+
 protocol DeviceSyncFileRequesting: Sendable {
-    /// Returns one outcome per item, in the same order.
-    func request(_ items: [DeviceSyncFileRequestItem]) async -> [DeviceSyncFileRequestOutcome]
+    /// Returns one outcome per item, in the same order. `onBytes` gets each increment of stored bytes, including
+    /// what an earlier attempt already stored when its header arrives.
+    func request(
+        _ items: [DeviceSyncFileRequestItem],
+        onBytes: @escaping DeviceSyncFileBytesHandler
+    ) async -> [DeviceSyncFileRequestOutcome]
+
+    /// Returns one entry per file, in the same order; no answer within the timeout counts as `notStored`.
+    func requestAvailability(
+        _ files: [Chat.DeviceSyncFileMessage.FileReference]
+    ) async -> [Chat.DeviceSyncFileMessage.Availability]
+
     func handle(_ message: Chat.DeviceSyncFileMessage) async
     func close() async
+}
+
+extension DeviceSyncFileRequesting {
+    func request(_ items: [DeviceSyncFileRequestItem]) async -> [DeviceSyncFileRequestOutcome] {
+        await request(items, onBytes: { _ in })
+    }
 }
 
 /// Requests files from the sibling on one data channel; request ids are unique for the channel's lifetime.
@@ -33,6 +51,7 @@ actor DeviceSyncFileRequester {
 
     private var nextRequestId: UInt32 = 0
     private var inFlight: [UInt32: InFlightRequest] = [:]
+    private var inFlightAvailability: [UInt32: InFlightAvailability] = [:]
     private var isClosed = false
 
     init(
@@ -51,7 +70,10 @@ actor DeviceSyncFileRequester {
 }
 
 extension DeviceSyncFileRequester: DeviceSyncFileRequesting {
-    func request(_ items: [DeviceSyncFileRequestItem]) async -> [DeviceSyncFileRequestOutcome] {
+    func request(
+        _ items: [DeviceSyncFileRequestItem],
+        onBytes: @escaping DeviceSyncFileBytesHandler
+    ) async -> [DeviceSyncFileRequestOutcome] {
         guard !isClosed else { return items.map { _ in .interrupted } }
         guard !items.isEmpty else { return [] }
 
@@ -63,10 +85,28 @@ extension DeviceSyncFileRequester: DeviceSyncFileRequesting {
         )
 
         return await withCheckedContinuation { continuation in
-            inFlight[requestId] = InFlightRequest(files: files, continuation: continuation)
+            inFlight[requestId] = InFlightRequest(files: files, onBytes: onBytes, continuation: continuation)
             startNoResponseTimeout(for: requestId)
 
             Task { await send(wireRequest) }
+        }
+    }
+
+    func requestAvailability(
+        _ files: [Chat.DeviceSyncFileMessage.FileReference]
+    ) async -> [Chat.DeviceSyncFileMessage.Availability] {
+        guard !isClosed, !files.isEmpty else { return files.map { _ in .unavailable(.notStored) } }
+
+        let request = Chat.DeviceSyncFileMessage.AvailabilityRequest(requestId: makeRequestId(), files: files)
+
+        return await withCheckedContinuation { continuation in
+            inFlightAvailability[request.requestId] = InFlightAvailability(
+                fileCount: files.count,
+                continuation: continuation,
+                timeoutTask: startAvailabilityTimeout(for: request.requestId)
+            )
+
+            Task { await send(request) }
         }
     }
 
@@ -80,10 +120,11 @@ extension DeviceSyncFileRequester: DeviceSyncFileRequesting {
             resolveFile(unavailable.fileIndex, of: unavailable.requestId, with: .unavailable(unavailable.reason))
         case let .completed(requestId):
             finishRequest(requestId, remaining: .interrupted)
+        case let .availabilityResponse(response):
+            finishAvailability(response.requestId, with: response.availability)
         case .filesRequest,
              .cancelFilesRequest,
-             .availabilityRequest,
-             .availabilityResponse:
+             .availabilityRequest:
             break
         }
     }
@@ -91,6 +132,7 @@ extension DeviceSyncFileRequester: DeviceSyncFileRequesting {
     func close() {
         isClosed = true
         Array(inFlight.keys).forEach { finishRequest($0, remaining: .interrupted) }
+        Array(inFlightAvailability.keys).forEach { finishAvailability($0, with: []) }
     }
 }
 
@@ -107,6 +149,37 @@ private extension DeviceSyncFileRequester {
             logger.error("Sync file request \(request.requestId) send failed: \(error)")
             finishRequest(request.requestId, remaining: .interrupted)
         }
+    }
+
+    func send(_ request: Chat.DeviceSyncFileMessage.AvailabilityRequest) async {
+        do {
+            try await flow.sendFileMessage(.availabilityRequest(request))
+        } catch {
+            logger.error("Sync file availability request \(request.requestId) send failed: \(error)")
+            finishAvailability(request.requestId, with: [])
+        }
+    }
+
+    func startAvailabilityTimeout(for requestId: UInt32) -> Task<Void, Never> {
+        let timeout = noResponseTimeout
+        let sleep = sleep
+
+        return Task { [weak self] in
+            guard await (try? sleep(timeout)) != nil else { return }
+            await self?.finishAvailability(requestId, with: [])
+        }
+    }
+
+    /// Files the response leaves out, or a missing response, count as not stored.
+    func finishAvailability(_ requestId: UInt32, with availability: [Chat.DeviceSyncFileMessage.Availability]) {
+        guard let request = inFlightAvailability.removeValue(forKey: requestId) else { return }
+
+        request.timeoutTask.cancel()
+
+        let complete = (0 ..< request.fileCount).map { index in
+            availability.indices.contains(index) ? availability[index] : .unavailable(.notStored)
+        }
+        request.continuation.resume(returning: complete)
     }
 
     func startNoResponseTimeout(for requestId: UInt32) {
@@ -145,6 +218,7 @@ private extension DeviceSyncFileRequester {
 
         markResponse(for: header.requestId)
         inFlight[header.requestId]?.files[Int(header.fileIndex)].totalSize = header.totalSize
+        inFlight[header.requestId]?.onBytes(file.writer.storedBytes())
 
         if file.writer.storedBytes() >= header.totalSize {
             completeFile(header.fileIndex, of: header.requestId, totalSize: header.totalSize)
@@ -168,6 +242,8 @@ private extension DeviceSyncFileRequester {
             resolveFile(chunk.fileIndex, of: chunk.requestId, with: .sizeMismatch)
             return
         }
+
+        inFlight[chunk.requestId]?.onBytes(UInt64(chunk.data.count))
 
         if file.writer.storedBytes() >= totalSize {
             completeFile(chunk.fileIndex, of: chunk.requestId, totalSize: totalSize)
@@ -222,6 +298,7 @@ private struct InFlightFile {
 
 private struct InFlightRequest {
     var files: [InFlightFile]
+    let onBytes: DeviceSyncFileBytesHandler
     let continuation: CheckedContinuation<[DeviceSyncFileRequestOutcome], Never>
     var timeoutTask: Task<Void, Never>?
     var hasResponse = false
@@ -229,4 +306,10 @@ private struct InFlightRequest {
     func file(at index: UInt32) -> InFlightFile? {
         files.indices.contains(Int(index)) ? files[Int(index)] : nil
     }
+}
+
+private struct InFlightAvailability {
+    let fileCount: Int
+    let continuation: CheckedContinuation<[Chat.DeviceSyncFileMessage.Availability], Never>
+    let timeoutTask: Task<Void, Never>
 }

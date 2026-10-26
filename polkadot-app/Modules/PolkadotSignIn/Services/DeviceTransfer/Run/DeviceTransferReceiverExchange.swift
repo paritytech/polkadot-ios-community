@@ -1,9 +1,9 @@
 import Foundation
 
-struct DeviceTransferProgress: Equatable {
-    /// What the sender counted for its first round; later rounds can push `applied` past it.
-    let total: Int
-    let applied: Int
+enum DeviceTransferProgress: Equatable {
+    /// `total` is what the sender counted for its first round; later rounds can push `applied` past it.
+    case syncing(applied: Int, total: Int)
+    case files(DeviceTransferFileProgress)
 }
 
 struct DeviceTransferReceiverSettings {
@@ -17,12 +17,14 @@ struct DeviceTransferReceiverDependencies {
     let coinageStateApplier: DeviceSyncCoinageStateApplying
     let checkpointStore: DeviceTransferCheckpointStoring
     let deviceKeyManager: DeviceEncryptionKeyManaging
+    let filePuller: DeviceTransferFilePulling
     let logger: LoggerProtocol
 }
 
 /// New phone's side of one transfer connection (RFC §7.2). Updates go straight to the database; only claim
 /// statuses whose message hasn't arrived yet wait in memory. A round's closing update moves the persisted
-/// checkpoint, unless such a claim is still waiting, so a later connection resends it.
+/// checkpoint, unless such a claim is still waiting, so a later connection resends it. After `senderCompleted` it
+/// pulls the missing attachments and only then confirms with `receiverCompleted`.
 struct DeviceTransferReceiverExchange {
     private let flow: any DevicePeerConnectionFlowing
     private let senderInstallationId: Data
@@ -41,7 +43,7 @@ struct DeviceTransferReceiverExchange {
         self.settings = settings
     }
 
-    func run(onProgress: @escaping (DeviceTransferProgress) -> Void) async throws {
+    func run(onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void) async throws {
         var events = await DeviceTransferEventStream(
             flow: flow,
             timeout: settings.responseTimeout,
@@ -60,6 +62,7 @@ struct DeviceTransferReceiverExchange {
 
         while try await !session.handle(events.next()) {}
 
+        try await dependencies.filePuller.pullMissingFiles { onProgress(.files($0)) }
         try await flow.sendTransferControl(.receiverCompleted)
     }
 }
@@ -67,7 +70,7 @@ struct DeviceTransferReceiverExchange {
 private struct DeviceTransferReceiverSession {
     let senderInstallationId: Data
     let dependencies: DeviceTransferReceiverDependencies
-    let onProgress: (DeviceTransferProgress) -> Void
+    let onProgress: @Sendable (DeviceTransferProgress) -> Void
 
     private var total: Int?
     private var applied = 0
@@ -78,7 +81,7 @@ private struct DeviceTransferReceiverSession {
     init(
         senderInstallationId: Data,
         dependencies: DeviceTransferReceiverDependencies,
-        onProgress: @escaping (DeviceTransferProgress) -> Void
+        onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void
     ) {
         self.senderInstallationId = senderInstallationId
         self.dependencies = dependencies
@@ -158,6 +161,6 @@ private extension DeviceTransferReceiverSession {
 
     func reportProgress() {
         guard let total else { return }
-        onProgress(DeviceTransferProgress(total: total, applied: applied))
+        onProgress(.syncing(applied: applied, total: total))
     }
 }

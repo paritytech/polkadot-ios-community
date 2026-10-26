@@ -3,6 +3,8 @@ import Foundation
 struct DeviceTransferSenderSettings {
     var messagePageSize = 200
     var responseTimeout: Duration = .seconds(30)
+    /// The receiver pulls files before confirming, so this wait covers the whole file phase.
+    var completionTimeout: Duration = DeviceTransferConstants.runIdleTimeout
     var entityChunker = DeviceSyncEntityChunker()
     var sleep: DeviceSyncSleep = liveDeviceSyncSleep
 }
@@ -11,6 +13,7 @@ struct DeviceTransferSenderChannel {
     private let flow: any DevicePeerConnectionFlowing
     private let updateIdProvider: DeviceSyncUpdateIdProviding
     private let entityChunker: DeviceSyncEntityChunker
+    private let completionTimeout: Duration
     private var events: DeviceTransferEventStream
 
     init(
@@ -21,6 +24,7 @@ struct DeviceTransferSenderChannel {
         self.flow = flow
         self.updateIdProvider = updateIdProvider
         entityChunker = settings.entityChunker
+        completionTimeout = settings.completionTimeout
         events = await DeviceTransferEventStream(
             flow: flow,
             timeout: settings.responseTimeout,
@@ -40,7 +44,7 @@ struct DeviceTransferSenderChannel {
     }
 
     mutating func waitForReceiverCompleted() async throws {
-        try await events.waitForControl { $0 == .receiverCompleted ? () : nil }
+        try await events.waitForControl(within: completionTimeout) { $0 == .receiverCompleted ? () : nil }
     }
 
     /// Sends the entities as one or more updates and returns once the receiver has acknowledged all of them.
