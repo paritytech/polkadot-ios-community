@@ -4,11 +4,14 @@ import SubstrateSdk
 // MARK: - Model
 
 extension Chat {
-    /// A coin's 32-byte public key, encoded without a length prefix.
-    struct DeviceSyncCoinKey: Equatable {
-        static let length = 32
+    /// A coin this user handed off, given by its derivation so the receiving device can rebuild it from the seed.
+    struct DeviceSyncHandedOffCoin: Equatable {
+        static let installationIdLength = 32
 
-        let publicKey: Data
+        let installationId: Data
+        let derivationIndex: UInt64
+        let exponent: Int16
+        let age: Int16?
     }
 
     enum DeviceSyncCoinageMessageStatus: UInt8, Equatable {
@@ -17,22 +20,30 @@ extension Chat {
         case failed = 2
     }
 
+    /// `claimedValue` is set for a claim, and is below the message total for a partial one.
     struct DeviceSyncCoinageMessageStatusUpdate: Equatable {
         let chatId: DeviceSyncChatId
         let messageId: String
         let status: DeviceSyncCoinageMessageStatus
+        let claimedValue: Balance?
     }
 }
 
 // MARK: - ScaleCodable
 
-extension Chat.DeviceSyncCoinKey: ScaleCodable {
+extension Chat.DeviceSyncHandedOffCoin: ScaleCodable {
     init(scaleDecoder: any ScaleDecoding) throws {
-        publicKey = try scaleDecoder.readAndConfirm(count: Self.length)
+        installationId = try scaleDecoder.readAndConfirm(count: Self.installationIdLength)
+        derivationIndex = try UInt64(scaleDecoder: scaleDecoder)
+        exponent = try Int16(scaleDecoder: scaleDecoder)
+        age = try ScaleOption<Int16>(scaleDecoder: scaleDecoder).value
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
-        scaleEncoder.appendRaw(data: publicKey)
+        scaleEncoder.appendRaw(data: installationId)
+        try derivationIndex.encode(scaleEncoder: scaleEncoder)
+        try exponent.encode(scaleEncoder: scaleEncoder)
+        try ScaleOption(value: age).encode(scaleEncoder: scaleEncoder)
     }
 }
 
@@ -54,11 +65,13 @@ extension Chat.DeviceSyncCoinageMessageStatusUpdate: ScaleCodable {
         chatId = try Chat.DeviceSyncChatId(scaleDecoder: scaleDecoder)
         messageId = try String(scaleDecoder: scaleDecoder)
         status = try Chat.DeviceSyncCoinageMessageStatus(scaleDecoder: scaleDecoder)
+        claimedValue = try ScaleOption<Balance>(scaleDecoder: scaleDecoder).value
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
         try chatId.encode(scaleEncoder: scaleEncoder)
         try messageId.encode(scaleEncoder: scaleEncoder)
         try status.encode(scaleEncoder: scaleEncoder)
+        try ScaleOption(value: claimedValue).encode(scaleEncoder: scaleEncoder)
     }
 }

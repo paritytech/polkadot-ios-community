@@ -237,6 +237,7 @@ private extension CoinageAssetLedgerCoreData {
     func commitHandoff(key: PublicKey, in context: NSManagedObjectContext) throws {
         let coin: CDCoin? = try context.first(for: NSPredicate(format: "publicKey == %@", key.toHex()))
         coin?.handoffMark = CoinHandoffMark.committed.rawValue
+        coin?.handoffCommittedAt = Date()
     }
 
     func releaseUncommittedMarks(in context: NSManagedObjectContext) throws {

@@ -11,6 +11,7 @@ final class DeviceSyncIncomingUpdateApplier {
     private let chatAcceptedApplier: DeviceSyncChatAcceptedApplier
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
     private let chatStateApplier: DeviceSyncChatStateApplying
+    private let coinageStateApplier: DeviceSyncCoinageStateApplying
     private let flow: any DeviceSyncPeerConnectionFlowing
     private let peerLogger: LoggerProtocol
 
@@ -21,6 +22,7 @@ final class DeviceSyncIncomingUpdateApplier {
         messageRepositoryFactory: ChatMessageRepositoryMaking,
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
         chatStateApplier: DeviceSyncChatStateApplying,
+        coinageStateApplier: DeviceSyncCoinageStateApplying,
         flow: any DeviceSyncPeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
@@ -32,6 +34,7 @@ final class DeviceSyncIncomingUpdateApplier {
         self.messageRepositoryFactory = messageRepositoryFactory
         self.removedChatRepositoryFactory = removedChatRepositoryFactory
         self.chatStateApplier = chatStateApplier
+        self.coinageStateApplier = coinageStateApplier
         self.flow = flow
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
@@ -86,9 +89,10 @@ private extension DeviceSyncIncomingUpdateApplier {
                  .outgoingRequestsAdded,
                  .outgoingRequestsStatusUpdated:
                 try await applyChatState(entity)
-            case .coinsHandedOff,
-                 .coinageMessagesStatusUpdated:
-                peerLogger.debug("Ignoring \([entity].syncLogSummary) from sync: not applied yet")
+            case let .coinsHandedOff(coins):
+                try await coinageStateApplier.applyHandedOffCoins(coins)
+            case let .coinageMessagesStatusUpdated(updates):
+                try await coinageStateApplier.applyClaimStatuses(updates)
             }
         } catch {
             peerLogger.error(
