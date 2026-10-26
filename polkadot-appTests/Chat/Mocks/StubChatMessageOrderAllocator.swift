@@ -8,4 +8,6 @@ struct StubChatMessageOrderAllocator: ChatMessageOrderAllocating {
     func nextOrder(floor _: () throws -> UInt64) -> UInt64 {
         value
     }
+
+    func raiseOrder(atLeast _: UInt64) {}
 }

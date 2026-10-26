@@ -65,6 +65,33 @@ struct DeviceSyncCoinageStateTests {
         ))
     }
 
+    @Test("A claim that arrives before its message is held back and applies once the message is stored")
+    func claimBeforeItsMessageIsHeldBack() async throws {
+        let message = try await sender.saveTransfer(.incoming, totalValue: 6)
+        try await sender.store.updateIncoming(
+            messageId: message.messageId,
+            state: IncomingTransferState(status: .failed)
+        )
+        let entities = try await DeviceSyncCoinageStateCollector(databaseService: sender.facade.databaseService)
+            .collect(after: nil)
+        let applier = makeApplier()
+        guard case let .coinageMessagesStatusUpdated(updates)? = entities.last else {
+            Issue.record("Expected claim statuses, got \(entities.map(\.logLabel))")
+            return
+        }
+
+        let waiting = try await applier.applyClaimStatuses(updates)
+        try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
+            .createRepository(forFilter: nil)
+            .saveOperation({ [message] }, { [] })
+            .asyncExecute()
+        let stillWaiting = try await applier.applyClaimStatuses(waiting)
+
+        #expect(waiting.map(\.messageId) == [message.messageId])
+        #expect(stillWaiting.isEmpty)
+        #expect(try await claimableMessageIds().isEmpty)
+    }
+
     @Test("Hand-offs and claims after the checkpoint travel incrementally")
     func incrementalChangesAfterCheckpoint() async throws {
         try await save(makeCoin(item: 1, handoffMark: .committed), in: sender.facade)
@@ -107,12 +134,7 @@ private extension DeviceSyncCoinageStateTests {
     func transfer(after cutoff: Date?) async throws {
         let entities = try await DeviceSyncCoinageStateCollector(databaseService: sender.facade.databaseService)
             .collect(after: cutoff)
-        let applier = DeviceSyncCoinageStateApplier(
-            databaseService: receiver.facade.databaseService,
-            coinKeyDeriver: keyDeriver,
-            transferStateStore: receiver.store,
-            logger: MockLogger()
-        )
+        let applier = makeApplier()
 
         for entity in entities {
             switch entity {
@@ -121,6 +143,15 @@ private extension DeviceSyncCoinageStateTests {
             default: Issue.record("Unexpected entity \(entity.logLabel)")
             }
         }
+    }
+
+    func makeApplier() -> DeviceSyncCoinageStateApplier {
+        DeviceSyncCoinageStateApplier(
+            databaseService: receiver.facade.databaseService,
+            coinKeyDeriver: keyDeriver,
+            transferStateStore: receiver.store,
+            logger: MockLogger()
+        )
     }
 
     func makeCoin(item: DerivationIndex, handoffMark: CoinHandoffMark) throws -> Coin {
