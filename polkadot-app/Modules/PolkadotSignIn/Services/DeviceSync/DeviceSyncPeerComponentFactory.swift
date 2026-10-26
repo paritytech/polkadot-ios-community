@@ -10,10 +10,10 @@ protocol DeviceSyncPeerComponentMaking: Sendable {
 
     func makeConnectionFlow(
         session: DeviceSyncSignalingSession
-    ) -> any DeviceSyncPeerConnectionFlowing
+    ) -> any DevicePeerConnectionFlowing
 
     func makeExchange(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         failureHandler: @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
     ) async throws -> any DeviceSyncExchanging
 }
@@ -23,9 +23,9 @@ final class DeviceSyncPeerComponentFactory: DeviceSyncPeerComponentMaking, Senda
         AnyPeerSessionDelegate<Data>,
         @escaping @Sendable (String) async throws -> Void
     ) async throws -> DeviceSyncSignalingSession
-    typealias FlowFactory = @Sendable (DeviceSyncSignalingSession) -> any DeviceSyncPeerConnectionFlowing
+    typealias FlowFactory = @Sendable (DeviceSyncSignalingSession) -> any DevicePeerConnectionFlowing
     typealias ExchangeFactory = @Sendable (
-        any DeviceSyncPeerConnectionFlowing,
+        any DevicePeerConnectionFlowing,
         @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
     ) async throws -> any DeviceSyncExchanging
 
@@ -52,12 +52,12 @@ final class DeviceSyncPeerComponentFactory: DeviceSyncPeerComponentMaking, Senda
 
     func makeConnectionFlow(
         session: DeviceSyncSignalingSession
-    ) -> any DeviceSyncPeerConnectionFlowing {
+    ) -> any DevicePeerConnectionFlowing {
         flowFactory(session)
     }
 
     func makeExchange(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         failureHandler: @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
     ) async throws -> any DeviceSyncExchanging {
         try await exchangeFactory(flow, failureHandler)

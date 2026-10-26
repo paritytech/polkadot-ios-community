@@ -25,7 +25,7 @@ protocol DeviceSyncFileRequesting: Sendable {
 actor DeviceSyncFileRequester {
     static let defaultNoResponseTimeout: Duration = .seconds(30)
 
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let downloadsStore: AttachmentStoring
     private let noResponseTimeout: Duration
     private let sleep: DeviceSyncSleep
@@ -36,7 +36,7 @@ actor DeviceSyncFileRequester {
     private var isClosed = false
 
     init(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         downloadsStore: AttachmentStoring,
         noResponseTimeout: Duration = DeviceSyncFileRequester.defaultNoResponseTimeout,
         sleep: @escaping DeviceSyncSleep = liveDeviceSyncSleep,

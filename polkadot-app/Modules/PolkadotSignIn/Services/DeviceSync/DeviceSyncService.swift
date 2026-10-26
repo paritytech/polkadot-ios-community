@@ -255,7 +255,7 @@ private extension DeviceSyncService {
                 )
             },
             flowFactory: { session in
-                DeviceSyncPeerConnectionFlow(
+                DevicePeerConnectionFlow(
                     signaler: session,
                     role: role,
                     configFactory: configFactory,
@@ -289,7 +289,7 @@ private extension DeviceSyncService {
 
     func makeExchange(
         for device: Chat.LocalDevice,
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         peerLogger: LoggerProtocol,
         failureHandler: @escaping @Sendable (DeviceSyncConnectionFailure) async -> Void
     ) -> DeviceSyncExchange {

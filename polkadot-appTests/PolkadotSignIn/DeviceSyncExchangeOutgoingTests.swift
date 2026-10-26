@@ -25,7 +25,7 @@ extension DeviceSyncExchangeTests {
             )
         ])
 
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
 
         let session = makeSession(
             peerAccountId: peerAccountId,
@@ -72,7 +72,7 @@ extension DeviceSyncExchangeTests {
                 outgoingUpdateTime: nil
             )
         ])
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let failureRecorder = DeviceSyncFailureRecorder()
         let sleeper = ManualDeviceSyncSleeper()
 
@@ -120,7 +120,7 @@ extension DeviceSyncExchangeTests {
         let deviceRepositoryFactory = MockLocalDeviceRepositoryFactory()
         try await deviceRepositoryFactory.save(devices)
 
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(
+        let dataChannel = MockDevicePeerConnectionFlow(
             startResult: .success(()),
             suspendUpdateAtIndex: 1
         )
@@ -177,7 +177,7 @@ extension DeviceSyncExchangeTests {
                 outgoingUpdateTime: nil
             )
         ])
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(
+        let dataChannel = MockDevicePeerConnectionFlow(
             startResult: .success(()),
             sendUpdateResult: .failure(MockDeviceSyncError.sendUpdateFailed)
         )

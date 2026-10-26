@@ -10,7 +10,7 @@ import SubstrateSdk
 extension DeviceSyncExchangeTests {
     func makeSession(
         peerAccountId: Data,
-        flow: MockDeviceSyncPeerConnectionFlow,
+        flow: MockDevicePeerConnectionFlow,
         failureRecorder: DeviceSyncFailureRecorder? = nil,
         remoteContactResolver: RemoteContactResolving = MockRemoteContactResolver(result: .success(nil)),
         deviceRepositoryFactory: LocalDeviceRepositoryMaking = MockLocalDeviceRepositoryFactory(),

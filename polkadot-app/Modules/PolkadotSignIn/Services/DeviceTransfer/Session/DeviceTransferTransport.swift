@@ -19,16 +19,14 @@ struct DeviceTransferSessionContext {
 }
 
 /// The per-request transfer session: labels stand in for both accounts, `k_s` encrypts, and statements are
-/// short-lived. It wraps outgoing signaling envelopes in `DeviceTransferSessionMessage`, so
-/// `DeviceSyncSignalingSession` and the device sync delegate work over it unchanged.
+/// short-lived. It wraps outgoing signaling envelopes in `DeviceTransferSessionMessage`, and its session
+/// delegate unwraps them, so `DeviceSyncSignalingSession` works over it unchanged.
 final class DeviceTransferTransport: @unchecked Sendable {
     let rejections: AsyncStream<Void>
 
     private let transport: DeviceSyncMessageTransport
     private let rejectionContinuation: AsyncStream<Void>.Continuation
     private let logger: LoggerProtocol
-    private let lock = NSLock()
-    private var sessionDelegate: DeviceTransferSessionDelegate?
 
     init(context: DeviceTransferSessionContext, logger: LoggerProtocol) throws {
         let (ownLabel, peerLabel) = Self.labels(for: context)
@@ -67,19 +65,27 @@ final class DeviceTransferTransport: @unchecked Sendable {
     func sendRejection() async {
         await send(wrapped: [.rejected])
     }
+
+    /// The delegate to open this transport with: it passes signaling envelopes on and turns `rejected` into
+    /// `rejections`.
+    func makeSessionDelegate() -> DeviceSyncPeerSessionDelegate {
+        let continuation = rejectionContinuation
+
+        return DeviceSyncPeerSessionDelegate(peerLogger: logger) { data in
+            switch try DeviceTransferSessionMessage.fromScaleEncoded(data) {
+            case .rejected:
+                continuation.yield()
+                return nil
+            case let .signaling(envelope):
+                return envelope
+            }
+        }
+    }
 }
 
 extension DeviceTransferTransport: DeviceSyncMessageTransporting {
     func open(delegate: AnyPeerSessionDelegate<Data>) async throws {
-        let continuation = rejectionContinuation
-        let sessionDelegate = DeviceTransferSessionDelegate(
-            target: delegate,
-            onRejected: { continuation.yield() },
-            logger: logger
-        )
-        lock.withLock { self.sessionDelegate = sessionDelegate }
-
-        try await transport.open(delegate: AnyPeerSessionDelegate(sessionDelegate))
+        try await transport.open(delegate: delegate)
     }
 
     func close() async {
