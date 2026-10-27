@@ -46,6 +46,25 @@ struct SeenWatermarkProcessorTests {
 
         #expect(try await fixture.messageCount() == 1)
     }
+
+    @Test func blockedContactReceiptIsIgnored() async throws {
+        try await fixture.seedChat(isBlocked: true)
+        try await insertOutgoing(id: "sent", order: 4)
+        let processor = makeProcessor()
+        let blockedContact = fixture.makePeer(isBlocked: true)
+
+        let watermarks = processor.receivedWatermarks(from: [receipt("sent")], contact: blockedContact)
+        try await processor.apply(watermarks, from: fixture.peerAccountId)
+
+        #expect(watermarks.isEmpty)
+        #expect(try await fixture.peerSeenOrder() == 0)
+    }
+
+    @Test func acceptedContactReceiptIsExtracted() async throws {
+        let watermarks = makeProcessor().receivedWatermarks(from: [receipt("sent")], contact: fixture.makePeer())
+
+        #expect(watermarks.map(\.messageId) == ["sent"])
+    }
 }
 
 private extension SeenWatermarkProcessorTests {
@@ -62,5 +81,9 @@ private extension SeenWatermarkProcessorTests {
 
     func watermark(_ messageId: Chat.MessageId) -> ChatRemoteMessageContent.SeenWatermarkContent {
         .init(messageId: messageId, timestamp: 1_000)
+    }
+
+    func receipt(_ messageId: Chat.MessageId) -> Chat.RemoteMessage {
+        Chat.RemoteMessage.newMessage(with: ChatRemoteMessageContent.seen(watermark(messageId)))
     }
 }

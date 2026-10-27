@@ -107,6 +107,32 @@ struct SeenWatermarkServiceTests {
         #expect(sender.sent.isEmpty)
     }
 
+    @Test func pendingChatRequestSendsNothing() async throws {
+        let request = Chat.Request(
+            requestId: "request",
+            contactAccountId: fixture.peerAccountId,
+            timestamp: 1,
+            status: .outgoing,
+            message: nil
+        )
+        try await fixture.seedChat(pendingRequest: request)
+        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+
+        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+
+        #expect(try await fixture.hasPendingRequest())
+        #expect(sender.sent.isEmpty)
+    }
+
+    @Test func blockedContactSendsNothing() async throws {
+        try await fixture.seedChat(isBlocked: true)
+        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+
+        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+
+        #expect(sender.sent.isEmpty)
+    }
+
     @Test func watermarkEqualToLastSentMarkDoesNotSend() async throws {
         try await fixture.seedChat()
         try await insertMessage(id: "watermark", status: .incoming(.seen), order: 2, timestamp: 20)

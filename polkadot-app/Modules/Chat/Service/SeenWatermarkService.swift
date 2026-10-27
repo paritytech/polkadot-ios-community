@@ -82,6 +82,12 @@ private extension SeenWatermarkService {
         in chatId: Chat.Id,
         context: NSManagedObjectContext
     ) throws -> SeenWatermarkState? {
+        let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
+
+        guard let contact = chat?.contact, contact.chatRequest == nil, !contact.isBlocked else {
+            return nil
+        }
+
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSPredicate.seenWatermarkCandidates(in: chatId)
         request.sortDescriptors = [
@@ -93,8 +99,6 @@ private extension SeenWatermarkService {
         guard let watermark = try context.fetch(request).first, let messageId = watermark.messageId else {
             return nil
         }
-
-        let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
 
         return SeenWatermarkState(
             messageId: messageId,

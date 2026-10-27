@@ -19,7 +19,7 @@ final class SeenWatermarkProcessor {
 
 extension SeenWatermarkProcessor: IncomingMessageProcessing {
     func process(messages: [Chat.RemoteMessage], from contact: Chat.Contact) {
-        let watermarks = extractWatermarks(from: messages)
+        let watermarks = receivedWatermarks(from: messages, contact: contact)
 
         guard !watermarks.isEmpty else {
             return
@@ -32,6 +32,21 @@ extension SeenWatermarkProcessor: IncomingMessageProcessing {
                 self?.logger.warning("Failed to apply seen watermark: \(error)")
             }
         }
+    }
+}
+
+// MARK: - Receive
+
+extension SeenWatermarkProcessor {
+    func receivedWatermarks(
+        from messages: [Chat.RemoteMessage],
+        contact: Chat.Contact
+    ) -> [ChatRemoteMessageContent.SeenWatermarkContent] {
+        guard !contact.isBlocked else {
+            return []
+        }
+
+        return extractWatermarks(from: messages)
     }
 }
 
