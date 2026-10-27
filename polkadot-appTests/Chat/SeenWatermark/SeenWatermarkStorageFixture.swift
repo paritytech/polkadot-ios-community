@@ -61,6 +61,21 @@ struct SeenWatermarkStorageFixture {
         }
     }
 
+    func lastSentSeenMark() async throws -> (order: Int64, timestamp: Int64) {
+        try await facade.databaseService.performRead { [chatId] context in
+            let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
+            return (chat?.lastSentSeenOrder ?? 0, chat?.lastSentSeenTimestamp ?? 0)
+        }
+    }
+
+    func seedLastSentSeen(order: Int64, timestamp: Int64) async throws {
+        try await facade.databaseService.performWrite { [chatId] context in
+            let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
+            chat?.lastSentSeenOrder = order
+            chat?.lastSentSeenTimestamp = timestamp
+        }
+    }
+
     func messageCount() async throws -> Int {
         try await facade.databaseService.performRead { context in
             try context.count(for: CDChatMessage.fetchRequest())

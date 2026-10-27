@@ -54,6 +54,7 @@ final class ChatOutboxService {
     private let contactsStorageService: ContactsLocalStorageServicing
     private let apnsClientService: APNSClientServicing
     private let notifiedMessageIdRepository: AnyDataProviderRepository<Chat.NotifiedMessageId>
+    private let seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording
 
     private let workQueue: DispatchQueue
     private let operationQueue: OperationQueue
@@ -75,6 +76,7 @@ final class ChatOutboxService {
         apnsClientService: APNSClientServicing,
         notifiedMessageIdRepository: AnyDataProviderRepository<Chat.NotifiedMessageId>,
         chatMessageDataProviderFactory: ChatMessageDataProviderMaking,
+        seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording,
         workQueue: DispatchQueue,
         operationQueue: OperationQueue,
         logger: LoggerProtocol
@@ -83,6 +85,7 @@ final class ChatOutboxService {
         self.contactsStorageService = contactsStorageService
         self.apnsClientService = apnsClientService
         self.notifiedMessageIdRepository = notifiedMessageIdRepository
+        self.seenWatermarkDeliveryRecorder = seenWatermarkDeliveryRecorder
         self.workQueue = workQueue
         self.operationQueue = operationQueue
         self.chatMessageDataProviderFactory = chatMessageDataProviderFactory
@@ -177,6 +180,7 @@ extension ChatOutboxService: ChatOutboxServicing {
 
             markDeliveredMessages(messages)
             handleDeliveredCallMessages(messages, to: contact)
+            recordDeliveredSeenWatermarks(messages, to: contact)
         }
     }
 
@@ -453,6 +457,28 @@ private extension ChatOutboxService {
 
             for message in callMessages {
                 await callCoordinator.handleDeliveredCall(in: message, to: callPeer)
+            }
+        }
+    }
+
+    func recordDeliveredSeenWatermarks(_ messages: [Chat.RemoteMessage], to contact: Chat.Contact) {
+        let watermarks = messages.compactMap { message -> ChatRemoteMessageContent.SeenWatermarkContent? in
+            guard case let .seen(watermark) = message.versioned.ensureV1()?.content else {
+                return nil
+            }
+
+            return watermark
+        }
+
+        guard !watermarks.isEmpty else {
+            return
+        }
+
+        Task { [seenWatermarkDeliveryRecorder, logger] in
+            do {
+                try await seenWatermarkDeliveryRecorder.recordDelivered(watermarks, to: contact.accountId)
+            } catch {
+                logger.error("Failed to record delivered seen watermark: \(error)")
             }
         }
     }

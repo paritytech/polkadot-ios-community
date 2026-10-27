@@ -154,6 +154,8 @@ extension ChatEngine: ChatEngineProtocol {
                 await processingContext.flushChatExtensionHistory()
             })
 
+        seenWatermarkService.scheduleWatermark(for: chatId)
+
         return await combineLatest(
             messageSequence,
             processingContext.messageOverridesSequence
@@ -181,11 +183,7 @@ extension ChatEngine: ChatEngineProtocol {
 
         try await messageStatusUpdateRepository.saveOperation({ updates }, { [] }).asyncExecute()
 
-        do {
-            try await seenWatermarkService.sendWatermark(for: chatId)
-        } catch {
-            logger.error("Failed to send seen watermark: \(error)")
-        }
+        seenWatermarkService.scheduleWatermark(for: chatId)
     }
 
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?> {

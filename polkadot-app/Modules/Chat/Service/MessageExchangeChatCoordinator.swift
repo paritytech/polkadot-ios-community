@@ -81,6 +81,7 @@ final class MessageExchangeChatCoordinator {
             ),
             notifiedMessageIdRepository: NotifiedMessageIdRepositoryFactory().createRepository(),
             chatMessageDataProviderFactory: ChatMessageDataProviderFactory(),
+            seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecorder(),
             workQueue: workQueue,
             operationQueue: operationQueue,
             logger: logger
