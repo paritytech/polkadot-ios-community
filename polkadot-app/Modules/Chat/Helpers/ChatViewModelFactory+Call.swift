@@ -8,6 +8,7 @@ extension ChatViewModelFactory {
         for payload: Chat.LocalMessage.Content.CallSignalingPayload,
         message: Chat.LocalMessage,
         status: Chat.LocalMessage.Status,
+        isSeenByPeer: Bool,
         deliveryDate: Date?,
         actions: ChatViewModelActions
     ) -> [IdentifiableAnyContentConfiguration<ChatViewLayout.ItemIdentifierType>] {
@@ -18,6 +19,7 @@ extension ChatViewModelFactory {
                     messageId: message.messageId,
                     offer: offerContent,
                     status: status,
+                    isSeenByPeer: isSeenByPeer,
                     callState: message.resolveCallState() ?? .calling,
                     deliveryDate: deliveryDate,
                     actions: actions
@@ -37,6 +39,7 @@ private extension ChatViewModelFactory {
         messageId: String,
         offer: Chat.RemoteMessageContentV1.MessageContent.DataChannelOfferContent,
         status: Chat.LocalMessage.Status,
+        isSeenByPeer: Bool,
         callState: Chat.CallState,
         deliveryDate: Date?,
         actions: ChatViewModelActions
@@ -91,7 +94,7 @@ private extension ChatViewModelFactory {
                     statusConfiguration: .outbox(
                         date: deliveryDate,
                         formatter: timeFormatter,
-                        status: outgoingStatus.configurationStatus()
+                        status: outgoingStatus.configurationStatus(isSeenByPeer: isSeenByPeer)
                     ),
                     onTap: onTap
                 )

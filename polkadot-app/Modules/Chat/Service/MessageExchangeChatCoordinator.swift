@@ -95,6 +95,7 @@ final class MessageExchangeChatCoordinator {
             logger: logger
         )
         processors.append(deviceUpdateProcessor)
+        processors.append(SeenWatermarkProcessor(logger: logger))
 
         inboxService = ChatInboxService(
             incomingMessageProcessor: CompoundIncomingMessageProcessor(

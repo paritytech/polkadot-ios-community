@@ -302,4 +302,16 @@ extension NSPredicate {
             compactionIds
         )
     }
+
+    static func seenWatermarkCandidates(in chatId: Chat.Id) -> NSPredicate {
+        let displayableContentTypes = Chat.LocalMessage.Content.ContentType.allCases
+            .filter { $0.isIndependentMessageInChat && $0 != .chatAccepted }
+            .map { Int16($0.rawValue) }
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [
+            localMessages(from: chatId),
+            byStatus(Chat.LocalMessage.Status.incoming(.seen)),
+            NSPredicate(format: "%K IN %@", #keyPath(CDChatMessage.contentType), displayableContentTypes)
+        ])
+    }
 }

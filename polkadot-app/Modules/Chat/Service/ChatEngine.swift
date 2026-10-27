@@ -38,6 +38,7 @@ final class ChatEngine {
     let chatRequestContext: ChatRequestEngineContext
     let leaveChatService: LeaveChatServicing
     let blockUserService: BlockUserServicing
+    let seenWatermarkService: SeenWatermarkSending
     let logger: LoggerProtocol
 
     init(
@@ -50,6 +51,7 @@ final class ChatEngine {
         settings: SettingsManagerProtocol & ChatExtensionBotSettings,
         leaveChatService: LeaveChatServicing,
         blockUserService: BlockUserServicing,
+        seenWatermarkService: SeenWatermarkSending,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.chatId = chatId
@@ -59,6 +61,7 @@ final class ChatEngine {
         self.settings = settings
         self.leaveChatService = leaveChatService
         self.blockUserService = blockUserService
+        self.seenWatermarkService = seenWatermarkService
         self.chatProvider = chatProvider
         self.logger = logger
 
@@ -177,6 +180,12 @@ extension ChatEngine: ChatEngineProtocol {
         }
 
         try await messageStatusUpdateRepository.saveOperation({ updates }, { [] }).asyncExecute()
+
+        do {
+            try await seenWatermarkService.sendWatermark(for: chatId)
+        } catch {
+            logger.error("Failed to send seen watermark: \(error)")
+        }
     }
 
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?> {

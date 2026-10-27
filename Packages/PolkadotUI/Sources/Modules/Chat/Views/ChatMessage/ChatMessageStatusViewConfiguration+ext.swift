@@ -7,6 +7,7 @@ public extension ChatMessageStatusViewConfiguration {
         case sent
         case delivered
         case failed
+        case seen
 
         public var image: UIImage {
             switch self {
@@ -18,6 +19,8 @@ public extension ChatMessageStatusViewConfiguration {
                 UIImage(resource: .messageDelivered)
             case .failed:
                 UIImage(resource: .exclamationMark).withTintColor(.fgError, renderingMode: .alwaysOriginal)
+            case .seen:
+                UIImage(resource: .messageDelivered).withTintColor(.fgSuccess, renderingMode: .alwaysOriginal)
             }
         }
     }
@@ -53,7 +56,7 @@ public extension ChatMessageStatusViewConfiguration {
             textColor: background == nil
                 ? UIColor.fgSecondaryInverted
                 : UIColor.fgStaticWhite,
-            image: background == nil
+            image: background == nil || status == .seen
                 ? status.image
                 : status.image.withRenderingMode(.alwaysTemplate),
             isEdited: isEdited,

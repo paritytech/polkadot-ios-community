@@ -5,7 +5,12 @@ import SubstrateSdk
 import OperationExt
 import StatementStore
 
-protocol ChatOutboxServicing: AnyObject {
+protocol ChatDirectMessageSending: AnyObject {
+    // do not trigger APNS push
+    func sendDirectly(_ remoteMessage: Chat.RemoteMessage, to peerAccountId: AccountId)
+}
+
+protocol ChatOutboxServicing: ChatDirectMessageSending {
     var exchangeService: AnyMessageExchangeService<Chat.OpaqueMessage>? { get set }
 
     func setupCallCoordinator(_ callCoordinator: CallCoordinating)
@@ -40,9 +45,6 @@ protocol ChatOutboxServicing: AnyObject {
     )
 
     func sendPeerLeftMessage(to contact: Chat.Contact, completion: @escaping () -> Void)
-
-    // do not trigger APNS push
-    func sendDirectly(_ remoteMessage: Chat.RemoteMessage, to peerAccountId: AccountId)
 }
 
 final class ChatOutboxService {

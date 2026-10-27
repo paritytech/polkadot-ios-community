@@ -47,6 +47,10 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
             signingConsentStore: ChatSigningConsentStore(storageFacade: storageFacade)
         )
         let blockUserService = BlockUserService(allowanceCleanupService: flowState.allowanceCleanupService)
+        let seenWatermarkService = SeenWatermarkService(
+            storageFacade: storageFacade,
+            sender: flowState.outboxService
+        )
 
         let requestContext = ChatRequestEngineContext(
             pendingRequest: request,
@@ -67,7 +71,8 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
             chatProvider: ChatContactDataProviderFactory(),
             settings: SettingsManager.shared,
             leaveChatService: leaveChatService,
-            blockUserService: blockUserService
+            blockUserService: blockUserService,
+            seenWatermarkService: seenWatermarkService
         )
     }
 }

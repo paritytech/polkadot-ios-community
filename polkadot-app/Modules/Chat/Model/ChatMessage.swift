@@ -213,7 +213,8 @@ extension Chat.LocalMessage {
                 self = .call(.offer(content))
             case let .dataChannelAnswer(content):
                 self = .call(.answer(content))
-            case .dataChannelCandidates:
+            case .dataChannelCandidates,
+                 .seen:
                 return nil
             case let .dataChannelClosed(content):
                 self = .call(.closed(content))
@@ -258,7 +259,7 @@ extension Chat.LocalMessage.Content {
     //    richText -> 15
     //    coinagePayment(CoinagePaymentContent) -> 16
     // DON'T change the indexes to be compatible with db
-    enum ContentType: UInt8 {
+    enum ContentType: UInt8, CaseIterable {
         case text = 0
         case token = 1
         case send = 2

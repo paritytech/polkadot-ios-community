@@ -11,4 +11,8 @@ struct MessageListMetadata {
     var peerName: String {
         chatMetadata.peerMetadata.name
     }
+
+    func isSeenByPeer(_ message: Chat.LocalMessage) -> Bool {
+        message.order > 0 && message.order <= chatMetadata.peerSeenOrder
+    }
 }

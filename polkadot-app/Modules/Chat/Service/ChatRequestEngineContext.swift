@@ -55,7 +55,8 @@ actor ChatRequestEngineContext {
                 input: .outgoingRequest,
                 moreActions: []
             ),
-            state: .pending
+            state: .pending,
+            peerSeenOrder: 0
         )
     }
 
