@@ -55,7 +55,6 @@ extension SeenWatermarkProcessor {
 extension SeenWatermarkProcessor {
     func apply(_ contents: [ChatRemoteMessageContent.SeenWatermarkContent], from accountId: AccountId) async throws {
         let chatId = Chat.Id.person(accountId)
-        let messageIds = contents.map(\.messageId)
 
         try await storageFacade.databaseService.performWrite { context in
             let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
@@ -64,7 +63,7 @@ extension SeenWatermarkProcessor {
                 return
             }
 
-            guard let watermarkOrder = try Self.outgoingOrder(of: messageIds, in: chatId, context: context) else {
+            guard let watermarkOrder = try Self.watermarkOrder(for: contents, in: chatId, context: context) else {
                 return
             }
 
@@ -86,6 +85,17 @@ private extension SeenWatermarkProcessor {
         }
     }
 
+    static func watermarkOrder(
+        for contents: [ChatRemoteMessageContent.SeenWatermarkContent],
+        in chatId: Chat.Id,
+        context: NSManagedObjectContext
+    ) throws -> Int64? {
+        try contents.compactMap { content in
+            try outgoingOrder(of: [content.messageId], in: chatId, context: context)
+                ?? outgoingOrder(atOrBefore: content.timestamp, in: chatId, context: context)
+        }.max()
+    }
+
     static func outgoingOrder(
         of messageIds: [String],
         in chatId: Chat.Id,
@@ -101,5 +111,21 @@ private extension SeenWatermarkProcessor {
             .filter { Chat.LocalMessage.Status(rawValue: $0.status)?.isOutgoing == true }
             .map(\.order)
             .max()
+    }
+
+    static func outgoingOrder(
+        atOrBefore timestamp: UInt64,
+        in chatId: Chat.Id,
+        context: NSManagedObjectContext
+    ) throws -> Int64? {
+        let request = CDChatMessage.fetchRequest()
+        request.predicate = NSPredicate.postedOutgoingMessages(
+            in: chatId,
+            timestampAtOrBefore: Int64(bitPattern: timestamp)
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false)]
+        request.fetchLimit = 1
+
+        return try context.fetch(request).first?.order
     }
 }

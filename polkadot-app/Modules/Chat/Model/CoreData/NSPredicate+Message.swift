@@ -314,4 +314,18 @@ extension NSPredicate {
             NSPredicate(format: "%K IN %@", #keyPath(CDChatMessage.contentType), displayableContentTypes)
         ])
     }
+
+    /// Only posted messages can be seen by the peer; new and failed ones never reached them.
+    static func postedOutgoingMessages(in chatId: Chat.Id, timestampAtOrBefore timestamp: Int64) -> NSPredicate {
+        let outgoingStatuses: [Chat.LocalMessage.Status.OutgoingStatus] = [.sent, .delivered]
+        let statusPredicate = NSCompoundPredicate(
+            orPredicateWithSubpredicates: outgoingStatuses.map { byStatus(.outgoing($0)) }
+        )
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: [
+            localMessages(from: chatId),
+            statusPredicate,
+            NSPredicate(format: "%K <= %lld", #keyPath(CDChatMessage.timestamp), timestamp)
+        ])
+    }
 }

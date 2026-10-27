@@ -27,13 +27,60 @@ struct SeenWatermarkProcessorTests {
         #expect(try await fixture.peerSeenOrder() == 9)
     }
 
-    @Test func unknownMessageIdLeavesPeerSeenOrderUnchanged() async throws {
+    @Test func unknownMessageIdResolvesToOutgoingOrderAtOrBeforeTimestamp() async throws {
         try await fixture.seedChat()
-        try await insertOutgoing(id: "sent", order: 4)
+        try await insertOutgoing(id: "first", order: 1, timestamp: 100)
+        try await insertOutgoing(id: "second", order: 2, timestamp: 200)
+        try await insertOutgoing(id: "third", order: 3, timestamp: 300)
 
-        try await makeProcessor().apply([watermark("unknown")], from: fixture.peerAccountId)
+        try await makeProcessor().apply([watermark("unknown", timestamp: 250)], from: fixture.peerAccountId)
+
+        #expect(try await fixture.peerSeenOrder() == 2)
+    }
+
+    @Test func unknownIdWithoutOutgoingRowAtOrBeforeTimestampLeavesPeerSeenOrderUnchanged() async throws {
+        try await fixture.seedChat()
+        try await insertOutgoing(id: "sent", order: 4, timestamp: 1_000)
+
+        try await makeProcessor().apply([watermark("unknown", timestamp: 500)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 0)
+    }
+
+    @Test func timestampFallbackNeverLowersPeerSeenOrder() async throws {
+        try await fixture.seedChat()
+        try await insertOutgoing(id: "early", order: 1, timestamp: 100)
+        try await insertOutgoing(id: "known", order: 3, timestamp: 1_000)
+        let processor = makeProcessor()
+
+        try await processor.apply([watermark("known")], from: fixture.peerAccountId)
+        try await processor.apply([watermark("unknown", timestamp: 150)], from: fixture.peerAccountId)
+
+        #expect(try await fixture.peerSeenOrder() == 3)
+    }
+
+    @Test func timestampFallbackIgnoresIncomingRows() async throws {
+        try await fixture.seedChat()
+        try await insertOutgoing(id: "sent", order: 2, timestamp: 200)
+        try await fixture.insertMessage(
+            fixture.makeMessage(id: "incoming", status: .incoming(.new), timestamp: 100),
+            order: 5
+        )
+
+        try await makeProcessor().apply([watermark("unknown", timestamp: 150)], from: fixture.peerAccountId)
+
+        #expect(try await fixture.peerSeenOrder() == 0)
+    }
+
+    @Test func timestampFallbackSkipsNewAndFailedOutgoingRows() async throws {
+        try await fixture.seedChat()
+        try await insertOutgoing(id: "sent", order: 1, timestamp: 100)
+        try await insertOutgoing(id: "pending", order: 2, timestamp: 200, status: .outgoing(.new))
+        try await insertOutgoing(id: "failed", order: 3, timestamp: 210, status: .outgoing(.failed))
+
+        try await makeProcessor().apply([watermark("unknown", timestamp: 250)], from: fixture.peerAccountId)
+
+        #expect(try await fixture.peerSeenOrder() == 1)
     }
 
     @Test func neverCreatesMessageRows() async throws {
@@ -72,15 +119,23 @@ private extension SeenWatermarkProcessorTests {
         SeenWatermarkProcessor(storageFacade: fixture.facade)
     }
 
-    func insertOutgoing(id: Chat.MessageId, order: Int64) async throws {
+    func insertOutgoing(
+        id: Chat.MessageId,
+        order: Int64,
+        timestamp: Chat.Timestamp = 1_000,
+        status: Chat.LocalMessage.Status = .outgoing(.sent)
+    ) async throws {
         try await fixture.insertMessage(
-            fixture.makeMessage(id: id, status: .outgoing(.sent), timestamp: 1_000),
+            fixture.makeMessage(id: id, status: status, timestamp: timestamp),
             order: order
         )
     }
 
-    func watermark(_ messageId: Chat.MessageId) -> ChatRemoteMessageContent.SeenWatermarkContent {
-        .init(messageId: messageId, timestamp: 1_000)
+    func watermark(
+        _ messageId: Chat.MessageId,
+        timestamp: UInt64 = 1_000
+    ) -> ChatRemoteMessageContent.SeenWatermarkContent {
+        .init(messageId: messageId, timestamp: timestamp)
     }
 
     func receipt(_ messageId: Chat.MessageId) -> Chat.RemoteMessage {
