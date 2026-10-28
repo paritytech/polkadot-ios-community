@@ -24,9 +24,9 @@ public struct DSChatMessageBubble: View {
         var icon: ImageResource {
             switch self {
             case .pending: .messagePending
-            case .sent: .messageSent
-            case .delivered,
-                 .seen: .messageDelivered
+            case .sent,
+                 .delivered: .messageSent
+            case .seen: .messageDelivered
             }
         }
     }
@@ -165,7 +165,7 @@ public struct DSChatMessageBubble: View {
                         width: DSChatMessageBubbleMetrics.statusIconSize,
                         height: DSChatMessageBubbleMetrics.statusIconSize
                     )
-                    .foregroundStyle(deliveryStatus == .seen ? Color.fgSuccess : sender.secondaryForeground)
+                    .foregroundStyle(sender.secondaryForeground)
             }
         }
         .fixedSize()
