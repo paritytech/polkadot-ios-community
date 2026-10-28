@@ -21,6 +21,15 @@ struct SeenWatermarkServiceTests {
         #expect(sender.sent.first?.accountId == fixture.peerAccountId)
     }
 
+    @Test func sendsLowercasedWatermarkMessageId() async throws {
+        try await fixture.seedChat()
+        try await insertMessage(id: "WATERMARK-ID", status: .incoming(.seen), order: 1, timestamp: 10)
+
+        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+
+        #expect(sentContent() == .seen(.init(messageId: "watermark-id", timestamp: 10)))
+    }
+
     @Test func nonDisplayableSeenMessagesDoNotAdvanceWatermark() async throws {
         try await fixture.seedChat()
         try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)

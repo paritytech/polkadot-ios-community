@@ -73,7 +73,7 @@ private extension SeenWatermarkService {
         }
 
         let content = ChatRemoteMessageContent.seen(
-            .init(messageId: state.messageId, timestamp: UInt64(bitPattern: state.timestamp))
+            .init(messageId: state.messageId.lowercased(), timestamp: UInt64(bitPattern: state.timestamp))
         )
         sender.sendDirectly(Chat.RemoteMessage.newMessage(with: content), to: accountId)
     }

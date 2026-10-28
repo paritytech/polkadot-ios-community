@@ -51,7 +51,7 @@ private extension SeenWatermarkDeliveryRecorder {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIds: contents.map(\.messageId))
+            NSPredicate.messages(withIdsIgnoringCase: contents.map(\.messageId))
         ])
 
         let incomingEntities = try context.fetch(request).filter {
@@ -59,7 +59,7 @@ private extension SeenWatermarkDeliveryRecorder {
         }
 
         return contents.compactMap { content in
-            incomingEntities.first { $0.messageId == content.messageId }.map {
+            incomingEntities.first { $0.messageId?.lowercased() == content.messageId.lowercased() }.map {
                 (order: $0.order, timestamp: Int64(bitPattern: content.timestamp))
             }
         }

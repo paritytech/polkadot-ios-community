@@ -22,6 +22,12 @@ extension NSPredicate {
         )
     }
 
+    static func messages(withIdsIgnoringCase ids: [String]) -> NSPredicate {
+        NSCompoundPredicate(orPredicateWithSubpredicates: ids.map {
+            NSPredicate(format: "%K ==[c] %@", #keyPath(CDChatMessage.messageId), $0)
+        })
+    }
+
     static func newOutgoingRemoteMessages() -> NSPredicate {
         let statusPredicate = byStatus(Chat.LocalMessage.Status.outgoing(.new))
         let chatTypePredicate = messageByChatType(.person)

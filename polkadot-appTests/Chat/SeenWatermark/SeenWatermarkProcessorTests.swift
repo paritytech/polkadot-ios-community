@@ -15,6 +15,16 @@ struct SeenWatermarkProcessorTests {
         #expect(try await fixture.peerSeenOrder() == 4)
     }
 
+    @Test func resolvesUppercaseStoredIdFromLowercaseReceipt() async throws {
+        try await fixture.seedChat()
+        try await insertOutgoing(id: "FIRST-ID", order: 1, timestamp: 100)
+        try await insertOutgoing(id: "SENT-ID", order: 3, timestamp: 300)
+
+        try await makeProcessor().apply([watermark("sent-id", timestamp: 150)], from: fixture.peerAccountId)
+
+        #expect(try await fixture.peerSeenOrder() == 3)
+    }
+
     @Test func olderWatermarkKeepsNewerPeerSeenOrder() async throws {
         try await fixture.seedChat()
         try await insertOutgoing(id: "older", order: 4)

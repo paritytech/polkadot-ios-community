@@ -104,7 +104,7 @@ private extension SeenWatermarkProcessor {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIds: messageIds)
+            NSPredicate.messages(withIdsIgnoringCase: messageIds)
         ])
 
         return try context.fetch(request)

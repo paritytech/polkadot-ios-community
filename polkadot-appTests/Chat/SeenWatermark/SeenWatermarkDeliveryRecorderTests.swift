@@ -19,6 +19,19 @@ struct SeenWatermarkDeliveryRecorderTests {
         #expect(lastSentMark == (3, 50))
     }
 
+    @Test func deliveredLowercaseIdMatchesUppercaseStoredIncomingMessage() async throws {
+        try await fixture.seedChat()
+        try await insertMessage(id: "WATERMARK-ID", order: 3, timestamp: 50)
+
+        try await makeRecorder().recordDelivered(
+            [seenContent(messageId: "watermark-id", timestamp: 50)],
+            to: fixture.peerAccountId
+        )
+
+        let lastSentMark = try await fixture.lastSentSeenMark()
+        #expect(lastSentMark == (3, 50))
+    }
+
     @Test func olderDeliveredAfterNewerKeepsNewerMark() async throws {
         try await fixture.seedChat()
         try await insertMessage(id: "newer", order: 3, timestamp: 50)
