@@ -1,4 +1,5 @@
 import Foundation
+import StructuredConcurrency
 
 enum DeviceTransferProgress: Equatable {
     /// `total` is what the sender counted for its first round; later rounds can push `applied` past it.
@@ -7,6 +8,7 @@ enum DeviceTransferProgress: Equatable {
 }
 
 struct DeviceTransferReceiverSettings {
+    var connectTimeout: Duration = .seconds(45)
     var responseTimeout: Duration = .seconds(60)
     var sleep: DeviceSyncSleep = liveDeviceSyncSleep
 }
@@ -50,6 +52,9 @@ struct DeviceTransferReceiverExchange {
             sleep: settings.sleep
         )
         defer { events.close() }
+
+        let flow = flow
+        try await withTimeout(settings.connectTimeout) { try await flow.start() }
 
         let checkpoint = dependencies.checkpointStore.checkpoint(for: senderInstallationId)
         try await flow.sendTransferControl(.resume(fromTimePoint: checkpoint))
