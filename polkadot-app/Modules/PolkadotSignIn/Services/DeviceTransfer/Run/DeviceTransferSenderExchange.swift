@@ -1,5 +1,6 @@
 import Foundation
 import FoundationExt
+import StructuredConcurrency
 
 /// Old phone's side of one transfer connection. It keeps no state between connections: the receiver's
 /// `resume` point says where to start, and re-sent data is safe to apply again.
@@ -39,6 +40,9 @@ struct DeviceTransferSenderExchange {
             settings: settings
         )
         defer { channel.close() }
+
+        let flow = flow
+        try await withTimeout(settings.connectTimeout) { try await flow.start() }
 
         let resumePoint = try await channel.waitForResume()
         var round = await DeviceTransferRound.first(from: resumePoint, end: currentTimePoint())
