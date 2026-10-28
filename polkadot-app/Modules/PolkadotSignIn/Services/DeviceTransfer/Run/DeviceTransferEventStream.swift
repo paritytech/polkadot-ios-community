@@ -18,6 +18,8 @@ enum DeviceTransferEvent {
 struct DeviceTransferEventStream {
     fileprivate enum Signal {
         case event(DeviceTransferEvent)
+        /// Traffic that isn't waited on but shows the peer is still working, so it restarts the timeout.
+        case activity
         case disconnected
         case timeout(UInt64)
     }
@@ -29,14 +31,25 @@ struct DeviceTransferEventStream {
     private var signals: AsyncStream<Signal>.Iterator
     private var timeoutToken: UInt64 = 0
 
-    init(flow: any DevicePeerConnectionFlowing, timeout: Duration, sleep: @escaping DeviceSyncSleep) async {
+    /// `countsFileRequests` makes the peer's file requests count as activity. Only a file-serving side may set
+    /// it: the side pulling files would buffer every chunk it receives.
+    init(
+        flow: any DevicePeerConnectionFlowing,
+        timeout: Duration,
+        sleep: @escaping DeviceSyncSleep,
+        countsFileRequests: Bool = false
+    ) async {
         let (stream, continuation) = AsyncStream.makeStream(of: Signal.self)
 
         self.timeout = timeout
         self.sleep = sleep
         self.continuation = continuation
         signals = stream.makeAsyncIterator()
-        forwarders = await Self.startForwarders(flow: flow, into: continuation)
+        forwarders = await Self.startForwarders(
+            flow: flow,
+            countsFileRequests: countsFileRequests,
+            into: continuation
+        )
     }
 
     func close() {
@@ -44,12 +57,11 @@ struct DeviceTransferEventStream {
         continuation.finish()
     }
 
-    /// The next event, failing on an abort, a lost channel, or nothing arriving within the timeout.
+    /// The next event, failing on an abort, a lost channel, or neither an event nor activity within the timeout.
     mutating func next(within timeout: Duration? = nil) async throws -> DeviceTransferEvent {
-        timeoutToken += 1
-        let token = timeoutToken
-        let timer = startTimer(token: token, timeout: timeout ?? self.timeout)
-        defer { timer.cancel() }
+        let timeout = timeout ?? self.timeout
+        var timer = startTimer(timeout: timeout)
+        defer { timer.task.cancel() }
 
         while let signal = await signals.next() {
             switch signal {
@@ -57,10 +69,13 @@ struct DeviceTransferEventStream {
                 throw DeviceTransferRunError.aborted(reason)
             case let .event(event):
                 return event
+            case .activity:
+                timer.task.cancel()
+                timer = startTimer(timeout: timeout)
             case .disconnected:
                 throw DeviceTransferRunError.disconnected
             case let .timeout(firedToken):
-                if firedToken == token {
+                if firedToken == timer.token {
                     throw DeviceTransferRunError.timedOut
                 }
             }
@@ -84,6 +99,7 @@ struct DeviceTransferEventStream {
 private extension DeviceTransferEventStream {
     static func startForwarders(
         flow: any DevicePeerConnectionFlowing,
+        countsFileRequests: Bool,
         into continuation: AsyncStream<Signal>.Continuation
     ) async -> [Task<Void, Never>] {
         let controls = await flow.transferControls.makeAsyncIterator()
@@ -91,12 +107,19 @@ private extension DeviceTransferEventStream {
         let acks = await flow.acks.makeAsyncIterator()
         let states = await flow.states.makeAsyncIterator()
 
-        return [
+        var forwarders = [
             forward(controls, into: continuation) { .event(.control($0)) },
             forward(updates, into: continuation) { .event(.update($0)) },
             forward(acks, into: continuation) { .event(.ack($0.id)) },
             forward(states, into: continuation) { $0 == .disconnected ? .disconnected : nil }
         ]
+
+        if countsFileRequests {
+            let fileMessages = await flow.fileMessages.makeAsyncIterator()
+            forwarders.append(forward(fileMessages, into: continuation) { _ in .activity })
+        }
+
+        return forwarders
     }
 
     static func forward<Element>(
@@ -116,13 +139,17 @@ private extension DeviceTransferEventStream {
         }
     }
 
-    func startTimer(token: UInt64, timeout: Duration) -> Task<Void, Never> {
+    mutating func startTimer(timeout: Duration) -> (token: UInt64, task: Task<Void, Never>) {
+        timeoutToken += 1
+        let token = timeoutToken
         let sleep = sleep
         let continuation = continuation
 
-        return Task {
+        let task = Task {
             guard await (try? sleep(timeout)) != nil, !Task.isCancelled else { return }
             continuation.yield(.timeout(token))
         }
+
+        return (token, task)
     }
 }

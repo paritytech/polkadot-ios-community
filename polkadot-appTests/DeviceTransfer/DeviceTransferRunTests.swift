@@ -281,7 +281,7 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
     private let incomingAcks = AsyncStream.makeStream(of: Chat.DeviceSyncUpdateAck.self)
     private let incomingControls = AsyncStream.makeStream(of: DeviceTransferControl.self)
     private let channelStates = AsyncStream.makeStream(of: DeviceSyncDataChannelState.self)
-    private let incomingFileMessages = AsyncStream.makeStream(of: Chat.DeviceSyncFileMessage.self)
+    private var fileMessageContinuations: [AsyncStream<Chat.DeviceSyncFileMessage>.Continuation] = []
     private var peer: LoopbackTransferFlow?
     private var sentUpdates: [Chat.DeviceSyncUpdate] = []
 
@@ -300,8 +300,11 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
         incomingControls.stream.eraseToAnyAsyncSequence()
     }
 
+    /// Both the file transfer and the sender's idle wait read file messages, so each subscriber gets every one.
     var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
-        incomingFileMessages.stream.eraseToAnyAsyncSequence()
+        let (stream, continuation) = AsyncStream.makeStream(of: Chat.DeviceSyncFileMessage.self)
+        fileMessageContinuations.append(continuation)
+        return stream.eraseToAnyAsyncSequence()
     }
 
     func start() async throws {}
@@ -349,6 +352,6 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
     }
 
     private func receive(_ message: Chat.DeviceSyncFileMessage) {
-        incomingFileMessages.continuation.yield(message)
+        fileMessageContinuations.forEach { $0.yield(message) }
     }
 }

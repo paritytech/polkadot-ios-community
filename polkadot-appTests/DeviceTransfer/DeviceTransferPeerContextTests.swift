@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import Foundation
 import MessageExchangeKit
+import SubstrateSdk
 import Testing
 
 /// Time runs a thousand times faster here: the 15 min idle deadline is 0.9 s and retry delays are milliseconds.
@@ -27,6 +28,32 @@ struct DeviceTransferPeerContextTests {
         }
 
         #expect(components.flowCount == 2)
+    }
+
+    @Test("A reconnect from the other phone replaces the attempt in progress at once, without a restart delay")
+    func reconnectReplacesAttempt() async throws {
+        let sleeps = DeviceSyncTestEventRecorder<Duration>()
+        let delegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger())
+        let context = makeContext(sessionDelegate: delegate) { duration in
+            sleeps.record(duration)
+            try await Task.sleep(for: duration / 1_000)
+        }
+        let attempts = DeviceSyncTestEventRecorder<Void>()
+        let components = components
+
+        try await context.run { _ in
+            attempts.record(())
+            guard attempts.snapshot.count == 1 else { return }
+
+            let session = try #require(components.session)
+            try await session.send([.offer(SdpCoderTests.validOfferSdp)])
+            let offerId = try #require(await session.currentReconnectOfferId())
+            try Self.deliverReconnected(offerId: offerId, to: delegate)
+            try await Task.sleep(for: .seconds(30))
+        }
+
+        #expect(components.flowCount == 2)
+        #expect(!sleeps.snapshot.contains(DeviceSyncRestartDelayPolicy().delay(forAttempt: 1)))
     }
 
     @Test("An abort from the other phone ends the run without another connection")
@@ -69,13 +96,25 @@ struct DeviceTransferPeerContextTests {
 }
 
 private extension DeviceTransferPeerContextTests {
-    func makeContext() -> DeviceTransferPeerContext {
+    func makeContext(
+        sessionDelegate: DeviceSyncPeerSessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger()),
+        sleep: @escaping DeviceSyncSleep = { try await Task.sleep(for: $0 / 1_000) }
+    ) -> DeviceTransferPeerContext {
         DeviceTransferPeerContext(
             components: components,
-            sessionDelegate: DeviceSyncPeerSessionDelegate(peerLogger: MockLogger()),
+            sessionDelegate: sessionDelegate,
             rejections: rejections.stream,
-            settings: DeviceTransferPeerContextSettings(sleep: { try await Task.sleep(for: $0 / 1_000) }),
+            settings: DeviceTransferPeerContextSettings(sleep: sleep),
             logger: MockLogger()
+        )
+    }
+
+    static func deliverReconnected(offerId: String, to delegate: DeviceSyncPeerSessionDelegate) throws {
+        let envelope = Chat.DeviceSyncSignalingEnvelope(offerId: offerId, message: .reconnected)
+        try delegate.peerSession(
+            MockDeviceSyncPeerSession(),
+            didReceiveMessages: [envelope.scaleEncoded()],
+            respondHandler: { _ in }
         )
     }
 }
@@ -84,15 +123,21 @@ private final class TransferContextComponents: DeviceTransferPeerComponentMaking
     private let lock = NSLock()
     private var flows: [MockDevicePeerConnectionFlow] = []
     private var latestTransport: MockDeviceSyncMessageTransport?
+    private var latestSession: DeviceSyncSignalingSession?
 
     var flowCount: Int { lock.withLock { flows.count } }
     var transport: MockDeviceSyncMessageTransport? { lock.withLock { latestTransport } }
+    var session: DeviceSyncSignalingSession? { lock.withLock { latestSession } }
 
     func makeSignalingSession(delegate: AnyPeerSessionDelegate<Data>) async throws -> DeviceSyncSignalingSession {
         let transport = MockDeviceSyncMessageTransport()
         try await transport.open(delegate: delegate)
-        lock.withLock { latestTransport = transport }
-        return DeviceSyncSignalingSession(transport: transport, role: .initiator, peerLogger: MockLogger())
+        let session = DeviceSyncSignalingSession(transport: transport, role: .initiator, peerLogger: MockLogger())
+        lock.withLock {
+            latestTransport = transport
+            latestSession = session
+        }
+        return session
     }
 
     func makeConnectionFlow(session _: DeviceSyncSignalingSession) -> any DevicePeerConnectionFlowing {
