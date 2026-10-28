@@ -56,6 +56,26 @@ struct DeviceTransferSenderExchangeTests {
         #expect(await receiver.sentCompletion)
     }
 
+    @Test("A receiver still pulling files keeps the sender waiting past the idle deadline")
+    func filePullKeepsSenderWaiting() async throws {
+        let receiver = TransferReceiverFlow(resumeFrom: nil, filePull: (requests: 5, interval: .milliseconds(100)))
+        let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
+
+        try await makeExchange(flow: receiver, settings: settings).run()
+
+        #expect(await receiver.sentCompletion)
+    }
+
+    @Test("A receiver that goes quiet before confirming fails the run on the idle deadline")
+    func quietReceiverFailsRun() async throws {
+        let receiver = TransferReceiverFlow(resumeFrom: nil, filePull: (requests: 1, interval: .seconds(5)))
+        let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
+
+        await #expect(throws: DeviceTransferRunError.timedOut) {
+            try await makeExchange(flow: receiver, settings: settings).run()
+        }
+    }
+
     @Test("An update the receiver never acknowledges fails the run")
     func unacknowledgedUpdateFailsRun() async throws {
         try await saveMessages(["a"])
@@ -130,6 +150,8 @@ private extension DeviceTransferSenderExchangeTests {
 private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
     private let resumePoint: UInt64?
     private let acknowledges: Bool
+    private let filePull: (requests: Int, interval: Duration)?
+    private var fileContinuations: [AsyncStream<Chat.DeviceSyncFileMessage>.Continuation] = []
     private var onFirstMessages: (@Sendable () async throws -> Void)?
     private var ackContinuation: AsyncStream<Chat.DeviceSyncUpdateAck>.Continuation?
     private var controlContinuation: AsyncStream<DeviceTransferControl>.Continuation?
@@ -145,17 +167,21 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
     init(
         resumeFrom resumePoint: UInt64?,
         acknowledges: Bool = true,
+        filePull: (requests: Int, interval: Duration)? = nil,
         onFirstMessages: (@Sendable () async throws -> Void)? = nil
     ) {
         self.resumePoint = resumePoint
         self.acknowledges = acknowledges
+        self.filePull = filePull
         self.onFirstMessages = onFirstMessages
     }
 
     var updates: AnyAsyncSequence<Chat.DeviceSyncUpdate> { AsyncStream { _ in }.eraseToAnyAsyncSequence() }
     var states: AnyAsyncSequence<DeviceSyncDataChannelState> { AsyncStream { _ in }.eraseToAnyAsyncSequence() }
     var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
-        AsyncStream { _ in }.eraseToAnyAsyncSequence()
+        let (stream, continuation) = AsyncStream.makeStream(of: Chat.DeviceSyncFileMessage.self)
+        fileContinuations.append(continuation)
+        return stream.eraseToAnyAsyncSequence()
     }
 
     var acks: AnyAsyncSequence<Chat.DeviceSyncUpdateAck> {
@@ -195,10 +221,23 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
             announcedTotal = Int(totalChanges)
         case .senderCompleted:
             sentCompletion = true
-            controlContinuation?.yield(.receiverCompleted)
+            if let filePull {
+                Task { await pullFiles(filePull) }
+            } else {
+                controlContinuation?.yield(.receiverCompleted)
+            }
         default:
             break
         }
+    }
+
+    private func pullFiles(_ filePull: (requests: Int, interval: Duration)) async {
+        for requestId in 0 ..< filePull.requests {
+            try? await Task.sleep(for: filePull.interval)
+            let request = Chat.DeviceSyncFileMessage.AvailabilityRequest(requestId: UInt32(requestId), files: [])
+            fileContinuations.forEach { $0.yield(.availabilityRequest(request)) }
+        }
+        controlContinuation?.yield(.receiverCompleted)
     }
 
     private func record(_ update: Chat.DeviceSyncUpdate) {

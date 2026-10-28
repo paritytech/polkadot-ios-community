@@ -39,6 +39,7 @@ actor DeviceTransferPeerContext {
     private let idleSignals: AsyncStream<Void>
     private let idleContinuation: AsyncStream<Void>.Continuation
 
+    private var onEvent: DeviceTransferRunEventHandler = { _ in }
     private var idleTimer: Task<Void, Never>?
     private var isConnected = false
     private var currentAttempt: Task<Void, Error>?
@@ -59,7 +60,12 @@ actor DeviceTransferPeerContext {
         (idleSignals, idleContinuation) = AsyncStream.makeStream(of: Void.self)
     }
 
-    func run(_ connectionRun: @escaping DeviceTransferConnectionRun) async throws {
+    /// `onEvent` gets `peerFound` for each signaling statement and `channelOpened` for each opened channel.
+    func run(
+        onEvent: @escaping DeviceTransferRunEventHandler = { _ in },
+        _ connectionRun: @escaping DeviceTransferConnectionRun
+    ) async throws {
+        self.onEvent = onEvent
         let session = try await components.makeSignalingSession(delegate: AnyPeerSessionDelegate(sessionDelegate))
         restartIdleTimer()
 
@@ -184,6 +190,7 @@ private extension DeviceTransferPeerContext {
     func pumpEnvelopes(into session: DeviceSyncSignalingSession) async -> Outcome {
         for await batch in sessionDelegate.incomingEnvelopes {
             restartIdleTimer()
+            onEvent(.peerFound)
 
             if let reconnection = await session.reconnection(in: batch) {
                 logger.debug("Device transfer reconnect accepted for offer \(reconnection.offerId)")
@@ -223,6 +230,7 @@ private extension DeviceTransferPeerContext {
         isConnected = connected
 
         if connected {
+            onEvent(.channelOpened)
             idleTimer?.cancel()
             idleTimer = nil
         } else {

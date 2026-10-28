@@ -4,8 +4,8 @@ struct DeviceTransferSenderSettings {
     var messagePageSize = 200
     var connectTimeout: Duration = .seconds(45)
     var responseTimeout: Duration = .seconds(30)
-    /// The receiver pulls files before confirming, so this wait covers the whole file phase.
-    var completionTimeout: Duration = DeviceTransferConstants.runIdleTimeout
+    /// The receiver pulls files before confirming; each of its file requests restarts this wait.
+    var completionIdleTimeout: Duration = DeviceTransferConstants.runIdleTimeout
     var entityChunker = DeviceSyncEntityChunker()
     var sleep: DeviceSyncSleep = liveDeviceSyncSleep
 }
@@ -14,7 +14,7 @@ struct DeviceTransferSenderChannel {
     private let flow: any DevicePeerConnectionFlowing
     private let updateIdProvider: DeviceSyncUpdateIdProviding
     private let entityChunker: DeviceSyncEntityChunker
-    private let completionTimeout: Duration
+    private let completionIdleTimeout: Duration
     private var events: DeviceTransferEventStream
 
     init(
@@ -25,11 +25,12 @@ struct DeviceTransferSenderChannel {
         self.flow = flow
         self.updateIdProvider = updateIdProvider
         entityChunker = settings.entityChunker
-        completionTimeout = settings.completionTimeout
+        completionIdleTimeout = settings.completionIdleTimeout
         events = await DeviceTransferEventStream(
             flow: flow,
             timeout: settings.responseTimeout,
-            sleep: settings.sleep
+            sleep: settings.sleep,
+            countsFileRequests: true
         )
     }
 
@@ -45,7 +46,7 @@ struct DeviceTransferSenderChannel {
     }
 
     mutating func waitForReceiverCompleted() async throws {
-        try await events.waitForControl(within: completionTimeout) { $0 == .receiverCompleted ? () : nil }
+        try await events.waitForControl(within: completionIdleTimeout) { $0 == .receiverCompleted ? () : nil }
     }
 
     /// Sends the entities as one or more updates and returns once the receiver has acknowledged all of them.
