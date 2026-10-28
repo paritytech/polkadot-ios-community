@@ -90,10 +90,11 @@ private extension SeenWatermarkProcessor {
         in chatId: Chat.Id,
         context: NSManagedObjectContext
     ) throws -> Int64? {
-        try contents.compactMap { content in
+        let orders = try contents.compactMap { content in
             try outgoingOrder(of: [content.messageId], in: chatId, context: context)
                 ?? outgoingOrder(atOrBefore: content.timestamp, in: chatId, context: context)
-        }.max()
+        }
+        return orders.max()
     }
 
     static func outgoingOrder(

@@ -16,11 +16,10 @@ extension ChatViewModelFactory {
         case let .offer(offerContent):
             [
                 callMessageConfiguration(
-                    messageId: message.messageId,
+                    message: message,
                     offer: offerContent,
                     status: status,
                     isSeenByPeer: isSeenByPeer,
-                    callState: message.resolveCallState() ?? .calling,
                     deliveryDate: deliveryDate,
                     actions: actions
                 )
@@ -36,14 +35,14 @@ extension ChatViewModelFactory {
 private extension ChatViewModelFactory {
     // swiftlint:disable:next cyclomatic_complexity
     func callMessageConfiguration(
-        messageId: String,
+        message: Chat.LocalMessage,
         offer: Chat.RemoteMessageContentV1.MessageContent.DataChannelOfferContent,
         status: Chat.LocalMessage.Status,
         isSeenByPeer: Bool,
-        callState: Chat.CallState,
         deliveryDate: Date?,
         actions: ChatViewModelActions
     ) -> IdentifiableAnyContentConfiguration<ChatViewLayout.ItemIdentifierType> {
+        let callState = message.resolveCallState() ?? .calling
         let callType: ChatCallMessageConfiguration.CallType =
             switch offer.purpose {
             case .audio: .audio
@@ -100,7 +99,7 @@ private extension ChatViewModelFactory {
                 )
             }
 
-        return .init(messageId, configuration)
+        return .init(message.messageId, configuration)
     }
 
     func formatCallDuration(_ milliseconds: UInt64) -> String {
