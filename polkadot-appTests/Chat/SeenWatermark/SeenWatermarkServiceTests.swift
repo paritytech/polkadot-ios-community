@@ -66,6 +66,33 @@ struct SeenWatermarkServiceTests {
                 encryptionPublicKey: Data(repeating: 0x02, count: 32)
             ))
         )
+        try await insertMessage(
+            id: "contactAdded",
+            status: .incoming(.seen),
+            order: 7,
+            timestamp: 70,
+            content: .contactAdded
+        )
+        try await insertMessage(
+            id: "leftChat",
+            status: .incoming(.seen),
+            order: 8,
+            timestamp: 80,
+            content: .leftChat
+        )
+        try await insertMessage(
+            id: "multiChatAccepted",
+            status: .incoming(.seen),
+            order: 9,
+            timestamp: 90,
+            content: .multiChatAccepted(.init(
+                requestId: "request",
+                device: .init(
+                    statementAccountId: Data(repeating: 0x01, count: 32),
+                    encryptionPublicKey: Data(repeating: 0x02, count: 32)
+                )
+            ))
+        )
 
         await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
 

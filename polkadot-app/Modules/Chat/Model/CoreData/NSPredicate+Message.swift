@@ -304,8 +304,14 @@ extension NSPredicate {
     }
 
     static func seenWatermarkCandidates(in chatId: Chat.Id) -> NSPredicate {
+        let protocolEvents: Set<Chat.LocalMessage.Content.ContentType> = [
+            .chatAccepted,
+            .contactAdded,
+            .leftChat,
+            .multiChatAccepted
+        ]
         let displayableContentTypes = Chat.LocalMessage.Content.ContentType.allCases
-            .filter { $0.isIndependentMessageInChat && $0 != .chatAccepted }
+            .filter { $0.isIndependentMessageInChat && !protocolEvents.contains($0) }
             .map { Int16($0.rawValue) }
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
