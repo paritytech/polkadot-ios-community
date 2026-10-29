@@ -30,12 +30,12 @@ extension DeviceTransferClientFactory: DeviceTransferClientMaking {
     func makeClient(
         for role: DeviceTransferClientRole,
         flow: any DevicePeerConnectionFlowing
-    ) throws -> any DeviceTransferClientProtocol {
+    ) -> any DeviceTransferClientProtocol {
         let requester = makeRequester(flow: flow)
         let inner: any DeviceTransferClientProtocol =
             switch role {
             case .sender:
-                try makeSenderClient(flow: flow)
+                makeSenderClient(flow: flow)
             case let .receiver(senderInstallationId):
                 DeviceTransferReceiverClient(
                     flow: flow,
@@ -56,12 +56,12 @@ private extension DeviceTransferClientFactory {
         DeviceSyncFileRequester(flow: flow, downloadsStore: dependencies.downloadsStore, logger: dependencies.logger)
     }
 
-    func makeSenderClient(flow: any DevicePeerConnectionFlowing) throws -> DeviceTransferSenderClient {
-        try DeviceTransferSenderClient(
+    func makeSenderClient(flow: any DevicePeerConnectionFlowing) -> DeviceTransferSenderClient {
+        DeviceTransferSenderClient(
             flow: flow,
             collector: dependencies.collector,
-            deviceEncryptionKey: dependencies.deviceKeyManager.getOrCreatePrivateKey().rawRepresentation,
             dependencies: DeviceTransferSenderDependencies(
+                deviceKeyManager: dependencies.deviceKeyManager,
                 updateIdProvider: dependencies.updateIdProvider,
                 dateProvider: dependencies.dateProvider,
                 logger: dependencies.logger

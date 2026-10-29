@@ -15,6 +15,11 @@ final class DeviceTransferRunTests {
     private let senderInstallationId = Data(repeating: 0x5E, count: 32)
     private let oldDeviceKey = Curve25519.KeyAgreement.PrivateKey()
     private let checkpointStore = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
+    private let senderKeyManager = DeviceEncryptionKeyManager(
+        keychain: InMemoryKeychain(),
+        encryptionStorage: FixedDeviceEncryptionStorage(),
+        logger: MockLogger()
+    )
     private let receiverKeyManager = DeviceEncryptionKeyManager(
         keychain: InMemoryKeychain(),
         encryptionStorage: FixedDeviceEncryptionStorage(),
@@ -28,6 +33,7 @@ final class DeviceTransferRunTests {
     init() async throws {
         try await sender.setup()
         try await receiver.setup()
+        try senderKeyManager.importPrivateKey(oldDeviceKey.rawRepresentation)
     }
 
     deinit {
@@ -171,8 +177,8 @@ private extension DeviceTransferRunTests {
         return DeviceTransferSenderClient(
             flow: flow,
             collector: collector,
-            deviceEncryptionKey: oldDeviceKey.rawRepresentation,
             dependencies: DeviceTransferSenderDependencies(
+                deviceKeyManager: senderKeyManager,
                 updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager()),
                 dateProvider: NowDateProvider(),
                 logger: MockLogger()
