@@ -63,15 +63,15 @@ struct DeviceTransferSenderDependencies {
 private struct DeviceTransferRound {
     let cutoff: UInt64?
     /// `nil` for the first round, so a legacy message stamped ahead of this clock is still sent once.
-    let bound: UInt64?
+    let modifiedUpTo: UInt64?
     let end: UInt64
 
     static func first(from cutoff: UInt64?, end: UInt64) -> Self {
-        Self(cutoff: cutoff, bound: nil, end: end)
+        Self(cutoff: cutoff, modifiedUpTo: nil, end: end)
     }
 
     func next(end: UInt64) -> Self {
-        Self(cutoff: self.end, bound: end, end: end)
+        Self(cutoff: self.end, modifiedUpTo: end, end: end)
     }
 }
 
@@ -81,7 +81,7 @@ private extension DeviceTransferSenderClient {
     }
 
     func sendStarted(state: [Chat.DeviceSyncEntity], round: DeviceTransferRound) async throws {
-        let messageCount = try await collector.countMessages(since: round.cutoff, upTo: round.bound)
+        let messageCount = try await collector.countMessages(since: round.cutoff, modifiedUpTo: round.modifiedUpTo)
         let total = state.reduce(messageCount) { $0 + $1.itemCount }
 
         try await flow.sendTransferControl(
@@ -108,7 +108,7 @@ private extension DeviceTransferSenderClient {
         repeat {
             let page = try await collector.collectMessagePage(
                 since: round.cutoff,
-                upTo: round.bound,
+                modifiedUpTo: round.modifiedUpTo,
                 after: cursor,
                 limit: settings.messagePageSize
             )

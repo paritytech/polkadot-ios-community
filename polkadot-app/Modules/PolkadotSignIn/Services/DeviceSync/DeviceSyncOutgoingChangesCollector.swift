@@ -78,14 +78,15 @@ struct DeviceTransferMessagePage {
 protocol DeviceTransferChangesCollecting {
     func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
 
+    /// `modifiedUpTo` is compared with `modifiedAt`, or with `timestamp` for legacy rows that have none.
     func collectMessagePage(
         since checkpoint: UInt64?,
-        upTo bound: UInt64?,
+        modifiedUpTo bound: UInt64?,
         after cursor: DeviceTransferMessageCursor?,
         limit: Int
     ) async throws -> DeviceTransferMessagePage
 
-    func countMessages(since checkpoint: UInt64?, upTo bound: UInt64?) async throws -> Int
+    func countMessages(since checkpoint: UInt64?, modifiedUpTo bound: UInt64?) async throws -> Int
 }
 
 extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
@@ -100,12 +101,12 @@ extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
 
     func collectMessagePage(
         since checkpoint: UInt64?,
-        upTo bound: UInt64?,
+        modifiedUpTo bound: UInt64?,
         after cursor: DeviceTransferMessageCursor?,
         limit: Int
     ) async throws -> DeviceTransferMessagePage {
         let predicates = [
-            transferMessagesPredicate(since: checkpoint, upTo: bound),
+            transferMessagesPredicate(since: checkpoint, modifiedUpTo: bound),
             cursor.map { NSPredicate.messagesInSyncOrder(after: $0) }
         ].compactMap { $0 }
 
@@ -123,9 +124,9 @@ extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
         )
     }
 
-    func countMessages(since checkpoint: UInt64?, upTo bound: UInt64?) async throws -> Int {
+    func countMessages(since checkpoint: UInt64?, modifiedUpTo bound: UInt64?) async throws -> Int {
         try await messageRepositoryFactory
-            .createRepository(forFilter: transferMessagesPredicate(since: checkpoint, upTo: bound))
+            .createRepository(forFilter: transferMessagesPredicate(since: checkpoint, modifiedUpTo: bound))
             .fetchCountOperation()
             .asyncExecute()
     }
@@ -189,7 +190,7 @@ private extension DeviceSyncOutgoingChangesCollector {
         return wireMessages.isEmpty ? [] : [.messages(wireMessages)]
     }
 
-    func transferMessagesPredicate(since checkpoint: UInt64?, upTo bound: UInt64?) -> NSPredicate {
+    func transferMessagesPredicate(since checkpoint: UInt64?, modifiedUpTo bound: UInt64?) -> NSPredicate {
         let predicates = [
             NSPredicate.syncableMessagesForAcceptedContacts(since: checkpoint, ownSignKeyIds: ownSignKeyIds),
             bound.map { NSCompoundPredicate(notPredicateWithSubpredicate: NSPredicate.messagesModifiedAfter($0)) }
