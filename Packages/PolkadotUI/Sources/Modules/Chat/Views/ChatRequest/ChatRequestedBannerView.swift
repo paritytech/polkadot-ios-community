@@ -24,8 +24,9 @@ public struct ChatRequestedBannerView: View {
             .buttonStyle(.destructiveDark44)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 0)
+        .padding(.top, 16)
         .padding(.bottom, 24)
+        .background(Color.bgSurfaceContainer)
     }
 }
 
