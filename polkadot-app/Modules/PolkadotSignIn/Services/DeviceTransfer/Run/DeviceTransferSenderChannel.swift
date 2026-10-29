@@ -1,7 +1,6 @@
 import Foundation
 
 struct DeviceTransferSenderSettings {
-    var messagePageSize = 200
     var connectTimeout: Duration = .seconds(45)
     var responseTimeout: Duration = .seconds(30)
     /// The receiver pulls files before confirming, so each of its file requests restarts this wait.

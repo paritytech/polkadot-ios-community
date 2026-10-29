@@ -76,7 +76,8 @@ struct DeviceTransferMessagePage {
 }
 
 protocol DeviceTransferChangesCollecting {
-    func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
+    func collectChatStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
+    func collectCoinageStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
 
     /// `modifiedUpTo` is compared with `modifiedAt`, or with `timestamp` for legacy rows that have none.
     func collectMessagePage(
@@ -90,13 +91,16 @@ protocol DeviceTransferChangesCollecting {
 }
 
 extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
-    func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
+    func collectChatStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
         let cutoff = checkpoint.map { Date.fromChatTimestamp($0) }
 
         return try await collectContactChanges(after: cutoff)
             + collectRemovedChatChanges(after: cutoff)
             + chatStateCollector.collect(after: cutoff)
-            + coinageStateCollector.collect(after: cutoff)
+    }
+
+    func collectCoinageStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
+        try await coinageStateCollector.collect(after: checkpoint.map { Date.fromChatTimestamp($0) })
     }
 
     func collectMessagePage(

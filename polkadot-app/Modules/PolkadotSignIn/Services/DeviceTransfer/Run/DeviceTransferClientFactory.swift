@@ -59,12 +59,14 @@ private extension DeviceTransferClientFactory {
     func makeSenderClient(flow: any DevicePeerConnectionFlowing) -> DeviceTransferSenderClient {
         DeviceTransferSenderClient(
             flow: flow,
-            collector: dependencies.collector,
-            dependencies: DeviceTransferSenderDependencies(
-                deviceKeyManager: dependencies.deviceKeyManager,
-                updateIdProvider: dependencies.updateIdProvider,
+            sequencer: DeviceTransferSenderSequencer(
+                collector: dependencies.collector,
                 dateProvider: dependencies.dateProvider,
                 logger: dependencies.logger
+            ),
+            dependencies: DeviceTransferSenderDependencies(
+                deviceKeyManager: dependencies.deviceKeyManager,
+                updateIdProvider: dependencies.updateIdProvider
             )
         )
     }

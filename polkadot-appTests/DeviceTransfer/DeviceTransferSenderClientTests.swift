@@ -27,6 +27,24 @@ struct DeviceTransferSenderClientTests {
         #expect(await receiver.sentCompletion)
     }
 
+    @Test("Within a round, claim statuses follow the messages they refer to")
+    func claimsFollowTheirMessages() async throws {
+        try await saveMessages(["text"])
+        let claimed = try await world.saveTransfer(.incoming, totalValue: 3)
+        try await world.store.updateIncoming(
+            messageId: claimed.messageId,
+            state: IncomingTransferState(status: .failed)
+        )
+        let receiver = TransferReceiverFlow(resumeFrom: nil)
+
+        try await makeClient(flow: receiver).run { _ in }
+
+        let kinds = await receiver.firstRoundEntityKinds
+        let lastMessages = try #require(kinds.lastIndex(of: "messages"))
+        let claims = try #require(kinds.firstIndex(of: "coinageMessagesStatusUpdated"))
+        #expect(lastMessages < claims)
+    }
+
     @Test("Resuming from the receiver's checkpoint sends only what changed after it")
     func resumeSendsOnlyNewerChanges() async throws {
         try await saveMessages(["a", "b"])
@@ -89,22 +107,22 @@ struct DeviceTransferSenderClientTests {
 }
 
 private extension DeviceTransferSenderClientTests {
-    func makeClient(flow: TransferReceiverFlow, pageSize: Int = 200) -> DeviceTransferSenderClient {
-        makeClient(flow: flow, settings: DeviceTransferSenderSettings(messagePageSize: pageSize))
-    }
-
     func makeClient(
         flow: TransferReceiverFlow,
-        settings: DeviceTransferSenderSettings
+        pageSize: Int = DeviceTransferSenderSequencer.defaultMessagePageSize,
+        settings: DeviceTransferSenderSettings = DeviceTransferSenderSettings()
     ) -> DeviceTransferSenderClient {
         DeviceTransferSenderClient(
             flow: flow,
-            collector: makeCollector(),
+            sequencer: DeviceTransferSenderSequencer(
+                collector: makeCollector(),
+                dateProvider: NowDateProvider(),
+                messagePageSize: pageSize,
+                logger: MockLogger()
+            ),
             dependencies: DeviceTransferSenderDependencies(
                 deviceKeyManager: StubDeviceEncryptionKeyManager(),
-                updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager()),
-                dateProvider: NowDateProvider(),
-                logger: MockLogger()
+                updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager())
             ),
             settings: settings
         )
@@ -155,6 +173,7 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
 
     private(set) var announcedTotal: Int?
     private(set) var receivedItemCountInFirstRound = 0
+    private(set) var firstRoundEntityKinds: [String] = []
     private(set) var receivedMessageIds: [String] = []
     private(set) var checkpointWhenReceived: [String: UInt64] = [:]
     private(set) var checkpoint: UInt64?
@@ -246,6 +265,7 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
 
         if closedRounds == 0 {
             receivedItemCountInFirstRound += update.entities.reduce(0) { $0 + $1.itemCount }
+            firstRoundEntityKinds += update.entities.map(\.logLabel)
         }
 
         for case let .messages(messages) in update.entities {
