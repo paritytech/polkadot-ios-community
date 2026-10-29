@@ -11,9 +11,6 @@ protocol DeviceTransferFilePulling {
     func pullMissingFiles(onProgress: @escaping @Sendable (DeviceTransferFileProgress) -> Void) async throws
 }
 
-/// Pulls the attachments this phone lacks from the old one. The sizes are asked for first, so progress is in
-/// bytes. Nothing is retried: a file that fails or isn't stored on the old phone stays a reference, as after any
-/// sync, and a later connection picks it up again with the bytes already stored.
 final class DeviceTransferFilePuller {
     private let scanner: DeviceTransferMissingFileScanning
     private let requester: any DeviceSyncFileRequesting

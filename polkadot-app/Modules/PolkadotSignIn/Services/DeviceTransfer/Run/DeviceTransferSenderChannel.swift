@@ -4,7 +4,7 @@ struct DeviceTransferSenderSettings {
     var messagePageSize = 200
     var connectTimeout: Duration = .seconds(45)
     var responseTimeout: Duration = .seconds(30)
-    /// The receiver pulls files before confirming; each of its file requests restarts this wait.
+    /// The receiver pulls files before confirming, so each of its file requests restarts this wait.
     var completionIdleTimeout: Duration = DeviceTransferConstants.runIdleTimeout
     var entityChunker = DeviceSyncEntityChunker()
     var sleep: DeviceSyncSleep = liveDeviceSyncSleep
@@ -49,8 +49,7 @@ struct DeviceTransferSenderChannel {
         try await events.waitForControl(within: completionIdleTimeout) { $0 == .receiverCompleted ? () : nil }
     }
 
-    /// Sends the entities as one or more updates and returns once the receiver has acknowledged all of them.
-    /// Empty entities still produce one update, which carries a round's closing time point.
+    /// Empty entities still send one update: it carries a round's closing time point.
     mutating func deliver(_ entities: [Chat.DeviceSyncEntity], timePoint: UInt64) async throws {
         let batches = entities.isEmpty ? [[]] : try entityChunker.chunk(entities)
         var pendingIds = Set<UInt32>()

@@ -114,7 +114,7 @@ private extension DeviceSyncChatAcceptedApplier {
     }
 
     /// A contact's first device often arrives only in its acceptance; the request it answers may never have been
-    /// on this device, e.g. after a transfer (RFC §7.2). The device in an outgoing acceptance is the user's own.
+    /// on this device, e.g. after a transfer. The device in an outgoing acceptance is the user's own.
     func applyAcceptorDeviceWithoutRequest(
         _ peerDevice: Chat.PeerDevice?,
         from contactId: AccountId,

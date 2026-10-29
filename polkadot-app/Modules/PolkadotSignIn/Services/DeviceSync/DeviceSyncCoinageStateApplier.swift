@@ -6,6 +6,7 @@ import StructuredConcurrency
 
 protocol DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_ coins: [Chat.DeviceSyncHandedOffCoin]) async throws
+
     /// Returns the claims whose message isn't stored yet; a caller that keeps them applies them again later.
     @discardableResult
     func applyClaimStatuses(

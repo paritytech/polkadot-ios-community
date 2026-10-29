@@ -2,7 +2,7 @@ import Foundation
 import StructuredConcurrency
 
 enum DeviceTransferProgress: Equatable {
-    /// `total` is what the sender counted for its first round; later rounds can push `applied` past it.
+    /// `total` counts only the first round, so `applied` can pass it.
     case syncing(applied: Int, total: Int)
     case files(DeviceTransferFileProgress)
 }
@@ -14,7 +14,6 @@ struct DeviceTransferReceiverSettings {
 }
 
 struct DeviceTransferReceiverDependencies {
-    /// Built over the transfer's flow, saving messages at the sender's order.
     let updateApplier: DeviceSyncIncomingUpdateApplier
     let coinageStateApplier: DeviceSyncCoinageStateApplying
     let checkpointStore: DeviceTransferCheckpointStoring
@@ -23,10 +22,6 @@ struct DeviceTransferReceiverDependencies {
     let logger: LoggerProtocol
 }
 
-/// New phone's side of one transfer connection (RFC §7.2). Updates go straight to the database; only claim
-/// statuses whose message hasn't arrived yet wait in memory. A round's closing update moves the persisted
-/// checkpoint, unless such a claim is still waiting, so a later connection resends it. After `senderCompleted` it
-/// pulls the missing attachments and only then confirms with `receiverCompleted`.
 struct DeviceTransferReceiverExchange {
     private let flow: any DevicePeerConnectionFlowing
     private let senderInstallationId: Data
@@ -79,7 +74,7 @@ private struct DeviceTransferReceiverSession {
 
     private var total: Int?
     private var applied = 0
-    /// Updates are a separate stream from controls, so one can overtake `senderStarted`.
+    /// Updates and controls are separate streams, so an update can overtake `senderStarted`.
     private var earlyUpdates: [Chat.DeviceSyncUpdate] = []
     private var waitingClaims: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
 
@@ -141,7 +136,7 @@ private extension DeviceTransferReceiverSession {
         reportProgress()
     }
 
-    /// A round's messages all precede its closing update, so this is when a waiting claim can find its message.
+    /// All of a round's messages precede its closing update, so waiting claims are retried here.
     mutating func closeRound(at update: Chat.DeviceSyncUpdate) async throws {
         if !waitingClaims.isEmpty {
             waitingClaims = try await dependencies.coinageStateApplier.applyClaimStatuses(waitingClaims)

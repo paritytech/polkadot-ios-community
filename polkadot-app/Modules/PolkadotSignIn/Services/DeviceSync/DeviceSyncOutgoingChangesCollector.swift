@@ -64,16 +64,12 @@ struct DeviceSyncOutgoingChangesCollector {
 
 struct DeviceTransferMessagePage {
     var messages: [Chat.DeviceSyncWireMessage]
-    /// `nil` once the set is exhausted.
     var nextCursor: String?
 }
 
 protocol DeviceTransferChangesCollecting {
-    /// Everything but messages and devices, changed after `checkpoint`.
     func collectStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
 
-    /// Messages changed after `checkpoint` (and no later than `bound`), in message id order after `cursor`.
-    /// Keying on the id keeps paging stable: an edit moves a message into the next round instead of shifting pages.
     func collectMessagePage(
         since checkpoint: UInt64?,
         upTo bound: UInt64?,

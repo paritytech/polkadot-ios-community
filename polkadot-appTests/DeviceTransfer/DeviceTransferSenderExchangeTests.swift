@@ -145,8 +145,6 @@ private extension DeviceTransferSenderExchangeTests {
     }
 }
 
-/// Plays the new phone: asks to resume, acknowledges updates, keeps the checkpoint as the receiver would
-/// (advanced by a round's closing update) and confirms completion.
 private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
     private let resumePoint: UInt64?
     private let acknowledges: Bool

@@ -3,7 +3,6 @@ import AsyncExtensions
 import StructuredConcurrency
 
 protocol DeviceTransferFinalizing: Sendable {
-    /// Takes over once the data is in: the steps after the run (DT11).
     func finalize(after request: DeviceTransferRequest) async throws
 }
 
@@ -18,7 +17,6 @@ enum DeviceTransferReceiverError: Error {
     case activeInstallationUnknown
 }
 
-/// The new phone's side: publishes a request, waits for the old phone, runs the transfer and finalizes.
 actor DeviceTransferReceiverCoordinator {
     static let activeInstallationTimeout: Duration = .seconds(30)
 
@@ -84,7 +82,7 @@ extension DeviceTransferReceiverCoordinator: DeviceTransferReceiverCoordinating 
 }
 
 private extension DeviceTransferReceiverCoordinator {
-    /// The checkpoint belongs to the old phone, which the active installation record names.
+    /// The checkpoint is keyed by the old phone, which only the active installation record names.
     func activeInstallationId() async throws -> Data {
         let statuses = await installationObserver.statusStream
 

@@ -10,8 +10,6 @@ protocol DeviceTransferSenderCoordinating: Sendable {
     func cancel() async
 }
 
-/// The old phone's side: the user confirms or rejects the request discovery offers, and a confirmed one runs.
-/// Both decisions mark the request processed, so discovery doesn't offer it again.
 actor DeviceTransferSenderCoordinator {
     private let runFactory: DeviceTransferRunMaking
     private let processedStore: DeviceTransferProcessedStoring

@@ -12,7 +12,6 @@ protocol DeviceSyncPeerSessionDelegating: PeerSessionDelegate, TypeErasedDelegat
 
 final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
     typealias Message = Data
-    /// Turns one session message into a signaling envelope; `nil` for a message the session handles otherwise.
     typealias EnvelopeDecoder = (Data) throws -> Chat.DeviceSyncSignalingEnvelope?
 
     private let peerLogger: LoggerProtocol

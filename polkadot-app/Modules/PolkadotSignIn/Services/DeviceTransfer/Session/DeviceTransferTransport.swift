@@ -66,8 +66,6 @@ final class DeviceTransferTransport: @unchecked Sendable {
         await send(wrapped: [.rejected])
     }
 
-    /// The delegate to open this transport with: it passes signaling envelopes on and turns `rejected` into
-    /// `rejections`.
     func makeSessionDelegate() -> DeviceSyncPeerSessionDelegate {
         let continuation = rejectionContinuation
 
