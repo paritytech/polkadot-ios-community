@@ -44,6 +44,34 @@ struct DeviceTransferReceiverRulesTests {
         #expect(stored?.devices == (fromContact ? [device] : []))
     }
 
+    @Test("Device changes apply in the order the sender stored them, even when their timestamps disagree")
+    func deviceChangesFollowSenderOrder() async throws {
+        let device = Chat.PeerDevice(
+            statementAccountId: Data(repeating: 0x31, count: 32),
+            encryptionPublicKey: Data(repeating: 0x32, count: 32)
+        )
+        let contacts = ContactsLocalStorageService(storageFacade: world.facade, logger: MockLogger())
+        let added = try makeDeviceChange(
+            .deviceAdded(.init(
+                statementAccountId: device.statementAccountId,
+                encryptionPublicKey: device.encryptionPublicKey
+            )),
+            order: 1,
+            timestamp: 5_000
+        )
+        let removed = try makeDeviceChange(
+            .deviceRemoved(.init(statementAccountId: device.statementAccountId)),
+            order: 2,
+            timestamp: 4_000
+        )
+
+        try await DeviceSyncDeviceChangesApplier(contactsStorageService: contacts, peerLogger: MockLogger())
+            .apply([removed, added])
+
+        let stored = try await contacts.getContact(by: peerAccountId()).asyncExecute()
+        #expect(stored?.devices == [])
+    }
+
     @Test("The checkpoint belongs to the sender installation that set it")
     func checkpointIsPerSender() {
         let store = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
@@ -95,6 +123,23 @@ private extension DeviceTransferReceiverRulesTests {
             peerId: peerAccountId(),
             status: fromContact ? .incoming(.seen) : .outgoing(.delivered),
             order: 1
+        )
+    }
+
+    func makeDeviceChange(
+        _ content: Chat.RemoteMessageContentV1.MessageContent,
+        order: UInt64,
+        timestamp: UInt64
+    ) throws -> Chat.DeviceSyncWireMessage {
+        try Chat.DeviceSyncWireMessage(
+            remote: Chat.RemoteMessage(
+                messageId: "device-change-\(order)",
+                timestamp: timestamp,
+                versioned: .v1(Chat.RemoteMessageContentV1(content: content))
+            ),
+            peerId: peerAccountId(),
+            status: .incoming(.seen),
+            order: order
         )
     }
 
