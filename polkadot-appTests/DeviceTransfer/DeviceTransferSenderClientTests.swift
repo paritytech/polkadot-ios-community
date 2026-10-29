@@ -27,7 +27,7 @@ struct DeviceTransferSenderClientTests {
         #expect(await receiver.sentCompletion)
     }
 
-    @Test("Within a round, claim statuses follow the messages they refer to")
+    @Test("Within a round, claim statuses follow their messages, and the announced total counts them")
     func claimsFollowTheirMessages() async throws {
         try await saveMessages(["text"])
         let claimed = try await world.saveTransfer(.incoming, totalValue: 3)
@@ -43,6 +43,7 @@ struct DeviceTransferSenderClientTests {
         let lastMessages = try #require(kinds.lastIndex(of: "messages"))
         let claims = try #require(kinds.firstIndex(of: "coinageMessagesStatusUpdated"))
         #expect(lastMessages < claims)
+        #expect(await receiver.announcedTotal == receiver.receivedItemCountInFirstRound)
     }
 
     @Test("Resuming from the receiver's checkpoint sends only what changed after it")

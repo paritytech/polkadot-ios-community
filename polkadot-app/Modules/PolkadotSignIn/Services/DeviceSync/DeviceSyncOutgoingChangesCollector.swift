@@ -78,6 +78,8 @@ struct DeviceTransferMessagePage {
 protocol DeviceTransferChangesCollecting {
     func collectChatStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
     func collectCoinageStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity]
+    func countChatStateItems(since checkpoint: UInt64?) async throws -> Int
+    func countCoinageStateItems(since checkpoint: UInt64?) async throws -> Int
 
     /// `modifiedUpTo` is compared with `modifiedAt`, or with `timestamp` for legacy rows that have none.
     func collectMessagePage(
@@ -101,6 +103,25 @@ extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
 
     func collectCoinageStateEntities(since checkpoint: UInt64?) async throws -> [Chat.DeviceSyncEntity] {
         try await coinageStateCollector.collect(after: checkpoint.map { Date.fromChatTimestamp($0) })
+    }
+
+    func countChatStateItems(since checkpoint: UInt64?) async throws -> Int {
+        let cutoff = checkpoint.map { Date.fromChatTimestamp($0) }
+
+        let contacts = try await contactRepositoryFactory
+            .createRepository(forFilter: contactsPredicate(after: cutoff))
+            .fetchCountOperation()
+            .asyncExecute()
+        let removedChats = try await removedChatRepositoryFactory
+            .createRepository(forFilter: cutoff.map { NSPredicate.removedChatsAfter($0) })
+            .fetchCountOperation()
+            .asyncExecute()
+
+        return try await contacts + removedChats + chatStateCollector.count(after: cutoff)
+    }
+
+    func countCoinageStateItems(since checkpoint: UInt64?) async throws -> Int {
+        try await coinageStateCollector.count(after: checkpoint.map { Date.fromChatTimestamp($0) })
     }
 
     func collectMessagePage(
@@ -149,21 +170,24 @@ private extension DeviceSyncOutgoingChangesCollector {
     }
 
     func collectContactChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {
-        let predicates: [NSPredicate] = [
-            cutoff.map { NSPredicate.contactsAcceptedAfter($0) },
-            NSPredicate.acceptedContacts
-        ].compactMap { $0 }
-
         let contacts = try await contactRepositoryFactory
-            .createRepository(forFilter: NSCompoundPredicate(andPredicateWithSubpredicates: predicates))
+            .createRepository(forFilter: contactsPredicate(after: cutoff))
             .fetchAllOperation(with: .init())
             .asyncExecute()
 
-        let chatIds = contacts
-            .filter { ownSignKeyIds.contains($0.ownKeyId.signKeyId) }
-            .map { Chat.DeviceSyncChatId.contact(accountId: $0.accountId) }
+        let chatIds = contacts.map { Chat.DeviceSyncChatId.contact(accountId: $0.accountId) }
 
         return chatIds.isEmpty ? [] : [.chatsAdded(chatIds)]
+    }
+
+    func contactsPredicate(after cutoff: Date?) -> NSPredicate {
+        let predicates: [NSPredicate] = [
+            cutoff.map { NSPredicate.contactsAcceptedAfter($0) },
+            NSPredicate.acceptedContacts,
+            NSPredicate(format: "%K IN %@", #keyPath(CDChatContact.ownSignKeyId), Array(ownSignKeyIds))
+        ].compactMap { $0 }
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
     }
 
     func collectRemovedChatChanges(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity] {

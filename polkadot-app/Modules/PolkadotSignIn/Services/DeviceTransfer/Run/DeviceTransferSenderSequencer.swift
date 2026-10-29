@@ -29,6 +29,8 @@ final class DeviceTransferSenderSequencer {
 
     private struct Round {
         let cutoff: UInt64?
+        /// `nil` in the first round: every connection sends the whole chat and coinage state once.
+        let stateSince: UInt64?
         /// `nil` for the first round, so a legacy message stamped ahead of this clock is still sent once.
         let modifiedUpTo: UInt64?
         let end: UInt64
@@ -42,8 +44,7 @@ final class DeviceTransferSenderSequencer {
     private let logger: LoggerProtocol
 
     private var phase = Phase.finished
-    private var round = Round(cutoff: nil, modifiedUpTo: nil, end: 0)
-    private var firstRoundState: (chat: [Chat.DeviceSyncEntity], coinage: [Chat.DeviceSyncEntity])?
+    private var round = Round(cutoff: nil, stateSince: nil, modifiedUpTo: nil, end: 0)
     private var itemCount = 0
 
     init(
@@ -61,7 +62,7 @@ final class DeviceTransferSenderSequencer {
 
 extension DeviceTransferSenderSequencer: DeviceTransferSenderSequencing {
     func entitySequence(from checkpoint: UInt64?) -> AsyncThrowingStream<DeviceTransferSenderStep, Error> {
-        round = Round(cutoff: checkpoint, modifiedUpTo: nil, end: 0)
+        round = Round(cutoff: checkpoint, stateSince: nil, modifiedUpTo: nil, end: 0)
         phase = .starting
 
         return AsyncThrowingStream { [self] in try await nextStep() }
@@ -87,18 +88,18 @@ private extension DeviceTransferSenderSequencer {
             return try await startFirstRound()
         case .nextRound:
             let end = await currentTimePoint()
-            round = Round(cutoff: round.end, modifiedUpTo: end, end: end)
+            round = Round(cutoff: round.end, stateSince: round.end, modifiedUpTo: end, end: end)
             itemCount = 0
             phase = .chatState
             return nil
         case .chatState:
             phase = .messages(after: nil)
-            return try await entitiesStep(chatState())
+            return try await entitiesStep(collector.collectChatStateEntities(since: round.stateSince))
         case let .messages(cursor):
             return try await messagesStep(after: cursor)
         case .coinageState:
             phase = .closing
-            return try await entitiesStep(coinageState())
+            return try await entitiesStep(collector.collectCoinageStateEntities(since: round.stateSince))
         case .closing:
             logger.debug("Device transfer round up to \(round.end) carried \(itemCount) item(s)")
             phase = itemCount > 0 ? .nextRound : .finished
@@ -109,33 +110,15 @@ private extension DeviceTransferSenderSequencer {
     }
 
     func startFirstRound() async throws -> DeviceTransferSenderStep {
-        round = await Round(cutoff: round.cutoff, modifiedUpTo: nil, end: currentTimePoint())
+        round = await Round(cutoff: round.cutoff, stateSince: nil, modifiedUpTo: nil, end: currentTimePoint())
         itemCount = 0
-
-        let chat = try await collector.collectChatStateEntities(since: nil)
-        let coinage = try await collector.collectCoinageStateEntities(since: nil)
-        let messageCount = try await collector.countMessages(since: round.cutoff, modifiedUpTo: round.modifiedUpTo)
-        firstRoundState = (chat, coinage)
         phase = .chatState
 
-        let total = (chat + coinage).reduce(messageCount) { $0 + $1.itemCount }
+        let total = try await collector.countChatStateItems(since: nil)
+            + collector.countMessages(since: round.cutoff, modifiedUpTo: round.modifiedUpTo)
+            + collector.countCoinageStateItems(since: nil)
+
         return .started(totalChanges: UInt32(clamping: total))
-    }
-
-    func chatState() async throws -> [Chat.DeviceSyncEntity] {
-        if let chat = firstRoundState?.chat {
-            return chat
-        }
-        return try await collector.collectChatStateEntities(since: round.cutoff)
-    }
-
-    func coinageState() async throws -> [Chat.DeviceSyncEntity] {
-        defer { firstRoundState = nil }
-
-        if let coinage = firstRoundState?.coinage {
-            return coinage
-        }
-        return try await collector.collectCoinageStateEntities(since: round.cutoff)
     }
 
     func messagesStep(after cursor: DeviceTransferMessageCursor?) async throws -> DeviceTransferSenderStep? {
