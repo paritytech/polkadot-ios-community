@@ -176,12 +176,14 @@ private extension DeviceTransferRunTests {
 
         return DeviceTransferSenderClient(
             flow: flow,
-            collector: collector,
-            dependencies: DeviceTransferSenderDependencies(
-                deviceKeyManager: senderKeyManager,
-                updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager()),
+            sequencer: DeviceTransferSenderSequencer(
+                collector: collector,
                 dateProvider: NowDateProvider(),
                 logger: MockLogger()
+            ),
+            dependencies: DeviceTransferSenderDependencies(
+                deviceKeyManager: senderKeyManager,
+                updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager())
             )
         )
     }
