@@ -8,43 +8,56 @@ enum DeviceTransferRunEvent: Equatable {
 
 typealias DeviceTransferRunEventHandler = @Sendable (DeviceTransferRunEvent) -> Void
 
+protocol DeviceTransferClientProtocol {
+    func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws
+}
+
 protocol DeviceTransferRunning: Sendable {
     func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws
     func cancel() async
 }
 
-protocol DeviceTransferExchangeMaking: Sendable {
-    func makeSenderConnection() -> DeviceTransferConnectionMaking
-    func makeReceiverConnection(senderInstallationId: Data) -> DeviceTransferConnectionMaking
+enum DeviceTransferClientRole: Equatable {
+    case sender
+    case receiver(senderInstallationId: Data)
 }
 
-typealias DeviceTransferConnectionMaking = @Sendable (
-    any DevicePeerConnectionFlowing,
-    @escaping DeviceTransferRunEventHandler
-) async throws -> Void
+protocol DeviceTransferClientMaking: Sendable {
+    func makeClient(
+        for role: DeviceTransferClientRole,
+        flow: any DevicePeerConnectionFlowing
+    ) throws -> any DeviceTransferClientProtocol
+}
 
 actor DeviceTransferRun {
     private let context: DeviceTransferPeerContext
-    private let connection: DeviceTransferConnectionMaking
+    private let clientFactory: DeviceTransferClientMaking
+    private let role: DeviceTransferClientRole
 
     private var currentFlow: (any DevicePeerConnectionFlowing)?
     private var runTask: Task<Void, Error>?
 
-    init(context: DeviceTransferPeerContext, connection: @escaping DeviceTransferConnectionMaking) {
+    init(
+        context: DeviceTransferPeerContext,
+        clientFactory: DeviceTransferClientMaking,
+        role: DeviceTransferClientRole
+    ) {
         self.context = context
-        self.connection = connection
+        self.clientFactory = clientFactory
+        self.role = role
     }
 }
 
 extension DeviceTransferRun: DeviceTransferRunning {
     func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws {
-        let connection = connection
         let context = context
+        let clientFactory = clientFactory
+        let role = role
 
         let task = Task {
             try await context.run(onEvent: onEvent) { [weak self] flow in
                 await self?.setCurrentFlow(flow)
-                try await connection(flow, onEvent)
+                try await clientFactory.makeClient(for: role, flow: flow).run(onEvent: onEvent)
             }
         }
         runTask = task

@@ -2,7 +2,7 @@ import Foundation
 import FoundationExt
 import StructuredConcurrency
 
-struct DeviceTransferSenderExchange {
+struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
     private let flow: any DevicePeerConnectionFlowing
     private let collector: DeviceTransferChangesCollecting
     private let deviceEncryptionKey: Data
@@ -27,7 +27,7 @@ struct DeviceTransferSenderExchange {
         self.settings = settings
     }
 
-    func run() async throws {
+    func run(onEvent _: @escaping DeviceTransferRunEventHandler) async throws {
         var channel = await DeviceTransferSenderChannel(
             flow: flow,
             updateIdProvider: updateIdProvider,
@@ -75,7 +75,7 @@ private struct DeviceTransferRound {
     }
 }
 
-private extension DeviceTransferSenderExchange {
+private extension DeviceTransferSenderClient {
     func currentTimePoint() async -> UInt64 {
         await dateProvider.read().toChatTimestamp()
     }

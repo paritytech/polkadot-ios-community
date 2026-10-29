@@ -21,7 +21,7 @@ struct DeviceTransferRunConfiguration {
 final class DeviceTransferRunFactory: @unchecked Sendable {
     private let configuration: DeviceTransferRunConfiguration
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
-    private let exchangeFactory: DeviceTransferExchangeMaking
+    private let clientFactory: DeviceTransferClientMaking
     private let configFactory: WebRTCConfigMaking
     private let peerConnectionFactory: RTCPeerConnectionFactory
     private let logger: LoggerProtocol
@@ -29,13 +29,13 @@ final class DeviceTransferRunFactory: @unchecked Sendable {
     init(
         configuration: DeviceTransferRunConfiguration,
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
-        exchangeFactory: DeviceTransferExchangeMaking,
+        clientFactory: DeviceTransferClientMaking,
         webRTC: (configFactory: WebRTCConfigMaking, peerConnectionFactory: RTCPeerConnectionFactory),
         logger: LoggerProtocol
     ) {
         self.configuration = configuration
         self.keyScheduleFactory = keyScheduleFactory
-        self.exchangeFactory = exchangeFactory
+        self.clientFactory = clientFactory
         configFactory = webRTC.configFactory
         peerConnectionFactory = webRTC.peerConnectionFactory
         self.logger = logger
@@ -44,18 +44,14 @@ final class DeviceTransferRunFactory: @unchecked Sendable {
 
 extension DeviceTransferRunFactory: DeviceTransferRunMaking {
     func makeSenderRun(for request: DeviceTransferRequest) throws -> any DeviceTransferRunning {
-        try makeRun(for: request, role: .sender, connection: exchangeFactory.makeSenderConnection())
+        try makeRun(for: request, role: .sender)
     }
 
     func makeReceiverRun(
         for request: DeviceTransferRequest,
         senderInstallationId: Data
     ) throws -> any DeviceTransferRunning {
-        try makeRun(
-            for: request,
-            role: .receiver,
-            connection: exchangeFactory.makeReceiverConnection(senderInstallationId: senderInstallationId)
-        )
+        try makeRun(for: request, role: .receiver(senderInstallationId: senderInstallationId))
     }
 
     func sendRejection(for request: DeviceTransferRequest) async throws {
@@ -83,13 +79,13 @@ private extension DeviceTransferRunFactory {
 
     func makeRun(
         for request: DeviceTransferRequest,
-        role: DeviceTransferRole,
-        connection: @escaping DeviceTransferConnectionMaking
+        role: DeviceTransferClientRole
     ) throws -> any DeviceTransferRunning {
-        let transport = try makeTransport(for: request, role: role)
+        let transportRole: DeviceTransferRole = role == .sender ? .sender : .receiver
+        let transport = try makeTransport(for: request, role: transportRole)
         let components = DeviceTransferPeerComponents(
             transport: transport,
-            role: role == .sender ? .initiator : .acceptor,
+            role: transportRole == .sender ? .initiator : .acceptor,
             configFactory: configFactory,
             peerConnectionFactory: peerConnectionFactory,
             logger: logger
@@ -101,7 +97,7 @@ private extension DeviceTransferRunFactory {
             logger: logger
         )
 
-        return DeviceTransferRun(context: context, connection: connection)
+        return DeviceTransferRun(context: context, clientFactory: clientFactory, role: role)
     }
 }
 

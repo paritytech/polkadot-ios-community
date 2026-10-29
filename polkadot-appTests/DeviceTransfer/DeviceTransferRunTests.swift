@@ -91,8 +91,8 @@ final class DeviceTransferRunTests {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
         var controls = await senderSide.transferControls.makeAsyncIterator()
         var acks = await senderSide.acks.makeAsyncIterator()
-        let receiverExchange = makeReceiverExchange(flow: receiverSide, requester: makeRequester(flow: receiverSide))
-        let receiving = Task { try await receiverExchange.run { _ in } }
+        let receiverClient = makeReceiverClient(flow: receiverSide, requester: makeRequester(flow: receiverSide))
+        let receiving = Task { try await receiverClient.run { _ in } }
 
         _ = try await controls.next()
         try await senderSide.sendTransferControl(
@@ -121,11 +121,13 @@ private extension DeviceTransferRunTests {
         await senderFiles.start()
         await receiverFiles.start()
 
-        let senderExchange = makeSenderExchange(flow: senderSide)
-        let receiverExchange = makeReceiverExchange(flow: receiverSide, requester: requester)
+        let senderClient = makeSenderClient(flow: senderSide)
+        let receiverClient = makeReceiverClient(flow: receiverSide, requester: requester)
 
-        async let sending: Void = senderExchange.run()
-        try await receiverExchange.run(onProgress: onProgress)
+        async let sending: Void = senderClient.run { _ in }
+        try await receiverClient.run { event in
+            if case let .progress(progress) = event { onProgress(progress) }
+        }
         try await sending
 
         await senderFiles.close()
@@ -154,7 +156,7 @@ private extension DeviceTransferRunTests {
         )
     }
 
-    func makeSenderExchange(flow: LoopbackTransferFlow) -> DeviceTransferSenderExchange {
+    func makeSenderClient(flow: LoopbackTransferFlow) -> DeviceTransferSenderClient {
         let facade = sender.facade
         let collector = DeviceSyncOutgoingChangesCollector(
             deviceRepositoryFactory: LocalDeviceRepositoryFactory(storageFacade: facade),
@@ -166,7 +168,7 @@ private extension DeviceTransferRunTests {
             ownSignKeyIds: ["sign-key"]
         )
 
-        return DeviceTransferSenderExchange(
+        return DeviceTransferSenderClient(
             flow: flow,
             collector: collector,
             deviceEncryptionKey: oldDeviceKey.rawRepresentation,
@@ -178,10 +180,10 @@ private extension DeviceTransferRunTests {
         )
     }
 
-    func makeReceiverExchange(
+    func makeReceiverClient(
         flow: LoopbackTransferFlow,
         requester: DeviceSyncFileRequester
-    ) -> DeviceTransferReceiverExchange {
+    ) -> DeviceTransferReceiverClient {
         let facade = receiver.facade
         let coinageStateApplier = DeviceSyncCoinageStateApplier(
             databaseService: facade.databaseService,
@@ -211,7 +213,7 @@ private extension DeviceTransferRunTests {
             peerLogger: MockLogger()
         )
 
-        return DeviceTransferReceiverExchange(
+        return DeviceTransferReceiverClient(
             flow: flow,
             senderInstallationId: senderInstallationId,
             dependencies: DeviceTransferReceiverDependencies(
