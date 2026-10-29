@@ -10,8 +10,13 @@ extension Chat {
             case cancelled
         }
 
+        enum Outgoing: Equatable {
+            case pending
+            case cancelling
+        }
+
         case incoming(Incoming)
-        case outgoing
+        case outgoing(Outgoing)
 
         var statusClass: RequestStatusClass {
             switch self {
@@ -60,9 +65,11 @@ extension Chat.RequestStatus {
         case 4:
             self = .incoming(.declined)
         case 5:
-            self = .outgoing
+            self = .outgoing(.pending)
         case 6:
             self = .incoming(.cancelled)
+        case 7:
+            self = .outgoing(.cancelling)
         default:
             return nil
         }
@@ -74,7 +81,8 @@ extension Chat.RequestStatus {
         case .incoming(.accepted): 3
         case .incoming(.declined): 4
         case .incoming(.cancelled): 6
-        case .outgoing: 5
+        case .outgoing(.pending): 5
+        case .outgoing(.cancelling): 7
         }
     }
 }

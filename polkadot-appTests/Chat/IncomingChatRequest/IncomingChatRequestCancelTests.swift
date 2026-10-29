@@ -90,7 +90,7 @@ struct IncomingChatRequestCancelTests {
 
     @Test("A cancel for a declined or outgoing request is ignored")
     func cancelIgnoredForDeclinedOrOutgoingRequest() async throws {
-        let statuses: [Chat.RequestStatus] = [.incoming(.declined), .outgoing]
+        let statuses: [Chat.RequestStatus] = [.incoming(.declined), .outgoing(.pending)]
 
         for status in statuses {
             let store = MockChatRequestStoreService(
@@ -142,7 +142,7 @@ struct IncomingChatRequestCancelTests {
     @Test("A cancel for an unknown request never accepts the outgoing request of the same contact")
     func cancelDoesNotTouchOutgoingRequest() async throws {
         let store = MockChatRequestStoreService()
-        let outgoing = makeLocalRequest(status: .outgoing, timestamp: 1, requestId: "out")
+        let outgoing = makeLocalRequest(status: .outgoing(.pending), timestamp: 1, requestId: "out")
         let context = try await makeContext(
             store: store,
             contacts: [makeContact(chatRequest: outgoing)]

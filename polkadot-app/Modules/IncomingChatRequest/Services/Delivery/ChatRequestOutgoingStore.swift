@@ -78,7 +78,7 @@ extension ChatRequestOutgoingStore: OutgoingStatementStoring {
         try await databaseService.performRead { context in
             guard let request = try Self.fetchRequest(input.statementId, in: context) else { return true }
 
-            return !Self.isPending(request)
+            return !Self.isOwnOutgoing(request)
         }
     }
 
@@ -98,7 +98,7 @@ extension ChatRequestOutgoingStore: PendingOutgoingChatRequestLoading {
         try await databaseService.performRead { context throws -> PendingOutgoingRequest? in
             guard
                 let request = try Self.fetchRequest(requestId, in: context),
-                Self.isPending(request),
+                Self.isOwnOutgoing(request),
                 let contact = request.contact
             else {
                 return nil
@@ -120,7 +120,13 @@ enum ChatRequestOutgoingStoreError: Error {
 
 private extension ChatRequestOutgoingStore {
     static func isPending(_ request: CDChatRequest) -> Bool {
-        request.status == Chat.RequestStatus.outgoing.rawValue && request.contact?.chatRequest == request
+        request.status == Chat.RequestStatus.outgoing(.pending).rawValue && request.contact?.chatRequest == request
+    }
+
+    // A cancelling request is still ours: acknowledging it would drop the period its Cancel must sign for.
+    static func isOwnOutgoing(_ request: CDChatRequest) -> Bool {
+        Chat.RequestStatus(rawValue: request.status)?.statusClass == .outgoing && request.contact?
+            .chatRequest == request
     }
 
     static func renewablePredicate() -> NSPredicate {
@@ -132,7 +138,7 @@ private extension ChatRequestOutgoingStore {
         return NSPredicate(
             format: "%K == %d AND %K IN %@",
             #keyPath(CDChatContact.chatRequest.status),
-            Chat.RequestStatus.outgoing.rawValue,
+            Chat.RequestStatus.outgoing(.pending).rawValue,
             #keyPath(CDChatContact.chatRequest.message.status),
             sentStatuses
         )

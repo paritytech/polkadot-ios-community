@@ -13,6 +13,9 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         case cancelIncoming(requestId: String)
         case storeCancelled(requestId: String)
         case deleteOutgoing(requestId: String)
+        case markCancelling(requestId: String)
+        case revertCancelling(requestId: String)
+        case revertInterruptedCancels
     }
 
     private let lock = NSLock()
@@ -20,6 +23,8 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
     private let localRequests: [String: Chat.Request]
     private let cancelResult: Bool
     private let acceptorDevice: Chat.PeerDevice
+    private let markCancellingError: Error?
+    private let deleteOutgoingError: Error?
 
     init(
         localRequests: [String: Chat.Request] = [:],
@@ -27,11 +32,15 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         acceptorDevice: Chat.PeerDevice = Chat.PeerDevice(
             statementAccountId: Data(repeating: 0x0C, count: 32),
             encryptionPublicKey: Data(repeating: 0x0D, count: 32)
-        )
+        ),
+        markCancellingError: Error? = nil,
+        deleteOutgoingError: Error? = nil
     ) {
         self.localRequests = localRequests
         self.cancelResult = cancelResult
         self.acceptorDevice = acceptorDevice
+        self.markCancellingError = markCancellingError
+        self.deleteOutgoingError = deleteOutgoingError
     }
 
     var calls: [Call] {
@@ -107,6 +116,20 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
 
     func deleteOutgoingRequest(_ requestId: String) async throws {
         record(.deleteOutgoing(requestId: requestId))
+        if let deleteOutgoingError { throw deleteOutgoingError }
+    }
+
+    func markOutgoingRequestCancelling(_ requestId: String) async throws {
+        record(.markCancelling(requestId: requestId))
+        if let markCancellingError { throw markCancellingError }
+    }
+
+    func revertOutgoingRequestCancelling(_ requestId: String) async throws {
+        record(.revertCancelling(requestId: requestId))
+    }
+
+    func revertInterruptedOutgoingCancels() async throws {
+        record(.revertInterruptedCancels)
     }
 }
 

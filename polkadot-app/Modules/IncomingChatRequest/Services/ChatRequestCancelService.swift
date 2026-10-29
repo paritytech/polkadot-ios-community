@@ -1,3 +1,4 @@
+import BackgroundExecution
 import Foundation
 import MessageExchangeKit
 import StatementDelivery
@@ -30,6 +31,7 @@ struct ChatRequestCancelDependencies {
     let connection: StatementStoreSubmitting
     let removalCleanup: ChatRemovalCleanupServicing
     let requestStore: ChatRequestStoreServicing
+    let backgroundExecutor: BackgroundExecuting
 }
 
 /// Publishes a cancel to the peer for every key that may hold a copy of the pending request, then removes it locally.
@@ -47,22 +49,36 @@ final class ChatRequestCancelService {
 
 extension ChatRequestCancelService: ChatRequestCancelServicing {
     func cancel(requestId: String) async throws {
+        try await dependencies.requestStore.markOutgoingRequestCancelling(requestId)
+
+        try await dependencies.backgroundExecutor.execute { [self] in
+            try await cancelMarkedRequest(requestId: requestId)
+        }
+    }
+}
+
+private extension ChatRequestCancelService {
+    func cancelMarkedRequest(requestId: String) async throws {
         await dependencies.delivery.retire(requestId)
 
         let pending: PendingOutgoingRequest
         do {
             pending = try await publishCancelOfPendingRequest(requestId: requestId)
         } catch {
-            await dependencies.delivery.reinstate(requestId)
+            await restore(requestId: requestId)
             throw error
         }
 
         try await dependencies.requestStore.deleteOutgoingRequest(requestId)
         try await dependencies.removalCleanup.cleanUpAfterRemoval(of: pending.input.session.peer.accountId)
     }
-}
 
-private extension ChatRequestCancelService {
+    // A revert that fails here is recovered by the launch revert.
+    func restore(requestId: String) async {
+        try? await dependencies.requestStore.revertOutgoingRequestCancelling(requestId)
+        await dependencies.delivery.reinstate(requestId)
+    }
+
     // Read after retire: a renewal that finished during the wait has already moved the period.
     func publishCancelOfPendingRequest(requestId: String) async throws -> PendingOutgoingRequest {
         guard let pending = try await dependencies.loader.pendingRequest(requestId: requestId) else {

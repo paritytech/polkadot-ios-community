@@ -23,7 +23,7 @@ struct IncomingChatRequestBlockedContactTests {
             requestId: "outgoing",
             contactAccountId: peerAccountId,
             timestamp: 1,
-            status: .outgoing,
+            status: .outgoing(.pending),
             message: nil
         )
         let context = try await makeContext(

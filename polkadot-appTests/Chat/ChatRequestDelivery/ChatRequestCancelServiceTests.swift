@@ -1,4 +1,5 @@
 @testable import polkadot_app
+import BackgroundExecution
 import Clocks
 import CoreData
 import Foundation
@@ -62,7 +63,7 @@ struct ChatRequestCancelServiceTests {
         try await makeService(pending: makePending(period: 20_000), submitter: submitter).cancel(requestId: requestId)
 
         #expect(submitter.submitCount == 1)
-        #expect(store.calls == [.deleteOutgoing(requestId: requestId)])
+        #expect(store.calls == [.markCancelling(requestId: requestId), .deleteOutgoing(requestId: requestId)])
     }
 
     @Test func channelPriorityTooLowResubmitsOnceWithFreshExpiry() async throws {
@@ -74,7 +75,7 @@ struct ChatRequestCancelServiceTests {
 
         #expect(submitter.submitCount == 2)
         #expect(builder.builtInputs.count == 2)
-        #expect(store.calls == [.deleteOutgoing(requestId: requestId)])
+        #expect(store.calls == [.markCancelling(requestId: requestId), .deleteOutgoing(requestId: requestId)])
     }
 
     @Test func unpublishedRequestSkipsPublishesAndRemovesLocalData() async throws {
@@ -84,7 +85,7 @@ struct ChatRequestCancelServiceTests {
 
         #expect(submitter.submitCount == 0)
         #expect(signers.requestedKeyIds.isEmpty)
-        #expect(store.calls == [.deleteOutgoing(requestId: requestId)])
+        #expect(store.calls == [.markCancelling(requestId: requestId), .deleteOutgoing(requestId: requestId)])
         #expect(cleanup.accountIds == [peerAccountId])
     }
 
@@ -98,7 +99,7 @@ struct ChatRequestCancelServiceTests {
 
         #expect(delivery.retired == [requestId])
         #expect(delivery.reinstated == [requestId])
-        #expect(store.calls.isEmpty)
+        #expect(store.calls == [.markCancelling(requestId: requestId), .revertCancelling(requestId: requestId)])
         #expect(cleanup.accountIds.isEmpty)
     }
 
@@ -107,7 +108,7 @@ struct ChatRequestCancelServiceTests {
 
         #expect(delivery.retired == [requestId])
         #expect(delivery.reinstated.isEmpty)
-        #expect(store.calls == [.deleteOutgoing(requestId: requestId)])
+        #expect(store.calls == [.markCancelling(requestId: requestId), .deleteOutgoing(requestId: requestId)])
         #expect(cleanup.accountIds == [peerAccountId])
     }
 
@@ -132,7 +133,41 @@ struct ChatRequestCancelServiceTests {
         #expect(delivery.retired == [requestId])
         #expect(delivery.reinstated == [requestId])
         #expect(submitter.submitCount == 0)
-        #expect(store.calls.isEmpty)
+        #expect(store.calls == [.markCancelling(requestId: requestId), .revertCancelling(requestId: requestId)])
+    }
+
+    @Test func markNotPendingThrowsWithoutRetiringOrPublishing() async throws {
+        let submitter = RecordingStatementStoreSubmitter()
+        let failingStore = MockChatRequestStoreService(markCancellingError: ChatRequestCancelError.notPending)
+        let service = makeService(pending: makePending(period: 20_000), submitter: submitter, store: failingStore)
+
+        await #expect(throws: ChatRequestCancelError.self) {
+            try await service.cancel(requestId: requestId)
+        }
+
+        #expect(delivery.retired.isEmpty)
+        #expect(submitter.submitCount == 0)
+        #expect(failingStore.calls == [.markCancelling(requestId: requestId)])
+    }
+
+    @Test func cancelRunsInsideBackgroundExecutor() async throws {
+        let executor = CountingCancelExecutor()
+
+        try await makeService(pending: makePending(period: 20_000), executor: executor).cancel(requestId: requestId)
+
+        #expect(executor.executeCount == 1)
+    }
+
+    @Test func failureAfterPublishDoesNotRevert() async throws {
+        let failingStore = MockChatRequestStoreService(deleteOutgoingError: TestSubmitFailure())
+        let service = makeService(pending: makePending(period: 20_000), store: failingStore)
+
+        await #expect(throws: TestSubmitFailure.self) {
+            try await service.cancel(requestId: requestId)
+        }
+
+        #expect(failingStore.calls == [.markCancelling(requestId: requestId), .deleteOutgoing(requestId: requestId)])
+        #expect(delivery.reinstated.isEmpty)
     }
 }
 
@@ -140,7 +175,9 @@ private extension ChatRequestCancelServiceTests {
     func makeService(
         pending: PendingOutgoingRequest?,
         consented: Bool = false,
-        submitter: RecordingStatementStoreSubmitter = RecordingStatementStoreSubmitter()
+        submitter: RecordingStatementStoreSubmitter = RecordingStatementStoreSubmitter(),
+        executor: BackgroundExecuting = InlineBackgroundExecutor(),
+        store: MockChatRequestStoreService? = nil
     ) -> ChatRequestCancelService {
         loader.setPending(pending)
 
@@ -153,7 +190,8 @@ private extension ChatRequestCancelServiceTests {
                 consentStore: StubChatSigningConsentStore(consented: consented),
                 connection: submitter,
                 removalCleanup: cleanup,
-                requestStore: store
+                requestStore: store ?? self.store,
+                backgroundExecutor: executor
             ),
             clock: ImmediateClock()
         )
@@ -234,7 +272,7 @@ private extension ChatRequestOutgoingDeletionTests {
 
             let request = CDChatRequest(context: context)
             request.identifier = requestId
-            request.status = Chat.RequestStatus.outgoing.rawValue
+            request.status = Chat.RequestStatus.outgoing(.pending).rawValue
             request.contactId = peerAccountId.toHex()
             request.message = message
             request.contact = contact
@@ -246,3 +284,17 @@ private extension ChatRequestOutgoingDeletionTests {
 }
 
 private struct TestSubmitFailure: Error {}
+
+private final class CountingCancelExecutor: BackgroundExecuting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedExecuteCount = 0
+
+    var executeCount: Int {
+        lock.withLock { recordedExecuteCount }
+    }
+
+    func execute<T: Sendable>(_ operation: @escaping @Sendable () async throws -> T) async throws -> T {
+        lock.withLock { recordedExecuteCount += 1 }
+        return try await operation()
+    }
+}
