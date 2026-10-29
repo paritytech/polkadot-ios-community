@@ -1,6 +1,6 @@
 import Foundation
 
-struct DeviceTransferWithFilesClient: DeviceTransferClientProtocol {
+final class DeviceTransferWithFilesClient: DeviceTransferClientProtocol {
     private let inner: any DeviceTransferClientProtocol
     private let fileTransfer: any DeviceSyncFileTransferring
 

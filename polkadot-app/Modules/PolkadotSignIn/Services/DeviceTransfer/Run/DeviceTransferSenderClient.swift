@@ -2,7 +2,7 @@ import Foundation
 import FoundationExt
 import StructuredConcurrency
 
-struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
+final class DeviceTransferSenderClient: DeviceTransferClientProtocol {
     private let flow: any DevicePeerConnectionFlowing
     private let collector: DeviceTransferChangesCollecting
     private let deviceKeyManager: DeviceEncryptionKeyManaging
