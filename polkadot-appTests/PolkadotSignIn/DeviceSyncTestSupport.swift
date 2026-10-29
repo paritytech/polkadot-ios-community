@@ -83,6 +83,7 @@ private final class UnusedDeviceSyncStorageFacade: StorageFacadeProtocol {
 
 private struct EmptyChatStateCollector: DeviceSyncChatStateCollecting {
     func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+    func count(after _: Date?) async throws -> Int { 0 }
 }
 
 private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
@@ -95,6 +96,7 @@ private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
 
 private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
     func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+    func count(after _: Date?) async throws -> Int { 0 }
 }
 
 private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {

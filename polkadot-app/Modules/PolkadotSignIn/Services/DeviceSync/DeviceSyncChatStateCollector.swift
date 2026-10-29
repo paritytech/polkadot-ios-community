@@ -9,6 +9,8 @@ protocol DeviceSyncChatStateCollecting {
     /// Block state and chat requests: everything on a full collection (`cutoff == nil`), otherwise what was
     /// modified after `cutoff`. Pending outgoing requests come first, since applying them creates their contacts.
     func collect(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity]
+    /// Rows `collect` reads; a row it can't map isn't sent, so this can be slightly higher.
+    func count(after cutoff: Date?) async throws -> Int
 }
 
 struct DeviceSyncChatStateCollector {
@@ -34,6 +36,16 @@ extension DeviceSyncChatStateCollector: DeviceSyncChatStateCollecting {
             ].compactMap { $0 }
         }
     }
+
+    func count(after cutoff: Date?) async throws -> Int {
+        try await databaseService.performRead { context in
+            let blockStates = Self.request(CDChatContact.self, matching: Self.blockStatesPredicate(after: cutoff))
+            let incoming = Self.request(CDChatRequest.self, matching: Self.incomingPredicate(after: cutoff))
+            let outgoing = Self.request(CDChatRequest.self, matching: Self.outgoingPredicate(after: cutoff))
+
+            return try context.count(for: blockStates) + context.count(for: incoming) + context.count(for: outgoing)
+        }
+    }
 }
 
 private extension DeviceSyncChatStateCollector {
@@ -41,9 +53,9 @@ private extension DeviceSyncChatStateCollector {
         after cutoff: Date?,
         in context: NSManagedObjectContext
     ) throws -> [Chat.DeviceSyncChatBlockState] {
-        let predicate = cutoff.map { modified(after: $0) } ?? .blockedContacts()
+        let contacts = try fetch(CDChatContact.self, matching: blockStatesPredicate(after: cutoff), in: context)
 
-        return try fetch(CDChatContact.self, matching: predicate, in: context).compactMap { contact in
+        return contacts.compactMap { contact in
             guard let accountId = try? contact.identifier?.fromHex() else { return nil }
             return Chat.DeviceSyncChatBlockState(chatId: .contact(accountId: accountId), blocked: contact.isBlocked)
         }
@@ -53,17 +65,9 @@ private extension DeviceSyncChatStateCollector {
         after cutoff: Date?,
         in context: NSManagedObjectContext
     ) throws -> [Chat.DeviceSyncIncomingChatRequest] {
-        let decided = NSPredicate(
-            format: "%K IN %@",
-            #keyPath(CDChatRequest.status),
-            [Chat.RequestStatus.incoming(.accepted).rawValue, Chat.RequestStatus.incoming(.declined).rawValue]
-        )
-        let predicate = cutoff
-            .map { NSCompoundPredicate(andPredicateWithSubpredicates: [decided, modified(after: $0)]) }
-            ?? decided
         // Sent whole even when only the status changed: the receiver may not have the request yet, and a row
         // without its peer would break discovery's lookup by request id.
-        return try fetch(CDChatRequest.self, matching: predicate, in: context)
+        try fetch(CDChatRequest.self, matching: incomingPredicate(after: cutoff), in: context)
             .compactMap { try makeIncomingRequest(from: $0, in: context) }
     }
 
@@ -71,19 +75,10 @@ private extension DeviceSyncChatStateCollector {
         after cutoff: Date?,
         in context: NSManagedObjectContext
     ) throws -> (added: [Chat.DeviceSyncOutgoingChatRequest], updated: [Chat.DeviceSyncOutgoingRequestStatusUpdate]) {
-        let outgoing = NSPredicate(
-            format: "%K == %d",
-            #keyPath(CDChatRequest.status),
-            Chat.RequestStatus.outgoing.rawValue
-        )
-        let predicate = cutoff
-            .map { NSCompoundPredicate(andPredicateWithSubpredicates: [outgoing, modified(after: $0)]) }
-            ?? outgoing
-
         var added: [Chat.DeviceSyncOutgoingChatRequest] = []
         var updated: [Chat.DeviceSyncOutgoingRequestStatusUpdate] = []
 
-        for request in try fetch(CDChatRequest.self, matching: predicate, in: context) {
+        for request in try fetch(CDChatRequest.self, matching: outgoingPredicate(after: cutoff), in: context) {
             guard let requestId = request.identifier else { continue }
             let status = try request.outgoingWireStatus(in: context)
 
@@ -143,18 +138,49 @@ private extension DeviceSyncChatStateCollector {
         )
     }
 
+    static func blockStatesPredicate(after cutoff: Date?) -> NSPredicate {
+        cutoff.map { modified(after: $0) } ?? .blockedContacts()
+    }
+
+    static func incomingPredicate(after cutoff: Date?) -> NSPredicate {
+        let decided = NSPredicate(
+            format: "%K IN %@",
+            #keyPath(CDChatRequest.status),
+            [Chat.RequestStatus.incoming(.accepted).rawValue, Chat.RequestStatus.incoming(.declined).rawValue]
+        )
+        return cutoff.map { NSCompoundPredicate(andPredicateWithSubpredicates: [decided, modified(after: $0)]) }
+            ?? decided
+    }
+
+    static func outgoingPredicate(after cutoff: Date?) -> NSPredicate {
+        let outgoing = NSPredicate(
+            format: "%K == %d",
+            #keyPath(CDChatRequest.status),
+            Chat.RequestStatus.outgoing.rawValue
+        )
+        return cutoff.map { NSCompoundPredicate(andPredicateWithSubpredicates: [outgoing, modified(after: $0)]) }
+            ?? outgoing
+    }
+
     static func modified(after date: Date) -> NSPredicate {
         NSPredicate(format: "modifiedAt > %@", date as NSDate)
     }
 
     static func fetch<Entity: NSManagedObject>(
-        _: Entity.Type,
+        _ type: Entity.Type,
         matching predicate: NSPredicate,
         in context: NSManagedObjectContext
     ) throws -> [Entity] {
+        try context.fetch(request(type, matching: predicate))
+    }
+
+    static func request<Entity: NSManagedObject>(
+        _: Entity.Type,
+        matching predicate: NSPredicate
+    ) -> NSFetchRequest<Entity> {
         let request = NSFetchRequest<Entity>(entityName: String(describing: Entity.self))
         request.predicate = predicate
-        return try context.fetch(request)
+        return request
     }
 }
 
