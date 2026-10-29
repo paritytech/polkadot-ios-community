@@ -2,8 +2,7 @@ import CoreData
 import Foundation
 import Operation_iOS
 
-/// Saves transferred messages at the order they had on the old phone (RFC §7.2, order exception) and moves the
-/// order counter past them, so messages written here afterwards still sort last.
+/// Keeps the old phone's order and moves the counter past it, so messages written here later still sort last.
 final class SenderOrderChatMessageRepositoryFactory: ChatMessageRepositoryMaking {
     private let storageFacade: StorageFacadeProtocol
     private let orderAllocator: ChatMessageOrderAllocating

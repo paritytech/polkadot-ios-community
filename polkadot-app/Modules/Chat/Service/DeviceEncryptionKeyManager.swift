@@ -6,7 +6,6 @@ import KeyDerivation
 protocol DeviceEncryptionKeyManaging {
     func getOrCreatePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey
     func getPublicKey() throws -> Data
-    /// Replaces this device's key with the old phone's, so peers that know the old device reach this one.
     func importPrivateKey(_ rawKey: Data) throws
 }
 

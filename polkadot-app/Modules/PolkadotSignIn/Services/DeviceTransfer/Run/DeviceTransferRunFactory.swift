@@ -18,8 +18,6 @@ struct DeviceTransferRunConfiguration {
     let ownSignKeyId: String
 }
 
-/// Builds a request's run: its transport, signaling session, WebRTC flows and peer context. The sender is always
-/// the initiator.
 final class DeviceTransferRunFactory: @unchecked Sendable {
     private let configuration: DeviceTransferRunConfiguration
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking

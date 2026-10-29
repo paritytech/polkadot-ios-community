@@ -8,8 +8,6 @@ import Keystore_iOS
 import Operation_iOS
 import Testing
 
-/// Old phone (`sender`) and new phone (`receiver`) are real in-memory stores sharing a chat, joined by a
-/// loopback channel that runs both exchanges against each other, files included.
 @Suite(.timeLimit(.minutes(1)))
 final class DeviceTransferRunTests {
     private let sender = TransferStateTestWorld()
@@ -275,7 +273,6 @@ private struct FixedDeviceEncryptionStorage: DeviceEncryptionStoring {
     let deviceEncryptId = "transfer-test"
 }
 
-/// One side of an in-process data channel: what one side sends, the other receives, in order.
 private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
     private let incomingUpdates = AsyncStream.makeStream(of: Chat.DeviceSyncUpdate.self)
     private let incomingAcks = AsyncStream.makeStream(of: Chat.DeviceSyncUpdateAck.self)

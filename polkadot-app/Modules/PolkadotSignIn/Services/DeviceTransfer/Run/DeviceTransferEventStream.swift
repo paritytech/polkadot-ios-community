@@ -13,12 +13,9 @@ enum DeviceTransferEvent {
     case ack(UInt32)
 }
 
-/// Merges what a transfer side waits on (controls, updates, acks, channel loss and its own timeout) into one
-/// stream, so every wait observes an abort or a disconnect as soon as it happens.
 struct DeviceTransferEventStream {
     fileprivate enum Signal {
         case event(DeviceTransferEvent)
-        /// Traffic that isn't waited on but shows the peer is still working, so it restarts the timeout.
         case activity
         case disconnected
         case timeout(UInt64)
@@ -31,8 +28,7 @@ struct DeviceTransferEventStream {
     private var signals: AsyncStream<Signal>.Iterator
     private var timeoutToken: UInt64 = 0
 
-    /// `countsFileRequests` makes the peer's file requests count as activity. Only a file-serving side may set
-    /// it: the side pulling files would buffer every chunk it receives.
+    /// Only the file-serving side may count file messages: the pulling side would buffer every chunk.
     init(
         flow: any DevicePeerConnectionFlowing,
         timeout: Duration,
@@ -57,7 +53,6 @@ struct DeviceTransferEventStream {
         continuation.finish()
     }
 
-    /// The next event, failing on an abort, a lost channel, or neither an event nor activity within the timeout.
     mutating func next(within timeout: Duration? = nil) async throws -> DeviceTransferEvent {
         let timeout = timeout ?? self.timeout
         var timer = startTimer(timeout: timeout)

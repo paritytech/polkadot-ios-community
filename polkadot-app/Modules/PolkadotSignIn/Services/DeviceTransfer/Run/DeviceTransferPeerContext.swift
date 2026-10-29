@@ -3,12 +3,11 @@ import AsyncExtensions
 import MessageExchangeKit
 
 protocol DeviceTransferPeerComponentMaking: Sendable {
-    /// Opens the transfer transport with `delegate` and returns the signaling session over it.
     func makeSignalingSession(delegate: AnyPeerSessionDelegate<Data>) async throws -> DeviceSyncSignalingSession
     func makeConnectionFlow(session: DeviceSyncSignalingSession) -> any DevicePeerConnectionFlowing
 }
 
-/// One connection's work: subscribes to the flow, starts it and returns once the transfer has completed.
+/// Must subscribe to the flow before starting it, or the first control message is lost.
 typealias DeviceTransferConnectionRun = @Sendable (any DevicePeerConnectionFlowing) async throws -> Void
 
 enum DeviceTransferContextError: Error, Equatable {
@@ -22,9 +21,6 @@ struct DeviceTransferPeerContextSettings {
     var sleep: DeviceSyncSleep = liveDeviceSyncSleep
 }
 
-/// One transfer over one signaling session, until it completes. Unlike `DeviceSyncPeerEngineContext` it ends:
-/// on completion, an abort, a rejection, cancellation, or `idleTimeout` with neither a statement nor an open data
-/// channel. A dropped connection is replaced over the same session, and the exchanges resume where they were.
 actor DeviceTransferPeerContext {
     fileprivate enum Outcome {
         case completed
@@ -60,7 +56,6 @@ actor DeviceTransferPeerContext {
         (idleSignals, idleContinuation) = AsyncStream.makeStream(of: Void.self)
     }
 
-    /// `onEvent` gets `peerFound` for each signaling statement and `channelOpened` for each opened channel.
     func run(
         onEvent: @escaping DeviceTransferRunEventHandler = { _ in },
         _ connectionRun: @escaping DeviceTransferConnectionRun
@@ -205,7 +200,6 @@ private extension DeviceTransferPeerContext {
         return .ended
     }
 
-    /// The peer started over, so the attempt in progress can't connect any more; the next one starts at once.
     func replaceCurrentAttempt() {
         isReplacingAttempt = true
         currentAttempt?.cancel()

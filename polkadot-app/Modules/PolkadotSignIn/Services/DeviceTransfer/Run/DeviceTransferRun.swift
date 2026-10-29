@@ -1,7 +1,6 @@
 import Foundation
 
 enum DeviceTransferRunEvent: Equatable {
-    /// The other phone's first signaling statement arrived.
     case peerFound
     case channelOpened
     case progress(DeviceTransferProgress)
@@ -11,11 +10,9 @@ typealias DeviceTransferRunEventHandler = @Sendable (DeviceTransferRunEvent) -> 
 
 protocol DeviceTransferRunning: Sendable {
     func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws
-    /// Tells the other phone over an open channel, then ends the run.
     func cancel() async
 }
 
-/// Builds one connection's exchange over its flow. The exchange subscribes to the flow before starting it.
 protocol DeviceTransferExchangeMaking: Sendable {
     func makeSenderConnection() -> DeviceTransferConnectionMaking
     func makeReceiverConnection(senderInstallationId: Data) -> DeviceTransferConnectionMaking
@@ -26,7 +23,6 @@ typealias DeviceTransferConnectionMaking = @Sendable (
     @escaping DeviceTransferRunEventHandler
 ) async throws -> Void
 
-/// A transfer for one request: the peer context drives connections, each running one exchange.
 actor DeviceTransferRun {
     private let context: DeviceTransferPeerContext
     private let connection: DeviceTransferConnectionMaking
@@ -73,7 +69,6 @@ private extension DeviceTransferRun {
 }
 
 extension DeviceTransferRunning {
-    /// Runs, handing events over one at a time in the order they happened.
     func run(handlingEventsWith handle: @escaping @Sendable (DeviceTransferRunEvent) async -> Void) async throws {
         let (events, continuation) = AsyncStream.makeStream(of: DeviceTransferRunEvent.self)
         let consumer = Task {

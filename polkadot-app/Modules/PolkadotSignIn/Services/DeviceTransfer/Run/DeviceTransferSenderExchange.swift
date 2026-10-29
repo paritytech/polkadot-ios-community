@@ -2,12 +2,6 @@ import Foundation
 import FoundationExt
 import StructuredConcurrency
 
-/// Old phone's side of one transfer connection. It keeps no state between connections: the receiver's
-/// `resume` point says where to start, and re-sent data is safe to apply again.
-///
-/// Data goes in rounds. A round sends what changed after its cutoff, every update stamped with the cutoff, and
-/// closes with an empty update stamped with the round's end. The receiver's checkpoint therefore only moves once a
-/// whole round is applied. Rounds repeat from the previous end until one finds nothing.
 struct DeviceTransferSenderExchange {
     private let flow: any DevicePeerConnectionFlowing
     private let collector: DeviceTransferChangesCollecting
@@ -95,7 +89,6 @@ private extension DeviceTransferSenderExchange {
         )
     }
 
-    /// Returns how many items the round carried.
     func send(
         _ round: DeviceTransferRound,
         state: [Chat.DeviceSyncEntity],

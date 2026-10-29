@@ -17,8 +17,7 @@ struct DeviceTransferExchangeDependencies {
     let logger: LoggerProtocol
 }
 
-/// Each connection gets its own file transfer: the sender serves the files, the receiver pulls them. Neither is
-/// registered for sibling downloads.
+/// Transfer file channels stay out of the sibling registry, so app downloads never use them.
 final class DeviceTransferExchangeFactory: @unchecked Sendable {
     private let dependencies: DeviceTransferExchangeDependencies
 

@@ -17,14 +17,13 @@ enum DeviceSyncFileRequestOutcome: Equatable {
 typealias DeviceSyncFileBytesHandler = @Sendable (UInt64) -> Void
 
 protocol DeviceSyncFileRequesting: Sendable {
-    /// Returns one outcome per item, in the same order. `onBytes` gets each increment of stored bytes, including
-    /// what an earlier attempt already stored when its header arrives.
+    /// `onBytes` also counts what an earlier attempt stored, once the file's header arrives.
     func request(
         _ items: [DeviceSyncFileRequestItem],
         onBytes: @escaping DeviceSyncFileBytesHandler
     ) async -> [DeviceSyncFileRequestOutcome]
 
-    /// Returns one entry per file, in the same order; no answer within the timeout counts as `notStored`.
+    /// No answer within the timeout counts as `notStored`.
     func requestAvailability(
         _ files: [Chat.DeviceSyncFileMessage.FileReference]
     ) async -> [Chat.DeviceSyncFileMessage.Availability]
@@ -170,7 +169,6 @@ private extension DeviceSyncFileRequester {
         }
     }
 
-    /// Files the response leaves out, or a missing response, count as not stored.
     func finishAvailability(_ requestId: UInt32, with availability: [Chat.DeviceSyncFileMessage.Availability]) {
         guard let request = inFlightAvailability.removeValue(forKey: requestId) else { return }
 

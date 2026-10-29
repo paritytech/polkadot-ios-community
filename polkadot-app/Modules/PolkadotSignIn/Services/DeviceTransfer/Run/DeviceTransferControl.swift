@@ -6,8 +6,6 @@ enum DeviceTransferAbortReason: UInt8, Equatable {
     case internalError = 1
 }
 
-/// The `deviceTransfer` use case on the data channel (RFC §7.2). `senderStarted` opens every connection and
-/// carries the device key before any sync update; `resume` tells the sender where the receiver's database stands.
 enum DeviceTransferControl: Equatable {
     static let deviceEncryptionKeyLength = 32
 
@@ -15,7 +13,6 @@ enum DeviceTransferControl: Equatable {
     case senderCompleted
     case receiverCompleted
     case abort(DeviceTransferAbortReason)
-    /// `nil` when the receiver holds nothing yet, so the sender starts from the beginning.
     case resume(fromTimePoint: UInt64?)
 }
 

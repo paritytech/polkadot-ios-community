@@ -2,7 +2,6 @@ import Foundation
 import Operation_iOS
 
 protocol DeviceTransferMissingFileScanning {
-    /// Attachments whose file isn't in the downloads store, newest message first.
     func missingFiles() async throws -> [DeviceSyncFileRequestItem]
 }
 

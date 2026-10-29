@@ -5,7 +5,6 @@ protocol ChatMessageOrderAllocating {
     /// Returns the next counter value; `floor` is evaluated only for an empty or unreadable counter.
     func nextOrder(floor: () throws -> UInt64) throws -> UInt64
 
-    /// Moves the counter up to `value` if it is lower, so the next order follows rows stored with given orders.
     func raiseOrder(atLeast value: UInt64) throws
 }
 
