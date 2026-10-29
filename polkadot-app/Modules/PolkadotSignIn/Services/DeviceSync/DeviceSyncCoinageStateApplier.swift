@@ -6,7 +6,12 @@ import StructuredConcurrency
 
 protocol DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_ coins: [Chat.DeviceSyncHandedOffCoin]) async throws
-    func applyClaimStatuses(_ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws
+
+    /// Returns the claims whose message isn't stored yet; a caller that keeps them applies them again later.
+    @discardableResult
+    func applyClaimStatuses(
+        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate]
 }
 
 /// Writes coinage state received from a sibling. A handed-off coin is rebuilt from its derivation and stored as
@@ -52,17 +57,27 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
         }
     }
 
-    /// A claim whose message hasn't arrived yet is skipped here; the transfer run keeps it until the message does.
-    func applyClaimStatuses(_ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws {
+    @discardableResult
+    func applyClaimStatuses(
+        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
+        var waiting: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
+
         for update in updates {
             guard let state = update.localState else { continue }
 
             do {
                 try await transferStateStore.applySyncedIncoming(messageId: update.messageId, state: state)
             } catch TransferStateStoreError.messageNotFound {
-                logger.warning("Synced claim status arrived before its message, skipping")
+                waiting.append(update)
             }
         }
+
+        if !waiting.isEmpty {
+            logger.warning("\(waiting.count) synced claim status(es) arrived before their message")
+        }
+
+        return waiting
     }
 }
 

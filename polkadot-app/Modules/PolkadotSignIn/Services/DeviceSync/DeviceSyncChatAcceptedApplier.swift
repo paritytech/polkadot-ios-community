@@ -21,7 +21,7 @@ struct DeviceSyncChatAcceptedApplier {
 
     func apply(_ wireMessages: [Chat.DeviceSyncWireMessage]) async throws {
         var processedRequestIds = Set<String>()
-        let sortedMessages = wireMessages.sorted { $0.remote.timestamp < $1.remote.timestamp }
+        let sortedMessages = wireMessages.sortedInSyncOrder()
 
         for wireMessage in sortedMessages {
             guard let accepted = chatAccepted(from: wireMessage.remote) else {
@@ -57,7 +57,7 @@ private extension DeviceSyncChatAcceptedApplier {
             .fetchOperation(by: { requestId }, options: .init())
             .asyncExecute()
         else {
-            peerLogger.debug("No synced accepted request found with id: \(requestId)")
+            try await applyAcceptorDeviceWithoutRequest(peerDevice, from: contactId, status: status)
             return
         }
 
@@ -111,6 +111,24 @@ private extension DeviceSyncChatAcceptedApplier {
         try await markLocalOutgoingRequestAccepted(requestId, peerDevice: peerDevice)
 
         peerLogger.debug("Accepted outgoing request \(requestId) from sync")
+    }
+
+    /// A contact's first device often arrives only in its acceptance; the request it answers may never have been
+    /// on this device, e.g. after a transfer. The device in an outgoing acceptance is the user's own.
+    func applyAcceptorDeviceWithoutRequest(
+        _ peerDevice: Chat.PeerDevice?,
+        from contactId: AccountId,
+        status: Chat.DeviceSyncLocalStatus
+    ) async throws {
+        guard case .incoming = status, let peerDevice else { return }
+
+        guard try await contactsStorageService.getContact(by: contactId).asyncExecute() != nil else {
+            peerLogger.debug("No contact for a synced acceptance device, skipping")
+            return
+        }
+
+        let settings = Chat.ContactDeviceSettings(accountId: contactId, changes: [.added(peerDevice)])
+        try await contactsStorageService.updateDeviceSettings([settings]).asyncExecute()
     }
 
     func markLocalIncomingRequestAccepted(_ requestId: String) async throws {

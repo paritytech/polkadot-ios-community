@@ -15,4 +15,11 @@ final class InMemoryChatMessageOrderAllocator: ChatMessageOrderAllocating {
         counter = nextValue
         return nextValue
     }
+
+    func raiseOrder(atLeast value: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        counter = max(counter ?? 0, value)
+    }
 }

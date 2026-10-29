@@ -14,7 +14,7 @@ actor DeviceSyncExchange {
 
     private let peerStatementAccountId: Data
 
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let dependencies: DeviceSyncExchangeDependencies
     private let incomingUpdateApplier: DeviceSyncIncomingUpdateApplier
     private let outgoingChangesCollector: DeviceSyncOutgoingChangesCollector
@@ -35,7 +35,7 @@ actor DeviceSyncExchange {
 
     init(
         peer: DeviceSyncExchangePeer,
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         dependencies: DeviceSyncExchangeDependencies,
         peerLogger: LoggerProtocol,
         behavior: DeviceSyncExchangeBehavior,

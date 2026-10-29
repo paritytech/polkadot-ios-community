@@ -22,7 +22,7 @@ extension DeviceSyncExchangeTests {
                 order: 42
             )
         ])
-        let dataChannel = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+        let dataChannel = MockDevicePeerConnectionFlow(startResult: .success(()))
         let session = makeSession(
             peerAccountId: peerAccountId,
             flow: dataChannel,

@@ -8,7 +8,7 @@ final class DeviceSyncFileProviderTests {
     typealias Message = Chat.DeviceSyncFileMessage
 
     private let directory: URL
-    private let flow = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+    private let flow = MockDevicePeerConnectionFlow(startResult: .success(()))
 
     init() throws {
         directory = FileManager.default.temporaryDirectory

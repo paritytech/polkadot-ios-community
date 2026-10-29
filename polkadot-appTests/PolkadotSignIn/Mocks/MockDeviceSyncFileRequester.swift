@@ -12,9 +12,18 @@ actor MockDeviceSyncFileRequester: DeviceSyncFileRequesting {
         self.outcome = outcome
     }
 
-    func request(_ items: [DeviceSyncFileRequestItem]) async -> [DeviceSyncFileRequestOutcome] {
+    func request(
+        _ items: [DeviceSyncFileRequestItem],
+        onBytes _: @escaping DeviceSyncFileBytesHandler
+    ) async -> [DeviceSyncFileRequestOutcome] {
         requests.append(items)
         return items.map { _ in outcome }
+    }
+
+    func requestAvailability(
+        _ files: [Chat.DeviceSyncFileMessage.FileReference]
+    ) async -> [Chat.DeviceSyncFileMessage.Availability] {
+        files.map { _ in .unavailable(.notStored) }
     }
 
     func handle(_ message: Chat.DeviceSyncFileMessage) async {

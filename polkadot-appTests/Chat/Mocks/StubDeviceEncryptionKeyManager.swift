@@ -12,4 +12,6 @@ struct StubDeviceEncryptionKeyManager: DeviceEncryptionKeyManaging {
     func getPublicKey() throws -> Data {
         privateKey.publicKey.rawRepresentation
     }
+
+    func importPrivateKey(_: Data) throws {}
 }

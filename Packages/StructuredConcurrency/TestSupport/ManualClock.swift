@@ -26,14 +26,21 @@ public final class ManualClock: Clock, Sendable {
         let continuation: CheckedContinuation<Void, Error>
     }
 
+    fileprivate enum Tally {
+        case pending
+        case started
+    }
+
     fileprivate struct Waiter {
         let duration: Duration
         let count: Int
+        let tally: Tally
         let continuation: CheckedContinuation<Void, Never>
     }
 
     fileprivate struct State {
         var sleepers: [Sleeper] = []
+        var startedCounts: [Duration: Int] = [:]
         var waiters: [Waiter] = []
         var cancelledIds: Set<UUID> = []
     }
@@ -65,19 +72,18 @@ public final class ManualClock: Clock, Sendable {
 
     /// Suspends until at least `count` sleeps of `duration` are pending, without finishing them.
     public func waitForSleeps(for duration: Duration, count: Int) async {
-        await withCheckedContinuation { continuation in
-            let isPending = state.withLock { state in
-                guard state.pendingCount(of: duration) < count else { return true }
+        await wait(for: duration, count: count, tally: .pending)
+    }
 
-                state.waiters.append(Waiter(duration: duration, count: count, continuation: continuation))
+    /// Suspends until `count` sleeps of `duration` have started in total, whether or not they have ended since.
+    /// A restarted deadline shows up here as one more start.
+    public func waitForSleepStarts(for duration: Duration, count: Int) async {
+        await wait(for: duration, count: count, tally: .started)
+    }
 
-                return false
-            }
-
-            if isPending {
-                continuation.resume()
-            }
-        }
+    /// How many sleeps of `duration` are pending right now.
+    public func pendingSleepCount(for duration: Duration) -> Int {
+        state.withLock { $0.pendingCount(of: duration) }
     }
 
     /// Waits for a sleep of `duration` to be pending, then finishes it.
@@ -116,18 +122,43 @@ public final class ManualClock: Clock, Sendable {
 }
 
 private extension ManualClock {
+    func wait(for duration: Duration, count: Int, tally: Tally) async {
+        await withCheckedContinuation { continuation in
+            let isReached = state.withLock { state in
+                guard state.count(of: duration, tally: tally) < count else { return true }
+
+                state.waiters.append(
+                    Waiter(duration: duration, count: count, tally: tally, continuation: continuation)
+                )
+
+                return false
+            }
+
+            if isReached {
+                continuation.resume()
+            }
+        }
+    }
+
     func register(_ sleeper: Sleeper) {
         let (isCancelled, readyWaiters): (Bool, [Waiter]) = state.withLock { state in
-            guard state.cancelledIds.remove(sleeper.id) == nil else { return (true, []) }
+            state.startedCounts[sleeper.duration, default: 0] += 1
 
-            state.sleepers.append(sleeper)
+            let isCancelled = state.cancelledIds.remove(sleeper.id) != nil
+            if !isCancelled {
+                state.sleepers.append(sleeper)
+            }
 
-            let pendingCount = state.pendingCount(of: sleeper.duration)
-            let isReady: (Waiter) -> Bool = { $0.duration == sleeper.duration && $0.count <= pendingCount }
+            let pendingCount = state.count(of: sleeper.duration, tally: .pending)
+            let startedCount = state.count(of: sleeper.duration, tally: .started)
+            let isReady: (Waiter) -> Bool = { waiter in
+                let count = waiter.tally == .pending ? pendingCount : startedCount
+                return waiter.duration == sleeper.duration && waiter.count <= count
+            }
             let ready = state.waiters.filter(isReady)
             state.waiters.removeAll(where: isReady)
 
-            return (false, ready)
+            return (isCancelled, ready)
         }
 
         if isCancelled {
@@ -155,5 +186,14 @@ private extension ManualClock {
 private extension ManualClock.State {
     func pendingCount(of duration: Duration) -> Int {
         sleepers.filter { $0.duration == duration }.count
+    }
+
+    func count(of duration: Duration, tally: ManualClock.Tally) -> Int {
+        switch tally {
+        case .pending:
+            pendingCount(of: duration)
+        case .started:
+            startedCounts[duration, default: 0]
+        }
     }
 }

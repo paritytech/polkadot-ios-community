@@ -4,6 +4,8 @@ import SDKLogger
 protocol ChatMessageOrderAllocating {
     /// Returns the next counter value; `floor` is evaluated only for an empty or unreadable counter.
     func nextOrder(floor: () throws -> UInt64) throws -> UInt64
+
+    func raiseOrder(atLeast value: UInt64) throws
 }
 
 /// Shared allocator used by the app and NotificationServiceExtension.
@@ -44,7 +46,38 @@ final class FileChatMessageOrderAllocator: ChatMessageOrderAllocating {
         }
 
         let nextValue = try storedBase(readCount: readCount, storedValue: storedValue, floor: floor) + 1
-        var buffer = nextValue.littleEndian
+        try write(nextValue, to: fileDescriptor)
+
+        return nextValue
+    }
+
+    func raiseOrder(atLeast value: UInt64) throws {
+        let fileDescriptor = open(fileURL.path, O_RDWR | O_CREAT, 0o600)
+        guard fileDescriptor >= 0 else {
+            throw ChatMessageOrderAllocatorError.systemCall(name: "open", errno: errno)
+        }
+
+        defer { close(fileDescriptor) }
+        try lockExclusively(fileDescriptor)
+        defer { flock(fileDescriptor, LOCK_UN) }
+
+        var storedValue: UInt64 = 0
+        let readCount = pread(fileDescriptor, &storedValue, Self.counterByteCount, 0)
+
+        if readCount == -1 {
+            throw ChatMessageOrderAllocatorError.systemCall(name: "pread", errno: errno)
+        }
+
+        let current = readCount == Self.counterByteCount ? UInt64(littleEndian: storedValue) : 0
+        guard value > current else { return }
+
+        try write(value, to: fileDescriptor)
+    }
+}
+
+private extension FileChatMessageOrderAllocator {
+    func write(_ value: UInt64, to fileDescriptor: Int32) throws {
+        var buffer = value.littleEndian
 
         let writeCount = pwrite(fileDescriptor, &buffer, Self.counterByteCount, 0)
         if writeCount == -1 {
@@ -54,12 +87,8 @@ final class FileChatMessageOrderAllocator: ChatMessageOrderAllocating {
         guard writeCount == Self.counterByteCount else {
             throw ChatMessageOrderAllocatorError.shortWrite(byteCount: writeCount)
         }
-
-        return nextValue
     }
-}
 
-private extension FileChatMessageOrderAllocator {
     func lockExclusively(_ fileDescriptor: Int32) throws {
         while flock(fileDescriptor, LOCK_EX) != 0 {
             guard errno == EINTR else {

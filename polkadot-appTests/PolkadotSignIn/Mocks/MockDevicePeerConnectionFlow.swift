@@ -3,7 +3,7 @@ import AsyncExtensions
 import Foundation
 import MessageExchangeKit
 
-actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
+actor MockDevicePeerConnectionFlow: DevicePeerConnectionFlowing {
     private nonisolated let failUpdates: Bool
     private nonisolated let sentUpdateEvents = DeviceSyncTestEventRecorder<Chat.DeviceSyncUpdate>()
     private nonisolated let sentAckEvents = DeviceSyncTestEventRecorder<Chat.DeviceSyncUpdateAck>()
@@ -25,6 +25,8 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
     private var updateContinuations = [AsyncStream<Chat.DeviceSyncUpdate>.Continuation]()
     private var ackContinuations = [AsyncStream<Chat.DeviceSyncUpdateAck>.Continuation]()
     private var fileMessageContinuations = [AsyncStream<Chat.DeviceSyncFileMessage>.Continuation]()
+    private var transferControlContinuations = [AsyncStream<DeviceTransferControl>.Continuation]()
+    private(set) var sentTransferControls = [DeviceTransferControl]()
     private var connectContinuation: CheckedContinuation<Void, Error>?
     private var blockedSendContinuation: CheckedContinuation<Void, Never>?
     private var sendIndex = 0
@@ -77,6 +79,12 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         }.eraseToAnyAsyncSequence()
     }
 
+    var transferControls: AnyAsyncSequence<DeviceTransferControl> {
+        AsyncStream<DeviceTransferControl> { continuation in
+            transferControlContinuations.append(continuation)
+        }.eraseToAnyAsyncSequence()
+    }
+
     func start() async throws {
         try startResult.get()
 
@@ -113,6 +121,10 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         try sendFileMessageResult.get()
         sentFileMessages.append(message)
         sentFileMessageEvents.record(message)
+    }
+
+    func sendTransferControl(_ control: DeviceTransferControl) async throws {
+        sentTransferControls.append(control)
     }
 
     func cancel() async {
@@ -174,6 +186,10 @@ actor MockDeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
 
     func emitFileMessage(_ message: Chat.DeviceSyncFileMessage) {
         fileMessageContinuations.forEach { $0.yield(message) }
+    }
+
+    func emitTransferControl(_ control: DeviceTransferControl) {
+        transferControlContinuations.forEach { $0.yield(control) }
     }
 
     private func addStateContinuation(_ continuation: AsyncStream<DeviceSyncDataChannelState>.Continuation) {

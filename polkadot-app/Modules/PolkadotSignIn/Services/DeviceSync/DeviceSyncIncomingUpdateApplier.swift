@@ -12,7 +12,7 @@ final class DeviceSyncIncomingUpdateApplier {
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
     private let chatStateApplier: DeviceSyncChatStateApplying
     private let coinageStateApplier: DeviceSyncCoinageStateApplying
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let peerLogger: LoggerProtocol
 
     init(
@@ -23,7 +23,7 @@ final class DeviceSyncIncomingUpdateApplier {
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
         chatStateApplier: DeviceSyncChatStateApplying,
         coinageStateApplier: DeviceSyncCoinageStateApplying,
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
         peerLogger: LoggerProtocol
@@ -48,9 +48,13 @@ final class DeviceSyncIncomingUpdateApplier {
         self.peerLogger = peerLogger
     }
 
-    func apply(_ update: Chat.DeviceSyncUpdate) async throws {
+    /// Returns the claim statuses whose message hasn't arrived yet.
+    @discardableResult
+    func apply(_ update: Chat.DeviceSyncUpdate) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
+        var waitingClaims: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
+
         for entity in update.entities {
-            await applyEntity(
+            waitingClaims += await applyEntity(
                 entity,
                 updateId: update.id,
                 updateTimePoint: update.timePoint
@@ -61,6 +65,8 @@ final class DeviceSyncIncomingUpdateApplier {
         let ack = Chat.DeviceSyncUpdateAck(id: update.id)
         try await flow.sendAck(ack)
         peerLogger.debug("Sent SyncUpdateAck id=\(ack.id)")
+
+        return waitingClaims
     }
 }
 
@@ -69,7 +75,7 @@ private extension DeviceSyncIncomingUpdateApplier {
         _ entity: Chat.DeviceSyncEntity,
         updateId: UInt32,
         updateTimePoint: UInt64
-    ) async {
+    ) async -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
         do {
             switch entity {
             case let .devices(devices):
@@ -92,7 +98,7 @@ private extension DeviceSyncIncomingUpdateApplier {
             case let .coinsHandedOff(coins):
                 try await coinageStateApplier.applyHandedOffCoins(coins)
             case let .coinageMessagesStatusUpdated(updates):
-                try await coinageStateApplier.applyClaimStatuses(updates)
+                return try await coinageStateApplier.applyClaimStatuses(updates)
             }
         } catch {
             peerLogger.error(
@@ -100,6 +106,8 @@ private extension DeviceSyncIncomingUpdateApplier {
                     "entity=\([entity].syncLogSummary): \(error)"
             )
         }
+
+        return []
     }
 
     func applyChatState(_ entity: Chat.DeviceSyncEntity) async throws {

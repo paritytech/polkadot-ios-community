@@ -10,6 +10,8 @@ protocol DeviceSyncCoinageStateCollecting {
     /// Handed-off coins and settled claims: everything on a full collection (`cutoff == nil`), otherwise what
     /// changed after `cutoff`. Collected after the messages, which the claim statuses refer to.
     func collect(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity]
+    /// Rows `collect` reads; a row it can't map isn't sent, so this can be slightly higher.
+    func count(after cutoff: Date?) async throws -> Int
 }
 
 struct DeviceSyncCoinageStateCollector {
@@ -32,30 +34,23 @@ extension DeviceSyncCoinageStateCollector: DeviceSyncCoinageStateCollecting {
             ].compactMap { $0 }
         }
     }
+
+    func count(after cutoff: Date?) async throws -> Int {
+        try await databaseService.performRead { context in
+            try context.count(for: Self.handedOffCoinsRequest(after: cutoff))
+                + context.count(for: Self.settledClaimsRequest(after: cutoff))
+        }
+    }
 }
 
 private extension DeviceSyncCoinageStateCollector {
-    /// Only committed hand-offs: a pending mark is released at launch when its message never went out.
     static func collectHandedOffCoins(
         after cutoff: Date?,
         in context: NSManagedObjectContext
     ) throws -> [Chat.DeviceSyncHandedOffCoin] {
-        let committed = NSPredicate(
-            format: "%K == %d",
-            #keyPath(CDCoin.handoffMark),
-            Int(CoinHandoffMark.committed.rawValue)
-        )
-        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
-        request.predicate = cutoff.map {
-            NSCompoundPredicate(andPredicateWithSubpredicates: [
-                committed,
-                NSPredicate(format: "%K > %@", #keyPath(CDCoin.handoffCommittedAt), $0 as NSDate)
-            ])
-        } ?? committed
-
         let mapper = CoinMapper()
 
-        return try context.fetch(request).map { entity in
+        return try context.fetch(handedOffCoinsRequest(after: cutoff)).map { entity in
             let coin = try mapper.transform(entity: entity)
             return Chat.DeviceSyncHandedOffCoin(
                 installationId: coin.derivationIndex.installation.value,
@@ -69,20 +64,7 @@ private extension DeviceSyncCoinageStateCollector {
         after cutoff: Date?,
         in context: NSManagedObjectContext
     ) throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
-        let settled = NSPredicate(
-            format: "%K >= %d",
-            #keyPath(CDIncomingTransferState.status),
-            Int(TransferStateStatus.firstTerminalRawValue)
-        )
-        let request = NSFetchRequest<CDIncomingTransferState>(entityName: "CDIncomingTransferState")
-        request.predicate = cutoff.map {
-            NSCompoundPredicate(andPredicateWithSubpredicates: [
-                settled,
-                NSPredicate(format: "%K > %@", #keyPath(CDIncomingTransferState.modifiedAt), $0 as NSDate)
-            ])
-        } ?? settled
-
-        return try context.fetch(request).compactMap { row in
+        try context.fetch(settledClaimsRequest(after: cutoff)).compactMap { row in
             guard
                 let message = row.message,
                 let messageId = message.messageId,
@@ -100,5 +82,40 @@ private extension DeviceSyncCoinageStateCollector {
                 claimedValue: state.status == .claimed ? state.actualValue : nil
             )
         }
+    }
+}
+
+private extension DeviceSyncCoinageStateCollector {
+    /// Only committed hand-offs: a pending mark is released at launch when its message never went out.
+    static func handedOffCoinsRequest(after cutoff: Date?) -> NSFetchRequest<CDCoin> {
+        let committed = NSPredicate(
+            format: "%K == %d",
+            #keyPath(CDCoin.handoffMark),
+            Int(CoinHandoffMark.committed.rawValue)
+        )
+        let request = NSFetchRequest<CDCoin>(entityName: "CDCoin")
+        request.predicate = cutoff.map {
+            NSCompoundPredicate(andPredicateWithSubpredicates: [
+                committed,
+                NSPredicate(format: "%K > %@", #keyPath(CDCoin.handoffCommittedAt), $0 as NSDate)
+            ])
+        } ?? committed
+        return request
+    }
+
+    static func settledClaimsRequest(after cutoff: Date?) -> NSFetchRequest<CDIncomingTransferState> {
+        let settled = NSPredicate(
+            format: "%K >= %d",
+            #keyPath(CDIncomingTransferState.status),
+            Int(TransferStateStatus.firstTerminalRawValue)
+        )
+        let request = NSFetchRequest<CDIncomingTransferState>(entityName: "CDIncomingTransferState")
+        request.predicate = cutoff.map {
+            NSCompoundPredicate(andPredicateWithSubpredicates: [
+                settled,
+                NSPredicate(format: "%K > %@", #keyPath(CDIncomingTransferState.modifiedAt), $0 as NSDate)
+            ])
+        } ?? settled
+        return request
     }
 }

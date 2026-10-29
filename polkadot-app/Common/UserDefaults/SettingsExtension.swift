@@ -20,6 +20,8 @@ enum SettingsKey: String {
     case deviceEncryptId = "deviceEncryptId.v3"
     case installationKeyId = "io.polkadot.app.entropy.id.v3"
     case nextSyncUpdateId = "nextSyncUpdateId.v3"
+    case deviceTransferCheckpoint = "deviceTransferCheckpoint.v3"
+    case deviceTransferCheckpointSender = "deviceTransferCheckpointSender.v3"
     case themeSelected = "themeSelected.v3"
     case gameCalendarReminder
     case localNetworkPermissionRequested

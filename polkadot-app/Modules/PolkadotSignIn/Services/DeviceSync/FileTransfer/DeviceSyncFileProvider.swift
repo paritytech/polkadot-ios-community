@@ -12,7 +12,7 @@ protocol DeviceSyncFileProviding: Sendable {
 actor DeviceSyncFileProvider {
     static let chunkPayloadSize = 60 * 1_024
 
-    private let flow: any DeviceSyncPeerConnectionFlowing
+    private let flow: any DevicePeerConnectionFlowing
     private let locator: DeviceSyncFileLocating
     private let logger: LoggerProtocol
 
@@ -23,7 +23,7 @@ actor DeviceSyncFileProvider {
     private var isClosed = false
 
     init(
-        flow: any DeviceSyncPeerConnectionFlowing,
+        flow: any DevicePeerConnectionFlowing,
         locator: DeviceSyncFileLocating,
         logger: LoggerProtocol
     ) {

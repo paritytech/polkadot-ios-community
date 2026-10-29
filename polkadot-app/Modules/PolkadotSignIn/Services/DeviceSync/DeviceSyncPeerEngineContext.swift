@@ -28,7 +28,7 @@ actor DeviceSyncPeerEngineContext {
 
     private var persistedOfferId: String?
     private var signalingSession: DeviceSyncSignalingSession?
-    private var currentFlow: (any DeviceSyncPeerConnectionFlowing)?
+    private var currentFlow: (any DevicePeerConnectionFlowing)?
     private var currentExchange: (any DeviceSyncExchanging)?
     private var currentConnectionId: UUID?
     private var lifecycleTask: Task<Void, Never>?
