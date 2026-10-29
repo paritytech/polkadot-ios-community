@@ -27,13 +27,24 @@ struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
     }
 
     func run(onEvent _: @escaping DeviceTransferRunEventHandler) async throws {
-        var channel = await DeviceTransferSenderChannel(
+        let channel = await DeviceTransferSenderChannel(
             flow: flow,
             updateIdProvider: updateIdProvider,
             settings: settings
         )
-        defer { channel.close() }
 
+        do {
+            try await transfer(over: channel)
+            await channel.close()
+        } catch {
+            await channel.close()
+            throw error
+        }
+    }
+}
+
+private extension DeviceTransferSenderClient {
+    func transfer(over channel: DeviceTransferSenderChannel) async throws {
         let flow = flow
         try await withTimeout(settings.connectTimeout) { try await flow.start() }
 
@@ -43,7 +54,7 @@ struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
 
         try await sendStarted(state: state, round: round)
 
-        while try await send(round, state: state, over: &channel) > 0 {
+        while try await send(round, state: state, over: channel) > 0 {
             round = await round.next(end: currentTimePoint())
             state = try await collector.collectStateEntities(since: round.cutoff)
         }
@@ -95,7 +106,7 @@ private extension DeviceTransferSenderClient {
     func send(
         _ round: DeviceTransferRound,
         state: [Chat.DeviceSyncEntity],
-        over channel: inout DeviceTransferSenderChannel
+        over channel: DeviceTransferSenderChannel
     ) async throws -> Int {
         let timePoint = round.cutoff ?? 0
         var itemCount = state.reduce(0) { $0 + $1.itemCount }

@@ -7,7 +7,7 @@ struct DeviceTransferSenderSettings {
     /// The receiver pulls files before confirming, so each of its file requests restarts this wait.
     var completionIdleTimeout: Duration = DeviceTransferConstants.runIdleTimeout
     var entityChunker = DeviceSyncEntityChunker()
-    var sleep: DeviceSyncSleep = liveDeviceSyncSleep
+    var clock: any Clock<Duration> = ContinuousClock()
 }
 
 struct DeviceTransferSenderChannel {
@@ -15,7 +15,7 @@ struct DeviceTransferSenderChannel {
     private let updateIdProvider: DeviceSyncUpdateIdProviding
     private let entityChunker: DeviceSyncEntityChunker
     private let completionIdleTimeout: Duration
-    private var events: DeviceTransferEventStream
+    private let events: DeviceTransferEventStream
 
     init(
         flow: any DevicePeerConnectionFlowing,
@@ -26,31 +26,31 @@ struct DeviceTransferSenderChannel {
         self.updateIdProvider = updateIdProvider
         entityChunker = settings.entityChunker
         completionIdleTimeout = settings.completionIdleTimeout
-        events = await DeviceTransferEventStream(
+        events = await DeviceTransferEventStream.open(
             flow: flow,
             timeout: settings.responseTimeout,
-            sleep: settings.sleep,
+            clock: settings.clock,
             countsFileRequests: true
         )
     }
 
-    func close() {
-        events.close()
+    func close() async {
+        await events.close()
     }
 
-    mutating func waitForResume() async throws -> UInt64? {
+    func waitForResume() async throws -> UInt64? {
         try await events.waitForControl { control in
             guard case let .resume(timePoint) = control else { return nil }
             return .some(timePoint)
         }
     }
 
-    mutating func waitForReceiverCompleted() async throws {
+    func waitForReceiverCompleted() async throws {
         try await events.waitForControl(within: completionIdleTimeout) { $0 == .receiverCompleted ? () : nil }
     }
 
     /// Empty entities still send one update: it carries a round's closing time point.
-    mutating func deliver(_ entities: [Chat.DeviceSyncEntity], timePoint: UInt64) async throws {
+    func deliver(_ entities: [Chat.DeviceSyncEntity], timePoint: UInt64) async throws {
         let batches = entities.isEmpty ? [[]] : try entityChunker.chunk(entities)
         var pendingIds = Set<UInt32>()
 

@@ -1,5 +1,6 @@
 import Foundation
 import AsyncExtensions
+import StructuredConcurrency
 
 enum DeviceTransferRunError: Error, Equatable {
     case aborted(DeviceTransferAbortReason)
@@ -7,81 +8,71 @@ enum DeviceTransferRunError: Error, Equatable {
     case timedOut
 }
 
-enum DeviceTransferEvent {
+enum DeviceTransferEvent: Sendable {
     case control(DeviceTransferControl)
     case update(Chat.DeviceSyncUpdate)
     case ack(UInt32)
 }
 
-struct DeviceTransferEventStream {
-    fileprivate enum Signal {
+actor DeviceTransferEventStream {
+    fileprivate enum Signal: Sendable {
         case event(DeviceTransferEvent)
         case activity
         case disconnected
-        case timeout(UInt64)
     }
 
     private let timeout: Duration
-    private let sleep: DeviceSyncSleep
-    private let continuation: AsyncStream<Signal>.Continuation
-    private let forwarders: [Task<Void, Never>]
-    private var signals: AsyncStream<Signal>.Iterator
-    private var timeoutToken: UInt64 = 0
+    private let clock: any Clock<Duration>
+    private var pending: [Signal] = []
+    private var waiter: CheckedContinuation<Signal?, Never>?
+    private var forwarders: [Task<Void, Never>] = []
+    private var isClosed = false
 
+    private init(timeout: Duration, clock: any Clock<Duration>) {
+        self.timeout = timeout
+        self.clock = clock
+    }
+
+    /// Subscribes to the flow before returning, so nothing it delivers after `start()` is missed.
     /// Only the file-serving side may count file messages: the pulling side would buffer every chunk.
-    init(
+    static func open(
         flow: any DevicePeerConnectionFlowing,
         timeout: Duration,
-        sleep: @escaping DeviceSyncSleep,
+        clock: any Clock<Duration> = ContinuousClock(),
         countsFileRequests: Bool = false
-    ) async {
-        let (stream, continuation) = AsyncStream.makeStream(of: Signal.self)
-
-        self.timeout = timeout
-        self.sleep = sleep
-        self.continuation = continuation
-        signals = stream.makeAsyncIterator()
-        forwarders = await Self.startForwarders(
-            flow: flow,
-            countsFileRequests: countsFileRequests,
-            into: continuation
-        )
+    ) async -> DeviceTransferEventStream {
+        let stream = DeviceTransferEventStream(timeout: timeout, clock: clock)
+        await stream.subscribe(to: flow, countsFileRequests: countsFileRequests)
+        return stream
     }
 
     func close() {
+        isClosed = true
         forwarders.forEach { $0.cancel() }
-        continuation.finish()
+        forwarders = []
+        resumeWaiter(with: nil)
     }
 
-    mutating func next(within timeout: Duration? = nil) async throws -> DeviceTransferEvent {
+    func next(within timeout: Duration? = nil) async throws -> DeviceTransferEvent {
         let timeout = timeout ?? self.timeout
-        var timer = startTimer(timeout: timeout)
-        defer { timer.task.cancel() }
 
-        while let signal = await signals.next() {
-            switch signal {
+        while true {
+            switch try await nextSignal(within: timeout) {
             case let .event(.control(.abort(reason))):
                 throw DeviceTransferRunError.aborted(reason)
             case let .event(event):
                 return event
             case .activity:
-                timer.task.cancel()
-                timer = startTimer(timeout: timeout)
+                continue
             case .disconnected:
                 throw DeviceTransferRunError.disconnected
-            case let .timeout(firedToken):
-                if firedToken == timer.token {
-                    throw DeviceTransferRunError.timedOut
-                }
             }
         }
-
-        throw CancellationError()
     }
 
-    mutating func waitForControl<Result>(
+    func waitForControl<Result: Sendable>(
         within timeout: Duration? = nil,
-        _ match: (DeviceTransferControl) -> Result?
+        _ match: @Sendable (DeviceTransferControl) -> Result?
     ) async throws -> Result {
         while true {
             if case let .control(control) = try await next(within: timeout), let result = match(control) {
@@ -92,59 +83,84 @@ struct DeviceTransferEventStream {
 }
 
 private extension DeviceTransferEventStream {
-    static func startForwarders(
-        flow: any DevicePeerConnectionFlowing,
-        countsFileRequests: Bool,
-        into continuation: AsyncStream<Signal>.Continuation
-    ) async -> [Task<Void, Never>] {
+    func subscribe(to flow: any DevicePeerConnectionFlowing, countsFileRequests: Bool) async {
         let controls = await flow.transferControls.makeAsyncIterator()
         let updates = await flow.updates.makeAsyncIterator()
         let acks = await flow.acks.makeAsyncIterator()
         let states = await flow.states.makeAsyncIterator()
 
-        var forwarders = [
-            forward(controls, into: continuation) { .event(.control($0)) },
-            forward(updates, into: continuation) { .event(.update($0)) },
-            forward(acks, into: continuation) { .event(.ack($0.id)) },
-            forward(states, into: continuation) { $0 == .disconnected ? .disconnected : nil }
+        forwarders = [
+            forward(controls) { .event(.control($0)) },
+            forward(updates) { .event(.update($0)) },
+            forward(acks) { .event(.ack($0.id)) },
+            forward(states) { $0 == .disconnected ? .disconnected : nil }
         ]
 
         if countsFileRequests {
             let fileMessages = await flow.fileMessages.makeAsyncIterator()
-            forwarders.append(forward(fileMessages, into: continuation) { _ in .activity })
+            forwarders.append(forward(fileMessages) { _ in .activity })
         }
-
-        return forwarders
     }
 
-    static func forward<Element>(
+    func forward<Element>(
         _ initialIterator: AnyAsyncIterator<Element>,
-        into continuation: AsyncStream<Signal>.Continuation,
         transform: @escaping @Sendable (Element) -> Signal?
     ) -> Task<Void, Never> {
-        Task {
+        Task { [weak self] in
             var iterator = initialIterator
             while let element = try? await iterator.next() {
                 if let signal = transform(element) {
-                    continuation.yield(signal)
+                    await self?.receive(signal)
                 }
             }
             guard !Task.isCancelled else { return }
-            continuation.yield(.disconnected)
+            await self?.receive(.disconnected)
         }
     }
 
-    mutating func startTimer(timeout: Duration) -> (token: UInt64, task: Task<Void, Never>) {
-        timeoutToken += 1
-        let token = timeoutToken
-        let sleep = sleep
-        let continuation = continuation
+    func receive(_ signal: Signal) {
+        guard !isClosed else { return }
 
-        let task = Task {
-            guard await (try? sleep(timeout)) != nil, !Task.isCancelled else { return }
-            continuation.yield(.timeout(token))
+        if waiter != nil {
+            resumeWaiter(with: signal)
+        } else {
+            pending.append(signal)
+        }
+    }
+
+    func nextSignal(within timeout: Duration) async throws -> Signal {
+        let signal: Signal?
+
+        do {
+            signal = try await withTimeout(timeout, clock: clock) { [self] in await takeSignal() }
+        } catch is TimeoutError {
+            throw DeviceTransferRunError.timedOut
         }
 
-        return (token, task)
+        guard let signal else { throw CancellationError() }
+        return signal
+    }
+
+    /// `nil` once the stream is closed or the waiting task is cancelled.
+    func takeSignal() async -> Signal? {
+        if !pending.isEmpty {
+            return pending.removeFirst()
+        }
+
+        guard !isClosed, !Task.isCancelled else { return nil }
+
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                waiter = continuation
+            }
+        } onCancel: {
+            Task { await self.resumeWaiter(with: nil) }
+        }
+    }
+
+    func resumeWaiter(with signal: Signal?) {
+        let waiter = waiter
+        self.waiter = nil
+        waiter?.resume(returning: signal)
     }
 }
