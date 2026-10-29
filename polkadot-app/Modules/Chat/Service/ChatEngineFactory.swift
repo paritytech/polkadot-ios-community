@@ -57,6 +57,7 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
                 pushIdFactory: chatIdFactory,
                 deviceEncryptionKeyManager: DeviceEncryptionKeyManager.shared
             ),
+            cancelService: flowState.chatRequestCancelService,
             tokenProvider: APNSTokenProviderFacade.sharedManager,
             storageFacade: storageFacade
         )

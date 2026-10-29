@@ -41,6 +41,7 @@ protocol ServiceCoordinatorProtocol: DashboardServicesCoordinating {
     var chainStatusProvider: ChainStatusProviding { get }
     var truapiRuntimeProvider: TrUAPIHostRuntimeProviding { get }
     var durabilityRenewal: StatementDurabilityRenewing { get }
+    var chatRequestCancelService: ChatRequestCancelServicing { get }
 }
 
 final class ServiceCoordinator {

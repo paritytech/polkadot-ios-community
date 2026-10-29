@@ -345,6 +345,18 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         }
     }
 
+    func cancelChatRequest() {
+        Task { [engine, logger] in
+            do {
+                try await engine.cancelChatRequest()
+            } catch ChatRequestCancelError.notPending {
+                logger.debug("Chat request is no longer pending")
+            } catch {
+                logger.error("Unexpected error while cancelling request: \(error)")
+            }
+        }
+    }
+
     func processAction(_ action: Chat.Action) {
         Task {
             await engine.processAction(action)

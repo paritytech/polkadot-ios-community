@@ -6,6 +6,7 @@ import MessageExchangeKit
 enum ChatRequestEngineContextError: Error {
     case missingChat
     case noIncomingRequest
+    case noOutgoingRequest
     case noPendingOutgoingRequest
     case unsupportedContent
 }
@@ -15,16 +16,19 @@ actor ChatRequestEngineContext {
 
     let tokenProvider: APNSTokenProviding
     let chatRequestStoreService: ChatRequestStoreServicing
+    let cancelService: ChatRequestCancelServicing
     let chatRepository: AnyDataProviderRepository<Chat.LocalModel>
 
     init(
         pendingRequest: ChatOpenModel.NewRequest?,
         chatRequestStoreService: ChatRequestStoreServicing,
+        cancelService: ChatRequestCancelServicing,
         tokenProvider: APNSTokenProviding,
         storageFacade: StorageFacadeProtocol
     ) {
         self.pendingRequest = pendingRequest
         self.chatRequestStoreService = chatRequestStoreService
+        self.cancelService = cancelService
         self.tokenProvider = tokenProvider
 
         chatRepository = AnyDataProviderRepository(
@@ -88,9 +92,34 @@ actor ChatRequestEngineContext {
         let request = try await fetchIncomingChatContact(for: chatId)
         try await chatRequestStoreService.declineIncomingRequest(request.requestId)
     }
+
+    func cancelOutgoingRequest(for chatId: Chat.Id) async throws {
+        let request = try await fetchOutgoingChatRequest(for: chatId)
+        try await cancelService.cancel(requestId: request.requestId)
+    }
 }
 
 private extension ChatRequestEngineContext {
+    func fetchOutgoingChatRequest(for chatId: Chat.Id) async throws -> Chat.Request {
+        let chat = try await chatRepository
+            .fetchOperation(
+                by: { chatId.rawRepresentation },
+                options: RepositoryFetchOptions()
+            )
+            .asyncExecute()
+            .mapOrThrow(ChatRequestEngineContextError.missingChat)
+
+        guard
+            let contact = chat.peer.contact,
+            let request = contact.chatRequest,
+            request.isOutgoing
+        else {
+            throw ChatRequestEngineContextError.noOutgoingRequest
+        }
+
+        return request
+    }
+
     func fetchIncomingChatContact(for chatId: Chat.Id) async throws -> Chat.Request {
         let chat = try await chatRepository
             .fetchOperation(

@@ -656,6 +656,18 @@
         }
       }
     },
+    "chat.requested.banner.cancel" : {
+      "comment" : "Button in the bottom of the chat that cancels the pending request",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel request"
+          }
+        }
+      }
+    },
     "chat.requested.banner.message" : {
       "comment" : "Displayed in the bottom of the chat when peer hasn’t accepted request yet",
       "extractionState" : "manual",

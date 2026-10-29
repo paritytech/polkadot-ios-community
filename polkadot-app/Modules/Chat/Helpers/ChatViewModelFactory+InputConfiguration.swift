@@ -13,7 +13,7 @@ extension ChatViewModelFactory {
         case .incomingRequest:
             makeIncomingRequestInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .outgoingRequest:
-            makeOutgoingPendingRequestInputConfiguration(for: metadata)
+            makeOutgoingPendingRequestInputConfiguration(for: metadata, actions: actions)
         case .blockedUser:
             makeBlockedUserInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .empty:
@@ -54,12 +54,14 @@ private extension ChatViewModelFactory {
     }
 
     func makeOutgoingPendingRequestInputConfiguration(
-        for metadata: ChatMetadata
+        for metadata: ChatMetadata,
+        actions: ChatViewModelActions
     ) -> any ChatInputViewConfigurationProtocol {
         switch metadata.state {
         case .created:
             ChatRequestedBannerView.ViewModel(
-                username: metadata.peerMetadata.name
+                username: metadata.peerMetadata.name,
+                onCancel: actions.cancelChatRequest
             )
         case .pending:
             ChatRequestInProgressBannerView.ViewModel(

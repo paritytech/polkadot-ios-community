@@ -10,10 +10,19 @@ public struct ChatRequestedBannerView: View {
     }
 
     public var body: some View {
-        Text(
-            getMessage(for: viewModel.username)
-        )
-        .multilineTextAlignment(.center)
+        VStack(alignment: .center, spacing: 16) {
+            Text(
+                getMessage(for: viewModel.username)
+            )
+            .multilineTextAlignment(.center)
+
+            Button(action: viewModel.onCancel) {
+                Text(.chatRequestedBannerCancel)
+                    .typography(.titleSmall)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.destructiveDark44)
+        }
         .padding(.horizontal, 16)
         .padding(.top, 0)
         .padding(.bottom, 24)
@@ -23,11 +32,14 @@ public struct ChatRequestedBannerView: View {
 public extension ChatRequestedBannerView {
     struct ViewModel {
         let username: String
+        let onCancel: () -> Void
 
         public init(
-            username: String
+            username: String,
+            onCancel: @escaping () -> Void
         ) {
             self.username = username
+            self.onCancel = onCancel
         }
     }
 }
@@ -59,7 +71,7 @@ private extension ChatRequestedBannerView {
 #Preview(traits: .sizeThatFitsLayout) {
     UIHostingConfiguration {
         ChatRequestedBannerView(
-            viewModel: .init(username: "Maxwell.42")
+            viewModel: .init(username: "Maxwell.42", onCancel: {})
         )
         .background(Color.bgSurfaceContainer)
     }

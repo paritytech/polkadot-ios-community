@@ -15,6 +15,7 @@ protocol ChatEngineProtocol {
     func unblockUser() async throws
     func acceptChatRequest() async throws
     func declineChatRequest() async throws
+    func cancelChatRequest() async throws
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?>
     func footerStream() async throws -> AnyAsyncSequence<(any HashableContentConfiguration)?>?
     func processAction(_ action: Chat.Action) async
@@ -242,6 +243,10 @@ extension ChatEngine: ChatEngineProtocol {
 
     func declineChatRequest() async throws {
         try await chatRequestContext.declineIncomingRequest(for: chatId)
+    }
+
+    func cancelChatRequest() async throws {
+        try await chatRequestContext.cancelOutgoingRequest(for: chatId)
     }
 
     func processAction(_ action: Chat.Action) async {

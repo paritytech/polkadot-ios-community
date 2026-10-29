@@ -136,6 +136,7 @@ enum MainTabBarViewFactory {
             coinageService: serviceCoordinator.coinageService,
             networkStatusService: serviceCoordinator.networkStatusService,
             allowanceCleanupService: serviceCoordinator.allowanceManagerFacade.cleanupService,
+            chatRequestCancelService: serviceCoordinator.chatRequestCancelService,
             flowState: spaFlowState
         )
     }
