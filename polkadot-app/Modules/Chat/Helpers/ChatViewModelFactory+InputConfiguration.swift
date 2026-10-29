@@ -4,16 +4,20 @@ import PolkadotUI
 
 extension ChatViewModelFactory {
     func makeInputConfiguration(
-        for metadata: ChatMetadata,
+        for metadata: MessageListMetadata,
         actions: ChatViewModelActions
     ) -> (any ChatInputViewConfigurationProtocol)? {
-        switch metadata.peerMetadata.input {
+        guard !metadata.isIncomingRequestCancelled else {
+            return ChatRequestCancelledBannerView.ViewModel(username: metadata.peerName)
+        }
+
+        return switch metadata.peerMetadata.input {
         case let .inputField(inputFieldMetadata):
             makeTextInputConfiguration(inputFieldMetadata)
         case .incomingRequest:
             makeIncomingRequestInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .outgoingRequest:
-            makeOutgoingPendingRequestInputConfiguration(for: metadata, actions: actions)
+            makeOutgoingPendingRequestInputConfiguration(for: metadata.chatMetadata, actions: actions)
         case .blockedUser:
             makeBlockedUserInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .empty:

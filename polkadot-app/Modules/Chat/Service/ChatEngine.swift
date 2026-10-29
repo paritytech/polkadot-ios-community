@@ -17,12 +17,18 @@ protocol ChatEngineProtocol {
     func declineChatRequest() async throws
     func cancelChatRequest() async throws
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?>
+    func removalReason() async -> ChatRemovalReason
     func footerStream() async throws -> AnyAsyncSequence<(any HashableContentConfiguration)?>?
     func processAction(_ action: Chat.Action) async
 }
 
 enum ChatEngineError: Error {
     case missingChat
+}
+
+enum ChatRemovalReason {
+    case requestCancelled
+    case other
 }
 
 final class ChatEngine {
@@ -186,6 +192,7 @@ extension ChatEngine: ChatEngineProtocol {
             .map { [weak self, chatExtensionRegistry] optChat in
                 if let chat = optChat {
                     await self?.chatRequestContext.resetPendingOutgoingRequest()
+                    await self?.chatRequestContext.rememberIncomingRequest(of: chat)
 
                     return chat.chatMetadata(using: chatExtensionRegistry)
                 } else {
@@ -194,6 +201,10 @@ extension ChatEngine: ChatEngineProtocol {
             }
             .removeDuplicates()
             .eraseToAnyAsyncSequence()
+    }
+
+    func removalReason() async -> ChatRemovalReason {
+        await chatRequestContext.removalReason()
     }
 
     func footerStream() async throws -> AnyAsyncSequence<(any HashableContentConfiguration)?>? {

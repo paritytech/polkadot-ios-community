@@ -13,6 +13,7 @@ enum ChatRequestEngineContextError: Error {
 
 actor ChatRequestEngineContext {
     private var pendingRequest: ChatOpenModel.NewRequest?
+    private var incomingRequestId: String?
 
     let tokenProvider: APNSTokenProviding
     let chatRequestStoreService: ChatRequestStoreServicing
@@ -96,6 +97,22 @@ actor ChatRequestEngineContext {
     func cancelOutgoingRequest(for chatId: Chat.Id) async throws {
         let request = try await fetchOutgoingChatRequest(for: chatId)
         try await cancelService.cancel(requestId: request.requestId)
+    }
+
+    func rememberIncomingRequest(of chat: Chat.LocalModel) {
+        incomingRequestId = chat.peer.contact?.chatRequest.flatMap { $0.isIncoming ? $0.requestId : nil }
+    }
+
+    func removalReason() async -> ChatRemovalReason {
+        guard
+            let incomingRequestId,
+            let request = try? await chatRequestStoreService.fetchByRequestId(incomingRequestId),
+            request.status == .incoming(.cancelled)
+        else {
+            return .other
+        }
+
+        return .requestCancelled
     }
 }
 

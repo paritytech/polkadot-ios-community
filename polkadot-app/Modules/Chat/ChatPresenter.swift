@@ -152,6 +152,17 @@ extension ChatPresenter: ChatInteractorOutputProtocol {
     func didDeclineChatRequest() {
         wireframe.dismissChat(from: view)
     }
+
+    func didCancelIncomingRequest() {
+        metadata?.isIncomingRequestCancelled = true
+
+        provideViewModel()
+        provideMoreActions()
+    }
+
+    func didRemoveChat() {
+        wireframe.dismissChat(from: view)
+    }
 }
 
 private extension ChatPresenter {
@@ -239,7 +250,7 @@ private extension ChatPresenter {
             return
         }
 
-        let actions = metadata.peerMetadata.moreActions
+        let actions = metadata.isIncomingRequestCancelled ? [] : metadata.peerMetadata.moreActions
 
         let callActions: [ChatCallType] = actions.compactMap { action in
             switch action {

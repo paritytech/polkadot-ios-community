@@ -620,6 +620,18 @@
         }
       }
     },
+    "chat.request.cancelled.banner.message" : {
+      "comment" : "Displayed in the bottom of the chat when the peer cancelled their chat request",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(username)@ cancelled this chat request."
+          }
+        }
+      }
+    },
     "chat.request.in.progress.message" : {
       "comment" : "Display when message for chat request is being entered by the user",
       "extractionState" : "manual",

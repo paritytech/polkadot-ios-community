@@ -72,6 +72,10 @@ protocol ChatInteractorOutputProtocol: AnyObject {
     func didBlockUser()
 
     func didDeclineChatRequest()
+
+    func didCancelIncomingRequest()
+
+    func didRemoveChat()
 }
 
 @MainActor
