@@ -37,6 +37,10 @@ protocol ChatRequestStoreServicing {
 
     func declineIncomingRequest(_ requestId: String) async throws
 
+    func cancelIncomingRequest(_ requestId: String) async throws
+
+    func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws
+
     func buildLocalAcceptorDevice() throws -> Chat.PeerDevice
 }
 
@@ -204,6 +208,32 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
             mapper: AnyCoreDataMapper(DeclineIncomingChatRequestMapper())
         )
         .saveOperation({ [declineIncoming] }, { [] })
+        .asyncExecute()
+    }
+
+    func cancelIncomingRequest(_ requestId: String) async throws {
+        let cancelIncoming = ChatRequest.CancelIncoming(requestId: requestId)
+
+        try await storageFacade.createRepository(
+            mapper: AnyCoreDataMapper(CancelIncomingChatRequestMapper())
+        )
+        .saveOperation({ [cancelIncoming] }, { [] })
+        .asyncExecute()
+    }
+
+    func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws {
+        let cancelledRequest = Chat.Request(
+            requestId: remote.requestId,
+            contactAccountId: remote.peerAccountId,
+            timestamp: remote.message.timestamp,
+            status: .incoming(.cancelled),
+            message: nil
+        )
+
+        try await storageFacade.createRepository(
+            mapper: AnyCoreDataMapper(ChatRequestMapper())
+        )
+        .saveOperation({ [cancelledRequest] }, { [] })
         .asyncExecute()
     }
 

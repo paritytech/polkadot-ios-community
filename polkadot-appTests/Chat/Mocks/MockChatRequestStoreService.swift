@@ -10,6 +10,8 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         case acceptIncoming
         case acceptOutgoing(requestId: String)
         case declineIncoming(requestId: String)
+        case cancelIncoming(requestId: String)
+        case storeCancelled(requestId: String)
     }
 
     private let lock = NSLock()
@@ -74,6 +76,14 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
 
     func declineIncomingRequest(_ requestId: String) async throws {
         record(.declineIncoming(requestId: requestId))
+    }
+
+    func cancelIncomingRequest(_ requestId: String) async throws {
+        record(.cancelIncoming(requestId: requestId))
+    }
+
+    func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws {
+        record(.storeCancelled(requestId: remote.requestId))
     }
 
     func buildLocalAcceptorDevice() throws -> Chat.PeerDevice {

@@ -7,6 +7,7 @@ extension Chat {
             case new
             case declined
             case accepted
+            case cancelled
         }
 
         case incoming(Incoming)
@@ -60,6 +61,8 @@ extension Chat.RequestStatus {
             self = .incoming(.declined)
         case 5:
             self = .outgoing
+        case 6:
+            self = .incoming(.cancelled)
         default:
             return nil
         }
@@ -70,6 +73,7 @@ extension Chat.RequestStatus {
         case .incoming(.new): 0
         case .incoming(.accepted): 3
         case .incoming(.declined): 4
+        case .incoming(.cancelled): 6
         case .outgoing: 5
         }
     }

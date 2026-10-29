@@ -69,6 +69,11 @@ actor IncomingChatRequestCoordinationContext {
         incomingRequest: ChatRequest.ValidatedRemoteModel,
         ownKeyId: Chat.Contact.Own
     ) async throws {
+        if incomingRequest.message.content.isCancel {
+            try await handleCancel(incomingRequest)
+            return
+        }
+
         if let contact = contactsById[incomingRequest.peerAccountId] {
             guard contact.ownKeyId == ownKeyId else {
                 throw HandleError.ownKeyIdNotMatch(contact.username)
@@ -89,6 +94,23 @@ extension IncomingChatRequestCoordinationContext {
 }
 
 private extension IncomingChatRequestCoordinationContext {
+    func handleCancel(_ remoteCancel: ChatRequest.ValidatedRemoteModel) async throws {
+        guard let localRequest = try await requestStoreService.fetchByRequestId(remoteCancel.requestId) else {
+            try await requestStoreService.storeCancelledRequest(remoteCancel)
+            return
+        }
+
+        guard
+            localRequest.contactAccountId == remoteCancel.peerAccountId,
+            localRequest.status == .incoming(.new),
+            remoteCancel.message.timestamp > localRequest.timestamp
+        else {
+            return
+        }
+
+        try await requestStoreService.cancelIncomingRequest(localRequest.requestId)
+    }
+
     func handleNew(
         incomingRequest: ChatRequest.ValidatedRemoteModel,
         ownKeyId: Chat.Contact.Own
