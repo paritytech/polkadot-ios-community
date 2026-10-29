@@ -100,8 +100,8 @@ private extension DeviceTransferSenderClientTests {
         DeviceTransferSenderClient(
             flow: flow,
             collector: makeCollector(),
-            deviceEncryptionKey: Data(repeating: 0x09, count: DeviceTransferControl.deviceEncryptionKeyLength),
             dependencies: DeviceTransferSenderDependencies(
+                deviceKeyManager: StubDeviceEncryptionKeyManager(),
                 updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager()),
                 dateProvider: NowDateProvider(),
                 logger: MockLogger()

@@ -5,7 +5,7 @@ import StructuredConcurrency
 struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
     private let flow: any DevicePeerConnectionFlowing
     private let collector: DeviceTransferChangesCollecting
-    private let deviceEncryptionKey: Data
+    private let deviceKeyManager: DeviceEncryptionKeyManaging
     private let updateIdProvider: DeviceSyncUpdateIdProviding
     private let dateProvider: any DateProviding
     private let settings: DeviceTransferSenderSettings
@@ -14,13 +14,12 @@ struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
     init(
         flow: any DevicePeerConnectionFlowing,
         collector: DeviceTransferChangesCollecting,
-        deviceEncryptionKey: Data,
         dependencies: DeviceTransferSenderDependencies,
         settings: DeviceTransferSenderSettings = DeviceTransferSenderSettings()
     ) {
         self.flow = flow
         self.collector = collector
-        self.deviceEncryptionKey = deviceEncryptionKey
+        deviceKeyManager = dependencies.deviceKeyManager
         updateIdProvider = dependencies.updateIdProvider
         dateProvider = dependencies.dateProvider
         logger = dependencies.logger
@@ -55,6 +54,7 @@ struct DeviceTransferSenderClient: DeviceTransferClientProtocol {
 }
 
 struct DeviceTransferSenderDependencies {
+    let deviceKeyManager: DeviceEncryptionKeyManaging
     let updateIdProvider: DeviceSyncUpdateIdProviding
     let dateProvider: any DateProviding
     let logger: LoggerProtocol
@@ -85,7 +85,10 @@ private extension DeviceTransferSenderClient {
         let total = state.reduce(messageCount) { $0 + $1.itemCount }
 
         try await flow.sendTransferControl(
-            .senderStarted(deviceEncryptionKey: deviceEncryptionKey, totalChanges: UInt32(clamping: total))
+            .senderStarted(
+                deviceEncryptionKey: deviceKeyManager.getOrCreatePrivateKey().rawRepresentation,
+                totalChanges: UInt32(clamping: total)
+            )
         )
     }
 

@@ -26,7 +26,7 @@ protocol DeviceTransferClientMaking: Sendable {
     func makeClient(
         for role: DeviceTransferClientRole,
         flow: any DevicePeerConnectionFlowing
-    ) throws -> any DeviceTransferClientProtocol
+    ) -> any DeviceTransferClientProtocol
 }
 
 actor DeviceTransferRun {
