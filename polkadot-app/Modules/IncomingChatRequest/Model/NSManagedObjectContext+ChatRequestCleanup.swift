@@ -12,6 +12,22 @@ extension NSManagedObjectContext {
         }
     }
 
+    func deleteOutgoingChatRequest(_ requestId: String) throws {
+        try deleteOutgoingStatementPublication(for: requestId)
+
+        let fetchRequest = CDChatRequest.fetchRequest()
+        fetchRequest.predicate = .chatRequestById(requestId)
+        fetchRequest.fetchLimit = 1
+
+        guard let request = try fetch(fetchRequest).first else { return }
+
+        if let contactId = try request.contactId?.fromHex() {
+            deleteChatContactAndChat(for: contactId)
+        }
+
+        delete(request)
+    }
+
     func chatHasConversation(withContact contactId: AccountId) throws -> Bool {
         guard let chat: CDChat = try first(for: .chatWithContact(for: contactId)) else {
             return false

@@ -57,6 +57,7 @@ final class ServiceCoordinator {
     let productWorkerFacade: ProductWorkerFacade
     let callCoordinator: CallCoordinating
     let chatRequestCoordinator: ChatRequestCoordinatorServicing
+    let chatRequestCancelService: ChatRequestCancelServicing
     let attachmentUploadService: AttachmentUploadingServicing
     let attachmentDownloadService: AttachmentDownloadingServicing
     let coinageTransferMonitor: CoinageTransferMonitoring
@@ -101,6 +102,7 @@ final class ServiceCoordinator {
         productWorkerFacade: ProductWorkerFacade,
         callCoordinator: CallCoordinating,
         chatRequestCoordinator: ChatRequestCoordinatorServicing,
+        chatRequestCancelService: ChatRequestCancelServicing,
         attachmentUploadService: AttachmentUploadingServicing,
         attachmentDownloadService: AttachmentDownloadingServicing,
         coinageTransferMonitor: CoinageTransferMonitoring,
@@ -134,6 +136,7 @@ final class ServiceCoordinator {
         self.productWorkerFacade = productWorkerFacade
         self.callCoordinator = callCoordinator
         self.chatRequestCoordinator = chatRequestCoordinator
+        self.chatRequestCancelService = chatRequestCancelService
         self.attachmentUploadService = attachmentUploadService
         self.attachmentDownloadService = attachmentDownloadService
         self.coinageTransferMonitor = coinageTransferMonitor
@@ -385,6 +388,7 @@ extension ServiceCoordinator {
             productWorkerFacade: productWorkerFacade,
             callCoordinator: callCoordinator,
             chatRequestCoordinator: chatRequestCoordinator,
+            chatRequestCancelService: chatRequestServiceFactory,
             attachmentUploadService: attachmentUploadService,
             attachmentDownloadService: attachmentDownloadService,
             coinageTransferMonitor: coinageServices.transferMonitor,

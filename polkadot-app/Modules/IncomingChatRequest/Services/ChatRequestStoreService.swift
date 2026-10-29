@@ -42,6 +42,13 @@ protocol ChatRequestStoreServicing {
     func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws
 
     func buildLocalAcceptorDevice() throws -> Chat.PeerDevice
+
+    func makeOutgoingIdentityProof(
+        peerEncryptionPubKey: Data,
+        ownEncryptionKeyId: String
+    ) throws -> Chat.IdentityProof
+
+    func deleteOutgoingRequest(_ requestId: String) async throws
 }
 
 final class ChatRequestStoreService {
@@ -118,12 +125,9 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
         }
         let textContent = ChatRemoteMessageContent.RichText(text: text, attachments: nil)
 
-        let identityAccountId = try walletRepo.main().getRawPublicKey()
         let devicePublicKey = try deviceEncryptionKeyManager.getPublicKey()
 
-        let identityProof = try makeIdentityProof(
-            identityAccountId: identityAccountId,
-            deviceAccountId: identityAccountId,
+        let identityProof = try makeOutgoingIdentityProof(
             peerEncryptionPubKey: contact.chatPublicKey.rawData,
             ownEncryptionKeyId: ownKeyId.encryptionKeyId
         )
@@ -248,6 +252,26 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
             statementAccountId: walletRepo.main().getRawPublicKey(),
             encryptionPublicKey: deviceEncryptionKeyManager.getPublicKey()
         )
+    }
+
+    func makeOutgoingIdentityProof(
+        peerEncryptionPubKey: Data,
+        ownEncryptionKeyId: String
+    ) throws -> Chat.IdentityProof {
+        let identityAccountId = try walletRepo.main().getRawPublicKey()
+
+        return try makeIdentityProof(
+            identityAccountId: identityAccountId,
+            deviceAccountId: identityAccountId,
+            peerEncryptionPubKey: peerEncryptionPubKey,
+            ownEncryptionKeyId: ownEncryptionKeyId
+        )
+    }
+
+    func deleteOutgoingRequest(_ requestId: String) async throws {
+        try await storageFacade.databaseService.performWrite { context in
+            try context.deleteOutgoingChatRequest(requestId)
+        }
     }
 }
 

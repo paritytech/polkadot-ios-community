@@ -12,6 +12,7 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         case declineIncoming(requestId: String)
         case cancelIncoming(requestId: String)
         case storeCancelled(requestId: String)
+        case deleteOutgoing(requestId: String)
     }
 
     private let lock = NSLock()
@@ -92,6 +93,20 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
 
     func buildLocalAcceptorDevice() throws -> Chat.PeerDevice {
         acceptorDevice
+    }
+
+    func makeOutgoingIdentityProof(
+        peerEncryptionPubKey _: Data,
+        ownEncryptionKeyId _: String
+    ) throws -> Chat.IdentityProof {
+        Chat.IdentityProof(
+            identityAccountId: Data(repeating: 0x0A, count: 32),
+            proof: Data(repeating: 0x0B, count: 32)
+        )
+    }
+
+    func deleteOutgoingRequest(_ requestId: String) async throws {
+        record(.deleteOutgoing(requestId: requestId))
     }
 }
 

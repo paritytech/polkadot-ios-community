@@ -93,6 +93,27 @@ extension ChatRequestOutgoingStore: OutgoingStatementStoring {
     }
 }
 
+extension ChatRequestOutgoingStore: PendingOutgoingChatRequestLoading {
+    func pendingRequest(requestId: String) async throws -> PendingOutgoingRequest? {
+        try await databaseService.performRead { context throws -> PendingOutgoingRequest? in
+            guard
+                let request = try Self.fetchRequest(requestId, in: context),
+                Self.isPending(request),
+                let contact = request.contact
+            else {
+                return nil
+            }
+
+            let periods = try context.outgoingStatementPeriods(for: [requestId])
+            let mappedContact = try ChatContactMapper().transform(entity: contact)
+
+            guard let candidate = Self.candidate(from: mappedContact, periods: periods) else { return nil }
+
+            return PendingOutgoingRequest(input: candidate.input, period: periods[requestId])
+        }
+    }
+}
+
 enum ChatRequestOutgoingStoreError: Error {
     case abandoned
 }
