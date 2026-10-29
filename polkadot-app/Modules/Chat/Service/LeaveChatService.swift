@@ -16,19 +16,15 @@ final class LeaveChatService {
     private let outboxService: ChatOutboxServicing
     private let chatRepository: AnyDataProviderRepository<Chat.LocalModel>
     private let contactRepository: AnyDataProviderRepository<Chat.Contact>
-    private let removedChatRepository: AnyDataProviderRepository<Chat.RemovedChat>
-    private let allowanceCleanupService: AllowanceCleanupServicing
-    private let signingConsentStore: ChatSigningConsentStoring
+    private let removalCleanupService: ChatRemovalCleanupServicing
 
     init(
         outboxService: ChatOutboxServicing,
-        allowanceCleanupService: AllowanceCleanupServicing,
-        signingConsentStore: ChatSigningConsentStoring,
+        removalCleanupService: ChatRemovalCleanupServicing,
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared
     ) {
         self.outboxService = outboxService
-        self.allowanceCleanupService = allowanceCleanupService
-        self.signingConsentStore = signingConsentStore
+        self.removalCleanupService = removalCleanupService
 
         chatRepository = AnyDataProviderRepository(
             storageFacade.createRepository(
@@ -43,14 +39,6 @@ final class LeaveChatService {
                 filter: nil,
                 sortDescriptors: [],
                 mapper: AnyCoreDataMapper(ChatContactMapper())
-            )
-        )
-
-        removedChatRepository = AnyDataProviderRepository(
-            storageFacade.createRepository(
-                filter: nil,
-                sortDescriptors: [],
-                mapper: AnyCoreDataMapper(RemovedChatMapper())
             )
         )
     }
@@ -71,19 +59,6 @@ extension LeaveChatService: LeaveChatServicing {
         try await chatRepository.saveOperation({ [] }, { [chat.chatId.rawRepresentation] }).asyncExecute()
         try await contactRepository.saveOperation({ [] }, { [contact.identifier] }).asyncExecute()
 
-        try await saveRemovedChatTombstoneIfNeeded(for: contact)
-        try await signingConsentStore.revoke(for: contact.accountId)
-
-        await allowanceCleanupService.cleanup()
-    }
-}
-
-private extension LeaveChatService {
-    func saveRemovedChatTombstoneIfNeeded(for contact: Chat.Contact) async throws {
-        let tombstone = Chat.RemovedChat(
-            accountId: contact.accountId,
-            removedAt: Date()
-        )
-        try await removedChatRepository.saveOperation({ [tombstone] }, { [] }).asyncExecute()
+        try await removalCleanupService.cleanUpAfterRemoval(of: contact.accountId)
     }
 }

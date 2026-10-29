@@ -37,7 +37,7 @@ protocol ChatRequestStoreServicing {
 
     func declineIncomingRequest(_ requestId: String) async throws
 
-    func cancelIncomingRequest(_ requestId: String) async throws
+    func cancelIncomingRequest(_ requestId: String) async throws -> Bool
 
     func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws
 
@@ -211,14 +211,20 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
         .asyncExecute()
     }
 
-    func cancelIncomingRequest(_ requestId: String) async throws {
+    func cancelIncomingRequest(_ requestId: String) async throws -> Bool {
         let cancelIncoming = ChatRequest.CancelIncoming(requestId: requestId)
 
-        try await storageFacade.createRepository(
-            mapper: AnyCoreDataMapper(CancelIncomingChatRequestMapper())
-        )
-        .saveOperation({ [cancelIncoming] }, { [] })
-        .asyncExecute()
+        do {
+            try await storageFacade.createRepository(
+                mapper: AnyCoreDataMapper(CancelIncomingChatRequestMapper())
+            )
+            .saveOperation({ [cancelIncoming] }, { [] })
+            .asyncExecute()
+
+            return true
+        } catch CancelIncomingChatRequestMapper.MappingError.chatHasConversation {
+            return false
+        }
     }
 
     func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws {

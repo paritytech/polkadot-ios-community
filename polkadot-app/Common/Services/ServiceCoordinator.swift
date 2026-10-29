@@ -278,7 +278,8 @@ extension ServiceCoordinator {
 
         let chatRequestServiceFactory = createChatRequestServiceFactory(
             notificationAllocator: notificationAllocator,
-            signingFallback: identitySigningFallback
+            signingFallback: identitySigningFallback,
+            allowanceCleanupService: allowanceManagerFacade.cleanupService
         )
         let durabilityRenewal = StatementDurabilityRenewalService(
             allowances: allowanceManagerFacade,
@@ -450,7 +451,8 @@ private extension ServiceCoordinator {
 private extension ServiceCoordinator {
     static func createChatRequestServiceFactory(
         notificationAllocator: NotificationStatementAccountAllocating,
-        signingFallback: NonPrivateSigningFallbacking
+        signingFallback: NonPrivateSigningFallbacking,
+        allowanceCleanupService: AllowanceCleanupServicing
     ) -> ChatRequestServiceFactory {
         ChatRequestServiceFactory(
             remoteContactResolver: CompoundRemoteContactResolver(
@@ -462,7 +464,8 @@ private extension ServiceCoordinator {
             notificationAllocator: notificationAllocator,
             signingFallback: signingFallback,
             backgroundExecutor: ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry),
-            issueReporter: IssueReportingFacade.shared
+            issueReporter: IssueReportingFacade.shared,
+            allowanceCleanupService: allowanceCleanupService
         )
     }
 

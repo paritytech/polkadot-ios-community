@@ -7,6 +7,7 @@ actor IncomingChatRequestCoordinationContext {
     let remoteContactResolver: RemoteContactResolving
     let requestStoreService: ChatRequestStoreServicing
     private let contactsStorageService: ContactsLocalStorageServicing
+    private let chatRemovalCleanup: ChatRemovalCleanupServicing
 
     let discoveryOwnKeyIds: Set<Chat.Contact.Own>
     let matchOwnKeyIds: Set<Chat.Contact.Own>
@@ -20,13 +21,15 @@ actor IncomingChatRequestCoordinationContext {
         matchOwnKeyIds: Set<Chat.Contact.Own>,
         requestStoreService: ChatRequestStoreServicing,
         contactsStorageService: ContactsLocalStorageServicing,
-        remoteContactResolver: RemoteContactResolving
+        remoteContactResolver: RemoteContactResolving,
+        chatRemovalCleanup: ChatRemovalCleanupServicing
     ) {
         self.discoveryOwnKeyIds = discoveryOwnKeyIds
         self.matchOwnKeyIds = matchOwnKeyIds
         self.remoteContactResolver = remoteContactResolver
         self.requestStoreService = requestStoreService
         self.contactsStorageService = contactsStorageService
+        self.chatRemovalCleanup = chatRemovalCleanup
     }
 
     func update(
@@ -102,13 +105,25 @@ private extension IncomingChatRequestCoordinationContext {
 
         guard
             localRequest.contactAccountId == remoteCancel.peerAccountId,
-            localRequest.status == .incoming(.new),
+            localRequest.status == .incoming(.new) || localRequest.status == .incoming(.accepted),
             remoteCancel.message.timestamp > localRequest.timestamp
         else {
             return
         }
 
-        try await requestStoreService.cancelIncomingRequest(localRequest.requestId)
+        if localRequest.status == .incoming(.accepted) {
+            try await cancelAcceptedRequest(localRequest.requestId, peerAccountId: remoteCancel.peerAccountId)
+        } else {
+            _ = try await requestStoreService.cancelIncomingRequest(localRequest.requestId)
+        }
+    }
+
+    func cancelAcceptedRequest(_ requestId: String, peerAccountId: AccountId) async throws {
+        guard try await requestStoreService.cancelIncomingRequest(requestId) else {
+            return
+        }
+
+        try await chatRemovalCleanup.cleanUpAfterRemoval(of: peerAccountId)
     }
 
     func handleNew(

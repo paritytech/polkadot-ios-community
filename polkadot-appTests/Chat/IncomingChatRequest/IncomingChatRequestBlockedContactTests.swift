@@ -60,7 +60,8 @@ private extension IncomingChatRequestBlockedContactTests {
                 storageFacade: UserDataStorageTestFacade(),
                 logger: MockLogger()
             ),
-            remoteContactResolver: MockRemoteContactResolver(result: .success(nil))
+            remoteContactResolver: MockRemoteContactResolver(result: .success(nil)),
+            chatRemovalCleanup: SpyChatRemovalCleanupService()
         )
 
         await context.update(

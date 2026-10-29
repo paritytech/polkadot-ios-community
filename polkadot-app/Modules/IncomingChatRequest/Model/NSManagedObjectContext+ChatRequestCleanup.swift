@@ -11,4 +11,18 @@ extension NSManagedObjectContext {
             delete(chat)
         }
     }
+
+    func chatHasConversation(withContact contactId: AccountId) throws -> Bool {
+        guard let chat: CDChat = try first(for: .chatWithContact(for: contactId)) else {
+            return false
+        }
+
+        let fetchRequest = CDChatMessage.fetchRequest()
+        fetchRequest.predicate = .messages(in: chat)
+
+        return try fetch(fetchRequest).contains { message in
+            let isUnknownType = Chat.LocalMessage.Content.ContentType(rawValue: UInt8(message.contentType)) == nil
+            return isUnknownType || (!message.isSystem && !message.isChatHandshake)
+        }
+    }
 }

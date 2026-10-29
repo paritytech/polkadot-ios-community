@@ -17,16 +17,19 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
     private let lock = NSLock()
     private var recordedCalls: [Call] = []
     private let localRequests: [String: Chat.Request]
+    private let cancelResult: Bool
     private let acceptorDevice: Chat.PeerDevice
 
     init(
         localRequests: [String: Chat.Request] = [:],
+        cancelResult: Bool = true,
         acceptorDevice: Chat.PeerDevice = Chat.PeerDevice(
             statementAccountId: Data(repeating: 0x0C, count: 32),
             encryptionPublicKey: Data(repeating: 0x0D, count: 32)
         )
     ) {
         self.localRequests = localRequests
+        self.cancelResult = cancelResult
         self.acceptorDevice = acceptorDevice
     }
 
@@ -78,8 +81,9 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         record(.declineIncoming(requestId: requestId))
     }
 
-    func cancelIncomingRequest(_ requestId: String) async throws {
+    func cancelIncomingRequest(_ requestId: String) async throws -> Bool {
         record(.cancelIncoming(requestId: requestId))
+        return cancelResult
     }
 
     func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws {
