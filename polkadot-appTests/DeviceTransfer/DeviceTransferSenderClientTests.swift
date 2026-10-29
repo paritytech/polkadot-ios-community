@@ -4,12 +4,16 @@ import Foundation
 import FoundationExt
 import Keystore_iOS
 import Operation_iOS
+import StructuredConcurrencyTestSupport
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DeviceTransferSenderClientTests {
     private let world = TransferStateTestWorld()
     private let allocator = InMemoryChatMessageOrderAllocator()
+    private let clock = ManualClock()
+    /// Ahead of the wall clock, so every row the mappers stamp falls before the first round's end.
+    private let sequencerDate = MockDateProvider(now: Date().addingTimeInterval(3_600))
 
     init() async throws {
         try await world.setup()
@@ -51,9 +55,10 @@ struct DeviceTransferSenderClientTests {
         try await saveMessages(["a", "b"])
         let firstConnection = TransferReceiverFlow(resumeFrom: nil)
         try await makeClient(flow: firstConnection).run { _ in }
-        try await Task.sleep(for: .milliseconds(5))
 
+        await sequencerDate.advance(by: 10)
         try await saveMessages(["c"])
+        try await world.setModifiedAt(sequencerDate.read().addingTimeInterval(-5), of: "c")
         let secondConnection = await TransferReceiverFlow(resumeFrom: firstConnection.checkpoint)
         try await makeClient(flow: secondConnection).run { _ in }
 
@@ -64,8 +69,9 @@ struct DeviceTransferSenderClientTests {
     func messageEditedBehindCursorIsSentAgain() async throws {
         try await saveMessages(["m1", "m2", "m3"])
         let receiver = TransferReceiverFlow(resumeFrom: nil) { [self] in
-            try await Task.sleep(for: .milliseconds(5))
+            await sequencerDate.advance(by: 10)
             try await saveMessages(["m1"], text: "edited")
+            try await world.setModifiedAt(sequencerDate.read().addingTimeInterval(-5), of: "m1")
         }
 
         try await makeClient(flow: receiver, pageSize: 1).run { _ in }
@@ -75,49 +81,56 @@ struct DeviceTransferSenderClientTests {
         #expect(await receiver.sentCompletion)
     }
 
-    @Test("A receiver still pulling files keeps the sender waiting past the idle deadline")
-    func filePullKeepsSenderWaiting() async throws {
-        let receiver = TransferReceiverFlow(resumeFrom: nil, filePull: (requests: 5, interval: .milliseconds(100)))
-        let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
+    @Test("Each file request from the receiver restarts the sender's idle wait for confirmation")
+    func fileRequestsRestartIdleWait() async throws {
+        let receiver = TransferReceiverFlow(resumeFrom: nil, confirmsCompletion: false)
+        let idleTimeout = DeviceTransferConstants.runIdleTimeout
+        let running = Task { try await makeClient(flow: receiver).run { _ in } }
 
-        try await makeClient(flow: receiver, settings: settings).run { _ in }
+        for requestId in 0 ..< 3 {
+            await clock.waitForSleepStarts(for: idleTimeout, count: requestId + 1)
+            await receiver.requestFiles(requestId: UInt32(requestId))
+        }
+        await clock.waitForSleepStarts(for: idleTimeout, count: 4)
+        await receiver.confirmCompletion()
 
-        #expect(await receiver.sentCompletion)
+        try await running.value
     }
 
     @Test("A receiver that goes quiet before confirming fails the run on the idle deadline")
     func quietReceiverFailsRun() async throws {
-        let receiver = TransferReceiverFlow(resumeFrom: nil, filePull: (requests: 1, interval: .seconds(5)))
-        let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
+        let receiver = TransferReceiverFlow(resumeFrom: nil, confirmsCompletion: false)
+        let running = Task { try await makeClient(flow: receiver).run { _ in } }
 
-        await #expect(throws: DeviceTransferRunError.timedOut) {
-            try await makeClient(flow: receiver, settings: settings).run { _ in }
-        }
+        await clock.resumeSleep(for: DeviceTransferConstants.runIdleTimeout)
+
+        await #expect(throws: DeviceTransferRunError.timedOut) { try await running.value }
+        #expect(await receiver.sentCompletion)
     }
 
     @Test("An update the receiver never acknowledges fails the run")
     func unacknowledgedUpdateFailsRun() async throws {
         try await saveMessages(["a"])
         let receiver = TransferReceiverFlow(resumeFrom: nil, acknowledges: false)
-        let settings = DeviceTransferSenderSettings(responseTimeout: .milliseconds(100))
+        let running = Task { try await makeClient(flow: receiver).run { _ in } }
 
-        await #expect(throws: DeviceTransferRunError.timedOut) {
-            try await makeClient(flow: receiver, settings: settings).run { _ in }
-        }
+        _ = await receiver.sentUpdates.waitForCount(1)
+        await clock.resumeSleep(for: DeviceTransferSenderSettings().responseTimeout)
+
+        await #expect(throws: DeviceTransferRunError.timedOut) { try await running.value }
     }
 }
 
 private extension DeviceTransferSenderClientTests {
     func makeClient(
         flow: TransferReceiverFlow,
-        pageSize: Int = DeviceTransferSenderSequencer.defaultMessagePageSize,
-        settings: DeviceTransferSenderSettings = DeviceTransferSenderSettings()
+        pageSize: Int = DeviceTransferSenderSequencer.defaultMessagePageSize
     ) -> DeviceTransferSenderClient {
         DeviceTransferSenderClient(
             flow: flow,
             sequencer: DeviceTransferSenderSequencer(
                 collector: makeCollector(),
-                dateProvider: NowDateProvider(),
+                dateProvider: sequencerDate,
                 messagePageSize: pageSize,
                 logger: MockLogger()
             ),
@@ -125,7 +138,7 @@ private extension DeviceTransferSenderClientTests {
                 deviceKeyManager: StubDeviceEncryptionKeyManager(),
                 updateIdProvider: DeviceSyncUpdateIdProvider(settingsManager: InMemorySettingsManager())
             ),
-            settings: settings
+            settings: DeviceTransferSenderSettings(clock: clock)
         )
     }
 
@@ -166,7 +179,7 @@ private extension DeviceTransferSenderClientTests {
 private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
     private let resumePoint: UInt64?
     private let acknowledges: Bool
-    private let filePull: (requests: Int, interval: Duration)?
+    private let confirmsCompletion: Bool
     private var fileContinuations: [AsyncStream<Chat.DeviceSyncFileMessage>.Continuation] = []
     private var onFirstMessages: (@Sendable () async throws -> Void)?
     private var ackContinuation: AsyncStream<Chat.DeviceSyncUpdateAck>.Continuation?
@@ -179,17 +192,18 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
     private(set) var checkpointWhenReceived: [String: UInt64] = [:]
     private(set) var checkpoint: UInt64?
     private(set) var sentCompletion = false
+    nonisolated let sentUpdates = DeviceSyncTestEventRecorder<UInt32>()
     private var closedRounds = 0
 
     init(
         resumeFrom resumePoint: UInt64?,
         acknowledges: Bool = true,
-        filePull: (requests: Int, interval: Duration)? = nil,
+        confirmsCompletion: Bool = true,
         onFirstMessages: (@Sendable () async throws -> Void)? = nil
     ) {
         self.resumePoint = resumePoint
         self.acknowledges = acknowledges
-        self.filePull = filePull
+        self.confirmsCompletion = confirmsCompletion
         self.onFirstMessages = onFirstMessages
     }
 
@@ -221,6 +235,7 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
 
     func sendUpdate(_ update: Chat.DeviceSyncUpdate) async throws {
         record(update)
+        sentUpdates.record(update.id)
 
         if let hook = onFirstMessages, update.entities.contains(where: \.isMessages) {
             onFirstMessages = nil
@@ -238,22 +253,20 @@ private actor TransferReceiverFlow: DevicePeerConnectionFlowing {
             announcedTotal = Int(totalChanges)
         case .senderCompleted:
             sentCompletion = true
-            if let filePull {
-                Task { await pullFiles(filePull) }
-            } else {
-                controlContinuation?.yield(.receiverCompleted)
+            if confirmsCompletion {
+                confirmCompletion()
             }
         default:
             break
         }
     }
 
-    private func pullFiles(_ filePull: (requests: Int, interval: Duration)) async {
-        for requestId in 0 ..< filePull.requests {
-            try? await Task.sleep(for: filePull.interval)
-            let request = Chat.DeviceSyncFileMessage.AvailabilityRequest(requestId: UInt32(requestId), files: [])
-            fileContinuations.forEach { $0.yield(.availabilityRequest(request)) }
-        }
+    func requestFiles(requestId: UInt32) {
+        let request = Chat.DeviceSyncFileMessage.AvailabilityRequest(requestId: requestId, files: [])
+        fileContinuations.forEach { $0.yield(.availabilityRequest(request)) }
+    }
+
+    func confirmCompletion() {
         controlContinuation?.yield(.receiverCompleted)
     }
 

@@ -1,14 +1,16 @@
 @testable import polkadot_app
 import Foundation
 import MessageExchangeKit
+import StructuredConcurrencyTestSupport
 import SubstrateSdk
 import Testing
 
-/// Time runs a thousand times faster here: the 15 min idle deadline is 0.9 s and retry delays are milliseconds.
 @Suite(.timeLimit(.minutes(1)))
 struct DeviceTransferPeerContextTests {
     private let components = TransferContextComponents()
     private let rejections = AsyncStream.makeStream(of: Void.self)
+    private let clock = ManualClock()
+    private let firstRestartDelay = DeviceSyncRestartDelayPolicy().delay(forAttempt: 1)
 
     @Test("A completed transfer ends the run and closes the signaling session")
     func completedTransferEndsRun() async throws {
@@ -18,28 +20,30 @@ struct DeviceTransferPeerContextTests {
         #expect(components.transport?.didClose == true)
     }
 
-    @Test("A dropped connection is replaced and the transfer completes on the next one")
+    @Test("A dropped connection is replaced after the restart delay and the transfer completes on the next one")
     func droppedConnectionIsReplaced() async throws {
         let attempts = DeviceSyncTestEventRecorder<Void>()
+        let context = makeContext()
 
-        try await makeContext().run { _ in
-            attempts.record(())
-            if attempts.snapshot.count == 1 { throw DeviceTransferRunError.disconnected }
+        let run = Task {
+            try await context.run { _ in
+                attempts.record(())
+                if attempts.snapshot.count == 1 { throw DeviceTransferRunError.disconnected }
+            }
         }
+        await clock.resumeSleep(for: firstRestartDelay)
+        try await run.value
 
         #expect(components.flowCount == 2)
     }
 
     @Test("A reconnect from the other phone replaces the attempt in progress at once, without a restart delay")
     func reconnectReplacesAttempt() async throws {
-        let sleeps = DeviceSyncTestEventRecorder<Duration>()
         let delegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger())
-        let context = makeContext(sessionDelegate: delegate) { duration in
-            sleeps.record(duration)
-            try await Task.sleep(for: duration / 1_000)
-        }
+        let context = makeContext(sessionDelegate: delegate)
         let attempts = DeviceSyncTestEventRecorder<Void>()
         let components = components
+        let clock = clock
 
         try await context.run { _ in
             attempts.record(())
@@ -49,11 +53,11 @@ struct DeviceTransferPeerContextTests {
             try await session.send([.offer(SdpCoderTests.validOfferSdp)])
             let offerId = try #require(await session.currentReconnectOfferId())
             try Self.deliverReconnected(offerId: offerId, to: delegate)
-            try await Task.sleep(for: .seconds(30))
+            try await clock.sleep(for: .seconds(30))
         }
 
         #expect(components.flowCount == 2)
-        #expect(!sleeps.snapshot.contains(DeviceSyncRestartDelayPolicy().delay(forAttempt: 1)))
+        #expect(clock.pendingSleepCount(for: firstRestartDelay) == 0)
     }
 
     @Test("An abort from the other phone ends the run without another connection")
@@ -69,42 +73,53 @@ struct DeviceTransferPeerContextTests {
     func rejectionEndsRun() async throws {
         let context = makeContext()
         let continuation = rejections.continuation
+        let clock = clock
 
         await #expect(throws: DeviceTransferContextError.rejected) {
             try await context.run { _ in
                 continuation.yield()
-                try await Task.sleep(for: .seconds(30))
+                try await clock.sleep(for: .seconds(30))
             }
         }
     }
 
     @Test("Without a statement or an open channel for the idle deadline, the run ends")
     func idleDeadlineEndsRun() async throws {
-        await #expect(throws: DeviceTransferContextError.idleTimeout) {
-            try await makeContext().run { _ in throw DeviceTransferRunError.disconnected }
-        }
+        let context = makeContext()
+
+        let run = Task { try await context.run { _ in throw DeviceTransferRunError.disconnected } }
+        await clock.resumeSleep(for: DeviceTransferConstants.runIdleTimeout)
+
+        await #expect(throws: DeviceTransferContextError.idleTimeout) { try await run.value }
     }
 
-    @Test("An open data channel keeps a transfer that outlasts the idle deadline going")
-    func openChannelHoldsIdleDeadline() async throws {
-        try await makeContext().run { flow in
+    @Test("An open data channel stops the idle deadline")
+    func openChannelStopsIdleDeadline() async throws {
+        let events = DeviceSyncTestEventRecorder<DeviceTransferRunEvent>()
+        let clock = clock
+
+        try await makeContext().run(onEvent: { events.record($0) }) { flow in
             let mock = try #require(flow as? MockDevicePeerConnectionFlow)
+            await clock.waitForSleep(for: DeviceTransferConstants.runIdleTimeout)
+
             await mock.sendState(.connected)
-            try await Task.sleep(for: .milliseconds(1_500))
+            _ = await events.waitForCount(1)
+
+            #expect(events.snapshot == [.channelOpened])
+            #expect(clock.pendingSleepCount(for: DeviceTransferConstants.runIdleTimeout) == 0)
         }
     }
 }
 
 private extension DeviceTransferPeerContextTests {
     func makeContext(
-        sessionDelegate: DeviceSyncPeerSessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger()),
-        sleep: @escaping DeviceSyncSleep = { try await Task.sleep(for: $0 / 1_000) }
+        sessionDelegate: DeviceSyncPeerSessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger())
     ) -> DeviceTransferPeerContext {
         DeviceTransferPeerContext(
             components: components,
             sessionDelegate: sessionDelegate,
             rejections: rejections.stream,
-            settings: DeviceTransferPeerContextSettings(sleep: sleep),
+            settings: DeviceTransferPeerContextSettings(clock: clock),
             logger: MockLogger()
         )
     }

@@ -2,6 +2,7 @@
 import AsyncExtensions
 import Foundation
 import FoundationExt
+import os
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -145,7 +146,7 @@ private extension DeviceTransferCoordinatorTests {
         Task {
             var iterator = iterator
             while let state = try await iterator.next() {
-                recorder.events.record(state)
+                recorder.record(state)
             }
         }
         return recorder
@@ -165,13 +166,34 @@ private extension DeviceTransferCoordinatorTests {
 }
 
 private final class StateRecorder: Sendable {
-    let events = DeviceSyncTestEventRecorder<DeviceTransferState>()
+    private typealias Continuation = CheckedContinuation<[DeviceTransferState], Never>
+
+    private struct State {
+        var values: [DeviceTransferState] = []
+        var waiter: (terminal: DeviceTransferState, continuation: Continuation)?
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: State())
+
+    func record(_ value: DeviceTransferState) {
+        let resumption: (Continuation, [DeviceTransferState])? = state.withLock {
+            $0.values.append(value)
+            guard let waiter = $0.waiter, waiter.terminal == value else { return nil }
+            $0.waiter = nil
+            return (waiter.continuation, $0.values)
+        }
+        resumption.map { $0.0.resume(returning: $0.1) }
+    }
 
     func values(until terminal: DeviceTransferState) async -> [DeviceTransferState] {
-        while events.snapshot.last != terminal {
-            try? await Task.sleep(for: .milliseconds(5))
+        await withCheckedContinuation { continuation in
+            let values: [DeviceTransferState]? = state.withLock {
+                guard $0.values.last != terminal else { return $0.values }
+                $0.waiter = (terminal, continuation)
+                return nil
+            }
+            values.map { continuation.resume(returning: $0) }
         }
-        return events.snapshot
     }
 }
 

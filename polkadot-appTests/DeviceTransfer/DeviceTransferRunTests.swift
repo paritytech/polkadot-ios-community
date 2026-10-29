@@ -14,6 +14,8 @@ final class DeviceTransferRunTests {
     private let receiver = TransferStateTestWorld()
     private let senderInstallationId = Data(repeating: 0x5E, count: 32)
     private let oldDeviceKey = Curve25519.KeyAgreement.PrivateKey()
+    /// Ahead of the wall clock, so every row the mappers stamp falls before the first round's end.
+    private let senderDate = MockDateProvider(now: Date().addingTimeInterval(3_600))
     private let checkpointStore = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
     private let senderKeyManager = DeviceEncryptionKeyManager(
         keychain: InMemoryKeychain(),
@@ -84,9 +86,10 @@ final class DeviceTransferRunTests {
     func reconnectResumesFromCheckpoint() async throws {
         _ = try await sender.chatManager.sendMessage(.text("before"), status: .outgoing(.sent))
         try await runTransfer()
-        try await Task.sleep(for: .milliseconds(5))
 
+        await senderDate.advance(by: 10)
         let later = try await sender.chatManager.sendMessage(.text("after"), status: .outgoing(.sent))
+        try await sender.setModifiedAt(senderDate.read().addingTimeInterval(-5), of: later.messageId)
         let secondConnection = try await runTransfer()
 
         #expect(await secondConnection.sentMessageIds() == [later.messageId])
@@ -178,7 +181,7 @@ private extension DeviceTransferRunTests {
             flow: flow,
             sequencer: DeviceTransferSenderSequencer(
                 collector: collector,
-                dateProvider: NowDateProvider(),
+                dateProvider: senderDate,
                 logger: MockLogger()
             ),
             dependencies: DeviceTransferSenderDependencies(

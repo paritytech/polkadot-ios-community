@@ -18,7 +18,7 @@ enum DeviceTransferContextError: Error, Equatable {
 struct DeviceTransferPeerContextSettings {
     var idleTimeout = DeviceTransferConstants.runIdleTimeout
     var restartDelayPolicy = DeviceSyncRestartDelayPolicy()
-    var sleep: DeviceSyncSleep = liveDeviceSyncSleep
+    var clock: any Clock<Duration> = ContinuousClock()
 }
 
 actor DeviceTransferPeerContext {
@@ -172,7 +172,7 @@ private extension DeviceTransferPeerContext {
         failedAttempts += 1
         let delay = settings.restartDelayPolicy.delay(forAttempt: failedAttempts)
         logger.warning("Device transfer connection failed: \(error); retrying in \(delay)")
-        try await settings.sleep(delay)
+        try await settings.clock.sleep(for: delay)
     }
 
     func observe(_ initialStates: AnyAsyncIterator<DeviceSyncDataChannelState>) async {
@@ -224,9 +224,9 @@ private extension DeviceTransferPeerContext {
         isConnected = connected
 
         if connected {
-            onEvent(.channelOpened)
             idleTimer?.cancel()
             idleTimer = nil
+            onEvent(.channelOpened)
         } else {
             restartIdleTimer()
         }
@@ -237,11 +237,11 @@ private extension DeviceTransferPeerContext {
         guard !isConnected else { return }
 
         let timeout = settings.idleTimeout
-        let sleep = settings.sleep
+        let clock = settings.clock
         let continuation = idleContinuation
 
         idleTimer = Task {
-            guard await (try? sleep(timeout)) != nil, !Task.isCancelled else { return }
+            guard await (try? clock.sleep(for: timeout)) != nil, !Task.isCancelled else { return }
             continuation.yield()
         }
     }
