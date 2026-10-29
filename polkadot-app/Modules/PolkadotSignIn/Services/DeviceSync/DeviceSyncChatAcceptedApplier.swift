@@ -21,7 +21,7 @@ struct DeviceSyncChatAcceptedApplier {
 
     func apply(_ wireMessages: [Chat.DeviceSyncWireMessage]) async throws {
         var processedRequestIds = Set<String>()
-        let sortedMessages = wireMessages.sorted { $0.remote.timestamp < $1.remote.timestamp }
+        let sortedMessages = wireMessages.sortedInSyncOrder()
 
         for wireMessage in sortedMessages {
             guard let accepted = chatAccepted(from: wireMessage.remote) else {
