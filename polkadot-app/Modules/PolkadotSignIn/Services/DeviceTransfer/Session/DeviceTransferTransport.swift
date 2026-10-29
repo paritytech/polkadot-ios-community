@@ -67,17 +67,10 @@ final class DeviceTransferTransport: @unchecked Sendable {
     }
 
     func makeSessionDelegate() -> DeviceSyncPeerSessionDelegate {
-        let continuation = rejectionContinuation
-
-        return DeviceSyncPeerSessionDelegate(peerLogger: logger) { data in
-            switch try DeviceTransferSessionMessage.fromScaleEncoded(data) {
-            case .rejected:
-                continuation.yield()
-                return nil
-            case let .signaling(envelope):
-                return envelope
-            }
-        }
+        DeviceSyncPeerSessionDelegate(
+            peerLogger: logger,
+            decoder: DeviceTransferSessionMessageDecoder(rejections: rejectionContinuation)
+        )
     }
 }
 

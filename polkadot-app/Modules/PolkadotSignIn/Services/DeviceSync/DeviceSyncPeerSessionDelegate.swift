@@ -10,21 +10,30 @@ protocol DeviceSyncPeerSessionDelegating: PeerSessionDelegate, TypeErasedDelegat
     func finishIncomingEnvelopes()
 }
 
+protocol DeviceSyncEnvelopeDecoding {
+    func decodeEnvelope(from data: Data) throws -> Chat.DeviceSyncSignalingEnvelope?
+}
+
+struct DeviceSyncSignalingEnvelopeDecoder: DeviceSyncEnvelopeDecoding {
+    func decodeEnvelope(from data: Data) throws -> Chat.DeviceSyncSignalingEnvelope? {
+        try Chat.DeviceSyncSignalingEnvelope.fromScaleEncoded(data)
+    }
+}
+
 final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
     typealias Message = Data
-    typealias EnvelopeDecoder = (Data) throws -> Chat.DeviceSyncSignalingEnvelope?
 
     private let peerLogger: LoggerProtocol
-    private let decodeEnvelope: EnvelopeDecoder
+    private let decoder: DeviceSyncEnvelopeDecoding
     private let continuation: AsyncStream<[Chat.DeviceSyncSignalingEnvelope]>.Continuation
     let incomingEnvelopes: AsyncStream<[Chat.DeviceSyncSignalingEnvelope]>
 
     init(
         peerLogger: LoggerProtocol,
-        decodeEnvelope: @escaping EnvelopeDecoder = { try Chat.DeviceSyncSignalingEnvelope.fromScaleEncoded($0) }
+        decoder: DeviceSyncEnvelopeDecoding = DeviceSyncSignalingEnvelopeDecoder()
     ) {
         self.peerLogger = peerLogger
-        self.decodeEnvelope = decodeEnvelope
+        self.decoder = decoder
         (incomingEnvelopes, continuation) = AsyncStream.makeStream()
     }
 
@@ -79,7 +88,7 @@ final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
     ) {
         let envelopes = messages.compactMap { data -> Chat.DeviceSyncSignalingEnvelope? in
             do {
-                return try decodeEnvelope(data)
+                return try decoder.decodeEnvelope(from: data)
             } catch {
                 peerLogger.error("Device sync signaling envelope decoding failed: \(error)")
                 return nil
