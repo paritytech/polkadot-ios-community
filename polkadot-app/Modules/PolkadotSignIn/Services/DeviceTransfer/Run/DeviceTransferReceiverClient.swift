@@ -22,7 +22,7 @@ struct DeviceTransferReceiverDependencies {
     let logger: LoggerProtocol
 }
 
-struct DeviceTransferReceiverExchange {
+struct DeviceTransferReceiverClient: DeviceTransferClientProtocol {
     private let flow: any DevicePeerConnectionFlowing
     private let senderInstallationId: Data
     private let dependencies: DeviceTransferReceiverDependencies
@@ -40,7 +40,7 @@ struct DeviceTransferReceiverExchange {
         self.settings = settings
     }
 
-    func run(onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void) async throws {
+    func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws {
         var events = await DeviceTransferEventStream(
             flow: flow,
             timeout: settings.responseTimeout,
@@ -57,12 +57,12 @@ struct DeviceTransferReceiverExchange {
         var session = DeviceTransferReceiverSession(
             senderInstallationId: senderInstallationId,
             dependencies: dependencies,
-            onProgress: onProgress
+            onProgress: { onEvent(.progress($0)) }
         )
 
         while try await !session.handle(events.next()) {}
 
-        try await dependencies.filePuller.pullMissingFiles { onProgress(.files($0)) }
+        try await dependencies.filePuller.pullMissingFiles { onEvent(.progress(.files($0))) }
         try await flow.sendTransferControl(.receiverCompleted)
     }
 }

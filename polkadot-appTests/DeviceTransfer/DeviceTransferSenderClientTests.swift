@@ -7,7 +7,7 @@ import Operation_iOS
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
-struct DeviceTransferSenderExchangeTests {
+struct DeviceTransferSenderClientTests {
     private let world = TransferStateTestWorld()
     private let allocator = InMemoryChatMessageOrderAllocator()
 
@@ -20,7 +20,7 @@ struct DeviceTransferSenderExchangeTests {
         try await saveMessages(["e", "d", "c", "b", "a"])
         let receiver = TransferReceiverFlow(resumeFrom: nil)
 
-        try await makeExchange(flow: receiver, pageSize: 2).run()
+        try await makeClient(flow: receiver, pageSize: 2).run { _ in }
 
         #expect(await receiver.receivedMessageIds == ["e", "d", "c", "b", "a"])
         #expect(await receiver.announcedTotal == receiver.receivedItemCountInFirstRound)
@@ -31,12 +31,12 @@ struct DeviceTransferSenderExchangeTests {
     func resumeSendsOnlyNewerChanges() async throws {
         try await saveMessages(["a", "b"])
         let firstConnection = TransferReceiverFlow(resumeFrom: nil)
-        try await makeExchange(flow: firstConnection).run()
+        try await makeClient(flow: firstConnection).run { _ in }
         try await Task.sleep(for: .milliseconds(5))
 
         try await saveMessages(["c"])
         let secondConnection = await TransferReceiverFlow(resumeFrom: firstConnection.checkpoint)
-        try await makeExchange(flow: secondConnection).run()
+        try await makeClient(flow: secondConnection).run { _ in }
 
         #expect(await secondConnection.receivedMessageIds == ["c"])
     }
@@ -49,7 +49,7 @@ struct DeviceTransferSenderExchangeTests {
             try await saveMessages(["m1"], text: "edited")
         }
 
-        try await makeExchange(flow: receiver, pageSize: 1).run()
+        try await makeClient(flow: receiver, pageSize: 1).run { _ in }
 
         #expect(await receiver.receivedMessageIds.filter { $0 == "m1" }.count == 2)
         #expect(try #require(await receiver.checkpointWhenReceived["m1"]) > 0)
@@ -61,7 +61,7 @@ struct DeviceTransferSenderExchangeTests {
         let receiver = TransferReceiverFlow(resumeFrom: nil, filePull: (requests: 5, interval: .milliseconds(100)))
         let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
 
-        try await makeExchange(flow: receiver, settings: settings).run()
+        try await makeClient(flow: receiver, settings: settings).run { _ in }
 
         #expect(await receiver.sentCompletion)
     }
@@ -72,7 +72,7 @@ struct DeviceTransferSenderExchangeTests {
         let settings = DeviceTransferSenderSettings(completionIdleTimeout: .milliseconds(250))
 
         await #expect(throws: DeviceTransferRunError.timedOut) {
-            try await makeExchange(flow: receiver, settings: settings).run()
+            try await makeClient(flow: receiver, settings: settings).run { _ in }
         }
     }
 
@@ -83,21 +83,21 @@ struct DeviceTransferSenderExchangeTests {
         let settings = DeviceTransferSenderSettings(responseTimeout: .milliseconds(100))
 
         await #expect(throws: DeviceTransferRunError.timedOut) {
-            try await makeExchange(flow: receiver, settings: settings).run()
+            try await makeClient(flow: receiver, settings: settings).run { _ in }
         }
     }
 }
 
-private extension DeviceTransferSenderExchangeTests {
-    func makeExchange(flow: TransferReceiverFlow, pageSize: Int = 200) -> DeviceTransferSenderExchange {
-        makeExchange(flow: flow, settings: DeviceTransferSenderSettings(messagePageSize: pageSize))
+private extension DeviceTransferSenderClientTests {
+    func makeClient(flow: TransferReceiverFlow, pageSize: Int = 200) -> DeviceTransferSenderClient {
+        makeClient(flow: flow, settings: DeviceTransferSenderSettings(messagePageSize: pageSize))
     }
 
-    func makeExchange(
+    func makeClient(
         flow: TransferReceiverFlow,
         settings: DeviceTransferSenderSettings
-    ) -> DeviceTransferSenderExchange {
-        DeviceTransferSenderExchange(
+    ) -> DeviceTransferSenderClient {
+        DeviceTransferSenderClient(
             flow: flow,
             collector: makeCollector(),
             deviceEncryptionKey: Data(repeating: 0x09, count: DeviceTransferControl.deviceEncryptionKeyLength),

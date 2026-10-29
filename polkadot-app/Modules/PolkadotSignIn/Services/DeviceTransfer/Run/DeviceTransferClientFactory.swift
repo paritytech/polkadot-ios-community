@@ -1,7 +1,7 @@
 import Foundation
 import FoundationExt
 
-struct DeviceTransferExchangeDependencies {
+struct DeviceTransferClientDependencies {
     let storageFacade: StorageFacadeProtocol
     let collector: DeviceTransferChangesCollecting
     let remoteContactResolver: RemoteContactResolving
@@ -18,62 +18,62 @@ struct DeviceTransferExchangeDependencies {
 }
 
 /// Transfer file channels stay out of the sibling registry, so app downloads never use them.
-final class DeviceTransferExchangeFactory: @unchecked Sendable {
-    private let dependencies: DeviceTransferExchangeDependencies
+final class DeviceTransferClientFactory: @unchecked Sendable {
+    private let dependencies: DeviceTransferClientDependencies
 
-    init(dependencies: DeviceTransferExchangeDependencies) {
+    init(dependencies: DeviceTransferClientDependencies) {
         self.dependencies = dependencies
     }
 }
 
-extension DeviceTransferExchangeFactory: DeviceTransferExchangeMaking {
-    func makeSenderConnection() -> DeviceTransferConnectionMaking {
-        { [self] flow, _ in
-            let requester = makeRequester(flow: flow)
-            let exchange = try DeviceTransferSenderExchange(
-                flow: flow,
-                collector: dependencies.collector,
-                deviceEncryptionKey: dependencies.deviceKeyManager.getOrCreatePrivateKey().rawRepresentation,
-                dependencies: DeviceTransferSenderDependencies(
-                    updateIdProvider: dependencies.updateIdProvider,
-                    dateProvider: dependencies.dateProvider,
-                    logger: dependencies.logger
+extension DeviceTransferClientFactory: DeviceTransferClientMaking {
+    func makeClient(
+        for role: DeviceTransferClientRole,
+        flow: any DevicePeerConnectionFlowing
+    ) throws -> any DeviceTransferClientProtocol {
+        let requester = makeRequester(flow: flow)
+        let inner: any DeviceTransferClientProtocol =
+            switch role {
+            case .sender:
+                try makeSenderClient(flow: flow)
+            case let .receiver(senderInstallationId):
+                DeviceTransferReceiverClient(
+                    flow: flow,
+                    senderInstallationId: senderInstallationId,
+                    dependencies: makeReceiverDependencies(flow: flow, requester: requester)
                 )
-            )
-
-            try await withFileTransfer(flow: flow, requester: requester) {
-                try await exchange.run()
             }
-        }
-    }
 
-    func makeReceiverConnection(senderInstallationId: Data) -> DeviceTransferConnectionMaking {
-        { [self] flow, onEvent in
-            let requester = makeRequester(flow: flow)
-            let exchange = DeviceTransferReceiverExchange(
-                flow: flow,
-                senderInstallationId: senderInstallationId,
-                dependencies: makeReceiverDependencies(flow: flow, requester: requester)
-            )
-
-            try await withFileTransfer(flow: flow, requester: requester) {
-                try await exchange.run { onEvent(.progress($0)) }
-            }
-        }
+        return DeviceTransferWithFilesClient(
+            inner: inner,
+            fileTransfer: makeFileTransfer(flow: flow, requester: requester)
+        )
     }
 }
 
-private extension DeviceTransferExchangeFactory {
+private extension DeviceTransferClientFactory {
     func makeRequester(flow: any DevicePeerConnectionFlowing) -> DeviceSyncFileRequester {
         DeviceSyncFileRequester(flow: flow, downloadsStore: dependencies.downloadsStore, logger: dependencies.logger)
     }
 
-    func withFileTransfer(
+    func makeSenderClient(flow: any DevicePeerConnectionFlowing) throws -> DeviceTransferSenderClient {
+        try DeviceTransferSenderClient(
+            flow: flow,
+            collector: dependencies.collector,
+            deviceEncryptionKey: dependencies.deviceKeyManager.getOrCreatePrivateKey().rawRepresentation,
+            dependencies: DeviceTransferSenderDependencies(
+                updateIdProvider: dependencies.updateIdProvider,
+                dateProvider: dependencies.dateProvider,
+                logger: dependencies.logger
+            )
+        )
+    }
+
+    func makeFileTransfer(
         flow: any DevicePeerConnectionFlowing,
-        requester: DeviceSyncFileRequester,
-        _ body: () async throws -> Void
-    ) async throws {
-        let fileTransfer = DeviceSyncFileTransfer(
+        requester: DeviceSyncFileRequester
+    ) -> DeviceSyncFileTransfer {
+        DeviceSyncFileTransfer(
             flow: flow,
             provider: DeviceSyncFileProvider(
                 flow: flow,
@@ -84,15 +84,6 @@ private extension DeviceTransferExchangeFactory {
             registry: DeviceSyncFileChannelRegistry(),
             peerLogger: dependencies.logger
         )
-        await fileTransfer.start()
-
-        do {
-            try await body()
-            await fileTransfer.close()
-        } catch {
-            await fileTransfer.close()
-            throw error
-        }
     }
 
     func makeReceiverDependencies(
