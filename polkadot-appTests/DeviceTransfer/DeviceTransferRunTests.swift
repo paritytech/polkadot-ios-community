@@ -5,7 +5,9 @@ import CryptoKit
 import Foundation
 import FoundationExt
 import Keystore_iOS
+import MessageExchangeKit
 import Operation_iOS
+import PushKit
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -93,6 +95,25 @@ final class DeviceTransferRunTests {
         let secondConnection = try await runTransfer()
 
         #expect(await secondConnection.sentMessageIds() == [later.messageId])
+    }
+
+    @Test("Once chat starts after a transfer, every transferred contact is sent this phone's push token")
+    func chatStartSendsNewPushToken() async throws {
+        let contact = try #require(sender.chatManager.peer.contact)
+        let oldPhoneToken = Data(repeating: 0x0D, count: 32)
+        let newPhoneToken = Data(repeating: 0x0E, count: 32)
+        try await ContactsLocalStorageService(storageFacade: sender.facade, logger: MockLogger())
+            .updateOugoingSettings([.init(accountId: contact.accountId, peerPushId: nil, ownPushToken: oldPhoneToken)])
+            .asyncExecute()
+
+        try await runTransfer()
+        try await startChatPush(token: newPhoneToken)
+
+        let sentTokens = try await storedMessages(in: receiver).compactMap { message -> Data? in
+            guard case let .token(content) = message.content, message.origin == .user else { return nil }
+            return content.token
+        }
+        #expect(sentTokens.filter { $0 == newPhoneToken }.count == 1)
     }
 
     @Test("A claim whose message never arrives keeps the checkpoint where it was")
@@ -246,11 +267,42 @@ private extension DeviceTransferRunTests {
     }
 
     func storedOrders(in world: TransferStateTestWorld) async throws -> [String: UInt64] {
-        let messages = try await ChatMessageRepositoryFactory(storageFacade: world.facade)
+        let messages = try await storedMessages(in: world)
+        return Dictionary(uniqueKeysWithValues: messages.map { ($0.messageId, $0.order) })
+    }
+
+    func storedMessages(in world: TransferStateTestWorld) async throws -> [Chat.LocalMessage] {
+        try await ChatMessageRepositoryFactory(storageFacade: world.facade)
             .createRepository(forFilter: nil)
             .fetchAllOperation(with: RepositoryFetchOptions())
             .asyncExecute()
-        return Dictionary(uniqueKeysWithValues: messages.map { ($0.messageId, $0.order) })
+    }
+
+    /// What chat start does on the new phone: hand the established contacts to the push service.
+    func startChatPush(token: Data) async throws {
+        let contactsStorage = ContactsLocalStorageService(storageFacade: receiver.facade, logger: MockLogger())
+        let contacts = try await contactsStorage.getEstablishedContacts().asyncExecute()
+        let tokenProvider = APNSTokenProvider(logger: MockLogger())
+        tokenProvider.setDeviceToken(token)
+        let workQueue = DispatchQueue(label: "DeviceTransferRunTests.push")
+        let operationQueue = OperationQueue()
+        let pushService = ChatPushService(
+            apnsTokenObserver: tokenProvider,
+            pushKitService: NoVoIPPushKitService(),
+            contactsStorageService: contactsStorage,
+            pushIdFactory: NoPushIdFactory(),
+            workQueue: workQueue,
+            operationQueue: operationQueue,
+            logger: MockLogger()
+        )
+
+        workQueue.sync {
+            pushService.setContacts(Dictionary(uniqueKeysWithValues: contacts.map { ($0.accountId, $0) }))
+        }
+        await withCheckedContinuation { continuation in
+            operationQueue.addBarrierBlock { continuation.resume() }
+        }
+        withExtendedLifetime(pushService) {}
     }
 
     func makeFileVariant(size: Int) throws -> ChatRemoteMessageContent.FileVariant {
@@ -363,5 +415,23 @@ private actor LoopbackTransferFlow: DevicePeerConnectionFlowing {
 
     private func receive(_ message: Chat.DeviceSyncFileMessage) {
         fileMessageContinuations.forEach { $0.yield(message) }
+    }
+}
+
+private struct NoVoIPPushKitService: PushKitServicing {
+    func register(for _: Set<PKPushType>) {}
+
+    func observeToken() -> AnyAsyncSequence<PushKitToken> {
+        AsyncStream { _ in }.eraseToAnyAsyncSequence()
+    }
+
+    func token(with _: PKPushType) async -> Data? {
+        nil
+    }
+}
+
+private struct NoPushIdFactory: ChatPushIdMaking {
+    func makePushId(peer _: MessageExchange.Peer, own _: MessageExchange.Own) -> Chat.PushId? {
+        nil
     }
 }
