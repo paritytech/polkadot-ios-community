@@ -10,7 +10,7 @@ enum DeviceTransferProgress: Equatable {
 struct DeviceTransferReceiverSettings {
     var connectTimeout: Duration = .seconds(45)
     var responseTimeout: Duration = .seconds(60)
-    var sleep: DeviceSyncSleep = liveDeviceSyncSleep
+    var clock: any Clock<Duration> = ContinuousClock()
 }
 
 struct DeviceTransferReceiverDependencies {
@@ -41,13 +41,27 @@ struct DeviceTransferReceiverClient: DeviceTransferClientProtocol {
     }
 
     func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws {
-        var events = await DeviceTransferEventStream(
+        let events = await DeviceTransferEventStream.open(
             flow: flow,
             timeout: settings.responseTimeout,
-            sleep: settings.sleep
+            clock: settings.clock
         )
-        defer { events.close() }
 
+        do {
+            try await transfer(with: events, onEvent: onEvent)
+            await events.close()
+        } catch {
+            await events.close()
+            throw error
+        }
+    }
+}
+
+private extension DeviceTransferReceiverClient {
+    func transfer(
+        with events: DeviceTransferEventStream,
+        onEvent: @escaping DeviceTransferRunEventHandler
+    ) async throws {
         let flow = flow
         try await withTimeout(settings.connectTimeout) { try await flow.start() }
 
