@@ -62,9 +62,17 @@ struct DeviceSyncOutgoingChangesCollector {
     }
 }
 
+/// Position in the sync order `(order, timestamp, messageId)`: the order the old phone stored messages in, with
+/// `timestamp` ordering legacy rows that all have order 0.
+struct DeviceTransferMessageCursor: Equatable {
+    let order: UInt64
+    let timestamp: UInt64
+    let messageId: String
+}
+
 struct DeviceTransferMessagePage {
     var messages: [Chat.DeviceSyncWireMessage]
-    var nextCursor: String?
+    var nextCursor: DeviceTransferMessageCursor?
 }
 
 protocol DeviceTransferChangesCollecting {
@@ -73,7 +81,7 @@ protocol DeviceTransferChangesCollecting {
     func collectMessagePage(
         since checkpoint: UInt64?,
         upTo bound: UInt64?,
-        after cursor: String?,
+        after cursor: DeviceTransferMessageCursor?,
         limit: Int
     ) async throws -> DeviceTransferMessagePage
 
@@ -93,23 +101,25 @@ extension DeviceSyncOutgoingChangesCollector: DeviceTransferChangesCollecting {
     func collectMessagePage(
         since checkpoint: UInt64?,
         upTo bound: UInt64?,
-        after cursor: String?,
+        after cursor: DeviceTransferMessageCursor?,
         limit: Int
     ) async throws -> DeviceTransferMessagePage {
-        let afterCursor = cursor.map { NSPredicate(format: "%K > %@", #keyPath(CDChatMessage.messageId), $0) }
-        let predicates = [transferMessagesPredicate(since: checkpoint, upTo: bound), afterCursor].compactMap { $0 }
+        let predicates = [
+            transferMessagesPredicate(since: checkpoint, upTo: bound),
+            cursor.map { NSPredicate.messagesInSyncOrder(after: $0) }
+        ].compactMap { $0 }
 
         let messages = try await messageRepositoryFactory
             .createRepository(
                 forFilter: NSCompoundPredicate(andPredicateWithSubpredicates: predicates),
-                sortDescriptors: [NSSortDescriptor(key: #keyPath(CDChatMessage.messageId), ascending: true)]
+                sortDescriptors: NSSortDescriptor.messagesInSyncOrder
             )
             .fetchOperation(by: RepositorySliceRequest(offset: 0, count: limit, reversed: false), options: .init())
             .asyncExecute()
 
         return DeviceTransferMessagePage(
             messages: messages.compactMap { Chat.DeviceSyncWireMessage(from: $0) },
-            nextCursor: messages.count < limit ? nil : messages.last?.messageId
+            nextCursor: messages.count < limit ? nil : messages.last.map(DeviceTransferMessageCursor.init)
         )
     }
 
@@ -171,7 +181,7 @@ private extension DeviceSyncOutgoingChangesCollector {
             ownSignKeyIds: multideviceSignKeyIds
         )
         let messages = try await messageRepositoryFactory
-            .createRepository(forFilter: messageFilter)
+            .createRepository(forFilter: messageFilter, sortDescriptors: NSSortDescriptor.messagesInSyncOrder)
             .fetchAllOperation(with: .init())
             .asyncExecute()
 
@@ -186,5 +196,44 @@ private extension DeviceSyncOutgoingChangesCollector {
         ].compactMap { $0 }
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+    }
+}
+
+private extension DeviceTransferMessageCursor {
+    init(_ message: Chat.LocalMessage) {
+        self.init(order: message.order, timestamp: message.timestamp, messageId: message.messageId)
+    }
+}
+
+private extension NSPredicate {
+    static func messagesInSyncOrder(after cursor: DeviceTransferMessageCursor) -> NSPredicate {
+        let order = #keyPath(CDChatMessage.order)
+        let timestamp = #keyPath(CDChatMessage.timestamp)
+        let rawOrder = Int64(bitPattern: cursor.order)
+        let rawTimestamp = Int64(bitPattern: cursor.timestamp)
+
+        return NSCompoundPredicate(orPredicateWithSubpredicates: [
+            NSPredicate(format: "%K > %lld", order, rawOrder),
+            NSPredicate(format: "%K == %lld AND %K > %lld", order, rawOrder, timestamp, rawTimestamp),
+            NSPredicate(
+                format: "%K == %lld AND %K == %lld AND %K > %@",
+                order,
+                rawOrder,
+                timestamp,
+                rawTimestamp,
+                #keyPath(CDChatMessage.messageId),
+                cursor.messageId
+            )
+        ])
+    }
+}
+
+private extension NSSortDescriptor {
+    static var messagesInSyncOrder: [NSSortDescriptor] {
+        [
+            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: true),
+            NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: true),
+            NSSortDescriptor(key: #keyPath(CDChatMessage.messageId), ascending: true)
+        ]
     }
 }

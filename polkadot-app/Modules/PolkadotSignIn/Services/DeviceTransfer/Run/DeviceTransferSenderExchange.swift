@@ -101,7 +101,7 @@ private extension DeviceTransferSenderExchange {
             try await channel.deliver(state, timePoint: timePoint)
         }
 
-        var cursor: String?
+        var cursor: DeviceTransferMessageCursor?
         repeat {
             let page = try await collector.collectMessagePage(
                 since: round.cutoff,

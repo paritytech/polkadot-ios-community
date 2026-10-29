@@ -15,14 +15,14 @@ struct DeviceTransferSenderExchangeTests {
         try await world.setup()
     }
 
-    @Test("A fresh transfer sends every message in pages, counted upfront, then completes")
+    @Test("A fresh transfer sends every message in pages, in the order they were stored, counted upfront")
     func freshTransferSendsEverything() async throws {
-        try await saveMessages(["a", "b", "c", "d", "e"])
+        try await saveMessages(["e", "d", "c", "b", "a"])
         let receiver = TransferReceiverFlow(resumeFrom: nil)
 
         try await makeExchange(flow: receiver, pageSize: 2).run()
 
-        #expect(await receiver.receivedMessageIds == ["a", "b", "c", "d", "e"])
+        #expect(await receiver.receivedMessageIds == ["e", "d", "c", "b", "a"])
         #expect(await receiver.announcedTotal == receiver.receivedItemCountInFirstRound)
         #expect(await receiver.sentCompletion)
     }
@@ -41,18 +41,18 @@ struct DeviceTransferSenderExchangeTests {
         #expect(await secondConnection.receivedMessageIds == ["c"])
     }
 
-    @Test("A message written behind the page cursor arrives in a later round, before the checkpoint passes it")
-    func messageWrittenDuringRoundIsSentLater() async throws {
+    @Test("A message edited after the page cursor passed it is sent again in a later round")
+    func messageEditedBehindCursorIsSentAgain() async throws {
         try await saveMessages(["m1", "m2", "m3"])
         let receiver = TransferReceiverFlow(resumeFrom: nil) { [self] in
             try await Task.sleep(for: .milliseconds(5))
-            try await saveMessages(["a-late"])
+            try await saveMessages(["m1"], text: "edited")
         }
 
         try await makeExchange(flow: receiver, pageSize: 1).run()
 
-        let checkpointWhenReceived = try #require(await receiver.checkpointWhenReceived["a-late"])
-        #expect(await checkpointWhenReceived > (receiver.checkpointWhenReceived["m1"] ?? 0))
+        #expect(await receiver.receivedMessageIds.filter { $0 == "m1" }.count == 2)
+        #expect(try #require(await receiver.checkpointWhenReceived["m1"]) > 0)
         #expect(await receiver.sentCompletion)
     }
 
@@ -122,26 +122,25 @@ private extension DeviceTransferSenderExchangeTests {
         )
     }
 
-    func saveMessages(_ messageIds: [String]) async throws {
-        let messages = messageIds.map { messageId in
-            Chat.LocalMessage(
+    func saveMessages(_ messageIds: [String], text: String? = nil) async throws {
+        let repository = world.facade
+            .createRepository(mapper: AnyCoreDataMapper(ChatMessageEntityMapper(orderAllocator: allocator)))
+
+        for messageId in messageIds {
+            let message = Chat.LocalMessage(
                 messageId: messageId,
                 chatId: world.chatManager.chatId,
                 origin: .user,
                 creationSource: .localDevice,
                 status: .outgoing(.sent),
                 timestamp: 1_000,
-                content: .text(messageId),
+                content: .text(text ?? messageId),
                 reactions: [],
                 compactionId: nil,
                 relatedMessages: []
             )
+            try await repository.saveOperation({ [message] }, { [] }).asyncExecute()
         }
-
-        try await world.facade
-            .createRepository(mapper: AnyCoreDataMapper(ChatMessageEntityMapper(orderAllocator: allocator)))
-            .saveOperation({ messages }, { [] })
-            .asyncExecute()
     }
 }
 
