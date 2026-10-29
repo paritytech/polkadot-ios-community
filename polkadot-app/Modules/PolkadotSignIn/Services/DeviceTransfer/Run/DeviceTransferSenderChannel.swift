@@ -10,7 +10,7 @@ struct DeviceTransferSenderSettings {
     var clock: any Clock<Duration> = ContinuousClock()
 }
 
-struct DeviceTransferSenderChannel {
+final class DeviceTransferSenderChannel {
     private let flow: any DevicePeerConnectionFlowing
     private let updateIdProvider: DeviceSyncUpdateIdProviding
     private let entityChunker: DeviceSyncEntityChunker

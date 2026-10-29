@@ -22,7 +22,7 @@ struct DeviceTransferReceiverDependencies {
     let logger: LoggerProtocol
 }
 
-struct DeviceTransferReceiverClient: DeviceTransferClientProtocol {
+final class DeviceTransferReceiverClient: DeviceTransferClientProtocol {
     private let flow: any DevicePeerConnectionFlowing
     private let senderInstallationId: Data
     private let dependencies: DeviceTransferReceiverDependencies
