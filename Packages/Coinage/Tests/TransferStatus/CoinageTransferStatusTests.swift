@@ -44,18 +44,79 @@ struct CoinageTransferStatusTests {
         #expect(status(tracked, atFinalized: [:]) == .detecting)
     }
 
-    @Test("Only failed and finalized-claim are terminal")
+    @Test("A reclaim beats a finalized mint that reads absent at finality")
+    func reclaimBeatsFinalizedAbsence() {
+        let tracked = trackedCoin(
+            onChain: false,
+            everOnChain: true,
+            minter: .finalizedSuccess,
+            consumer: .pendingSuccess
+        )
+        #expect(status(tracked, atFinalized: [key: false]) == .reclaimed(finalized: false))
+    }
+
+    @Test("A finalized reclaim is a terminal reclaim")
+    func reclaimedFinalized() {
+        let tracked = trackedCoin(
+            onChain: false,
+            everOnChain: true,
+            minter: .finalizedSuccess,
+            consumer: .finalizedSuccess
+        )
+        #expect(status(tracked, atFinalized: [key: false]) == .reclaimed(finalized: true))
+    }
+
+    @Test("A reclaim included but not finalized is not yet final, though pendingSuccess is also live")
+    func reclaimedPending() {
+        let tracked = trackedCoin(
+            onChain: false,
+            everOnChain: true,
+            minter: .finalizedSuccess,
+            consumer: .pendingSuccess
+        )
+        #expect(status(tracked, atFinalized: [:]) == .reclaimed(finalized: false))
+    }
+
+    @Test("A reclaim still being built or awaiting inclusion is reclaiming", arguments: [
+        CoinageTxStatus.pending,
+        .pendingSubmission,
+    ])
+    func reclaiming(consumer: CoinageTxStatus) {
+        let tracked = trackedCoin(
+            onChain: false,
+            everOnChain: true,
+            minter: .finalizedSuccess,
+            consumer: consumer
+        )
+        #expect(status(tracked, atFinalized: [key: false]) == .reclaiming)
+    }
+
+    @Test("A failed reclaim falls through to the presence rules")
+    func failedReclaimFallsThrough() {
+        let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .pending, consumer: .failure)
+        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim)
+    }
+
+    @Test("Only a finalized reclaim and a finalized claim are terminal")
     func terminalFlags() {
         #expect(CoinageTransferStatus.failed.isTerminal)
         #expect(CoinageTransferStatus.claimed(finalized: true).isTerminal)
         #expect(!CoinageTransferStatus.claimed(finalized: false).isTerminal)
+        #expect(CoinageTransferStatus.reclaimed(finalized: true).isTerminal)
+        #expect(!CoinageTransferStatus.reclaimed(finalized: false).isTerminal)
+        #expect(!CoinageTransferStatus.reclaiming.isTerminal)
         #expect(!CoinageTransferStatus.awaitingClaim.isTerminal)
         #expect(!CoinageTransferStatus.detecting.isTerminal)
     }
 }
 
 private extension CoinageTransferStatusTests {
-    func trackedCoin(onChain: Bool, everOnChain: Bool, minter: CoinageTxStatus) -> TrackedCoin {
+    func trackedCoin(
+        onChain: Bool,
+        everOnChain: Bool,
+        minter: CoinageTxStatus,
+        consumer: CoinageTxStatus? = nil
+    ) -> TrackedCoin {
         let coin = Coin(
             exponent: 1,
             derivationIndex: 0,
@@ -65,7 +126,7 @@ private extension CoinageTransferStatusTests {
         )
         return TrackedCoin(
             coin: coin,
-            state: CoinageAssetState(handedOff: true, consumerStatus: nil, minterStatus: minter)
+            state: CoinageAssetState(handedOff: true, consumerStatus: consumer, minterStatus: minter)
         )
     }
 

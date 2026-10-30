@@ -11,6 +11,7 @@ public struct DSButton: View {
     private let leadingIcon: ImageResource?
     private let trailingIcon: ImageResource?
     private let expands: Bool
+    private let horizontalPadding: CGFloat?
     private let action: () -> Void
 
     public init(
@@ -21,6 +22,7 @@ public struct DSButton: View {
         leadingIcon: ImageResource? = nil,
         trailingIcon: ImageResource? = nil,
         expands: Bool = false,
+        horizontalPadding: CGFloat? = nil,
         action: @escaping () -> Void
     ) {
         title = String(localized: localized)
@@ -30,6 +32,7 @@ public struct DSButton: View {
         self.leadingIcon = leadingIcon
         self.trailingIcon = trailingIcon
         self.expands = expands
+        self.horizontalPadding = horizontalPadding
         self.action = action
     }
 
@@ -41,6 +44,7 @@ public struct DSButton: View {
         leadingIcon: ImageResource? = nil,
         trailingIcon: ImageResource? = nil,
         expands: Bool = false,
+        horizontalPadding: CGFloat? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -50,6 +54,7 @@ public struct DSButton: View {
         self.leadingIcon = leadingIcon
         self.trailingIcon = trailingIcon
         self.expands = expands
+        self.horizontalPadding = horizontalPadding
         self.action = action
     }
 
@@ -66,7 +71,7 @@ public struct DSButton: View {
             }
             .frame(maxWidth: expands ? .infinity : nil)
         }
-        .buttonStyle(.ds(style: style, shape: shape, size: size))
+        .buttonStyle(.ds(style: style, shape: shape, size: size, horizontalPadding: horizontalPadding))
     }
 
     private func icon(_ resource: ImageResource) -> some View {

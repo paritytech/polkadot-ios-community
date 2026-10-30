@@ -130,7 +130,8 @@ private extension CoinageTxAssetRows {
             switch input {
             case let .coin(coinInput):
                 switch coinInput {
-                case .own:
+                case .own,
+                     .reclaimed:
                     guard let coin = CoinageTxAssetLinker.coin(for: input, in: context) else {
                         throw CoreDataMapperError.missingRequiredData(keyPath: #keyPath(CDCoinageTxInput.coin))
                     }

@@ -13,10 +13,11 @@ final class ChatPresenter {
     let moduleNavigator: ModuleNavigating
     let paymentAssetViewModelFactory: PaymentAssetViewModelMaking
 
-    private var listModel: MessageListModel?
+    private(set) var listModel: MessageListModel?
     private var metadata: MessageListMetadata?
     private var footer: (any HashableContentConfiguration)?
     private var paymentAssetViewModel: PaymentAssetViewModelProtocol?
+    var pendingReclaimMessageIds: Set<String> = []
 
     init(
         interactor: ChatInteractorInputProtocol,
@@ -219,6 +220,9 @@ private extension ChatPresenter {
                 Task {
                     @MainActor in moduleNavigator.openProduct(page: productPage)
                 }
+            },
+            reclaimTransfer: { [weak self] messageId in
+                self?.handleReclaimTransfer(for: messageId)
             }
         )
 
