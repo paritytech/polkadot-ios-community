@@ -15,7 +15,7 @@ final class CancelChatRequestViewLayout: BottomSheetBaseLayout {
         view.bottomLabel.textAlignment = .center
         view.bottomLabel.numberOfLines = 0
 
-        view.spacing = 8
+        view.spacing = DSSpacings.small
     }
 
     private let actionView: GenericPairValueView<
@@ -55,13 +55,13 @@ final class CancelChatRequestViewLayout: BottomSheetBaseLayout {
         contentView.addSubview(actionView)
 
         titleView.snp.makeConstraints { make in
-            make.top.equalToSuperview().offset(-16)
+            make.top.equalToSuperview().offset(-DSSpacings.mediumIncreased)
             make.leading.trailing.equalToSuperview()
         }
         actionView.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview()
-            make.bottom.equalToSuperview().offset(8)
-            make.top.equalTo(titleView.snp.bottom).offset(32)
+            make.bottom.equalToSuperview().offset(DSSpacings.small)
+            make.top.equalTo(titleView.snp.bottom).offset(DSSpacings.extraLarge)
         }
     }
 

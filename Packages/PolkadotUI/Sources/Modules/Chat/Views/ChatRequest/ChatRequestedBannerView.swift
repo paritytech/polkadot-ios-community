@@ -10,7 +10,7 @@ public struct ChatRequestedBannerView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .center, spacing: 16) {
+        VStack(alignment: .center, spacing: DSSpacings.mediumIncreased) {
             Text(
                 getMessage(for: viewModel.username)
             )
@@ -23,9 +23,9 @@ public struct ChatRequestedBannerView: View {
             }
             .buttonStyle(.destructiveDark44)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+        .padding(.horizontal, DSSpacings.mediumIncreased)
+        .padding(.top, DSSpacings.mediumIncreased)
+        .padding(.bottom, DSSpacings.large)
         .background(Color.bgSurfaceContainer)
     }
 }
