@@ -72,6 +72,35 @@ struct PerChatRequestAccountsTests {
         }
     }
 
+    @Test func acceptorValidatesCancelWithIdentityProof() async throws {
+        let senderKey = Curve25519.KeyAgreement.PrivateKey()
+        let acceptorKey = Curve25519.KeyAgreement.PrivateKey()
+        let identityProof = try makeIdentityProof(senderKey: senderKey, acceptorKey: acceptorKey)
+
+        let validated = try await decodeCancel(
+            identityProof: identityProof,
+            senderKey: senderKey,
+            acceptorKey: acceptorKey
+        )
+
+        let senderAccountId = try identityAccountId()
+        #expect(validated.peerAccountId == senderAccountId)
+        #expect(validated.message.content.isCancel)
+    }
+
+    @Test func acceptorRejectsCancelWithTamperedIdentityProof() async throws {
+        let senderKey = Curve25519.KeyAgreement.PrivateKey()
+        let acceptorKey = Curve25519.KeyAgreement.PrivateKey()
+        let validProof = try makeIdentityProof(senderKey: senderKey, acceptorKey: acceptorKey)
+        var tamperedBytes = validProof.proof
+        tamperedBytes[0] ^= 0x01
+        let tamperedProof = Chat.IdentityProof(identityAccountId: validProof.identityAccountId, proof: tamperedBytes)
+
+        await #expect(throws: IdentityProofError.invalidProof) {
+            try await decodeCancel(identityProof: tamperedProof, senderKey: senderKey, acceptorKey: acceptorKey)
+        }
+    }
+
     @Test func acceptorAdvertisesIdentityAccountAsDevice() throws {
         let deviceKeyManager = StubDeviceEncryptionKeyManager()
         let service = ChatRequestStoreService(
@@ -106,5 +135,66 @@ private extension PerChatRequestAccountsTests {
         try ChatSignerManager(entropyManager: entropyManager)
             .makeSigner(for: ownSignKeyId)
             .accountId
+    }
+
+    func makeIdentityProof(
+        senderKey: Curve25519.KeyAgreement.PrivateKey,
+        acceptorKey: Curve25519.KeyAgreement.PrivateKey
+    ) throws -> Chat.IdentityProof {
+        let sharedSecret = try X25519ChaChaPolyEncryptorFactory(privateKey: senderKey)
+            .makeEncryptor(remotePublicKey: acceptorKey.publicKey.rawRepresentation)
+            .sharedSecret
+        let senderAccountId = try identityAccountId()
+
+        return try IdentityProofFactory.makeProof(
+            identityAccountId: senderAccountId,
+            deviceAccountId: senderAccountId,
+            sharedSecret: sharedSecret
+        )
+    }
+
+    func decodeCancel(
+        identityProof: Chat.IdentityProof,
+        senderKey: Curve25519.KeyAgreement.PrivateKey,
+        acceptorKey: Curve25519.KeyAgreement.PrivateKey
+    ) async throws -> ChatRequest.ValidatedRemoteModel {
+        let acceptorSignKeyId = WalletDerivationPath.main(for: "ksm")
+        let acceptorAccountId = try ChatSignerManager(entropyManager: entropyManager)
+            .makeSigner(for: acceptorSignKeyId)
+            .accountId
+
+        let encrypted = try makeRequestFactory().createRemoteRequest(
+            from: Chat.RequestMessage(
+                messageId: UUID().uuidString,
+                timestamp: Date().toChatTimestamp(),
+                content: .cancel(Chat.RequestContentCancel(identityProof: identityProof))
+            ),
+            peerEncryptionPubKey: acceptorKey.publicKey.rawRepresentation,
+            peerAccountId: acceptorAccountId,
+            ownSignKeyId: ownSignKeyId
+        )
+
+        let senderContact = try Chat.RemoteContact(
+            accountId: identityProof.identityAccountId,
+            username: "sender",
+            chatPublicKey: Chat.PublicKey(rawData: senderKey.publicKey.rawRepresentation),
+            imageData: nil
+        )
+        let acceptorFactory = ChatRequestFactory(
+            encryptionManager: ClosureEncryptionManager { _ in
+                X25519ChaChaPolyEncryptorFactory(privateKey: acceptorKey)
+            },
+            signManager: ChatSignerManager(entropyManager: entropyManager),
+            remoteContactResolver: MockRemoteContactResolver(result: .success(senderContact))
+        )
+        let acceptorOwnKeyId = Chat.Contact.Own(
+            signKeyId: acceptorSignKeyId,
+            encryptionKeyId: ChatEncryptionDomain.mainChat.rawValue
+        )
+
+        return try await acceptorFactory.decodeAndValidate(
+            remotePayload: encrypted.scaleEncoded(),
+            ownKeyId: acceptorOwnKeyId
+        )
     }
 }

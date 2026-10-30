@@ -10,22 +10,37 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         case acceptIncoming
         case acceptOutgoing(requestId: String)
         case declineIncoming(requestId: String)
+        case cancelIncoming(requestId: String)
+        case storeCancelled(requestId: String)
+        case deleteOutgoing(requestId: String)
+        case markCancelling(requestId: String)
+        case revertCancelling(requestId: String)
+        case revertInterruptedCancels
     }
 
     private let lock = NSLock()
     private var recordedCalls: [Call] = []
     private let localRequests: [String: Chat.Request]
+    private let cancelResult: Bool
     private let acceptorDevice: Chat.PeerDevice
+    private let markCancellingError: Error?
+    private let deleteOutgoingError: Error?
 
     init(
         localRequests: [String: Chat.Request] = [:],
+        cancelResult: Bool = true,
         acceptorDevice: Chat.PeerDevice = Chat.PeerDevice(
             statementAccountId: Data(repeating: 0x0C, count: 32),
             encryptionPublicKey: Data(repeating: 0x0D, count: 32)
-        )
+        ),
+        markCancellingError: Error? = nil,
+        deleteOutgoingError: Error? = nil
     ) {
         self.localRequests = localRequests
+        self.cancelResult = cancelResult
         self.acceptorDevice = acceptorDevice
+        self.markCancellingError = markCancellingError
+        self.deleteOutgoingError = deleteOutgoingError
     }
 
     var calls: [Call] {
@@ -76,8 +91,45 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         record(.declineIncoming(requestId: requestId))
     }
 
+    func cancelIncomingRequest(_ requestId: String) async throws -> Bool {
+        record(.cancelIncoming(requestId: requestId))
+        return cancelResult
+    }
+
+    func storeCancelledRequest(_ remote: ChatRequest.ValidatedRemoteModel) async throws {
+        record(.storeCancelled(requestId: remote.requestId))
+    }
+
     func buildLocalAcceptorDevice() throws -> Chat.PeerDevice {
         acceptorDevice
+    }
+
+    func makeOutgoingIdentityProof(
+        peerEncryptionPubKey _: Data,
+        ownEncryptionKeyId _: String
+    ) throws -> Chat.IdentityProof {
+        Chat.IdentityProof(
+            identityAccountId: Data(repeating: 0x0A, count: 32),
+            proof: Data(repeating: 0x0B, count: 32)
+        )
+    }
+
+    func deleteOutgoingRequest(_ requestId: String) async throws {
+        record(.deleteOutgoing(requestId: requestId))
+        if let deleteOutgoingError { throw deleteOutgoingError }
+    }
+
+    func markOutgoingRequestCancelling(_ requestId: String) async throws {
+        record(.markCancelling(requestId: requestId))
+        if let markCancellingError { throw markCancellingError }
+    }
+
+    func revertOutgoingRequestCancelling(_ requestId: String) async throws {
+        record(.revertCancelling(requestId: requestId))
+    }
+
+    func revertInterruptedOutgoingCancels() async throws {
+        record(.revertInterruptedCancels)
     }
 }
 

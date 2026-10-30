@@ -14,6 +14,7 @@ final class ChatRequestCoordinatorService {
     let logger: SDKLoggerProtocol
 
     private var coordinationTask: Task<Void, Never>?
+    private var hasRevertedInterruptedCancels = false
 
     init(
         contactsProviderFactory: ChatContactDataProviderMaking,
@@ -37,7 +38,19 @@ extension ChatRequestCoordinatorService: ChatRequestCoordinatorServicing {
 
         logger.debug("Starting service...")
 
+        // Once per process: a later setup can run while a Cancel still runs in the background.
+        let shouldRevertInterruptedCancels = !hasRevertedInterruptedCancels
+        hasRevertedInterruptedCancels = true
+
         coordinationTask = Task {
+            if shouldRevertInterruptedCancels {
+                do {
+                    try await serviceFactory.revertInterruptedOutgoingCancels()
+                } catch {
+                    logger.error("Interrupted cancel revert failed: \(error)")
+                }
+            }
+
             do {
                 let discoveryService = try await serviceFactory.makeDiscoveryService()
                 let incomingRequestService = try await serviceFactory.makeIncomingChatRequestService()

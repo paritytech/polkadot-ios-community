@@ -110,6 +110,9 @@ private extension ContactsListInteractor {
                     newIncomingRequestCount += 1
                 }
 
+            case let .person(contact) where contact.hasCancellingChatRequest:
+                break
+
             case .person:
                 nonIncomingRequestChats.append(chat.chatWithPeerMetadata(using: chatExtensionsRegistry))
 

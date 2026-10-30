@@ -54,6 +54,7 @@ protocol ChatInteractorInputProtocol: AnyObject {
     func unblockUser()
     func acceptChatRequest()
     func declineChatRequest()
+    func cancelChatRequest()
     func processAction(_ action: Chat.Action)
     func isMicrophoneDenied() -> Bool
 }
@@ -71,6 +72,10 @@ protocol ChatInteractorOutputProtocol: AnyObject {
     func didBlockUser()
 
     func didDeclineChatRequest()
+
+    func didCancelIncomingRequest()
+
+    func didRemoveChat()
 }
 
 @MainActor
@@ -101,6 +106,12 @@ protocol ChatWireframeProtocol: AnyObject, AlertPresentable {
     )
 
     func dismissChat(from view: ControllerBackedProtocol?)
+
+    func showCancelChatRequestConfirmation(
+        from view: ControllerBackedProtocol?,
+        username: String,
+        delegate: ChatMoreActionsDelegate
+    )
 
     func showDocument(at url: URL)
 
@@ -133,4 +144,5 @@ protocol ChatAttachmentPreviewDelegate: AnyObject {
 protocol ChatMoreActionsDelegate: AnyObject {
     func didConfirmLeaveChat()
     func didConfirmBlockUser()
+    func didConfirmCancelChatRequest()
 }

@@ -32,6 +32,8 @@ protocol ChatRequestServiceMaking {
     func makeIncomingChatAcceptanceService() async throws -> IncomingChatAcceptanceService
 
     func makeIncomingChatAcceptanceContext() async -> IncomingChatAcceptanceCoordinationContext
+
+    func revertInterruptedOutgoingCancels() async throws
 }
 
 actor ChatRequestServiceFactory {
@@ -47,6 +49,7 @@ actor ChatRequestServiceFactory {
     let signingFallback: NonPrivateSigningFallbacking
     let backgroundExecutor: BackgroundExecuting
     let issueReporter: IssueReporting
+    let allowanceCleanupService: AllowanceCleanupServicing
 
     private var connection: StatementStoreConnecting?
     private var accountSignManager: ChatSignerManager?
@@ -61,6 +64,7 @@ actor ChatRequestServiceFactory {
         signingFallback: NonPrivateSigningFallbacking,
         backgroundExecutor: BackgroundExecuting,
         issueReporter: IssueReporting,
+        allowanceCleanupService: AllowanceCleanupServicing,
         chatChainId: ChainModel.Id = AppConfig.Chains.chatChain,
         chainRegistry: ChainRegistryProtocol = ChainRegistryFacade.sharedRegistry,
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
@@ -74,6 +78,7 @@ actor ChatRequestServiceFactory {
         self.signingFallback = signingFallback
         self.backgroundExecutor = backgroundExecutor
         self.issueReporter = issueReporter
+        self.allowanceCleanupService = allowanceCleanupService
         self.chatChainId = chatChainId
         self.chainRegistry = chainRegistry
         self.entropyManager = entropyManager
@@ -142,7 +147,12 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
                 signManager: signManager
             ),
             contactsStorageService: ContactsLocalStorageService(),
-            remoteContactResolver: remoteContactResolver
+            remoteContactResolver: remoteContactResolver,
+            chatRemovalCleanup: ChatRemovalCleanupService(
+                allowanceCleanupService: allowanceCleanupService,
+                signingConsentStore: ChatSigningConsentStore(storageFacade: storageFacade),
+                storageFacade: storageFacade
+            )
         )
     }
 
@@ -185,6 +195,40 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
             logger: logger
         )
     }
+
+    func revertInterruptedOutgoingCancels() async throws {
+        let encryptionManager = makeAccountEncryptionManager()
+        let signManager = makeAccountSignManager()
+
+        try await makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager)
+            .revertInterruptedOutgoingCancels()
+    }
+
+    func makeChatRequestCancelService() async throws -> ChatRequestCancelServicing {
+        let requestPipeline = try await makeRequestPipeline()
+        let encryptionManager = makeAccountEncryptionManager()
+        let signManager = makeAccountSignManager()
+        let consentStore = ChatSigningConsentStore(storageFacade: storageFacade)
+
+        return try ChatRequestCancelService(
+            dependencies: ChatRequestCancelDependencies(
+                loader: ChatRequestOutgoingStore(storageFacade: storageFacade),
+                delivery: requestPipeline.delivery,
+                builder: makeRequestStatementBuilder(),
+                signerManager: signManager,
+                consentStore: consentStore,
+                connection: makeCancelConnection(),
+                removalCleanup: ChatRemovalCleanupService(
+                    allowanceCleanupService: allowanceCleanupService,
+                    signingConsentStore: consentStore,
+                    storageFacade: storageFacade
+                ),
+                requestStore: makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager),
+                backgroundExecutor: backgroundExecutor
+            ),
+            clock: ContinuousClock()
+        )
+    }
 }
 
 /// Same cached pipelines as first delivery, so renewal and delivery share one delivery actor per kind.
@@ -195,6 +239,12 @@ extension ChatRequestServiceFactory: StatementRenewerProviding {
 
     func makeChatRequestRenewer() async throws -> OutgoingStatementRenewing {
         try await makeRequestPipeline().makeRenewer()
+    }
+}
+
+extension ChatRequestServiceFactory: ChatRequestCancelServicing {
+    func cancel(requestId: String) async throws {
+        try await makeChatRequestCancelService().cancel(requestId: requestId)
     }
 }
 
@@ -389,6 +439,15 @@ private extension ChatRequestServiceFactory {
         self.connection = connection
 
         return connection
+    }
+
+    // Timeouts only: a cancel must fail at once on missing allowance instead of retrying it.
+    func makeCancelConnection() throws -> StatementStoreSubmitting {
+        try StatementStoreConnection(
+            connection: chainRegistry.getConnectionOrError(for: chatChainId),
+            retryMatcher: StatementSubmitTimeoutMatcher(),
+            logger: logger
+        )
     }
 
     func makeAccountEncryptionManager() -> MessageExchangeEncryptionManaging {
