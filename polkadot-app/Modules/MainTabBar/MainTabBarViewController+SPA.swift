@@ -38,13 +38,13 @@ extension MainTabBarViewController {
             return
         }
         container.mountSPA(controller, for: tab.id)
-        chromeController.apply(.spa(controller))
+        applyChrome(.spa(controller))
         applyChips()
     }
 
     func applyChips() {
         let chips = spaChipViewModels.map {
-            DSTabBarChip(id: $0.id, name: $0.name, icon: $0.icon)
+            TabBarShelfChip(id: $0.id, name: $0.name, icon: $0.icon)
         }
         chromeController.setSPATabs(chips, selected: mountedSPATabId)
     }

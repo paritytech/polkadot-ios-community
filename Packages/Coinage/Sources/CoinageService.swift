@@ -102,6 +102,9 @@ public protocol CoinageServicing: Actor {
     /// Whether this installation is registered on chain — see ``CoinageAccountBackupStatus``.
     nonisolated func subscribeAccountBackupStatus() -> AnyAsyncSequence<CoinageAccountBackupStatus>
 
+    /// Whether an allocation is waiting for that registration to complete.
+    nonisolated func subscribeAwaitingInstallationBackup() -> AnyAsyncSequence<Bool>
+
     /// See `TransferClaimServicing.transferCoinsFromSecretKeys`.
     func transferCoinsFromSecretKeys(
         secretKeys: [Data],
@@ -137,6 +140,7 @@ public actor CoinageService {
     private let voucherLocationService: VoucherLocationService
     private let recoveryService: any CoinageBackupRecoveryServicing
     private let installationRegistrar: any CoinageInstallationRegistering
+    private let backedUpInstallation: any CoinageBackedUpInstallationProviding
     public nonisolated let recyclingService: any CoinageRecyclingServicing
 
     // Recycling strategy evaluation — the evaluator is built lazily once the context resolves.
@@ -199,6 +203,7 @@ public actor CoinageService {
         databaseFactory: any DatabaseDependencyFactoring,
         recoveryService: any CoinageBackupRecoveryServicing,
         installationRegistrar: any CoinageInstallationRegistering,
+        backedUpInstallation: any CoinageBackedUpInstallationProviding,
         incomingPaymentService: any IncomingPaymentServicing,
         logger: SDKLoggerProtocol? = nil
     ) {
@@ -220,6 +225,7 @@ public actor CoinageService {
         self.databaseFactory = databaseFactory
         self.recoveryService = recoveryService
         self.installationRegistrar = installationRegistrar
+        self.backedUpInstallation = backedUpInstallation
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.reclaimCoinsService = reclaimCoinsService
@@ -450,6 +456,10 @@ extension CoinageService: CoinageServicing {
 
     public nonisolated func subscribeAccountBackupStatus() -> AnyAsyncSequence<CoinageAccountBackupStatus> {
         installationRegistrar.subscribeStatus()
+    }
+
+    public nonisolated func subscribeAwaitingInstallationBackup() -> AnyAsyncSequence<Bool> {
+        backedUpInstallation.subscribeAwaitingBackup()
     }
 
     public func recoverSpentCoinsOnChain() async throws -> BigUInt {

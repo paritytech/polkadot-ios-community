@@ -10,13 +10,17 @@ enum MainTabBarViewFactory {
         userNotificationService: UserNotificationServicing,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting? = nil,
         deepLinkHandling: DeferredLinkHandling,
-        flowStateProvider: any SPAFlowStateProviding
+        flowStateProvider: any SPAFlowStateProviding,
+        windowScene: UIWindowScene?
     ) -> MainTabBarViewProtocol? {
         let spaFlowState = flowStateProvider.flowState()
 
-        guard let serviceCoordinator = ServiceCoordinator.createDefault(spaFlowState: spaFlowState) else {
+        // Taking the lease starts the services; the interactor releases it.
+        guard let servicesLease = DashboardServices.manager.acquireInteractive() else {
             return nil
         }
+
+        let serviceCoordinator = servicesLease.coordinator
 
         let polkadotSignInService = PolkadotSignInService(
             polkadotHandshakeService: serviceCoordinator.polkadotHandshakeService
@@ -41,26 +45,21 @@ enum MainTabBarViewFactory {
             hostProvider: spaFlowState.hostProvider
         )
 
-        let mnemonicBackupHelper = MnemonicBackupHelper()
         let browserCoordinator = createBrowserCoordinator(flowStateProvider: flowStateProvider)
         let interactor = MainTabBarInteractor(
-            serviceCoordinator: serviceCoordinator,
+            servicesLease: servicesLease,
             chainStatusProvider: serviceCoordinator.chainStatusProvider,
             userNotificationService: userNotificationService,
             urlHandlingService: urlHandler,
             deferredLinkHandler: deepLinkHandling,
-            mnemonicBackupHelper: mnemonicBackupHelper,
             browserCoordinator: browserCoordinator
         )
+        #if !FEATURE_PRODUCTS
+            interactor.settingsAttentionObserver = SettingsBackupAttentionObserver()
+        #endif
 
         let qrHandler = WalletQRScanResultHandler(
             dsfinvkRouter: W3sDsfinvkRouter.createDefault(coinageService: serviceCoordinator.coinageService)
-        )
-
-        let wireframe = MainTabBarWireframe(
-            serviceCoordinator: serviceCoordinator,
-            scanResultHandler: qrHandler,
-            moduleNavigator: moduleNavigator
         )
 
         let chipViewModelFactory = SPATabChipViewModelFactory(
@@ -72,6 +71,13 @@ enum MainTabBarViewFactory {
             scanResultHandler: qrHandler,
             flowStateProvider: flowStateProvider,
             foregroundVisibilityReporter: foregroundVisibilityReporter
+        )
+
+        let wireframe = MainTabBarWireframe(
+            serviceCoordinator: serviceCoordinator,
+            tabFactory: tabFactory,
+            moduleNavigator: moduleNavigator,
+            windowScene: windowScene
         )
 
         let presenter = MainTabBarPresenter(
@@ -129,6 +135,7 @@ enum MainTabBarViewFactory {
             notificationsCleaner: notificationsCleaner,
             coinageService: serviceCoordinator.coinageService,
             networkStatusService: serviceCoordinator.networkStatusService,
+            allowanceCleanupService: serviceCoordinator.allowanceManagerFacade.cleanupService,
             flowState: spaFlowState
         )
     }
