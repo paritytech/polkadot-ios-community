@@ -28,6 +28,8 @@ actor DeviceTransferReceiverCoordinator {
 
     private let subject = AsyncCurrentValueSubject<DeviceTransferState>(.idle)
     private var run: (any DeviceTransferRunning)?
+    private var transferTask: Task<Void, Never>?
+    private var hasPeerAnswered = false
     private var published: (request: DeviceTransferRequest, configuration: DeviceTransferDiscoveryConfiguration)?
 
     init(
@@ -52,16 +54,12 @@ extension DeviceTransferReceiverCoordinator: DeviceTransferReceiverCoordinating 
 
     func start(configuration: DeviceTransferDiscoveryConfiguration) async {
         guard !subject.value.isRunning else { return }
+        hasPeerAnswered = false
         update(.waitingForSender)
 
         do {
             let senderInstallationId = try await activeInstallationId()
-            let request = try await publisher.publishRequest(configuration: configuration)
-            published = (request, configuration)
-
-            let run = try runFactory.makeReceiverRun(for: request, senderInstallationId: senderInstallationId)
-            self.run = run
-            Task { await perform(run, for: request) }
+            transferTask = Task { await perform(configuration: configuration, from: senderInstallationId) }
         } catch {
             logger.error("Device transfer request failed: \(error)")
             update(.failed(.failed))
@@ -70,6 +68,7 @@ extension DeviceTransferReceiverCoordinator: DeviceTransferReceiverCoordinating 
 
     func cancel() async {
         await run?.cancel()
+        transferTask?.cancel()
 
         guard let published else { return }
 
@@ -96,9 +95,9 @@ private extension DeviceTransferReceiverCoordinator {
         }
     }
 
-    func perform(_ run: any DeviceTransferRunning, for request: DeviceTransferRequest) async {
+    func perform(configuration: DeviceTransferDiscoveryConfiguration, from senderInstallationId: Data) async {
         do {
-            try await run.run { [weak self] event in await self?.handle(event) }
+            let request = try await runUntilFinished(configuration: configuration, from: senderInstallationId)
             update(.finalizing)
             try await finalizer.finalize(after: request)
             update(.completed)
@@ -107,11 +106,40 @@ private extension DeviceTransferReceiverCoordinator {
             update(.failed(DeviceTransferFailure(error)))
         }
 
-        self.run = nil
+        run = nil
         published = nil
+        transferTask = nil
+    }
+
+    /// A request lives as long as the idle limit, so a run that reaches it publishes a new request
+    /// and resumes from the checkpoint.
+    func runUntilFinished(
+        configuration: DeviceTransferDiscoveryConfiguration,
+        from senderInstallationId: Data
+    ) async throws -> DeviceTransferRequest {
+        while true {
+            try Task.checkCancellation()
+
+            let request = try await publisher.publishRequest(configuration: configuration)
+            published = (request, configuration)
+            let run = try runFactory.makeReceiverRun(for: request, senderInstallationId: senderInstallationId)
+            self.run = run
+
+            do {
+                try await run.run { [weak self] event in await self?.handle(event) }
+                return request
+            } catch DeviceTransferContextError.idleTimeout {
+                logger.info("Device transfer request reached the idle limit, publishing a new one")
+                update(hasPeerAnswered ? .reconnecting : .waitingForSender)
+            }
+        }
     }
 
     func handle(_ event: DeviceTransferRunEvent) {
+        if event == .peerFound {
+            hasPeerAnswered = true
+        }
+
         if let next = subject.value.next(after: event) {
             update(next)
         }

@@ -13,6 +13,12 @@ struct DeviceTransferCoordinatorTests {
         operatingSystem: "iOS 26.1",
         createdAt: 1_700_000_000_000
     )
+    private let renewedRequest = DeviceTransferRequest(
+        requestId: "renewed",
+        deviceModel: "iPhone 17 Pro",
+        operatingSystem: "iOS 26.1",
+        createdAt: 1_700_000_900_000
+    )
     private let senderInstallationId = Data(repeating: 0x5E, count: 32)
     private let runs = ScriptedRunFactory()
     private let processed = RecordingProcessedStore()
@@ -116,10 +122,67 @@ struct DeviceTransferCoordinatorTests {
         #expect(await terminalState(of: coordinator.states) == .failed(.aborted(.internalError)))
     }
 
+    @Test("A request nobody answers before the idle limit is published again while the new phone keeps waiting")
+    func unansweredRequestIsPublishedAgain() async throws {
+        runs.scripts = [
+            RunScript(error: DeviceTransferContextError.idleTimeout),
+            RunScript(events: [.peerFound, .channelOpened, .progress(.syncing(applied: 1, total: 1))])
+        ]
+        let publisher = RecordingPublisher(requests: [request, renewedRequest])
+        let finalizer = RecordingFinalizer()
+        let coordinator = makeReceiver(publisher: publisher, finalizer: finalizer)
+        let states = await recordStates(of: coordinator.states)
+
+        await coordinator.start(configuration: configuration())
+
+        #expect(await states.values(until: .completed) == [
+            .idle, .waitingForSender, .connecting, .syncing(applied: 1, total: 1), .finalizing, .completed
+        ])
+        #expect(publisher.publishedCount == 2)
+        #expect(finalizer.requests == [renewedRequest.requestId])
+    }
+
+    @Test("Once the old phone answered, the idle limit shows reconnecting and the next request carries on")
+    func answeredRequestReconnectsAfterIdleLimit() async throws {
+        runs.scripts = [
+            RunScript(
+                events: [.peerFound, .channelOpened, .progress(.syncing(applied: 1, total: 2))],
+                error: DeviceTransferContextError.idleTimeout
+            ),
+            RunScript(events: [.peerFound, .channelOpened, .progress(.syncing(applied: 2, total: 2))])
+        ]
+        let coordinator = makeReceiver(publisher: RecordingPublisher(requests: [request, renewedRequest]))
+        let states = await recordStates(of: coordinator.states)
+
+        await coordinator.start(configuration: configuration())
+
+        #expect(await states.values(until: .completed) == [
+            .idle, .waitingForSender, .connecting, .syncing(applied: 1, total: 2), .reconnecting, .connecting,
+            .syncing(applied: 2, total: 2), .finalizing, .completed
+        ])
+    }
+
+    @Test("Cancelling while a renewed request waits withdraws the renewed one")
+    func cancelWithdrawsRenewedRequest() async throws {
+        runs.scripts = [
+            RunScript(error: DeviceTransferContextError.idleTimeout),
+            RunScript(waitsForCancel: true)
+        ]
+        let publisher = RecordingPublisher(requests: [request, renewedRequest])
+        let coordinator = makeReceiver(publisher: publisher)
+
+        await coordinator.start(configuration: configuration())
+        await runs.waitUntilRunning(count: 2)
+        await coordinator.cancel()
+
+        #expect(await terminalState(of: coordinator.states) == .failed(.cancelled))
+        #expect(publisher.cancelledRequestIds == [renewedRequest.requestId])
+    }
+
     @Test("Cancelling on the new phone aborts the run and withdraws the request")
     func cancelWithdrawsRequest() async throws {
         runs.script = RunScript(events: [], waitsForCancel: true)
-        let publisher = RecordingPublisher(request: request)
+        let publisher = RecordingPublisher(requests: [request])
         let coordinator = makeReceiver(publisher: publisher)
 
         await coordinator.start(configuration: configuration())
@@ -155,7 +218,7 @@ private extension DeviceTransferCoordinatorTests {
         )
 
         return DeviceTransferReceiverCoordinator(
-            publisher: publisher ?? RecordingPublisher(request: request),
+            publisher: publisher ?? RecordingPublisher(requests: [request]),
             installationObserver: FixedInstallationStatus(status: .inactive(oldPhone)),
             runFactory: runs,
             finalizer: finalizer,
@@ -237,14 +300,20 @@ private struct RunScript {
 private final class ScriptedRunFactory: DeviceTransferRunMaking, @unchecked Sendable {
     private let lock = NSLock()
     private let runningEvents = DeviceSyncTestEventRecorder<Void>()
-    private var _script = RunScript()
+    private var _scripts = [RunScript()]
     private var _senderRuns: [String] = []
     private var _receiverRuns: [Data] = []
     private var _rejections: [String] = []
 
     var script: RunScript {
-        get { lock.withLock { _script } }
-        set { lock.withLock { _script = newValue } }
+        get { scripts[0] }
+        set { scripts = [newValue] }
+    }
+
+    /// One script per run, in order; the last one repeats.
+    var scripts: [RunScript] {
+        get { lock.withLock { _scripts } }
+        set { lock.withLock { _scripts = newValue } }
     }
 
     var senderRuns: [String] { lock.withLock { _senderRuns } }
@@ -253,7 +322,7 @@ private final class ScriptedRunFactory: DeviceTransferRunMaking, @unchecked Send
 
     func makeSenderRun(for request: DeviceTransferRequest) throws -> any DeviceTransferRunning {
         lock.withLock { _senderRuns.append(request.requestId) }
-        return ScriptedRun(script: script, running: runningEvents)
+        return ScriptedRun(script: nextScript(), running: runningEvents)
     }
 
     func makeReceiverRun(
@@ -261,15 +330,19 @@ private final class ScriptedRunFactory: DeviceTransferRunMaking, @unchecked Send
         senderInstallationId: Data
     ) throws -> any DeviceTransferRunning {
         lock.withLock { _receiverRuns.append(senderInstallationId) }
-        return ScriptedRun(script: script, running: runningEvents)
+        return ScriptedRun(script: nextScript(), running: runningEvents)
     }
 
     func sendRejection(for request: DeviceTransferRequest) async throws {
         lock.withLock { _rejections.append(request.requestId) }
     }
 
-    func waitUntilRunning() async {
-        _ = await runningEvents.waitForCount(1)
+    func waitUntilRunning(count: Int = 1) async {
+        _ = await runningEvents.waitForCount(count)
+    }
+
+    private func nextScript() -> RunScript {
+        lock.withLock { _scripts.count > 1 ? _scripts.removeFirst() : _scripts[0] }
     }
 }
 
@@ -324,18 +397,24 @@ private final class RecordingProcessedStore: DeviceTransferProcessedStoring, @un
 }
 
 private final class RecordingPublisher: DeviceTransferRequestPublishing, @unchecked Sendable {
-    private let request: DeviceTransferRequest
+    private let requests: [DeviceTransferRequest]
     private let lock = NSLock()
+    private var _publishedCount = 0
     private var _cancelledRequestIds: [String] = []
 
+    var publishedCount: Int { lock.withLock { _publishedCount } }
     var cancelledRequestIds: [String] { lock.withLock { _cancelledRequestIds } }
 
-    init(request: DeviceTransferRequest) {
-        self.request = request
+    /// Returns the requests in order; the last one repeats.
+    init(requests: [DeviceTransferRequest]) {
+        self.requests = requests
     }
 
     func publishRequest(configuration _: DeviceTransferDiscoveryConfiguration) async throws -> DeviceTransferRequest {
-        request
+        lock.withLock {
+            defer { _publishedCount += 1 }
+            return requests[min(_publishedCount, requests.count - 1)]
+        }
     }
 
     func cancel(requestId: String, configuration _: DeviceTransferDiscoveryConfiguration) async throws {
