@@ -25,7 +25,7 @@ enum DeviceTransferFailure: Equatable {
     case expired
     case rejected
     case cancelled
-    case aborted
+    case aborted(DeviceTransferAbortReason)
     case timedOut
     case failed
 }
@@ -38,8 +38,8 @@ extension DeviceTransferFailure {
         case DeviceTransferContextError.idleTimeout,
              DeviceTransferRunError.timedOut:
             self = .timedOut
-        case DeviceTransferRunError.aborted:
-            self = .aborted
+        case let DeviceTransferRunError.aborted(reason):
+            self = .aborted(reason)
         case is CancellationError:
             self = .cancelled
         default:

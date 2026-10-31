@@ -85,6 +85,16 @@ struct DeviceTransferCoordinatorTests {
         #expect(finalizer.requests.isEmpty)
     }
 
+    @Test("An abort from the old phone keeps its reason, so a user cancel reads differently from a failure")
+    func abortKeepsItsReason() async throws {
+        runs.script = RunScript(events: [.peerFound], error: DeviceTransferRunError.aborted(.internalError))
+        let coordinator = makeReceiver()
+
+        await coordinator.start(configuration: configuration())
+
+        #expect(await terminalState(of: coordinator.states) == .failed(.aborted(.internalError)))
+    }
+
     @Test("Cancelling on the new phone aborts the run and withdraws the request")
     func cancelWithdrawsRequest() async throws {
         runs.script = RunScript(events: [], waitsForCancel: true)
