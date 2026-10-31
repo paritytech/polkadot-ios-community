@@ -38,7 +38,28 @@ struct DeviceTransferCoordinatorTests {
 
         #expect(await terminalState(of: coordinator.states) == .completed)
         #expect(processed.marks == [ProcessedMark(requestId: "request", outcome: .accepted)])
-        #expect(await states.values(until: .completed) == [.idle, .connecting, .transferring, .completed])
+        #expect(await states.values(until: .completed) == [.idle, .connecting, .completed])
+    }
+
+    @Test("A lost connection shows reconnecting until the next channel opens and the progress goes on")
+    func lostConnectionShowsReconnecting() async throws {
+        runs.script = RunScript(events: [
+            .peerFound,
+            .channelOpened,
+            .progress(.syncing(applied: 1, total: 4)),
+            .connectionLost,
+            .channelOpened,
+            .progress(.syncing(applied: 4, total: 4))
+        ])
+        let coordinator = makeReceiver()
+        let states = await recordStates(of: coordinator.states)
+
+        await coordinator.start(configuration: configuration())
+
+        #expect(await states.values(until: .completed) == [
+            .idle, .waitingForSender, .connecting, .syncing(applied: 1, total: 4), .reconnecting, .connecting,
+            .syncing(applied: 4, total: 4), .finalizing, .completed
+        ])
     }
 
     @Test("Rejecting marks the request rejected and tells the new phone")

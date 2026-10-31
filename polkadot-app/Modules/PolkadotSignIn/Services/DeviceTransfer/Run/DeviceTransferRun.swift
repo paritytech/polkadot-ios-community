@@ -3,6 +3,7 @@ import Foundation
 enum DeviceTransferRunEvent: Equatable {
     case peerFound
     case channelOpened
+    case connectionLost
     case progress(DeviceTransferProgress)
 }
 

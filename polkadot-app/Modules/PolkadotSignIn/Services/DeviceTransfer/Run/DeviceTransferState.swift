@@ -4,7 +4,7 @@ enum DeviceTransferState: Equatable {
     case idle
     case waitingForSender
     case connecting
-    case transferring
+    case reconnecting
     case syncing(applied: Int, total: Int)
     case files(DeviceTransferFileProgress)
     case finalizing
@@ -17,6 +17,24 @@ enum DeviceTransferState: Equatable {
              .completed,
              .failed: false
         default: true
+        }
+    }
+}
+
+extension DeviceTransferState {
+    /// Both coordinators move between states the same way; `nil` keeps the current one.
+    func next(after event: DeviceTransferRunEvent) -> DeviceTransferState? {
+        switch event {
+        case .peerFound:
+            self == .waitingForSender ? .connecting : nil
+        case .channelOpened:
+            self == .reconnecting ? .connecting : nil
+        case .connectionLost:
+            .reconnecting
+        case let .progress(.syncing(applied, total)):
+            .syncing(applied: applied, total: total)
+        case let .progress(.files(progress)):
+            .files(progress)
         }
     }
 }

@@ -92,8 +92,8 @@ private extension DeviceTransferSenderCoordinator {
     }
 
     func handle(_ event: DeviceTransferRunEvent) {
-        if event == .channelOpened, subject.value == .connecting {
-            update(.transferring)
+        if let next = subject.value.next(after: event) {
+            update(next)
         }
     }
 

@@ -112,17 +112,8 @@ private extension DeviceTransferReceiverCoordinator {
     }
 
     func handle(_ event: DeviceTransferRunEvent) {
-        switch event {
-        case .peerFound:
-            if subject.value == .waitingForSender {
-                update(.connecting)
-            }
-        case .channelOpened:
-            break
-        case let .progress(.syncing(applied, total)):
-            update(.syncing(applied: applied, total: total))
-        case let .progress(.files(progress)):
-            update(.files(progress))
+        if let next = subject.value.next(after: event) {
+            update(next)
         }
     }
 

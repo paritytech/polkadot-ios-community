@@ -109,6 +109,35 @@ struct DeviceTransferPeerContextTests {
             #expect(clock.pendingSleepCount(for: DeviceTransferConstants.runIdleTimeout) == 0)
         }
     }
+
+    @Test("An open channel that drops reports the connection lost")
+    func droppedChannelReportsConnectionLost() async throws {
+        let events = DeviceSyncTestEventRecorder<DeviceTransferRunEvent>()
+
+        try await makeContext().run(onEvent: { events.record($0) }) { flow in
+            let mock = try #require(flow as? MockDevicePeerConnectionFlow)
+            await mock.sendState(.connected)
+            _ = await events.waitForCount(1)
+            await mock.sendState(.disconnected)
+            _ = await events.waitForCount(2)
+        }
+
+        #expect(events.snapshot == [.channelOpened, .connectionLost])
+    }
+
+    @Test("Closing the channel of a finished run isn't reported as a lost connection")
+    func finishedRunIsNotALostConnection() async throws {
+        let events = DeviceSyncTestEventRecorder<DeviceTransferRunEvent>()
+
+        try await makeContext().run(onEvent: { events.record($0) }) { flow in
+            let mock = try #require(flow as? MockDevicePeerConnectionFlow)
+            await mock.disconnectOnCancel()
+            await mock.sendState(.connected)
+            _ = await events.waitForCount(1)
+        }
+
+        #expect(events.snapshot == [.channelOpened])
+    }
 }
 
 private extension DeviceTransferPeerContextTests {
