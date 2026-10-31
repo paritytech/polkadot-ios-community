@@ -53,8 +53,9 @@ final class DeviceTransferRunTests {
             state: IncomingTransferState(status: .failed)
         )
         let progress = DeviceSyncTestEventRecorder<DeviceTransferProgress>()
+        let senderProgress = DeviceSyncTestEventRecorder<DeviceTransferProgress>()
 
-        try await runTransfer(onProgress: { progress.record($0) })
+        try await runTransfer(onProgress: { progress.record($0) }, onSenderProgress: { senderProgress.record($0) })
 
         #expect(try await storedOrders(in: receiver) == storedOrders(in: sender))
         #expect(try await storedOrders(in: receiver).keys.contains(first.messageId))
@@ -67,6 +68,7 @@ final class DeviceTransferRunTests {
         }
         let lastSyncing = try #require(syncing.last)
         #expect(lastSyncing.applied >= lastSyncing.total)
+        #expect(senderProgress.snapshot.last == .syncing(applied: lastSyncing.applied, total: lastSyncing.total))
     }
 
     @Test("Attachments the new phone lacks are pulled from the old one, with progress in bytes")
@@ -142,7 +144,8 @@ final class DeviceTransferRunTests {
 private extension DeviceTransferRunTests {
     @discardableResult
     func runTransfer(
-        onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void = { _ in }
+        onProgress: @escaping @Sendable (DeviceTransferProgress) -> Void = { _ in },
+        onSenderProgress: @escaping @Sendable (DeviceTransferProgress) -> Void = { _ in }
     ) async throws -> LoopbackTransferFlow {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
         let requester = makeRequester(flow: receiverSide)
@@ -154,7 +157,9 @@ private extension DeviceTransferRunTests {
         let senderClient = makeSenderClient(flow: senderSide)
         let receiverClient = makeReceiverClient(flow: receiverSide, requester: requester)
 
-        async let sending: Void = senderClient.run { _ in }
+        async let sending: Void = senderClient.run { event in
+            if case let .progress(progress) = event { onSenderProgress(progress) }
+        }
         try await receiverClient.run { event in
             if case let .progress(progress) = event { onProgress(progress) }
         }
