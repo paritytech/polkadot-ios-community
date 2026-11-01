@@ -78,7 +78,7 @@ private extension RootPresenter {
         case .installationCheck:
             wireframe.showInstallationCheck(with: self)
         case .deviceTransfer:
-            wireframe.showDeviceTransfer()
+            wireframe.showDeviceTransfer(with: self)
         case .dashboard:
             wireframe.showDashboard()
         case .broken:

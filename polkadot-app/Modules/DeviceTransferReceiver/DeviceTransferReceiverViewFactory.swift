@@ -1,16 +1,16 @@
 import Foundation
-import Operation_iOS
-import Keystore_iOS
 
 @MainActor
 enum DeviceTransferReceiverViewFactory {
-    static func createView() -> DeviceTransferReceiverViewProtocol? {
-        let interactor = DeviceTransferReceiverInteractor()
-
-        let wireframe = DeviceTransferReceiverWireframe()
-
+    static func createView(observer: RootStateObserving) -> DeviceTransferReceiverViewProtocol {
+        let statusStore = InstallationStatusStore(logger: Logger.shared)
+        let interactor = DeviceTransferReceiverInteractor(
+            servicesFactory: DeviceTransferServicesFactory(statusStore: statusStore, logger: Logger.shared),
+            statusStore: statusStore,
+            logger: Logger.shared
+        )
+        let wireframe = DeviceTransferReceiverWireframe(observer: observer)
         let presenter = DeviceTransferReceiverPresenter(interactor: interactor, wireframe: wireframe)
-
         let view = DeviceTransferReceiverViewController(presenter: presenter)
 
         presenter.view = view

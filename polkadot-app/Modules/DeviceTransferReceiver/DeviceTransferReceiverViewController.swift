@@ -17,10 +17,19 @@ final class DeviceTransferReceiverViewController: UIHostingController<DeviceTran
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .backgroundPrimary
+        view.backgroundColor = .bgSurfaceMain
+
+        rootView.viewModel.onStart = { [weak self] in self?.presenter.startTransfer() }
+        rootView.viewModel.onCancel = { [weak self] in self?.presenter.cancelTransfer() }
+        rootView.viewModel.onContinue = { [weak self] in self?.presenter.complete() }
 
         presenter.setup()
     }
 }
 
-extension DeviceTransferReceiverViewController: DeviceTransferReceiverViewProtocol {}
+extension DeviceTransferReceiverViewController: DeviceTransferReceiverViewProtocol {
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?) {
+        rootView.viewModel.screen = screen
+        rootView.viewModel.oldPhone = oldPhone
+    }
+}

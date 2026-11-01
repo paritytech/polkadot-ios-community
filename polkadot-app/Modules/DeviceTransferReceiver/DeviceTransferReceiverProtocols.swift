@@ -1,15 +1,33 @@
 import PolkadotUI
 import UIKitExt
 
-protocol DeviceTransferReceiverViewProtocol: ControllerBackedProtocol {}
-
-protocol DeviceTransferReceiverPresenterProtocol: AnyObject {
-    func setup()
+@MainActor
+protocol DeviceTransferReceiverViewProtocol: ControllerBackedProtocol {
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?)
 }
 
-protocol DeviceTransferReceiverInteractorInputProtocol: AnyObject {}
+@MainActor
+protocol DeviceTransferReceiverPresenterProtocol: AnyObject {
+    func setup()
+    func startTransfer()
+    func cancelTransfer()
+    func complete()
+}
 
 @MainActor
-protocol DeviceTransferReceiverInteractorOutputProtocol: AnyObject {}
+protocol DeviceTransferReceiverInteractorInputProtocol: AnyObject {
+    func setup()
+    func startTransfer()
+    func cancelTransfer()
+}
 
-protocol DeviceTransferReceiverWireframeProtocol: AnyObject, AlertPresentable, ErrorPresentable {}
+@MainActor
+protocol DeviceTransferReceiverInteractorOutputProtocol: AnyObject {
+    func didReceive(state: DeviceTransferState)
+    func didReceive(oldPhone: ActiveInstallation?)
+}
+
+@MainActor
+protocol DeviceTransferReceiverWireframeProtocol: AnyObject {
+    func complete()
+}

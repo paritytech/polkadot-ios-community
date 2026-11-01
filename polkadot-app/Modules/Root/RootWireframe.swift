@@ -74,8 +74,8 @@ final class RootWireframe: RootWireframeProtocol {
         animation.animateTransition(to: view.controller, in: window)
     }
 
-    func showDeviceTransfer() {
-        guard let view = DeviceTransferReceiverViewFactory.createView() else { return }
+    func showDeviceTransfer(with observer: RootStateObserving) {
+        let view = DeviceTransferReceiverViewFactory.createView(observer: observer)
         animation.animateTransition(to: view.controller, in: window)
     }
 
