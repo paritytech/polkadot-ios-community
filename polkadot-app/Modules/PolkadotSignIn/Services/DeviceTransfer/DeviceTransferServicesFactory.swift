@@ -169,6 +169,7 @@ private extension DeviceTransferServicesFactory {
                 logger: logger
             ),
             downloadsStore: downloadsStore,
+            issueDiagnostics: .make(reporter: IssueReportingFacade.shared),
             logger: logger
         )
     }

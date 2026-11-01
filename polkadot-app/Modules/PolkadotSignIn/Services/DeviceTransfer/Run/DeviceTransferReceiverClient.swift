@@ -1,5 +1,6 @@
 import Foundation
 import StructuredConcurrency
+import IssueMonitoring
 
 enum DeviceTransferProgress: Equatable {
     /// `total` counts only the first round, so `applied` can pass it.
@@ -19,6 +20,7 @@ struct DeviceTransferReceiverDependencies {
     let checkpointStore: DeviceTransferCheckpointStoring
     let deviceKeyManager: DeviceEncryptionKeyManaging
     let filePuller: DeviceTransferFilePulling
+    let claimsDroppedDiagnostic: IssueDiagnostic
     let logger: LoggerProtocol
 }
 
@@ -170,6 +172,11 @@ private extension DeviceTransferReceiverSession {
         guard !waitingClaims.isEmpty else { return }
 
         dependencies.logger.warning("Device transfer dropped \(waitingClaims.count) claim(s) without a message")
+        dependencies.claimsDroppedDiagnostic.recordFailure(
+            for: "claims",
+            error: nil,
+            counters: ["claims": waitingClaims.count]
+        )
         waitingClaims = []
     }
 
