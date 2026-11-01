@@ -1,6 +1,8 @@
 import Foundation
 import AsyncExtensions
 import MessageExchangeKit
+import IssueMonitoring
+import os
 
 protocol DeviceTransferPeerComponentMaking: Sendable {
     func makeSignalingSession(delegate: AnyPeerSessionDelegate<Data>) async throws -> DeviceSyncSignalingSession
@@ -18,6 +20,9 @@ enum DeviceTransferContextError: Error, Equatable {
 struct DeviceTransferPeerContextSettings {
     var idleTimeout = DeviceTransferConstants.runIdleTimeout
     var restartDelayPolicy = DeviceSyncRestartDelayPolicy()
+    /// Failed attempts in a row without progress before the run gives up.
+    var stalledAttemptsLimit = 5
+    var stallDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
     var clock: any Clock<Duration> = ContinuousClock()
 }
 
@@ -40,6 +45,7 @@ actor DeviceTransferPeerContext {
     private var isConnected = false
     private var currentAttempt: Task<Void, Error>?
     private var isReplacingAttempt = false
+    private let madeProgress = OSAllocatedUnfairLock(initialState: false)
 
     init(
         components: any DeviceTransferPeerComponentMaking,
@@ -54,6 +60,11 @@ actor DeviceTransferPeerContext {
         self.settings = settings
         self.logger = logger
         (idleSignals, idleContinuation) = AsyncStream.makeStream(of: Void.self)
+    }
+
+    /// Called by the run as the transfer moves on; a failed attempt after progress isn't counted as a stall.
+    nonisolated func noteProgress() {
+        madeProgress.withLock { $0 = true }
     }
 
     func run(
@@ -81,6 +92,8 @@ actor DeviceTransferPeerContext {
 }
 
 private extension DeviceTransferPeerContext {
+    static let stallKey = "run"
+
     func runUntilCompleted(
         session: DeviceSyncSignalingSession,
         connectionRun: @escaping DeviceTransferConnectionRun
@@ -166,15 +179,33 @@ private extension DeviceTransferPeerContext {
         return attempt
     }
 
+    /// Counts failed attempts since the last progress, so a flaky connection that keeps moving never stalls.
     func waitBeforeRetry(after error: Error, failedAttempts: inout Int) async throws {
         setConnected(false)
 
         guard !isReplacingAttempt else { return }
 
+        if takeProgress() {
+            failedAttempts = 0
+            settings.stallDiagnostic.recordRecovery(for: Self.stallKey)
+        }
+
         failedAttempts += 1
+        settings.stallDiagnostic.recordFailure(for: Self.stallKey, error: error, counters: ["attempts": failedAttempts])
+        guard failedAttempts < settings.stalledAttemptsLimit else {
+            throw DeviceTransferRunError.stalled
+        }
+
         let delay = settings.restartDelayPolicy.delay(forAttempt: failedAttempts)
         logger.warning("Device transfer connection failed: \(error); retrying in \(delay)")
         try await settings.clock.sleep(for: delay)
+    }
+
+    func takeProgress() -> Bool {
+        madeProgress.withLock { made in
+            defer { made = false }
+            return made
+        }
     }
 
     func observe(_ initialStates: AnyAsyncIterator<DeviceSyncDataChannelState>) async {

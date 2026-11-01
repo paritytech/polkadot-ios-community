@@ -6,6 +6,8 @@ enum DeviceTransferRunError: Error, Equatable {
     case aborted(DeviceTransferAbortReason)
     case disconnected
     case timedOut
+    /// Attempts kept failing without any progress, so reconnecting won't help.
+    case stalled
 }
 
 enum DeviceTransferEvent: Sendable {

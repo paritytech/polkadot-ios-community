@@ -58,7 +58,12 @@ extension DeviceTransferRun: DeviceTransferRunning {
         let task = Task {
             try await context.run(onEvent: onEvent) { [weak self] flow in
                 await self?.setCurrentFlow(flow)
-                try await clientFactory.makeClient(for: role, flow: flow).run(onEvent: onEvent)
+                try await clientFactory.makeClient(for: role, flow: flow).run { event in
+                    if case .progress = event {
+                        context.noteProgress()
+                    }
+                    onEvent(event)
+                }
             }
         }
         runTask = task
