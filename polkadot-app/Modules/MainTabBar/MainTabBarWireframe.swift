@@ -95,6 +95,10 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
         view?.controller.topmostPresented.present(settings, animated: true)
     }
 
+    func leaveReplacedInstallation() {
+        rootObserver.didSettleInstallationStatus()
+    }
+
     /// An open sheet follows newer requests itself, so only one is ever shown.
     func showDeviceTransferRequest(_ request: DeviceTransferRequest, from view: MainTabBarViewProtocol?) {
         guard presentedTransferRequest == nil else { return }

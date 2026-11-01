@@ -97,7 +97,7 @@ struct ActiveInstallationServiceTests {
         #expect(connection.submittedCount == 0)
     }
 
-    @Test("The status the service settles on is saved, and a replaced phone remembers it was active")
+    @Test("The status the service settles on is saved and read back after a relaunch")
     func settledStatusIsSaved() async throws {
         try await withSavedStatus { defaults in
             let dates = MockDateProvider()
@@ -120,7 +120,6 @@ struct ActiveInstallationServiceTests {
                 return
             }
             #expect(relaunched.status == .inactive(record))
-            #expect(relaunched.hasBeenActive)
         }
     }
 
@@ -413,7 +412,6 @@ private final class FlakySubmitStatementStore: StatementStoreConnecting, @unchec
 /// For tests that follow the live status only.
 struct IgnoringInstallationStatusStore: InstallationStatusStoring {
     var status: SavedInstallationStatus? { nil }
-    var hasBeenActive: Bool { false }
 
     func save(_: InstallationStatus) {}
 }

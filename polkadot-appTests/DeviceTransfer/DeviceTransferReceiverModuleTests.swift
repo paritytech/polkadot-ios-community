@@ -266,7 +266,6 @@ private final class PublishRecordingInstallationService: ActiveInstallationServi
 
 private struct FixedInstallationStatusStore: InstallationStatusStoring {
     let status: SavedInstallationStatus?
-    var hasBeenActive: Bool { false }
 
     func save(_: InstallationStatus) {}
 }

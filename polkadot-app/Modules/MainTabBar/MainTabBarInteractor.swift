@@ -26,6 +26,7 @@ final class MainTabBarInteractor {
     private var tabBarLabelsSubscription: Task<Void, Never>?
     private var paymentsSetupSubscription: Task<Void, Never>?
     private var transferRequestSubscription: Task<Void, Never>?
+    private var installationStatusSubscription: Task<Void, Never>?
 
     init(
         servicesLease: DashboardServicesLease<ServiceCoordinator>,
@@ -59,6 +60,7 @@ final class MainTabBarInteractor {
         tabBarLabelsSubscription?.cancel()
         paymentsSetupSubscription?.cancel()
         transferRequestSubscription?.cancel()
+        installationStatusSubscription?.cancel()
     }
 }
 
@@ -77,6 +79,7 @@ extension MainTabBarInteractor: MainTabBarInteractorInputProtocol {
         subscribeToTabBarLabels()
         subscribeToPaymentsSetup()
         subscribeToTransferRequests()
+        subscribeToInstallationStatus()
     }
 }
 
@@ -91,6 +94,19 @@ private extension MainTabBarInteractor {
                 }
             } catch {
                 logger.error("Device transfer request stream failed: \(error)")
+            }
+        }
+    }
+
+    func subscribeToInstallationStatus() {
+        let installationService = servicesLease.coordinator.activeInstallationService
+        installationStatusSubscription = Task { [weak self, installationService, logger] in
+            do {
+                for try await status in await installationService.statusStream {
+                    await self?.presenter?.didReceiveInstallationStatus(status)
+                }
+            } catch {
+                logger.error("Installation status stream failed: \(error)")
             }
         }
     }

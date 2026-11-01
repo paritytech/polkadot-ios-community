@@ -48,6 +48,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool)
     func didReceivePaymentsSetupWaiting(_ isWaiting: Bool)
     func didReceiveDeviceTransferRequest(_ request: DeviceTransferRequest)
+    func didReceiveInstallationStatus(_ status: InstallationStatus)
 }
 
 @MainActor
@@ -62,6 +63,7 @@ protocol MainTabBarWireframeProtocol: AnyObject {
     func showConnectionStatus(_ viewModel: ConnectionStatusSheetViewModel, from view: MainTabBarViewProtocol?)
     func showSettings(from view: MainTabBarViewProtocol?)
     func showDeviceTransferRequest(_ request: DeviceTransferRequest, from view: MainTabBarViewProtocol?)
+    func leaveReplacedInstallation()
 }
 
 enum TabBarItem: String, CaseIterable {

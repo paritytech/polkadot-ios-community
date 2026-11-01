@@ -9,8 +9,6 @@ enum SavedInstallationStatus: Codable, Equatable {
 
 protocol InstallationStatusStoring: Sendable {
     var status: SavedInstallationStatus? { get }
-    /// Set the first time this installation is active, so a later `inactive` means it was replaced.
-    var hasBeenActive: Bool { get }
 
     func save(_ status: InstallationStatus)
 }
@@ -18,7 +16,6 @@ protocol InstallationStatusStoring: Sendable {
 /// `@unchecked`: `UserDefaults` is thread-safe. Kept in the app group so the notification extension can read it.
 final class InstallationStatusStore: @unchecked Sendable {
     private static let statusKey = SettingsKey.installationStatus.rawValue
-    private static let hasBeenActiveKey = SettingsKey.installationHasBeenActive.rawValue
 
     private let userDefaults: UserDefaults
     private let logger: LoggerProtocol
@@ -41,10 +38,6 @@ extension InstallationStatusStore: InstallationStatusStoring {
         }
     }
 
-    var hasBeenActive: Bool {
-        userDefaults.bool(forKey: Self.hasBeenActiveKey)
-    }
-
     func save(_ status: InstallationStatus) {
         guard let saved = SavedInstallationStatus(status) else { return }
 
@@ -52,11 +45,6 @@ extension InstallationStatusStore: InstallationStatusStoring {
             try userDefaults.set(JSONEncoder().encode(saved), forKey: Self.statusKey)
         } catch {
             logger.error("Installation status can't be saved: \(error)")
-            return
-        }
-
-        if saved == .active {
-            userDefaults.set(true, forKey: Self.hasBeenActiveKey)
         }
     }
 }
