@@ -22,6 +22,7 @@ final class DeviceTransferReceiverViewController: UIHostingController<DeviceTran
         rootView.viewModel.onStart = { [weak self] in self?.presenter.startTransfer() }
         rootView.viewModel.onCancel = { [weak self] in self?.presenter.cancelTransfer() }
         rootView.viewModel.onContinue = { [weak self] in self?.presenter.complete() }
+        rootView.viewModel.onActivate = { [weak self] in self?.presenter.activateWithoutTransfer() }
 
         presenter.setup()
     }
@@ -31,5 +32,9 @@ extension DeviceTransferReceiverViewController: DeviceTransferReceiverViewProtoc
     func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?) {
         rootView.viewModel.screen = screen
         rootView.viewModel.oldPhone = oldPhone
+    }
+
+    func didReceive(offersActivation: Bool) {
+        rootView.viewModel.offersActivation = offersActivation
     }
 }

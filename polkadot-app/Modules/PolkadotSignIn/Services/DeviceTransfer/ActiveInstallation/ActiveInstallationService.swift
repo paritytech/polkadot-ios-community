@@ -29,6 +29,23 @@ protocol ActiveInstallationPublishing: Sendable {
     func publishSelf() async throws
 }
 
+struct ActiveInstallationPublishRetry {
+    var attempts = 10
+    var delay: Duration = .seconds(1)
+}
+
+extension ActiveInstallationPublishing {
+    /// A missing configuration won't fix itself, so only submit failures are retried.
+    func publishSelf(retry: ActiveInstallationPublishRetry) async throws {
+        try await withRetry(
+            maxAttempts: retry.attempts,
+            initialDelay: retry.delay,
+            shouldRetry: { !($0 is ActiveInstallationServiceError) },
+            operation: { try await publishSelf() }
+        )
+    }
+}
+
 protocol ActiveInstallationServicing: CurrentInstallationObserving, ActiveInstallationPublishing {
     func setup(configuration: ActiveInstallationConfiguration) async
     func throttle() async

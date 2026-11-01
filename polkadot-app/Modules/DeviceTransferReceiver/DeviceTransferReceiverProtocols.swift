@@ -4,6 +4,7 @@ import UIKitExt
 @MainActor
 protocol DeviceTransferReceiverViewProtocol: ControllerBackedProtocol {
     func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?)
+    func didReceive(offersActivation: Bool)
 }
 
 @MainActor
@@ -11,6 +12,7 @@ protocol DeviceTransferReceiverPresenterProtocol: AnyObject {
     func setup()
     func startTransfer()
     func cancelTransfer()
+    func activateWithoutTransfer()
     func complete()
 }
 
@@ -19,15 +21,19 @@ protocol DeviceTransferReceiverInteractorInputProtocol: AnyObject {
     func setup()
     func startTransfer()
     func cancelTransfer()
+    func activateWithoutTransfer()
 }
 
 @MainActor
 protocol DeviceTransferReceiverInteractorOutputProtocol: AnyObject {
     func didReceive(state: DeviceTransferState)
     func didReceive(oldPhone: ActiveInstallation?)
+    func didWaitTooLongForOldPhone()
+    func didActivateWithoutTransfer()
+    func didFailActivation()
 }
 
 @MainActor
-protocol DeviceTransferReceiverWireframeProtocol: AnyObject {
+protocol DeviceTransferReceiverWireframeProtocol: AlertPresentable {
     func complete()
 }

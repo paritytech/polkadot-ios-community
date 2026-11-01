@@ -4,6 +4,8 @@ import DesignSystem
 /// The new phone's transfer screens.
 public struct DeviceTransferReceiverViewLayout: View {
     @State public var viewModel = DeviceTransferReceiverViewModel()
+    @State private var confirmation: DeviceTransferReceiverConfirmation?
+    @State private var sheetHeight: CGFloat = 0
 
     public init() {}
 
@@ -17,21 +19,72 @@ public struct DeviceTransferReceiverViewLayout: View {
             .padding(.horizontal, DSSpacings.large)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let action {
-                DSButton(
-                    action.title,
-                    style: action.style,
-                    size: .largeIncreased,
-                    expands: true,
-                    action: action.handler
-                )
-                .padding(.horizontal, DSSpacings.mediumIncreased)
-                .padding(.top, DSSpacings.small)
+            VStack(spacing: DSSpacings.small) {
+                ForEach(actions, id: \.title) { action in
+                    DSButton(
+                        action.title,
+                        style: action.style,
+                        size: .largeIncreased,
+                        expands: true,
+                        action: action.handler
+                    )
+                }
             }
+            .padding(.horizontal, DSSpacings.mediumIncreased)
+            .padding(.top, DSSpacings.small)
         }
         .padding(.bottom, DSSpacings.mediumIncreased)
         .background(Color.bgSurfaceMain)
+        .sheet(item: presentedConfirmation) { confirmation in
+            DeviceTransferConfirmationSheet(
+                content: confirmation.content,
+                onConfirm: { confirm(confirmation) },
+                onDismiss: { self.confirmation = nil }
+            )
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { sheetHeight = $0 }
+            .presentationDetents([.height(sheetHeight)])
+            .presentationDragIndicator(.hidden)
+            .presentationBackground(Color.clear)
+        }
     }
+}
+
+private enum DeviceTransferReceiverConfirmation: Identifiable {
+    case activateWithoutTransfer
+    case cancelTransfer
+
+    var id: Self { self }
+
+    var content: DeviceTransferConfirmationContent {
+        switch self {
+        case .activateWithoutTransfer:
+            DeviceTransferConfirmationContent(
+                title: String(localized: .deviceTransferActivateTitle),
+                message: String(localized: .deviceTransferActivateBody),
+                points: [
+                    String(localized: .deviceTransferActivatePointData),
+                    String(localized: .deviceTransferActivatePointOldPhone),
+                    String(localized: .deviceTransferActivatePointLater)
+                ],
+                confirmTitle: String(localized: .deviceTransferActivateAction),
+                dismissTitle: String(localized: .deviceTransferReceiverActionCancel)
+            )
+        case .cancelTransfer:
+            DeviceTransferConfirmationContent(
+                title: String(localized: .deviceTransferCancelTitle),
+                message: String(localized: .deviceTransferCancelBody),
+                points: [],
+                confirmTitle: String(localized: .deviceTransferReceiverActionCancelTransfer),
+                dismissTitle: String(localized: .deviceTransferCancelKeep)
+            )
+        }
+    }
+}
+
+private struct DeviceTransferReceiverAction {
+    let title: String
+    let style: DSButtonStyle.Style
+    let handler: () -> Void
 }
 
 private extension DeviceTransferReceiverViewLayout {
@@ -174,26 +227,76 @@ private extension DeviceTransferReceiverViewLayout {
         }
     }
 
-    var action: (title: String, style: DSButtonStyle.Style, handler: () -> Void)? {
+    var actions: [DeviceTransferReceiverAction] {
         switch viewModel.screen {
         case .start:
-            (String(localized: .deviceTransferReceiverActionTransfer), .primary, { viewModel.onStart?() })
-        case .waiting,
-             .connecting:
-            (String(localized: .deviceTransferReceiverActionCancel), .ghost, { viewModel.onCancel?() })
+            [action(.deviceTransferReceiverActionTransfer, .primary) { viewModel.onStart?() }]
+        case .waiting:
+            activationActions(style: .secondary) + [
+                action(.deviceTransferReceiverActionCancel, .ghost) { viewModel.onCancel?() }
+            ]
+        case .connecting:
+            [action(.deviceTransferReceiverActionCancel, .ghost) { viewModel.onCancel?() }]
         case .syncing,
              .files,
              .reconnecting:
-            (String(localized: .deviceTransferReceiverActionCancelTransfer), .ghost, { viewModel.onCancel?() })
+            [action(.deviceTransferReceiverActionCancelTransfer, .ghost) { confirmation = .cancelTransfer }]
         case .done:
-            (String(localized: .deviceTransferReceiverActionContinue), .primary, { viewModel.onContinue?() })
+            [action(.deviceTransferReceiverActionContinue, .primary) { viewModel.onContinue?() }]
         case .declined:
-            (String(localized: .deviceTransferReceiverActionSendNewRequest), .primary, { viewModel.onStart?() })
+            [action(.deviceTransferReceiverActionSendNewRequest, .primary) { viewModel.onStart?() }]
+                + activationActions(style: .ghost)
         case .cancelledOnOldPhone,
              .failed:
-            (String(localized: .deviceTransferReceiverActionTryAgain), .primary, { viewModel.onStart?() })
+            [action(.deviceTransferReceiverActionTryAgain, .primary) { viewModel.onStart?() }]
+                + activationActions(style: .ghost)
         case .finishing:
-            nil
+            []
+        }
+    }
+
+    func activationActions(style: DSButtonStyle.Style) -> [DeviceTransferReceiverAction] {
+        guard viewModel.offersActivation else { return [] }
+        return [action(.deviceTransferReceiverActionNoAccess, style) { confirmation = .activateWithoutTransfer }]
+    }
+
+    func action(
+        _ title: LocalizedStringResource,
+        _ style: DSButtonStyle.Style,
+        handler: @escaping () -> Void
+    ) -> DeviceTransferReceiverAction {
+        DeviceTransferReceiverAction(title: String(localized: title), style: style, handler: handler)
+    }
+
+    /// Drops a sheet whose screen has gone, so a late confirm can't act on a finished transfer.
+    var presentedConfirmation: Binding<DeviceTransferReceiverConfirmation?> {
+        Binding(
+            get: { confirmation.flatMap { allows($0) ? $0 : nil } },
+            set: { confirmation = $0 }
+        )
+    }
+
+    func allows(_ confirmation: DeviceTransferReceiverConfirmation) -> Bool {
+        switch confirmation {
+        case .activateWithoutTransfer:
+            viewModel.offersActivation
+        case .cancelTransfer:
+            switch viewModel.screen {
+            case .syncing,
+                 .files,
+                 .reconnecting: true
+            default: false
+            }
+        }
+    }
+
+    func confirm(_ confirmation: DeviceTransferReceiverConfirmation) {
+        self.confirmation = nil
+        switch confirmation {
+        case .activateWithoutTransfer:
+            viewModel.onActivate?()
+        case .cancelTransfer:
+            viewModel.onCancel?()
         }
     }
 }
@@ -208,6 +311,7 @@ private func receiverPreview(_ screen: DeviceTransferReceiverScreen) -> some Vie
     let layout = DeviceTransferReceiverViewLayout()
     layout.viewModel.screen = screen
     layout.viewModel.oldPhone = DeviceTransferOldPhone(model: "iPhone 15", operatingSystem: "iOS 26.0")
+    layout.viewModel.offersActivation = true
     return ThemeSwitchingPreview { layout }
 }
 

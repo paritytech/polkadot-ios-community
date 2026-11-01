@@ -846,6 +846,105 @@
         }
       }
     },
+    "device.transfer.activate.action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate this phone"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your data stays on your old phone and can’t be moved here later."
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats, contacts and files won’t be moved"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can’t transfer data later"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.oldPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone will stop working with this account"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate without transfer?"
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone stays active. You can continue the transfer later."
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.keep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep transferring"
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel transfer?"
+          }
+        }
+      }
+    },
     "device.transfer.check.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -952,6 +1051,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Continue"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.noAccess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I don’t have access to my old phone"
           }
         }
       }

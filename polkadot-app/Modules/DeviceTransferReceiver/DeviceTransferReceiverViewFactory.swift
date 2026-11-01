@@ -7,6 +7,7 @@ enum DeviceTransferReceiverViewFactory {
         let interactor = DeviceTransferReceiverInteractor(
             servicesFactory: DeviceTransferServicesFactory(statusStore: statusStore, logger: Logger.shared),
             statusStore: statusStore,
+            clock: ContinuousClock(),
             logger: Logger.shared
         )
         let wireframe = DeviceTransferReceiverWireframe(observer: observer)

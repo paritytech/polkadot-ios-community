@@ -31,9 +31,11 @@ public struct DeviceTransferOldPhone: Equatable {
 public class DeviceTransferReceiverViewModel {
     public var screen: DeviceTransferReceiverScreen = .start
     public var oldPhone: DeviceTransferOldPhone?
+    public var offersActivation = false
     public var onStart: (() -> Void)?
     public var onCancel: (() -> Void)?
     public var onContinue: (() -> Void)?
+    public var onActivate: (() -> Void)?
 
     public init() {}
 }

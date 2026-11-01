@@ -11,6 +11,8 @@ final class DeviceTransferReceiverPresenter {
     private var oldPhone: DeviceTransferOldPhone?
     /// Kept so the bar doesn't empty while the connection is replaced.
     private var lastProgress: Double = 0
+    private var oldPhoneSilent = false
+    private var offersActivation = false
 
     init(
         interactor: DeviceTransferReceiverInteractorInputProtocol,
@@ -36,6 +38,10 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverPresenterProtoc
         interactor.cancelTransfer()
     }
 
+    func activateWithoutTransfer() {
+        interactor.activateWithoutTransfer()
+    }
+
     func complete() {
         wireframe.complete()
     }
@@ -44,7 +50,11 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverPresenterProtoc
 extension DeviceTransferReceiverPresenter: DeviceTransferReceiverInteractorOutputProtocol {
     func didReceive(state: DeviceTransferState) {
         screen = screen(for: state)
+        if screen != .waiting {
+            oldPhoneSilent = false
+        }
         provideScreen()
+        provideActivationOffer()
     }
 
     func didReceive(oldPhone installation: ActiveInstallation?) {
@@ -53,9 +63,34 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverInteractorOutpu
         }
         provideScreen()
     }
+
+    func didWaitTooLongForOldPhone() {
+        oldPhoneSilent = true
+        provideActivationOffer()
+    }
+
+    func didActivateWithoutTransfer() {
+        wireframe.complete()
+    }
+
+    func didFailActivation() {
+        wireframe.present(
+            message: String(localized: .deviceTransferActivationFailed),
+            title: String(localized: .Common.error),
+            closeAction: String(localized: .Common.close),
+            from: view
+        )
+    }
 }
 
 private extension DeviceTransferReceiverPresenter {
+    func provideActivationOffer() {
+        let offers = screen.offersActivation || (screen == .waiting && oldPhoneSilent)
+        guard offers != offersActivation else { return }
+        offersActivation = offers
+        view?.didReceive(offersActivation: offers)
+    }
+
     func provideScreen() {
         view?.didReceive(screen: screen, oldPhone: oldPhone)
     }
@@ -107,6 +142,20 @@ private extension DeviceTransferReceiverPresenter {
     func track(_ progress: Double) -> Double {
         lastProgress = progress
         return progress
+    }
+}
+
+private extension DeviceTransferReceiverScreen {
+    /// Screens where the old phone may be out of reach, so activating without it is offered.
+    var offersActivation: Bool {
+        switch self {
+        case .declined,
+             .cancelledOnOldPhone,
+             .failed:
+            true
+        default:
+            false
+        }
     }
 }
 
