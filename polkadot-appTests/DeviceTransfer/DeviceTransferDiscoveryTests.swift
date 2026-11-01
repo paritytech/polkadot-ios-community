@@ -120,7 +120,11 @@ private extension DeviceTransferDiscoveryTests {
             keyScheduleFactory: keyScheduleFactory(),
             processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: storage),
             installationObserver: ActiveInstallationStub(),
-            timing: DeviceTransferRequestTiming(maxRequestAge: maxRequestAge, dateProvider: dates, clock: clock),
+            settings: DeviceTransferRequestListenerSettings(
+                maxRequestAge: maxRequestAge,
+                dateProvider: dates,
+                clock: clock
+            ),
             logger: MockLogger()
         )
         await listener.setup(connection: store)

@@ -87,7 +87,10 @@ private extension DeviceTransferFinalizerTests {
             installationPublisher: publisher,
             processedStore: processedStore,
             checkpointStore: checkpointStore,
-            publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero),
+            settings: DeviceTransferFinalizerSettings(publishRetry: ActiveInstallationPublishRetry(
+                attempts: 3,
+                delay: .zero
+            )),
             logger: MockLogger()
         )
     }

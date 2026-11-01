@@ -7,6 +7,9 @@ enum InstallationCheckViewFactory {
                 statusStore: InstallationStatusStore(logger: Logger.shared),
                 logger: Logger.shared
             ),
+            settings: InstallationCheckSettings(
+                setupDiagnostic: DeviceTransferIssueDiagnostics.makeDefault().setupFailed
+            ),
             logger: Logger.shared
         )
         let wireframe = InstallationCheckWireframe(observer: observer)

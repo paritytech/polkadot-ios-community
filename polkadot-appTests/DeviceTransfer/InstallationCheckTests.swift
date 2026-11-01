@@ -1,11 +1,15 @@
 @testable import polkadot_app
 import AsyncExtensions
 import Foundation
+import StructuredConcurrencyTestSupport
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 @MainActor
 struct InstallationCheckTests {
+    private let clock = ManualClock()
+    private let retryDelay: Duration = .seconds(2)
+
     @Test("The connecting screen hands over to the root once a status settles, though only it keeps the root alive")
     func handsOverOnSettledStatus() async {
         let service = ScriptedInstallationService()
@@ -16,6 +20,24 @@ struct InstallationCheckTests {
         await service.waitForSetup()
         service.send(.unknown)
         service.send(.inactive(otherPhone))
+
+        #expect(await settled.waitForCount(1).count == 1)
+    }
+
+    @Test("A configuration that can't be built yet is tried again after a delay instead of spinning forever")
+    func failedConfigurationIsRetried() async {
+        let service = ScriptedInstallationService()
+        let settled = DeviceSyncTestEventRecorder<Void>()
+        let presenter = makeModule(
+            service: service,
+            observer: RootStateObserverSpy(settled: settled),
+            configurationFailures: 1
+        )
+
+        presenter.setup()
+        await clock.resumeSleep(for: retryDelay)
+        await service.waitForSetup()
+        service.send(.active)
 
         #expect(await settled.waitForCount(1).count == 1)
     }
@@ -31,9 +53,14 @@ private extension InstallationCheckTests {
         )
     }
 
-    func makeModule(service: ScriptedInstallationService, observer: RootStateObserving) -> InstallationCheckPresenter {
+    func makeModule(
+        service: ScriptedInstallationService,
+        observer: RootStateObserving,
+        configurationFailures: Int = 0
+    ) -> InstallationCheckPresenter {
         let interactor = InstallationCheckInteractor(
-            serviceFactory: ScriptedInstallationServiceFactory(service: service),
+            serviceFactory: ScriptedInstallationServiceFactory(service: service, failures: configurationFailures),
+            settings: InstallationCheckSettings(retryDelay: retryDelay, clock: clock),
             logger: MockLogger()
         )
         let presenter = InstallationCheckPresenter(
@@ -45,15 +72,28 @@ private extension InstallationCheckTests {
     }
 }
 
-private struct ScriptedInstallationServiceFactory: ActiveInstallationServiceMaking {
-    let service: ScriptedInstallationService
+private final class ScriptedInstallationServiceFactory: ActiveInstallationServiceMaking {
+    struct ConfigurationError: Error {}
+
+    private let service: ScriptedInstallationService
+    private var failures: Int
+
+    init(service: ScriptedInstallationService, failures: Int) {
+        self.service = service
+        self.failures = failures
+    }
 
     func makeService() -> ActiveInstallationServicing {
         service
     }
 
     func makeConfiguration() throws -> ActiveInstallationConfiguration {
-        ActiveInstallationConfiguration(
+        guard failures == 0 else {
+            failures -= 1
+            throw ConfigurationError()
+        }
+
+        return ActiveInstallationConfiguration(
             connection: MockStatementStore(),
             signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
         )

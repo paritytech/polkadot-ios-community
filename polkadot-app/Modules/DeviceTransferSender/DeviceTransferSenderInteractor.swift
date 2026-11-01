@@ -1,10 +1,12 @@
 import Foundation
 import StructuredConcurrency
+import IssueMonitoring
 
 struct DeviceTransferSenderModuleSettings {
     var clock: any Clock<Duration> = ContinuousClock()
     /// How long the old phone waits for the new phone's record before the root decides without it.
     var handOverTimeout: Duration = .seconds(120)
+    var setupDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 }
 
 /// Builds the sender services when the transfer is confirmed; they live as long as the screen.
@@ -55,6 +57,7 @@ extension DeviceTransferSenderInteractor: DeviceTransferSenderInteractorInputPro
             Task { await services.coordinator.confirm(request) }
         } catch {
             logger.error("Device transfer sender services can't be built: \(error)")
+            settings.setupDiagnostic.recordFailure(for: "sender", error: error, counters: [:])
             presenter?.didReceive(state: .failed(.failed))
         }
     }
