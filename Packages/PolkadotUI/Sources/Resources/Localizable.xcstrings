@@ -857,6 +857,72 @@
         }
       }
     },
+    "device.transfer.device.activeNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(operatingSystem)@ · active now"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.bytes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(received)@ of %2$(total)@"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats & contacts"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.paused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused at %1$(percent)lld%%"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.percent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(percent)lld%%"
+          }
+        }
+      }
+    },
     "device.transfer.receiver.action.cancel" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -919,6 +985,94 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Try again"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transfer was cancelled on your old phone."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.connectionLost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnecting to your old phone… The transfer will continue where it stopped."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.declined" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request was declined on your old phone."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your chats, contacts and files are here. Your old phone is no longer active."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone is still active. Make sure both phones are online and try again."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account is active on another phone. Transfer chats, contacts and files to keep using Polkadot App here."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.transferring" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the app open on both phones. This may take a few minutes."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the app open on both phones. Your old phone will ask you to confirm the transfer."
           }
         }
       }
@@ -1029,6 +1183,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Polkadot App on your old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.waiting.oldPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for your old phone…"
+          }
+        }
+      }
+    },
+    "device.transfer.waiting.secureConnection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setting up a secure connection…"
           }
         }
       }
