@@ -109,13 +109,18 @@ private extension DeviceTransferServicesFactory {
             requestFactory: TURNCredentialsRequestFactory(),
             tokenProvider: JWTTokenManager.shared
         )
-        let clientDependencies = try makeClientDependencies(ownSignKeyId: ownSignKeyId)
+        let issueDiagnostics = DeviceTransferIssueDiagnostics.make(reporter: IssueReportingFacade.shared)
+        let clientDependencies = try makeClientDependencies(
+            ownSignKeyId: ownSignKeyId,
+            issueDiagnostics: issueDiagnostics
+        )
 
         return DeviceTransferRunFactory(
             configuration: DeviceTransferRunConfiguration(
                 connection: connection,
                 signerManager: ChatSignerManager(),
-                ownSignKeyId: ownSignKeyId
+                ownSignKeyId: ownSignKeyId,
+                stallDiagnostic: issueDiagnostics.runStalled
             ),
             keyScheduleFactory: makeKeyScheduleFactory(),
             clientFactory: DeviceTransferClientFactory(dependencies: clientDependencies),
@@ -124,7 +129,10 @@ private extension DeviceTransferServicesFactory {
         )
     }
 
-    func makeClientDependencies(ownSignKeyId: String) throws -> DeviceTransferClientDependencies {
+    func makeClientDependencies(
+        ownSignKeyId: String,
+        issueDiagnostics: DeviceTransferIssueDiagnostics
+    ) throws -> DeviceTransferClientDependencies {
         guard let uploadsStore = AttachmentStore.uploads(), let downloadsStore = AttachmentStore.dowloads() else {
             throw DeviceTransferServicesError.attachmentStoreUnavailable
         }
@@ -169,7 +177,7 @@ private extension DeviceTransferServicesFactory {
                 logger: logger
             ),
             downloadsStore: downloadsStore,
-            issueDiagnostics: .make(reporter: IssueReportingFacade.shared),
+            issueDiagnostics: issueDiagnostics,
             logger: logger
         )
     }
