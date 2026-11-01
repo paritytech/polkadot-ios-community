@@ -1965,6 +1965,17 @@
         }
       }
     },
+    "deviceTransfer.sender.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer didn’t complete"
+          }
+        }
+      }
+    },
     "fee.title" : {
       "extractionState" : "manual",
       "localizations" : {

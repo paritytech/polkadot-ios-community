@@ -1,5 +1,11 @@
 import Foundation
 
+protocol DashboardServicesResetting: AnyObject {
+    @MainActor func reset()
+}
+
+extension DashboardServicesManager: DashboardServicesResetting {}
+
 enum DashboardServices {
     static let flowStateProvider: SPAFlowStateProviding = SPAFlowStateProvider()
 

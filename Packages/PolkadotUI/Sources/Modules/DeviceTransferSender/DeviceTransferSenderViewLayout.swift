@@ -1,21 +1,17 @@
 import SwiftUI
+import DesignSystem
 
+/// The old phone's transfer screens; the Figma layout follows in its own step.
 public struct DeviceTransferSenderViewLayout: View {
-    @State var viewModel = DeviceTransferSenderViewModel()
+    @State public var viewModel = DeviceTransferSenderViewModel()
 
     public init() {}
 
     public var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .center) {
-                // Add your view content here
-            }
+        VStack(spacing: DSSpacings.large) {
+            DeviceTransferIllustration()
         }
-        .contentMargins(.horizontal, 16)
-        .contentMargins(.top, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.bgSurfaceMain)
     }
-}
-
-#Preview {
-    DeviceTransferSenderViewLayout()
 }

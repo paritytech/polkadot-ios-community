@@ -14,8 +14,9 @@ struct DeviceTransferReceiverModuleTests {
     private let observer = ReceiverRootObserverSpy()
     private let installationService = PublishRecordingInstallationService()
     private let clock = ManualClock()
+    private let screenSleep = ScreenSleepSpy()
 
-    @Test("The screens follow the transfer, the bar keeps its value while reconnecting, and Continue leaves")
+    @Test("Screens follow the transfer, the bar holds while reconnecting, the screen stays on, Continue leaves")
     func screensFollowTransfer() async {
         let presenter = makeModule()
         presenter.setup()
@@ -43,6 +44,8 @@ struct DeviceTransferReceiverModuleTests {
 
         #expect(view.screens == [.start] + steps.map(\.1))
         #expect(observer.settledCount == 1)
+        #expect(screenSleep.keptAwake.first == true)
+        #expect(screenSleep.keptAwake.last == false)
     }
 
     @Test("Cancelling on this phone returns to the start, and the transfer can start again")
@@ -139,8 +142,11 @@ private extension DeviceTransferReceiverModuleTests {
                 installationService: installationService
             ),
             statusStore: FixedInstallationStatusStore(status: saved),
-            clock: clock,
-            publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero),
+            screenSleep: screenSleep,
+            settings: DeviceTransferReceiverModuleSettings(
+                clock: clock,
+                publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero)
+            ),
             logger: MockLogger()
         )
         let presenter = DeviceTransferReceiverPresenter(

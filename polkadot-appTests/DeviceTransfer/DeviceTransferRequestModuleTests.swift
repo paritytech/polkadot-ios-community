@@ -114,8 +114,25 @@ private struct FixedSenderServicesFactory: DeviceTransferSenderServicesMaking {
     let coordinator: RejectRecordingSenderCoordinator
 
     func makeSenderServices() throws -> DeviceTransferSenderServices {
-        DeviceTransferSenderServices(coordinator: coordinator)
+        DeviceTransferSenderServices(
+            coordinator: coordinator,
+            installationService: IdleInstallationService(),
+            installationConfiguration: ActiveInstallationConfiguration(
+                connection: MockStatementStore(),
+                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            )
+        )
     }
+}
+
+private struct IdleInstallationService: ActiveInstallationServicing {
+    var statusStream: AnyAsyncSequence<InstallationStatus> {
+        AsyncStream { $0.finish() }.eraseToAnyAsyncSequence()
+    }
+
+    func setup(configuration _: ActiveInstallationConfiguration) async {}
+    func throttle() async {}
+    func publishSelf() async throws {}
 }
 
 private final class RejectRecordingSenderCoordinator: DeviceTransferSenderCoordinating, @unchecked Sendable {

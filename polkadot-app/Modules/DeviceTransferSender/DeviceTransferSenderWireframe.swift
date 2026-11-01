@@ -1,4 +1,5 @@
-import Foundation
+import UIKit
+import PolkadotUI
 
 final class DeviceTransferSenderWireframe {
     /// Strong: once the first route is shown, nothing else keeps the root presenter alive.
@@ -9,4 +10,15 @@ final class DeviceTransferSenderWireframe {
     }
 }
 
-extension DeviceTransferSenderWireframe: DeviceTransferSenderWireframeProtocol {}
+extension DeviceTransferSenderWireframe: DeviceTransferSenderWireframeProtocol {
+    /// The root reads the saved status: the dashboard while this phone is active, the receiver once replaced.
+    func complete() {
+        observer.didSettleInstallationStatus()
+    }
+
+    func completeAfterFailure(from view: DeviceTransferSenderViewProtocol?) {
+        let window = view?.controller.view.window
+        observer.didSettleInstallationStatus()
+        window?.rootViewController?.showToast(message: String(localized: .deviceTransferSenderFailed), type: .error)
+    }
+}

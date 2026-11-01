@@ -19,8 +19,16 @@ final class DeviceTransferSenderViewController: UIHostingController<DeviceTransf
         super.viewDidLoad()
         view.backgroundColor = .bgSurfaceMain
 
+        rootView.viewModel.onCancel = { [weak self] in self?.presenter.cancelTransfer() }
+        rootView.viewModel.onBackToChats = { [weak self] in self?.presenter.backToChats() }
+
         presenter.setup()
     }
 }
 
-extension DeviceTransferSenderViewController: DeviceTransferSenderViewProtocol {}
+extension DeviceTransferSenderViewController: DeviceTransferSenderViewProtocol {
+    func didReceive(screen: DeviceTransferSenderScreen, newPhone: DeviceTransferPhone) {
+        rootView.viewModel.screen = screen
+        rootView.viewModel.newPhone = newPhone
+    }
+}

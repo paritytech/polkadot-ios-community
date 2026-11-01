@@ -6,7 +6,15 @@ enum DeviceTransferSenderViewFactory {
         request: DeviceTransferRequest,
         observer: RootStateObserving
     ) -> DeviceTransferSenderViewProtocol {
-        let interactor = DeviceTransferSenderInteractor()
+        let interactor = DeviceTransferSenderInteractor(
+            servicesFactory: DeviceTransferServicesFactory(
+                statusStore: InstallationStatusStore(logger: Logger.shared),
+                logger: Logger.shared
+            ),
+            dashboardServices: DashboardServices.manager,
+            screenSleep: OperatingSystemMediator(),
+            logger: Logger.shared
+        )
         let wireframe = DeviceTransferSenderWireframe(observer: observer)
         let presenter = DeviceTransferSenderPresenter(request: request, interactor: interactor, wireframe: wireframe)
         let view = DeviceTransferSenderViewController(presenter: presenter)
