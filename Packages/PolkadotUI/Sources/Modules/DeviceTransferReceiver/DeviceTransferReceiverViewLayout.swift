@@ -163,7 +163,7 @@ private extension DeviceTransferReceiverViewLayout {
     }
 
     @ViewBuilder
-    func deviceCard(detail: KeyPath<DeviceTransferOldPhone, String>) -> some View {
+    func deviceCard(detail: KeyPath<DeviceTransferPhone, String>) -> some View {
         if let oldPhone = viewModel.oldPhone {
             DeviceTransferDeviceCard(model: oldPhone.model, detail: oldPhone[keyPath: detail])
         }
@@ -301,7 +301,7 @@ private extension DeviceTransferReceiverViewLayout {
     }
 }
 
-private extension DeviceTransferOldPhone {
+private extension DeviceTransferPhone {
     var activeNow: String {
         String(localized: .deviceTransferDeviceActiveNow(operatingSystem: operatingSystem))
     }
@@ -310,7 +310,7 @@ private extension DeviceTransferOldPhone {
 private func receiverPreview(_ screen: DeviceTransferReceiverScreen) -> some View {
     let layout = DeviceTransferReceiverViewLayout()
     layout.viewModel.screen = screen
-    layout.viewModel.oldPhone = DeviceTransferOldPhone(model: "iPhone 15", operatingSystem: "iOS 26.0")
+    layout.viewModel.oldPhone = DeviceTransferPhone(model: "iPhone 15", operatingSystem: "iOS 26.0")
     layout.viewModel.offersActivation = true
     return ThemeSwitchingPreview { layout }
 }

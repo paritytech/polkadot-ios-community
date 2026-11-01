@@ -47,6 +47,7 @@ protocol MainTabBarInteractorOutputProtocol: AnyObject {
     func didReceiveChainStatus(_ rows: [ChainConnectionStatusViewModel])
     func didReceiveTabBarLabelsEnabled(_ isEnabled: Bool)
     func didReceivePaymentsSetupWaiting(_ isWaiting: Bool)
+    func didReceiveDeviceTransferRequest(_ request: DeviceTransferRequest)
 }
 
 @MainActor
@@ -60,6 +61,7 @@ protocol MainTabBarWireframeProtocol: AnyObject {
     #endif
     func showConnectionStatus(_ viewModel: ConnectionStatusSheetViewModel, from view: MainTabBarViewProtocol?)
     func showSettings(from view: MainTabBarViewProtocol?)
+    func showDeviceTransferRequest(_ request: DeviceTransferRequest, from view: MainTabBarViewProtocol?)
 }
 
 enum TabBarItem: String, CaseIterable {

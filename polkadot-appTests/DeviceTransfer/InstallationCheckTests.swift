@@ -6,19 +6,18 @@ import Testing
 @Suite(.timeLimit(.minutes(1)))
 @MainActor
 struct InstallationCheckTests {
-    @Test("The connecting screen hands over to the root once the service settles a status")
+    @Test("The connecting screen hands over to the root once a status settles, though only it keeps the root alive")
     func handsOverOnSettledStatus() async {
         let service = ScriptedInstallationService()
-        let observer = RootStateObserverSpy()
-        let presenter = makeModule(service: service, observer: observer)
+        let settled = DeviceSyncTestEventRecorder<Void>()
+        let presenter = makeModule(service: service, observer: RootStateObserverSpy(settled: settled))
 
         presenter.setup()
         await service.waitForSetup()
         service.send(.unknown)
         service.send(.inactive(otherPhone))
 
-        await observer.waitForSettledStatus()
-        #expect(observer.settledCount == 1)
+        #expect(await settled.waitForCount(1).count == 1)
     }
 }
 
@@ -85,14 +84,13 @@ private final class ScriptedInstallationService: ActiveInstallationServicing, @u
     }
 }
 
+/// The test keeps only the recorder, like the scene delegate keeps nothing once the first route is shown.
 @MainActor
 private final class RootStateObserverSpy: RootStateObserving {
-    private let settled = DeviceSyncTestEventRecorder<Void>()
+    private let settled: DeviceSyncTestEventRecorder<Void>
 
-    var settledCount: Int { settled.snapshot.count }
-
-    func waitForSettledStatus() async {
-        _ = await settled.waitForCount(1)
+    init(settled: DeviceSyncTestEventRecorder<Void>) {
+        self.settled = settled
     }
 
     func didSettleInstallationStatus() {
@@ -105,4 +103,5 @@ private final class RootStateObserverSpy: RootStateObserving {
     func didClaimUsername() {}
     func didDecideClaim() {}
     func didSelectTheme() {}
+    func didConfirmDeviceTransfer(_: DeviceTransferRequest) {}
 }

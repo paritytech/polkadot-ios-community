@@ -1954,6 +1954,17 @@
         }
       }
     },
+    "deviceTransfer.request.withdrawn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer request was cancelled"
+          }
+        }
+      }
+    },
     "fee.title" : {
       "extractionState" : "manual",
       "localizations" : {

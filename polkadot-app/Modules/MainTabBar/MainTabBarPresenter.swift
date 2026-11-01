@@ -67,6 +67,10 @@ extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
         wireframe.showPaymentsSetupNotice(isVisible: isWaiting)
     }
 
+    func didReceiveDeviceTransferRequest(_ request: DeviceTransferRequest) {
+        wireframe.showDeviceTransferRequest(request, from: view)
+    }
+
     #if !FEATURE_PRODUCTS
         func didUpdateSettingsAttention(isVisible: Bool) {
             guard isSettingsAttentionVisible != isVisible else {

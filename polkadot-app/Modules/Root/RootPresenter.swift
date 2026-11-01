@@ -80,7 +80,7 @@ private extension RootPresenter {
         case .deviceTransfer:
             wireframe.showDeviceTransfer(with: self)
         case .dashboard:
-            wireframe.showDashboard()
+            wireframe.showDashboard(with: self)
         case .broken:
             wireframe.showBroken()
         }
@@ -130,5 +130,9 @@ extension RootPresenter: RootStateObserving {
 
     func didSettleInstallationStatus() {
         interactor.reevaluate()
+    }
+
+    func didConfirmDeviceTransfer(_ request: DeviceTransferRequest) {
+        wireframe.showDeviceTransferSender(for: request, with: self)
     }
 }

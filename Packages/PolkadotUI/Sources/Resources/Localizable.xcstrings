@@ -967,6 +967,17 @@
         }
       }
     },
+    "device.transfer.device.newPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(operatingSystem)@ · new phone"
+          }
+        }
+      }
+    },
     "device.transfer.progress.bytes" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1293,6 +1304,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Polkadot App on your old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.request.action.decline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decline"
+          }
+        }
+      }
+    },
+    "device.transfer.request.action.transfer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer"
+          }
+        }
+      }
+    },
+    "device.transfer.request.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the transfer, this phone will be deactivated."
+          }
+        }
+      }
+    },
+    "device.transfer.request.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer data to a new phone?"
           }
         }
       }

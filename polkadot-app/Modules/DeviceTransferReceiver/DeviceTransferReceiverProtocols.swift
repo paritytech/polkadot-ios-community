@@ -3,7 +3,7 @@ import UIKitExt
 
 @MainActor
 protocol DeviceTransferReceiverViewProtocol: ControllerBackedProtocol {
-    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?)
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferPhone?)
     func didReceive(offersActivation: Bool)
 }
 

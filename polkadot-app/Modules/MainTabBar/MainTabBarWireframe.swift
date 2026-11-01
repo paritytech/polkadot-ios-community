@@ -9,6 +9,9 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
     private let tabFactory: TabFactoryProtocol
     private let moduleNavigator: ModuleNavigating
     private weak var presentedSettings: UINavigationController?
+    private weak var presentedTransferRequest: UIViewController?
+    /// Strong: once the first route is shown, nothing else keeps the root presenter alive.
+    private let rootObserver: RootStateObserving
     /// Injected rather than read from the tab bar's view, which leaves the window under a full-screen modal.
     private weak var windowScene: UIWindowScene?
     private var paymentsSetupNotice: TopNoticeWindow?
@@ -18,12 +21,14 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
         serviceCoordinator: ServiceCoordinatorProtocol,
         tabFactory: TabFactoryProtocol,
         moduleNavigator: ModuleNavigating,
-        windowScene: UIWindowScene?
+        windowScene: UIWindowScene?,
+        rootObserver: RootStateObserving
     ) {
         self.serviceCoordinator = serviceCoordinator
         self.tabFactory = tabFactory
         self.moduleNavigator = moduleNavigator
         self.windowScene = windowScene
+        self.rootObserver = rootObserver
     }
 
     func showPolkadotSignIn(with url: URL, view: MainTabBarViewProtocol?) {
@@ -88,6 +93,19 @@ final class MainTabBarWireframe: MainTabBarWireframeProtocol {
         }
         presentedSettings = settings
         view?.controller.topmostPresented.present(settings, animated: true)
+    }
+
+    /// An open sheet follows newer requests itself, so only one is ever shown.
+    func showDeviceTransferRequest(_ request: DeviceTransferRequest, from view: MainTabBarViewProtocol?) {
+        guard presentedTransferRequest == nil else { return }
+
+        let requestView = DeviceTransferRequestViewFactory.createView(
+            request: request,
+            listener: serviceCoordinator.deviceTransferRequestListener,
+            observer: rootObserver
+        )
+        presentedTransferRequest = requestView.controller
+        view?.controller.topmostPresented.present(requestView.controller, animated: true)
     }
 }
 

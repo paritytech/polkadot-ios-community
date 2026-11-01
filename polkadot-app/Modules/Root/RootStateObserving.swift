@@ -9,4 +9,5 @@ protocol RootStateObserving: AnyObject {
     func didDecideClaim()
     func didSelectTheme()
     func didSettleInstallationStatus()
+    func didConfirmDeviceTransfer(_ request: DeviceTransferRequest)
 }

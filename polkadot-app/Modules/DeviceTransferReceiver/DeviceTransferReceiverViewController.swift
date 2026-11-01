@@ -29,7 +29,7 @@ final class DeviceTransferReceiverViewController: UIHostingController<DeviceTran
 }
 
 extension DeviceTransferReceiverViewController: DeviceTransferReceiverViewProtocol {
-    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?) {
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferPhone?) {
         rootView.viewModel.screen = screen
         rootView.viewModel.oldPhone = oldPhone
     }

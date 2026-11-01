@@ -8,7 +8,7 @@ final class DeviceTransferReceiverPresenter {
     let interactor: DeviceTransferReceiverInteractorInputProtocol
 
     private var screen: DeviceTransferReceiverScreen = .start
-    private var oldPhone: DeviceTransferOldPhone?
+    private var oldPhone: DeviceTransferPhone?
     /// Kept so the bar doesn't empty while the connection is replaced.
     private var lastProgress: Double = 0
     private var oldPhoneSilent = false
@@ -59,7 +59,7 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverInteractorOutpu
 
     func didReceive(oldPhone installation: ActiveInstallation?) {
         oldPhone = installation.map {
-            DeviceTransferOldPhone(model: $0.deviceModel, operatingSystem: $0.operatingSystem)
+            DeviceTransferPhone(model: $0.deviceModel, operatingSystem: $0.operatingSystem)
         }
         provideScreen()
     }

@@ -13,7 +13,7 @@ protocol RootPresenterProtocol: AnyObject {
 
 @MainActor
 protocol RootWireframeProtocol: AnyObject {
-    func showDashboard()
+    func showDashboard(with observer: RootStateObserving)
     func showOnboarding(with observer: RootStateObserving)
     func showRestoreFromCloud(with observer: RootStateObserving)
     func showUsernameCheck(with observer: RootStateObserving)
@@ -21,6 +21,7 @@ protocol RootWireframeProtocol: AnyObject {
     func showThemeSelection(with observer: RootStateObserving)
     func showInstallationCheck(with observer: RootStateObserving)
     func showDeviceTransfer(with observer: RootStateObserving)
+    func showDeviceTransferSender(for request: DeviceTransferRequest, with observer: RootStateObserving)
     func showBroken()
     #if TESTNET_FEATURE
         func showAppFactoryResetSheet()

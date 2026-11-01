@@ -72,7 +72,7 @@ struct DeviceTransferReceiverModuleTests {
         coordinator.send(.failed(.rejected))
         await view.waitFor(.declined)
 
-        #expect(view.oldPhone == DeviceTransferOldPhone(model: "iPhone 15", operatingSystem: "iOS 26.0"))
+        #expect(view.oldPhone == DeviceTransferPhone(model: "iPhone 15", operatingSystem: "iOS 26.0"))
         #expect(view.offers == [true])
     }
 
@@ -250,7 +250,7 @@ private final class ReceiverViewSpy: UIViewController, DeviceTransferReceiverVie
     private let recorder = DeviceSyncTestEventRecorder<DeviceTransferReceiverScreen>()
     private let offerRecorder = DeviceSyncTestEventRecorder<Bool>()
     private let alertRecorder = DeviceSyncTestEventRecorder<String?>()
-    private(set) var oldPhone: DeviceTransferOldPhone?
+    private(set) var oldPhone: DeviceTransferPhone?
 
     var screens: [DeviceTransferReceiverScreen] { recorder.snapshot }
     var offers: [Bool] { offerRecorder.snapshot }
@@ -265,7 +265,7 @@ private final class ReceiverViewSpy: UIViewController, DeviceTransferReceiverVie
         _ = await alertRecorder.waitForCount(1)
     }
 
-    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?) {
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferPhone?) {
         self.oldPhone = oldPhone
         if recorder.snapshot.last != screen {
             recorder.record(screen)
@@ -311,4 +311,5 @@ private final class ReceiverRootObserverSpy: RootStateObserving {
     func didClaimUsername() {}
     func didDecideClaim() {}
     func didSelectTheme() {}
+    func didConfirmDeviceTransfer(_: DeviceTransferRequest) {}
 }

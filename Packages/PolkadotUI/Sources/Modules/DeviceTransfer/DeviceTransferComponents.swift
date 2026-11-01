@@ -1,6 +1,16 @@
 import SwiftUI
 import DesignSystem
 
+public struct DeviceTransferPhone: Equatable {
+    public let model: String
+    public let operatingSystem: String
+
+    public init(model: String, operatingSystem: String) {
+        self.model = model
+        self.operatingSystem = operatingSystem
+    }
+}
+
 /// Figma "DT/Transfer illustration": the old phone, arrows, the new phone.
 public struct DeviceTransferIllustration: View {
     public init() {}
@@ -48,14 +58,16 @@ public struct DeviceTransferPhoneGlyph: View {
     }
 }
 
-/// Figma "DT/Device card".
+/// Figma "DT/Device card". Inside a sheet it sits one surface level up.
 public struct DeviceTransferDeviceCard: View {
     let model: String
     let detail: String
+    let background: Color
 
-    public init(model: String, detail: String) {
+    public init(model: String, detail: String, background: Color = .bgSurfaceContainer) {
         self.model = model
         self.detail = detail
+        self.background = background
     }
 
     public var body: some View {
@@ -75,7 +87,7 @@ public struct DeviceTransferDeviceCard: View {
             Spacer(minLength: 0)
         }
         .padding(DSSpacings.mediumIncreased)
-        .background(Color.bgSurfaceContainer, in: RoundedRectangle(cornerRadius: DSSpacings.large))
+        .background(background, in: RoundedRectangle(cornerRadius: DSSpacings.large))
     }
 }
 
