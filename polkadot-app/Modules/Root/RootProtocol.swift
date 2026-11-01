@@ -19,6 +19,8 @@ protocol RootWireframeProtocol: AnyObject {
     func showUsernameCheck(with observer: RootStateObserving)
     func showUsernameClaim(with observer: RootStateObserving)
     func showThemeSelection(with observer: RootStateObserving)
+    func showInstallationCheck(with observer: RootStateObserving)
+    func showDeviceTransfer()
     func showBroken()
     #if TESTNET_FEATURE
         func showAppFactoryResetSheet()

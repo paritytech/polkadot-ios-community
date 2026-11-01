@@ -5,6 +5,8 @@ enum RootDestination: Equatable {
     case onboarding
     case restoreFromCloud
     case usernameCheck
+    case installationCheck
+    case deviceTransfer
     case dashboard
     case broken
 }

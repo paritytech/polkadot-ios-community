@@ -8,4 +8,5 @@ protocol RootStateObserving: AnyObject {
     func didClaimUsername()
     func didDecideClaim()
     func didSelectTheme()
+    func didSettleInstallationStatus()
 }

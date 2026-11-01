@@ -75,6 +75,10 @@ private extension RootPresenter {
             wireframe.showRestoreFromCloud(with: self)
         case .usernameCheck:
             wireframe.showUsernameCheck(with: self)
+        case .installationCheck:
+            wireframe.showInstallationCheck(with: self)
+        case .deviceTransfer:
+            wireframe.showDeviceTransfer()
         case .dashboard:
             wireframe.showDashboard()
         case .broken:
@@ -121,6 +125,10 @@ extension RootPresenter: RootStateObserving {
     }
 
     func didSelectTheme() {
+        interactor.reevaluate()
+    }
+
+    func didSettleInstallationStatus() {
         interactor.reevaluate()
     }
 }

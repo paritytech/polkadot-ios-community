@@ -52,7 +52,8 @@ enum RootPresenterFactory: RootPresenterFactoryProtocol {
                     entropyManager: RootEntropyManager.shared,
                     backupHelper: MnemonicBackupHelper()
                 ),
-                RootGate.Username(usernameStorage: UsernameStorage())
+                RootGate.Username(usernameStorage: UsernameStorage()),
+                RootGate.Installation(statusStore: InstallationStatusStore(logger: Logger.shared))
             ],
             fallback: .dashboard
         )

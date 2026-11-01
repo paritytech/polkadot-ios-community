@@ -52,6 +52,7 @@ extension InstallationStatusStore: InstallationStatusStoring {
             try userDefaults.set(JSONEncoder().encode(saved), forKey: Self.statusKey)
         } catch {
             logger.error("Installation status can't be saved: \(error)")
+            return
         }
 
         if saved == .active {

@@ -846,6 +846,17 @@
         }
       }
     },
+    "device.transfer.check.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking this phone…"
+          }
+        }
+      }
+    },
     "id.card.action.share" : {
       "extractionState" : "manual",
       "localizations" : {

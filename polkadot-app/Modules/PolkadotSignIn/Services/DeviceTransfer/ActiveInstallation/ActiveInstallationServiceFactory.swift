@@ -11,6 +11,7 @@ protocol ActiveInstallationServiceMaking {
 /// Every screen that follows the active installation record builds its own service; only one of them is on screen
 /// at a time, and all of them save to the same store.
 struct ActiveInstallationServiceFactory {
+    let statusStore: InstallationStatusStoring
     let logger: LoggerProtocol
 }
 
@@ -22,7 +23,7 @@ extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
                 repository: CoinageCurrentInstallationCoreDataRepository(storageFacade: UserDataStorageFacade.shared)
             ),
             publishSettings: ActiveInstallationPublishSettings(deviceInfo: .current()),
-            statusStore: InstallationStatusStore(logger: logger),
+            statusStore: statusStore,
             logger: logger
         )
     }
