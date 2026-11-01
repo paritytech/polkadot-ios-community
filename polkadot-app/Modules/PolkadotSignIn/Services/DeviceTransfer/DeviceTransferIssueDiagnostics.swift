@@ -7,8 +7,16 @@ struct DeviceTransferIssueDiagnostics: Sendable {
     let entitySkipped: IssueDiagnostic
     /// Claim statuses whose message never arrived, dropped when the sender completes.
     let claimsDropped: IssueDiagnostic
-    /// Connection attempts failing in a row without progress.
+    /// Connection attempts failing in a row without progress; the run gives up a little later.
     let runStalled: IssueDiagnostic
+    /// The installation record can't be published or followed, so the status stays unknown until a relaunch.
+    let installationStopped: IssueDiagnostic
+    /// Transfer services or their configuration can't be built.
+    let setupFailed: IssueDiagnostic
+    /// Transfer requests stop being followed until the next start.
+    let listenerStopped: IssueDiagnostic
+    /// The new phone's record couldn't be published after every retry.
+    let finalizePublishFailed: IssueDiagnostic
 }
 
 extension DeviceTransferIssueDiagnostics {
@@ -17,27 +25,32 @@ extension DeviceTransferIssueDiagnostics {
             return Self(
                 entitySkipped: NoopIssueDiagnostic(),
                 claimsDropped: NoopIssueDiagnostic(),
-                runStalled: NoopIssueDiagnostic()
+                runStalled: NoopIssueDiagnostic(),
+                installationStopped: NoopIssueDiagnostic(),
+                setupFailed: NoopIssueDiagnostic(),
+                listenerStopped: NoopIssueDiagnostic(),
+                finalizePublishFailed: NoopIssueDiagnostic()
             )
         }
 
         return Self(
-            entitySkipped: ThresholdIssueDiagnostic(
-                flow: "device-transfer",
-                kind: "entity-skipped",
-                reporter: reporter
-            ),
-            claimsDropped: ThresholdIssueDiagnostic(
-                flow: "device-transfer",
-                kind: "claims-dropped",
-                reporter: reporter
-            ),
-            runStalled: ThresholdIssueDiagnostic(
-                flow: "device-transfer",
-                kind: "run-stalled",
-                threshold: 3,
-                reporter: reporter
-            )
+            entitySkipped: diagnostic("entity-skipped", reporter: reporter),
+            claimsDropped: diagnostic("claims-dropped", reporter: reporter),
+            runStalled: diagnostic("run-stalled", threshold: 3, reporter: reporter),
+            installationStopped: diagnostic("installation-stopped", reporter: reporter),
+            setupFailed: diagnostic("setup-failed", reporter: reporter),
+            listenerStopped: diagnostic("listener-stopped", reporter: reporter),
+            finalizePublishFailed: diagnostic("finalize-publish-failed", reporter: reporter)
         )
+    }
+
+    static func makeDefault() -> Self {
+        make(reporter: IssueReportingFacade.shared)
+    }
+}
+
+private extension DeviceTransferIssueDiagnostics {
+    static func diagnostic(_ kind: StaticString, threshold: Int = 1, reporter: IssueReporting) -> IssueDiagnostic {
+        ThresholdIssueDiagnostic(flow: "device-transfer", kind: kind, threshold: threshold, reporter: reporter)
     }
 }

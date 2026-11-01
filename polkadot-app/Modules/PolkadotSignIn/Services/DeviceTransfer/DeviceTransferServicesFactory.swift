@@ -33,11 +33,16 @@ protocol DeviceTransferSenderServicesMaking {
 struct DeviceTransferServicesFactory {
     let statusStore: InstallationStatusStoring
     let logger: LoggerProtocol
+    var issueDiagnostics: DeviceTransferIssueDiagnostics = .makeDefault()
 }
 
 extension DeviceTransferServicesFactory: DeviceTransferReceiverServicesMaking {
     func makeReceiverServices() throws -> DeviceTransferReceiverServices {
-        let installationFactory = ActiveInstallationServiceFactory(statusStore: statusStore, logger: logger)
+        let installationFactory = ActiveInstallationServiceFactory(
+            statusStore: statusStore,
+            logger: logger,
+            stopDiagnostic: issueDiagnostics.installationStopped
+        )
         let installationConfiguration = try installationFactory.makeConfiguration()
         let installationService = installationFactory.makeService()
         let ownSignKeyId = try Chat.Contact.Own.main().signKeyId
@@ -57,6 +62,9 @@ extension DeviceTransferServicesFactory: DeviceTransferReceiverServicesMaking {
                 installationPublisher: installationService,
                 processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: UserDataStorageFacade.shared),
                 checkpointStore: DeviceTransferCheckpointStore(),
+                settings: DeviceTransferFinalizerSettings(
+                    publishFailureDiagnostic: issueDiagnostics.finalizePublishFailed
+                ),
                 logger: logger
             ),
             logger: logger
@@ -76,7 +84,11 @@ extension DeviceTransferServicesFactory: DeviceTransferReceiverServicesMaking {
 
 extension DeviceTransferServicesFactory: DeviceTransferSenderServicesMaking {
     func makeSenderServices() throws -> DeviceTransferSenderServices {
-        let installationFactory = ActiveInstallationServiceFactory(statusStore: statusStore, logger: logger)
+        let installationFactory = ActiveInstallationServiceFactory(
+            statusStore: statusStore,
+            logger: logger,
+            stopDiagnostic: issueDiagnostics.installationStopped
+        )
         let installationConfiguration = try installationFactory.makeConfiguration()
         let ownSignKeyId = try Chat.Contact.Own.main().signKeyId
 
@@ -109,11 +121,7 @@ private extension DeviceTransferServicesFactory {
             requestFactory: TURNCredentialsRequestFactory(),
             tokenProvider: JWTTokenManager.shared
         )
-        let issueDiagnostics = DeviceTransferIssueDiagnostics.make(reporter: IssueReportingFacade.shared)
-        let clientDependencies = try makeClientDependencies(
-            ownSignKeyId: ownSignKeyId,
-            issueDiagnostics: issueDiagnostics
-        )
+        let clientDependencies = try makeClientDependencies(ownSignKeyId: ownSignKeyId)
 
         return DeviceTransferRunFactory(
             configuration: DeviceTransferRunConfiguration(
@@ -129,10 +137,7 @@ private extension DeviceTransferServicesFactory {
         )
     }
 
-    func makeClientDependencies(
-        ownSignKeyId: String,
-        issueDiagnostics: DeviceTransferIssueDiagnostics
-    ) throws -> DeviceTransferClientDependencies {
+    func makeClientDependencies(ownSignKeyId: String) throws -> DeviceTransferClientDependencies {
         guard let uploadsStore = AttachmentStore.uploads(), let downloadsStore = AttachmentStore.dowloads() else {
             throw DeviceTransferServicesError.attachmentStoreUnavailable
         }

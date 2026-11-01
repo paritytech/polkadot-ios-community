@@ -4,6 +4,7 @@ import FoundationExt
 import StatementStore
 import SubstrateSdk
 import SubstrateSdkExt
+import IssueMonitoring
 
 protocol DeviceTransferRequestListening: Sendable {
     var pendingRequest: AnyAsyncSequence<DeviceTransferRequest?> { get async }
@@ -12,10 +13,11 @@ protocol DeviceTransferRequestListening: Sendable {
     func throttle() async
 }
 
-struct DeviceTransferRequestTiming {
+struct DeviceTransferRequestListenerSettings {
     var maxRequestAge: TimeInterval = DeviceTransferConstants.statementLifetimeInSeconds
     var dateProvider: any DateProviding = NowDateProvider()
     var clock: any Clock<Duration> = ContinuousClock()
+    var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 }
 
 /// The active phone's side of discovery. It follows `request_topic` only while this installation is active and offers
@@ -29,7 +31,7 @@ actor DeviceTransferRequestListener {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let processedStore: DeviceTransferProcessedStoring
     private let installationObserver: CurrentInstallationObserving
-    private let timing: DeviceTransferRequestTiming
+    private let settings: DeviceTransferRequestListenerSettings
     private let logger: LoggerProtocol
 
     private let subject = AsyncCurrentValueSubject<DeviceTransferRequest?>(nil)
@@ -44,13 +46,13 @@ actor DeviceTransferRequestListener {
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         processedStore: DeviceTransferProcessedStoring,
         installationObserver: CurrentInstallationObserving,
-        timing: DeviceTransferRequestTiming = DeviceTransferRequestTiming(),
+        settings: DeviceTransferRequestListenerSettings = DeviceTransferRequestListenerSettings(),
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.processedStore = processedStore
         self.installationObserver = installationObserver
-        self.timing = timing
+        self.settings = settings
         self.logger = logger
     }
 }
@@ -131,6 +133,7 @@ private extension DeviceTransferRequestListener {
         } catch {
             guard !Task.isCancelled else { return }
             logger.error("Device transfer request listening stopped: \(error)")
+            settings.stopDiagnostic.recordFailure(for: "follow", error: error, counters: [:])
         }
     }
 
@@ -164,7 +167,7 @@ private extension DeviceTransferRequestListener {
     }
 
     func evaluate() async throws {
-        let now = await timing.dateProvider.read()
+        let now = await settings.dateProvider.read()
         let liveRequests = liveRequests(at: now)
         let processed = try await processedStore.processedRequestIds(among: liveRequests.map(\.request.requestId))
 
@@ -188,7 +191,7 @@ private extension DeviceTransferRequestListener {
         let nowInMilliseconds = UInt64(now.timeIntervalSince1970.milliseconds)
         let delay = withdrawalTime(of: offered).subtractingReportingOverflow(nowInMilliseconds)
 
-        expiryTask = Task { [weak self, clock = timing.clock, logger] in
+        expiryTask = Task { [weak self, clock = settings.clock, logger] in
             do {
                 try await clock.sleep(for: .milliseconds(delay.overflow ? 0 : delay.partialValue))
                 try await self?.evaluate()
@@ -216,7 +219,7 @@ private extension DeviceTransferRequestListener {
 
     /// When the request stops being offered: its statement expires or it reaches the max age, whichever is first.
     func withdrawalTime(of received: ReceivedRequest) -> UInt64 {
-        let tooOldAt = received.request.createdAt + UInt64(timing.maxRequestAge.milliseconds)
+        let tooOldAt = received.request.createdAt + UInt64(settings.maxRequestAge.milliseconds)
         let statementExpiredAt = UInt64(TimeInterval(received.expiresAt).milliseconds)
         return min(tooOldAt, statementExpiredAt)
     }

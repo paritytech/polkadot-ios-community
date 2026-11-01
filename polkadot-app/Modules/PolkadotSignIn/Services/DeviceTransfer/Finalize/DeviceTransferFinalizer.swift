@@ -1,4 +1,10 @@
 import Foundation
+import IssueMonitoring
+
+struct DeviceTransferFinalizerSettings {
+    var publishRetry = ActiveInstallationPublishRetry()
+    var publishFailureDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
+}
 
 /// Hands the active status to this phone once the run has applied the data and imported the device key.
 /// The push token needs no step here: chat starts after finalize, and transferred contacts have no last own token,
@@ -7,20 +13,20 @@ final class DeviceTransferFinalizer: @unchecked Sendable {
     private let installationPublisher: ActiveInstallationPublishing
     private let processedStore: DeviceTransferProcessedStoring
     private let checkpointStore: DeviceTransferCheckpointStoring
-    private let publishRetry: ActiveInstallationPublishRetry
+    private let settings: DeviceTransferFinalizerSettings
     private let logger: LoggerProtocol
 
     init(
         installationPublisher: ActiveInstallationPublishing,
         processedStore: DeviceTransferProcessedStoring,
         checkpointStore: DeviceTransferCheckpointStoring,
-        publishRetry: ActiveInstallationPublishRetry = ActiveInstallationPublishRetry(),
+        settings: DeviceTransferFinalizerSettings = DeviceTransferFinalizerSettings(),
         logger: LoggerProtocol
     ) {
         self.installationPublisher = installationPublisher
         self.processedStore = processedStore
         self.checkpointStore = checkpointStore
-        self.publishRetry = publishRetry
+        self.settings = settings
         self.logger = logger
     }
 }
@@ -28,7 +34,17 @@ final class DeviceTransferFinalizer: @unchecked Sendable {
 extension DeviceTransferFinalizer: DeviceTransferFinalizing {
     /// A failed publish keeps the checkpoint, so a new transfer resumes where this one ended.
     func finalize(after request: DeviceTransferRequest) async throws {
-        try await installationPublisher.publishSelf(retry: publishRetry)
+        do {
+            try await installationPublisher.publishSelf(retry: settings.publishRetry)
+        } catch {
+            settings.publishFailureDiagnostic.recordFailure(
+                for: "publish",
+                error: error,
+                counters: ["attempts": settings.publishRetry.attempts]
+            )
+            throw error
+        }
+
         await markOwnRequestProcessed(request)
         checkpointStore.clear()
 

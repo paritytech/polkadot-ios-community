@@ -6,6 +6,7 @@ import StatementStore
 import SubstrateSdk
 import StructuredConcurrency
 import SubstrateSdkExt
+import IssueMonitoring
 
 struct ActiveInstallationConfiguration {
     let connection: StatementStoreConnecting
@@ -53,6 +54,8 @@ struct ActiveInstallationPublishSettings {
     let dateProvider: any DateProviding
     let firstInstallAttempts: Int
     let firstInstallRetryDelay: Duration
+    /// Reports a status that stays unknown because the record can't be published or followed.
+    var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 
     init(
         deviceInfo: DeviceSystemInfo,
@@ -183,6 +186,7 @@ private extension ActiveInstallationService {
         } catch {
             guard !Task.isCancelled else { return }
             logger.error("Active installation tracking stopped: \(error)")
+            publishSettings.stopDiagnostic.recordFailure(for: "tracking", error: error, counters: [:])
         }
     }
 
@@ -201,6 +205,11 @@ private extension ActiveInstallationService {
             } catch {
                 guard !Task.isCancelled else { return }
                 logger.error("Failed to publish active installation record: \(error)")
+                settings.stopDiagnostic.recordFailure(
+                    for: "first-install",
+                    error: error,
+                    counters: ["attempts": settings.firstInstallAttempts]
+                )
             }
         }
     }

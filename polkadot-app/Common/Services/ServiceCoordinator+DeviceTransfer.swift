@@ -16,6 +16,9 @@ extension ServiceCoordinator {
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(entropyManager: RootEntropyManager.shared),
             processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: UserDataStorageFacade.shared),
             installationObserver: installationObserver,
+            settings: DeviceTransferRequestListenerSettings(
+                stopDiagnostic: DeviceTransferIssueDiagnostics.makeDefault().listenerStopped
+            ),
             logger: logger
         )
     }
