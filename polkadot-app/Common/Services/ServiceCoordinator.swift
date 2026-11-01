@@ -73,6 +73,7 @@ final class ServiceCoordinator {
     let turnService: TURNCredentialsProviding
     let deviceSyncService: DeviceSyncServicing
     let activeInstallationService: ActiveInstallationServicing
+    let deviceTransferRequestListener: DeviceTransferRequestListening
     let networkStatusService: NetworkStatusProviding
     let chainStatusProvider: ChainStatusProviding
     let truapiRuntimeProvider: TrUAPIHostRuntimeProviding
@@ -119,6 +120,7 @@ final class ServiceCoordinator {
         turnService: TURNCredentialsProviding,
         deviceSyncService: DeviceSyncServicing,
         activeInstallationService: ActiveInstallationServicing,
+        deviceTransferRequestListener: DeviceTransferRequestListening,
         networkStatusService: NetworkStatusProviding,
         chainStatusProvider: ChainStatusProviding,
         truapiRuntimeProvider: TrUAPIHostRuntimeProviding,
@@ -151,6 +153,7 @@ final class ServiceCoordinator {
         self.durabilityRenewal = durabilityRenewal
         self.deviceSyncService = deviceSyncService
         self.activeInstallationService = activeInstallationService
+        self.deviceTransferRequestListener = deviceTransferRequestListener
         self.networkStatusService = networkStatusService
         self.chainStatusProvider = chainStatusProvider
         self.truapiRuntimeProvider = truapiRuntimeProvider
@@ -369,6 +372,8 @@ extension ServiceCoordinator {
             logger: logger
         )
 
+        let activeInstallationService = createActiveInstallationService(logger: logger)
+
         return ServiceCoordinator(
             chatCoordinator: chatCoordinator,
             depositService: depositService,
@@ -403,7 +408,11 @@ extension ServiceCoordinator {
             paymentsSupport: paymentsSupport,
             turnService: turnService,
             deviceSyncService: deviceSyncService,
-            activeInstallationService: createActiveInstallationService(logger: logger),
+            activeInstallationService: activeInstallationService,
+            deviceTransferRequestListener: createDeviceTransferRequestListener(
+                installationObserver: activeInstallationService,
+                logger: logger
+            ),
             networkStatusService: networkStatusService,
             chainStatusProvider: chainStatusProvider,
             truapiRuntimeProvider: truapiRuntimeProvider,
