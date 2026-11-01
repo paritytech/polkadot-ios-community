@@ -14,6 +14,7 @@ struct DeviceTransferClientDependencies {
     let dateProvider: any DateProviding
     let fileLocator: DeviceSyncFileLocating
     let downloadsStore: AttachmentStoring
+    let issueDiagnostics: DeviceTransferIssueDiagnostics
     let logger: LoggerProtocol
 }
 
@@ -104,6 +105,7 @@ private extension DeviceTransferClientFactory {
             flow: flow,
             contactsStorageService: dependencies.contactsStorageService,
             storageFacade: facade,
+            skippedEntityDiagnostic: dependencies.issueDiagnostics.entitySkipped,
             peerLogger: dependencies.logger
         )
 
@@ -120,6 +122,7 @@ private extension DeviceTransferClientFactory {
                 requester: requester,
                 logger: dependencies.logger
             ),
+            claimsDroppedDiagnostic: dependencies.issueDiagnostics.claimsDropped,
             logger: dependencies.logger
         )
     }

@@ -19,6 +19,7 @@ final class DeviceTransferRunTests {
     /// Ahead of the wall clock, so every row the mappers stamp falls before the first round's end.
     private let senderDate = MockDateProvider(now: Date().addingTimeInterval(3_600))
     private let checkpointStore = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
+    private let claimsDropped = RecordingIssueDiagnostic()
     private let senderKeyManager = DeviceEncryptionKeyManager(
         keychain: InMemoryKeychain(),
         encryptionStorage: FixedDeviceEncryptionStorage(),
@@ -141,7 +142,7 @@ final class DeviceTransferRunTests {
         #expect(sentTokens.filter { $0 == newPhoneToken }.count == 1)
     }
 
-    @Test("A claim whose message never arrives keeps the checkpoint where it was")
+    @Test("A claim whose message never arrives keeps the checkpoint where it was and is reported when dropped")
     func waitingClaimHoldsCheckpoint() async throws {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
         var controls = await senderSide.transferControls.makeAsyncIterator()
@@ -161,6 +162,8 @@ final class DeviceTransferRunTests {
         try await receiving.value
 
         #expect(checkpointStore.checkpoint(for: senderInstallationId) == nil)
+        #expect(claimsDropped.failureCount == 1)
+        #expect(claimsDropped.lastCounters == ["claims": 1])
     }
 }
 
@@ -289,6 +292,7 @@ private extension DeviceTransferRunTests {
                     requester: requester,
                     logger: MockLogger()
                 ),
+                claimsDroppedDiagnostic: claimsDropped,
                 logger: MockLogger()
             )
         )
