@@ -25,7 +25,8 @@ class NotificationService: UNNotificationServiceExtension {
 
             handler = PushNotificationHandlerFactory(
                 messageDecoder: messageDecoder,
-                storage: UserDataStorageFacade.shared
+                storage: UserDataStorageFacade.shared,
+                installationStatusStore: InstallationStatusStore(logger: Logger.shared)
             )
             .createHandler(message: message)
 

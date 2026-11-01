@@ -1,4 +1,5 @@
 import Foundation
+import SDKLogger
 
 /// The last status an installation service settled on, read at launch before the record topic is reachable.
 enum SavedInstallationStatus: Codable, Equatable {
