@@ -41,17 +41,21 @@ enum ActiveInstallationServiceError: Error {
 struct ActiveInstallationPublishSettings {
     let deviceInfo: DeviceInfo
     let priorityFactory: StatementPriorityMaking
+    /// Stamps `activatedAt` on the published record.
+    let dateProvider: any DateProviding
     let firstInstallAttempts: Int
     let firstInstallRetryDelay: Duration
 
     init(
         deviceInfo: DeviceInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
+        dateProvider: any DateProviding = NowDateProvider(),
         firstInstallAttempts: Int = 10,
         firstInstallRetryDelay: Duration = .seconds(1)
     ) {
         self.deviceInfo = deviceInfo
         self.priorityFactory = priorityFactory
+        self.dateProvider = dateProvider
         self.firstInstallAttempts = firstInstallAttempts
         self.firstInstallRetryDelay = firstInstallRetryDelay
     }
@@ -71,7 +75,7 @@ actor ActiveInstallationService {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let installationProvider: CurrentInstallationProviding
     private let publishSettings: ActiveInstallationPublishSettings
-    private let dateProvider: any DateProviding
+    private let statusStore: InstallationStatusStoring
     private let logger: LoggerProtocol
 
     private let statusSubject = AsyncCurrentValueSubject<InstallationStatus>(.unknown)
@@ -86,13 +90,13 @@ actor ActiveInstallationService {
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         installationProvider: CurrentInstallationProviding,
         publishSettings: ActiveInstallationPublishSettings,
-        dateProvider: any DateProviding = NowDateProvider(),
+        statusStore: InstallationStatusStoring,
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.installationProvider = installationProvider
         self.publishSettings = publishSettings
-        self.dateProvider = dateProvider
+        self.statusStore = statusStore
         self.logger = logger
     }
 }
@@ -129,7 +133,7 @@ extension ActiveInstallationService: ActiveInstallationServicing {
             throw ActiveInstallationServiceError.notConfigured
         }
 
-        let now = await dateProvider.read()
+        let now = await publishSettings.dateProvider.read()
         let installation = ActiveInstallation(
             installationId: context.ownInstallationId,
             deviceModel: publishSettings.deviceInfo.model,
@@ -269,6 +273,8 @@ private extension ActiveInstallationService {
         guard statusSubject.value != status else { return }
 
         logger.info("Active installation status: \(status.logLabel)")
+        // Saved first: whoever reacts to the new status reads the store, the root gate included.
+        statusStore.save(status)
         statusSubject.send(status)
     }
 }

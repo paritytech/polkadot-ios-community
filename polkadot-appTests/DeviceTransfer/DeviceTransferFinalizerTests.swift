@@ -99,9 +99,10 @@ private extension DeviceTransferFinalizerTests {
             ),
             installationProvider: FixedInstallationProvider(installationId: installationId),
             publishSettings: ActiveInstallationPublishSettings(
-                deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1")
+                deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                dateProvider: dates
             ),
-            dateProvider: dates,
+            statusStore: IgnoringInstallationStatusStore(),
             logger: MockLogger()
         )
     }

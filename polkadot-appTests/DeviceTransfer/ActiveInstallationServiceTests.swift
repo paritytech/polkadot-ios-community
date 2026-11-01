@@ -97,6 +97,52 @@ struct ActiveInstallationServiceTests {
         #expect(connection.submittedCount == 0)
     }
 
+    @Test("The status the service settles on is saved, and a replaced phone remembers it was active")
+    func settledStatusIsSaved() async throws {
+        try await withSavedStatus { defaults in
+            let dates = MockDateProvider()
+            let ownStore = InstallationStatusStore(userDefaults: defaults, logger: MockLogger())
+            let service = makeService(installationId: ownId, dates: dates, statusStore: ownStore)
+            await service.setup(configuration: configuration())
+            _ = await waitForStatus(of: service) { $0 == .active }
+            #expect(ownStore.status == .active)
+
+            await dates.advance(by: 10)
+            let other = makeService(installationId: otherId, dates: dates)
+            await other.setup(configuration: configuration())
+            _ = await waitForStatus(of: other) { $0 != .unknown }
+            try await other.publishSelf()
+            let status = await waitForStatus(of: service) { $0 != .active }
+
+            let relaunched = InstallationStatusStore(userDefaults: defaults, logger: MockLogger())
+            guard case let .inactive(record) = status else {
+                Issue.record("Expected inactive, got \(String(describing: status))")
+                return
+            }
+            #expect(relaunched.status == .inactive(record))
+            #expect(relaunched.hasBeenActive)
+        }
+    }
+
+    @Test("An unreachable store keeps the status saved by an earlier launch")
+    func unreachableStoreKeepsSavedStatus() async throws {
+        try await withSavedStatus { defaults in
+            let statusStore = InstallationStatusStore(userDefaults: defaults, logger: MockLogger())
+            statusStore.save(.active)
+            let connection = UnreachableStatementStore()
+            let service = makeService(installationId: ownId, statusStore: statusStore)
+
+            await service.setup(configuration: ActiveInstallationConfiguration(
+                connection: connection,
+                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            ))
+            await connection.waitForSubscription()
+            await service.throttle()
+
+            #expect(statusStore.status == .active)
+        }
+    }
+
     @Test("An empty first page of a longer history doesn't count as a first install")
     func incompleteHistoryIsNotAFirstInstall() async throws {
         let other = makeService(installationId: otherId)
@@ -185,7 +231,8 @@ struct ActiveInstallationServiceTests {
 private extension ActiveInstallationServiceTests {
     func makeService(
         installationId: Data,
-        dates: MockDateProvider = MockDateProvider()
+        dates: MockDateProvider = MockDateProvider(),
+        statusStore: InstallationStatusStoring = IgnoringInstallationStatusStore()
     ) -> ActiveInstallationService {
         ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(
@@ -194,11 +241,20 @@ private extension ActiveInstallationServiceTests {
             installationProvider: FixedInstallationProvider(installationId: installationId),
             publishSettings: ActiveInstallationPublishSettings(
                 deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                dateProvider: dates,
                 firstInstallRetryDelay: .milliseconds(1)
             ),
-            dateProvider: dates,
+            statusStore: statusStore,
             logger: MockLogger()
         )
+    }
+
+    /// A store over a fresh defaults suite, removed again when `body` returns.
+    func withSavedStatus(_ body: (UserDefaults) async throws -> Void) async throws {
+        let suiteName = "ActiveInstallationServiceTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        try await body(defaults)
     }
 
     func configuration() -> ActiveInstallationConfiguration {
@@ -352,4 +408,12 @@ private final class FlakySubmitStatementStore: StatementStoreConnecting, @unchec
 
         try await store.submitStatement(with: builder)
     }
+}
+
+/// For tests that follow the live status only.
+struct IgnoringInstallationStatusStore: InstallationStatusStoring {
+    var status: SavedInstallationStatus? { nil }
+    var hasBeenActive: Bool { false }
+
+    func save(_: InstallationStatus) {}
 }
