@@ -10,6 +10,7 @@ protocol DeviceTransferSenderViewProtocol: ControllerBackedProtocol {
 protocol DeviceTransferSenderPresenterProtocol: AnyObject {
     func setup()
     func cancelTransfer()
+    func confirmCancelTransfer()
     func backToChats()
 }
 
@@ -28,5 +29,10 @@ protocol DeviceTransferSenderInteractorOutputProtocol: AnyObject {
 @MainActor
 protocol DeviceTransferSenderWireframeProtocol: AnyObject {
     func complete()
+    func showConfirmation(
+        _ viewModel: DeviceTransferConfirmationViewLayout.ViewModel,
+        from view: DeviceTransferSenderViewProtocol?,
+        onConfirm: @escaping () -> Void
+    )
     func completeAfterFailure(from view: DeviceTransferSenderViewProtocol?)
 }

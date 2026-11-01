@@ -29,7 +29,21 @@ extension DeviceTransferSenderPresenter: DeviceTransferSenderPresenterProtocol {
         interactor.start(request)
     }
 
+    /// Data already moving needs a confirmation; connecting stops at once.
     func cancelTransfer() {
+        guard screen.isTransferring else {
+            interactor.cancel()
+            return
+        }
+
+        wireframe.showConfirmation(.cancelSendingTransfer, from: view) { [weak self] in
+            self?.confirmCancelTransfer()
+        }
+    }
+
+    /// The run may have moved on while the sheet was open, so a late confirm is dropped.
+    func confirmCancelTransfer() {
+        guard screen.isTransferring else { return }
         interactor.cancel()
     }
 
@@ -89,5 +103,20 @@ private extension DeviceTransferSenderPresenter {
     func track(_ progress: Double) -> Double {
         lastDataProgress = progress
         return progress
+    }
+}
+
+private extension DeviceTransferSenderScreen {
+    var isTransferring: Bool {
+        switch self {
+        case .sendingData,
+             .sendingFiles,
+             .reconnecting:
+            true
+        case .connecting,
+             .finishing,
+             .cancelledOnNewPhone:
+            false
+        }
     }
 }

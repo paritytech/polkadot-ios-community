@@ -99,6 +99,21 @@ struct DeviceTransferSenderModuleTests {
         #expect(wireframe.events == [.completeAfterFailure])
     }
 
+    @Test("Cancelling while data moves asks first, and only the confirm stops the run")
+    func cancelDuringTransferAsksFirst() async {
+        let presenter = makeModule()
+        presenter.setup()
+        await coordinator.waitForConfirm()
+        coordinator.send(.syncing(applied: 1, total: 4))
+        await view.waitFor(.sendingData(progress: 0.25))
+
+        presenter.cancelTransfer()
+        #expect(wireframe.events == [.confirmation])
+        presenter.confirmCancelTransfer()
+
+        await coordinator.waitForCancel()
+    }
+
     @Test("Cancelling on this phone stops the run and leaves without a notice")
     func cancelHereLeavesQuietly() async {
         let presenter = makeModule()
@@ -260,6 +275,7 @@ private final class SenderWireframeSpy: DeviceTransferSenderWireframeProtocol {
     enum Event: Equatable {
         case complete
         case completeAfterFailure
+        case confirmation
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
@@ -272,6 +288,14 @@ private final class SenderWireframeSpy: DeviceTransferSenderWireframeProtocol {
 
     func completeAfterFailure(from _: DeviceTransferSenderViewProtocol?) {
         recorder.record(.completeAfterFailure)
+    }
+
+    func showConfirmation(
+        _: DeviceTransferConfirmationViewLayout.ViewModel,
+        from _: DeviceTransferSenderViewProtocol?,
+        onConfirm _: @escaping () -> Void
+    ) {
+        recorder.record(.confirmation)
     }
 
     func waitForEvents(_ count: Int) async {

@@ -101,8 +101,12 @@ struct DeviceTransferReceiverModuleTests {
         let presenter = makeModule()
         presenter.setup()
         await coordinator.waitForSubscription()
+        coordinator.send(.failed(.rejected))
+        await view.waitFor(.declined)
 
         presenter.activateWithoutTransfer()
+        #expect(view.confirmationCount == 1)
+        presenter.confirmActivation()
 
         await coordinator.waitForCancel()
         await installationService.waitForPublish()
@@ -115,13 +119,30 @@ struct DeviceTransferReceiverModuleTests {
         let presenter = makeModule()
         presenter.setup()
         await coordinator.waitForSubscription()
+        coordinator.send(.failed(.rejected))
+        await view.waitFor(.declined)
 
-        presenter.activateWithoutTransfer()
+        presenter.confirmActivation()
         await view.waitForAlert()
 
         #expect(installationService.publishCount == 3)
         #expect(view.alertMessages == [String(localized: .deviceTransferActivationFailed)])
         #expect(observer.settledCount == 0)
+    }
+
+    @Test("Cancelling while data moves asks first, and only the confirm stops the run")
+    func cancelDuringTransferAsksFirst() async {
+        let presenter = makeModule()
+        presenter.setup()
+        await coordinator.waitForSubscription()
+        coordinator.send(.syncing(applied: 1, total: 2))
+        await view.waitFor(.syncing(progress: 0.1))
+
+        presenter.cancelTransfer()
+        #expect(view.confirmationCount == 1)
+        presenter.confirmCancelTransfer()
+
+        await coordinator.waitForCancel()
     }
 }
 
@@ -262,8 +283,14 @@ private final class ReceiverViewSpy: UIViewController, DeviceTransferReceiverVie
     var offers: [Bool] { offerRecorder.snapshot }
     var alertMessages: [String?] { alertRecorder.snapshot }
 
+    private(set) var confirmationCount = 0
+
     override func present(_ controller: UIViewController, animated _: Bool, completion: (() -> Void)? = nil) {
-        alertRecorder.record((controller as? UIAlertController)?.message)
+        if let alert = controller as? UIAlertController {
+            alertRecorder.record(alert.message)
+        } else if controller is DeviceTransferConfirmationViewController {
+            confirmationCount += 1
+        }
         completion?()
     }
 

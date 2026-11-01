@@ -34,11 +34,32 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverPresenterProtoc
         interactor.startTransfer()
     }
 
+    /// Data already moving needs a confirmation; waiting or connecting stops at once.
     func cancelTransfer() {
+        guard screen.isTransferring else {
+            interactor.cancelTransfer()
+            return
+        }
+
+        wireframe.showConfirmation(.cancelReceivingTransfer, from: view) { [weak self] in
+            self?.confirmCancelTransfer()
+        }
+    }
+
+    /// The run may have moved on while the sheet was open, so a late confirm is dropped.
+    func confirmCancelTransfer() {
+        guard screen.isTransferring else { return }
         interactor.cancelTransfer()
     }
 
     func activateWithoutTransfer() {
+        wireframe.showConfirmation(.activateWithoutTransfer, from: view) { [weak self] in
+            self?.confirmActivation()
+        }
+    }
+
+    func confirmActivation() {
+        guard offersActivation else { return }
         interactor.activateWithoutTransfer()
     }
 
@@ -146,6 +167,17 @@ private extension DeviceTransferReceiverPresenter {
 }
 
 private extension DeviceTransferReceiverScreen {
+    var isTransferring: Bool {
+        switch self {
+        case .syncing,
+             .files,
+             .reconnecting:
+            true
+        default:
+            false
+        }
+    }
+
     /// Screens where the old phone may be out of reach, so activating without it is offered.
     var offersActivation: Bool {
         switch self {

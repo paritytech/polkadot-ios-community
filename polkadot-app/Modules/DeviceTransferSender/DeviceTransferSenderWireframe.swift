@@ -16,6 +16,15 @@ extension DeviceTransferSenderWireframe: DeviceTransferSenderWireframeProtocol {
         observer.didSettleInstallationStatus()
     }
 
+    func showConfirmation(
+        _ viewModel: DeviceTransferConfirmationViewLayout.ViewModel,
+        from view: DeviceTransferSenderViewProtocol?,
+        onConfirm: @escaping () -> Void
+    ) {
+        let confirmation = DeviceTransferConfirmationViewFactory.createView(viewModel: viewModel, onConfirm: onConfirm)
+        view?.controller.present(confirmation, animated: true)
+    }
+
     func completeAfterFailure(from view: DeviceTransferSenderViewProtocol?) {
         let window = view?.controller.view.window
         observer.didSettleInstallationStatus()
