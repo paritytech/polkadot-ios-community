@@ -1,8 +1,10 @@
 import BackgroundExecution
 import Foundation
+import Individuality
 import MessageExchangeKit
 import StatementDelivery
 import StatementStore
+import SubstrateSdk
 
 protocol ChatRequestCancelServicing {
     func cancel(requestId: String) async throws
@@ -25,24 +27,25 @@ protocol PendingOutgoingChatRequestLoading {
 struct ChatRequestCancelDependencies {
     let loader: PendingOutgoingChatRequestLoading
     let delivery: any OutgoingStatementDelivering<OutgoingChatRequestInput>
-    let builder: any OutgoingStatementBuilding<OutgoingChatRequestInput>
+    let builder: any ChatRequestStatementBuilding
     let signerManager: StatementStoreSignerManaging
+    let allocator: NotificationStatementAccountAllocating
     let consentStore: ChatSigningConsentStoring
-    let connection: StatementStoreSubmitting
+    let connection: StatementStoreConnecting
+    let priorityFactory: StatementPriorityMaking
     let removalCleanup: ChatRemovalCleanupServicing
     let requestStore: ChatRequestStoreServicing
     let backgroundExecutor: BackgroundExecuting
 }
 
-/// Publishes a cancel to the peer for every key that may hold a copy of the pending request, then removes it locally.
+/// Publishes one cancel from the current period's one-shot account, falling back to the identity account when no slot
+/// is free and the user consented, then removes the request locally.
 final class ChatRequestCancelService {
     private let dependencies: ChatRequestCancelDependencies
-    private let clock: any Clock<Duration>
     private let submitter: SigningStatementSubmitter
 
-    init(dependencies: ChatRequestCancelDependencies, clock: any Clock<Duration>) {
+    init(dependencies: ChatRequestCancelDependencies) {
         self.dependencies = dependencies
-        self.clock = clock
         submitter = SigningStatementSubmitter(connection: dependencies.connection)
     }
 }
@@ -79,7 +82,7 @@ private extension ChatRequestCancelService {
         await dependencies.delivery.reinstate(requestId)
     }
 
-    // Read after retire: a renewal that finished during the wait has already moved the period.
+    // Read after retire: a first publish that finished during the wait must still be cancelled on the wire.
     func publishCancelOfPendingRequest(requestId: String) async throws -> PendingOutgoingRequest {
         guard let pending = try await dependencies.loader.pendingRequest(requestId: requestId) else {
             throw ChatRequestCancelError.notPending
@@ -91,17 +94,33 @@ private extension ChatRequestCancelService {
     }
 
     func publishCancel(for pending: PendingOutgoingRequest) async throws {
-        guard let period = pending.period else { return }
+        guard pending.period != nil else { return }
 
-        let cancel = try makeCancelInput(from: pending.input)
+        let input = try makeCancelInput(from: pending.input)
+        let stored = try await fetchStoredStatements(for: input)
 
-        let oneShotSigner = try dependencies.signerManager.makeSigner(for: cancel.oneShotKeyId(period: period))
-        try await submitSkippingNoAllowance(cancel, signer: oneShotSigner)
+        let signer = try await makeCancelSigner(for: input)
+        try await submit(input, signer: signer, expiry: expiry(for: signer, among: stored))
+    }
 
-        guard try await dependencies.consentStore.hasConsent(for: cancel.session.peer.accountId) else { return }
+    func makeCancelSigner(for input: OutgoingChatRequestInput) async throws -> StatementStoreSigning {
+        do {
+            return try await makeCurrentPeriodOneShotSigner(for: input)
+        } catch NotificationAllocationError.noFreeSlotInPeriod {
+            guard try await dependencies.consentStore.hasConsent(for: input.session.peer.accountId) else {
+                throw NotificationAllocationError.noFreeSlotInPeriod
+            }
 
-        let identitySigner = try dependencies.signerManager.makeSigner(for: cancel.identitySignKeyId)
-        try await submit(cancel, signer: identitySigner)
+            return try dependencies.signerManager.makeSigner(for: input.identitySignKeyId)
+        }
+    }
+
+    func makeCurrentPeriodOneShotSigner(for input: OutgoingChatRequestInput) async throws -> StatementStoreSigning {
+        let period = try await dependencies.allocator.currentPeriod()
+        let signer = try dependencies.signerManager.makeSigner(for: input.oneShotKeyId(period: period))
+        try await dependencies.allocator.allocate(signer.accountId, timeout: ChatNotificationSlots.allocationTimeout)
+
+        return signer
     }
 
     func makeCancelInput(from request: OutgoingChatRequestInput) throws -> OutgoingChatRequestInput {
@@ -120,26 +139,31 @@ private extension ChatRequestCancelService {
         return OutgoingChatRequestInput(message: cancelMessage, session: request.session)
     }
 
-    // A signer without allowance has no copy to replace, so its publish is skipped.
-    func submitSkippingNoAllowance(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning) async throws {
-        do {
-            try await submit(input, signer: signer)
-        } catch StatementSubmitError.rejected(.some(.noAllowance)) {
-            return
-        }
+    func fetchStoredStatements(for input: OutgoingChatRequestInput) async throws -> [Statement] {
+        let filter = try dependencies.builder.storageTopicFilter(for: input)
+        let encoded = try await dependencies.connection.fetchStatements(with: filter)
+
+        return encoded.compactMap { try? Statement(scaleDecoder: ScaleDecoder(data: $0)) }
     }
 
-    // The expiry is rebuilt on retry, so the resubmitted statement carries a fresh priority.
-    func submit(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning) async throws {
-        do {
-            try await submitOnce(input, signer: signer)
-        } catch StatementSubmitError.rejected(.some(.channelPriorityTooLow)) {
-            try await clock.sleep(for: .seconds(1))
-            try await submitOnce(input, signer: signer)
+    // Expiry must exceed the signer's own previous copy on the channel, or the store keeps the old one.
+    func expiry(for signer: StatementStoreSigning, among statements: [Statement]) -> UInt64 {
+        let timestampPriority = dependencies.priorityFactory.makeTimestampPriority()
+
+        let ownExpiries = statements
+            .filter { $0.getSenderAccountId() == signer.accountId }
+            .compactMap { $0.getExpiry() }
+
+        guard let lastExpiry = ownExpiries.max() else {
+            return timestampPriority
         }
+
+        let (next, overflow) = lastExpiry.addingReportingOverflow(1)
+        return overflow ? .max : max(next, timestampPriority)
     }
 
-    func submitOnce(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning) async throws {
-        try await submitter.submit(dependencies.builder.makeUnsignedStatement(for: input), signer: signer)
+    func submit(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning, expiry: UInt64) async throws {
+        let unsigned = try dependencies.builder.makeUnsignedStatement(for: input, expiry: expiry)
+        try await submitter.submit(unsigned, signer: signer)
     }
 }

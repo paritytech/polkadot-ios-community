@@ -210,14 +210,16 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
         let signManager = makeAccountSignManager()
         let consentStore = ChatSigningConsentStore(storageFacade: storageFacade)
 
-        return try ChatRequestCancelService(
+        return try await ChatRequestCancelService(
             dependencies: ChatRequestCancelDependencies(
                 loader: ChatRequestOutgoingStore(storageFacade: storageFacade),
                 delivery: requestPipeline.delivery,
                 builder: makeRequestStatementBuilder(),
                 signerManager: signManager,
+                allocator: notificationAllocator,
                 consentStore: consentStore,
-                connection: makeCancelConnection(),
+                connection: makeConnection(),
+                priorityFactory: StatementPriorityFactory(),
                 removalCleanup: ChatRemovalCleanupService(
                     allowanceCleanupService: allowanceCleanupService,
                     signingConsentStore: consentStore,
@@ -225,8 +227,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
                 ),
                 requestStore: makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager),
                 backgroundExecutor: backgroundExecutor
-            ),
-            clock: ContinuousClock()
+            )
         )
     }
 }
@@ -439,15 +440,6 @@ private extension ChatRequestServiceFactory {
         self.connection = connection
 
         return connection
-    }
-
-    // Timeouts only: a cancel must fail at once on missing allowance instead of retrying it.
-    func makeCancelConnection() throws -> StatementStoreSubmitting {
-        try StatementStoreConnection(
-            connection: chainRegistry.getConnectionOrError(for: chatChainId),
-            retryMatcher: StatementSubmitTimeoutMatcher(),
-            logger: logger
-        )
     }
 
     func makeAccountEncryptionManager() -> MessageExchangeEncryptionManaging {
