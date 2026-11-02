@@ -3,8 +3,8 @@ import SubstrateSdk
 import Testing
 @testable import polkadot_app
 
-struct SeenWatermarkCodecTests {
-    @Test func roundTripsSeenWatermarkContent() throws {
+struct SeenReceiptCodecTests {
+    @Test func roundTripsSeenContent() throws {
         let content = makeSeenContent()
         let remoteMessage = makeRemoteMessage(content: content)
 
@@ -32,7 +32,7 @@ struct SeenWatermarkCodecTests {
     }
 }
 
-private extension SeenWatermarkCodecTests {
+private extension SeenReceiptCodecTests {
     func makeSeenContent() -> ChatRemoteMessageContent {
         .seen(.init(messageId: UUID().uuidString, timestamp: 1_752_900_000))
     }

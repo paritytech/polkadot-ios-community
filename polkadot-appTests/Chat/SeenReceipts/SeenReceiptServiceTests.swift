@@ -4,48 +4,39 @@ import Testing
 
 @testable import polkadot_app
 
-struct SeenWatermarkServiceTests {
-    private let fixture = SeenWatermarkStorageFixture()
+struct SeenReceiptServiceTests {
+    private let fixture = SeenReceiptStorageFixture()
     private let sender = SpyDirectMessageSender()
     private let clock = ManualClock()
 
     @Test func sendsGreatestOrderSeenDisplayableIncomingMessage() async throws {
         try await fixture.seedChat()
         try await insertMessage(id: "first", status: .incoming(.seen), order: 1, timestamp: 100)
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 3, timestamp: 50)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 3, timestamp: 50)
         try await insertMessage(id: "middle", status: .incoming(.seen), order: 2, timestamp: 500)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
-        #expect(sentContent() == .seen(.init(messageId: "watermark", timestamp: 50)))
+        #expect(sentContent() == .seen(.init(messageId: "last-seen", timestamp: 50)))
         #expect(sender.sent.first?.accountId == fixture.peerAccountId)
     }
 
-    @Test func sendsLowercasedWatermarkMessageId() async throws {
+    @Test func nonDisplayableSeenMessagesDoNotAdvanceLastSeenMessage() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "WATERMARK-ID", status: .incoming(.seen), order: 1, timestamp: 10)
-
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
-
-        #expect(sentContent() == .seen(.init(messageId: "watermark-id", timestamp: 10)))
-    }
-
-    @Test func nonDisplayableSeenMessagesDoNotAdvanceWatermark() async throws {
-        try await fixture.seedChat()
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
         try await insertMessage(
             id: "reaction",
             status: .incoming(.seen),
             order: 2,
             timestamp: 20,
-            content: .reacted(.init(messageId: "watermark", emoji: "👍"))
+            content: .reacted(.init(messageId: "last-seen", emoji: "👍"))
         )
         try await insertMessage(
             id: "edit",
             status: .incoming(.seen),
             order: 3,
             timestamp: 30,
-            content: .edited(.init(messageId: "watermark", newContent: .init(text: "edited", attachments: nil)))
+            content: .edited(.init(messageId: "last-seen", newContent: .init(text: "edited", attachments: nil)))
         )
         try await insertMessage(
             id: "compacted",
@@ -63,7 +54,7 @@ struct SeenWatermarkServiceTests {
             status: .incoming(.seen),
             order: 5,
             timestamp: 50,
-            content: .chatAccepted(.init(messageId: "watermark"))
+            content: .chatAccepted(.init(messageId: "last-seen"))
         )
         try await insertMessage(
             id: "device",
@@ -103,9 +94,9 @@ struct SeenWatermarkServiceTests {
             ))
         )
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
-        #expect(sentContent() == .seen(.init(messageId: "watermark", timestamp: 10)))
+        #expect(sentContent() == .seen(.init(messageId: "last-seen", timestamp: 10)))
     }
 
     @Test func equalOrderFallsBackToLaterTimestamp() async throws {
@@ -113,24 +104,24 @@ struct SeenWatermarkServiceTests {
         try await insertMessage(id: "older", status: .incoming(.seen), order: 2, timestamp: 100)
         try await insertMessage(id: "newer", status: .incoming(.seen), order: 2, timestamp: 200)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sentContent() == .seen(.init(messageId: "newer", timestamp: 200)))
     }
 
     @Test func ignoresUnseenAndOutgoingMessages() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
         try await insertMessage(id: "unseen", status: .incoming(.new), order: 5, timestamp: 90)
         try await insertMessage(id: "outgoing", status: .outgoing(.sent), order: 9, timestamp: 95)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
-        #expect(sentContent() == .seen(.init(messageId: "watermark", timestamp: 10)))
+        #expect(sentContent() == .seen(.init(messageId: "last-seen", timestamp: 10)))
     }
 
     @Test func extensionChatSendsNothing() async throws {
-        await runScheduledWatermark(makeService().scheduleWatermark(for: .chatExtension("extension", roomId: nil)))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: .chatExtension("extension", roomId: nil)))
 
         #expect(sender.sent.isEmpty)
     }
@@ -138,7 +129,7 @@ struct SeenWatermarkServiceTests {
     @Test func chatWithoutCandidateSendsNothing() async throws {
         try await fixture.seedChat()
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sender.sent.isEmpty)
     }
@@ -152,9 +143,9 @@ struct SeenWatermarkServiceTests {
             message: nil
         )
         try await fixture.seedChat(pendingRequest: request)
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(try await fixture.hasPendingRequest())
         #expect(sender.sent.isEmpty)
@@ -162,19 +153,19 @@ struct SeenWatermarkServiceTests {
 
     @Test func blockedContactSendsNothing() async throws {
         try await fixture.seedChat(isBlocked: true)
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sender.sent.isEmpty)
     }
 
-    @Test func watermarkEqualToLastSentMarkDoesNotSend() async throws {
+    @Test func lastSeenEqualToLastSentMarkDoesNotSend() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 2, timestamp: 20)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 2, timestamp: 20)
         try await fixture.seedLastSentSeen(order: 2, timestamp: 20)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sender.sent.isEmpty)
     }
@@ -184,7 +175,7 @@ struct SeenWatermarkServiceTests {
         try await insertMessage(id: "newer", status: .incoming(.seen), order: 2, timestamp: 200)
         try await fixture.seedLastSentSeen(order: 2, timestamp: 100)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sentContent() == .seen(.init(messageId: "newer", timestamp: 200)))
     }
@@ -194,33 +185,93 @@ struct SeenWatermarkServiceTests {
         try await insertMessage(id: "higher", status: .incoming(.seen), order: 3, timestamp: 50)
         try await fixture.seedLastSentSeen(order: 2, timestamp: 100)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sentContent() == .seen(.init(messageId: "higher", timestamp: 50)))
     }
 
-    @Test func burstOfTriggersSendsOnceWithNewestWatermark() async throws {
+    @Test func burstInsideWindowSendsLeadingThenNewestAtWindowEnd() async throws {
         try await fixture.seedChat()
         try await insertMessage(id: "older", status: .incoming(.seen), order: 1, timestamp: 100)
-        try await insertMessage(id: "newest", status: .incoming(.seen), order: 2, timestamp: 200)
 
         let service = makeService()
-        let tasks = (0 ..< 3).map { _ in service.scheduleWatermark(for: fixture.chatId) }
+        let task = service.scheduleSeenReceipt(for: fixture.chatId)
+        await clock.waitForSleep(for: Self.throttleInterval)
 
-        await clock.resumeSleep(for: Self.debounceDelay)
-        for task in tasks {
-            await task.value
-        }
+        try await insertMessage(id: "newest", status: .incoming(.seen), order: 2, timestamp: 200)
+        service.scheduleSeenReceipt(for: fixture.chatId)
+        service.scheduleSeenReceipt(for: fixture.chatId)
+
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await task.value
+
+        #expect(sentContents() == [
+            .seen(.init(messageId: "older", timestamp: 100)),
+            .seen(.init(messageId: "newest", timestamp: 200))
+        ])
+    }
+
+    @Test func firstTriggerSendsBeforeWindowEnds() async throws {
+        try await fixture.seedChat()
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
+
+        let task = makeService().scheduleSeenReceipt(for: fixture.chatId)
+        await clock.waitForSleep(for: Self.throttleInterval)
 
         #expect(sender.sent.count == 1)
-        #expect(sentContent() == .seen(.init(messageId: "newest", timestamp: 200)))
+
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await task.value
+    }
+
+    @Test func pendingTriggerWithoutAdvanceDoesNotResend() async throws {
+        try await fixture.seedChat()
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
+
+        let service = makeService()
+        let task = service.scheduleSeenReceipt(for: fixture.chatId)
+        service.scheduleSeenReceipt(for: fixture.chatId)
+
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await task.value
+
+        #expect(sender.sent.count == 1)
+    }
+
+    @Test func continuousTriggersSendOncePerWindow() async throws {
+        try await fixture.seedChat()
+        try await insertMessage(id: "first", status: .incoming(.seen), order: 1, timestamp: 100)
+
+        let service = makeService()
+        let task = service.scheduleSeenReceipt(for: fixture.chatId)
+        await clock.waitForSleep(for: Self.throttleInterval)
+
+        try await insertMessage(id: "second", status: .incoming(.seen), order: 2, timestamp: 200)
+        service.scheduleSeenReceipt(for: fixture.chatId)
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await clock.waitForSleep(for: Self.throttleInterval)
+
+        try await insertMessage(id: "third", status: .incoming(.seen), order: 3, timestamp: 300)
+        service.scheduleSeenReceipt(for: fixture.chatId)
+        await clock.resumeSleep(for: Self.throttleInterval)
+
+        await clock.resumeSleep(for: Self.throttleInterval)
+        await task.value
+
+        #expect(sentContents() == [
+            .seen(.init(messageId: "first", timestamp: 100)),
+            .seen(.init(messageId: "second", timestamp: 200)),
+            .seen(.init(messageId: "third", timestamp: 300))
+        ])
     }
 
     @Test func sendingDoesNotPersistLastSentMark() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
 
-        await runScheduledWatermark(makeService().scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(makeService().scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sender.sent.count == 1)
         let lastSentMark = try await fixture.lastSentSeenMark()
@@ -229,25 +280,25 @@ struct SeenWatermarkServiceTests {
 
     @Test func repeatedTriggerResendsWhileMarkIsNotAdvancedByDelivery() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "watermark", status: .incoming(.seen), order: 1, timestamp: 10)
+        try await insertMessage(id: "last-seen", status: .incoming(.seen), order: 1, timestamp: 10)
         let service = makeService()
 
-        await runScheduledWatermark(service.scheduleWatermark(for: fixture.chatId))
-        await runScheduledWatermark(service.scheduleWatermark(for: fixture.chatId))
+        await runScheduledSeenReceipt(service.scheduleSeenReceipt(for: fixture.chatId))
+        await runScheduledSeenReceipt(service.scheduleSeenReceipt(for: fixture.chatId))
 
         #expect(sender.sent.count == 2)
     }
 }
 
-private extension SeenWatermarkServiceTests {
-    static let debounceDelay: Duration = .seconds(1)
+private extension SeenReceiptServiceTests {
+    static let throttleInterval: Duration = .seconds(1)
 
-    func makeService() -> SeenWatermarkService {
-        SeenWatermarkService(storageFacade: fixture.facade, sender: sender, clock: clock)
+    func makeService() -> SeenReceiptService {
+        SeenReceiptService(storageFacade: fixture.facade, sender: sender, clock: clock)
     }
 
-    func runScheduledWatermark(_ task: Task<Void, Never>) async {
-        await clock.resumeSleep(for: Self.debounceDelay)
+    func runScheduledSeenReceipt(_ task: Task<Void, Never>) async {
+        await clock.resumeSleep(for: Self.throttleInterval)
         await task.value
     }
 
@@ -266,5 +317,9 @@ private extension SeenWatermarkServiceTests {
 
     func sentContent() -> Chat.RemoteMessageContentV1.MessageContent? {
         sender.sent.first?.message.versioned.ensureV1()?.content
+    }
+
+    func sentContents() -> [Chat.RemoteMessageContentV1.MessageContent] {
+        sender.sent.compactMap { $0.message.versioned.ensureV1()?.content }
     }
 }

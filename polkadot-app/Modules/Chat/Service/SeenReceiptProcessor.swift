@@ -2,7 +2,7 @@ import CoreData
 import Foundation
 import SubstrateSdk
 
-final class SeenWatermarkProcessor {
+final class SeenReceiptProcessor {
     private let storageFacade: StorageFacadeProtocol
     private let logger: LoggerProtocol
 
@@ -17,19 +17,19 @@ final class SeenWatermarkProcessor {
 
 // MARK: - IncomingMessageProcessing
 
-extension SeenWatermarkProcessor: IncomingMessageProcessing {
+extension SeenReceiptProcessor: IncomingMessageProcessing {
     func process(messages: [Chat.RemoteMessage], from contact: Chat.Contact) {
-        let watermarks = receivedWatermarks(from: messages, contact: contact)
+        let seenContents = extractSeenReceipts(from: messages)
 
-        guard !watermarks.isEmpty else {
+        guard !seenContents.isEmpty else {
             return
         }
 
         Task { [weak self] in
             do {
-                try await self?.apply(watermarks, from: contact.accountId)
+                try await self?.apply(seenContents, from: contact.accountId)
             } catch {
-                self?.logger.warning("Failed to apply seen watermark: \(error)")
+                self?.logger.warning("Failed to apply seen receipt: \(error)")
             }
         }
     }
@@ -37,23 +37,22 @@ extension SeenWatermarkProcessor: IncomingMessageProcessing {
 
 // MARK: - Receive
 
-extension SeenWatermarkProcessor {
-    func receivedWatermarks(
-        from messages: [Chat.RemoteMessage],
-        contact: Chat.Contact
-    ) -> [ChatRemoteMessageContent.SeenWatermarkContent] {
-        guard !contact.isBlocked else {
-            return []
-        }
+extension SeenReceiptProcessor {
+    func extractSeenReceipts(from messages: [Chat.RemoteMessage]) -> [ChatRemoteMessageContent.SeenContent] {
+        messages.compactMap { message in
+            guard case let .seen(seenContent) = message.versioned.ensureV1()?.content else {
+                return nil
+            }
 
-        return extractWatermarks(from: messages)
+            return seenContent
+        }
     }
 }
 
 // MARK: - Apply
 
-extension SeenWatermarkProcessor {
-    func apply(_ contents: [ChatRemoteMessageContent.SeenWatermarkContent], from accountId: AccountId) async throws {
+extension SeenReceiptProcessor {
+    func apply(_ contents: [ChatRemoteMessageContent.SeenContent], from accountId: AccountId) async throws {
         let chatId = Chat.Id.person(accountId)
 
         try await storageFacade.databaseService.performWrite { context in
@@ -63,30 +62,20 @@ extension SeenWatermarkProcessor {
                 return
             }
 
-            guard let watermarkOrder = try Self.watermarkOrder(for: contents, in: chatId, context: context) else {
+            guard let resolvedOrder = try Self.resolvedOrder(for: contents, in: chatId, context: context) else {
                 return
             }
 
-            chat.peerSeenOrder = max(chat.peerSeenOrder, watermarkOrder)
+            chat.peerSeenOrder = max(chat.peerSeenOrder, resolvedOrder)
         }
     }
 }
 
 // MARK: - Private
 
-private extension SeenWatermarkProcessor {
-    func extractWatermarks(from messages: [Chat.RemoteMessage]) -> [ChatRemoteMessageContent.SeenWatermarkContent] {
-        messages.compactMap { message in
-            guard case let .seen(watermark) = message.versioned.ensureV1()?.content else {
-                return nil
-            }
-
-            return watermark
-        }
-    }
-
-    static func watermarkOrder(
-        for contents: [ChatRemoteMessageContent.SeenWatermarkContent],
+private extension SeenReceiptProcessor {
+    static func resolvedOrder(
+        for contents: [ChatRemoteMessageContent.SeenContent],
         in chatId: Chat.Id,
         context: NSManagedObjectContext
     ) throws -> Int64? {
@@ -105,7 +94,7 @@ private extension SeenWatermarkProcessor {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIdsIgnoringCase: messageIds)
+            NSPredicate.messages(withIds: messageIds)
         ])
 
         return try context.fetch(request)

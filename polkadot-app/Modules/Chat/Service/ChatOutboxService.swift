@@ -54,7 +54,7 @@ final class ChatOutboxService {
     private let contactsStorageService: ContactsLocalStorageServicing
     private let apnsClientService: APNSClientServicing
     private let notifiedMessageIdRepository: AnyDataProviderRepository<Chat.NotifiedMessageId>
-    private let seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording
+    private let seenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording
 
     private let workQueue: DispatchQueue
     private let operationQueue: OperationQueue
@@ -76,7 +76,7 @@ final class ChatOutboxService {
         apnsClientService: APNSClientServicing,
         notifiedMessageIdRepository: AnyDataProviderRepository<Chat.NotifiedMessageId>,
         chatMessageDataProviderFactory: ChatMessageDataProviderMaking,
-        seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording,
+        seenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording,
         workQueue: DispatchQueue,
         operationQueue: OperationQueue,
         logger: LoggerProtocol
@@ -85,7 +85,7 @@ final class ChatOutboxService {
         self.contactsStorageService = contactsStorageService
         self.apnsClientService = apnsClientService
         self.notifiedMessageIdRepository = notifiedMessageIdRepository
-        self.seenWatermarkDeliveryRecorder = seenWatermarkDeliveryRecorder
+        self.seenReceiptDeliveryRecorder = seenReceiptDeliveryRecorder
         self.workQueue = workQueue
         self.operationQueue = operationQueue
         self.chatMessageDataProviderFactory = chatMessageDataProviderFactory
@@ -180,7 +180,7 @@ extension ChatOutboxService: ChatOutboxServicing {
 
             markDeliveredMessages(messages)
             handleDeliveredCallMessages(messages, to: contact)
-            recordDeliveredSeenWatermarks(messages, to: contact)
+            recordDeliveredSeenReceipts(messages, to: contact)
         }
     }
 
@@ -461,24 +461,24 @@ private extension ChatOutboxService {
         }
     }
 
-    func recordDeliveredSeenWatermarks(_ messages: [Chat.RemoteMessage], to contact: Chat.Contact) {
-        let watermarks = messages.compactMap { message -> ChatRemoteMessageContent.SeenWatermarkContent? in
-            guard case let .seen(watermark) = message.versioned.ensureV1()?.content else {
+    func recordDeliveredSeenReceipts(_ messages: [Chat.RemoteMessage], to contact: Chat.Contact) {
+        let seenContents = messages.compactMap { message -> ChatRemoteMessageContent.SeenContent? in
+            guard case let .seen(seenContent) = message.versioned.ensureV1()?.content else {
                 return nil
             }
 
-            return watermark
+            return seenContent
         }
 
-        guard !watermarks.isEmpty else {
+        guard !seenContents.isEmpty else {
             return
         }
 
-        Task { [seenWatermarkDeliveryRecorder, logger] in
+        Task { [seenReceiptDeliveryRecorder, logger] in
             do {
-                try await seenWatermarkDeliveryRecorder.recordDelivered(watermarks, to: contact.accountId)
+                try await seenReceiptDeliveryRecorder.recordDelivered(seenContents, to: contact.accountId)
             } catch {
-                logger.error("Failed to record delivered seen watermark: \(error)")
+                logger.error("Failed to record delivered seen receipt: \(error)")
             }
         }
     }

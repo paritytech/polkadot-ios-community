@@ -3,28 +3,15 @@ import Testing
 
 @testable import polkadot_app
 
-struct SeenWatermarkDeliveryRecorderTests {
-    private let fixture = SeenWatermarkStorageFixture()
+struct SeenReceiptDeliveryRecorderTests {
+    private let fixture = SeenReceiptStorageFixture()
 
     @Test func deliveredSeenStoresOrderAndTimestampOfIncomingMessage() async throws {
         try await fixture.seedChat()
-        try await insertMessage(id: "watermark", order: 3, timestamp: 50)
+        try await insertMessage(id: "last-seen", order: 3, timestamp: 50)
 
         try await makeRecorder().recordDelivered(
-            [seenContent(messageId: "watermark", timestamp: 50)],
-            to: fixture.peerAccountId
-        )
-
-        let lastSentMark = try await fixture.lastSentSeenMark()
-        #expect(lastSentMark == (3, 50))
-    }
-
-    @Test func deliveredLowercaseIdMatchesUppercaseStoredIncomingMessage() async throws {
-        try await fixture.seedChat()
-        try await insertMessage(id: "WATERMARK-ID", order: 3, timestamp: 50)
-
-        try await makeRecorder().recordDelivered(
-            [seenContent(messageId: "watermark-id", timestamp: 50)],
+            [seenContent(messageId: "last-seen", timestamp: 50)],
             to: fixture.peerAccountId
         )
 
@@ -59,9 +46,9 @@ struct SeenWatermarkDeliveryRecorderTests {
     }
 }
 
-private extension SeenWatermarkDeliveryRecorderTests {
-    func makeRecorder() -> SeenWatermarkDeliveryRecorder {
-        SeenWatermarkDeliveryRecorder(storageFacade: fixture.facade)
+private extension SeenReceiptDeliveryRecorderTests {
+    func makeRecorder() -> SeenReceiptDeliveryRecorder {
+        SeenReceiptDeliveryRecorder(storageFacade: fixture.facade)
     }
 
     func insertMessage(id: Chat.MessageId, order: Int64, timestamp: Chat.Timestamp) async throws {
@@ -74,7 +61,7 @@ private extension SeenWatermarkDeliveryRecorderTests {
     func seenContent(
         messageId: Chat.MessageId,
         timestamp: Chat.Timestamp
-    ) -> ChatRemoteMessageContent.SeenWatermarkContent {
+    ) -> ChatRemoteMessageContent.SeenContent {
         .init(messageId: messageId, timestamp: timestamp)
     }
 }

@@ -81,7 +81,7 @@ final class MessageExchangeChatCoordinator {
             ),
             notifiedMessageIdRepository: NotifiedMessageIdRepositoryFactory().createRepository(),
             chatMessageDataProviderFactory: ChatMessageDataProviderFactory(),
-            seenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecorder(),
+            seenReceiptDeliveryRecorder: SeenReceiptDeliveryRecorder(),
             workQueue: workQueue,
             operationQueue: operationQueue,
             logger: logger
@@ -96,7 +96,7 @@ final class MessageExchangeChatCoordinator {
             logger: logger
         )
         processors.append(deviceUpdateProcessor)
-        processors.append(SeenWatermarkProcessor(logger: logger))
+        processors.append(SeenReceiptProcessor(logger: logger))
 
         inboxService = ChatInboxService(
             incomingMessageProcessor: CompoundIncomingMessageProcessor(

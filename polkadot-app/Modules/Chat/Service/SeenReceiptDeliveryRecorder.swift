@@ -2,14 +2,14 @@ import CoreData
 import Foundation
 import SubstrateSdk
 
-protocol SeenWatermarkDeliveryRecording {
+protocol SeenReceiptDeliveryRecording {
     func recordDelivered(
-        _ contents: [ChatRemoteMessageContent.SeenWatermarkContent],
+        _ contents: [ChatRemoteMessageContent.SeenContent],
         to peerAccountId: AccountId
     ) async throws
 }
 
-final class SeenWatermarkDeliveryRecorder {
+final class SeenReceiptDeliveryRecorder {
     private let storageFacade: StorageFacadeProtocol
 
     init(storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared) {
@@ -17,9 +17,9 @@ final class SeenWatermarkDeliveryRecorder {
     }
 }
 
-extension SeenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording {
+extension SeenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording {
     func recordDelivered(
-        _ contents: [ChatRemoteMessageContent.SeenWatermarkContent],
+        _ contents: [ChatRemoteMessageContent.SeenContent],
         to peerAccountId: AccountId
     ) async throws {
         let chatId = Chat.Id.person(peerAccountId)
@@ -42,16 +42,16 @@ extension SeenWatermarkDeliveryRecorder: SeenWatermarkDeliveryRecording {
     }
 }
 
-private extension SeenWatermarkDeliveryRecorder {
+private extension SeenReceiptDeliveryRecorder {
     static func deliveredMarks(
-        for contents: [ChatRemoteMessageContent.SeenWatermarkContent],
+        for contents: [ChatRemoteMessageContent.SeenContent],
         in chatId: Chat.Id,
         context: NSManagedObjectContext
     ) throws -> [(order: Int64, timestamp: Int64)] {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIdsIgnoringCase: contents.map(\.messageId))
+            NSPredicate.messages(withIds: contents.map(\.messageId))
         ])
 
         let incomingEntities = try context.fetch(request).filter {
@@ -59,7 +59,7 @@ private extension SeenWatermarkDeliveryRecorder {
         }
 
         return contents.compactMap { content in
-            incomingEntities.first { $0.messageId?.lowercased() == content.messageId.lowercased() }.map {
+            incomingEntities.first { $0.messageId == content.messageId }.map {
                 (order: $0.order, timestamp: Int64(bitPattern: content.timestamp))
             }
         }

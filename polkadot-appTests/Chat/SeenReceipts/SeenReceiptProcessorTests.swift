@@ -3,36 +3,26 @@ import Testing
 
 @testable import polkadot_app
 
-struct SeenWatermarkProcessorTests {
-    private let fixture = SeenWatermarkStorageFixture()
+struct SeenReceiptProcessorTests {
+    private let fixture = SeenReceiptStorageFixture()
 
     @Test func advancesPeerSeenOrderToKnownOutgoingMessageOrder() async throws {
         try await fixture.seedChat()
         try await insertOutgoing(id: "sent", order: 4)
 
-        try await makeProcessor().apply([watermark("sent")], from: fixture.peerAccountId)
+        try await makeProcessor().apply([seenContent("sent")], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 4)
     }
 
-    @Test func resolvesUppercaseStoredIdFromLowercaseReceipt() async throws {
-        try await fixture.seedChat()
-        try await insertOutgoing(id: "FIRST-ID", order: 1, timestamp: 100)
-        try await insertOutgoing(id: "SENT-ID", order: 3, timestamp: 300)
-
-        try await makeProcessor().apply([watermark("sent-id", timestamp: 150)], from: fixture.peerAccountId)
-
-        #expect(try await fixture.peerSeenOrder() == 3)
-    }
-
-    @Test func olderWatermarkKeepsNewerPeerSeenOrder() async throws {
+    @Test func olderSeenReceiptKeepsNewerPeerSeenOrder() async throws {
         try await fixture.seedChat()
         try await insertOutgoing(id: "older", order: 4)
         try await insertOutgoing(id: "newer", order: 9)
         let processor = makeProcessor()
 
-        try await processor.apply([watermark("newer")], from: fixture.peerAccountId)
-        try await processor.apply([watermark("older")], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("newer")], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("older")], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 9)
     }
@@ -43,7 +33,7 @@ struct SeenWatermarkProcessorTests {
         try await insertOutgoing(id: "second", order: 2, timestamp: 200)
         try await insertOutgoing(id: "third", order: 3, timestamp: 300)
 
-        try await makeProcessor().apply([watermark("unknown", timestamp: 250)], from: fixture.peerAccountId)
+        try await makeProcessor().apply([seenContent("unknown", timestamp: 250)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 2)
     }
@@ -52,7 +42,7 @@ struct SeenWatermarkProcessorTests {
         try await fixture.seedChat()
         try await insertOutgoing(id: "sent", order: 4, timestamp: 1_000)
 
-        try await makeProcessor().apply([watermark("unknown", timestamp: 500)], from: fixture.peerAccountId)
+        try await makeProcessor().apply([seenContent("unknown", timestamp: 500)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 0)
     }
@@ -63,8 +53,8 @@ struct SeenWatermarkProcessorTests {
         try await insertOutgoing(id: "known", order: 3, timestamp: 1_000)
         let processor = makeProcessor()
 
-        try await processor.apply([watermark("known")], from: fixture.peerAccountId)
-        try await processor.apply([watermark("unknown", timestamp: 150)], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("known")], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("unknown", timestamp: 150)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 3)
     }
@@ -77,7 +67,7 @@ struct SeenWatermarkProcessorTests {
             order: 5
         )
 
-        try await makeProcessor().apply([watermark("unknown", timestamp: 150)], from: fixture.peerAccountId)
+        try await makeProcessor().apply([seenContent("unknown", timestamp: 150)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 0)
     }
@@ -88,7 +78,7 @@ struct SeenWatermarkProcessorTests {
         try await insertOutgoing(id: "pending", order: 2, timestamp: 200, status: .outgoing(.new))
         try await insertOutgoing(id: "failed", order: 3, timestamp: 210, status: .outgoing(.failed))
 
-        try await makeProcessor().apply([watermark("unknown", timestamp: 250)], from: fixture.peerAccountId)
+        try await makeProcessor().apply([seenContent("unknown", timestamp: 250)], from: fixture.peerAccountId)
 
         #expect(try await fixture.peerSeenOrder() == 1)
     }
@@ -98,35 +88,22 @@ struct SeenWatermarkProcessorTests {
         try await insertOutgoing(id: "sent", order: 4)
         let processor = makeProcessor()
 
-        try await processor.apply([watermark("unknown")], from: fixture.peerAccountId)
-        try await processor.apply([watermark("sent")], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("unknown")], from: fixture.peerAccountId)
+        try await processor.apply([seenContent("sent")], from: fixture.peerAccountId)
 
         #expect(try await fixture.messageCount() == 1)
     }
 
-    @Test func blockedContactReceiptIsIgnored() async throws {
-        try await fixture.seedChat(isBlocked: true)
-        try await insertOutgoing(id: "sent", order: 4)
-        let processor = makeProcessor()
-        let blockedContact = fixture.makePeer(isBlocked: true)
+    @Test func seenReceiptIsExtracted() async throws {
+        let seenContents = makeProcessor().extractSeenReceipts(from: [receipt("sent")])
 
-        let watermarks = processor.receivedWatermarks(from: [receipt("sent")], contact: blockedContact)
-        try await processor.apply(watermarks, from: fixture.peerAccountId)
-
-        #expect(watermarks.isEmpty)
-        #expect(try await fixture.peerSeenOrder() == 0)
-    }
-
-    @Test func acceptedContactReceiptIsExtracted() async throws {
-        let watermarks = makeProcessor().receivedWatermarks(from: [receipt("sent")], contact: fixture.makePeer())
-
-        #expect(watermarks.map(\.messageId) == ["sent"])
+        #expect(seenContents.map(\.messageId) == ["sent"])
     }
 }
 
-private extension SeenWatermarkProcessorTests {
-    func makeProcessor() -> SeenWatermarkProcessor {
-        SeenWatermarkProcessor(storageFacade: fixture.facade)
+private extension SeenReceiptProcessorTests {
+    func makeProcessor() -> SeenReceiptProcessor {
+        SeenReceiptProcessor(storageFacade: fixture.facade)
     }
 
     func insertOutgoing(
@@ -141,14 +118,14 @@ private extension SeenWatermarkProcessorTests {
         )
     }
 
-    func watermark(
+    func seenContent(
         _ messageId: Chat.MessageId,
         timestamp: UInt64 = 1_000
-    ) -> ChatRemoteMessageContent.SeenWatermarkContent {
+    ) -> ChatRemoteMessageContent.SeenContent {
         .init(messageId: messageId, timestamp: timestamp)
     }
 
     func receipt(_ messageId: Chat.MessageId) -> Chat.RemoteMessage {
-        Chat.RemoteMessage.newMessage(with: ChatRemoteMessageContent.seen(watermark(messageId)))
+        Chat.RemoteMessage.newMessage(with: ChatRemoteMessageContent.seen(seenContent(messageId)))
     }
 }

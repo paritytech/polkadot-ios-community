@@ -4,7 +4,7 @@ import Operation_iOS
 
 @testable import polkadot_app
 
-struct SeenWatermarkStorageFixture {
+struct SeenReceiptStorageFixture {
     let facade = UserDataStorageTestFacade()
     let peerAccountId = Data(repeating: 0x01, count: 32)
 
@@ -117,7 +117,7 @@ struct SeenWatermarkStorageFixture {
     }
 }
 
-private extension SeenWatermarkStorageFixture {
+private extension SeenReceiptStorageFixture {
     func attachPendingRequest(_ request: Chat.Request) async throws {
         try await facade.databaseService.performWrite { [peerAccountId] context in
             let contact: CDChatContact? = try context.first(for: .contact(for: peerAccountId))

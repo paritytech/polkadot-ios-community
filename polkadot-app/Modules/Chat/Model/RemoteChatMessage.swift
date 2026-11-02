@@ -136,7 +136,7 @@ extension Chat.RemoteMessageContentV1 {
         case deviceAdded(DeviceAddedContent)
         case deviceRemoved(DeviceRemovedContent)
         case multiChatAccepted(DeviceChatAccepted)
-        case seen(SeenWatermarkContent)
+        case seen(SeenContent)
     }
 }
 
@@ -231,7 +231,7 @@ extension Chat.RemoteMessageContentV1.MessageContent {
         let device: Chat.PeerDevice
     }
 
-    struct SeenWatermarkContent: Equatable {
+    struct SeenContent: Equatable {
         let messageId: String
         let timestamp: UInt64
     }
@@ -399,7 +399,7 @@ extension Chat.RemoteMessageContentV1.MessageContent: ScaleCodable {
         case 20:
             self = try .multiChatAccepted(DeviceChatAccepted(scaleDecoder: scaleDecoder))
         case 22:
-            self = try .seen(SeenWatermarkContent(scaleDecoder: scaleDecoder))
+            self = try .seen(SeenContent(scaleDecoder: scaleDecoder))
         default:
             throw ScaleCodingError.unexpectedDecodedValue
         }
@@ -655,7 +655,7 @@ extension Chat.RemoteMessageContentV1.MessageContent.DeviceChatAccepted: ScaleCo
     }
 }
 
-extension Chat.RemoteMessageContentV1.MessageContent.SeenWatermarkContent: ScaleCodable {
+extension Chat.RemoteMessageContentV1.MessageContent.SeenContent: ScaleCodable {
     init(scaleDecoder: any ScaleDecoding) throws {
         messageId = try String(scaleDecoder: scaleDecoder)
         timestamp = try UInt64(scaleDecoder: scaleDecoder)

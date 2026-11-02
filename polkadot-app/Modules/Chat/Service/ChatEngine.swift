@@ -38,7 +38,7 @@ final class ChatEngine {
     let chatRequestContext: ChatRequestEngineContext
     let leaveChatService: LeaveChatServicing
     let blockUserService: BlockUserServicing
-    let seenWatermarkService: SeenWatermarkSending
+    let seenReceiptService: SeenReceiptSending
     let logger: LoggerProtocol
 
     init(
@@ -51,7 +51,7 @@ final class ChatEngine {
         settings: SettingsManagerProtocol & ChatExtensionBotSettings,
         leaveChatService: LeaveChatServicing,
         blockUserService: BlockUserServicing,
-        seenWatermarkService: SeenWatermarkSending,
+        seenReceiptService: SeenReceiptSending,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.chatId = chatId
@@ -61,7 +61,7 @@ final class ChatEngine {
         self.settings = settings
         self.leaveChatService = leaveChatService
         self.blockUserService = blockUserService
-        self.seenWatermarkService = seenWatermarkService
+        self.seenReceiptService = seenReceiptService
         self.chatProvider = chatProvider
         self.logger = logger
 
@@ -154,7 +154,7 @@ extension ChatEngine: ChatEngineProtocol {
                 await processingContext.flushChatExtensionHistory()
             })
 
-        seenWatermarkService.scheduleWatermark(for: chatId)
+        seenReceiptService.scheduleSeenReceipt(for: chatId)
 
         return await combineLatest(
             messageSequence,
@@ -183,7 +183,7 @@ extension ChatEngine: ChatEngineProtocol {
 
         try await messageStatusUpdateRepository.saveOperation({ updates }, { [] }).asyncExecute()
 
-        seenWatermarkService.scheduleWatermark(for: chatId)
+        seenReceiptService.scheduleSeenReceipt(for: chatId)
     }
 
     func chatMetadataStream() -> AnyAsyncSequence<ChatMetadata?> {
