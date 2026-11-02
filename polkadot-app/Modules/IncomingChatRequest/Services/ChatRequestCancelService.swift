@@ -105,7 +105,8 @@ private extension ChatRequestCancelService {
     }
 
     func makeCancelInput(from request: OutgoingChatRequestInput) throws -> OutgoingChatRequestInput {
-        let identityProof = try dependencies.requestStore.makeOutgoingIdentityProof(
+        let cancelProof = try dependencies.requestStore.makeOutgoingCancelProof(
+            requestId: request.message.messageId,
             peerEncryptionPubKey: request.session.peer.publicKey,
             ownEncryptionKeyId: request.session.own.encryptionKeyId
         )
@@ -113,7 +114,7 @@ private extension ChatRequestCancelService {
         let cancelMessage = Chat.RequestMessage(
             messageId: request.message.messageId,
             timestamp: Date().toChatTimestamp(),
-            content: .cancel(Chat.RequestContentCancel(identityProof: identityProof))
+            content: .cancel(Chat.RequestContentCancel(identityProof: cancelProof))
         )
 
         return OutgoingChatRequestInput(message: cancelMessage, session: request.session)

@@ -20,6 +20,7 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
 
     private let lock = NSLock()
     private var recordedCalls: [Call] = []
+    private var recordedCancelProofRequestIds: [String] = []
     private let localRequests: [String: Chat.Request]
     private let cancelResult: Bool
     private let acceptorDevice: Chat.PeerDevice
@@ -45,6 +46,10 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
 
     var calls: [Call] {
         lock.withLock { recordedCalls }
+    }
+
+    var cancelProofRequestIds: [String] {
+        lock.withLock { recordedCancelProofRequestIds }
     }
 
     func fetchByRequestId(_ requestId: String) async throws -> Chat.Request? {
@@ -109,6 +114,19 @@ final class MockChatRequestStoreService: ChatRequestStoreServicing, @unchecked S
         ownEncryptionKeyId _: String
     ) throws -> Chat.IdentityProof {
         Chat.IdentityProof(
+            identityAccountId: Data(repeating: 0x0A, count: 32),
+            proof: Data(repeating: 0x0B, count: 32)
+        )
+    }
+
+    func makeOutgoingCancelProof(
+        requestId: String,
+        peerEncryptionPubKey _: Data,
+        ownEncryptionKeyId _: String
+    ) throws -> Chat.IdentityProof {
+        lock.withLock { recordedCancelProofRequestIds.append(requestId) }
+
+        return Chat.IdentityProof(
             identityAccountId: Data(repeating: 0x0A, count: 32),
             proof: Data(repeating: 0x0B, count: 32)
         )

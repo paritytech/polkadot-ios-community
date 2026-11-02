@@ -174,10 +174,18 @@ private extension ChatRequestFactory {
             .makeEncryptorFactory(ownEncryptionKeyId: ownEncryptionKeyId)
             .makeEncryptor(remotePublicKey: peerEncryptionPubKey)
 
-        try IdentityProofFactory.verifyProof(
-            identityProof,
-            deviceAccountId: deviceAccountId,
-            sharedSecret: encryptor.sharedSecret
-        )
+        if message.content.isCancel {
+            try IdentityProofFactory.verifyCancelProof(
+                identityProof,
+                requestId: message.messageId,
+                sharedSecret: encryptor.sharedSecret
+            )
+        } else {
+            try IdentityProofFactory.verifyProof(
+                identityProof,
+                deviceAccountId: deviceAccountId,
+                sharedSecret: encryptor.sharedSecret
+            )
+        }
     }
 }

@@ -48,6 +48,12 @@ protocol ChatRequestStoreServicing {
         ownEncryptionKeyId: String
     ) throws -> Chat.IdentityProof
 
+    func makeOutgoingCancelProof(
+        requestId: String,
+        peerEncryptionPubKey: Data,
+        ownEncryptionKeyId: String
+    ) throws -> Chat.IdentityProof
+
     func deleteOutgoingRequest(_ requestId: String) async throws
 
     func markOutgoingRequestCancelling(_ requestId: String) async throws
@@ -274,6 +280,24 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
         )
     }
 
+    func makeOutgoingCancelProof(
+        requestId: String,
+        peerEncryptionPubKey: Data,
+        ownEncryptionKeyId: String
+    ) throws -> Chat.IdentityProof {
+        let identityAccountId = try walletRepo.main().getRawPublicKey()
+        let sharedSecret = try makeSharedSecret(
+            peerEncryptionPubKey: peerEncryptionPubKey,
+            ownEncryptionKeyId: ownEncryptionKeyId
+        )
+
+        return try IdentityProofFactory.makeCancelProof(
+            identityAccountId: identityAccountId,
+            requestId: requestId,
+            sharedSecret: sharedSecret
+        )
+    }
+
     func deleteOutgoingRequest(_ requestId: String) async throws {
         try await storageFacade.databaseService.performWrite { context in
             try context.deleteOutgoingChatRequest(requestId)
@@ -308,14 +332,22 @@ private extension ChatRequestStoreService {
         peerEncryptionPubKey: Data,
         ownEncryptionKeyId: String
     ) throws -> Chat.IdentityProof {
-        let encryptor = try encryptionManager
-            .makeEncryptorFactory(ownEncryptionKeyId: ownEncryptionKeyId)
-            .makeEncryptor(remotePublicKey: peerEncryptionPubKey)
+        let sharedSecret = try makeSharedSecret(
+            peerEncryptionPubKey: peerEncryptionPubKey,
+            ownEncryptionKeyId: ownEncryptionKeyId
+        )
 
         return try IdentityProofFactory.makeProof(
             identityAccountId: identityAccountId,
             deviceAccountId: deviceAccountId,
-            sharedSecret: encryptor.sharedSecret
+            sharedSecret: sharedSecret
         )
+    }
+
+    func makeSharedSecret(peerEncryptionPubKey: Data, ownEncryptionKeyId: String) throws -> Data {
+        try encryptionManager
+            .makeEncryptorFactory(ownEncryptionKeyId: ownEncryptionKeyId)
+            .makeEncryptor(remotePublicKey: peerEncryptionPubKey)
+            .sharedSecret
     }
 }

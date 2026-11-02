@@ -112,6 +112,12 @@ struct ChatRequestCancelServiceTests {
         #expect(cleanup.accountIds == [peerAccountId])
     }
 
+    @Test func cancelProofBindsCancelledRequestId() async throws {
+        try await makeService(pending: makePending(period: 20_000)).cancel(requestId: requestId)
+
+        #expect(store.cancelProofRequestIds == [requestId])
+    }
+
     @Test func readsPeriodAfterRetireSoRenewalDuringWaitIsSignedFor() async throws {
         let renewed = makePending(period: 20_001)
         let oneShot = try ChatKeyPaths.request(requestId: requestId, period: 20_001)
