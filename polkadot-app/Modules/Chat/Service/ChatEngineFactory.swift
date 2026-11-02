@@ -47,10 +47,6 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
             signingConsentStore: ChatSigningConsentStore(storageFacade: storageFacade)
         )
         let blockUserService = BlockUserService(allowanceCleanupService: flowState.allowanceCleanupService)
-        let seenReceiptService = SeenReceiptService(
-            storageFacade: storageFacade,
-            sender: flowState.outboxService
-        )
 
         let requestContext = ChatRequestEngineContext(
             pendingRequest: request,
@@ -72,7 +68,7 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
             settings: SettingsManager.shared,
             leaveChatService: leaveChatService,
             blockUserService: blockUserService,
-            seenReceiptService: seenReceiptService
+            seenReceiptService: flowState.seenReceiptService
         )
     }
 }

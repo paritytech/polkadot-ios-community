@@ -76,7 +76,7 @@ private extension SeenReceiptService {
         }
 
         let state = try await storageFacade.databaseService.performRead { context in
-            try Self.fetchState(in: chatId, context: context)
+            try context.lastSeenMessageState(in: chatId)
         }
 
         guard let state else {
@@ -111,37 +111,6 @@ private extension SeenReceiptService {
     func removeThrottleWindow(for chatId: Chat.Id) {
         throttleWindows.withLock { $0[chatId] = nil }
     }
-
-    static func fetchState(
-        in chatId: Chat.Id,
-        context: NSManagedObjectContext
-    ) throws -> LastSeenMessageState? {
-        let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
-
-        guard let contact = chat?.contact, contact.chatRequest == nil, !contact.isBlocked else {
-            return nil
-        }
-
-        let request = CDChatMessage.fetchRequest()
-        request.predicate = NSPredicate.lastSeenMessageCandidates(in: chatId)
-        request.sortDescriptors = [
-            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false),
-            NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: false)
-        ]
-        request.fetchLimit = 1
-
-        guard let lastSeen = try context.fetch(request).first, let messageId = lastSeen.messageId else {
-            return nil
-        }
-
-        return LastSeenMessageState(
-            messageId: messageId,
-            order: lastSeen.order,
-            timestamp: lastSeen.timestamp,
-            lastSentOrder: chat?.lastSentSeenOrder ?? 0,
-            lastSentTimestamp: chat?.lastSentSeenTimestamp ?? 0
-        )
-    }
 }
 
 private typealias SeenMark = (order: Int64, timestamp: Int64)
@@ -157,4 +126,34 @@ private struct LastSeenMessageState {
     let timestamp: Int64
     let lastSentOrder: Int64
     let lastSentTimestamp: Int64
+}
+
+private extension NSManagedObjectContext {
+    func lastSeenMessageState(in chatId: Chat.Id) throws -> LastSeenMessageState? {
+        let chat: CDChat? = try first(for: .chat(for: chatId.rawRepresentation))
+
+        guard let chat, let contact = chat.contact, contact.chatRequest == nil, !contact.isBlocked else {
+            return nil
+        }
+
+        let request = CDChatMessage.fetchRequest()
+        request.predicate = NSPredicate.lastSeenMessageCandidates(in: chatId)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false),
+            NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: false)
+        ]
+        request.fetchLimit = 1
+
+        guard let lastSeen = try fetch(request).first, let messageId = lastSeen.messageId else {
+            return nil
+        }
+
+        return LastSeenMessageState(
+            messageId: messageId,
+            order: lastSeen.order,
+            timestamp: lastSeen.timestamp,
+            lastSentOrder: chat.lastSentSeenOrder,
+            lastSentTimestamp: chat.lastSentSeenTimestamp
+        )
+    }
 }

@@ -56,13 +56,11 @@ extension SeenReceiptProcessor {
         let chatId = Chat.Id.person(accountId)
 
         try await storageFacade.databaseService.performWrite { context in
-            let chat: CDChat? = try context.first(for: .chat(for: chatId.rawRepresentation))
-
-            guard let chat else {
+            guard let chat: CDChat = try context.first(for: .chat(for: chatId.rawRepresentation)) else {
                 return
             }
 
-            guard let resolvedOrder = try Self.resolvedOrder(for: contents, in: chatId, context: context) else {
+            guard let resolvedOrder = try context.seenReceiptOrder(for: contents, in: chatId) else {
                 return
             }
 
@@ -71,43 +69,30 @@ extension SeenReceiptProcessor {
     }
 }
 
-// MARK: - Private
-
-private extension SeenReceiptProcessor {
-    static func resolvedOrder(
+private extension NSManagedObjectContext {
+    func seenReceiptOrder(
         for contents: [ChatRemoteMessageContent.SeenContent],
-        in chatId: Chat.Id,
-        context: NSManagedObjectContext
+        in chatId: Chat.Id
     ) throws -> Int64? {
         let orders = try contents.compactMap { content in
-            try outgoingOrder(of: [content.messageId], in: chatId, context: context)
-                ?? outgoingOrder(atOrBefore: content.timestamp, in: chatId, context: context)
+            try messageOrder(of: content.messageId, in: chatId)
+                ?? outgoingOrder(atOrBefore: content.timestamp, in: chatId)
         }
         return orders.max()
     }
 
-    static func outgoingOrder(
-        of messageIds: [String],
-        in chatId: Chat.Id,
-        context: NSManagedObjectContext
-    ) throws -> Int64? {
-        let request = CDChatMessage.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIds: messageIds)
-        ])
+    func messageOrder(of messageId: String, in chatId: Chat.Id) throws -> Int64? {
+        let message: CDChatMessage? = try first(
+            for: NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate.localMessages(from: chatId),
+                NSPredicate.messages(withIds: [messageId])
+            ])
+        )
 
-        return try context.fetch(request)
-            .filter { Chat.LocalMessage.Status(rawValue: $0.status)?.isOutgoing == true }
-            .map(\.order)
-            .max()
+        return message?.order
     }
 
-    static func outgoingOrder(
-        atOrBefore timestamp: UInt64,
-        in chatId: Chat.Id,
-        context: NSManagedObjectContext
-    ) throws -> Int64? {
+    func outgoingOrder(atOrBefore timestamp: UInt64, in chatId: Chat.Id) throws -> Int64? {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSPredicate.postedOutgoingMessages(
             in: chatId,
@@ -116,6 +101,6 @@ private extension SeenReceiptProcessor {
         request.sortDescriptors = [NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false)]
         request.fetchLimit = 1
 
-        return try context.fetch(request).first?.order
+        return try fetch(request).first?.order
     }
 }

@@ -29,7 +29,7 @@ extension SeenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording {
                 return
             }
 
-            guard let newest = try Self.newestDeliveredMessage(for: contents, in: chatId, context: context),
+            guard let newest = try context.newestDeliveredMessage(for: contents, in: chatId),
                   (newest.order, newest.timestamp) > (chat.lastSentSeenOrder, chat.lastSentSeenTimestamp) else {
                 return
             }
@@ -40,11 +40,10 @@ extension SeenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording {
     }
 }
 
-private extension SeenReceiptDeliveryRecorder {
-    static func newestDeliveredMessage(
+private extension NSManagedObjectContext {
+    func newestDeliveredMessage(
         for contents: [ChatRemoteMessageContent.SeenContent],
-        in chatId: Chat.Id,
-        context: NSManagedObjectContext
+        in chatId: Chat.Id
     ) throws -> CDChatMessage? {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -61,6 +60,6 @@ private extension SeenReceiptDeliveryRecorder {
         ]
         request.fetchLimit = 1
 
-        return try context.fetch(request).first
+        return try fetch(request).first
     }
 }
