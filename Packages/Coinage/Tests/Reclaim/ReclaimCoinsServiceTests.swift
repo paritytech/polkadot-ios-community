@@ -1,5 +1,6 @@
 import DurableTransactions
 import Foundation
+import FoundationExtTestSupport
 import NovaCrypto
 import SubstrateSdk
 import Testing
@@ -166,7 +167,7 @@ private extension ReclaimCoinsServiceTests {
             databaseFactory: databaseFactory,
             minter: allocator,
             snKeyFactory: snKeyFactory,
-            dateProvider: StubDateProvider(now),
+            dateProvider: FixedDateProvider(now),
             logger: nil
         )
 
