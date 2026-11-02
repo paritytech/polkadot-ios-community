@@ -297,6 +297,38 @@ extension Chat.LocalMessage.Content {
             isSystem || isReaction || isEdit
         }
 
+        /// Content that RFC 0006 counts toward the last seen message in a person chat.
+        var canBeLastSeenMessage: Bool {
+            switch self {
+            case .text,
+                 .send,
+                 .reply,
+                 .richText,
+                 .coinageSend,
+                 .call,
+                 .unsupported,
+                 .chatRequest,
+                 .versionedChatRequest:
+                true
+            case .token,
+                 .contactAdded,
+                 .reacted,
+                 .reactionRemoved,
+                 .edited,
+                 .leftChat,
+                 .chatAccepted,
+                 .deviceAdded,
+                 .deviceRemoved,
+                 .compactedMessages,
+                 .multiChatAccepted,
+                 .staticImageText,
+                 .extensionActionResponse,
+                 .customRendered,
+                 .file:
+                false
+            }
+        }
+
         var isGroupable: Bool {
             switch self {
             case .text,

@@ -304,20 +304,14 @@ extension NSPredicate {
     }
 
     static func lastSeenMessageCandidates(in chatId: Chat.Id) -> NSPredicate {
-        let protocolEvents: Set<Chat.LocalMessage.Content.ContentType> = [
-            .chatAccepted,
-            .contactAdded,
-            .leftChat,
-            .multiChatAccepted
-        ]
-        let displayableContentTypes = Chat.LocalMessage.Content.ContentType.allCases
-            .filter { $0.isIndependentMessageInChat && !protocolEvents.contains($0) }
+        let countedContentTypes = Chat.LocalMessage.Content.ContentType.allCases
+            .filter(\.canBeLastSeenMessage)
             .map { Int16($0.rawValue) }
 
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
             localMessages(from: chatId),
             byStatus(Chat.LocalMessage.Status.incoming(.seen)),
-            NSPredicate(format: "%K IN %@", #keyPath(CDChatMessage.contentType), displayableContentTypes)
+            NSPredicate(format: "%K IN %@", #keyPath(CDChatMessage.contentType), countedContentTypes)
         ])
     }
 

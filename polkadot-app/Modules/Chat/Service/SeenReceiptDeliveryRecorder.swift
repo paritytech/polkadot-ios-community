@@ -29,9 +29,7 @@ extension SeenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording {
                 return
             }
 
-            let deliveredMarks = try Self.deliveredMarks(for: contents, in: chatId, context: context)
-
-            guard let newest = deliveredMarks.max(by: { ($0.order, $0.timestamp) < ($1.order, $1.timestamp) }),
+            guard let newest = try Self.newestDeliveredMessage(for: contents, in: chatId, context: context),
                   (newest.order, newest.timestamp) > (chat.lastSentSeenOrder, chat.lastSentSeenTimestamp) else {
                 return
             }
@@ -43,25 +41,26 @@ extension SeenReceiptDeliveryRecorder: SeenReceiptDeliveryRecording {
 }
 
 private extension SeenReceiptDeliveryRecorder {
-    static func deliveredMarks(
+    static func newestDeliveredMessage(
         for contents: [ChatRemoteMessageContent.SeenContent],
         in chatId: Chat.Id,
         context: NSManagedObjectContext
-    ) throws -> [(order: Int64, timestamp: Int64)] {
+    ) throws -> CDChatMessage? {
         let request = CDChatMessage.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate.localMessages(from: chatId),
-            NSPredicate.messages(withIds: contents.map(\.messageId))
+            NSPredicate.messages(withIds: contents.map(\.messageId)),
+            NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate.byStatus(.incoming(.new)),
+                NSPredicate.byStatus(.incoming(.seen))
+            ])
         ])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: #keyPath(CDChatMessage.order), ascending: false),
+            NSSortDescriptor(key: #keyPath(CDChatMessage.timestamp), ascending: false)
+        ]
+        request.fetchLimit = 1
 
-        let incomingEntities = try context.fetch(request).filter {
-            Chat.LocalMessage.Status(rawValue: $0.status)?.isIncoming == true
-        }
-
-        return contents.compactMap { content in
-            incomingEntities.first { $0.messageId == content.messageId }.map {
-                (order: $0.order, timestamp: Int64(bitPattern: content.timestamp))
-            }
-        }
+        return try context.fetch(request).first
     }
 }
