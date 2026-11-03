@@ -128,7 +128,7 @@ private extension DeviceTransferServicesFactory {
                 connection: connection,
                 signerManager: ChatSignerManager(),
                 ownSignKeyId: ownSignKeyId,
-                stallDiagnostic: issueDiagnostics.runStalled
+                connectionDiagnostic: issueDiagnostics.connectionFailed
             ),
             keyScheduleFactory: makeKeyScheduleFactory(),
             clientFactory: DeviceTransferClientFactory(dependencies: clientDependencies),

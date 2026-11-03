@@ -7,8 +7,10 @@ struct DeviceTransferIssueDiagnostics: Sendable {
     let entitySkipped: IssueDiagnostic
     /// Claim statuses whose message never arrived, dropped when the sender completes.
     let claimsDropped: IssueDiagnostic
-    /// Connection attempts failing in a row without progress; the run gives up a little later.
-    let runStalled: IssueDiagnostic
+    /// Connection attempts failing in a row before the channel opens; the run gives up a little later.
+    let connectionFailed: IssueDiagnostic
+    /// A step on this phone's own data failed, so the transfer was aborted on both phones.
+    let dataFailed: IssueDiagnostic
     /// The installation record can't be published or followed, so the status stays unknown until a relaunch.
     let installationStopped: IssueDiagnostic
     /// Transfer services or their configuration can't be built.
@@ -25,7 +27,8 @@ extension DeviceTransferIssueDiagnostics {
             return Self(
                 entitySkipped: NoopIssueDiagnostic(),
                 claimsDropped: NoopIssueDiagnostic(),
-                runStalled: NoopIssueDiagnostic(),
+                connectionFailed: NoopIssueDiagnostic(),
+                dataFailed: NoopIssueDiagnostic(),
                 installationStopped: NoopIssueDiagnostic(),
                 setupFailed: NoopIssueDiagnostic(),
                 listenerStopped: NoopIssueDiagnostic(),
@@ -36,7 +39,8 @@ extension DeviceTransferIssueDiagnostics {
         return Self(
             entitySkipped: diagnostic("entity-skipped", reporter: reporter),
             claimsDropped: diagnostic("claims-dropped", reporter: reporter),
-            runStalled: diagnostic("run-stalled", threshold: 3, reporter: reporter),
+            connectionFailed: diagnostic("connection-failed", threshold: 3, reporter: reporter),
+            dataFailed: diagnostic("data-failed", reporter: reporter),
             installationStopped: diagnostic("installation-stopped", reporter: reporter),
             setupFailed: diagnostic("setup-failed", reporter: reporter),
             listenerStopped: diagnostic("listener-stopped", reporter: reporter),
