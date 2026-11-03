@@ -17,7 +17,7 @@ struct DeviceTransferRunConfiguration {
     let connection: StatementStoreConnecting
     let signerManager: StatementStoreSignerManaging
     let ownSignKeyId: String
-    let stallDiagnostic: IssueDiagnostic
+    let connectionDiagnostic: IssueDiagnostic
 }
 
 final class DeviceTransferRunFactory: @unchecked Sendable {
@@ -96,7 +96,7 @@ private extension DeviceTransferRunFactory {
             components: components,
             sessionDelegate: transport.makeSessionDelegate(),
             rejections: transport.rejections,
-            settings: DeviceTransferPeerContextSettings(stallDiagnostic: configuration.stallDiagnostic),
+            settings: DeviceTransferPeerContextSettings(connectionDiagnostic: configuration.connectionDiagnostic),
             logger: logger
         )
 

@@ -50,7 +50,10 @@ final class DeviceTransferSenderChannel {
 
     /// Empty entities still send one update: it carries a round's closing time point.
     func deliver(_ entities: [Chat.DeviceSyncEntity], timePoint: UInt64) async throws {
-        let batches = entities.isEmpty ? [[]] : try entityChunker.chunk(entities)
+        let entityChunker = entityChunker
+        let batches = entities.isEmpty ? [[]] : try await DeviceTransferLocalFailureHandler.withLocalFailure {
+            try entityChunker.chunk(entities)
+        }
         var pendingIds = Set<UInt32>()
 
         for batch in batches {

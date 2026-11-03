@@ -67,7 +67,8 @@ private extension DeviceTransferClientFactory {
             ),
             dependencies: DeviceTransferSenderDependencies(
                 deviceKeyManager: dependencies.deviceKeyManager,
-                updateIdProvider: dependencies.updateIdProvider
+                updateIdProvider: dependencies.updateIdProvider,
+                dataFailureDiagnostic: dependencies.issueDiagnostics.dataFailed
             )
         )
     }
@@ -123,7 +124,8 @@ private extension DeviceTransferClientFactory {
                 logger: dependencies.logger
             ),
             claimsDroppedDiagnostic: dependencies.issueDiagnostics.claimsDropped,
-            logger: dependencies.logger
+            logger: dependencies.logger,
+            dataFailureDiagnostic: dependencies.issueDiagnostics.dataFailed
         )
     }
 }
