@@ -2,9 +2,6 @@ import Foundation
 import IssueMonitoring
 
 struct InstallationCheckSettings {
-    /// Without a chain connection or signer the check can't start; it tries again instead of spinning forever.
-    var retryDelay: Duration = .seconds(5)
-    var clock: any Clock<Duration> = ContinuousClock()
     var setupDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 }
 
@@ -37,29 +34,27 @@ final class InstallationCheckInteractor {
 
 extension InstallationCheckInteractor: InstallationCheckInteractorInputProtocol {
     func start() {
-        statusTask = Task { [weak self] in
-            guard let configuration = await self?.makeConfiguration(), let self else { return }
+        guard let configuration = makeConfiguration() else { return }
 
-            let service = serviceFactory.makeService()
-            self.service = service
+        let service = serviceFactory.makeService()
+        self.service = service
+
+        statusTask = Task { [weak self] in
             await service.setup(configuration: configuration)
-            await waitForSettledStatus(of: service)
+            await self?.waitForSettledStatus(of: service)
         }
     }
 }
 
 private extension InstallationCheckInteractor {
-    func makeConfiguration() async -> ActiveInstallationConfiguration? {
-        while !Task.isCancelled {
-            do {
-                return try serviceFactory.makeConfiguration()
-            } catch {
-                logger.error("Installation check can't start: \(error)")
-                settings.setupDiagnostic.recordFailure(for: "installation-check", error: error, counters: [:])
-                try? await settings.clock.sleep(for: settings.retryDelay)
-            }
+    func makeConfiguration() -> ActiveInstallationConfiguration? {
+        do {
+            return try serviceFactory.makeConfiguration()
+        } catch {
+            logger.error("Installation check can't start: \(error)")
+            settings.setupDiagnostic.recordFailure(for: "installation-check", error: error, counters: [:])
+            return nil
         }
-        return nil
     }
 
     func waitForSettledStatus(of service: ActiveInstallationServicing) async {
