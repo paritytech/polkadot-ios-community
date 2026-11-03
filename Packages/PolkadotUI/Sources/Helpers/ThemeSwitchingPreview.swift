@@ -13,10 +13,12 @@ struct ThemeSwitchingPreview<Content: View>: View {
     var body: some View {
         content
             .safeAreaInset(edge: .top) {
-                Picker("Theme", selection: $theme) {
+                Picker(selection: $theme) {
                     ForEach(ThemeSelection.allCases, id: \.self) { theme in
-                        Text(theme.rawValue).tag(theme)
+                        Text(verbatim: theme.rawValue).tag(theme)
                     }
+                } label: {
+                    Text(verbatim: "Theme")
                 }
                 .pickerStyle(.segmented)
                 .padding(.horizontal, DSSpacings.mediumIncreased)
