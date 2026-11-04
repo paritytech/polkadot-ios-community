@@ -241,6 +241,7 @@ private extension CoinageTransferMonitor {
     }
 
     /// Fires once when the claim window closes. An already-closed window fires at once without sleeping.
+    /// Merged into the outgoing loop so the state is recomputed at close even when no coin status changes.
     func windowCloses(at closesAt: Date) -> AsyncStream<Void> {
         let timing = timing
         return AsyncStream { continuation in
