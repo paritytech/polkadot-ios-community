@@ -34,6 +34,7 @@ extension ProductsNativeApi {
     }
 
     func accountGetAlias(
+        keyHandle _: RingVrfKeyHandle,
         context: ProductProofContext,
         ring: RingLocation
     ) async throws -> AccountGetAliasResult {
@@ -43,6 +44,7 @@ extension ProductsNativeApi {
     }
 
     func accountCreateProof(
+        keyHandle _: RingVrfKeyHandle,
         context: ProductProofContext,
         ring: RingLocation,
         message: Data
@@ -62,6 +64,13 @@ extension ProductsNativeApi {
             ringIndex: proof.ringIndex,
             ringRevision: proof.ringRevision
         )
+    }
+
+    func listRingVrfKeys(
+        owner _: ProductId,
+        disclosure _: RingVrfKeyDisclosure
+    ) async throws -> [RegisteredRingVrfKey] {
+        throw ListRingVrfKeysError.unknown("Not supported")
     }
 
     func getNonProductAccounts() async throws -> [LegacyAccountResult] {

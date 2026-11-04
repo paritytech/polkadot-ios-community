@@ -37,6 +37,9 @@ private extension RingVrfError {
         switch createProofError {
         case .ringNotFound: .ringNotFound
         case .notMember: .notMember
+        case .keyNotRegistered,
+             .keyNotInRing,
+             .notAllowlisted: .unknown(createProofError.code)
         case .rejected: .rejected
         case let .unknown(reason): .unknown(reason)
         }
@@ -46,6 +49,8 @@ private extension RingVrfError {
         switch getAliasError {
         case .ringNotFound: .ringNotFound
         case .notMember: .notMember
+        case .keyNotRegistered,
+             .keyNotInRing: .unknown(getAliasError.code)
         case .rejected: .rejected
         case let .unknown(reason): .unknown(reason)
         }
