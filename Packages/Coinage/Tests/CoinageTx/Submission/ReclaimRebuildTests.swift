@@ -44,8 +44,8 @@ struct ReclaimRebuildTests {
         #expect(reclaim.destination == destination.publicKey)
     }
 
-    @Test("a coin the ledger reads back as own resolves like a reclaimed one")
-    func ownInputResolves() async throws {
+    @Test("a reclaim the ledger reads back as own resolves")
+    func reclaimReadBackAsOwnResolves() async throws {
         let rebuild = makeRebuild(coins: [spent])
         let transaction = try scheduled()
         let assets = [transaction.id: RebuildFixtures.entry(
