@@ -31,6 +31,12 @@ extension ChatRequest {
         let acceptorDevice: Chat.PeerDevice?
         /// The acceptor's device from `DeviceChatAccepted`, stored in the same transaction as the acceptance.
         let peerDevice: Chat.PeerDevice?
+        var peerAcceptanceMessage: Chat.RemoteMessage?
+    }
+
+    struct PeerAcceptance {
+        let message: Chat.RemoteMessage
+        let device: Chat.PeerDevice
     }
 
     enum AcceptIncoming {

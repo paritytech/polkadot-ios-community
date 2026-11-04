@@ -41,6 +41,10 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
                 try context.addPeerDevice(peerDevice, to: contact)
             }
 
+            if let acceptance = model.peerAcceptanceMessage, let peerAccountId = try entity.contactId?.fromHex() {
+                try context.setupPeerAcceptanceMessage(acceptance, peerAccountId: peerAccountId)
+            }
+
             entity.message?.status = Chat.LocalMessage.Status.outgoing(.delivered).rawValue
             entity.message?.touchParent()
         }

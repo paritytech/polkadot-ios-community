@@ -86,7 +86,7 @@ extension IncomingChatAcceptanceCoordinationContext {
                 requestId,
                 remoteIncoming: nil,
                 acceptorDevice: nil,
-                peerDevice: peerDevice
+                peerAcceptance: ChatRequest.PeerAcceptance(message: acceptance.message, device: peerDevice)
             )
         } catch {
             // Let the next copy of the acceptance retry the save.
