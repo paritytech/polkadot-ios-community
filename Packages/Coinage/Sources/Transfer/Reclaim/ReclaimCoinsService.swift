@@ -3,7 +3,9 @@ import AsyncExtensions
 import Foundation
 import FoundationExt
 import NovaCrypto
+import Operation_iOS
 import SDKLogger
+import StructuredConcurrency
 import SubstrateSdk
 
 /// Takes back the handed-off coins of a payment that no peer claimed, each into a fresh coin of ours.
@@ -44,8 +46,9 @@ public final class ReclaimCoinsService: ReclaimCoinsServicing, @unchecked Sendab
 
     public func reclaim(coinKeys: [Data], groupId: CoinageTxGroupId) async throws {
         let keys = coinKeys.compactMap { try? snKeyFactory.createPublicKey(fromSecret: $0).rawData() }
-        var snapshots = databaseFactory.makeTrackedCoinSnapshotStream(publicKeys: keys).makeAsyncIterator()
-        let tracked = try await snapshots.next() ?? []
+        let tracked = try await databaseFactory.makeTrackedCoinRepository(publicKeys: keys)
+            .fetchAllOperation(with: RepositoryFetchOptions())
+            .asyncExecute()
 
         let reclaimable = tracked.filter(Self.isReclaimable).map(\.coin)
         guard !reclaimable.isEmpty else {
