@@ -52,7 +52,7 @@ extension APPersonhoodHandlerFactory: APPersonhoodHandlerMaking {
     func makeCreateProofHandler(callingProductId: ProductId?) -> APCreateProofHandling {
         APCreateProofHandler(
             callingProductId: callingProductId,
-            options: makeOptions(),
+            builtInKeys: makeBuiltInPersonhoodKeys(),
             depsResolver: makeDepsResolver(),
             confirmationRequester: CreateProofConfirmationRequester(
                 router: routers.productsRouter
@@ -73,7 +73,7 @@ extension APPersonhoodHandlerFactory: APPersonhoodHandlerMaking {
     func makeAliasHandler(callingProductId: ProductId?) -> APAliasHandling {
         APAliasHandler(
             callingProductId: callingProductId,
-            options: makeOptions(),
+            builtInKeys: makeBuiltInPersonhoodKeys(),
             depsResolver: makeDepsResolver(),
             accountAccessHandler: makeAccountAccessHandler(),
             logger: logger
@@ -116,24 +116,5 @@ private extension APPersonhoodHandlerFactory {
             chainRegistry: chainRegistry,
             operationQueue: operationQueue
         )
-    }
-
-    // Priority order: the full-person ("PoP") key first, then lite.
-    func makeOptions() -> [CreateProofOrAliasOption] {
-        guard let tld = try? tldProvider.currentTldOrError() else {
-            logger.error("Personhood options unavailable: DotNs TLD not resolved")
-            return []
-        }
-
-        return [
-            CreateProofOrAliasOption(
-                collectionId: PeoplePallet.membersIdentifier,
-                keyManager: BandersnatchKeyManager.fullPerson(for: tld, entropyManager: entropyManager)
-            ),
-            CreateProofOrAliasOption(
-                collectionId: PeopleLitePallet.membersIdentifier,
-                keyManager: BandersnatchKeyManager.litePerson(for: tld, entropyManager: entropyManager)
-            )
-        ]
     }
 }

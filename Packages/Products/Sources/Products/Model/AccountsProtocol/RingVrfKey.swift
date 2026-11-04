@@ -25,6 +25,18 @@ extension RingVrfKeyHandle: Codable {
     }
 }
 
+extension RingVrfKeyHandle: ScaleCodable {
+    public init(scaleDecoder: any ScaleDecoding) throws {
+        productId = try String(scaleDecoder: scaleDecoder)
+        index = try ProductAccountSelector(scaleDecoder: scaleDecoder)
+    }
+
+    public func encode(scaleEncoder: any ScaleEncoding) throws {
+        try productId.encode(scaleEncoder: scaleEncoder)
+        try index.encode(scaleEncoder: scaleEncoder)
+    }
+}
+
 public enum RingVrfKeyDisclosure: String, Codable, Hashable, Sendable {
     case anonymized = "Anonymized"
     case publicKey = "PublicKey"
