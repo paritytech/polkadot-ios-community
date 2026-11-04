@@ -193,12 +193,12 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .outgoing(.init(status: .unclaimed)))
     }
 
-    @Test("a late claim still lands after an absent pass")
-    func lateClaimAfterAbsentIsClaimed() async throws {
+    @Test("a late claim still lands after a detecting pass")
+    func lateClaimAfterDetectingIsClaimed() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
         let message = try await world.saveTransfer(.incoming, totalValue: 10)
-        let claims = MockClaimCoinsService(detections: [.absent, .claimed(amount: 10, finalized: true)])
+        let claims = MockClaimCoinsService(detections: [.detecting, .claimed(amount: 10, finalized: true)])
         let claimed = IncomingTransferState(status: .claimed, actualValue: 10)
 
         let monitor = makeMonitor(world: world, claims: claims)

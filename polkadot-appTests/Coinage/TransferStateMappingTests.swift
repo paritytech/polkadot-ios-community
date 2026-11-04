@@ -12,8 +12,7 @@ struct TransferStateMappingTests {
     @Test(
         "receiver detections project onto the incoming state",
         arguments: [
-            (CoinageTransferDetection.absent, IncomingTransferState(status: .detecting)),
-            (.detecting, IncomingTransferState(status: .detecting)),
+            (CoinageTransferDetection.detecting, IncomingTransferState(status: .detecting)),
             (.claiming, IncomingTransferState(status: .claiming)),
             (.claimingRest(claimed: 4), IncomingTransferState(status: .claiming)),
             (.claimed(amount: 10, finalized: false), IncomingTransferState(status: .claimed, actualValue: 10)),

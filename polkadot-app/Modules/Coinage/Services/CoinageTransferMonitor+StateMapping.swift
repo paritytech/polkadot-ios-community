@@ -7,8 +7,7 @@ extension CoinageTransferDetection {
     /// A chat claim only gives up after its retry window, so a give-up always reads as expired.
     var incomingState: IncomingTransferState {
         switch self {
-        case .detecting,
-             .absent:
+        case .detecting:
             IncomingTransferState(status: .detecting)
         // `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
         case .claiming,

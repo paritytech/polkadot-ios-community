@@ -7,9 +7,6 @@ public enum CoinageTransferDetection: Equatable, Sendable {
     /// Nothing the keys control is on chain yet, so there is nothing to claim.
     case detecting
 
-    /// The chain was looked at, none of the coins is on it, and we hold no claim of our own.
-    case absent
-
     /// Claims are under way and none of the coins is ours yet. No failures so far.
     case claiming
 
@@ -37,7 +34,6 @@ public extension CoinageTransferDetection {
              .notClaimed:
             true
         case .detecting,
-             .absent,
              .claiming,
              .claimingRest,
              .claimed(_, finalized: false):

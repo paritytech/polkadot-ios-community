@@ -101,20 +101,7 @@ struct ClaimCoinsServiceTests {
     }
 
     @Test
-    func silentPassIsNotAbsent() async throws {
-        let rig = try Rig(windowFromNow: 60)
-        let run = rig.start()
-
-        await rig.query.waitForSubscriptions(1)
-        await rig.clock.resumeSleep(for: Self.detectionTimeout)
-        await rig.clock.waitForSleep(for: Self.detectionTimeout)
-        run.cancel()
-
-        #expect(await !(run.detections()).contains(.absent))
-    }
-
-    @Test
-    func emptyLookWithNothingClaimedIsAbsentOnceAndNeverDetectingAfter() async throws {
+    func emptyLookWithNothingClaimedEndsNotClaimed() async throws {
         let rig = try Rig(windowFromNow: 60)
         let run = rig.start()
 
@@ -126,34 +113,11 @@ struct ClaimCoinsServiceTests {
         await rig.clock.resumeSleep(for: Self.detectionTimeout)
         let detections = await run.detections()
 
-        let firstAbsent = try #require(detections.firstIndex(of: .absent))
-        #expect(detections.filter { $0 == .absent }.count == 1)
-        #expect(!detections[firstAbsent...].contains(.detecting))
         #expect(detections.last == .notClaimed)
     }
 
     @Test
-    func absentGivesWayToDetectingWhenCoinsAppear() async throws {
-        let rig = try Rig(windowFromNow: 60)
-        let run = rig.start()
-
-        await rig.query.waitForSubscriptions(1)
-        rig.query.send([:])
-        await rig.clock.resumeSleep(for: Self.detectionTimeout)
-        await rig.clock.waitForSleep(for: Self.detectionTimeout)
-        rig.query.send([rig.coinPublicKey: Self.coinInfo])
-        await rig.submitter.waitForSubmissions(1)
-        rig.moveNow(by: 120)
-        await rig.clock.resumeSleep(for: Self.detectionTimeout)
-        let detections = await run.detections()
-
-        let firstAbsent = try #require(detections.firstIndex(of: .absent))
-        #expect(detections[firstAbsent...].contains(.detecting))
-        #expect(detections.last == .notClaimed)
-    }
-
-    @Test
-    func noAbsentWhileWeAlreadyHoldAClaim() async throws {
+    func priorClaimEndsClaimedPartially() async throws {
         let rig = try Rig(windowFromNow: -1)
         rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.siblingPublicKey, status: .finalizedSuccess)
         let run = rig.start(coinKeys: [rig.coinSecret, rig.siblingSecret])
@@ -163,7 +127,6 @@ struct ClaimCoinsServiceTests {
         await rig.clock.resumeSleep(for: Self.detectionTimeout)
         let detections = await run.detections()
 
-        #expect(!detections.contains(.absent))
         #expect(detections.last == .claimedPartially(claimed: 0))
     }
 }
