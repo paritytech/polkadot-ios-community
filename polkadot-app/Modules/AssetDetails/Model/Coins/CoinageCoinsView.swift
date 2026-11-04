@@ -46,7 +46,12 @@ struct CoinageCoinsView: UIViewRepresentable {
     let coins: [CoinageScene.Coin]
     let isExpanded: Bool
     var focus: CoinageArrangement.Focus?
+    /// The studio held where a hand would otherwise turn it, and every coin leaned the same way,
+    /// from the debug dials. Nil follows the phone, which is how the coins ship.
+    var fixedLight: CoinageTilt.Turn?
+    var fixedLean: CoinageTilt.Turn?
     var coinSet: CoinageScene.CoinSet = .shipped
+    var studio: CoinageStudio = .current
     @Binding var metrics: Metrics
     var stripHeight: CGFloat = CoinageStripLayout.Options().height
     /// The coin under a tap, or `nil` for a tap on empty ground.
@@ -114,6 +119,9 @@ struct CoinageCoinsView: UIViewRepresentable {
         context.coordinator.onTap = onTap
         context.coordinator.onSwipe = onSwipe
         context.coordinator.coinSet = coinSet
+        context.coordinator.fixedLight = fixedLight
+        context.coordinator.fixedLean = fixedLean
+        context.coordinator.studio = studio
         context.coordinator.update(coins: coins, isExpanded: isExpanded, focus: focus)
     }
 
@@ -147,6 +155,10 @@ extension CoinageCoinsView {
                 run()
             }
         }
+
+        var studio: CoinageStudio = .current { didSet { if studio != oldValue { run() } } }
+        var fixedLight: CoinageTilt.Turn? { didSet { if fixedLight != oldValue { run() } } }
+        var fixedLean: CoinageTilt.Turn? { didSet { if fixedLean != oldValue { run() } } }
 
         var window: CGFloat = 0 {
             didSet { if window != oldValue { run() } }
@@ -269,7 +281,10 @@ extension CoinageCoinsView {
                 in: view,
                 viewport: Self.viewport(of: view),
                 dpr: view.contentScaleFactor,
-                light: tilt.turn,
+                light: fixedLight ?? tilt.turn,
+                lean: fixedLean ?? .zero,
+                studio: studio,
+                coinSet: coinSet,
                 withinTransaction: (view as? CoinageMetalView)?.isDrawingWithinTransaction == true
             )
 

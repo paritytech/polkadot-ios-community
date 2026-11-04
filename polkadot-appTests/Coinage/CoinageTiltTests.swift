@@ -244,6 +244,6 @@ struct CoinageParamsTests {
         #expect(bytes % CoinageAssetStore.Params.alignment == 0)
         // CoinParams in CoinageCoin.metal. Recheck with a static_assert in a scratch .metal file if
         // a field is added and this starts failing.
-        #expect(bytes == 200)
+        #expect(bytes == 272)
     }
 }

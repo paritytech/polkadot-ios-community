@@ -43,7 +43,8 @@ extension CoinageAssetStore {
             Panel(direction: SIMD3(0, -0.87, 0.5), halfAngle: 18 * .pi / 180, gain: 0.2)
         ]
 
-        static let panelCount = 3
+        /// The slot the shader reserves; a studio may fill fewer, and the rest stay dark.
+        static let panelCount = 4
 
         /// How much harder the struck relief slopes than the atlas says. The atlas is baked for a
         /// face hundreds of points across; at sixty the figure flattened into the field.

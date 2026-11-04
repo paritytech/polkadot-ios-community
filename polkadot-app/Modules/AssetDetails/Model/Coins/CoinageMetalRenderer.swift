@@ -120,6 +120,9 @@ final class CoinageMetalRenderer {
         viewport: CGSize,
         dpr: CGFloat,
         light: CoinageTilt.Turn,
+        lean: CoinageTilt.Turn = .zero,
+        studio: CoinageStudio = .current,
+        coinSet: CoinageScene.CoinSet = .shipped,
         withinTransaction: Bool = false
     ) {
         ensureCapacity(batches.reduce(0) { $0 + $1.instances.count })
@@ -146,12 +149,15 @@ final class CoinageMetalRenderer {
         params.viewportHeight = Float(viewport.height)
         params.dpr = Float(dpr)
         params.lightTurn = SIMD3(Float(light.x), Float(light.y), Float(light.z))
+        params.coinTurn = SIMD3(Float(lean.x), Float(lean.y), Float(lean.z))
+        params.studio = studio
+        params.grain = coinSet == .plain ? 1 : 0
 
         let packed = params.packed()
         let metals = store.metalRows
 
         if let encoder = command.makeRenderCommandEncoder(descriptor: descriptor) {
-            encode(batches, into: encoder, params: packed, metals: metals)
+            encode(batches, into: encoder, params: packed, metals: metals, environment: environment(for: studio))
             encoder.endEncoding()
         }
 
@@ -187,11 +193,20 @@ extension CoinageMetalRenderer {
 }
 
 private extension CoinageMetalRenderer {
+    func environment(for studio: CoinageStudio) -> MTLTexture {
+        #if DEBUG
+            studio == .current ? store.environment : store.tabletopEnvironment
+        #else
+            store.environment
+        #endif
+    }
+
     func encode(
         _ batches: [Batch],
         into encoder: MTLRenderCommandEncoder,
         params: [Float],
-        metals: [Float]
+        metals: [Float],
+        environment: MTLTexture
     ) {
         guard let ring = instanceRing[safe: ringSlot] else { return }
 
@@ -203,7 +218,7 @@ private extension CoinageMetalRenderer {
         encoder.setFragmentBytes(params, length: params.count * MemoryLayout<Float>.size, index: 4)
         encoder.setFragmentBytes(metals, length: metals.count * MemoryLayout<Float>.size, index: 5)
         encoder.setFragmentTexture(store.reliefAtlas, index: 0)
-        encoder.setFragmentTexture(store.environment, index: 1)
+        encoder.setFragmentTexture(environment, index: 1)
         encoder.setFragmentSamplerState(sampler, index: 0)
 
         let stride = MemoryLayout<Instance>.stride
