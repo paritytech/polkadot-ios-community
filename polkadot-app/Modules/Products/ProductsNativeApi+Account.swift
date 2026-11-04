@@ -67,10 +67,10 @@ extension ProductsNativeApi {
     }
 
     func listRingVrfKeys(
-        owner _: ProductId,
+        owner: ProductId,
         disclosure _: RingVrfKeyDisclosure
     ) async throws -> [RegisteredRingVrfKey] {
-        throw ListRingVrfKeysError.unknown("Not supported")
+        try await listRingVrfKeysHandler.listRingVrfKeys(owner: owner)
     }
 
     func getNonProductAccounts() async throws -> [LegacyAccountResult] {

@@ -9,6 +9,7 @@ protocol APPersonhoodHandlerMaking: Sendable {
     func makeCreateProofHandler(callingProductId: ProductId?) -> APCreateProofHandling
     func makeAliasHandler(callingProductId: ProductId?) -> APAliasHandling
     func makeSignVrfHandler(callingProductId: ProductId?) -> APSignVrfHandling
+    func makeListRingVrfKeysHandler(callingProductId: ProductId?) -> APListRingVrfKeysHandling
 }
 
 /// Single wiring point for Accounts Protocol handlers, shared between
@@ -74,19 +75,42 @@ extension APPersonhoodHandlerFactory: APPersonhoodHandlerMaking {
             callingProductId: callingProductId,
             options: makeOptions(),
             depsResolver: makeDepsResolver(),
-            accountAccessHandler: AccountAccessPermissionHandler(
-                repository: permissionRepository,
-                requester: ProductPermissionRequesterFactory.create(
-                    router: routers.productsRouter,
-                    fundingProvider: fundingProvider
-                )
-            ),
+            accountAccessHandler: makeAccountAccessHandler(),
+            logger: logger
+        )
+    }
+
+    func makeListRingVrfKeysHandler(callingProductId: ProductId?) -> APListRingVrfKeysHandling {
+        APListRingVrfKeysHandler(
+            callingProductId: callingProductId,
+            builtInKeys: makeBuiltInPersonhoodKeys(),
+            accountAccessHandler: makeAccountAccessHandler(),
             logger: logger
         )
     }
 }
 
 private extension APPersonhoodHandlerFactory {
+    func makeAccountAccessHandler() -> AccountAccessPermissionHandling {
+        AccountAccessPermissionHandler(
+            repository: permissionRepository,
+            requester: ProductPermissionRequesterFactory.create(
+                router: routers.productsRouter,
+                fundingProvider: fundingProvider
+            )
+        )
+    }
+
+    func makeBuiltInPersonhoodKeys() -> BuiltInPersonhoodKeysProviding {
+        BuiltInPersonhoodKeys(
+            chainRegistry: chainRegistry,
+            peopleChainId: AppConfig.Chains.usernameChain,
+            depsResolver: makeDepsResolver(),
+            tldProvider: tldProvider,
+            keyManagerFactory: BuiltInPersonhoodKeyManagerFactory(entropyManager: entropyManager)
+        )
+    }
+
     func makeDepsResolver() -> MembershipDepsResolving {
         MembershipDepsResolver(
             chainRegistry: chainRegistry,
