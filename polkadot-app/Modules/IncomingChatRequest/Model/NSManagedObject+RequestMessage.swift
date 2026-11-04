@@ -60,13 +60,13 @@ extension NSManagedObjectContext {
     }
 
     /// The notification extension may have saved it already, and a missing chat must not fail the accept.
-    func setupPeerAcceptanceMessage(_ acceptance: Chat.RemoteMessage, peerAccountId: AccountId) throws {
+    func setupPeerAcceptanceMessage(_ acceptance: Chat.RemoteMessage, from contact: CDChatContact) throws {
         let existing: CDChatMessage? = try first(for: .chatMessage(with: acceptance.messageId))
-        let chat: CDChat? = try first(for: .chatWithContact(for: peerAccountId))
 
         guard
             existing == nil,
-            chat != nil,
+            contact.chat != nil,
+            let peerAccountId = try contact.identifier?.fromHex(),
             let localMessage = Chat.LocalMessage(
                 remote: acceptance,
                 creationSource: .localDevice,

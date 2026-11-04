@@ -36,13 +36,13 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
         entity.contact?.pendingDevicesFanOut = true
 
         // One save: a crash can never leave an accepted chat without the device its session needs.
-        if let peerDevice = model.peerDevice {
+        if let peerAcceptance = model.peerAcceptance {
             if let contact = try entity.contact ?? contact(for: entity, using: context) {
-                try context.addPeerDevice(peerDevice, to: contact)
-            }
+                try context.addPeerDevice(peerAcceptance.device, to: contact)
 
-            if let acceptance = model.peerAcceptanceMessage, let peerAccountId = try entity.contactId?.fromHex() {
-                try context.setupPeerAcceptanceMessage(acceptance, peerAccountId: peerAccountId)
+                if let message = peerAcceptance.message {
+                    try context.setupPeerAcceptanceMessage(message, from: contact)
+                }
             }
 
             entity.message?.status = Chat.LocalMessage.Status.outgoing(.delivered).rawValue

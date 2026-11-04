@@ -29,14 +29,14 @@ extension ChatRequest {
         let incomingRequest: ChatRequest.ValidatedRemoteModel?
         /// Our device, advertised when two requests cross.
         let acceptorDevice: Chat.PeerDevice?
-        /// The acceptor's device from `DeviceChatAccepted`, stored in the same transaction as the acceptance.
-        let peerDevice: Chat.PeerDevice?
-        var peerAcceptanceMessage: Chat.RemoteMessage?
+        /// The acceptor's `DeviceChatAccepted`, stored in the same transaction as the acceptance.
+        let peerAcceptance: PeerAcceptance?
     }
 
     struct PeerAcceptance {
-        let message: Chat.RemoteMessage
         let device: Chat.PeerDevice
+        /// `nil` when the caller stores the message itself.
+        let message: Chat.RemoteMessage?
     }
 
     enum AcceptIncoming {

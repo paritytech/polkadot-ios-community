@@ -44,7 +44,6 @@ struct IncomingChatAcceptanceServiceTests {
 }
 
 private extension IncomingChatAcceptanceServiceTests {
-    @discardableResult
     func publishAcceptance(requestId: String) async throws -> Chat.LocalMessage {
         let message = Chat.LocalMessage(
             messageId: UUID().uuidString,
