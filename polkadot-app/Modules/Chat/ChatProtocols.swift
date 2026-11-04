@@ -73,8 +73,6 @@ protocol ChatInteractorOutputProtocol: AnyObject {
 
     func didDeclineChatRequest()
 
-    func didReclaim(messageId: Chat.MessageId)
-
     func didFailReclaim(messageId: Chat.MessageId, error: Error)
 }
 

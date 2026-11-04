@@ -17,7 +17,6 @@ final class ChatPresenter {
     private var metadata: MessageListMetadata?
     private var footer: (any HashableContentConfiguration)?
     private var paymentAssetViewModel: PaymentAssetViewModelProtocol?
-    var pendingReclaimMessageIds: Set<String> = []
 
     init(
         interactor: ChatInteractorInputProtocol,

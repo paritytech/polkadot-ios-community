@@ -1,5 +1,6 @@
 import Coinage
 import UIKit
+import os
 import Operation_iOS
 import SubstrateSdk
 import Foundation_iOS
@@ -19,6 +20,7 @@ final class ChatInteractor {
     private var metadataTask: Task<Void, Never>?
     private var footerTask: Task<Void, Never>?
     private let state = ChatInteractorState()
+    private let pendingReclaims = OSAllocatedUnfairLock<Set<Chat.MessageId>>(initialState: [])
 
     private let notificationsCleaner: any PushNotificationsCleaning
 
@@ -356,14 +358,18 @@ extension ChatInteractor: ChatInteractorInputProtocol {
     }
 
     func reclaimTransfer(messageId: String, coinKeys: [Data]) {
+        let isNew = pendingReclaims.withLock { $0.insert(messageId).inserted }
+        guard isNew else { return }
+
         Task {
             do {
                 try await reclaimCoinsService.reclaim(
                     coinKeys: coinKeys,
                     groupId: ChatTransferGroups.reclaim(messageId)
                 )
-                await presenter?.didReclaim(messageId: messageId)
+                pendingReclaims.withLock { _ = $0.remove(messageId) }
             } catch {
+                pendingReclaims.withLock { _ = $0.remove(messageId) }
                 logger.error("Failed to reclaim transfer \(messageId): \(error)")
                 await presenter?.didFailReclaim(messageId: messageId, error: error)
             }

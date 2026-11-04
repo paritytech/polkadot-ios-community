@@ -4,14 +4,7 @@ import Products
 
 extension ChatPresenter {
     @MainActor
-    func didReclaim(messageId: Chat.MessageId) {
-        pendingReclaimMessageIds.remove(messageId)
-    }
-
-    @MainActor
-    func didFailReclaim(messageId: Chat.MessageId, error: Error) {
-        pendingReclaimMessageIds.remove(messageId)
-
+    func didFailReclaim(messageId _: Chat.MessageId, error: Error) {
         if !wireframe.present(error: error, from: view) {
             wireframe.present(
                 message: String(localized: .Common.errorMessage),
@@ -24,7 +17,6 @@ extension ChatPresenter {
 
     func handleReclaimTransfer(for messageId: String) {
         guard
-            !pendingReclaimMessageIds.contains(messageId),
             let message = listModel?.getMessage(by: messageId),
             case let .coinageSend(content) = message.content,
             content.isReclaimable
@@ -32,7 +24,6 @@ extension ChatPresenter {
             return
         }
 
-        pendingReclaimMessageIds.insert(messageId)
         interactor.reclaimTransfer(messageId: messageId, coinKeys: content.coinKeys)
     }
 }
