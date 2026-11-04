@@ -123,21 +123,18 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         $0.spacing = 4
     }
 
-    private let reclaimButton = DSButtonView(
-        "",
-        style: .secondaryInverted,
-        shape: .rounded,
-        size: .medium,
-        expands: true,
-        horizontalPadding: DSSpacings.extraLarge
-    )
+    private let reclaimView = ChatTransferReclaimView()
+
+    private let detailsStackView: UIStackView = create {
+        $0.axis = .vertical
+        $0.alignment = .fill
+        $0.spacing = Constants.rowSpacing
+    }
 
     private lazy var statusView = appliedConfiguration.statusConfiguration.makeContentView()
 
     private var bubbleLeadingConstraint: Constraint?
     private var bubbleTrailingConstraint: Constraint?
-    private var statusTopBelowSubtitleConstraint: Constraint?
-    private var statusTopBelowReclaimConstraint: Constraint?
 
     private var appliedConfiguration: ChatTransferMessageConfiguration
 
@@ -167,11 +164,12 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         addSubview(bubbleView)
         subtitleStackView.addArrangedSubview(subtitleIconView)
         subtitleStackView.addArrangedSubview(subtitleLabel)
+        detailsStackView.addArrangedSubview(subtitleStackView)
+        detailsStackView.addArrangedSubview(reclaimView)
 
         bubbleView.addSubview(titleLabel)
         bubbleView.addSubview(amountContainerView)
-        bubbleView.addSubview(subtitleStackView)
-        bubbleView.addSubview(reclaimButton)
+        bubbleView.addSubview(detailsStackView)
         bubbleView.addSubview(statusView)
 
         bubbleView.snp.makeConstraints {
@@ -199,28 +197,18 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
             $0.size.equalTo(Constants.statusIconSize)
         }
 
-        subtitleStackView.snp.makeConstraints {
-            $0.leading.equalToSuperview().offset(Constants.bubbleLeadingInset)
-            $0.trailing.lessThanOrEqualToSuperview().inset(Constants.bubbleTrailingInset)
-            $0.top.equalTo(amountContainerView.snp.bottom).offset(Constants.rowSpacing)
-        }
-
-        reclaimButton.snp.makeConstraints {
+        detailsStackView.snp.makeConstraints {
             $0.leading.equalToSuperview().offset(Constants.bubbleLeadingInset)
             $0.trailing.equalToSuperview().inset(Constants.bubbleTrailingInset)
-            $0.top.equalTo(subtitleStackView.snp.bottom).offset(Constants.rowSpacing)
+            $0.top.equalTo(amountContainerView.snp.bottom).offset(Constants.rowSpacing)
         }
 
         statusView.snp.makeConstraints {
             $0.leading.greaterThanOrEqualToSuperview().offset(Constants.bubbleLeadingInset)
             $0.trailing.equalToSuperview().inset(Constants.bubbleTrailingInset)
             $0.bottom.equalToSuperview().inset(DSSpacings.small)
-            statusTopBelowSubtitleConstraint = $0.top
-                .equalTo(subtitleStackView.snp.bottom).offset(Constants.rowSpacing).constraint
-            statusTopBelowReclaimConstraint = $0.top
-                .equalTo(reclaimButton.snp.bottom).offset(Constants.rowSpacing).constraint
+            $0.top.equalTo(detailsStackView.snp.bottom).offset(Constants.rowSpacing)
         }
-        statusTopBelowReclaimConstraint?.isActive = false
     }
 
     private func apply(_ any: UIContentConfiguration) {
@@ -425,12 +413,7 @@ private extension ChatTransferMessageView {
     }
 
     func applyReclaim(_ configuration: ChatTransferMessageConfiguration) {
-        let hasReclaim = configuration.reclaimAction != nil
-        reclaimButton.isHidden = !hasReclaim
-        reclaimButton.title = configuration.state.reclaimTitle
-        reclaimButton.onTap = configuration.reclaimAction?.onReclaim
-        statusTopBelowSubtitleConstraint?.isActive = !hasReclaim
-        statusTopBelowReclaimConstraint?.isActive = hasReclaim
+        reclaimView.bind(title: configuration.state.reclaimTitle, action: configuration.reclaimAction)
 
         bubbleView.alpha = configuration.state.bubbleAlpha
         let isReclaiming = configuration.state == .outgoing(.reclaiming)
