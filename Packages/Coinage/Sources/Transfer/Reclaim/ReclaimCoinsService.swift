@@ -83,10 +83,11 @@ private extension ReclaimCoinsService {
             && tracked.state.consumerStatus == nil
     }
 
+    /// A reclaim retries failures, so a key with both a failed and a later non-failed entry is not failed.
     static func failedInputKeys(of entries: [CoinageTxEntry]) -> Set<PublicKey> {
         let failed = inputKeys(of: entries.filter { $0.status == .failure })
-        let succeeded = inputKeys(of: entries.filter { $0.status != .failure })
-        return failed.subtracting(succeeded)
+        let stillAttempted = inputKeys(of: entries.filter { $0.status != .failure })
+        return failed.subtracting(stillAttempted)
     }
 
     static func inputKeys(of entries: [CoinageTxEntry]) -> Set<PublicKey> {
