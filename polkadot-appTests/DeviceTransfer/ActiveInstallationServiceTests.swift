@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import AsyncExtensions
 import Foundation
+import FoundationExt
 import StatementStore
 import SubstrateSdk
 import SubstrateSdkExt
@@ -193,7 +194,7 @@ private extension ActiveInstallationServiceTests {
             ),
             installationProvider: FixedInstallationProvider(installationId: installationId),
             publishSettings: ActiveInstallationPublishSettings(
-                deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
                 firstInstallRetryDelay: .milliseconds(1)
             ),
             dateProvider: dates,

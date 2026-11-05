@@ -20,6 +20,6 @@ extension PresharedKeyEncryptionManager: MessageExchangeEncryptionManaging, Mess
     }
 
     func makeEncryptor(remotePublicKey _: Data) throws -> MessageExchangeEncrypting {
-        ChaChaPolyEncryptor(presharedKey: presharedKey)
+        RawSecretChaChaPolyEncryptor(sharedSecret: presharedKey)
     }
 }

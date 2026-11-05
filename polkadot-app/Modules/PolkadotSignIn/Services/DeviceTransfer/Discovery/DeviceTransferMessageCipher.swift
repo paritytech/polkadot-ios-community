@@ -4,10 +4,10 @@ import SubstrateSdkExt
 
 /// Seals discovery messages under `HKDF-SHA256(k_req)`, the derivation the transfer session uses for `k_s`.
 struct DeviceTransferMessageCipher {
-    private let encryptor: ChaChaPolyEncryptor
+    private let encryptor: RawSecretChaChaPolyEncryptor
 
     init(requestKey: Data) {
-        encryptor = ChaChaPolyEncryptor(presharedKey: requestKey)
+        encryptor = RawSecretChaChaPolyEncryptor(sharedSecret: requestKey)
     }
 
     func seal(_ message: DeviceTransferMessage) throws -> Data {
