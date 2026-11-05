@@ -36,13 +36,13 @@ enum ActiveInstallationServiceError: Error {
 }
 
 struct ActiveInstallationPublishSettings {
-    let deviceInfo: DeviceInfo
+    let deviceInfo: DeviceSystemInfo
     let priorityFactory: StatementPriorityMaking
     let firstInstallAttempts: Int
     let firstInstallRetryDelay: Duration
 
     init(
-        deviceInfo: DeviceInfo,
+        deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         firstInstallAttempts: Int = 10,
         firstInstallRetryDelay: Duration = .seconds(1)

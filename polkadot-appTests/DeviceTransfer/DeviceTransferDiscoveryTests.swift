@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import AsyncExtensions
 import Foundation
+import FoundationExt
 import StatementStore
 import SubstrateSdk
 import SubstrateSdkExt
@@ -106,7 +107,7 @@ private extension DeviceTransferDiscoveryTests {
     func makePublisher() -> DeviceTransferRequestPublisher {
         DeviceTransferRequestPublisher(
             keyScheduleFactory: keyScheduleFactory(),
-            deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+            deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
             dateProvider: dates
         )
     }

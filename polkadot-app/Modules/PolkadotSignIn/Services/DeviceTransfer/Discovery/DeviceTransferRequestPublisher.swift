@@ -17,14 +17,14 @@ protocol DeviceTransferRequestPublishing: Sendable {
 /// The new phone's side of discovery: one statement on `request_topic`, replaced by a newer request or a cancel.
 actor DeviceTransferRequestPublisher {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
-    private let deviceInfo: DeviceInfo
+    private let deviceInfo: DeviceSystemInfo
     private let dateProvider: any DateProviding
 
     private var lastExpiry: UInt64 = 0
 
     init(
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
-        deviceInfo: DeviceInfo,
+        deviceInfo: DeviceSystemInfo,
         dateProvider: any DateProviding = NowDateProvider()
     ) {
         self.keyScheduleFactory = keyScheduleFactory
