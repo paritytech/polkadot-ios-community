@@ -46,12 +46,9 @@ struct DeviceTransferKeyScheduleTests {
         }
     }
 
-    @Test(
-        "The session key matches the RFC vector whatever the request id's letter case",
-        arguments: [requestId, requestId.uppercased()]
-    )
-    func sessionKeyMatchesVector(requestId: String) throws {
-        let sessionKey = try makeSchedule().sessionKey(requestId: requestId)
+    @Test("The session key matches the RFC vector")
+    func sessionKeyMatchesVector() throws {
+        let sessionKey = try makeSchedule().sessionKey(requestId: Self.requestId)
 
         #expect(sessionKey.toHex() == "4a631c9f4173513c97cfd490250313bca445e4ae24347712b50d9954913c80bf")
     }

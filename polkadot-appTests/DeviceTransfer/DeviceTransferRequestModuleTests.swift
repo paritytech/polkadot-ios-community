@@ -75,7 +75,7 @@ struct DeviceTransferRequestModuleTests {
 private extension DeviceTransferRequestModuleTests {
     func makeRequest(model: String) -> DeviceTransferRequest {
         DeviceTransferRequest(
-            requestId: UUID().uuidString.lowercased(),
+            requestId: UUID().uuidString,
             deviceModel: model,
             operatingSystem: "iOS 26.1",
             createdAt: 1

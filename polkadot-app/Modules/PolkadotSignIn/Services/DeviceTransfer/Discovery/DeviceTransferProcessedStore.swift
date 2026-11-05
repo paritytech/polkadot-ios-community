@@ -24,21 +24,17 @@ final class DeviceTransferProcessedCoreDataStore: @unchecked Sendable {
 
 extension DeviceTransferProcessedCoreDataStore: DeviceTransferProcessedStoring {
     func markProcessed(requestId: String, outcome: DeviceTransferOutcome) async throws {
-        let identifier = requestId.lowercased()
-
         try await databaseService.performWrite { context in
-            let row = try Self.fetchRows(with: [identifier], in: context).first
+            let row = try Self.fetchRows(with: [requestId], in: context).first
                 ?? context.insertNew(CDProcessedTransfer.self)
-            row.identifier = identifier
+            row.identifier = requestId
             row.outcome = outcome.rawValue
         }
     }
 
     func processedRequestIds(among requestIds: [String]) async throws -> Set<String> {
-        let identifiers = requestIds.map { $0.lowercased() }
-
-        return try await databaseService.performRead { context in
-            try Set(Self.fetchRows(with: identifiers, in: context).compactMap(\.identifier))
+        try await databaseService.performRead { context in
+            try Set(Self.fetchRows(with: requestIds, in: context).compactMap(\.identifier))
         }
     }
 }

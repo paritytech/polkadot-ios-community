@@ -140,9 +140,9 @@ private extension DeviceTransferRequestListener {
 
             switch message {
             case let .request(request):
-                requests[request.requestId.lowercased()] = ReceivedRequest(request: request, expiresAt: expiresAt)
+                requests[request.requestId] = ReceivedRequest(request: request, expiresAt: expiresAt)
             case let .cancel(requestId):
-                cancellations[requestId.lowercased()] = expiresAt
+                cancellations[requestId] = expiresAt
             }
         }
 
@@ -171,7 +171,7 @@ private extension DeviceTransferRequestListener {
         try Task.checkCancellation()
 
         let newest = liveRequests
-            .filter { !processed.contains($0.request.requestId.lowercased()) }
+            .filter { !processed.contains($0.request.requestId) }
             .max { $0.request.createdAt < $1.request.createdAt }
 
         update(newest?.request)

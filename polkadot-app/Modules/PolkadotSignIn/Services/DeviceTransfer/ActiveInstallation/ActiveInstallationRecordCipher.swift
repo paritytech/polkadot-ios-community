@@ -1,14 +1,13 @@
 import Foundation
-import HandoffService
+import MessageExchangeKit
 import SubstrateSdkExt
 
-/// Seals the record under `k_active` with ChaCha20-Poly1305, framed as `nonce || ciphertext || tag`, so only
-/// installations that hold the entropy can read it.
+/// Seals the record under `HKDF-SHA256(k_active)`, so only installations that hold the entropy can read it.
 struct ActiveInstallationRecordCipher {
-    private let encryptor: FileEncrypting
+    private let encryptor: RawSecretChaChaPolyEncryptor
 
     init(activeKey: Data) {
-        encryptor = ChaChaPolyFileEncryptor(rawKey: activeKey)
+        encryptor = RawSecretChaChaPolyEncryptor(sharedSecret: activeKey)
     }
 
     func seal(_ installation: ActiveInstallation) throws -> Data {

@@ -3751,6 +3751,17 @@
         }
       }
     },
+    "wallet.main.purse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purse"
+          }
+        }
+      }
+    },
     "wallet.main.title" : {
       "extractionState" : "manual",
       "localizations" : {

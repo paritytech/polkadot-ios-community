@@ -47,7 +47,7 @@ enum ActiveInstallationServiceError: Error {
 }
 
 struct ActiveInstallationPublishSettings {
-    let deviceInfo: DeviceInfo
+    let deviceInfo: DeviceSystemInfo
     let priorityFactory: StatementPriorityMaking
     /// Stamps `activatedAt` on the published record.
     let dateProvider: any DateProviding
@@ -55,7 +55,7 @@ struct ActiveInstallationPublishSettings {
     let firstInstallRetryDelay: Duration
 
     init(
-        deviceInfo: DeviceInfo,
+        deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         dateProvider: any DateProviding = NowDateProvider(),
         firstInstallAttempts: Int = 10,
@@ -149,13 +149,14 @@ extension ActiveInstallationService: ActiveInstallationServicing {
             activatedAt: UInt64(now.timeIntervalSince1970.milliseconds)
         )
 
-        let builder = try StatementSubmitParametersBuilder(signer: context.configuration.signer, logger: nil)
+        let statement = try UnsignedStatement()
             .addTopic1(context.topic)
             .addChannel(context.topic)
             .addExpiry(publishSettings.priorityFactory.makeTimestampPriority())
             .addScaleEncodedPayload(context.cipher.seal(installation).scaleEncoded())
 
-        try await context.configuration.connection.submitStatement(with: builder)
+        let configuration = context.configuration
+        try await configuration.connection.submitStatement(with: statement.signed(by: configuration.signer))
 
         remember(installation)
         evaluate()
