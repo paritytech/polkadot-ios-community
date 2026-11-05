@@ -74,15 +74,6 @@ final class CoinageTilt {
     /// coming back leaves the light off square at a position that has not changed.
     static let dwell: TimeInterval = 0.4
 
-    /// Chases the device rather than tracking it exactly: raw attitude is noisy enough to make a
-    /// specular highlight shimmer while the phone is held still.
-    ///
-    /// A time constant of forty milliseconds, ninety percent of a movement on screen within about
-    /// eighty. It was eight, a hundred and twenty five milliseconds, which put the highlight a
-    /// third of a second behind the wrist: a reflection that trails the hand it is supposed to be
-    /// glued to is the kind of motion that makes people queasy.
-    static let smoothing: Double = 25
-
     /// Under this the studio is as good as still: the reference wallet idles at 0.002 tilt units
     /// for the same reason, since a field redrawn for hand tremor is a field that never sleeps.
     private static let epsilon: Double = 0.002
@@ -124,14 +115,17 @@ final class CoinageTilt {
         onMove = nil
     }
 
-    /// Eases toward the latest turn. Returns whether the studio is still catching up, so a field at
-    /// rest under a still hand goes back to sleep.
+    /// Takes the latest turn outright. Returns whether it moved, so a field at rest under a still
+    /// hand goes back to sleep.
+    ///
+    /// It used to chase the reading with a time constant of forty milliseconds, to hide sensor
+    /// noise. Measured on the phone, the whole path from sensor to pixel is under thirty, and
+    /// gravity from the fused attitude is steady enough that nothing shimmers without the chase.
     @discardableResult
-    func advance(by seconds: CGFloat) -> Bool {
+    func advance(by _: CGFloat) -> Bool {
         guard !isSettled else { return false }
 
-        let blend = min(Double(seconds) * Self.smoothing, 1)
-        turn += (target - turn) * blend
+        turn = target
 
         return true
     }

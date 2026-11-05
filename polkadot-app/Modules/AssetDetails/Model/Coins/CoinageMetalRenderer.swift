@@ -47,9 +47,10 @@ final class CoinageMetalRenderer {
     private let framesAvailable = DispatchSemaphore(value: framesInFlight)
     private var hasGeneratedMipmaps = false
 
-    /// Three frames in flight, so the CPU can write next frame's instances while the GPU reads this
-    /// one's. `setVertexBytes` would cap a draw at sixty-four coins.
-    private static let framesInFlight = 3
+    /// Two frames in flight, so the CPU can write next frame's instances while the GPU reads this
+    /// one's. `setVertexBytes` would cap a draw at sixty-four coins. A third slot only let frames
+    /// queue up behind a slow GPU, a frame of latency for nothing.
+    private static let framesInFlight = 2
 
     /// What the instance ring starts at. It grows to fit rather than dropping coins on the floor.
     private static let initialCoins = 600
@@ -126,14 +127,19 @@ final class CoinageMetalRenderer {
     ) {
         ensureCapacity(batches.reduce(0) { $0 + $1.instances.count })
 
+        // Skip the frame rather than stall the main thread while the GPU is still on the last ones.
+        // Motion readings arrive on that thread, and a stall ages every reading queued behind it:
+        // with the GPU clocked down under Low Power Mode the light fell a second behind the hand.
+        guard framesAvailable.wait(timeout: .now()) == .success else { return }
+
         guard let descriptor = view.currentRenderPassDescriptor,
               let drawable = view.currentDrawable,
               let command = queue.makeCommandBuffer()
         else {
+            framesAvailable.signal()
             return
         }
 
-        framesAvailable.wait()
         command.addCompletedHandler { [framesAvailable] _ in framesAvailable.signal() }
 
         // The atlas ships without mips, and the box filter has to be the GPU's, unnormalised.
