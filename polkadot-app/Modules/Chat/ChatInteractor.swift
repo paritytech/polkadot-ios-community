@@ -1,4 +1,6 @@
+import Coinage
 import UIKit
+import os
 import Operation_iOS
 import SubstrateSdk
 import Foundation_iOS
@@ -9,6 +11,7 @@ final class ChatInteractor {
     private let chatId: Chat.Id
     let engine: ChatEngineProtocol
     private let reactionRepository: ChatReactionRepositoryProtocol
+    private let reclaimCoinsService: any ReclaimCoinsServicing
     private let logger: LoggerProtocol
     private let usernameStorage: UsernameStoring
     private let permissionsService: CallPermissionsServicing
@@ -17,6 +20,7 @@ final class ChatInteractor {
     private var metadataTask: Task<Void, Never>?
     private var footerTask: Task<Void, Never>?
     private let state = ChatInteractorState()
+    private let pendingReclaims = OSAllocatedUnfairLock<Set<Chat.MessageId>>(initialState: [])
 
     private let notificationsCleaner: any PushNotificationsCleaning
 
@@ -26,6 +30,7 @@ final class ChatInteractor {
         chatId: Chat.Id,
         engine: ChatEngineProtocol,
         reactionRepository: ChatReactionRepositoryProtocol,
+        reclaimCoinsService: any ReclaimCoinsServicing,
         usernameStorage: UsernameStoring = UsernameStorage(),
         permissionsService: CallPermissionsServicing = CallPermissionsService(),
         logger: LoggerProtocol = Logger.shared,
@@ -35,6 +40,7 @@ final class ChatInteractor {
         self.chatId = chatId
         self.engine = engine
         self.reactionRepository = reactionRepository
+        self.reclaimCoinsService = reclaimCoinsService
         self.usernameStorage = usernameStorage
         self.permissionsService = permissionsService
         self.logger = logger
@@ -348,6 +354,25 @@ extension ChatInteractor: ChatInteractorInputProtocol {
     func processAction(_ action: Chat.Action) {
         Task {
             await engine.processAction(action)
+        }
+    }
+
+    func reclaimTransfer(messageId: String, coinKeys: [Data]) {
+        let isNew = pendingReclaims.withLock { $0.insert(messageId).inserted }
+        guard isNew else { return }
+
+        Task {
+            do {
+                try await reclaimCoinsService.reclaim(
+                    coinKeys: coinKeys,
+                    groupId: ChatTransferGroups.reclaim(messageId)
+                )
+                pendingReclaims.withLock { _ = $0.remove(messageId) }
+            } catch {
+                pendingReclaims.withLock { _ = $0.remove(messageId) }
+                logger.error("Failed to reclaim transfer \(messageId): \(error)")
+                await presenter?.didFailReclaim(messageId: messageId, error: error)
+            }
         }
     }
 }

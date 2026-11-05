@@ -37,6 +37,20 @@ struct CoinageSubmissionParamsTests {
         #expect(decoded.retryFailures == retryFailures)
     }
 
+    @Test("a reclaim's params round-trip, retry flag included")
+    func reclaimRoundTrips() throws {
+        let params = TransferSubmissionParams(
+            buildUntil: Date(timeIntervalSince1970: 1_700_000_000),
+            retryFailures: true
+        )
+
+        let decoded = try CoinageSubmissionParams.decodeTransfer(
+            CoinageSubmissionParams.reclaimPolicy(params).params
+        )
+
+        #expect(decoded == params)
+    }
+
     @Test("a claim's params round-trip, key included")
     func claimRoundTrips() throws {
         let params = ClaimSubmissionParams(
@@ -92,6 +106,12 @@ struct CoinageSubmissionParamsTests {
         #expect(try CoinageSubmissionParams.splitPolicy(transfer).id == CoinageSubmissionParams.splitPolicyId)
         #expect(try CoinageSubmissionParams.unloadPolicy(transfer).id == CoinageSubmissionParams.unloadPolicyId)
         #expect(try CoinageSubmissionParams.claimPolicy(claim).id == CoinageSubmissionParams.claimPolicyId)
+        #expect(try CoinageSubmissionParams.reclaimPolicy(transfer).id == CoinageSubmissionParams.reclaimPolicyId)
+    }
+
+    @Test("the claim window outlasts the claim retry window")
+    func claimWindowOutlastsRetryWindow() {
+        #expect(CoinageConstants.claimWindow >= CoinageConstants.claimRetryWindow)
     }
 
     @Test("split and unload share one encoding, so a row of either reads back the same")

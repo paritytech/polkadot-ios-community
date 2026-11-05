@@ -110,6 +110,21 @@ struct TransferStateStoreTests {
         #expect(transfer.state == .outgoing(.init(status: .sent)))
     }
 
+    @Test("a reclaimed outgoing update keeps its reclaimed value through the message")
+    func reclaimedOutgoingUpdateIsReadBack() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.outgoing)
+
+        try await world.store.updateOutgoing(
+            messageId: message.messageId,
+            state: .init(status: .reclaimed, actualValue: 6)
+        )
+
+        let transfer = try #require(try await world.transfer(message.messageId))
+        #expect(transfer.state == .outgoing(.init(status: .reclaimed, actualValue: 6)))
+    }
+
     @Test("a message with no row has no state")
     func noRowMeansNoState() async throws {
         let world = TransferStateTestWorld()

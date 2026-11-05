@@ -81,6 +81,10 @@ extension CoinageTransferStatusService {
         let coin = tracked.coin
         let state = tracked.state
 
+        if let reclaim = reclaimStatus(of: state.consumerStatus) {
+            return reclaim
+        }
+
         // Finalized minter and proven absent at finality: a guaranteed, terminal claim.
         if state.minterStatus == .finalizedSuccess, atFinalized[coin.publicKey] == false {
             return .claimed(finalized: true)
@@ -115,6 +119,7 @@ extension CoinageTransferStatusService {
     private func presenceAtFinalized(_ tracked: [TrackedCoin]) async -> [PublicKey: Bool] {
         let minted = tracked
             .filter { $0.state.minterStatus == .finalizedSuccess }
+            .filter { Self.reclaimStatus(of: $0.state.consumerStatus) == nil }
             .map(\.coin.publicKey)
         guard !minted.isEmpty else { return [:] }
 
@@ -131,5 +136,19 @@ extension CoinageTransferStatusService {
             presence[key] = response != nil
         }
         return presence
+    }
+}
+
+private extension CoinageTransferStatusService {
+    /// A handed-off coin's only non-failure consumer is our own reclaim, so the consumer decides before any
+    /// presence rule does. Once a reclaim lands the coin is absent, which the presence rules would misread
+    /// as the peer's claim. A failed consumer decides nothing and falls through.
+    static func reclaimStatus(of consumer: CoinageTxStatus?) -> CoinageTransferStatus? {
+        switch consumer {
+        case .finalizedSuccess?: .reclaimed(finalized: true)
+        case .pendingSuccess?: .reclaimed(finalized: false)
+        case let status? where status.isLive: .reclaiming
+        default: nil
+        }
     }
 }
