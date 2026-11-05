@@ -25,10 +25,13 @@ protocol CurrentInstallationObserving: Sendable {
     var statusStream: AnyAsyncSequence<InstallationStatus> { get async }
 }
 
-protocol ActiveInstallationServicing: CurrentInstallationObserving {
+protocol ActiveInstallationPublishing: Sendable {
+    func publishSelf() async throws
+}
+
+protocol ActiveInstallationServicing: CurrentInstallationObserving, ActiveInstallationPublishing {
     func setup(configuration: ActiveInstallationConfiguration) async
     func throttle() async
-    func publishSelf() async throws
 }
 
 enum ActiveInstallationServiceError: Error {
