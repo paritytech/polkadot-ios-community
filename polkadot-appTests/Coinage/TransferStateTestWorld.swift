@@ -77,6 +77,15 @@ final class TransferStateTestWorld {
             .eraseToAnyAsyncSequence()
     }
 
+    /// Mappers stamp `modifiedAt` from the wall clock; this pins it so sync cutoffs compare deterministically.
+    func setModifiedAt(_ date: Date, of messageId: Chat.MessageId) async throws {
+        try await facade.databaseService.performWrite { context in
+            let request = NSFetchRequest<CDChatMessage>(entityName: "CDChatMessage")
+            request.predicate = NSPredicate(format: "%K == %@", #keyPath(CDChatMessage.messageId), messageId)
+            try context.fetch(request).forEach { $0.modifiedAt = Int64(bitPattern: date.toChatTimestamp()) }
+        }
+    }
+
     func incomingRowCount() async throws -> Int {
         try await facade.databaseService.performRead { context in
             try context.count(for: NSFetchRequest<CDIncomingTransferState>(entityName: "CDIncomingTransferState"))

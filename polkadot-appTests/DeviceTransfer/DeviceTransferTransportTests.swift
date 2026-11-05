@@ -106,7 +106,7 @@ private extension DeviceTransferTransportTests {
             ),
             logger: MockLogger()
         )
-        let delegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger())
+        let delegate = transport.makeSessionDelegate()
         try await transport.open(delegate: AnyPeerSessionDelegate(delegate))
 
         return TransferPeer(transport: transport, delegate: delegate)

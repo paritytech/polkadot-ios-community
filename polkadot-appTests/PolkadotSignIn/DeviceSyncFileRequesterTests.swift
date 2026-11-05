@@ -9,7 +9,7 @@ final class DeviceSyncFileRequesterTests {
 
     private let directory: URL
     private let store: AttachmentStore
-    private let flow = MockDeviceSyncPeerConnectionFlow(startResult: .success(()))
+    private let flow = MockDevicePeerConnectionFlow(startResult: .success(()))
     private let sleeper = ManualDeviceSyncSleeper()
 
     init() {
@@ -126,6 +126,48 @@ final class DeviceSyncFileRequesterTests {
         #expect(await outcomes.value == [.unavailable(.notStored)])
     }
 
+    @Test("Availability comes back per file; a file the answer leaves out is not stored")
+    func availabilityPerFile() async throws {
+        let requester = makeRequester()
+
+        let availability = Task { await requester.requestAvailability([item("a.jpg").file, item("b.jpg").file]) }
+        let request = try await sentAvailabilityRequest()
+        await requester.handle(.availabilityResponse(.init(
+            requestId: request.requestId,
+            availability: [.available(totalSize: 10)]
+        )))
+
+        #expect(await availability.value == [.available(totalSize: 10), .unavailable(.notStored)])
+    }
+
+    @Test("A sibling that never answers an availability request has nothing stored")
+    func availabilityWithoutAnswerIsNotStored() async throws {
+        let requester = makeRequester()
+
+        let availability = Task { await requester.requestAvailability([item("a.jpg").file]) }
+        _ = try await sentAvailabilityRequest()
+        await sleeper.waitUntilSleeping()
+        sleeper.advance()
+
+        #expect(await availability.value == [.unavailable(.notStored)])
+    }
+
+    @Test("Byte progress counts what an earlier attempt stored and every chunk after it")
+    func bytesCountStoredAndReceived() async throws {
+        try store.store(attachment: Data(count: 100), filename: "a.jpg.sync.part")
+        let requester = makeRequester()
+        let bytes = DeviceSyncTestEventRecorder<UInt64>()
+
+        let outcomes = Task { await requester.request([item("a.jpg")], onBytes: { bytes.record($0) }) }
+        let request = try await sentRequest()
+        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 150)))
+        await requester.handle(chunk(request, offset: 100, data: Data(count: 50)))
+        await requester.handle(.completed(requestId: request.requestId))
+
+        #expect(await outcomes.value == [.completed])
+        #expect(bytes.snapshot.reduce(0, +) == 150)
+    }
+
     @Test("Request ids are unique for the channel")
     func requestIdsIncrease() async throws {
         let requester = makeRequester()
@@ -165,6 +207,15 @@ private extension DeviceSyncFileRequesterTests {
         let sent = await flow.waitForSentFileMessageCount(count)
         guard case let .filesRequest(request) = sent[count - 1] else {
             Issue.record("Expected a files request, got \(sent[count - 1])")
+            throw CancellationError()
+        }
+        return request
+    }
+
+    func sentAvailabilityRequest() async throws -> Message.AvailabilityRequest {
+        let sent = await flow.waitForSentFileMessageCount(1)
+        guard case let .availabilityRequest(request) = sent[0] else {
+            Issue.record("Expected an availability request, got \(sent[0])")
             throw CancellationError()
         }
         return request

@@ -6,7 +6,7 @@ extension [Chat.DeviceSyncEntity] {
     }
 }
 
-private extension Chat.DeviceSyncEntity {
+extension Chat.DeviceSyncEntity {
     var itemCount: Int {
         switch self {
         case let .devices(items): items.count

@@ -10,7 +10,7 @@ import SubstrateSdk
 extension DeviceSyncExchangeTests {
     func makeSession(
         peerAccountId: Data,
-        flow: MockDeviceSyncPeerConnectionFlow,
+        flow: MockDevicePeerConnectionFlow,
         failureRecorder: DeviceSyncFailureRecorder? = nil,
         remoteContactResolver: RemoteContactResolving = MockRemoteContactResolver(result: .success(nil)),
         deviceRepositoryFactory: LocalDeviceRepositoryMaking = MockLocalDeviceRepositoryFactory(),
@@ -83,6 +83,7 @@ private final class UnusedDeviceSyncStorageFacade: StorageFacadeProtocol {
 
 private struct EmptyChatStateCollector: DeviceSyncChatStateCollecting {
     func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+    func count(after _: Date?) async throws -> Int { 0 }
 }
 
 private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
@@ -95,9 +96,12 @@ private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
 
 private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
     func collect(after _: Date?) async throws -> [Chat.DeviceSyncEntity] { [] }
+    func count(after _: Date?) async throws -> Int { 0 }
 }
 
 private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_: [Chat.DeviceSyncHandedOffCoin]) async throws {}
-    func applyClaimStatuses(_: [Chat.DeviceSyncCoinageMessageStatusUpdate]) async throws {}
+    func applyClaimStatuses(
+        _: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] { [] }
 }

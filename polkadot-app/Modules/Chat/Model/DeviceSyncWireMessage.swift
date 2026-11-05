@@ -14,6 +14,13 @@ extension Chat {
     }
 }
 
+extension [Chat.DeviceSyncWireMessage] {
+    /// The sender's store order; `timestamp` orders legacy rows that all have order 0.
+    func sortedInSyncOrder() -> [Chat.DeviceSyncWireMessage] {
+        sorted { ($0.order, $0.remote.timestamp) < ($1.order, $1.remote.timestamp) }
+    }
+}
+
 // MARK: - Local Mapping
 
 extension Chat.DeviceSyncWireMessage {

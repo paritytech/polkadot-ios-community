@@ -14,23 +14,26 @@ enum DeviceSyncDataChannelError: Error {
     case notConnected
 }
 
-protocol DeviceSyncPeerConnectionFlowing: Actor {
+protocol DevicePeerConnectionFlowing: Actor {
     var updates: AnyAsyncSequence<Chat.DeviceSyncUpdate> { get async }
     var acks: AnyAsyncSequence<Chat.DeviceSyncUpdateAck> { get async }
     var states: AnyAsyncSequence<DeviceSyncDataChannelState> { get async }
     var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> { get async }
+    var transferControls: AnyAsyncSequence<DeviceTransferControl> { get async }
 
     func start() async throws
     func sendUpdate(_ update: Chat.DeviceSyncUpdate) async throws
     func sendAck(_ ack: Chat.DeviceSyncUpdateAck) async throws
     func sendFileMessage(_ message: Chat.DeviceSyncFileMessage) async throws
+    func sendTransferControl(_ control: DeviceTransferControl) async throws
     func cancel() async
 }
 
-actor DeviceSyncPeerConnectionFlow {
+actor DevicePeerConnectionFlow {
     private static let purpose = "sync"
     private static let useCaseId = "device-sync"
     private static let fileUseCaseId = "device-sync-file"
+    private static let transferUseCaseId = "deviceTransfer"
 
     private let signaler: DeviceSyncSignalingSession
     private let role: CallRole
@@ -47,6 +50,7 @@ actor DeviceSyncPeerConnectionFlow {
     private let ackSubject = AsyncPassthroughSubject<Chat.DeviceSyncUpdateAck>()
     private let stateSubject = AsyncPassthroughSubject<DeviceSyncDataChannelState>()
     private let fileMessageSubject = AsyncPassthroughSubject<Chat.DeviceSyncFileMessage>()
+    private let transferControlSubject = AsyncPassthroughSubject<DeviceTransferControl>()
 
     private var connectTask: Task<PeerDataConnectionState.Connected?, Never>?
     private var receiveTask: Task<Void, Never>?
@@ -74,7 +78,7 @@ actor DeviceSyncPeerConnectionFlow {
 
 // MARK: - Public API
 
-extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
+extension DevicePeerConnectionFlow: DevicePeerConnectionFlowing {
     var updates: AnyAsyncSequence<Chat.DeviceSyncUpdate> {
         updateSubject.eraseToAnyAsyncSequence()
     }
@@ -89,6 +93,10 @@ extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
 
     var fileMessages: AnyAsyncSequence<Chat.DeviceSyncFileMessage> {
         fileMessageSubject.eraseToAnyAsyncSequence()
+    }
+
+    var transferControls: AnyAsyncSequence<DeviceTransferControl> {
+        transferControlSubject.eraseToAnyAsyncSequence()
     }
 
     func start() async throws {
@@ -169,6 +177,10 @@ extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
         try await send(message.scaleEncoded(), useCaseId: Self.fileUseCaseId)
     }
 
+    func sendTransferControl(_ control: DeviceTransferControl) async throws {
+        try await send(control.scaleEncoded(), useCaseId: Self.transferUseCaseId)
+    }
+
     func cancel() async {
         isClosed = true
         cancelConnectTask()
@@ -198,7 +210,7 @@ extension DeviceSyncPeerConnectionFlow: DeviceSyncPeerConnectionFlowing {
 
 // MARK: - Connection
 
-private extension DeviceSyncPeerConnectionFlow {
+private extension DevicePeerConnectionFlow {
     /// Releases the in-flight `dataConnectionCreator` when `connect()` fails
     /// partway through. Without this the RTCPeerConnection it built remains
     /// a zombie on the shared factory's signaling thread — exactly the leak
@@ -280,7 +292,7 @@ private extension DeviceSyncPeerConnectionFlow {
 
 // MARK: - Sending / Receiving
 
-private extension DeviceSyncPeerConnectionFlow {
+private extension DevicePeerConnectionFlow {
     func startConnectionMonitoring(_ connectedState: PeerDataConnectionState.Connected) {
         connectionMonitorTask?.cancel()
 
@@ -348,11 +360,13 @@ private extension DeviceSyncPeerConnectionFlow {
     func startReceiving(from muxChannel: MultiplexedDataChannel) {
         let syncStream = muxChannel.subscribe(useCaseId: Self.useCaseId)
         let fileStream = muxChannel.subscribe(useCaseId: Self.fileUseCaseId)
+        let transferStream = muxChannel.subscribe(useCaseId: Self.transferUseCaseId)
 
         receiveTask = Task { [weak self] in
             await withTaskGroup(of: Void.self) { group in
                 group.addTask { await self?.receiveSyncData(from: syncStream) }
                 group.addTask { await self?.receiveFileData(from: fileStream) }
+                group.addTask { await self?.receiveTransferData(from: transferStream) }
             }
         }
     }
@@ -383,6 +397,27 @@ private extension DeviceSyncPeerConnectionFlow {
         } catch {
             guard !Task.isCancelled else { return }
             peerLogger.error("Sync file stream failed: \(error)")
+        }
+    }
+
+    /// Drained for the same reason as the file stream, also on sync connections that never use it.
+    func receiveTransferData(from transferStream: AnyAsyncSequence<Data>) async {
+        do {
+            for try await data in transferStream {
+                guard !Task.isCancelled else { return }
+                handleReceivedTransferData(data)
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            peerLogger.error("Transfer control stream failed: \(error)")
+        }
+    }
+
+    func handleReceivedTransferData(_ data: Data) {
+        do {
+            try transferControlSubject.send(DeviceTransferControl.fromScaleEncoded(data))
+        } catch {
+            peerLogger.error("Transfer control decoding failed: \(error)")
         }
     }
 

@@ -3,21 +3,37 @@ import Foundation_iOS
 import MessageExchangeKit
 import StatementStore
 import SubstrateSdk
+import SubstrateSdkExt
 
 protocol DeviceSyncPeerSessionDelegating: PeerSessionDelegate, TypeErasedDelegateStoring where Message == Data {
     var incomingEnvelopes: AsyncStream<[Chat.DeviceSyncSignalingEnvelope]> { get }
     func finishIncomingEnvelopes()
 }
 
+protocol DeviceSyncEnvelopeDecoding {
+    func decodeEnvelope(from data: Data) throws -> Chat.DeviceSyncSignalingEnvelope?
+}
+
+struct DeviceSyncSignalingEnvelopeDecoder: DeviceSyncEnvelopeDecoding {
+    func decodeEnvelope(from data: Data) throws -> Chat.DeviceSyncSignalingEnvelope? {
+        try Chat.DeviceSyncSignalingEnvelope.fromScaleEncoded(data)
+    }
+}
+
 final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
     typealias Message = Data
 
     private let peerLogger: LoggerProtocol
+    private let decoder: DeviceSyncEnvelopeDecoding
     private let continuation: AsyncStream<[Chat.DeviceSyncSignalingEnvelope]>.Continuation
     let incomingEnvelopes: AsyncStream<[Chat.DeviceSyncSignalingEnvelope]>
 
-    init(peerLogger: LoggerProtocol) {
+    init(
+        peerLogger: LoggerProtocol,
+        decoder: DeviceSyncEnvelopeDecoding = DeviceSyncSignalingEnvelopeDecoder()
+    ) {
         self.peerLogger = peerLogger
+        self.decoder = decoder
         (incomingEnvelopes, continuation) = AsyncStream.makeStream()
     }
 
@@ -72,7 +88,7 @@ final class DeviceSyncPeerSessionDelegate: DeviceSyncPeerSessionDelegating {
     ) {
         let envelopes = messages.compactMap { data -> Chat.DeviceSyncSignalingEnvelope? in
             do {
-                return try Chat.DeviceSyncSignalingEnvelope(scaleDecoder: ScaleDecoder(data: data))
+                return try decoder.decodeEnvelope(from: data)
             } catch {
                 peerLogger.error("Device sync signaling envelope decoding failed: \(error)")
                 return nil
