@@ -90,7 +90,7 @@ private extension Chat.DeviceSyncCoinageMessageStatusUpdate {
     var localState: IncomingTransferState? {
         switch status {
         case .none: nil
-        case .claimed: IncomingTransferState(status: .claimed, actualValue: claimedValue)
+        case let .claimed(partial): IncomingTransferState(status: .claimed, actualValue: partial)
         case .failed: IncomingTransferState(status: .failed)
         }
     }

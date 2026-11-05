@@ -14,18 +14,17 @@ extension Chat {
         let exponent: Int16
     }
 
-    enum DeviceSyncCoinageMessageStatus: UInt8, Equatable {
-        case none = 0
-        case claimed = 1
-        case failed = 2
+    enum DeviceSyncCoinageMessageStatus: Equatable {
+        case none
+        /// `partial` is below the message total when only part of it was claimed.
+        case claimed(partial: Balance?)
+        case failed
     }
 
-    /// `claimedValue` is set for a claim, and is below the message total for a partial one.
     struct DeviceSyncCoinageMessageStatusUpdate: Equatable {
         let chatId: DeviceSyncChatId
         let messageId: String
         let status: DeviceSyncCoinageMessageStatus
-        let claimedValue: Balance?
     }
 }
 
@@ -47,14 +46,28 @@ extension Chat.DeviceSyncHandedOffCoin: ScaleCodable {
 
 extension Chat.DeviceSyncCoinageMessageStatus: ScaleCodable {
     init(scaleDecoder: any ScaleDecoding) throws {
-        guard let status = try Self(rawValue: UInt8(scaleDecoder: scaleDecoder)) else {
+        switch try UInt8(scaleDecoder: scaleDecoder) {
+        case 0:
+            self = .none
+        case 1:
+            self = try .claimed(partial: ScaleOption<Balance>(scaleDecoder: scaleDecoder).value)
+        case 2:
+            self = .failed
+        default:
             throw ScaleCodingError.unexpectedDecodedValue
         }
-        self = status
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
-        try rawValue.encode(scaleEncoder: scaleEncoder)
+        switch self {
+        case .none:
+            try UInt8(0).encode(scaleEncoder: scaleEncoder)
+        case let .claimed(partial):
+            try UInt8(1).encode(scaleEncoder: scaleEncoder)
+            try ScaleOption(value: partial).encode(scaleEncoder: scaleEncoder)
+        case .failed:
+            try UInt8(2).encode(scaleEncoder: scaleEncoder)
+        }
     }
 }
 
@@ -63,13 +76,11 @@ extension Chat.DeviceSyncCoinageMessageStatusUpdate: ScaleCodable {
         chatId = try Chat.DeviceSyncChatId(scaleDecoder: scaleDecoder)
         messageId = try String(scaleDecoder: scaleDecoder)
         status = try Chat.DeviceSyncCoinageMessageStatus(scaleDecoder: scaleDecoder)
-        claimedValue = try ScaleOption<Balance>(scaleDecoder: scaleDecoder).value
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
         try chatId.encode(scaleEncoder: scaleEncoder)
         try messageId.encode(scaleEncoder: scaleEncoder)
         try status.encode(scaleEncoder: scaleEncoder)
-        try ScaleOption(value: claimedValue).encode(scaleEncoder: scaleEncoder)
     }
 }
