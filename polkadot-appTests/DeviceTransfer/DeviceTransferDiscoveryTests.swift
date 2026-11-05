@@ -80,7 +80,7 @@ struct DeviceTransferDiscoveryTests {
         await dates.advance(by: 10)
         let processed = try await publisher.publishRequest(configuration: configuration())
         try await DeviceTransferProcessedCoreDataStore(storageFacade: storage)
-            .markProcessed(requestId: processed.requestId.uppercased(), outcome: .rejected)
+            .markProcessed(requestId: processed.requestId, outcome: .rejected)
 
         let relaunched = try await makeListener()
 
@@ -126,7 +126,7 @@ private extension DeviceTransferDiscoveryTests {
     func insertRequest(expiresIn lifetime: TimeInterval) async throws -> DeviceTransferRequest {
         let now = await dates.read()
         let request = DeviceTransferRequest(
-            requestId: UUID().uuidString.lowercased(),
+            requestId: UUID().uuidString,
             deviceModel: "iPhone 16",
             operatingSystem: "iOS 26.0",
             createdAt: UInt64(now.timeIntervalSince1970.milliseconds)
@@ -138,7 +138,7 @@ private extension DeviceTransferDiscoveryTests {
     /// Any new statement on the topic makes the listener re-evaluate what it offers.
     func insertUnrelatedCancel() async throws {
         try await insert(
-            .cancel(requestId: UUID().uuidString.lowercased()),
+            .cancel(requestId: UUID().uuidString),
             expiresAt: dates.read().addingTimeInterval(60)
         )
     }
