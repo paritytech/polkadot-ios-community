@@ -69,7 +69,7 @@ private extension IncomingChatAcceptanceCoordinationContextTests {
             requestId: "request",
             contactAccountId: fixture.peerAccountId,
             timestamp: 1,
-            status: .outgoing,
+            status: .outgoing(.pending),
             message: nil
         )
         return contact

@@ -10,6 +10,11 @@ public protocol OutgoingStatementDelivering<Input>: Sendable {
 
     /// One attempt with a signer resolved by the caller; joins an attempt already in flight.
     func deliverOnce(_ input: Input, signer: StatementStoreSigning, period: UInt32) async throws
+
+    /// Blocks further delivery of the statement and waits for an attempt already in flight.
+    func retire(_ statementId: String) async
+
+    func reinstate(_ statementId: String) async
 }
 
 public struct OutgoingStatementDeliveryDependencies<Input: OutgoingStatementInput>: Sendable {
@@ -53,6 +58,7 @@ public actor OutgoingStatementDeliveryService<Input: OutgoingStatementInput> {
     private let execution: OutgoingStatementDeliveryExecution
     private let diagnostics: OutgoingStatementDiagnostics
     private var attempts: [String: Task<Void, Error>] = [:]
+    private var retiredIds: Set<String> = []
     private(set) var joinedAttemptCount = 0
 
     public init(
@@ -78,6 +84,13 @@ extension OutgoingStatementDeliveryService: OutgoingStatementDelivering {
             } catch let error as OutgoingStatementTerminalError {
                 await markFailed(input, failure: .terminal(error))
                 return
+            } catch is OutgoingStatementRetiredError {
+                attempt += 1
+                do {
+                    try await execution.clock.sleep(for: Self.retryDelay(forAttempt: attempt))
+                } catch {
+                    return
+                }
             } catch {
                 attempt += 1
                 diagnostics.logger.error("Statement \(input.statementId) attempt \(attempt) failed: \(error)")
@@ -93,6 +106,8 @@ extension OutgoingStatementDeliveryService: OutgoingStatementDelivering {
     }
 
     public func deliverOnce(_ input: Input, signer: StatementStoreSigning, period: UInt32) async throws {
+        guard !retiredIds.contains(input.statementId) else { throw OutgoingStatementRetiredError() }
+
         try await attempt(for: input) { [dependencies] in
             try await dependencies.service.publish(input, signer: signer)
             let publication = try await dependencies.store.markPublished(input, period: period)
@@ -101,6 +116,15 @@ extension OutgoingStatementDeliveryService: OutgoingStatementDelivering {
                 await dependencies.postDelivery?.didPublishFirstTime(input)
             }
         }
+    }
+
+    public func retire(_ statementId: String) async {
+        retiredIds.insert(statementId)
+        _ = await attempts[statementId]?.result
+    }
+
+    public func reinstate(_ statementId: String) async {
+        retiredIds.remove(statementId)
     }
 }
 
@@ -172,3 +196,5 @@ private extension OutgoingStatementDeliveryService {
 public enum OutgoingStatementDeliveryError: Error {
     case signerNotResolved
 }
+
+public struct OutgoingStatementRetiredError: Error {}

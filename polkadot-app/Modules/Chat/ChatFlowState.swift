@@ -16,6 +16,7 @@ final class ChatFlowState {
     let coinageService: CoinageServicing
     let networkStatusService: NetworkStatusProviding
     let allowanceCleanupService: AllowanceCleanupServicing
+    let chatRequestCancelService: ChatRequestCancelServicing
     let flowState: SPAFlowState
 
     init(
@@ -30,6 +31,7 @@ final class ChatFlowState {
         coinageService: CoinageServicing,
         networkStatusService: NetworkStatusProviding,
         allowanceCleanupService: AllowanceCleanupServicing,
+        chatRequestCancelService: ChatRequestCancelServicing,
         flowState: SPAFlowState
     ) {
         self.extensionsRegistry = extensionsRegistry
@@ -43,6 +45,7 @@ final class ChatFlowState {
         self.coinageService = coinageService
         self.networkStatusService = networkStatusService
         self.allowanceCleanupService = allowanceCleanupService
+        self.chatRequestCancelService = chatRequestCancelService
         self.flowState = flowState
     }
 }
