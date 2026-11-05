@@ -1943,6 +1943,17 @@
         }
       }
     },
+    "deviceTransfer.activation.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn’t activate current device. Please, try again later."
+          }
+        }
+      }
+    },
     "fee.title" : {
       "extractionState" : "manual",
       "localizations" : {

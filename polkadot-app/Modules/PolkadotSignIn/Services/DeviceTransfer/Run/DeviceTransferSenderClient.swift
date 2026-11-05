@@ -22,7 +22,7 @@ final class DeviceTransferSenderClient: DeviceTransferClientProtocol {
         self.settings = settings
     }
 
-    func run(onEvent _: @escaping DeviceTransferRunEventHandler) async throws {
+    func run(onEvent: @escaping DeviceTransferRunEventHandler) async throws {
         let channel = await DeviceTransferSenderChannel(
             flow: flow,
             updateIdProvider: updateIdProvider,
@@ -30,7 +30,7 @@ final class DeviceTransferSenderClient: DeviceTransferClientProtocol {
         )
 
         do {
-            try await transfer(over: channel)
+            try await transfer(over: channel, onEvent: onEvent)
             await channel.close()
         } catch {
             await channel.close()
@@ -45,14 +45,27 @@ struct DeviceTransferSenderDependencies {
 }
 
 private extension DeviceTransferSenderClient {
-    func transfer(over channel: DeviceTransferSenderChannel) async throws {
+    func transfer(over channel: DeviceTransferSenderChannel, onEvent: DeviceTransferRunEventHandler) async throws {
         let flow = flow
         try await withTimeout(settings.connectTimeout) { try await flow.start() }
 
         let resumePoint = try await channel.waitForResume()
+        var sent = 0
+        var total = 0
 
         for try await step in sequencer.entitySequence(from: resumePoint) {
             try await send(step, over: channel)
+
+            switch step {
+            case let .started(totalChanges):
+                total = Int(totalChanges)
+            case let .entities(entities, _):
+                sent += entities.reduce(0) { $0 + $1.itemCount }
+            case .roundClosed:
+                continue
+            }
+
+            onEvent(.progress(.syncing(applied: sent, total: total)))
         }
 
         try await flow.sendTransferControl(.senderCompleted)

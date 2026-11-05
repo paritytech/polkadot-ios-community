@@ -69,6 +69,16 @@ final class RootWireframe: RootWireframeProtocol {
         animation.animateTransition(to: view, in: window)
     }
 
+    func showInstallationCheck(with observer: RootStateObserving) {
+        let view = InstallationCheckViewFactory.createView(observer: observer)
+        animation.animateTransition(to: view.controller, in: window)
+    }
+
+    func showDeviceTransfer(with observer: RootStateObserving) {
+        let view = DeviceTransferReceiverViewFactory.createView(observer: observer)
+        animation.animateTransition(to: view.controller, in: window)
+    }
+
     func showBroken() {
         // normally user must not see this but on malicious devices it is possible
         let brokenController = UIViewController()

@@ -1,5 +1,6 @@
 @testable import polkadot_app
 import Foundation
+import FoundationExt
 import Keystore_iOS
 import os
 import Testing
@@ -87,7 +88,7 @@ private extension DeviceTransferFinalizerTests {
             installationPublisher: publisher,
             processedStore: processedStore,
             checkpointStore: checkpointStore,
-            settings: DeviceTransferFinalizerSettings(publishAttempts: 3, publishRetryDelay: .zero),
+            publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero),
             logger: MockLogger()
         )
     }
@@ -99,9 +100,10 @@ private extension DeviceTransferFinalizerTests {
             ),
             installationProvider: FixedInstallationProvider(installationId: installationId),
             publishSettings: ActiveInstallationPublishSettings(
-                deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1")
+                deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                dateProvider: dates
             ),
-            dateProvider: dates,
+            statusStore: IgnoringInstallationStatusStore(),
             logger: MockLogger()
         )
     }

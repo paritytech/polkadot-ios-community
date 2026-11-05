@@ -846,6 +846,479 @@
         }
       }
     },
+    "device.transfer.activate.action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate this phone"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your data stays on your old phone and can’t be moved here later."
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats, contacts and files won’t be moved"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.later" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can’t transfer data later"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.point.oldPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone will stop working with this account"
+          }
+        }
+      }
+    },
+    "device.transfer.activate.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activate without transfer?"
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone stays active. You can continue the transfer later."
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.keep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep transferring"
+          }
+        }
+      }
+    },
+    "device.transfer.cancel.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel transfer?"
+          }
+        }
+      }
+    },
+    "device.transfer.check.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking this phone…"
+          }
+        }
+      }
+    },
+    "device.transfer.device.activeNow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(operatingSystem)@ · active now"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.bytes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(received)@ of %2$(total)@"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.data" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chats & contacts"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.paused" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused at %1$(percent)lld%%"
+          }
+        }
+      }
+    },
+    "device.transfer.progress.percent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(percent)lld%%"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.cancel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.cancelTransfer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel transfer"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.continue" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.noAccess" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I don’t have access to my old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.sendNewRequest" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send new request"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.transfer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer data"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.action.tryAgain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transfer was cancelled on your old phone."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.connectionLost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnecting to your old phone… The transfer will continue where it stopped."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.declined" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The request was declined on your old phone."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your chats, contacts and files are here. Your old phone is no longer active."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your old phone is still active. Make sure both phones are online and try again."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your account is active on another phone. Transfer chats, contacts and files to keep using Polkadot App here."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.transferring" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the app open on both phones. This may take a few minutes."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.body.waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep the app open on both phones. Your old phone will ask you to confirm the transfer."
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer cancelled"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.connecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting to your old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.connectionLost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection lost"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.declined" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer declined"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone is now active"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.failed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer didn't complete"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.finishing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing up…"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.start" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move your data to this phone"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.transferring" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferring your data"
+          }
+        }
+      }
+    },
+    "device.transfer.receiver.title.waiting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Polkadot App on your old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.waiting.oldPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for your old phone…"
+          }
+        }
+      }
+    },
+    "device.transfer.waiting.secureConnection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Setting up a secure connection…"
+          }
+        }
+      }
+    },
     "id.card.action.share" : {
       "extractionState" : "manual",
       "localizations" : {

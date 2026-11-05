@@ -18,6 +18,7 @@ actor MockDevicePeerConnectionFlow: DevicePeerConnectionFlowing {
     private let suspendUpdateAtIndex: Int?
     private nonisolated let blockedSendEvents = DeviceSyncTestEventRecorder<Void>()
     private(set) var didClose = false
+    private var disconnectsOnCancel = false
     private(set) var sentAcks = [Chat.DeviceSyncUpdateAck]()
     private(set) var sentUpdates = [Chat.DeviceSyncUpdate]()
     private(set) var sentFileMessages = [Chat.DeviceSyncFileMessage]()
@@ -131,6 +132,10 @@ actor MockDevicePeerConnectionFlow: DevicePeerConnectionFlowing {
         didClose = true
         connectContinuation?.resume(throwing: MockDeviceSyncError.connectCancelled)
         connectContinuation = nil
+
+        if disconnectsOnCancel {
+            sendState(.disconnected)
+        }
     }
 
     nonisolated func waitForSentUpdate() async -> Chat.DeviceSyncUpdate {
@@ -170,6 +175,11 @@ actor MockDevicePeerConnectionFlow: DevicePeerConnectionFlowing {
 
     var observerSubscriptionCounts: (updates: Int, acks: Int, states: Int) {
         (updateContinuations.count, ackContinuations.count, stateContinuations.count)
+    }
+
+    /// Closing the real flow ends its data stream, which reports `.disconnected`.
+    func disconnectOnCancel() {
+        disconnectsOnCancel = true
     }
 
     func sendState(_ state: DeviceSyncDataChannelState) {

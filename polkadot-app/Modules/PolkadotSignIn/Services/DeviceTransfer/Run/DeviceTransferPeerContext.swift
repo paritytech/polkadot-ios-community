@@ -149,12 +149,14 @@ private extension DeviceTransferPeerContext {
 
         let attempt = Task { [weak self] in
             let observer = Task { await self?.observe(states) }
-            defer { observer.cancel() }
 
+            // Stopped before the flow closes, so closing a finished run isn't reported as a lost connection.
             do {
                 try await connectionRun(flow)
+                observer.cancel()
                 await flow.cancel()
             } catch {
+                observer.cancel()
                 await flow.cancel()
                 throw error
             }
@@ -229,6 +231,7 @@ private extension DeviceTransferPeerContext {
             onEvent(.channelOpened)
         } else {
             restartIdleTimer()
+            onEvent(.connectionLost)
         }
     }
 

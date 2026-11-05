@@ -29,6 +29,23 @@ protocol ActiveInstallationPublishing: Sendable {
     func publishSelf() async throws
 }
 
+struct ActiveInstallationPublishRetry {
+    var attempts = 10
+    var delay: Duration = .seconds(1)
+}
+
+extension ActiveInstallationPublishing {
+    /// A missing configuration won't fix itself, so only submit failures are retried.
+    func publishSelf(retry: ActiveInstallationPublishRetry) async throws {
+        try await withRetry(
+            maxAttempts: retry.attempts,
+            initialDelay: retry.delay,
+            shouldRetry: { !($0 is ActiveInstallationServiceError) },
+            operation: { try await publishSelf() }
+        )
+    }
+}
+
 protocol ActiveInstallationServicing: CurrentInstallationObserving, ActiveInstallationPublishing {
     func setup(configuration: ActiveInstallationConfiguration) async
     func throttle() async
@@ -41,17 +58,21 @@ enum ActiveInstallationServiceError: Error {
 struct ActiveInstallationPublishSettings {
     let deviceInfo: DeviceSystemInfo
     let priorityFactory: StatementPriorityMaking
+    /// Stamps `activatedAt` on the published record.
+    let dateProvider: any DateProviding
     let firstInstallAttempts: Int
     let firstInstallRetryDelay: Duration
 
     init(
         deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
+        dateProvider: any DateProviding = NowDateProvider(),
         firstInstallAttempts: Int = 10,
         firstInstallRetryDelay: Duration = .seconds(1)
     ) {
         self.deviceInfo = deviceInfo
         self.priorityFactory = priorityFactory
+        self.dateProvider = dateProvider
         self.firstInstallAttempts = firstInstallAttempts
         self.firstInstallRetryDelay = firstInstallRetryDelay
     }
@@ -71,7 +92,7 @@ actor ActiveInstallationService {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let installationProvider: CurrentInstallationProviding
     private let publishSettings: ActiveInstallationPublishSettings
-    private let dateProvider: any DateProviding
+    private let statusStore: InstallationStatusStoring
     private let logger: LoggerProtocol
 
     private let statusSubject = AsyncCurrentValueSubject<InstallationStatus>(.unknown)
@@ -86,13 +107,13 @@ actor ActiveInstallationService {
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         installationProvider: CurrentInstallationProviding,
         publishSettings: ActiveInstallationPublishSettings,
-        dateProvider: any DateProviding = NowDateProvider(),
+        statusStore: InstallationStatusStoring,
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.installationProvider = installationProvider
         self.publishSettings = publishSettings
-        self.dateProvider = dateProvider
+        self.statusStore = statusStore
         self.logger = logger
     }
 }
@@ -129,7 +150,7 @@ extension ActiveInstallationService: ActiveInstallationServicing {
             throw ActiveInstallationServiceError.notConfigured
         }
 
-        let now = await dateProvider.read()
+        let now = await publishSettings.dateProvider.read()
         let installation = ActiveInstallation(
             installationId: context.ownInstallationId,
             deviceModel: publishSettings.deviceInfo.model,
@@ -270,6 +291,8 @@ private extension ActiveInstallationService {
         guard statusSubject.value != status else { return }
 
         logger.info("Active installation status: \(status.logLabel)")
+        // Saved first: whoever reacts to the new status reads the store, the root gate included.
+        statusStore.save(status)
         statusSubject.send(status)
     }
 }

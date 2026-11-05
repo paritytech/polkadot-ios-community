@@ -2,7 +2,7 @@ import Foundation
 import SubstrateSdk
 
 /// The record naming the user's active installation (Device Transfer RFC §8).
-struct ActiveInstallation: Equatable {
+struct ActiveInstallation: Equatable, Codable {
     static let installationIdSize = 32
 
     let installationId: Data
