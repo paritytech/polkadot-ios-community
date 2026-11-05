@@ -332,8 +332,7 @@ private extension DeviceTransferRunTests {
             Chat.DeviceSyncCoinageMessageStatusUpdate(
                 chatId: .contact(accountId: accountId),
                 messageId: "never-sent",
-                status: .failed,
-                claimedValue: nil
+                status: .failed
             )
         ])
     }

@@ -78,8 +78,7 @@ private extension DeviceSyncCoinageStateCollector {
             return Chat.DeviceSyncCoinageMessageStatusUpdate(
                 chatId: .contact(accountId: peer),
                 messageId: messageId,
-                status: state.status == .claimed ? .claimed : .failed,
-                claimedValue: state.status == .claimed ? state.actualValue : nil
+                status: state.status == .claimed ? .claimed(partial: state.actualValue) : .failed
             )
         }
     }
