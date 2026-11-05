@@ -12,8 +12,6 @@ struct CoinageBalanceBreakdownView: View {
     /// The light and the coins held by the debug dials; nil follows the phone.
     var fixedLight: CoinageTilt.Turn?
     var fixedLean: CoinageTilt.Turn?
-    /// Which studio lights the coins; only the debug switch changes it.
-    var studio: CoinageStudio = .current
 
     @State private var showDetails = false
     /// The coin picked out by a tap, if any, drawn large with its trace beside it.
@@ -147,7 +145,6 @@ struct CoinageBalanceBreakdownView: View {
             fixedLight: fixedLight,
             fixedLean: fixedLean,
             coinSet: coinSet,
-            studio: studio,
             metrics: $coinMetrics,
             onTap: { tapped($0, scroll: scroll) },
             onSwipe: { swiped($0, scroll: scroll) }

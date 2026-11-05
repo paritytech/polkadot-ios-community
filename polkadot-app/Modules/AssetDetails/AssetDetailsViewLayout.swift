@@ -19,8 +19,6 @@ struct AssetDetailsView: View {
         /// chosen angle. Debug builds only.
         @State private var fixedLight: CoinageTilt.Turn?
         @State private var fixedLean: CoinageTilt.Turn?
-        /// Ours or the reference's tabletop studio, while the two are compared. Debug builds only.
-        @State private var studio = CoinageStudio.current
     #endif
 
     init(
@@ -71,8 +69,7 @@ struct AssetDetailsView: View {
                         breakdown: testDataMode.applied(to: viewModel.coinageBreakdown ?? .testDataPlaceholder),
                         coinSet: coinSet,
                         fixedLight: fixedLight,
-                        fixedLean: fixedLean,
-                        studio: studio
+                        fixedLean: fixedLean
                     )
                 }
             #else
@@ -96,8 +93,6 @@ struct AssetDetailsView: View {
                 CoinageTestDataSwitch(mode: $testDataMode)
 
                 CoinageCoinSetSwitch(set: $coinSet)
-
-                CoinageStudioSwitch(studio: $studio)
 
                 CoinageLightPad(turn: $fixedLight, lean: $fixedLean)
             #endif

@@ -61,10 +61,6 @@ final class CoinageAssetStore {
     let designs: [Design]
     let reliefAtlas: MTLTexture
     let environment: MTLTexture
-    #if DEBUG
-        /// The reference's tabletop studio, beside ours while the two are compared.
-        let tabletopEnvironment: MTLTexture
-    #endif
 
     private let meshes: [String: Mesh]
 
@@ -75,8 +71,7 @@ final class CoinageAssetStore {
         let rawDesigns: [RawDesign] = try Self.decode("designs", in: bundle)
         let rawMeshes: [RawMesh] = try Self.decode("meshes", in: bundle)
 
-        let levels = manifest.env.cube.levels
-        params = Params(raw: raw, levels: levels.count)
+        params = Params(raw: raw, levels: CoinageStudioBake.levels)
         metalRows = metals.flatMap { $0.reflectance + [$0.roughness] + $0.tone + [$0.brush ?? 1] }
         designs = rawDesigns.map(Design.init(raw:))
         meshes = try rawMeshes.reduce(into: [:]) { loaded, entry in
@@ -87,10 +82,7 @@ final class CoinageAssetStore {
         }
 
         reliefAtlas = try Self.loadReliefAtlas(device: device, bundle: bundle, atlas: atlas)
-        environment = try Self.loadStudio(device: device, bundle: bundle, levels: levels)
-        #if DEBUG
-            tabletopEnvironment = try Self.loadStudio(device: device, bundle: bundle, levels: levels, tabletop: true)
-        #endif
+        environment = try Self.bakeStudio(device: device, bundle: bundle)
     }
 
     /// Every mesh, already loaded. A lookup, never a read.
@@ -126,7 +118,6 @@ extension CoinageAssetStore {
         let material: [Float]
         var backdrop: [Float] = [0, 0, 0]
         var debug: Int32 = 0
-        var studio: CoinageStudio = .current
         var grain: Float = 1
 
         fileprivate init(raw: RawParams, levels: Int) {
@@ -142,8 +133,8 @@ extension CoinageAssetStore {
                 raw.material.aaThreshold, raw.material.reliefBias,
                 raw.material.spinGrain, raw.material.spinMinPx, raw.material.rimPolish, raw.material.wallSatin,
                 raw.material.brushCover, raw.material.brushDepth, raw.material.brushScale, raw.material.brushStretch,
-                raw.material.wearDarken, raw.material.wearMatte,
-                Tuning.ambient, Tuning.reliefGain, Tuning.roomLift
+                raw.material.wearDarken, raw.material.wearMatte, raw.material.brushMinPx,
+                Tuning.reliefGain, Tuning.roomLift
             ] + Tuning.panels.prefix(Tuning.panelCount).flatMap(\.packed)
                 + Array(repeating: 0, count: max(Tuning.panelCount - Tuning.panels.count, 0) * 5)
         }
@@ -159,7 +150,7 @@ extension CoinageAssetStore {
                 lightTurn.x, lightTurn.y, lightTurn.z,
                 coinTurn.x, coinTurn.y, coinTurn.z, grain
             ]
-            out += studio.lighting(ours: material, tail: 1 + Tuning.panelCount * 5)
+            out += material
             out += backdrop
             out.append(Float(bitPattern: UInt32(bitPattern: debug)))
 
@@ -255,7 +246,7 @@ private extension CoinageAssetStore {
             let rollGloss, rollReliefHaze, haze, polish, tone, grime: Float
             let engraveDark, frost, wallRough, aaVariance, aaThreshold, reliefBias: Float
             let spinGrain, spinMinPx, rimPolish, wallSatin: Float
-            let brushCover, brushDepth, brushScale, brushStretch, wearDarken, wearMatte: Float
+            let brushCover, brushDepth, brushScale, brushStretch, wearDarken, wearMatte, brushMinPx: Float
         }
 
         let atlas: Atlas
@@ -264,20 +255,6 @@ private extension CoinageAssetStore {
     }
 
     struct Manifest: Decodable {
-        struct Level: Decodable {
-            let level: Int
-            let size: Int
-            let faces: [String: String]
-        }
-
-        struct Cube: Decodable {
-            let levels: [Level]
-        }
-
-        struct Environment: Decodable {
-            let cube: Cube
-        }
-
         /// What the relief atlas is, rather than what this file hopes it is. The tile size is in
         /// `params.json` for the shader; the rest is here because only the loader needs it.
         struct Atlas: Decodable {
@@ -285,7 +262,6 @@ private extension CoinageAssetStore {
             let channels: Int
         }
 
-        let env: Environment
         let atlases: [String: Atlas]
     }
 
@@ -391,97 +367,14 @@ private extension CoinageAssetStore {
         return texture
     }
 
-    /// Slices go in Metal's own face order; every level of the prefiltered chain is uploaded, so a
-    /// rough metal reads a blurred studio without the shader doing the blurring.
-    /// The prefiltered studio: seven mip levels of a cube, forty-two Radiance files.
-    ///
-    /// Decoded all at once rather than one after another. They are independent, decoding is the
-    /// whole cost, and doing them in turn was most of what was left of the wait to open the view.
-    /// The uploads stay on one thread: `MTLTexture.replace` makes no promise about being called
-    /// from several at once, and they are not where the time goes.
-    static func loadStudio(
-        device: MTLDevice,
-        bundle: Bundle,
-        levels: [Manifest.Level],
-        tabletop: Bool = false
-    ) throws -> MTLTexture {
-        guard let base = levels.first else { throw Failure.malformed("no environment levels") }
+    /// The studio's lamps and room from `params.json`, baked into its cube on the GPU.
+    static func bakeStudio(device: MTLDevice, bundle: Bundle) throws -> MTLTexture {
+        let studio: CoinageStudioBake.Studio = try decode("params", in: bundle)
 
-        let descriptor = MTLTextureDescriptor.textureCubeDescriptor(
-            pixelFormat: .rgba16Float,
-            size: base.size,
-            mipmapped: true
-        )
-        descriptor.mipmapLevelCount = levels.count
-        descriptor.usage = [.shaderRead]
-
-        guard let texture = device.makeTexture(descriptor: descriptor) else {
-            throw Failure.deviceRefused("environment cube")
+        guard let library = try? device.makeDefaultLibrary(bundle: bundle) else {
+            throw Failure.deviceRefused("shader library")
         }
 
-        let faces = try environmentFaces(bundle: bundle, levels: levels, tabletop: tabletop)
-        var decoded = [CoinageRadianceImage.Face?](repeating: nil, count: faces.count)
-        let lock = NSLock()
-
-        DispatchQueue.concurrentPerform(iterations: faces.count) { index in
-            guard let image = try? CoinageRadianceImage.decode(Data(contentsOf: faces[index].url)) else { return }
-
-            lock.lock()
-            decoded[index] = image
-            lock.unlock()
-        }
-
-        for (index, face) in faces.enumerated() {
-            guard let image = decoded[index] else {
-                throw Failure.malformed("could not read \(face.url.lastPathComponent)")
-            }
-
-            image.pixels.withUnsafeBytes { raw in
-                texture.replace(
-                    region: MTLRegionMake2D(0, 0, image.width, image.height),
-                    mipmapLevel: face.level,
-                    slice: face.slice,
-                    withBytes: raw.baseAddress!,
-                    bytesPerRow: image.width * 8,
-                    bytesPerImage: image.width * image.height * 8
-                )
-            }
-        }
-
-        return texture
+        return try CoinageStudioBake.bake(studio, device: device, library: library)
     }
-
-    /// One face of one mip level of the cube, resolved to a file.
-    private struct EnvironmentFace {
-        let level: Int
-        let slice: Int
-        let url: URL
-    }
-
-    /// Every face of every level, in the order the cube wants them, resolved up front so the
-    /// decode has nothing to look up and nothing to throw.
-    private static func environmentFaces(
-        bundle: Bundle,
-        levels: [Manifest.Level],
-        tabletop: Bool
-    ) throws -> [EnvironmentFace] {
-        try levels.flatMap { level in
-            try faceOrder.enumerated().map { slice, face in
-                guard let path = level.faces[face] else {
-                    throw Failure.malformed("level \(level.level) is missing \(face)")
-                }
-
-                let file = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
-                let name = (tabletop ? CoinageStudio.tabletopPrefix : "") + file
-
-                guard let url = bundle.url(forResource: name, withExtension: "hdr") else {
-                    throw Failure.missingAsset("\(name).hdr")
-                }
-
-                return EnvironmentFace(level: level.level, slice: slice, url: url)
-            }
-        }
-    }
-
-    static let faceOrder = ["px", "nx", "py", "ny", "pz", "nz"]
 }

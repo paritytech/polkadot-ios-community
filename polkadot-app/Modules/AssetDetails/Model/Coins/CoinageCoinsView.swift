@@ -51,7 +51,6 @@ struct CoinageCoinsView: UIViewRepresentable {
     var fixedLight: CoinageTilt.Turn?
     var fixedLean: CoinageTilt.Turn?
     var coinSet: CoinageScene.CoinSet = .shipped
-    var studio: CoinageStudio = .current
     @Binding var metrics: Metrics
     var stripHeight: CGFloat = CoinageStripLayout.Options().height
     /// The coin under a tap, or `nil` for a tap on empty ground.
@@ -91,7 +90,9 @@ struct CoinageCoinsView: UIViewRepresentable {
         // top left it is simply drawn where it already was, at its own size, and the grid replaces
         // it on the next frame.
         view.layer.contentsGravity = .topLeft
-        view.preferredFramesPerSecond = 60
+        // The display's own rate, 120 on a ProMotion phone: every stage between the wrist and the
+        // pixel quantises to a frame, and the light is meant to feel attached to the hand.
+        view.preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
         // Driven by the display link, paused the moment the springs settle, so coins at rest cost
         // nothing. `enableSetNeedsDisplay` would switch the link off and leave the view drawing one
         // frame per change, which renders correctly and never animates.
@@ -121,7 +122,6 @@ struct CoinageCoinsView: UIViewRepresentable {
         context.coordinator.coinSet = coinSet
         context.coordinator.fixedLight = fixedLight
         context.coordinator.fixedLean = fixedLean
-        context.coordinator.studio = studio
         context.coordinator.update(coins: coins, isExpanded: isExpanded, focus: focus)
     }
 
@@ -156,7 +156,6 @@ extension CoinageCoinsView {
             }
         }
 
-        var studio: CoinageStudio = .current { didSet { if studio != oldValue { run() } } }
         var fixedLight: CoinageTilt.Turn? { didSet { if fixedLight != oldValue { run() } } }
         var fixedLean: CoinageTilt.Turn? { didSet { if fixedLean != oldValue { run() } } }
 
@@ -283,7 +282,6 @@ extension CoinageCoinsView {
                 dpr: view.contentScaleFactor,
                 light: fixedLight ?? tilt.turn,
                 lean: fixedLean ?? .zero,
-                studio: studio,
                 coinSet: coinSet,
                 withinTransaction: (view as? CoinageMetalView)?.isDrawingWithinTransaction == true
             )

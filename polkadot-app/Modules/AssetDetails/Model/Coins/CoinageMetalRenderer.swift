@@ -121,7 +121,6 @@ final class CoinageMetalRenderer {
         dpr: CGFloat,
         light: CoinageTilt.Turn,
         lean: CoinageTilt.Turn = .zero,
-        studio: CoinageStudio = .current,
         coinSet: CoinageScene.CoinSet = .shipped,
         withinTransaction: Bool = false
     ) {
@@ -150,14 +149,13 @@ final class CoinageMetalRenderer {
         params.dpr = Float(dpr)
         params.lightTurn = SIMD3(Float(light.x), Float(light.y), Float(light.z))
         params.coinTurn = SIMD3(Float(lean.x), Float(lean.y), Float(lean.z))
-        params.studio = studio
         params.grain = coinSet == .plain ? 1 : 0
 
         let packed = params.packed()
         let metals = store.metalRows
 
         if let encoder = command.makeRenderCommandEncoder(descriptor: descriptor) {
-            encode(batches, into: encoder, params: packed, metals: metals, environment: environment(for: studio))
+            encode(batches, into: encoder, params: packed, metals: metals, environment: store.environment)
             encoder.endEncoding()
         }
 
@@ -193,14 +191,6 @@ extension CoinageMetalRenderer {
 }
 
 private extension CoinageMetalRenderer {
-    func environment(for studio: CoinageStudio) -> MTLTexture {
-        #if DEBUG
-            studio == .current ? store.environment : store.tabletopEnvironment
-        #else
-            store.environment
-        #endif
-    }
-
     func encode(
         _ batches: [Batch],
         into encoder: MTLRenderCommandEncoder,

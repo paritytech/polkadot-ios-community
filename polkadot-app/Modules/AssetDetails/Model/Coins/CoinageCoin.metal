@@ -30,7 +30,7 @@ struct CoinParams {
   float brushCover, brushDepth, brushScale, brushStretch;  // handling brushes a worn face
   float wearDarken;      // reflectance a fully worn coin loses past its tone, so it dulls as well as mattes
   float wearMatte;       // how far a fully worn coin's reflection is pulled to the room's average: no mirror left
-  float ambient;         // how much of the studio's own average every reflection is pulled toward
+  float brushMinPx;      // device px across the coin below which the brushing is skipped: it costs, and cannot be seen
   float reliefGain;      // how much harder than the atlas the struck relief slopes
   float roomLift;        // light added to the whole studio: its grey walls painted lighter
   float lamps[20];       // up to four softboxes of our own, each a direction from the coins, the
@@ -152,8 +152,8 @@ static float2 markHash(float seed) {
 
 // Pits: circular dishes in the field. The slope runs outward from the centre, which under a key
 // light from the upper left gives a dark upper wall and a lit lower lip, the way a strike reads.
-static void addPits(float2 local, float count, float seed, thread float2 &slope, thread float &shade) {
-  int total = min(int(count + 0.5), PIT_MAX);
+static void addPits(float2 local, float count, int cap, float seed, thread float2 &slope, thread float &shade) {
+  int total = min(int(count + 0.5), cap);
 
   for (int i = 0; i < total; ++i) {
     float2 h = markHash(seed + float(i) * 7.13);
@@ -172,8 +172,8 @@ static void addPits(float2 local, float count, float seed, thread float2 &slope,
 
 // Streaks: short grooves at random angles, as many as the coin is still traceable. They fade out
 // over the struck figure, so a heavily scuffed coin still reads its own value.
-static void addStreaks(float2 local, float amount, float seed, thread float2 &slope, thread float &rough) {
-  int total = min(int(amount * float(STREAK_MAX) + 0.5), STREAK_MAX);
+static void addStreaks(float2 local, float amount, int cap, float seed, thread float2 &slope, thread float &rough) {
+  int total = min(int(amount * float(STREAK_MAX) + 0.5), cap);
   float clear = smoothstep(MARK_INNER * 0.72, MARK_INNER, length(local));
 
   if (clear <= 0.0) { return; }
@@ -220,7 +220,7 @@ static float brushNoise(float2 p) {
 
 static float brushField(float2 p) {
   float v = 0.0, a = 0.5;
-  for (int i = 0; i < 4; ++i) { v += a * brushNoise(p); p *= 2.03; a *= 0.5; }
+  for (int i = 0; i < 3; ++i) { v += a * brushNoise(p); p *= 2.03; a *= 0.5; }
   return v;
 }
 
@@ -298,17 +298,16 @@ static float panel(constant CoinParams &P, float3 dir, float lod) {
   float softness = 0.04 + 0.25 * lod / max(P.envMaxLod, 1.0);
   float total = 0.0;
   for (int i = 0; i < 4; ++i) {
+    if (P.lamps[i * 5 + 4] <= 0.0) { continue; }
     float3 at = float3(P.lamps[i * 5], P.lamps[i * 5 + 1], P.lamps[i * 5 + 2]);
     total += onePanel(dir, at, P.lamps[i * 5 + 3], P.lamps[i * 5 + 4], softness);
   }
   return total;
 }
 
-// What the studio reflects from one direction, pulled part of the way toward what it reflects on
-// average. The studio is a room of softboxes, so a polished coin swings between a lamp and the dark
-// between lamps as the phone tilts, and that swing was so large it drowned everything the surface
-// itself had to say. The roughest level of the cube is the studio's average; blending toward it
-// keeps the highlight moving while bounding how far the brightness can go either way.
+// What the studio reflects from one direction, looked up with parallax against a sphere of
+// `studioRadius` around the coins, and for a worn coin pulled toward what it reflects on average,
+// which is the roughest level of the cube.
 static float3 envAt(texturecube<float> env, sampler s, constant CoinParams &P, float3 p, float pp, float3 Rw, float r,
                     float matte) {
   float3 R = tiltDir(Rw, lightTurn(P));
@@ -317,14 +316,13 @@ static float3 envAt(texturecube<float> env, sampler s, constant CoinParams &P, f
   float3 dir = normalize(p + R * t);
   float lod = clamp(r * P.envSharpen, 0.0, 1.0) * P.envMaxLod;
   float3 direct = env.sample(s, dir, level(lod)).rgb;
-  // The blend toward the average is off by default, and its sample is a whole second lookup per
-  // tap: six of them on a coin with luster. Not taken unless it is asked for.
   // A worn coin no longer mirrors the room: its reflection is pulled toward the room's average, so
   // the light's angle still shades it through the normal and the panels, but nothing is seen in it.
-  float pull = max(P.ambient, matte);
-  if (pull <= 0.0) return direct;
+  // The average is a whole second lookup per tap, six of them on a coin with luster, so a fresh
+  // coin skips it.
+  if (matte <= 0.0) return direct;
   float3 average = env.sample(s, dir, level(P.envMaxLod)).rgb;
-  return mix(direct, average, pull);
+  return mix(direct, average, matte);
 }
 
 fragment float4 coinFragment(VertexOut in [[stage_in]],
@@ -358,12 +356,18 @@ fragment float4 coinFragment(VertexOut in [[stage_in]],
   float markRough = 0.0;
 
   if (front && in.surf.w > 0.5) {
-    addPits(local, in.marksI.x, in.marksI.z, markSlope, markShade);
-    addStreaks(local, in.marksI.y, in.marksI.z, markSlope, markRough);
+    // A grid coin is drawn at about fifty pixels, where the marks read as a few dots and dashes;
+    // only the picked coin is large enough to count them, so only it loops over all of them.
+    bool large = px >= 64.0;
+    addPits(local, in.marksI.x, large ? PIT_MAX : 4, in.marksI.z, markSlope, markShade);
+    addStreaks(local, in.marksI.y, large ? STREAK_MAX : 6, in.marksI.z, markSlope, markRough);
   }
   // Brushing covers the face, figure included, as the document's does; only the walls are spared.
-  if (in.surf.z < 0.5 && px >= P.spinMinPx) {
-    float brushStrength = metals[int(in.lookI.y) * 2 + 1].w;
+  // It is the dearest thing on the face, some fifty noise taps a pixel, and below the detail size
+  // its strokes are under a pixel wide, so a strip or a grid of five hundred never pays for it.
+  float brushOn = smoothstep(P.brushMinPx, P.brushMinPx * 1.3, px);
+  if (in.surf.z < 0.5 && brushOn > 0.0) {
+    float brushStrength = metals[int(in.lookI.y) * 2 + 1].w * brushOn;
     addBrush(local, clamp(in.marksI.y, 0.0, 1.0), brushStrength, in.marksI.z, P, markSlope);
   }
 

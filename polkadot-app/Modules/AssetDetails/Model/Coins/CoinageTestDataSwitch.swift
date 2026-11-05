@@ -82,28 +82,6 @@
         }
     }
 
-    /// Our studio or the reference's tabletop one, side by side while they are compared.
-    struct CoinageStudioSwitch: View {
-        @Binding var studio: CoinageStudio
-
-        var body: some View {
-            HStack(spacing: DSSpacings.small) {
-                Text(verbatim: "Studio")
-                    .typography(.bodySmall)
-                    .foregroundStyle(Color.fgPrimary)
-
-                Picker(selection: $studio) {
-                    Text(verbatim: "Current").tag(CoinageStudio.current)
-                    Text(verbatim: "Tabletop").tag(CoinageStudio.tabletop)
-                    Text(verbatim: "Lifted").tag(CoinageStudio.tabletopLifted)
-                } label: {
-                    Text(verbatim: "Studio")
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-    }
-
     /// Plain or varied coins, side by side: plain ships, varied is kept to compare against.
     struct CoinageCoinSetSwitch: View {
         @Binding var set: CoinageScene.CoinSet
