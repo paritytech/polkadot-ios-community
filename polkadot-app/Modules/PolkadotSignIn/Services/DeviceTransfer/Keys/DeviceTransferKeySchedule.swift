@@ -28,10 +28,9 @@ struct DeviceTransferKeySchedule: Equatable {
         activeKey = try Self.khash(key: entropy, label: "activeDeviceEncryptionKey")
     }
 
-    /// `k_s` for one transfer. The request id is hashed in lowercase hyphenated form, which `UUID().uuidString`
-    /// doesn't produce, so both sides must agree on it here.
+    /// `k_s` for one transfer.
     func sessionKey(requestId: String) throws -> Data {
-        try Self.khash(key: transferSeed, label: "deviceTransferSession" + requestId.lowercased())
+        try Self.khash(key: transferSeed, label: "deviceTransferSession" + requestId)
     }
 }
 

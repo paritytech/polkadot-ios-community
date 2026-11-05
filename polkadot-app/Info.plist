@@ -68,24 +68,24 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAlarmKitUsageDescription</key>
-	<string>Polkadot uses alarms to notify you when your game is about to start.</string>
+	<string>Polkadot sets an alarm to remind you 5 minutes before a game you joined starts.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
-	<string>The app will add upcoming game to your calendar and remind you 5 minutes before the game starts.</string>
+	<string>Polkadot adds games you join to your calendar with a reminder 5 minutes before they start.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Please allow camera access to interact with features in the Polkadot app</string>
+	<string>Polkadot uses your camera for video calls and to scan a contact's QR code, so you can start a chat by scanning the code from their phone.</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Face ID is used to authorize in Polkadot App</string>
+	<string>Polkadot uses Face ID to confirm it's you before showing your account backup or restoring your account.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Polkadot uses your local network for peer-to-peer games and linked devices.</string>
+	<string>Polkadot uses your local network to connect calls directly when you call a contact on the same Wi‑Fi network.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Please allow microphone access to interact with features in the Polkadot app</string>
+	<string>Polkadot uses your microphone so contacts can hear you during voice and video calls.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>App needs access to save chat attachments to your photo library.</string>
+	<string>Polkadot saves a photo or video from a chat to your library when you tap Save Image.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
