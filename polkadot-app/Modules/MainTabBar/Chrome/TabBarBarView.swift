@@ -53,6 +53,7 @@ struct TabBarBarView: View {
                 #endif
             }
         )
+        .padding(.bottom, model.keyboardLift)
         // The bar sits at the bottom of a host sized once to the room above it.
         .frame(maxHeight: .infinity, alignment: .bottom)
     }
