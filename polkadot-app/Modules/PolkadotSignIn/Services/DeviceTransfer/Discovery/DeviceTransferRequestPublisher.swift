@@ -62,13 +62,13 @@ private extension DeviceTransferRequestPublisher {
         let schedule = try keyScheduleFactory.makeKeySchedule()
         let sealed = try DeviceTransferMessageCipher(requestKey: schedule.requestKey).seal(message)
 
-        let builder = try StatementSubmitParametersBuilder(signer: configuration.signer, logger: nil)
+        let statement = try UnsignedStatement()
             .addTopic1(schedule.requestTopic)
             .addChannel(schedule.requestTopic)
             .addExpiry(nextExpiry(at: date))
             .addScaleEncodedPayload(sealed.scaleEncoded())
 
-        try await configuration.connection.submitStatement(with: builder)
+        try await configuration.connection.submitStatement(with: statement.signed(by: configuration.signer))
     }
 
     /// A cancel sent in the same second as its request still has to outrank it on the channel.
