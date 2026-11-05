@@ -3,10 +3,7 @@ import UIKit
 final class RootWireframe: RootWireframeProtocol {
     let window: UIWindow
     let animation = RootControllerAnimationCoordinator()
-    private let userNotificationService: UserNotificationServicing
-    private weak var foregroundVisibilityReporter: PushForegroundVisibilityReporting?
-    private let deepLinkHandler: DeferredLinkHandling
-    private let flowStateProvider: any SPAFlowStateProviding
+    private let dashboardDependencies: MainTabBarDependencies
 
     init(
         window: UIWindow,
@@ -16,18 +13,18 @@ final class RootWireframe: RootWireframeProtocol {
         flowStateProvider: any SPAFlowStateProviding
     ) {
         self.window = window
-        self.userNotificationService = userNotificationService
-        self.foregroundVisibilityReporter = foregroundVisibilityReporter
-        deepLinkHandler = deepLinkHandling
-        self.flowStateProvider = flowStateProvider
-    }
-
-    func showDashboard() {
-        guard let dashboard = MainTabBarViewFactory.createView(
+        dashboardDependencies = MainTabBarDependencies(
             userNotificationService: userNotificationService,
             foregroundVisibilityReporter: foregroundVisibilityReporter,
-            deepLinkHandling: deepLinkHandler,
-            flowStateProvider: flowStateProvider,
+            deepLinkHandling: deepLinkHandling,
+            flowStateProvider: flowStateProvider
+        )
+    }
+
+    func showDashboard(with observer: RootStateObserving) {
+        guard let dashboard = MainTabBarViewFactory.createView(
+            dependencies: dashboardDependencies,
+            observer: observer,
             windowScene: window.windowScene
         ) else {
             return
@@ -76,6 +73,11 @@ final class RootWireframe: RootWireframeProtocol {
 
     func showDeviceTransfer(with observer: RootStateObserving) {
         let view = DeviceTransferReceiverViewFactory.createView(observer: observer)
+        animation.animateTransition(to: view.controller, in: window)
+    }
+
+    func showDeviceTransferSender(for request: DeviceTransferRequest, with observer: RootStateObserving) {
+        let view = DeviceTransferSenderViewFactory.createView(request: request, observer: observer)
         animation.animateTransition(to: view.controller, in: window)
     }
 

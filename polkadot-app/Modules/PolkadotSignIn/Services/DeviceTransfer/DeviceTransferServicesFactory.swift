@@ -17,6 +17,17 @@ protocol DeviceTransferReceiverServicesMaking {
     func makeReceiverServices() throws -> DeviceTransferReceiverServices
 }
 
+/// What the old phone's transfer screens drive; built per use and released with them.
+struct DeviceTransferSenderServices {
+    let coordinator: DeviceTransferSenderCoordinating
+    let installationService: ActiveInstallationServicing
+    let installationConfiguration: ActiveInstallationConfiguration
+}
+
+protocol DeviceTransferSenderServicesMaking {
+    func makeSenderServices() throws -> DeviceTransferSenderServices
+}
+
 /// Builds the transfer services the same way device sync builds its own, without a `ServiceCoordinator`:
 /// the transfer screens run before the dashboard.
 struct DeviceTransferServicesFactory {
@@ -59,6 +70,27 @@ extension DeviceTransferServicesFactory: DeviceTransferReceiverServicesMaking {
                 connection: installationConfiguration.connection,
                 signer: installationConfiguration.signer
             )
+        )
+    }
+}
+
+extension DeviceTransferServicesFactory: DeviceTransferSenderServicesMaking {
+    func makeSenderServices() throws -> DeviceTransferSenderServices {
+        let installationFactory = ActiveInstallationServiceFactory(statusStore: statusStore, logger: logger)
+        let installationConfiguration = try installationFactory.makeConfiguration()
+        let ownSignKeyId = try Chat.Contact.Own.main().signKeyId
+
+        let coordinator = try DeviceTransferSenderCoordinator(
+            runFactory: makeRunFactory(connection: installationConfiguration.connection, ownSignKeyId: ownSignKeyId),
+            processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: UserDataStorageFacade.shared),
+            dateProvider: NowDateProvider(),
+            logger: logger
+        )
+
+        return DeviceTransferSenderServices(
+            coordinator: coordinator,
+            installationService: installationFactory.makeService(),
+            installationConfiguration: installationConfiguration
         )
     }
 }

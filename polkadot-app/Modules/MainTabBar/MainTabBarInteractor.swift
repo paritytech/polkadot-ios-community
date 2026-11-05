@@ -25,6 +25,8 @@ final class MainTabBarInteractor {
     private var chainStatusSubscription: Task<Void, Never>?
     private var tabBarLabelsSubscription: Task<Void, Never>?
     private var paymentsSetupSubscription: Task<Void, Never>?
+    private var transferRequestSubscription: Task<Void, Never>?
+    private var installationStatusSubscription: Task<Void, Never>?
 
     init(
         servicesLease: DashboardServicesLease<ServiceCoordinator>,
@@ -57,6 +59,8 @@ final class MainTabBarInteractor {
         chainStatusSubscription?.cancel()
         tabBarLabelsSubscription?.cancel()
         paymentsSetupSubscription?.cancel()
+        transferRequestSubscription?.cancel()
+        installationStatusSubscription?.cancel()
     }
 }
 
@@ -74,10 +78,39 @@ extension MainTabBarInteractor: MainTabBarInteractorInputProtocol {
         subscribeToChainStatus()
         subscribeToTabBarLabels()
         subscribeToPaymentsSetup()
+        subscribeToTransferRequests()
+        subscribeToInstallationStatus()
     }
 }
 
 private extension MainTabBarInteractor {
+    func subscribeToTransferRequests() {
+        let listener = servicesLease.coordinator.deviceTransferRequestListener
+        transferRequestSubscription = Task { [weak self, listener, logger] in
+            do {
+                for try await request in await listener.pendingRequest {
+                    guard let request else { continue }
+                    await self?.presenter?.didReceiveDeviceTransferRequest(request)
+                }
+            } catch {
+                logger.error("Device transfer request stream failed: \(error)")
+            }
+        }
+    }
+
+    func subscribeToInstallationStatus() {
+        let installationService = servicesLease.coordinator.activeInstallationService
+        installationStatusSubscription = Task { [weak self, installationService, logger] in
+            do {
+                for try await status in await installationService.statusStream {
+                    await self?.presenter?.didReceiveInstallationStatus(status)
+                }
+            } catch {
+                logger.error("Installation status stream failed: \(error)")
+            }
+        }
+    }
+
     func subscribeToPaymentsSetup() {
         let coinageService = servicesLease.coordinator.coinageService
         paymentsSetupSubscription = Task { [weak self, coinageService, logger] in

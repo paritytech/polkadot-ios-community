@@ -220,6 +220,9 @@
 				"Modules/IncomingChatRequest/Model/CDChatRequest+TouchParent.swift",
 				Modules/IncomingChatRequest/Model/ChatRequestMapper.swift,
 				Modules/IncomingChatRequest/Model/RemoteChatRequestMessage.swift,
+				Modules/PolkadotSignIn/Services/DeviceTransfer/ActiveInstallation/ActiveInstallation.swift,
+				Modules/PolkadotSignIn/Services/DeviceTransfer/ActiveInstallation/InstallationStatus.swift,
+				Modules/PolkadotSignIn/Services/DeviceTransfer/ActiveInstallation/InstallationStatusStore.swift,
 			);
 			target = 0C6EC9582EC629FB00C9B292 /* NotificationServiceExtension */;
 		};

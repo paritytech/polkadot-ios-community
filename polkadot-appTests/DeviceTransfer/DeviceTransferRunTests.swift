@@ -71,6 +71,29 @@ final class DeviceTransferRunTests {
         #expect(senderProgress.snapshot.last == .syncing(applied: lastSyncing.applied, total: lastSyncing.total))
     }
 
+    @Test("Transferring back into a phone that holds the account keeps one copy of each record and takes the changes")
+    func transferIntoPopulatedPhone() async throws {
+        _ = try await sender.chatManager.sendMessage(.text("first"), status: .outgoing(.sent))
+        let claimed = try await sender.saveTransfer(.incoming, totalValue: 6)
+        try await runTransfer()
+
+        // A transfer back comes from another installation, so nothing resumes from a checkpoint.
+        checkpointStore.clear()
+        let later = try await sender.chatManager.sendMessage(.text("later"), status: .outgoing(.sent))
+        try await sender.store.updateIncoming(
+            messageId: claimed.messageId,
+            state: IncomingTransferState(status: .failed)
+        )
+        try await runTransfer()
+
+        let receiverMessages = try await storedMessages(in: receiver)
+        #expect(receiverMessages.count == Set(receiverMessages.map(\.messageId)).count)
+        #expect(try await storedOrders(in: receiver) == storedOrders(in: sender))
+        #expect(receiverMessages.contains { $0.messageId == later.messageId })
+        let claimState = try await receiver.transfer(claimed.messageId)?.state
+        #expect(claimState == .incoming(IncomingTransferState(status: .failed)))
+    }
+
     @Test("Attachments the new phone lacks are pulled from the old one, with progress in bytes")
     func missingAttachmentsArePulled() async throws {
         let contents = try Data.randomOrError(of: 150 * 1_024)

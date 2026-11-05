@@ -1,13 +1,18 @@
 import Foundation
 
+struct DeviceTransferReceiverModuleSettings {
+    var clock: any Clock<Duration> = ContinuousClock()
+    var publishRetry = ActiveInstallationPublishRetry()
+}
+
 /// Builds the transfer services when the screen opens; they live as long as the screen.
 final class DeviceTransferReceiverInteractor {
     weak var presenter: DeviceTransferReceiverInteractorOutputProtocol?
 
     private let servicesFactory: DeviceTransferReceiverServicesMaking
     private let statusStore: InstallationStatusStoring
-    private let clock: any Clock<Duration>
-    private let publishRetry: ActiveInstallationPublishRetry
+    private let screenSleep: OperatingSystemMediating
+    private let settings: DeviceTransferReceiverModuleSettings
     private let logger: LoggerProtocol
     private var services: DeviceTransferReceiverServices?
     private var statesTask: Task<Void, Never>?
@@ -16,14 +21,14 @@ final class DeviceTransferReceiverInteractor {
     init(
         servicesFactory: DeviceTransferReceiverServicesMaking,
         statusStore: InstallationStatusStoring,
-        clock: any Clock<Duration>,
-        publishRetry: ActiveInstallationPublishRetry = ActiveInstallationPublishRetry(),
+        screenSleep: OperatingSystemMediating,
+        settings: DeviceTransferReceiverModuleSettings = DeviceTransferReceiverModuleSettings(),
         logger: LoggerProtocol
     ) {
         self.servicesFactory = servicesFactory
         self.statusStore = statusStore
-        self.clock = clock
-        self.publishRetry = publishRetry
+        self.screenSleep = screenSleep
+        self.settings = settings
         self.logger = logger
     }
 
@@ -65,7 +70,7 @@ extension DeviceTransferReceiverInteractor: DeviceTransferReceiverInteractorInpu
     /// Withdraws a pending request first, so the old phone isn't asked after it was replaced.
     func activateWithoutTransfer() {
         guard let services else { return }
-        Task { [weak self, logger, publishRetry] in
+        Task { [weak self, logger, publishRetry = settings.publishRetry] in
             await services.coordinator.cancel()
 
             do {
@@ -102,6 +107,7 @@ private extension DeviceTransferReceiverInteractor {
     @MainActor
     func handle(_ state: DeviceTransferState) {
         updateWaitTimer(for: state)
+        updateScreenSleep(for: state)
         presenter?.didReceive(state: state)
     }
 
@@ -114,9 +120,19 @@ private extension DeviceTransferReceiverInteractor {
         }
         guard waitTimerTask == nil else { return }
 
-        waitTimerTask = Task { [weak self, clock] in
+        waitTimerTask = Task { [weak self, clock = settings.clock] in
             guard await (try? clock.sleep(for: Self.oldPhoneAnswerDelay)) != nil else { return }
             self?.presenter?.didWaitTooLongForOldPhone()
+        }
+    }
+
+    /// The run pauses when the phone locks, so the screen stays on while one is in progress.
+    @MainActor
+    func updateScreenSleep(for state: DeviceTransferState) {
+        if state.isRunning {
+            screenSleep.disableScreenSleep()
+        } else if state != .idle {
+            screenSleep.enableScreenSleep()
         }
     }
 }

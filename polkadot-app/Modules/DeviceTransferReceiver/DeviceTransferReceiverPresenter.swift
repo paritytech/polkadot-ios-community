@@ -8,7 +8,7 @@ final class DeviceTransferReceiverPresenter {
     let interactor: DeviceTransferReceiverInteractorInputProtocol
 
     private var screen: DeviceTransferReceiverScreen = .start
-    private var oldPhone: DeviceTransferOldPhone?
+    private var oldPhone: DeviceTransferPhone?
     /// Kept so the bar doesn't empty while the connection is replaced.
     private var lastProgress: Double = 0
     private var oldPhoneSilent = false
@@ -34,11 +34,32 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverPresenterProtoc
         interactor.startTransfer()
     }
 
+    /// Data already moving needs a confirmation; waiting or connecting stops at once.
     func cancelTransfer() {
+        guard screen.isTransferring else {
+            interactor.cancelTransfer()
+            return
+        }
+
+        wireframe.showConfirmation(.cancelReceivingTransfer, from: view) { [weak self] in
+            self?.confirmCancelTransfer()
+        }
+    }
+
+    /// The run may have moved on while the sheet was open, so a late confirm is dropped.
+    func confirmCancelTransfer() {
+        guard screen.isTransferring else { return }
         interactor.cancelTransfer()
     }
 
     func activateWithoutTransfer() {
+        wireframe.showConfirmation(.activateWithoutTransfer, from: view) { [weak self] in
+            self?.confirmActivation()
+        }
+    }
+
+    func confirmActivation() {
+        guard offersActivation else { return }
         interactor.activateWithoutTransfer()
     }
 
@@ -59,7 +80,7 @@ extension DeviceTransferReceiverPresenter: DeviceTransferReceiverInteractorOutpu
 
     func didReceive(oldPhone installation: ActiveInstallation?) {
         oldPhone = installation.map {
-            DeviceTransferOldPhone(model: $0.deviceModel, operatingSystem: $0.operatingSystem)
+            DeviceTransferPhone(model: $0.deviceModel, operatingSystem: $0.operatingSystem)
         }
         provideScreen()
     }
@@ -146,6 +167,17 @@ private extension DeviceTransferReceiverPresenter {
 }
 
 private extension DeviceTransferReceiverScreen {
+    var isTransferring: Bool {
+        switch self {
+        case .syncing,
+             .files,
+             .reconnecting:
+            true
+        default:
+            false
+        }
+    }
+
     /// Screens where the old phone may be out of reach, so activating without it is offered.
     var offersActivation: Bool {
         switch self {

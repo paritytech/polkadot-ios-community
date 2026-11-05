@@ -19,6 +19,7 @@ final class MainTabBarPresenter {
     #if !FEATURE_PRODUCTS
         private var isSettingsAttentionVisible = false
     #endif
+    private var hasLeftReplacedInstallation = false
 
     init(
         interactor: MainTabBarInteractorInputProtocol,
@@ -65,6 +66,24 @@ extension MainTabBarPresenter: MainTabBarPresenterProtocol {
 extension MainTabBarPresenter: MainTabBarInteractorOutputProtocol {
     func didReceivePaymentsSetupWaiting(_ isWaiting: Bool) {
         wireframe.showPaymentsSetupNotice(isVisible: isWaiting)
+    }
+
+    func didReceiveDeviceTransferRequest(_ request: DeviceTransferRequest) {
+        wireframe.showDeviceTransferRequest(request, from: view)
+    }
+
+    /// Another phone took over, for example by activating without a transfer; the root routes away once.
+    func didReceiveInstallationStatus(_ status: InstallationStatus) {
+        switch status {
+        case .inactive,
+             .unreadable:
+            guard !hasLeftReplacedInstallation else { return }
+            hasLeftReplacedInstallation = true
+            wireframe.leaveReplacedInstallation()
+        case .unknown,
+             .active:
+            break
+        }
     }
 
     #if !FEATURE_PRODUCTS

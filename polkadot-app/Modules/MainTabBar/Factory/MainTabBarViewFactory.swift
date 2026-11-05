@@ -7,12 +7,14 @@ import Products
 enum MainTabBarViewFactory {
     @MainActor
     static func createView(
-        userNotificationService: UserNotificationServicing,
-        foregroundVisibilityReporter: PushForegroundVisibilityReporting? = nil,
-        deepLinkHandling: DeferredLinkHandling,
-        flowStateProvider: any SPAFlowStateProviding,
+        dependencies: MainTabBarDependencies,
+        observer: RootStateObserving,
         windowScene: UIWindowScene?
     ) -> MainTabBarViewProtocol? {
+        let userNotificationService = dependencies.userNotificationService
+        let foregroundVisibilityReporter = dependencies.foregroundVisibilityReporter
+        let deepLinkHandling = dependencies.deepLinkHandling
+        let flowStateProvider = dependencies.flowStateProvider
         let spaFlowState = flowStateProvider.flowState()
 
         // Taking the lease starts the services; the interactor releases it.
@@ -77,7 +79,8 @@ enum MainTabBarViewFactory {
             serviceCoordinator: serviceCoordinator,
             tabFactory: tabFactory,
             moduleNavigator: moduleNavigator,
-            windowScene: windowScene
+            windowScene: windowScene,
+            rootObserver: observer
         )
 
         let presenter = MainTabBarPresenter(

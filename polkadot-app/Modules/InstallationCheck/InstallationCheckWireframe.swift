@@ -1,7 +1,8 @@
 import Foundation
 
 final class InstallationCheckWireframe {
-    private weak var observer: RootStateObserving?
+    /// Strong: once the first route is shown, nothing else keeps the root presenter alive.
+    private let observer: RootStateObserving
 
     init(observer: RootStateObserving) {
         self.observer = observer
@@ -11,6 +12,6 @@ final class InstallationCheckWireframe {
 extension InstallationCheckWireframe: InstallationCheckWireframeProtocol {
     /// The root reads the saved status and routes from there.
     func complete() {
-        observer?.didSettleInstallationStatus()
+        observer.didSettleInstallationStatus()
     }
 }

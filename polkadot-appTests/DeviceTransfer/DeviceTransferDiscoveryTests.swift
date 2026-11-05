@@ -5,12 +5,15 @@ import FoundationExt
 import StatementStore
 import SubstrateSdk
 import SubstrateSdkExt
+import StructuredConcurrencyTestSupport
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
 struct DeviceTransferDiscoveryTests {
     private let store = MockStatementStore()
     private let dates = MockDateProvider()
+    private let clock = ManualClock()
+    private let maxRequestAge: TimeInterval = 120
     private let storage = UserDataStorageTestFacade()
     private let schedule: DeviceTransferKeySchedule
 
@@ -50,26 +53,27 @@ struct DeviceTransferDiscoveryTests {
         #expect(await waitForPending(of: listener) { $0 != nil } == newest)
     }
 
-    @Test("A request is withdrawn once its statement expires")
+    @Test("A request is withdrawn when its statement expires, with no new statement on the topic")
     func expiredStatementIsWithdrawn() async throws {
-        let request = try await insertRequest(expiresIn: 60)
+        let statementLifetime = maxRequestAge / 2
+        let request = try await insertRequest(expiresIn: statementLifetime)
         let listener = try await makeListener()
         #expect(await waitForPending(of: listener) { $0 != nil } == request)
 
-        await dates.advance(by: 61)
-        try await insertUnrelatedCancel()
+        await dates.advance(by: statementLifetime)
+        await clock.resumeSleep(for: .seconds(statementLifetime))
 
         #expect(await waitForPending(of: listener) { $0 == nil } == .some(nil))
     }
 
-    @Test("A request is withdrawn once it outlives the statement lifetime, though its statement is live")
+    @Test("A request is withdrawn once it reaches the max age, though its statement is live")
     func oldRequestIsWithdrawn() async throws {
-        let request = try await insertRequest(expiresIn: 2 * DeviceTransferConstants.statementLifetimeInSeconds)
+        let request = try await insertRequest(expiresIn: 2 * maxRequestAge)
         let listener = try await makeListener()
         #expect(await waitForPending(of: listener) { $0 != nil } == request)
 
-        await dates.advance(by: DeviceTransferConstants.statementLifetimeInSeconds + 1)
-        try await insertUnrelatedCancel()
+        await dates.advance(by: maxRequestAge)
+        await clock.resumeSleep(for: .seconds(maxRequestAge))
 
         #expect(await waitForPending(of: listener) { $0 == nil } == .some(nil))
     }
@@ -117,7 +121,7 @@ private extension DeviceTransferDiscoveryTests {
             keyScheduleFactory: keyScheduleFactory(),
             processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: storage),
             installationObserver: ActiveInstallationStub(),
-            dateProvider: dates,
+            timing: DeviceTransferRequestTiming(maxRequestAge: maxRequestAge, dateProvider: dates, clock: clock),
             logger: MockLogger()
         )
         await listener.setup(connection: store)
@@ -134,14 +138,6 @@ private extension DeviceTransferDiscoveryTests {
         )
         try insert(.request(request), expiresAt: now.addingTimeInterval(lifetime))
         return request
-    }
-
-    /// Any new statement on the topic makes the listener re-evaluate what it offers.
-    func insertUnrelatedCancel() async throws {
-        try await insert(
-            .cancel(requestId: UUID().uuidString),
-            expiresAt: dates.read().addingTimeInterval(60)
-        )
     }
 
     func insert(_ message: DeviceTransferMessage, expiresAt: Date) throws {

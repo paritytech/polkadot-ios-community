@@ -14,8 +14,9 @@ struct DeviceTransferReceiverModuleTests {
     private let observer = ReceiverRootObserverSpy()
     private let installationService = PublishRecordingInstallationService()
     private let clock = ManualClock()
+    private let screenSleep = ScreenSleepSpy()
 
-    @Test("The screens follow the transfer, the bar keeps its value while reconnecting, and Continue leaves")
+    @Test("Screens follow the transfer, the bar holds while reconnecting, the screen stays on, Continue leaves")
     func screensFollowTransfer() async {
         let presenter = makeModule()
         presenter.setup()
@@ -43,6 +44,8 @@ struct DeviceTransferReceiverModuleTests {
 
         #expect(view.screens == [.start] + steps.map(\.1))
         #expect(observer.settledCount == 1)
+        #expect(screenSleep.keptAwake.first == true)
+        #expect(screenSleep.keptAwake.last == false)
     }
 
     @Test("Cancelling on this phone returns to the start, and the transfer can start again")
@@ -72,7 +75,7 @@ struct DeviceTransferReceiverModuleTests {
         coordinator.send(.failed(.rejected))
         await view.waitFor(.declined)
 
-        #expect(view.oldPhone == DeviceTransferOldPhone(model: "iPhone 15", operatingSystem: "iOS 26.0"))
+        #expect(view.oldPhone == DeviceTransferPhone(model: "iPhone 15", operatingSystem: "iOS 26.0"))
         #expect(view.offers == [true])
     }
 
@@ -98,8 +101,12 @@ struct DeviceTransferReceiverModuleTests {
         let presenter = makeModule()
         presenter.setup()
         await coordinator.waitForSubscription()
+        coordinator.send(.failed(.rejected))
+        await view.waitFor(.declined)
 
         presenter.activateWithoutTransfer()
+        #expect(view.confirmationCount == 1)
+        presenter.confirmActivation()
 
         await coordinator.waitForCancel()
         await installationService.waitForPublish()
@@ -112,13 +119,30 @@ struct DeviceTransferReceiverModuleTests {
         let presenter = makeModule()
         presenter.setup()
         await coordinator.waitForSubscription()
+        coordinator.send(.failed(.rejected))
+        await view.waitFor(.declined)
 
-        presenter.activateWithoutTransfer()
+        presenter.confirmActivation()
         await view.waitForAlert()
 
         #expect(installationService.publishCount == 3)
         #expect(view.alertMessages == [String(localized: .deviceTransferActivationFailed)])
         #expect(observer.settledCount == 0)
+    }
+
+    @Test("Cancelling while data moves asks first, and only the confirm stops the run")
+    func cancelDuringTransferAsksFirst() async {
+        let presenter = makeModule()
+        presenter.setup()
+        await coordinator.waitForSubscription()
+        coordinator.send(.syncing(applied: 1, total: 2))
+        await view.waitFor(.syncing(progress: 0.1))
+
+        presenter.cancelTransfer()
+        #expect(view.confirmationCount == 1)
+        presenter.confirmCancelTransfer()
+
+        await coordinator.waitForCancel()
     }
 }
 
@@ -139,8 +163,11 @@ private extension DeviceTransferReceiverModuleTests {
                 installationService: installationService
             ),
             statusStore: FixedInstallationStatusStore(status: saved),
-            clock: clock,
-            publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero),
+            screenSleep: screenSleep,
+            settings: DeviceTransferReceiverModuleSettings(
+                clock: clock,
+                publishRetry: ActiveInstallationPublishRetry(attempts: 3, delay: .zero)
+            ),
             logger: MockLogger()
         )
         let presenter = DeviceTransferReceiverPresenter(
@@ -239,7 +266,6 @@ private final class PublishRecordingInstallationService: ActiveInstallationServi
 
 private struct FixedInstallationStatusStore: InstallationStatusStoring {
     let status: SavedInstallationStatus?
-    var hasBeenActive: Bool { false }
 
     func save(_: InstallationStatus) {}
 }
@@ -250,14 +276,20 @@ private final class ReceiverViewSpy: UIViewController, DeviceTransferReceiverVie
     private let recorder = DeviceSyncTestEventRecorder<DeviceTransferReceiverScreen>()
     private let offerRecorder = DeviceSyncTestEventRecorder<Bool>()
     private let alertRecorder = DeviceSyncTestEventRecorder<String?>()
-    private(set) var oldPhone: DeviceTransferOldPhone?
+    private(set) var oldPhone: DeviceTransferPhone?
 
     var screens: [DeviceTransferReceiverScreen] { recorder.snapshot }
     var offers: [Bool] { offerRecorder.snapshot }
     var alertMessages: [String?] { alertRecorder.snapshot }
 
+    private(set) var confirmationCount = 0
+
     override func present(_ controller: UIViewController, animated _: Bool, completion: (() -> Void)? = nil) {
-        alertRecorder.record((controller as? UIAlertController)?.message)
+        if let alert = controller as? UIAlertController {
+            alertRecorder.record(alert.message)
+        } else if controller is DeviceTransferConfirmationViewController {
+            confirmationCount += 1
+        }
         completion?()
     }
 
@@ -265,7 +297,7 @@ private final class ReceiverViewSpy: UIViewController, DeviceTransferReceiverVie
         _ = await alertRecorder.waitForCount(1)
     }
 
-    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferOldPhone?) {
+    func didReceive(screen: DeviceTransferReceiverScreen, oldPhone: DeviceTransferPhone?) {
         self.oldPhone = oldPhone
         if recorder.snapshot.last != screen {
             recorder.record(screen)
@@ -311,4 +343,5 @@ private final class ReceiverRootObserverSpy: RootStateObserving {
     func didClaimUsername() {}
     func didDecideClaim() {}
     func didSelectTheme() {}
+    func didConfirmDeviceTransfer(_: DeviceTransferRequest) {}
 }

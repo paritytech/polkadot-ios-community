@@ -17,20 +17,10 @@ public enum DeviceTransferReceiverScreen: Equatable {
     case failed
 }
 
-public struct DeviceTransferOldPhone: Equatable {
-    public let model: String
-    public let operatingSystem: String
-
-    public init(model: String, operatingSystem: String) {
-        self.model = model
-        self.operatingSystem = operatingSystem
-    }
-}
-
 @Observable
 public class DeviceTransferReceiverViewModel {
     public var screen: DeviceTransferReceiverScreen = .start
-    public var oldPhone: DeviceTransferOldPhone?
+    public var oldPhone: DeviceTransferPhone?
     public var offersActivation = false
     public var onStart: (() -> Void)?
     public var onCancel: (() -> Void)?

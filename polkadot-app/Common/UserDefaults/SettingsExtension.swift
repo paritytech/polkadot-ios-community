@@ -23,7 +23,6 @@ enum SettingsKey: String {
     case deviceTransferCheckpoint = "deviceTransferCheckpoint.v3"
     case deviceTransferCheckpointSender = "deviceTransferCheckpointSender.v3"
     case installationStatus = "installationStatus.v3"
-    case installationHasBeenActive = "installationHasBeenActive.v3"
     case themeSelected = "themeSelected.v3"
     case gameCalendarReminder
     case localNetworkPermissionRequested

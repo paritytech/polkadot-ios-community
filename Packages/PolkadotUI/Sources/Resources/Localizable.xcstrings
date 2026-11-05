@@ -934,6 +934,17 @@
         }
       }
     },
+    "device.transfer.cancel.senderBody" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This phone stays active. You can transfer again later."
+          }
+        }
+      }
+    },
     "device.transfer.cancel.title" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -963,6 +974,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$(operatingSystem)@ · active now"
+          }
+        }
+      }
+    },
+    "device.transfer.device.newPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$(operatingSystem)@ · new phone"
           }
         }
       }
@@ -1293,6 +1315,138 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open Polkadot App on your old phone"
+          }
+        }
+      }
+    },
+    "device.transfer.request.action.decline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decline"
+          }
+        }
+      }
+    },
+    "device.transfer.request.action.transfer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer"
+          }
+        }
+      }
+    },
+    "device.transfer.request.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After the transfer, this phone will be deactivated."
+          }
+        }
+      }
+    },
+    "device.transfer.request.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer data to a new phone?"
+          }
+        }
+      }
+    },
+    "device.transfer.sender.action.backToChats" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to chats"
+          }
+        }
+      }
+    },
+    "device.transfer.sender.body.cancelled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The transfer was cancelled on %1$(model)@. This phone is still active."
+          }
+        }
+      }
+    },
+    "device.transfer.sender.body.connectionLost" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for %1$(model)@… The transfer will continue where it stopped."
+          }
+        }
+      }
+    },
+    "device.transfer.sender.body.sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending data to %1$(model)@. Keep the app open."
+          }
+        }
+      }
+    },
+    "device.transfer.sender.files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending files…"
+          }
+        }
+      }
+    },
+    "device.transfer.sender.title.connecting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting to your new phone"
+          }
+        }
+      }
+    },
+    "device.transfer.sender.title.sending" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sending your data"
+          }
+        }
+      }
+    },
+    "device.transfer.sender.waitingNewPhone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for %1$(model)@…"
           }
         }
       }

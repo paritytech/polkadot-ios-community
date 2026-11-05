@@ -12,8 +12,14 @@ protocol DeviceTransferRequestListening: Sendable {
     func throttle() async
 }
 
+struct DeviceTransferRequestTiming {
+    var maxRequestAge: TimeInterval = DeviceTransferConstants.statementLifetimeInSeconds
+    var dateProvider: any DateProviding = NowDateProvider()
+    var clock: any Clock<Duration> = ContinuousClock()
+}
+
 /// The active phone's side of discovery. It follows `request_topic` only while this installation is active and offers
-/// the newest request that hasn't expired, isn't older than 15 minutes, wasn't cancelled and wasn't processed.
+/// the newest request that hasn't expired, isn't older than the max request age, wasn't cancelled and wasn't processed.
 actor DeviceTransferRequestListener {
     fileprivate struct ReceivedRequest {
         let request: DeviceTransferRequest
@@ -23,12 +29,13 @@ actor DeviceTransferRequestListener {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
     private let processedStore: DeviceTransferProcessedStoring
     private let installationObserver: CurrentInstallationObserving
-    private let dateProvider: any DateProviding
+    private let timing: DeviceTransferRequestTiming
     private let logger: LoggerProtocol
 
     private let subject = AsyncCurrentValueSubject<DeviceTransferRequest?>(nil)
     private var runTask: Task<Void, Never>?
     private var followTask: Task<Void, Never>?
+    private var expiryTask: Task<Void, Never>?
     /// Only messages that decrypt are kept, keyed by request id, so statements flooding the topic can't grow memory.
     private var requests: [String: ReceivedRequest] = [:]
     private var cancellations: [String: UInt64] = [:]
@@ -37,13 +44,13 @@ actor DeviceTransferRequestListener {
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
         processedStore: DeviceTransferProcessedStoring,
         installationObserver: CurrentInstallationObserving,
-        dateProvider: any DateProviding = NowDateProvider(),
+        timing: DeviceTransferRequestTiming = DeviceTransferRequestTiming(),
         logger: LoggerProtocol
     ) {
         self.keyScheduleFactory = keyScheduleFactory
         self.processedStore = processedStore
         self.installationObserver = installationObserver
-        self.dateProvider = dateProvider
+        self.timing = timing
         self.logger = logger
     }
 }
@@ -104,6 +111,8 @@ private extension DeviceTransferRequestListener {
         task?.cancel()
         await task?.value
 
+        expiryTask?.cancel()
+        expiryTask = nil
         requests = [:]
         cancellations = [:]
         update(nil)
@@ -155,37 +164,61 @@ private extension DeviceTransferRequestListener {
     }
 
     func evaluate() async throws {
-        let now = await dateProvider.read()
+        let now = await timing.dateProvider.read()
         let liveRequests = liveRequests(at: now)
-        let processed = try await processedStore.processedRequestIds(among: liveRequests.map(\.requestId))
+        let processed = try await processedStore.processedRequestIds(among: liveRequests.map(\.request.requestId))
 
         try Task.checkCancellation()
 
         let newest = liveRequests
-            .filter { !processed.contains($0.requestId) }
-            .max { $0.createdAt < $1.createdAt }
+            .filter { !processed.contains($0.request.requestId) }
+            .max { $0.request.createdAt < $1.request.createdAt }
 
-        update(newest)
+        update(newest?.request)
+        scheduleExpiry(of: newest, now: now)
     }
 
-    func liveRequests(at date: Date) -> [DeviceTransferRequest] {
+    /// Statements only arrive when something changes, so the offered request is re-checked when it would expire.
+    func scheduleExpiry(of offered: ReceivedRequest?, now: Date) {
+        expiryTask?.cancel()
+        expiryTask = nil
+
+        guard let offered else { return }
+
+        let nowInMilliseconds = UInt64(now.timeIntervalSince1970.milliseconds)
+        let delay = withdrawalTime(of: offered).subtractingReportingOverflow(nowInMilliseconds)
+
+        expiryTask = Task { [weak self, clock = timing.clock, logger] in
+            do {
+                try await clock.sleep(for: .milliseconds(delay.overflow ? 0 : delay.partialValue))
+                try await self?.evaluate()
+            } catch {
+                guard !Task.isCancelled else { return }
+                logger.error("Device transfer request expiry check failed: \(error)")
+            }
+        }
+    }
+
+    func liveRequests(at date: Date) -> [ReceivedRequest] {
         let nowInSeconds = UInt64(date.timeIntervalSince1970)
         let nowInMilliseconds = UInt64(date.timeIntervalSince1970.milliseconds)
-        let maxAgeInMilliseconds = UInt64(DeviceTransferConstants.statementLifetimeInSeconds.milliseconds)
 
         return requests.compactMap { requestId, received in
             let isCancelled = cancellations[requestId].map { $0 > nowInSeconds } ?? false
 
-            guard
-                received.expiresAt > nowInSeconds,
-                !isCancelled,
-                nowInMilliseconds <= received.request.createdAt + maxAgeInMilliseconds
-            else {
+            guard !isCancelled, nowInMilliseconds < withdrawalTime(of: received) else {
                 return nil
             }
 
-            return received.request
+            return received
         }
+    }
+
+    /// When the request stops being offered: its statement expires or it reaches the max age, whichever is first.
+    func withdrawalTime(of received: ReceivedRequest) -> UInt64 {
+        let tooOldAt = received.request.createdAt + UInt64(timing.maxRequestAge.milliseconds)
+        let statementExpiredAt = UInt64(TimeInterval(received.expiresAt).milliseconds)
+        return min(tooOldAt, statementExpiredAt)
     }
 
     func update(_ request: DeviceTransferRequest?) {

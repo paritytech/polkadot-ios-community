@@ -1,6 +1,16 @@
 import SwiftUI
 import DesignSystem
 
+public struct DeviceTransferPhone: Equatable {
+    public let model: String
+    public let operatingSystem: String
+
+    public init(model: String, operatingSystem: String) {
+        self.model = model
+        self.operatingSystem = operatingSystem
+    }
+}
+
 /// Figma "DT/Transfer illustration": the old phone, arrows, the new phone.
 public struct DeviceTransferIllustration: View {
     public init() {}
@@ -48,14 +58,16 @@ public struct DeviceTransferPhoneGlyph: View {
     }
 }
 
-/// Figma "DT/Device card".
+/// Figma "DT/Device card". Inside a sheet it sits one surface level up.
 public struct DeviceTransferDeviceCard: View {
     let model: String
     let detail: String
+    let background: Color
 
-    public init(model: String, detail: String) {
+    public init(model: String, detail: String, background: Color = .bgSurfaceContainer) {
         self.model = model
         self.detail = detail
+        self.background = background
     }
 
     public var body: some View {
@@ -75,7 +87,7 @@ public struct DeviceTransferDeviceCard: View {
             Spacer(minLength: 0)
         }
         .padding(DSSpacings.mediumIncreased)
-        .background(Color.bgSurfaceContainer, in: RoundedRectangle(cornerRadius: DSSpacings.large))
+        .background(background, in: RoundedRectangle(cornerRadius: DSSpacings.large))
     }
 }
 
@@ -161,70 +173,4 @@ public struct DeviceTransferProgressBar: View {
     var percent: Int {
         Int((min(max(fraction, 0), 1) * 100).rounded())
     }
-}
-
-/// Figma "Bottom sheet base" for transfer confirmations: a warning, what follows, and a destructive confirm.
-struct DeviceTransferConfirmationSheet: View {
-    let content: DeviceTransferConfirmationContent
-    let onConfirm: () -> Void
-    let onDismiss: () -> Void
-
-    var body: some View {
-        BottomSheetBaseView {
-            VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: DSSpacings.small) {
-                    Image(.iconAlertCircle)
-                        .resizable()
-                        .frame(width: 56, height: 56)
-                        .foregroundStyle(Color.fgWarning)
-                        .padding(.bottom, DSSpacings.small)
-                    Text(content.title)
-                        .typography(.headlineSmall)
-                        .foregroundStyle(Color.fgPrimary)
-                    Text(content.message)
-                        .typography(.paragraphLarge)
-                        .foregroundStyle(Color.fgPrimary)
-                }
-                .padding(.horizontal, DSSpacings.small)
-                .padding(.vertical, DSSpacings.mediumIncreased)
-
-                if !content.points.isEmpty {
-                    VStack(alignment: .leading, spacing: DSSpacings.extraMedium) {
-                        ForEach(content.points, id: \.self) { point in
-                            bullet(point)
-                        }
-                    }
-                    .padding(.horizontal, DSSpacings.small)
-                    .padding(.vertical, DSSpacings.small)
-                }
-
-                VStack(spacing: DSSpacings.mediumIncreased) {
-                    DSButton(content.confirmTitle, style: .destructive, expands: true, action: onConfirm)
-                    DSButton(content.dismissTitle, style: .tertiary, expands: true, action: onDismiss)
-                }
-                .padding(.top, DSSpacings.mediumIncreased)
-            }
-            .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func bullet(_ text: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: DSSpacings.extraMedium) {
-            Circle()
-                .fill(Color.fgSecondary)
-                .frame(width: 6, height: 6)
-            Text(text)
-                .typography(.bodyMedium)
-                .foregroundStyle(Color.fgSecondary)
-            Spacer(minLength: 0)
-        }
-    }
-}
-
-struct DeviceTransferConfirmationContent {
-    let title: String
-    let message: String
-    let points: [String]
-    let confirmTitle: String
-    let dismissTitle: String
 }
