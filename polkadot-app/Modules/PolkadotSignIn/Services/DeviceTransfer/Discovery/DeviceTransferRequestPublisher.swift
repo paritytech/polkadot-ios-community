@@ -37,8 +37,7 @@ extension DeviceTransferRequestPublisher: DeviceTransferRequestPublishing {
     func publishRequest(configuration: DeviceTransferDiscoveryConfiguration) async throws -> DeviceTransferRequest {
         let now = await dateProvider.read()
         let request = DeviceTransferRequest(
-            // Lowercase until Android stops hashing its parsed `UUID` form instead of the id as received.
-            requestId: UUID().uuidString.lowercased(),
+            requestId: UUID().uuidString,
             deviceModel: deviceInfo.model,
             operatingSystem: deviceInfo.operatingSystem,
             createdAt: UInt64(now.timeIntervalSince1970.milliseconds)
