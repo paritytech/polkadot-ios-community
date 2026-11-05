@@ -42,6 +42,6 @@ public final class X25519ChaChaPolyEncryptorFactory: MessageExchangeEncryptionMa
     public func makeEncryptor(remotePublicKey: Data) throws -> MessageExchangeEncrypting {
         let publicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: remotePublicKey)
         let sharedKey = try privateKey.sharedSecretFromKeyAgreement(with: publicKey)
-        return ChaChaPolyEncryptor(sharedSecret: sharedKey)
+        return ECDHChaChaPolyEncryptor(sharedSecret: sharedKey)
     }
 }

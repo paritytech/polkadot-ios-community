@@ -102,7 +102,8 @@ private struct Participant {
                 X25519ChaChaPolyEncryptorFactory(privateKey: identityEncryptionKey)
             },
             deviceEncryptionKeyFactory: X25519ChaChaPolyEncryptorFactory(privateKey: deviceEncryptionKey),
-            maxStatementSize: 4_096
+            maxStatementSize: 4_096,
+            accountProvider: SignerSessionAccountProvider(signerManager: signManager)
         )
         .makeService(
             statementStoreConnection: store,

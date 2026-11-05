@@ -45,6 +45,7 @@ extension ServiceCoordinator {
             await chainStatusProvider.start()
             await signInHostCoordinator.setup()
             await setupDeviceSyncService()
+            await setupActiveInstallationService()
 
             guard await startDurability() else { return }
 
@@ -74,6 +75,7 @@ extension ServiceCoordinator {
 
         Task {
             await deviceSyncService.throttle()
+            await activeInstallationService.throttle()
             await coinageTransferMonitor.throttle()
             await w3sPaymentTracking.throttle()
             await signInHostCoordinator.throttle()
