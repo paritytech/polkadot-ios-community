@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import AsyncExtensions
 import Foundation
+import FoundationExt
 import StatementStore
 import SubstrateSdk
 import SubstrateSdkExt
@@ -84,7 +85,7 @@ struct DeviceTransferDiscoveryTests {
         await dates.advance(by: 10)
         let processed = try await publisher.publishRequest(configuration: configuration())
         try await DeviceTransferProcessedCoreDataStore(storageFacade: storage)
-            .markProcessed(requestId: processed.requestId.uppercased(), outcome: .rejected)
+            .markProcessed(requestId: processed.requestId, outcome: .rejected)
 
         let relaunched = try await makeListener()
 
@@ -110,7 +111,7 @@ private extension DeviceTransferDiscoveryTests {
     func makePublisher() -> DeviceTransferRequestPublisher {
         DeviceTransferRequestPublisher(
             keyScheduleFactory: keyScheduleFactory(),
-            deviceInfo: DeviceInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+            deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
             dateProvider: dates
         )
     }
@@ -134,7 +135,7 @@ private extension DeviceTransferDiscoveryTests {
     func insertRequest(expiresIn lifetime: TimeInterval) async throws -> DeviceTransferRequest {
         let now = await dates.read()
         let request = DeviceTransferRequest(
-            requestId: UUID().uuidString.lowercased(),
+            requestId: UUID().uuidString,
             deviceModel: "iPhone 16",
             operatingSystem: "iOS 26.0",
             createdAt: UInt64(now.timeIntervalSince1970.milliseconds)

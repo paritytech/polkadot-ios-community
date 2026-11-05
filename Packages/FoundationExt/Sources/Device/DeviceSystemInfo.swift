@@ -1,29 +1,37 @@
 import Foundation
 
-/// What an inactive phone shows about the active one, and what the sender shows about a new phone.
-/// Built from `utsname` and `ProcessInfo` rather than `UIDevice`, so it can be read off the main actor.
-struct DeviceInfo: Equatable {
-    let model: String
-    let operatingSystem: String
+/// The device's marketing model name and OS version. `UIDevice.name` and `.model` only return "iPhone" since
+/// iOS 16, so the model comes from the hardware identifier; reading `utsname` also works off the main actor.
+public struct DeviceSystemInfo: Equatable, Sendable {
+    public let model: String
+    public let operatingSystem: String
 
-    static func current() -> DeviceInfo {
+    public init(model: String, operatingSystem: String) {
+        self.model = model
+        self.operatingSystem = operatingSystem
+    }
+
+    public static func current() -> DeviceSystemInfo {
         let identifier = machineIdentifier()
         let version = ProcessInfo.processInfo.operatingSystemVersion
         let systemName = identifier.hasPrefix("iPad") ? "iPadOS" : "iOS"
         let patch = version.patchVersion > 0 ? ".\(version.patchVersion)" : ""
 
-        return DeviceInfo(
+        return DeviceSystemInfo(
             model: DeviceModelNames.name(for: identifier) ?? genericModel(for: identifier),
             operatingSystem: "\(systemName) \(version.majorVersion).\(version.minorVersion)\(patch)"
         )
     }
 }
 
-private extension DeviceInfo {
+private extension DeviceSystemInfo {
     static func machineIdentifier() -> String {
-        if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
-            return simulated
-        }
+        #if targetEnvironment(simulator)
+            // `uname` reports the Mac here, so use the identifier of the simulated device.
+            if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
+                return simulated
+            }
+        #endif
 
         var systemInfo = utsname()
         uname(&systemInfo)
@@ -41,7 +49,7 @@ private extension DeviceInfo {
 }
 
 /// Marketing names for the iPhones that run the minimum supported iOS. iOS has no public API for them, so the
-/// table needs a new row each September; unknown identifiers fall back to "iPhone" or "iPad".
+/// table needs new rows with each release; unknown identifiers fall back to "iPhone" or "iPad".
 enum DeviceModelNames {
     static func name(for identifier: String) -> String? {
         names[identifier]
@@ -81,6 +89,11 @@ enum DeviceModelNames {
         "iPhone18,1": "iPhone 17 Pro",
         "iPhone18,2": "iPhone 17 Pro Max",
         "iPhone18,3": "iPhone 17",
-        "iPhone18,4": "iPhone Air"
+        "iPhone18,4": "iPhone Air",
+        "iPhone18,5": "iPhone 17e",
+        "iPhone19,2": "iPhone 18 Pro",
+        "iPhone19,3": "iPhone 18 Pro Max",
+        "iPhone19,4": "iPhone Duo",
+        "iPhone19,7": "iPhone 18 Pro Max"
     ]
 }

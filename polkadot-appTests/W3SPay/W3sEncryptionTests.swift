@@ -27,7 +27,7 @@ struct W3sEncryptionTests {
             rawRepresentation: factory.localPublicKey
         )
         let merchantShared = try merchantPrivate.sharedSecretFromKeyAgreement(with: ephemeralPublicReceived)
-        let merchantEncryptor = ChaChaPolyEncryptor(sharedSecret: merchantShared)
+        let merchantEncryptor = ECDHChaChaPolyEncryptor(sharedSecret: merchantShared)
         let recovered = try merchantEncryptor.decrypt(ciphertext)
 
         #expect(recovered == plaintext)

@@ -17,14 +17,14 @@ protocol DeviceTransferRequestPublishing: Sendable {
 /// The new phone's side of discovery: one statement on `request_topic`, replaced by a newer request or a cancel.
 actor DeviceTransferRequestPublisher {
     private let keyScheduleFactory: DeviceTransferKeyScheduleMaking
-    private let deviceInfo: DeviceInfo
+    private let deviceInfo: DeviceSystemInfo
     private let dateProvider: any DateProviding
 
     private var lastExpiry: UInt64 = 0
 
     init(
         keyScheduleFactory: DeviceTransferKeyScheduleMaking,
-        deviceInfo: DeviceInfo,
+        deviceInfo: DeviceSystemInfo,
         dateProvider: any DateProviding = NowDateProvider()
     ) {
         self.keyScheduleFactory = keyScheduleFactory
@@ -37,7 +37,7 @@ extension DeviceTransferRequestPublisher: DeviceTransferRequestPublishing {
     func publishRequest(configuration: DeviceTransferDiscoveryConfiguration) async throws -> DeviceTransferRequest {
         let now = await dateProvider.read()
         let request = DeviceTransferRequest(
-            requestId: UUID().uuidString.lowercased(),
+            requestId: UUID().uuidString,
             deviceModel: deviceInfo.model,
             operatingSystem: deviceInfo.operatingSystem,
             createdAt: UInt64(now.timeIntervalSince1970.milliseconds)
@@ -61,13 +61,13 @@ private extension DeviceTransferRequestPublisher {
         let schedule = try keyScheduleFactory.makeKeySchedule()
         let sealed = try DeviceTransferMessageCipher(requestKey: schedule.requestKey).seal(message)
 
-        let builder = try StatementSubmitParametersBuilder(signer: configuration.signer, logger: nil)
+        let statement = try UnsignedStatement()
             .addTopic1(schedule.requestTopic)
             .addChannel(schedule.requestTopic)
             .addExpiry(nextExpiry(at: date))
             .addScaleEncodedPayload(sealed.scaleEncoded())
 
-        try await configuration.connection.submitStatement(with: builder)
+        try await configuration.connection.submitStatement(with: statement.signed(by: configuration.signer))
     }
 
     /// A cancel sent in the same second as its request still has to outrank it on the channel.
