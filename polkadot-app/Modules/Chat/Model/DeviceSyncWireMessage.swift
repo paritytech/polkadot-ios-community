@@ -36,7 +36,7 @@ extension Chat.DeviceSyncWireMessage {
         remote = remoteMessage
         peerId = accountId
         status = Chat.DeviceSyncLocalStatus(from: local.status)
-        order = local.timestamp
+        order = local.order
     }
 
     func toLocal() -> Chat.LocalMessage? {
@@ -62,7 +62,8 @@ extension Chat.DeviceSyncWireMessage {
             content: content,
             reactions: [],
             compactionId: nil,
-            relatedMessages: []
+            relatedMessages: [],
+            order: order
         )
     }
 }

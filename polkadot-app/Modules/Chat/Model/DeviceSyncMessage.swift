@@ -9,6 +9,13 @@ extension Chat {
         case chatsAdded([DeviceSyncChatId])
         case chatsRemoved([DeviceSyncChatId])
         case messages([DeviceSyncWireMessage])
+        case chatsBlocked([DeviceSyncChatBlockState])
+        case incomingRequestsAdded([DeviceSyncIncomingChatRequest])
+        case incomingRequestsStatusUpdated([DeviceSyncIncomingRequestStatusUpdate])
+        case outgoingRequestsAdded([DeviceSyncOutgoingChatRequest])
+        case outgoingRequestsStatusUpdated([DeviceSyncOutgoingRequestStatusUpdate])
+        case coinsHandedOff([DeviceSyncHandedOffCoin])
+        case coinageMessagesStatusUpdated([DeviceSyncCoinageMessageStatusUpdate])
 
         var logLabel: String {
             switch self {
@@ -16,6 +23,13 @@ extension Chat {
             case .chatsAdded: "chatsAdded"
             case .chatsRemoved: "chatsRemoved"
             case .messages: "messages"
+            case .chatsBlocked: "chatsBlocked"
+            case .incomingRequestsAdded: "incomingRequestsAdded"
+            case .incomingRequestsStatusUpdated: "incomingRequestsStatusUpdated"
+            case .outgoingRequestsAdded: "outgoingRequestsAdded"
+            case .outgoingRequestsStatusUpdated: "outgoingRequestsStatusUpdated"
+            case .coinsHandedOff: "coinsHandedOff"
+            case .coinageMessagesStatusUpdated: "coinageMessagesStatusUpdated"
             }
         }
     }
@@ -39,6 +53,7 @@ extension Chat {
 // MARK: - ScaleCodable: DeviceSyncEntity
 
 extension Chat.DeviceSyncEntity: ScaleCodable {
+    // swiftlint:disable:next cyclomatic_complexity
     init(scaleDecoder: any ScaleDecoding) throws {
         let index = try UInt8(scaleDecoder: scaleDecoder)
         switch index {
@@ -50,11 +65,32 @@ extension Chat.DeviceSyncEntity: ScaleCodable {
             self = try .chatsRemoved([Chat.DeviceSyncChatId](scaleDecoder: scaleDecoder))
         case 3:
             self = try .messages([Chat.DeviceSyncWireMessage](scaleDecoder: scaleDecoder))
+        case 4:
+            self = try .chatsBlocked([Chat.DeviceSyncChatBlockState](scaleDecoder: scaleDecoder))
+        case 5:
+            self = try .incomingRequestsAdded([Chat.DeviceSyncIncomingChatRequest](scaleDecoder: scaleDecoder))
+        case 6:
+            self = try .incomingRequestsStatusUpdated(
+                [Chat.DeviceSyncIncomingRequestStatusUpdate](scaleDecoder: scaleDecoder)
+            )
+        case 7:
+            self = try .outgoingRequestsAdded([Chat.DeviceSyncOutgoingChatRequest](scaleDecoder: scaleDecoder))
+        case 8:
+            self = try .outgoingRequestsStatusUpdated(
+                [Chat.DeviceSyncOutgoingRequestStatusUpdate](scaleDecoder: scaleDecoder)
+            )
+        case 9:
+            self = try .coinsHandedOff([Chat.DeviceSyncHandedOffCoin](scaleDecoder: scaleDecoder))
+        case 10:
+            self = try .coinageMessagesStatusUpdated(
+                [Chat.DeviceSyncCoinageMessageStatusUpdate](scaleDecoder: scaleDecoder)
+            )
         default:
             throw ScaleCodingError.unexpectedDecodedValue
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     func encode(scaleEncoder: any ScaleEncoding) throws {
         switch self {
         case let .devices(devices):
@@ -69,6 +105,27 @@ extension Chat.DeviceSyncEntity: ScaleCodable {
         case let .messages(messages):
             try UInt8(3).encode(scaleEncoder: scaleEncoder)
             try messages.encode(scaleEncoder: scaleEncoder)
+        case let .chatsBlocked(states):
+            try UInt8(4).encode(scaleEncoder: scaleEncoder)
+            try states.encode(scaleEncoder: scaleEncoder)
+        case let .incomingRequestsAdded(requests):
+            try UInt8(5).encode(scaleEncoder: scaleEncoder)
+            try requests.encode(scaleEncoder: scaleEncoder)
+        case let .incomingRequestsStatusUpdated(updates):
+            try UInt8(6).encode(scaleEncoder: scaleEncoder)
+            try updates.encode(scaleEncoder: scaleEncoder)
+        case let .outgoingRequestsAdded(requests):
+            try UInt8(7).encode(scaleEncoder: scaleEncoder)
+            try requests.encode(scaleEncoder: scaleEncoder)
+        case let .outgoingRequestsStatusUpdated(updates):
+            try UInt8(8).encode(scaleEncoder: scaleEncoder)
+            try updates.encode(scaleEncoder: scaleEncoder)
+        case let .coinsHandedOff(keys):
+            try UInt8(9).encode(scaleEncoder: scaleEncoder)
+            try keys.encode(scaleEncoder: scaleEncoder)
+        case let .coinageMessagesStatusUpdated(updates):
+            try UInt8(10).encode(scaleEncoder: scaleEncoder)
+            try updates.encode(scaleEncoder: scaleEncoder)
         }
     }
 }

@@ -6,6 +6,9 @@ import MessageExchangeKit
 import AsyncExtensions
 import Operation_iOS
 import FoundationExt
+import Products
+import Coinage
+import KeyDerivation
 @preconcurrency import WebRTC
 
 protocol DeviceSyncServicing {
@@ -87,6 +90,20 @@ actor DeviceSyncService {
             contactsStorageService: contactsStorageService,
             storageFacade: storageFacade,
             updateIdProvider: updateIdProvider,
+            chatStateCollector: DeviceSyncChatStateCollector(databaseService: storageFacade.databaseService),
+            chatStateApplier: DeviceSyncChatStateApplier(
+                databaseService: storageFacade.databaseService,
+                remoteContactResolver: remoteContactResolver,
+                tldProvider: DotNsTldProviderFacade.shared,
+                logger: logger
+            ),
+            coinageStateCollector: DeviceSyncCoinageStateCollector(databaseService: storageFacade.databaseService),
+            coinageStateApplier: DeviceSyncCoinageStateApplier(
+                databaseService: storageFacade.databaseService,
+                coinKeyDeriver: CoinKeypairFactory(entropyManager: RootEntropyManager.shared),
+                transferStateStore: TransferStateCoreDataStore(storageFacade: storageFacade),
+                logger: logger
+            ),
             fileTransferFactory: fileTransferFactory
         )
         self.peerEngineFactory = peerEngineFactory

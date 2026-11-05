@@ -10,6 +10,8 @@ final class DeviceSyncIncomingUpdateApplier {
     private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
     private let chatAcceptedApplier: DeviceSyncChatAcceptedApplier
     private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
+    private let chatStateApplier: DeviceSyncChatStateApplying
+    private let coinageStateApplier: DeviceSyncCoinageStateApplying
     private let flow: any DeviceSyncPeerConnectionFlowing
     private let peerLogger: LoggerProtocol
 
@@ -19,6 +21,8 @@ final class DeviceSyncIncomingUpdateApplier {
         chatRepositoryFactory: ChatRepositoryMaking,
         messageRepositoryFactory: ChatMessageRepositoryMaking,
         removedChatRepositoryFactory: RemovedChatRepositoryMaking,
+        chatStateApplier: DeviceSyncChatStateApplying,
+        coinageStateApplier: DeviceSyncCoinageStateApplying,
         flow: any DeviceSyncPeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
@@ -29,6 +33,8 @@ final class DeviceSyncIncomingUpdateApplier {
         self.chatRepositoryFactory = chatRepositoryFactory
         self.messageRepositoryFactory = messageRepositoryFactory
         self.removedChatRepositoryFactory = removedChatRepositoryFactory
+        self.chatStateApplier = chatStateApplier
+        self.coinageStateApplier = coinageStateApplier
         self.flow = flow
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
@@ -77,12 +83,39 @@ private extension DeviceSyncIncomingUpdateApplier {
             case let .messages(messages):
                 peerLogger.debug("Applying \(messages.count) message(s) from sync")
                 try await applyMessages(messages)
+            case .chatsBlocked,
+                 .incomingRequestsAdded,
+                 .incomingRequestsStatusUpdated,
+                 .outgoingRequestsAdded,
+                 .outgoingRequestsStatusUpdated:
+                try await applyChatState(entity)
+            case let .coinsHandedOff(coins):
+                try await coinageStateApplier.applyHandedOffCoins(coins)
+            case let .coinageMessagesStatusUpdated(updates):
+                try await coinageStateApplier.applyClaimStatuses(updates)
             }
         } catch {
             peerLogger.error(
                 "Skipping failed entity in sync update id=\(updateId) " +
                     "entity=\([entity].syncLogSummary): \(error)"
             )
+        }
+    }
+
+    func applyChatState(_ entity: Chat.DeviceSyncEntity) async throws {
+        switch entity {
+        case let .chatsBlocked(states):
+            try await chatStateApplier.applyBlockStates(states)
+        case let .incomingRequestsAdded(requests):
+            try await chatStateApplier.applyIncomingRequests(requests)
+        case let .incomingRequestsStatusUpdated(updates):
+            try await chatStateApplier.applyIncomingStatusUpdates(updates)
+        case let .outgoingRequestsAdded(requests):
+            try await chatStateApplier.applyOutgoingRequests(requests)
+        case let .outgoingRequestsStatusUpdated(updates):
+            try await chatStateApplier.applyOutgoingStatusUpdates(updates)
+        default:
+            break
         }
     }
 

@@ -35,18 +35,11 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
     }
 
     func updateIncoming(messageId: Chat.MessageId, state: IncomingTransferState) async throws {
-        let now = await dateProvider.read()
+        try await writeIncoming(messageId: messageId, state: state, marksModified: true)
+    }
 
-        try await databaseService.performWrite { context in
-            let message = try Self.message(messageId, in: context)
-            let row = try message.incomingTransferState
-                ?? Self.insertIncomingRow(for: message, firstAttemptAt: now, in: context)
-
-            guard !TransferStateRows.isUnchanged(row, comparedTo: state) else { return }
-
-            TransferStateRows.apply(state, to: row)
-            Self.touch(message, key: #keyPath(CDChatMessage.incomingTransferState))
-        }
+    func applySyncedIncoming(messageId: Chat.MessageId, state: IncomingTransferState) async throws {
+        try await writeIncoming(messageId: messageId, state: state, marksModified: false)
     }
 
     func updateOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws {
@@ -63,6 +56,24 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
 }
 
 private extension TransferStateCoreDataStore {
+    func writeIncoming(messageId: Chat.MessageId, state: IncomingTransferState, marksModified: Bool) async throws {
+        let now = await dateProvider.read()
+
+        try await databaseService.performWrite { context in
+            let message = try Self.message(messageId, in: context)
+            let row = try message.incomingTransferState
+                ?? Self.insertIncomingRow(for: message, firstAttemptAt: now, in: context)
+
+            guard !TransferStateRows.isUnchanged(row, comparedTo: state) else { return }
+
+            TransferStateRows.apply(state, to: row)
+            if marksModified {
+                row.modifiedAt = now
+            }
+            Self.touch(message, key: #keyPath(CDChatMessage.incomingTransferState))
+        }
+    }
+
     static func message(_ messageId: Chat.MessageId, in context: NSManagedObjectContext) throws -> CDChatMessage {
         let predicate = NSPredicate(format: "%K == %@", #keyPath(CDChatMessage.messageId), messageId)
         guard let message: CDChatMessage = try context.first(for: predicate) else {

@@ -8,5 +8,9 @@ protocol TransferStateStoring: Sendable {
 
     func updateIncoming(messageId: Chat.MessageId, state: IncomingTransferState) async throws
 
+    /// As `updateIncoming`, for a state settled on a sibling device: it isn't marked modified, so device sync
+    /// doesn't send it back.
+    func applySyncedIncoming(messageId: Chat.MessageId, state: IncomingTransferState) async throws
+
     func updateOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws
 }

@@ -27,6 +27,7 @@
         <attribute name="imageData" optional="YES" attributeType="Binary"/>
         <attribute name="isBlocked" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="lastOwnToken" optional="YES" attributeType="Binary"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="ownEncryptionKeyId" optional="YES" attributeType="String"/>
         <attribute name="ownSignKeyId" optional="YES" attributeType="String"/>
         <attribute name="pendingDevicesFanOut" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -107,6 +108,7 @@
     <entity name="CDChatRequest" representedClassName="CDChatRequest" syncable="YES" codeGenerationType="class">
         <attribute name="contactId" optional="YES" attributeType="String"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="timestamp" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contact" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="chatRequest" inverseEntity="CDChatContact"/>
@@ -261,6 +263,7 @@
         <attribute name="installationId" optional="YES" attributeType="String"/>
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="handoffMark" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="handoffCommittedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="hops" optional="YES" attributeType="Binary"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="isOnchain" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -352,6 +355,7 @@
     <entity name="CDIncomingTransferState" representedClassName="CDIncomingTransferState" syncable="YES" codeGenerationType="class">
         <attribute name="actualValue" optional="YES" attributeType="String"/>
         <attribute name="firstAttemptAt" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatMessage" inverseName="incomingTransferState" inverseEntity="CDChatMessage"/>
     </entity>
