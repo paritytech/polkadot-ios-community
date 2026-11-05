@@ -126,10 +126,14 @@ enum CoinageStudioBake {
             encoder.setBytes(&bake, length: MemoryLayout<Bake>.size, index: 1)
             encoder.setBuffer(directions, offset: 0, index: 2)
 
+            // Whole threadgroups rather than `dispatchThreads`: a non-uniform grid needs Apple GPU
+            // family 4, which the simulator on an Intel Mac does not have, and it aborted there.
+            // The kernels discard threads past the face's edge.
             let side = max(size >> level, 1)
-            encoder.dispatchThreads(
-                MTLSize(width: side, height: side, depth: 6),
-                threadsPerThreadgroup: MTLSize(width: min(side, 8), height: min(side, 8), depth: 1)
+            let group = min(side, 8)
+            encoder.dispatchThreadgroups(
+                MTLSize(width: (side + group - 1) / group, height: (side + group - 1) / group, depth: 6),
+                threadsPerThreadgroup: MTLSize(width: group, height: group, depth: 1)
             )
             encoder.endEncoding()
 
