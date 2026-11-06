@@ -1,16 +1,27 @@
 import Foundation
+import IssueMonitoring
+
+struct InstallationCheckSettings {
+    var setupDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
+}
 
 /// Follows the record topic until the service settles a status, which it saves before reporting.
 final class InstallationCheckInteractor {
     weak var presenter: InstallationCheckInteractorOutputProtocol?
 
     private let serviceFactory: ActiveInstallationServiceMaking
+    private let settings: InstallationCheckSettings
     private let logger: LoggerProtocol
     private var service: ActiveInstallationServicing?
     private var statusTask: Task<Void, Never>?
 
-    init(serviceFactory: ActiveInstallationServiceMaking, logger: LoggerProtocol) {
+    init(
+        serviceFactory: ActiveInstallationServiceMaking,
+        settings: InstallationCheckSettings = InstallationCheckSettings(),
+        logger: LoggerProtocol
+    ) {
         self.serviceFactory = serviceFactory
+        self.settings = settings
         self.logger = logger
     }
 
@@ -23,22 +34,29 @@ final class InstallationCheckInteractor {
 
 extension InstallationCheckInteractor: InstallationCheckInteractorInputProtocol {
     func start() {
-        do {
-            let configuration = try serviceFactory.makeConfiguration()
-            let service = serviceFactory.makeService()
-            self.service = service
+        guard let configuration = makeConfiguration() else { return }
 
-            statusTask = Task { [weak self] in
-                await service.setup(configuration: configuration)
-                await self?.waitForSettledStatus(of: service)
-            }
-        } catch {
-            logger.error("Installation check can't start: \(error)")
+        let service = serviceFactory.makeService()
+        self.service = service
+
+        statusTask = Task { [weak self] in
+            await service.setup(configuration: configuration)
+            await self?.waitForSettledStatus(of: service)
         }
     }
 }
 
 private extension InstallationCheckInteractor {
+    func makeConfiguration() -> ActiveInstallationConfiguration? {
+        do {
+            return try serviceFactory.makeConfiguration()
+        } catch {
+            logger.error("Installation check can't start: \(error)")
+            settings.setupDiagnostic.recordFailure(for: "installation-check", error: error, counters: [:])
+            return nil
+        }
+    }
+
     func waitForSettledStatus(of service: ActiveInstallationServicing) async {
         do {
             for try await status in await service.statusStream where status != .unknown {

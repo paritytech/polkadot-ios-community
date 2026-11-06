@@ -4,6 +4,7 @@ import Coinage
 import CryptoKit
 import Foundation
 import FoundationExt
+import IssueMonitoring
 import Keystore_iOS
 import MessageExchangeKit
 import Operation_iOS
@@ -19,6 +20,7 @@ final class DeviceTransferRunTests {
     /// Ahead of the wall clock, so every row the mappers stamp falls before the first round's end.
     private let senderDate = MockDateProvider(now: Date().addingTimeInterval(3_600))
     private let checkpointStore = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
+    private let claimsDropped = RecordingIssueDiagnostic()
     private let senderKeyManager = DeviceEncryptionKeyManager(
         keychain: InMemoryKeychain(),
         encryptionStorage: FixedDeviceEncryptionStorage(),
@@ -141,7 +143,7 @@ final class DeviceTransferRunTests {
         #expect(sentTokens.filter { $0 == newPhoneToken }.count == 1)
     }
 
-    @Test("A claim whose message never arrives keeps the checkpoint where it was")
+    @Test("A claim whose message never arrives keeps the checkpoint where it was and is reported when dropped")
     func waitingClaimHoldsCheckpoint() async throws {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
         var controls = await senderSide.transferControls.makeAsyncIterator()
@@ -161,6 +163,31 @@ final class DeviceTransferRunTests {
         try await receiving.value
 
         #expect(checkpointStore.checkpoint(for: senderInstallationId) == nil)
+        #expect(claimsDropped.failureCount == 1)
+        #expect(claimsDropped.lastCounters == ["claims": 1])
+    }
+
+    @Test("A failure on the receiver's own data ends the transfer on both phones instead of reconnecting")
+    func localFailureAbortsBothPhones() async throws {
+        let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
+        let dataFailed = RecordingIssueDiagnostic()
+        let senderClient = makeSenderClient(flow: senderSide)
+        let receiverClient = makeReceiverClient(
+            flow: receiverSide,
+            requester: makeRequester(flow: receiverSide),
+            deviceKeyManager: KeyImportFailingManager(),
+            dataFailureDiagnostic: dataFailed
+        )
+
+        let sending = Task { try await senderClient.run { _ in } }
+
+        await #expect(throws: DeviceTransferRunError.aborted(.internalError)) {
+            try await receiverClient.run { _ in }
+        }
+        await #expect(throws: DeviceTransferRunError.aborted(.internalError)) {
+            try await sending.value
+        }
+        #expect(dataFailed.failureCount == 1)
     }
 }
 
@@ -242,7 +269,9 @@ private extension DeviceTransferRunTests {
 
     func makeReceiverClient(
         flow: LoopbackTransferFlow,
-        requester: DeviceSyncFileRequester
+        requester: DeviceSyncFileRequester,
+        deviceKeyManager: DeviceEncryptionKeyManaging? = nil,
+        dataFailureDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
     ) -> DeviceTransferReceiverClient {
         let facade = receiver.facade
         let coinageStateApplier = DeviceSyncCoinageStateApplier(
@@ -280,7 +309,7 @@ private extension DeviceTransferRunTests {
                 updateApplier: updateApplier,
                 coinageStateApplier: coinageStateApplier,
                 checkpointStore: checkpointStore,
-                deviceKeyManager: receiverKeyManager,
+                deviceKeyManager: deviceKeyManager ?? receiverKeyManager,
                 filePuller: DeviceTransferFilePuller(
                     scanner: DeviceTransferMissingFileScanner(
                         messageRepositoryFactory: ChatMessageRepositoryFactory(storageFacade: facade),
@@ -289,7 +318,9 @@ private extension DeviceTransferRunTests {
                     requester: requester,
                     logger: MockLogger()
                 ),
-                logger: MockLogger()
+                claimsDroppedDiagnostic: claimsDropped,
+                logger: MockLogger(),
+                dataFailureDiagnostic: dataFailureDiagnostic
             )
         )
     }
@@ -460,5 +491,21 @@ private struct NoVoIPPushKitService: PushKitServicing {
 private struct NoPushIdFactory: ChatPushIdMaking {
     func makePushId(peer _: MessageExchange.Peer, own _: MessageExchange.Own) -> Chat.PushId? {
         nil
+    }
+}
+
+private struct KeyImportFailingManager: DeviceEncryptionKeyManaging {
+    struct ImportError: Error {}
+
+    func getOrCreatePrivateKey() throws -> Curve25519.KeyAgreement.PrivateKey {
+        throw ImportError()
+    }
+
+    func getPublicKey() throws -> Data {
+        throw ImportError()
+    }
+
+    func importPrivateKey(_: Data) throws {
+        throw ImportError()
     }
 }

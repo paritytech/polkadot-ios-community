@@ -2,6 +2,7 @@ import Foundation
 import StatementStore
 import ChainRegistry
 import KeyDerivation
+import IssueMonitoring
 
 protocol ActiveInstallationServiceMaking {
     func makeService() -> ActiveInstallationServicing
@@ -13,16 +14,20 @@ protocol ActiveInstallationServiceMaking {
 struct ActiveInstallationServiceFactory {
     let statusStore: InstallationStatusStoring
     let logger: LoggerProtocol
+    var stopDiagnostic: IssueDiagnostic = DeviceTransferIssueDiagnostics.makeDefault().installationStopped
 }
 
 extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
     func makeService() -> ActiveInstallationServicing {
-        ActiveInstallationService(
+        var publishSettings = ActiveInstallationPublishSettings(deviceInfo: .current())
+        publishSettings.stopDiagnostic = stopDiagnostic
+
+        return ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(entropyManager: RootEntropyManager.shared),
             installationProvider: CoinageCurrentInstallationProvider(
                 repository: CoinageCurrentInstallationCoreDataRepository(storageFacade: UserDataStorageFacade.shared)
             ),
-            publishSettings: ActiveInstallationPublishSettings(deviceInfo: .current()),
+            publishSettings: publishSettings,
             statusStore: statusStore,
             logger: logger
         )

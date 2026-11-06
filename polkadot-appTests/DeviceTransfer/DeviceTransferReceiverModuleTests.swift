@@ -130,6 +130,17 @@ struct DeviceTransferReceiverModuleTests {
         #expect(observer.settledCount == 0)
     }
 
+    @Test("Services that couldn't be built when the screen opened are built again on Try again")
+    func failedServicesAreRebuiltOnRetry() async {
+        let presenter = makeModule(servicesFailures: 1)
+        presenter.setup()
+        await view.waitFor(.failed)
+
+        presenter.startTransfer()
+
+        await coordinator.waitForStarts(1)
+    }
+
     @Test("Cancelling while data moves asks first, and only the confirm stops the run")
     func cancelDuringTransferAsksFirst() async {
         let presenter = makeModule()
@@ -156,11 +167,15 @@ private extension DeviceTransferReceiverModuleTests {
         )
     }
 
-    func makeModule(saved: SavedInstallationStatus? = nil) -> DeviceTransferReceiverPresenter {
+    func makeModule(
+        saved: SavedInstallationStatus? = nil,
+        servicesFailures: Int = 0
+    ) -> DeviceTransferReceiverPresenter {
         let interactor = DeviceTransferReceiverInteractor(
             servicesFactory: ScriptedReceiverServicesFactory(
                 coordinator: coordinator,
-                installationService: installationService
+                installationService: installationService,
+                failures: servicesFailures
             ),
             statusStore: FixedInstallationStatusStore(status: saved),
             screenSleep: screenSleep,
@@ -180,11 +195,29 @@ private extension DeviceTransferReceiverModuleTests {
     }
 }
 
-private struct ScriptedReceiverServicesFactory: DeviceTransferReceiverServicesMaking {
-    let coordinator: ScriptedReceiverCoordinator
-    let installationService: PublishRecordingInstallationService
+private final class ScriptedReceiverServicesFactory: DeviceTransferReceiverServicesMaking {
+    struct BuildError: Error {}
+
+    private let coordinator: ScriptedReceiverCoordinator
+    private let installationService: PublishRecordingInstallationService
+    private var failures: Int
+
+    init(
+        coordinator: ScriptedReceiverCoordinator,
+        installationService: PublishRecordingInstallationService,
+        failures: Int
+    ) {
+        self.coordinator = coordinator
+        self.installationService = installationService
+        self.failures = failures
+    }
 
     func makeReceiverServices() throws -> DeviceTransferReceiverServices {
+        guard failures == 0 else {
+            failures -= 1
+            throw BuildError()
+        }
+
         let configuration = ActiveInstallationConfiguration(
             connection: MockStatementStore(),
             signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))

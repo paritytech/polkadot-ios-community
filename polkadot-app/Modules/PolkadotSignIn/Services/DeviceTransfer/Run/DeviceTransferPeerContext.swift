@@ -1,6 +1,7 @@
 import Foundation
 import AsyncExtensions
 import MessageExchangeKit
+import IssueMonitoring
 
 protocol DeviceTransferPeerComponentMaking: Sendable {
     func makeSignalingSession(delegate: AnyPeerSessionDelegate<Data>) async throws -> DeviceSyncSignalingSession
@@ -18,6 +19,9 @@ enum DeviceTransferContextError: Error, Equatable {
 struct DeviceTransferPeerContextSettings {
     var idleTimeout = DeviceTransferConstants.runIdleTimeout
     var restartDelayPolicy = DeviceSyncRestartDelayPolicy()
+    /// Failed attempts in a row that never opened the channel before the run gives up.
+    var failedConnectionsLimit = 5
+    var connectionDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
     var clock: any Clock<Duration> = ContinuousClock()
 }
 
@@ -40,6 +44,7 @@ actor DeviceTransferPeerContext {
     private var isConnected = false
     private var currentAttempt: Task<Void, Error>?
     private var isReplacingAttempt = false
+    private var attemptOpenedChannel = false
 
     init(
         components: any DeviceTransferPeerComponentMaking,
@@ -81,6 +86,8 @@ actor DeviceTransferPeerContext {
 }
 
 private extension DeviceTransferPeerContext {
+    static let connectionKey = "connect"
+
     func runUntilCompleted(
         session: DeviceSyncSignalingSession,
         connectionRun: @escaping DeviceTransferConnectionRun
@@ -144,6 +151,7 @@ private extension DeviceTransferPeerContext {
         }
 
         isReplacingAttempt = false
+        attemptOpenedChannel = false
         let flow = components.makeConnectionFlow(session: session)
         let states = await flow.states.makeAsyncIterator()
 
@@ -166,12 +174,27 @@ private extension DeviceTransferPeerContext {
         return attempt
     }
 
+    /// Counts failed attempts since the channel last opened; failures on the data itself are the client's to end.
     func waitBeforeRetry(after error: Error, failedAttempts: inout Int) async throws {
         setConnected(false)
 
         guard !isReplacingAttempt else { return }
 
+        if attemptOpenedChannel {
+            failedAttempts = 0
+            settings.connectionDiagnostic.recordRecovery(for: Self.connectionKey)
+        }
+
         failedAttempts += 1
+        settings.connectionDiagnostic.recordFailure(
+            for: Self.connectionKey,
+            error: error,
+            counters: ["attempts": failedAttempts]
+        )
+        guard failedAttempts < settings.failedConnectionsLimit else {
+            throw DeviceTransferRunError.connectionFailed
+        }
+
         let delay = settings.restartDelayPolicy.delay(forAttempt: failedAttempts)
         logger.warning("Device transfer connection failed: \(error); retrying in \(delay)")
         try await settings.clock.sleep(for: delay)
@@ -226,6 +249,7 @@ private extension DeviceTransferPeerContext {
         isConnected = connected
 
         if connected {
+            attemptOpenedChannel = true
             idleTimer?.cancel()
             idleTimer = nil
             onEvent(.channelOpened)

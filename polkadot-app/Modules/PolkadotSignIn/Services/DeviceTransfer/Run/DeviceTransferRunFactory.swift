@@ -2,6 +2,7 @@ import Foundation
 import MessageExchangeKit
 import StatementStore
 import WebRTC
+import IssueMonitoring
 
 protocol DeviceTransferRunMaking: Sendable {
     func makeSenderRun(for request: DeviceTransferRequest) throws -> any DeviceTransferRunning
@@ -16,6 +17,7 @@ struct DeviceTransferRunConfiguration {
     let connection: StatementStoreConnecting
     let signerManager: StatementStoreSignerManaging
     let ownSignKeyId: String
+    let connectionDiagnostic: IssueDiagnostic
 }
 
 final class DeviceTransferRunFactory: @unchecked Sendable {
@@ -94,6 +96,7 @@ private extension DeviceTransferRunFactory {
             components: components,
             sessionDelegate: transport.makeSessionDelegate(),
             rejections: transport.rejections,
+            settings: DeviceTransferPeerContextSettings(connectionDiagnostic: configuration.connectionDiagnostic),
             logger: logger
         )
 

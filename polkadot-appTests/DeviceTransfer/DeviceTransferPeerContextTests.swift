@@ -60,6 +60,45 @@ struct DeviceTransferPeerContextTests {
         #expect(clock.pendingSleepCount(for: firstRestartDelay) == 0)
     }
 
+    @Test("Attempts that keep failing before the channel opens end the run instead of reconnecting forever")
+    func failedConnectionsEndRun() async throws {
+        let context = makeContext(failedConnectionsLimit: 3)
+        let policy = DeviceSyncRestartDelayPolicy()
+
+        let run = Task { try await context.run { _ in throw FailedAttemptError() } }
+        await clock.resumeSleep(for: policy.delay(forAttempt: 1))
+        await clock.resumeSleep(for: policy.delay(forAttempt: 2))
+
+        await #expect(throws: DeviceTransferRunError.connectionFailed) { try await run.value }
+        #expect(components.flowCount == 3)
+    }
+
+    @Test("An attempt that opened the channel starts the count over, with the restart delay starting over")
+    func openedChannelKeepsRunGoing() async throws {
+        let context = makeContext(failedConnectionsLimit: 3)
+        let attempts = DeviceSyncTestEventRecorder<Void>()
+        let openings = DeviceSyncTestEventRecorder<Void>()
+
+        let run = Task {
+            try await context.run(onEvent: { if $0 == .channelOpened { openings.record(()) } }) { flow in
+                attempts.record(())
+                let attempt = attempts.snapshot.count
+                guard attempt <= 4 else { return }
+
+                let mock = try #require(flow as? MockDevicePeerConnectionFlow)
+                await mock.sendState(.connected)
+                _ = await openings.waitForCount(attempt)
+                throw FailedAttemptError()
+            }
+        }
+        for _ in 1 ... 4 {
+            await clock.resumeSleep(for: firstRestartDelay)
+        }
+        try await run.value
+
+        #expect(components.flowCount == 5)
+    }
+
     @Test("An abort from the other phone ends the run without another connection")
     func abortEndsRun() async throws {
         await #expect(throws: DeviceTransferRunError.aborted(.userCancelled)) {
@@ -142,13 +181,14 @@ struct DeviceTransferPeerContextTests {
 
 private extension DeviceTransferPeerContextTests {
     func makeContext(
-        sessionDelegate: DeviceSyncPeerSessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger())
+        sessionDelegate: DeviceSyncPeerSessionDelegate = DeviceSyncPeerSessionDelegate(peerLogger: MockLogger()),
+        failedConnectionsLimit: Int = DeviceTransferPeerContextSettings().failedConnectionsLimit
     ) -> DeviceTransferPeerContext {
         DeviceTransferPeerContext(
             components: components,
             sessionDelegate: sessionDelegate,
             rejections: rejections.stream,
-            settings: DeviceTransferPeerContextSettings(clock: clock),
+            settings: DeviceTransferPeerContextSettings(failedConnectionsLimit: failedConnectionsLimit, clock: clock),
             logger: MockLogger()
         )
     }
@@ -190,3 +230,5 @@ private final class TransferContextComponents: DeviceTransferPeerComponentMaking
         return flow
     }
 }
+
+private struct FailedAttemptError: Error {}

@@ -1,8 +1,10 @@
 import Foundation
+import IssueMonitoring
 
 struct DeviceTransferReceiverModuleSettings {
     var clock: any Clock<Duration> = ContinuousClock()
     var publishRetry = ActiveInstallationPublishRetry()
+    var setupDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 }
 
 /// Builds the transfer services when the screen opens; they live as long as the screen.
@@ -47,18 +49,17 @@ extension DeviceTransferReceiverInteractor: DeviceTransferReceiverInteractorInpu
     func setup() {
         presenter?.didReceive(oldPhone: statusStore.oldPhone)
 
-        do {
-            let services = try servicesFactory.makeReceiverServices()
-            self.services = services
-            follow(services)
-        } catch {
-            logger.error("Device transfer services can't be built: \(error)")
+        if makeServicesIfNeeded() == nil {
             presenter?.didReceive(state: .failed(.failed))
         }
     }
 
+    /// Try again also rebuilds services that couldn't be built when the screen opened.
     func startTransfer() {
-        guard let services else { return }
+        guard let services = makeServicesIfNeeded() else {
+            presenter?.didReceive(state: .failed(.failed))
+            return
+        }
         Task { await services.coordinator.start(configuration: services.discoveryConfiguration) }
     }
 
@@ -69,7 +70,10 @@ extension DeviceTransferReceiverInteractor: DeviceTransferReceiverInteractorInpu
 
     /// Withdraws a pending request first, so the old phone isn't asked after it was replaced.
     func activateWithoutTransfer() {
-        guard let services else { return }
+        guard let services = makeServicesIfNeeded() else {
+            presenter?.didFailActivation()
+            return
+        }
         Task { [weak self, logger, publishRetry = settings.publishRetry] in
             await services.coordinator.cancel()
 
@@ -85,6 +89,23 @@ extension DeviceTransferReceiverInteractor: DeviceTransferReceiverInteractorInpu
 }
 
 private extension DeviceTransferReceiverInteractor {
+    func makeServicesIfNeeded() -> DeviceTransferReceiverServices? {
+        if let services {
+            return services
+        }
+
+        do {
+            let services = try servicesFactory.makeReceiverServices()
+            self.services = services
+            follow(services)
+            return services
+        } catch {
+            logger.error("Device transfer services can't be built: \(error)")
+            settings.setupDiagnostic.recordFailure(for: "receiver", error: error, counters: [:])
+            return nil
+        }
+    }
+
     func follow(_ services: DeviceTransferReceiverServices) {
         statesTask = Task { [weak self, logger] in
             await services.installationService.setup(configuration: services.installationConfiguration)

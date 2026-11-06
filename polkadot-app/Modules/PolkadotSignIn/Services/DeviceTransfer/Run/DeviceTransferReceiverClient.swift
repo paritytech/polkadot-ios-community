@@ -1,5 +1,6 @@
 import Foundation
 import StructuredConcurrency
+import IssueMonitoring
 
 enum DeviceTransferProgress: Equatable {
     /// `total` counts only the first round, so `applied` can pass it.
@@ -19,7 +20,9 @@ struct DeviceTransferReceiverDependencies {
     let checkpointStore: DeviceTransferCheckpointStoring
     let deviceKeyManager: DeviceEncryptionKeyManaging
     let filePuller: DeviceTransferFilePulling
+    let claimsDroppedDiagnostic: IssueDiagnostic
     let logger: LoggerProtocol
+    var dataFailureDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 }
 
 final class DeviceTransferReceiverClient: DeviceTransferClientProtocol {
@@ -48,7 +51,9 @@ final class DeviceTransferReceiverClient: DeviceTransferClientProtocol {
         )
 
         do {
-            try await transfer(with: events, onEvent: onEvent)
+            try await flow.abortOnLocalFailure(reportingTo: dependencies.dataFailureDiagnostic, as: "receiver") {
+                try await transfer(with: events, onEvent: onEvent)
+            }
             await events.close()
         } catch {
             await events.close()
@@ -76,7 +81,9 @@ private extension DeviceTransferReceiverClient {
 
         while try await !session.handle(events.next()) {}
 
-        try await dependencies.filePuller.pullMissingFiles { onEvent(.progress(.files($0))) }
+        try await DeviceTransferLocalFailureHandler.withLocalFailure {
+            try await dependencies.filePuller.pullMissingFiles { onEvent(.progress(.files($0))) }
+        }
         try await flow.sendTransferControl(.receiverCompleted)
     }
 }
@@ -106,7 +113,9 @@ private struct DeviceTransferReceiverSession {
     mutating func handle(_ event: DeviceTransferEvent) async throws -> Bool {
         switch event {
         case let .control(.senderStarted(deviceEncryptionKey, totalChanges)):
-            try dependencies.deviceKeyManager.importPrivateKey(deviceEncryptionKey)
+            try await DeviceTransferLocalFailureHandler.withLocalFailure {
+                try dependencies.deviceKeyManager.importPrivateKey(deviceEncryptionKey)
+            }
             total = Int(totalChanges)
             applied = 0
             reportProgress()
@@ -153,7 +162,10 @@ private extension DeviceTransferReceiverSession {
     /// All of a round's messages precede its closing update, so waiting claims are retried here.
     mutating func closeRound(at update: Chat.DeviceSyncUpdate) async throws {
         if !waitingClaims.isEmpty {
-            waitingClaims = try await dependencies.coinageStateApplier.applyClaimStatuses(waitingClaims)
+            let claims = waitingClaims
+            waitingClaims = try await DeviceTransferLocalFailureHandler.withLocalFailure {
+                try await dependencies.coinageStateApplier.applyClaimStatuses(claims)
+            }
         }
 
         try await dependencies.updateApplier.apply(update)
@@ -170,6 +182,11 @@ private extension DeviceTransferReceiverSession {
         guard !waitingClaims.isEmpty else { return }
 
         dependencies.logger.warning("Device transfer dropped \(waitingClaims.count) claim(s) without a message")
+        dependencies.claimsDroppedDiagnostic.recordFailure(
+            for: "claims",
+            error: nil,
+            counters: ["claims": waitingClaims.count]
+        )
         waitingClaims = []
     }
 

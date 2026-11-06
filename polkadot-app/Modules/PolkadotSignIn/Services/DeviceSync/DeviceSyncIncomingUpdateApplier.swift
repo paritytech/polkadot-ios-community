@@ -1,6 +1,7 @@
 import Foundation
 import MessageExchangeKit
 import Operation_iOS
+import IssueMonitoring
 
 final class DeviceSyncIncomingUpdateApplier {
     private let remoteContactResolver: RemoteContactResolving
@@ -13,6 +14,7 @@ final class DeviceSyncIncomingUpdateApplier {
     private let chatStateApplier: DeviceSyncChatStateApplying
     private let coinageStateApplier: DeviceSyncCoinageStateApplying
     private let flow: any DevicePeerConnectionFlowing
+    private let skippedEntityDiagnostic: IssueDiagnostic
     private let peerLogger: LoggerProtocol
 
     init(
@@ -26,6 +28,7 @@ final class DeviceSyncIncomingUpdateApplier {
         flow: any DevicePeerConnectionFlowing,
         contactsStorageService: ContactsLocalStorageServicing = ContactsLocalStorageService(),
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
+        skippedEntityDiagnostic: IssueDiagnostic = NoopIssueDiagnostic(),
         peerLogger: LoggerProtocol
     ) {
         self.remoteContactResolver = remoteContactResolver
@@ -36,6 +39,7 @@ final class DeviceSyncIncomingUpdateApplier {
         self.chatStateApplier = chatStateApplier
         self.coinageStateApplier = coinageStateApplier
         self.flow = flow
+        self.skippedEntityDiagnostic = skippedEntityDiagnostic
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
             contactsStorageService: contactsStorageService,
@@ -104,6 +108,11 @@ private extension DeviceSyncIncomingUpdateApplier {
             peerLogger.error(
                 "Skipping failed entity in sync update id=\(updateId) " +
                     "entity=\([entity].syncLogSummary): \(error)"
+            )
+            skippedEntityDiagnostic.recordFailure(
+                for: entity.logLabel,
+                error: error,
+                counters: [entity.logLabel: entity.itemCount]
             )
         }
 
