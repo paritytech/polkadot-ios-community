@@ -58,9 +58,9 @@ private extension DeviceSyncDeviceChangesApplier {
                 statementAccountId: content.statementAccountId,
                 encryptionPublicKey: content.encryptionPublicKey
             )
-            return .added(device)
+            return .added(device, changedAt: message.timestamp)
         case let .deviceRemoved(content):
-            return .removed(statementAccountId: content.statementAccountId)
+            return .removed(statementAccountId: content.statementAccountId, changedAt: message.timestamp)
         default:
             return nil
         }

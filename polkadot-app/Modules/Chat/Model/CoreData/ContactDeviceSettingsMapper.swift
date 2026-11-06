@@ -5,9 +5,15 @@ import CoreData
 import SubstrateSdk
 
 extension Chat {
+    enum ContactDeviceStatus: Int16 {
+        case active = 0
+        case inactive = 1
+    }
+
+    /// `changedAt` is the peer's event time in milliseconds.
     enum DeviceChange {
-        case added(PeerDevice)
-        case removed(statementAccountId: Data)
+        case added(PeerDevice, changedAt: UInt64)
+        case removed(statementAccountId: Data, changedAt: UInt64)
     }
 
     struct ContactDeviceSettings {
@@ -52,21 +58,29 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
 
         for change in model.changes {
             switch change {
-            case let .added(device):
-                let deviceEntity = try devicesByAccountId[device.statementAccountId]
-                    ?? context.insertNew(CDContactDevice.self)
+            case let .added(device, changedAt):
+                let existing = devicesByAccountId[device.statementAccountId]
+
+                guard existing?.isOlder(than: changedAt) ?? true else {
+                    continue
+                }
+
+                let deviceEntity = try existing ?? context.insertNew(CDContactDevice.self)
                 deviceEntity.statementAccountId = device.statementAccountId
                 deviceEntity.encryptionPublicKey = device.encryptionPublicKey
                 deviceEntity.contact = entity
+                deviceEntity.apply(status: .active, changedAt: changedAt)
                 devicesByAccountId[device.statementAccountId] = deviceEntity
-                deviceEntity.touchParent()
 
-            case let .removed(statementAccountId):
-                guard let existing = devicesByAccountId.removeValue(forKey: statementAccountId) else {
+            case let .removed(statementAccountId, changedAt):
+                guard
+                    let existing = devicesByAccountId[statementAccountId],
+                    existing.isOlder(than: changedAt)
+                else {
                     continue
                 }
-                existing.touchParent()
-                context.delete(existing)
+
+                existing.apply(status: .inactive, changedAt: changedAt)
             }
         }
     }
@@ -79,6 +93,21 @@ extension Chat.ContactDeviceSettings: Identifiable {
 }
 
 extension CDContactDevice {
+    func isOlder(than changedAt: UInt64) -> Bool {
+        self.changedAt < Int64(bitPattern: changedAt)
+    }
+
+    func apply(status: Chat.ContactDeviceStatus, changedAt: UInt64) {
+        self.status = status.rawValue
+        self.changedAt = Int64(bitPattern: changedAt)
+        markModified()
+        touchParent()
+    }
+
+    func markModified() {
+        modifiedAt = Date()
+    }
+
     func touchParent() {
         guard let parent = contact else { return }
         let key = #keyPath(CDChatContact.devices)

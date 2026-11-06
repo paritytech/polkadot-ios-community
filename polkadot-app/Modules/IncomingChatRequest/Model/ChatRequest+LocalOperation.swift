@@ -35,6 +35,7 @@ extension ChatRequest {
 
     struct PeerAcceptance {
         let device: Chat.PeerDevice
+        let changedAt: UInt64
         /// `nil` when the caller stores the message itself.
         let message: Chat.RemoteMessage?
     }

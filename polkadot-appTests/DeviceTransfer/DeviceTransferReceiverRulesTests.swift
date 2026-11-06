@@ -44,8 +44,8 @@ struct DeviceTransferReceiverRulesTests {
         #expect(stored?.devices == (fromContact ? [device] : []))
     }
 
-    @Test("Device changes apply in the order the sender stored them, even when their timestamps disagree")
-    func deviceChangesFollowSenderOrder() async throws {
+    @Test("Device changes resolve by the peer's event time, not the order the sender stored them")
+    func deviceChangesFollowEventTime() async throws {
         let device = Chat.PeerDevice(
             statementAccountId: Data(repeating: 0x31, count: 32),
             encryptionPublicKey: Data(repeating: 0x32, count: 32)
@@ -69,7 +69,7 @@ struct DeviceTransferReceiverRulesTests {
             .apply([removed, added])
 
         let stored = try await contacts.getContact(by: peerAccountId()).asyncExecute()
-        #expect(stored?.devices == [])
+        #expect(stored?.devices == [device])
     }
 
     @Test("The checkpoint belongs to the sender installation that set it")

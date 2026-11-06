@@ -36,7 +36,7 @@ struct DeviceSyncChatAcceptedApplier {
                 accepted.requestId,
                 from: wireMessage.peerId,
                 status: wireMessage.status,
-                peerDevice: accepted.peerDevice
+                peerAcceptance: accepted.peerAcceptance
             )
         }
     }
@@ -47,7 +47,7 @@ private extension DeviceSyncChatAcceptedApplier {
         _ requestId: String,
         from contactId: AccountId,
         status: Chat.DeviceSyncLocalStatus,
-        peerDevice: Chat.PeerDevice?
+        peerAcceptance: ChatRequest.PeerAcceptance?
     ) async throws {
         let requestRepository = storageFacade.createRepository(
             mapper: AnyCoreDataMapper(ChatRequestMapper())
@@ -57,7 +57,7 @@ private extension DeviceSyncChatAcceptedApplier {
             .fetchOperation(by: { requestId }, options: .init())
             .asyncExecute()
         else {
-            try await applyAcceptorDeviceWithoutRequest(peerDevice, from: contactId, status: status)
+            try await applyAcceptorDeviceWithoutRequest(peerAcceptance, from: contactId, status: status)
             return
         }
 
@@ -74,7 +74,7 @@ private extension DeviceSyncChatAcceptedApplier {
                 request,
                 requestId: requestId,
                 contactId: contactId,
-                peerDevice: peerDevice
+                peerAcceptance: peerAcceptance
             )
         }
     }
@@ -96,7 +96,7 @@ private extension DeviceSyncChatAcceptedApplier {
         _ request: Chat.Request,
         requestId: String,
         contactId: AccountId,
-        peerDevice: Chat.PeerDevice?
+        peerAcceptance: ChatRequest.PeerAcceptance?
     ) async throws {
         guard request.isOutgoing else {
             peerLogger.debug("Synced incoming accept \(requestId) doesn't match outgoing request, skipping")
@@ -108,7 +108,7 @@ private extension DeviceSyncChatAcceptedApplier {
             return
         }
 
-        try await markLocalOutgoingRequestAccepted(requestId, peerDevice: peerDevice)
+        try await markLocalOutgoingRequestAccepted(requestId, peerAcceptance: peerAcceptance)
 
         peerLogger.debug("Accepted outgoing request \(requestId) from sync")
     }
@@ -116,18 +116,21 @@ private extension DeviceSyncChatAcceptedApplier {
     /// A contact's first device often arrives only in its acceptance; the request it answers may never have been
     /// on this device, e.g. after a transfer. The device in an outgoing acceptance is the user's own.
     func applyAcceptorDeviceWithoutRequest(
-        _ peerDevice: Chat.PeerDevice?,
+        _ peerAcceptance: ChatRequest.PeerAcceptance?,
         from contactId: AccountId,
         status: Chat.DeviceSyncLocalStatus
     ) async throws {
-        guard case .incoming = status, let peerDevice else { return }
+        guard case .incoming = status, let peerAcceptance else { return }
 
         guard try await contactsStorageService.getContact(by: contactId).asyncExecute() != nil else {
             peerLogger.debug("No contact for a synced acceptance device, skipping")
             return
         }
 
-        let settings = Chat.ContactDeviceSettings(accountId: contactId, changes: [.added(peerDevice)])
+        let settings = Chat.ContactDeviceSettings(
+            accountId: contactId,
+            changes: [.added(peerAcceptance.device, changedAt: peerAcceptance.changedAt)]
+        )
         try await contactsStorageService.updateDeviceSettings([settings]).asyncExecute()
     }
 
@@ -141,12 +144,15 @@ private extension DeviceSyncChatAcceptedApplier {
         .asyncExecute()
     }
 
-    func markLocalOutgoingRequestAccepted(_ requestId: String, peerDevice: Chat.PeerDevice?) async throws {
+    func markLocalOutgoingRequestAccepted(
+        _ requestId: String,
+        peerAcceptance: ChatRequest.PeerAcceptance?
+    ) async throws {
         let acceptOutgoing = ChatRequest.AcceptOutgoing(
             requestId: requestId,
             incomingRequest: nil,
             acceptorDevice: nil,
-            peerAcceptance: peerDevice.map { ChatRequest.PeerAcceptance(device: $0, message: nil) }
+            peerAcceptance: peerAcceptance
         )
 
         try await storageFacade.createRepository(
@@ -158,7 +164,7 @@ private extension DeviceSyncChatAcceptedApplier {
 
     func chatAccepted(
         from message: Chat.RemoteMessage
-    ) -> (requestId: String, peerDevice: Chat.PeerDevice?)? {
+    ) -> (requestId: String, peerAcceptance: ChatRequest.PeerAcceptance?)? {
         guard let content = message.versioned.ensureV1()?.content else {
             return nil
         }
@@ -167,7 +173,12 @@ private extension DeviceSyncChatAcceptedApplier {
         case let .chatAccepted(model):
             return (model.messageId, nil)
         case let .multiChatAccepted(model):
-            return (model.requestId, model.device)
+            let acceptance = ChatRequest.PeerAcceptance(
+                device: model.device,
+                changedAt: message.timestamp,
+                message: nil
+            )
+            return (model.requestId, acceptance)
         default:
             return nil
         }
