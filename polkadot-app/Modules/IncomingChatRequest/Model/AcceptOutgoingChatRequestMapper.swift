@@ -50,7 +50,10 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
         }
 
         entity.contact = nil
-        entity.markModified()
+
+        if model.marksModified {
+            entity.markModified()
+        }
 
         guard
             let incomingRequest = model.incomingRequest,

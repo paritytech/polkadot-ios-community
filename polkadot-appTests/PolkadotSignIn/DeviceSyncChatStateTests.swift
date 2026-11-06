@@ -103,9 +103,51 @@ struct DeviceSyncChatStateTests {
             .collect(after: checkpoint)
         #expect(echoed.isEmpty)
     }
+
+    @Test("A peer's acceptance applied from sync isn't sent back as an outgoing status update")
+    func syncedAcceptanceIsNotEchoed() async throws {
+        let message = Chat.RequestMessage(
+            messageId: "outgoing",
+            timestamp: 1_000,
+            content: .v1(Chat.RequestContentV1(pushToken: nil, welcomeMessage: nil))
+        )
+        let device = Chat.PeerDevice(
+            statementAccountId: Data(repeating: 0x21, count: 32),
+            encryptionPublicKey: Data(repeating: 0x22, count: 32)
+        )
+        try await insertOutgoingRequest(message, in: receiver)
+        let checkpoint = Date()
+        let contacts = ContactsLocalStorageService(storageFacade: receiver, logger: MockLogger())
+
+        try await DeviceSyncChatAcceptedApplier(
+            storageFacade: receiver,
+            contactsStorageService: contacts,
+            peerLogger: MockLogger()
+        ).apply([makePeerAcceptance(requestId: message.messageId, device: device)])
+
+        let echoed = try await DeviceSyncChatStateCollector(databaseService: receiver.databaseService)
+            .collect(after: checkpoint)
+        #expect(echoed.isEmpty)
+        #expect(try await contacts.getContact(by: peer).asyncExecute()?.devices == [device])
+    }
 }
 
 private extension DeviceSyncChatStateTests {
+    func makePeerAcceptance(requestId: String, device: Chat.PeerDevice) -> Chat.DeviceSyncWireMessage {
+        Chat.DeviceSyncWireMessage(
+            remote: Chat.RemoteMessage(
+                messageId: "acceptance",
+                timestamp: 2_000,
+                versioned: .v1(Chat.RemoteMessageContentV1(
+                    content: .multiChatAccepted(.init(requestId: requestId, device: device))
+                ))
+            ),
+            peerId: peer,
+            status: .incoming(.seen),
+            order: 1
+        )
+    }
+
     func transfer(after cutoff: Date?) async throws {
         let entities = try await DeviceSyncChatStateCollector(databaseService: sender.databaseService)
             .collect(after: cutoff)

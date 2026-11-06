@@ -152,7 +152,8 @@ private extension DeviceSyncChatAcceptedApplier {
             requestId: requestId,
             incomingRequest: nil,
             acceptorDevice: nil,
-            peerAcceptance: peerAcceptance
+            peerAcceptance: peerAcceptance,
+            marksModified: false
         )
 
         try await storageFacade.createRepository(
