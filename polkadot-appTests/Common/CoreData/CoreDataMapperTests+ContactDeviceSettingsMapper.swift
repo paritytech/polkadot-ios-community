@@ -48,6 +48,17 @@ extension CoreDataMapperTests {
             #expect(rows.first?.changedAt == 2)
         }
 
+        @Test("the contact lists only its active devices")
+        func contactListsOnlyActiveDevices() async throws {
+            let kept = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            let removed = makeDevice(accountByte: 0x04, keyByte: 0x05)
+            try await seedContact(devices: [kept, removed])
+
+            try await updateDevices([.removed(statementAccountId: removed.statementAccountId, changedAt: 1)])
+
+            #expect(try await fetchContact()?.devices == [kept])
+        }
+
         @Test("a change older than the stored one is ignored")
         func olderChangeIsIgnored() async throws {
             try await seedContact(devices: [])
@@ -88,11 +99,7 @@ extension CoreDataMapperTests {
             try await seedContact(devices: [device])
             try await updateDevices([.removed(statementAccountId: device.statementAccountId, changedAt: 1)])
 
-            let contact = try #require(
-                try await contactRepository
-                    .fetchOperation(by: { contactAccountId.toHex() }, options: .init())
-                    .asyncExecute()
-            )
+            let contact = try #require(try await fetchContact())
             try await contactRepository.saveOperation({ [contact] }, { [] }).asyncExecute()
 
             let rows = try await fetchDeviceRows()
@@ -142,6 +149,12 @@ private extension CoreDataMapperTests.ContactDeviceSettingsMapperTests {
         )
 
         try await deviceSettingsRepository.saveOperation({ [settings] }, { [] }).asyncExecute()
+    }
+
+    func fetchContact() async throws -> Chat.Contact? {
+        try await contactRepository
+            .fetchOperation(by: { contactAccountId.toHex() }, options: .init())
+            .asyncExecute()
     }
 
     struct DeviceRow {
