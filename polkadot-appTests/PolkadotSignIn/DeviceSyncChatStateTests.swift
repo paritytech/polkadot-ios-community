@@ -154,7 +154,7 @@ struct DeviceSyncChatStateTests {
         #expect(row?.changedAt == 20)
     }
 
-    @Test("A peer's acceptance applied from sync isn't sent back as an outgoing status update")
+    @Test("A peer's acceptance applied from sync accepts the request and isn't sent back")
     func syncedAcceptanceIsNotEchoed() async throws {
         let message = Chat.RequestMessage(
             messageId: "outgoing",
@@ -178,7 +178,7 @@ struct DeviceSyncChatStateTests {
         let echoed = try await DeviceSyncChatStateCollector(databaseService: receiver.databaseService)
             .collect(after: checkpoint)
         #expect(echoed.isEmpty)
-        #expect(try await contacts.getContact(by: peer).asyncExecute()?.devices == [device])
+        #expect(try await contacts.getContact(by: peer).asyncExecute()?.chatRequest == nil)
     }
 }
 

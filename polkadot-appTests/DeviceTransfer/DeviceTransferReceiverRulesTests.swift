@@ -25,51 +25,31 @@ struct DeviceTransferReceiverRulesTests {
         #expect(try #require(orders["local"]) > 70)
     }
 
-    @Test("A contact's acceptance adds its device even without the request it answers", arguments: [true, false])
-    func acceptanceDeviceWithoutRequest(fromContact: Bool) async throws {
+    @Test("Synced acceptance and device messages leave a contact's devices to contactDevicesChanged")
+    func syncedMessagesDontChangeDevices() async throws {
         let device = Chat.PeerDevice(
             statementAccountId: Data(repeating: 0x21, count: 32),
             encryptionPublicKey: Data(repeating: 0x22, count: 32)
         )
         let contacts = ContactsLocalStorageService(storageFacade: world.facade, logger: MockLogger())
-        let applier = DeviceSyncChatAcceptedApplier(
-            storageFacade: world.facade,
-            contactsStorageService: contacts,
-            peerLogger: MockLogger()
-        )
+        let messages = try [
+            makeAcceptance(device: device),
+            makeDeviceChange(
+                .deviceAdded(.init(
+                    statementAccountId: device.statementAccountId,
+                    encryptionPublicKey: device.encryptionPublicKey
+                )),
+                order: 2,
+                timestamp: 3_000
+            )
+        ]
 
-        try await applier.apply([makeAcceptance(device: device, fromContact: fromContact)])
+        try await makeUpdateApplier(contacts: contacts).apply(
+            Chat.DeviceSyncUpdate(id: 1, entities: [.messages(messages)], timePoint: 4_000)
+        )
 
         let stored = try await contacts.getContact(by: peerAccountId()).asyncExecute()
-        #expect(stored?.devices == (fromContact ? [device] : []))
-    }
-
-    @Test("Device changes resolve by the peer's event time, not the order the sender stored them")
-    func deviceChangesFollowEventTime() async throws {
-        let device = Chat.PeerDevice(
-            statementAccountId: Data(repeating: 0x31, count: 32),
-            encryptionPublicKey: Data(repeating: 0x32, count: 32)
-        )
-        let contacts = ContactsLocalStorageService(storageFacade: world.facade, logger: MockLogger())
-        let added = try makeDeviceChange(
-            .deviceAdded(.init(
-                statementAccountId: device.statementAccountId,
-                encryptionPublicKey: device.encryptionPublicKey
-            )),
-            order: 1,
-            timestamp: 5_000
-        )
-        let removed = try makeDeviceChange(
-            .deviceRemoved(.init(statementAccountId: device.statementAccountId)),
-            order: 2,
-            timestamp: 4_000
-        )
-
-        try await DeviceSyncDeviceChangesApplier(contactsStorageService: contacts, peerLogger: MockLogger())
-            .apply([removed, added])
-
-        let stored = try await contacts.getContact(by: peerAccountId()).asyncExecute()
-        #expect(stored?.devices == [device])
+        #expect(stored?.devices == [])
     }
 
     @Test("The checkpoint belongs to the sender installation that set it")
@@ -111,7 +91,31 @@ private extension DeviceTransferReceiverRulesTests {
         )
     }
 
-    func makeAcceptance(device: Chat.PeerDevice, fromContact: Bool) throws -> Chat.DeviceSyncWireMessage {
+    func makeUpdateApplier(contacts: ContactsLocalStorageServicing) -> DeviceSyncIncomingUpdateApplier {
+        DeviceSyncIncomingUpdateApplier(
+            remoteContactResolver: MockRemoteContactResolver(result: .success(nil)),
+            contactRepositoryFactory: ChatContactRepositoryFactory(storageFacade: world.facade),
+            chatRepositoryFactory: ChatRepositoryFactory(storageFacade: world.facade),
+            messageRepositoryFactory: SenderOrderChatMessageRepositoryFactory(
+                storageFacade: world.facade,
+                orderAllocator: allocator
+            ),
+            removedChatRepositoryFactory: RemovedChatRepositoryFactory(storageFacade: world.facade),
+            chatStateApplier: DeviceSyncChatStateApplier(
+                databaseService: world.facade.databaseService,
+                remoteContactResolver: MockRemoteContactResolver(result: .success(nil)),
+                tldProvider: StubDotNsTldProvider(tld: "dot"),
+                logger: MockLogger()
+            ),
+            coinageStateApplier: EmptyCoinageStateApplier(),
+            flow: MockDevicePeerConnectionFlow(startResult: .success(())),
+            contactsStorageService: contacts,
+            storageFacade: world.facade,
+            peerLogger: MockLogger()
+        )
+    }
+
+    func makeAcceptance(device: Chat.PeerDevice) throws -> Chat.DeviceSyncWireMessage {
         try Chat.DeviceSyncWireMessage(
             remote: Chat.RemoteMessage(
                 messageId: "acceptance",
@@ -121,7 +125,7 @@ private extension DeviceTransferReceiverRulesTests {
                 ))
             ),
             peerId: peerAccountId(),
-            status: fromContact ? .incoming(.seen) : .outgoing(.delivered),
+            status: .incoming(.seen),
             order: 1
         )
     }
