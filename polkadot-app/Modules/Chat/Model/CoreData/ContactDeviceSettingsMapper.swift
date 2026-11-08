@@ -12,10 +12,11 @@ extension Chat {
 
     /// `changedAt` is the peer's event time in milliseconds.
     enum DeviceChange {
-        case added(PeerDevice, changedAt: UInt64)
-        case removed(statementAccountId: Data, changedAt: UInt64)
-        /// The device's full state, so an inactive one can be stored without a prior add.
+        /// The device's full state; stores the row if it's unknown, inactive ones included.
         case changed(PeerDevice, status: ContactDeviceStatus, changedAt: UInt64)
+        /// Used instead of `changed` when the encryption key isn't known, as for a peer's `DeviceRemoved`:
+        /// deactivates a stored row and ignores an unknown one.
+        case removed(statementAccountId: Data, changedAt: UInt64)
     }
 
     struct ContactDeviceSettings {
@@ -68,8 +69,6 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
 private extension ContactDeviceSettingsMapper {
     func apply(_ change: Chat.DeviceChange, to rows: inout ContactDeviceRows) throws -> CDContactDevice? {
         switch change {
-        case let .added(device, changedAt):
-            return try rows.upsert(device, status: .active, changedAt: changedAt)
         case let .removed(statementAccountId, changedAt):
             guard let existing = rows[statementAccountId], existing.isOlder(than: changedAt) else {
                 return nil

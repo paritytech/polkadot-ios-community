@@ -74,7 +74,7 @@ extension NSManagedObjectContext {
             entity: contact,
             from: Chat.ContactDeviceSettings(
                 accountId: contactAccountId,
-                changes: [.added(device, changedAt: changedAt)]
+                changes: [.changed(device, status: .active, changedAt: changedAt)]
             ),
             using: self
         )

@@ -151,7 +151,9 @@ final class DeviceTransferRunTests {
             encryptionPublicKey: Data(repeating: 0x32, count: 32)
         )
         try await ContactsLocalStorageService(storageFacade: sender.facade, logger: MockLogger())
-            .updateDeviceSettings([.init(accountId: contact.accountId, changes: [.added(device, changedAt: 1_000)])])
+            .updateDeviceSettings([
+                .init(accountId: contact.accountId, changes: [.changed(device, status: .active, changedAt: 1_000)])
+            ])
             .asyncExecute()
 
         try await runTransfer()

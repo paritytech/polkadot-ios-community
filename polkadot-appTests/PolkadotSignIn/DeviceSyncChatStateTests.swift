@@ -112,8 +112,8 @@ struct DeviceSyncChatStateTests {
         try await insertContact(in: receiver)
         try await updateDevices(
             [
-                .added(kept, changedAt: 10),
-                .added(removed, changedAt: 11),
+                .changed(kept, status: .active, changedAt: 10),
+                .changed(removed, status: .active, changedAt: 11),
                 .removed(statementAccountId: removed.statementAccountId, changedAt: 12)
             ],
             in: sender
@@ -141,9 +141,12 @@ struct DeviceSyncChatStateTests {
         let device = makeDevice(0x21)
         try await insertContact(in: sender)
         try await insertContact(in: receiver)
-        try await updateDevices([.added(device, changedAt: 10)], in: sender)
+        try await updateDevices([.changed(device, status: .active, changedAt: 10)], in: sender)
         try await updateDevices(
-            [.added(device, changedAt: 15), .removed(statementAccountId: device.statementAccountId, changedAt: 20)],
+            [
+                .changed(device, status: .active, changedAt: 15),
+                .removed(statementAccountId: device.statementAccountId, changedAt: 20)
+            ],
             in: receiver
         )
 

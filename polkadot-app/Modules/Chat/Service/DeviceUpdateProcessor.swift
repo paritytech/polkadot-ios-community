@@ -71,7 +71,7 @@ private extension DeviceUpdateProcessor {
                     statementAccountId: addedContent.statementAccountId,
                     encryptionPublicKey: addedContent.encryptionPublicKey
                 )
-                return .added(device, changedAt: message.timestamp)
+                return .changed(device, status: .active, changedAt: message.timestamp)
 
             case let .deviceRemoved(removedContent):
                 return .removed(statementAccountId: removedContent.statementAccountId, changedAt: message.timestamp)

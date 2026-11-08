@@ -19,8 +19,8 @@ extension CoreDataMapperTests {
             let updatedDevice = makeDevice(accountByte: 0x02, keyByte: 0x04)
 
             try await updateDevices([
-                .added(device, changedAt: 1),
-                .added(updatedDevice, changedAt: 2)
+                .changed(device, status: .active, changedAt: 1),
+                .changed(updatedDevice, status: .active, changedAt: 2)
             ])
 
             let rows = try await fetchDeviceRows()
@@ -38,7 +38,7 @@ extension CoreDataMapperTests {
             let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
 
             try await updateDevices([
-                .added(device, changedAt: 1),
+                .changed(device, status: .active, changedAt: 1),
                 .removed(statementAccountId: device.statementAccountId, changedAt: 2)
             ])
 
@@ -59,16 +59,26 @@ extension CoreDataMapperTests {
             #expect(try await fetchContact()?.devices == [kept])
         }
 
+        @Test("a removal of a device the contact doesn't have stores nothing")
+        func removalOfUnknownDeviceStoresNothing() async throws {
+            try await seedContact(devices: [])
+
+            let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            try await updateDevices([.removed(statementAccountId: device.statementAccountId, changedAt: 1)])
+
+            #expect(try await fetchDeviceRows().isEmpty)
+        }
+
         @Test("a change older than the stored one is ignored")
         func olderChangeIsIgnored() async throws {
             try await seedContact(devices: [])
 
             let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
             try await updateDevices([
-                .added(device, changedAt: 1),
+                .changed(device, status: .active, changedAt: 1),
                 .removed(statementAccountId: device.statementAccountId, changedAt: 5)
             ])
-            try await updateDevices([.added(device, changedAt: 3)])
+            try await updateDevices([.changed(device, status: .active, changedAt: 3)])
 
             let rows = try await fetchDeviceRows()
             #expect(rows.count == 1)
@@ -84,7 +94,7 @@ extension CoreDataMapperTests {
 
             try await updateDevices([
                 .removed(statementAccountId: oldDevice.statementAccountId, changedAt: 1),
-                .added(newDevice, changedAt: 2)
+                .changed(newDevice, status: .active, changedAt: 2)
             ])
 
             let rows = try await fetchDeviceRows()
