@@ -129,7 +129,8 @@ private extension DeviceSyncChatAcceptedApplier {
 
         let settings = Chat.ContactDeviceSettings(
             accountId: contactId,
-            changes: [.added(peerAcceptance.device, changedAt: peerAcceptance.changedAt)]
+            changes: [.added(peerAcceptance.device, changedAt: peerAcceptance.changedAt)],
+            marksModified: false
         )
         try await contactsStorageService.updateDeviceSettings([settings]).asyncExecute()
     }

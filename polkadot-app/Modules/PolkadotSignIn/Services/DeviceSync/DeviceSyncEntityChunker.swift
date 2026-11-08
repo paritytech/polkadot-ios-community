@@ -93,6 +93,8 @@ private extension DeviceSyncEntityChunker {
             return try splitArray(items).map { .coinsHandedOff($0) }
         case let .coinageMessagesStatusUpdated(items):
             return try splitArray(items).map { .coinageMessagesStatusUpdated($0) }
+        case let .contactDevicesChanged(items):
+            return try splitArray(items).map { .contactDevicesChanged($0) }
         }
     }
 

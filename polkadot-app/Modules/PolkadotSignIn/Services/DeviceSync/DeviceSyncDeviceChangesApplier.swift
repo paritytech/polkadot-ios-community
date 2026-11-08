@@ -36,7 +36,7 @@ struct DeviceSyncDeviceChangesApplier {
 private extension DeviceSyncDeviceChangesApplier {
     func apply(_ changesByContact: [Data: [Chat.DeviceChange]]) async throws {
         let settings = changesByContact.map { accountId, changes in
-            Chat.ContactDeviceSettings(accountId: accountId, changes: changes)
+            Chat.ContactDeviceSettings(accountId: accountId, changes: changes, marksModified: false)
         }
 
         guard !settings.isEmpty else {

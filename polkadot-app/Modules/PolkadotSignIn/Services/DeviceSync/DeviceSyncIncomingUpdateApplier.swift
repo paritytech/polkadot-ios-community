@@ -97,7 +97,8 @@ private extension DeviceSyncIncomingUpdateApplier {
                  .incomingRequestsAdded,
                  .incomingRequestsStatusUpdated,
                  .outgoingRequestsAdded,
-                 .outgoingRequestsStatusUpdated:
+                 .outgoingRequestsStatusUpdated,
+                 .contactDevicesChanged:
                 try await applyChatState(entity)
             case let .coinsHandedOff(coins):
                 try await coinageStateApplier.applyHandedOffCoins(coins)
@@ -131,6 +132,8 @@ private extension DeviceSyncIncomingUpdateApplier {
             try await chatStateApplier.applyOutgoingRequests(requests)
         case let .outgoingRequestsStatusUpdated(updates):
             try await chatStateApplier.applyOutgoingStatusUpdates(updates)
+        case let .contactDevicesChanged(changes):
+            try await chatStateApplier.applyContactDeviceChanges(changes)
         default:
             break
         }

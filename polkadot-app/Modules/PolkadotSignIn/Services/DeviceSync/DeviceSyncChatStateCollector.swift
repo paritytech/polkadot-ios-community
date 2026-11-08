@@ -6,8 +6,9 @@ import SubstrateSdk
 import SubstrateSdkExt
 
 protocol DeviceSyncChatStateCollecting {
-    /// Block state and chat requests: everything on a full collection (`cutoff == nil`), otherwise what was
-    /// modified after `cutoff`. Pending outgoing requests come first, since applying them creates their contacts.
+    /// Block state, chat requests and contact devices: everything on a full collection (`cutoff == nil`), otherwise
+    /// what was modified after `cutoff`. Pending outgoing requests come first, since applying them creates their
+    /// contacts; contact devices come last, once their contacts exist.
     func collect(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity]
     /// Rows `collect` reads; a row it can't map isn't sent, so this can be slightly higher.
     func count(after cutoff: Date?) async throws -> Int
@@ -27,12 +28,14 @@ extension DeviceSyncChatStateCollector: DeviceSyncChatStateCollecting {
             let outgoing = try Self.collectOutgoingRequests(after: cutoff, in: context)
             let blockStates = try Self.collectBlockStates(after: cutoff, in: context)
             let incoming = try Self.collectIncomingRequests(after: cutoff, in: context)
+            let devices = try Self.collectContactDevices(after: cutoff, in: context)
 
             return [
                 outgoing.added.isEmpty ? nil : .outgoingRequestsAdded(outgoing.added),
                 blockStates.isEmpty ? nil : .chatsBlocked(blockStates),
                 incoming.isEmpty ? nil : .incomingRequestsAdded(incoming),
-                outgoing.updated.isEmpty ? nil : .outgoingRequestsStatusUpdated(outgoing.updated)
+                outgoing.updated.isEmpty ? nil : .outgoingRequestsStatusUpdated(outgoing.updated),
+                devices.isEmpty ? nil : .contactDevicesChanged(devices)
             ].compactMap { $0 }
         }
     }
@@ -42,8 +45,10 @@ extension DeviceSyncChatStateCollector: DeviceSyncChatStateCollecting {
             let blockStates = Self.request(CDChatContact.self, matching: Self.blockStatesPredicate(after: cutoff))
             let incoming = Self.request(CDChatRequest.self, matching: Self.incomingPredicate(after: cutoff))
             let outgoing = Self.request(CDChatRequest.self, matching: Self.outgoingPredicate(after: cutoff))
+            let devices = Self.request(CDContactDevice.self, matching: Self.contactDevicesPredicate(after: cutoff))
 
             return try context.count(for: blockStates) + context.count(for: incoming) + context.count(for: outgoing)
+                + context.count(for: devices)
         }
     }
 }
@@ -59,6 +64,33 @@ private extension DeviceSyncChatStateCollector {
             guard let accountId = try? contact.identifier?.fromHex() else { return nil }
             return Chat.DeviceSyncChatBlockState(chatId: .contact(accountId: accountId), blocked: contact.isBlocked)
         }
+    }
+
+    static func collectContactDevices(
+        after cutoff: Date?,
+        in context: NSManagedObjectContext
+    ) throws -> [Chat.DeviceSyncContactDeviceChange] {
+        try fetch(CDContactDevice.self, matching: contactDevicesPredicate(after: cutoff), in: context)
+            .compactMap { row in
+                guard
+                    let accountId = try? row.contact?.identifier?.fromHex(),
+                    let statementAccountId = row.statementAccountId,
+                    let encryptionPublicKey = row.encryptionPublicKey,
+                    let status = Chat.ContactDeviceStatus(rawValue: row.status)
+                else {
+                    return nil
+                }
+
+                return Chat.DeviceSyncContactDeviceChange(
+                    chatId: .contact(accountId: accountId),
+                    device: Chat.PeerDevice(
+                        statementAccountId: statementAccountId,
+                        encryptionPublicKey: encryptionPublicKey
+                    ),
+                    status: status,
+                    changedAt: UInt64(bitPattern: row.changedAt)
+                )
+            }
     }
 
     static func collectIncomingRequests(
@@ -160,6 +192,16 @@ private extension DeviceSyncChatStateCollector {
         )
         return cutoff.map { NSCompoundPredicate(andPredicateWithSubpredicates: [outgoing, modified(after: $0)]) }
             ?? outgoing
+    }
+
+    static func contactDevicesPredicate(after cutoff: Date?) -> NSPredicate {
+        let accepted = NSPredicate(
+            format: "%K != nil AND %K == nil",
+            #keyPath(CDContactDevice.contact),
+            #keyPath(CDContactDevice.contact.chatRequest)
+        )
+        return cutoff.map { NSCompoundPredicate(andPredicateWithSubpredicates: [accepted, modified(after: $0)]) }
+            ?? accepted
     }
 
     static func modified(after date: Date) -> NSPredicate {

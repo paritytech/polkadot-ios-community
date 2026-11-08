@@ -67,14 +67,20 @@ extension ChatRequest.PeerDeviceForRequest: Identifiable {
 
 extension NSManagedObjectContext {
     /// Adds a peer device to a contact inside the caller's transaction.
-    func addPeerDevice(_ device: Chat.PeerDevice, to contact: CDChatContact, changedAt: UInt64) throws {
+    func addPeerDevice(
+        _ device: Chat.PeerDevice,
+        to contact: CDChatContact,
+        changedAt: UInt64,
+        marksModified: Bool = true
+    ) throws {
         guard let contactAccountId = try contact.identifier?.fromHex() else { return }
 
         try ContactDeviceSettingsMapper().populate(
             entity: contact,
             from: Chat.ContactDeviceSettings(
                 accountId: contactAccountId,
-                changes: [.added(device, changedAt: changedAt)]
+                changes: [.added(device, changedAt: changedAt)],
+                marksModified: marksModified
             ),
             using: self
         )

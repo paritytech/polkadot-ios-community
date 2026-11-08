@@ -31,7 +31,7 @@ extension ChatRequest {
         let acceptorDevice: Chat.PeerDevice?
         /// The acceptor's `DeviceChatAccepted`, stored in the same transaction as the acceptance.
         let peerAcceptance: PeerAcceptance?
-        /// False for an acceptance applied from sync, so it isn't sent back.
+        /// False for an acceptance applied from sync, so neither it nor the device is sent back.
         let marksModified: Bool
     }
 

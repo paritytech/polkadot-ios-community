@@ -14,11 +14,15 @@ extension Chat {
     enum DeviceChange {
         case added(PeerDevice, changedAt: UInt64)
         case removed(statementAccountId: Data, changedAt: UInt64)
+        /// The device's full state, so an inactive one can be stored without a prior add.
+        case changed(PeerDevice, status: ContactDeviceStatus, changedAt: UInt64)
     }
 
     struct ContactDeviceSettings {
         let accountId: AccountId
         let changes: [DeviceChange]
+        /// False for changes applied from sync, so they aren't sent back.
+        var marksModified = true
     }
 }
 
@@ -49,40 +53,77 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
             throw MappingError.missingContact
         }
 
-        let existingDevices = entity.devices as? Set<CDContactDevice> ?? []
-        var devicesByAccountId = existingDevices.reduce(into: [Data: CDContactDevice]()) { result, device in
+        var rows = ContactDeviceRows(contact: entity, context: context)
+
+        for change in model.changes {
+            let applied = try apply(change, to: &rows)
+
+            if model.marksModified {
+                applied?.markModified()
+            }
+        }
+    }
+}
+
+private extension ContactDeviceSettingsMapper {
+    func apply(_ change: Chat.DeviceChange, to rows: inout ContactDeviceRows) throws -> CDContactDevice? {
+        switch change {
+        case let .added(device, changedAt):
+            return try rows.upsert(device, status: .active, changedAt: changedAt)
+        case let .removed(statementAccountId, changedAt):
+            guard let existing = rows[statementAccountId], existing.isOlder(than: changedAt) else {
+                return nil
+            }
+
+            existing.apply(status: .inactive, changedAt: changedAt)
+            return existing
+        case let .changed(device, status, changedAt):
+            return try rows.upsert(device, status: status, changedAt: changedAt)
+        }
+    }
+}
+
+private struct ContactDeviceRows {
+    let contact: CDChatContact
+    let context: NSManagedObjectContext
+    private var byAccountId: [Data: CDContactDevice]
+
+    init(contact: CDChatContact, context: NSManagedObjectContext) {
+        self.contact = contact
+        self.context = context
+
+        let devices = contact.devices as? Set<CDContactDevice> ?? []
+        byAccountId = devices.reduce(into: [:]) { result, device in
             if let statementAccountId = device.statementAccountId {
                 result[statementAccountId] = device
             }
         }
+    }
 
-        for change in model.changes {
-            switch change {
-            case let .added(device, changedAt):
-                let existing = devicesByAccountId[device.statementAccountId]
+    subscript(statementAccountId: Data) -> CDContactDevice? {
+        byAccountId[statementAccountId]
+    }
 
-                guard existing?.isOlder(than: changedAt) ?? true else {
-                    continue
-                }
+    /// Returns nil when the stored row is as new or newer, so the change is ignored.
+    mutating func upsert(
+        _ device: Chat.PeerDevice,
+        status: Chat.ContactDeviceStatus,
+        changedAt: UInt64
+    ) throws -> CDContactDevice? {
+        let existing = byAccountId[device.statementAccountId]
 
-                let deviceEntity = try existing ?? context.insertNew(CDContactDevice.self)
-                deviceEntity.statementAccountId = device.statementAccountId
-                deviceEntity.encryptionPublicKey = device.encryptionPublicKey
-                deviceEntity.contact = entity
-                deviceEntity.apply(status: .active, changedAt: changedAt)
-                devicesByAccountId[device.statementAccountId] = deviceEntity
-
-            case let .removed(statementAccountId, changedAt):
-                guard
-                    let existing = devicesByAccountId[statementAccountId],
-                    existing.isOlder(than: changedAt)
-                else {
-                    continue
-                }
-
-                existing.apply(status: .inactive, changedAt: changedAt)
-            }
+        guard existing?.isOlder(than: changedAt) ?? true else {
+            return nil
         }
+
+        let deviceEntity = try existing ?? context.insertNew(CDContactDevice.self)
+        deviceEntity.statementAccountId = device.statementAccountId
+        deviceEntity.encryptionPublicKey = device.encryptionPublicKey
+        deviceEntity.contact = contact
+        deviceEntity.apply(status: status, changedAt: changedAt)
+        byAccountId[device.statementAccountId] = deviceEntity
+
+        return deviceEntity
     }
 }
 
@@ -100,7 +141,6 @@ extension CDContactDevice {
     func apply(status: Chat.ContactDeviceStatus, changedAt: UInt64) {
         self.status = status.rawValue
         self.changedAt = Int64(bitPattern: changedAt)
-        markModified()
         touchParent()
     }
 
