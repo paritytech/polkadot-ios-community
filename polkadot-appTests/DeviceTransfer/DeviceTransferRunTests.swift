@@ -143,6 +143,25 @@ final class DeviceTransferRunTests {
         #expect(sentTokens.filter { $0 == newPhoneToken }.count == 1)
     }
 
+    @Test("A contact's device reaches the new phone even when no chat message carries it")
+    func deviceWithoutMessageIsTransferred() async throws {
+        let contact = try #require(sender.chatManager.peer.contact)
+        let device = Chat.PeerDevice(
+            statementAccountId: Data(repeating: 0x31, count: 32),
+            encryptionPublicKey: Data(repeating: 0x32, count: 32)
+        )
+        try await ContactsLocalStorageService(storageFacade: sender.facade, logger: MockLogger())
+            .updateDeviceSettings([.init(accountId: contact.accountId, changes: [.added(device, changedAt: 1_000)])])
+            .asyncExecute()
+
+        try await runTransfer()
+
+        let transferred = try await ContactsLocalStorageService(storageFacade: receiver.facade, logger: MockLogger())
+            .getContact(by: contact.accountId)
+            .asyncExecute()
+        #expect(transferred?.devices.contains(device) == true)
+    }
+
     @Test("A claim whose message never arrives keeps the checkpoint where it was and is reported when dropped")
     func waitingClaimHoldsCheckpoint() async throws {
         let (senderSide, receiverSide) = await LoopbackTransferFlow.makePair()
