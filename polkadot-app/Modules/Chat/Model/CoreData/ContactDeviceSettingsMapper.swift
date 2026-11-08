@@ -54,10 +54,8 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
             throw MappingError.missingContact
         }
 
-        var rows = ContactDeviceRows(contact: entity, context: context)
-
         for change in model.changes {
-            let applied = try apply(change, to: &rows)
+            let applied = try apply(change, to: entity, using: context)
 
             if model.marksModified {
                 applied?.markModified()
@@ -67,49 +65,36 @@ extension ContactDeviceSettingsMapper: CoreDataMapperProtocol {
 }
 
 private extension ContactDeviceSettingsMapper {
-    func apply(_ change: Chat.DeviceChange, to rows: inout ContactDeviceRows) throws -> CDContactDevice? {
+    func apply(
+        _ change: Chat.DeviceChange,
+        to contact: CDChatContact,
+        using context: NSManagedObjectContext
+    ) throws -> CDContactDevice? {
         switch change {
         case let .removed(statementAccountId, changedAt):
-            guard let existing = rows[statementAccountId], existing.isOlder(than: changedAt) else {
+            guard
+                let existing = storedDevice(statementAccountId, of: contact),
+                existing.isOlder(than: changedAt)
+            else {
                 return nil
             }
 
             existing.apply(status: .inactive, changedAt: changedAt)
             return existing
         case let .changed(device, status, changedAt):
-            return try rows.upsert(device, status: status, changedAt: changedAt)
+            return try upsert(device, status: status, changedAt: changedAt, of: contact, using: context)
         }
-    }
-}
-
-private struct ContactDeviceRows {
-    let contact: CDChatContact
-    let context: NSManagedObjectContext
-    private var byAccountId: [Data: CDContactDevice]
-
-    init(contact: CDChatContact, context: NSManagedObjectContext) {
-        self.contact = contact
-        self.context = context
-
-        let devices = contact.devices as? Set<CDContactDevice> ?? []
-        byAccountId = devices.reduce(into: [:]) { result, device in
-            if let statementAccountId = device.statementAccountId {
-                result[statementAccountId] = device
-            }
-        }
-    }
-
-    subscript(statementAccountId: Data) -> CDContactDevice? {
-        byAccountId[statementAccountId]
     }
 
     /// Returns nil when the stored row is as new or newer, so the change is ignored.
-    mutating func upsert(
+    func upsert(
         _ device: Chat.PeerDevice,
         status: Chat.ContactDeviceStatus,
-        changedAt: UInt64
+        changedAt: UInt64,
+        of contact: CDChatContact,
+        using context: NSManagedObjectContext
     ) throws -> CDContactDevice? {
-        let existing = byAccountId[device.statementAccountId]
+        let existing = storedDevice(device.statementAccountId, of: contact)
 
         guard existing?.isOlder(than: changedAt) ?? true else {
             return nil
@@ -120,9 +105,12 @@ private struct ContactDeviceRows {
         deviceEntity.encryptionPublicKey = device.encryptionPublicKey
         deviceEntity.contact = contact
         deviceEntity.apply(status: status, changedAt: changedAt)
-        byAccountId[device.statementAccountId] = deviceEntity
 
         return deviceEntity
+    }
+
+    func storedDevice(_ statementAccountId: Data, of contact: CDChatContact) -> CDContactDevice? {
+        (contact.devices as? Set<CDContactDevice>)?.first { $0.statementAccountId == statementAccountId }
     }
 }
 
