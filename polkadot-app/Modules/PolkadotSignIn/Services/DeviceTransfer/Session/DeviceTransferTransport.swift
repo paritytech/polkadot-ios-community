@@ -28,7 +28,11 @@ final class DeviceTransferTransport: @unchecked Sendable {
     private let rejectionContinuation: AsyncStream<Void>.Continuation
     private let logger: LoggerProtocol
 
-    init(context: DeviceTransferSessionContext, logger: LoggerProtocol) throws {
+    init(
+        context: DeviceTransferSessionContext,
+        timeProvider: SynchronousTimeProviding = SystemTimeProvider(),
+        logger: LoggerProtocol
+    ) throws {
         let (ownLabel, peerLabel) = Self.labels(for: context)
 
         let serviceFactory = try MessageExchangeServiceFactory(
@@ -41,7 +45,8 @@ final class DeviceTransferTransport: @unchecked Sendable {
             maxStatementSize: MessageExchangeCoordinatorFactory.Constants.maxDeviceSyncStatementSize,
             accountProvider: FixedSessionAccountProvider(accountId: ownLabel),
             priorityFactory: ShortLivedStatementPriorityFactory(
-                lifetimeInSeconds: DeviceTransferConstants.statementLifetimeInSeconds
+                lifetimeInSeconds: DeviceTransferConstants.statementLifetimeInSeconds,
+                timeProvider: timeProvider
             ),
             workQueue: DispatchQueue(label: "device.transfer.transport.queue"),
             logger: logger

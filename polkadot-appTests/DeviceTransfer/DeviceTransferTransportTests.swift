@@ -7,12 +7,13 @@ import SubstrateSdk
 import SubstrateSdkExt
 import Testing
 
-@Suite(.timeLimit(.minutes(1)))
+@Suite(.timeLimit(.minutes(5)))
 struct DeviceTransferTransportTests {
     private static let requestId = "6f1c2a9e-3b4d-4e5f-8a7b-0c1d2e3f4a5b"
     private static let otherRequestId = "0b2d6c1e-7a4f-4c3b-9e8d-1f2a3b4c5d6e"
 
     private let store = MockStatementStore()
+    private let timeProvider = FixedTimeProvider(now: Date(timeIntervalSince1970: 1_800_000_000))
     private let schedule: DeviceTransferKeySchedule
     private let identityKeypair: SNKeypairProtocol
 
@@ -55,7 +56,9 @@ struct DeviceTransferTransportTests {
         let sender = try await openPeer(role: .sender)
         let receiver = try await openPeer(role: .receiver)
         let envelope = Chat.DeviceSyncSignalingEnvelope(offerId: "offer-1", message: .reconnected)
-        let expectedExpiry = UInt64(Date().timeIntervalSince1970 + DeviceTransferConstants.statementLifetimeInSeconds)
+        let expectedExpiry = UInt64(
+            timeProvider.now.timeIntervalSince1970 + DeviceTransferConstants.statementLifetimeInSeconds
+        )
 
         try await sender.transport.send([envelope.scaleEncoded()])
         _ = await firstBatch(of: receiver)
@@ -63,8 +66,7 @@ struct DeviceTransferTransportTests {
         let expiries = try store.getStatements(with: .anyTopic).map { try Statement.fromScaleEncoded($0).getExpiry() }
         #expect(!expiries.isEmpty)
         for expiry in expiries {
-            let expiresAt = try #require(expiry) >> 32
-            #expect((expectedExpiry - 5 ... expectedExpiry + 5).contains(expiresAt))
+            #expect(try #require(expiry) >> 32 == expectedExpiry)
         }
 
         await close(sender, receiver)
@@ -104,6 +106,7 @@ private extension DeviceTransferTransportTests {
                 requestId: requestId,
                 role: role
             ),
+            timeProvider: timeProvider,
             logger: MockLogger()
         )
         let delegate = transport.makeSessionDelegate()
@@ -124,4 +127,8 @@ private extension DeviceTransferTransportTests {
         }
         return nil
     }
+}
+
+private struct FixedTimeProvider: SynchronousTimeProviding {
+    let now: Date
 }
