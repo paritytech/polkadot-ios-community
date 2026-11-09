@@ -259,16 +259,26 @@ private extension OutgoingChannelCompactionProxy {
 
         let currentInChannel = inChannelMessages[route] ?? []
         let currentPending = pendingMessages[route] ?? []
-        let messagesToCompact = currentInChannel + currentPending
+        let allMessages = currentInChannel + currentPending
 
-        logger?.debug("Starting compaction for \(messagesToCompact.count) messages on route \(route)")
+        logger?.debug("Starting compaction for \(allMessages.count) messages on route \(route)")
 
         channel.reset(route: route)
         pendingMessages[route] = []
-        inChannelMessages[route] = []
+
+        let messagesToCompact = holdBackCoalescableMessages(allMessages, on: route)
+
+        guard !messagesToCompact.isEmpty else {
+            compactingRoutes.remove(route)
+            return
+        }
 
         compactionTasks[route]?.cancel()
-        compactionTasks[route] = Task { [compacter, weak self] in
+        compactionTasks[route] = makeCompactionTask(for: messagesToCompact, route: route)
+    }
+
+    func makeCompactionTask(for messagesToCompact: [Message], route: PeerSessionRoute) -> Task<Void, Never> {
+        Task { [compacter, weak self] in
             do {
                 let compactedMessage = try await compacter.compact(messages: messagesToCompact)
 
@@ -296,6 +306,18 @@ private extension OutgoingChannelCompactionProxy {
                 }
             }
         }
+    }
+
+    // Coalescable messages stay in-channel so later duplicates can still replace or ignore them.
+    func holdBackCoalescableMessages(_ messages: [Message], on route: PeerSessionRoute) -> [Message] {
+        let heldBack = messages.filter { coalescer.canCoalesce($0) }
+
+        inChannelMessages[route] = heldBack
+        if !heldBack.isEmpty {
+            channel.addMessagesToQueue(heldBack)
+        }
+
+        return messages.filter { !coalescer.canCoalesce($0) }
     }
 
     func handleCompactionSuccess(
