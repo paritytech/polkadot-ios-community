@@ -10,18 +10,7 @@ struct OutgoingChannelCompactionProxyCoalescingTests {
 
     init() {
         delegate = AnyOutgoingMessageChannelDelegate(recorder)
-        proxy = OutgoingChannelCompactionProxy(
-            channel: AnyOutgoingMessageChannel(channel),
-            compacter: AnyMessageCompactor(StubMessageCompactor()),
-            coalescer: AnyMessageCoalescer(
-                StubMessageCoalescer(coalescableIds: [100, 101], fixedDecision: .ignore)
-            ),
-            routeSelector: PeerSessionRouteSelector { $0.route },
-            sizeValidator: FixedSizeValidator(maxPayloadSize: 1_000),
-            statementDataCoder: FakeStatementDataCoder(headerSize: 10, messageSize: 10),
-            workQueue: DispatchQueue(label: "test.outgoing-channel-compaction-proxy"),
-            logger: nil
-        )
+        proxy = Self.makeProxy(channel: channel, decision: .ignore)
         proxy.delegate = delegate
     }
 
@@ -35,5 +24,37 @@ struct OutgoingChannelCompactionProxyCoalescingTests {
         #expect(recorder.addToQueueCalls.count == 1)
         #expect(recorder.addToQueueCalls.first?.message.id == 101)
         #expect(recorder.addToQueueCalls.first?.error == nil)
+    }
+
+    @Test func replacedReceiptIsDroppedFromTracking() {
+        let replacingChannel = RecordingOutgoingMessageChannel()
+        let replacingProxy = Self.makeProxy(channel: replacingChannel, decision: .replace)
+        replacingProxy.activate(restoringState: [:])
+
+        replacingProxy.addMessagesToQueue([TestMessage(id: 100)])
+        replacingProxy.addMessagesToQueue([TestMessage(id: 101)])
+        replacingProxy.addMessagesToQueue([TestMessage(id: 100)])
+
+        #expect(replacingChannel.addedMessageBatches.map { $0.map(\.id) } == [[100], [101], [100]])
+    }
+}
+
+private extension OutgoingChannelCompactionProxyCoalescingTests {
+    static func makeProxy(
+        channel: RecordingOutgoingMessageChannel,
+        decision: MessageCoalescingDecision
+    ) -> OutgoingChannelCompactionProxy<TestMessage> {
+        OutgoingChannelCompactionProxy(
+            channel: AnyOutgoingMessageChannel(channel),
+            compacter: AnyMessageCompactor(StubMessageCompactor()),
+            coalescer: AnyMessageCoalescer(
+                StubMessageCoalescer(coalescableIds: [100, 101], fixedDecision: decision)
+            ),
+            routeSelector: PeerSessionRouteSelector { $0.route },
+            sizeValidator: FixedSizeValidator(maxPayloadSize: 1_000),
+            statementDataCoder: FakeStatementDataCoder(headerSize: 10, messageSize: 10),
+            workQueue: DispatchQueue(label: "test.outgoing-channel-compaction-proxy"),
+            logger: nil
+        )
     }
 }

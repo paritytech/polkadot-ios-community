@@ -206,8 +206,15 @@ private extension OutgoingRequestQueue {
 
         // An inactive channel's current request may be stale; it is replaced on activate.
         let activeMessages = isChannelActive ? (currentRequests[route]?.messages ?? []) : []
-        guard !coalescer.shouldIgnore(message, pendingMessages: activeMessages + queue) else {
+        switch coalescer.outcome(for: message, pendingMessages: activeMessages + queue) {
+        case .ignore:
             return .ignored
+        case let .replace(replacedMessage):
+            if let result = replacePendingMessage(replacedMessage, with: message, route: route) {
+                return result
+            }
+        case .append:
+            break
         }
 
         guard
@@ -222,33 +229,62 @@ private extension OutgoingRequestQueue {
             return .ignored
         }
 
-        let newMessages = currentRequest.messages + [message]
+        if updateCurrentRequest(route: route, messages: currentRequest.messages + [message]) {
+            return .appendedToCurrentRequest(route: route)
+        } else {
+            return queueMessage(message, route: route)
+        }
+    }
 
+    func replacePendingMessage(
+        _ replacedMessage: Message,
+        with message: Message,
+        route: PeerSessionRoute
+    ) -> MessageExchange.AddToQueueResult? {
+        if let currentRequest = currentRequests[route],
+           let index = currentRequest.messages.firstIndex(of: replacedMessage) {
+            var newMessages = currentRequest.messages
+            newMessages[index] = message
+
+            guard updateCurrentRequest(route: route, messages: newMessages) else {
+                return nil
+            }
+            return .appendedToCurrentRequest(route: route)
+        }
+
+        guard let index = queuedMessages[route]?.firstIndex(of: replacedMessage) else {
+            return nil
+        }
+        queuedMessages[route]?[index] = message
+        return .queued
+    }
+
+    func updateCurrentRequest(route: PeerSessionRoute, messages: [Message]) -> Bool {
         do {
             let newRequestId = UUID().uuidString
 
             let scaleEncodedData = try statementDataCoder.encodeToScaleEncodedPayload(
                 .request(.init(
                     requestId: newRequestId,
-                    messages: newMessages
+                    messages: messages
                 )),
                 route: route
             )
 
-            if sizeValidator.scaleEncodedPayloadFits(scaleEncodedData) {
-                currentRequests[route] = .init(
-                    requestId: newRequestId,
-                    messages: newMessages,
-                    scaleEncodedPayload: scaleEncodedData,
-                    route: route
-                )
-                return .appendedToCurrentRequest(route: route)
-            } else {
-                return queueMessage(message, route: route)
+            guard sizeValidator.scaleEncodedPayloadFits(scaleEncodedData) else {
+                return false
             }
+
+            currentRequests[route] = .init(
+                requestId: newRequestId,
+                messages: messages,
+                scaleEncodedPayload: scaleEncodedData,
+                route: route
+            )
+            return true
         } catch {
             logger?.error("Encoding error: \(error)")
-            return queueMessage(message, route: route)
+            return false
         }
     }
 

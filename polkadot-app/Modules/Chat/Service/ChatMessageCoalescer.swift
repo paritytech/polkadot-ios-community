@@ -13,13 +13,12 @@ struct ChatMessageCoalescer: MessageCoalescing {
     ) -> MessageCoalescingDecision {
         guard
             let newSeen = seenContent(of: newMessage),
-            let pendingSeen = seenContent(of: pendingMessage),
-            newSeen == pendingSeen
+            let pendingSeen = seenContent(of: pendingMessage)
         else {
             return .append
         }
 
-        return .ignore
+        return newSeen == pendingSeen ? .ignore : .replace
     }
 }
 

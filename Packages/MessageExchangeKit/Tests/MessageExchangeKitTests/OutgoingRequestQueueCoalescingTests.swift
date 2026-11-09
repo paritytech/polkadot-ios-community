@@ -6,6 +6,9 @@ struct OutgoingRequestQueueCoalescingTests {
     private let coalescer = AnyMessageCoalescer(
         StubMessageCoalescer(coalescableIds: [100, 101], fixedDecision: .ignore)
     )
+    private let replacingCoalescer = AnyMessageCoalescer(
+        StubMessageCoalescer(coalescableIds: [100, 101], fixedDecision: .replace)
+    )
 
     @Test func identicalReceiptIsIgnoredAgainstCurrentRequest() {
         let queue = makeQueue(coalescer: coalescer)
@@ -54,6 +57,46 @@ struct OutgoingRequestQueueCoalescingTests {
         let results = queue.addMessages([TestMessage(id: 101)], isChannelActive: true)
 
         #expect(successValue(results[0]) == .appendedToCurrentRequest(route: .device))
+    }
+
+    @Test func newerReceiptReplacesPendingOneInCurrentRequest() {
+        let queue = makeQueue(coalescer: replacingCoalescer)
+        let currentRequest = makeRequest(messages: [TestMessage(id: 1), TestMessage(id: 100)])
+        queue.currentRequests[.device] = currentRequest
+
+        let results = queue.addMessages([TestMessage(id: 101)], isChannelActive: true)
+
+        #expect(successValue(results[0]) == .appendedToCurrentRequest(route: .device))
+        #expect(queue.currentRequests[.device]?.messages.map(\.id) == [1, 101])
+        #expect(queue.currentRequests[.device]?.requestId != currentRequest.requestId)
+    }
+
+    @Test func newerReceiptReplacesPendingOneInQueue() {
+        let queue = makeQueue(coalescer: replacingCoalescer)
+
+        let results = queue.addMessages(
+            [TestMessage(id: 100), TestMessage(id: 101)],
+            isChannelActive: false
+        )
+
+        #expect(results.map { successValue($0) } == [.queued, .queued])
+        #expect(queue.dequeueMessagesForNewRequest()?.messages.map(\.id) == [101])
+    }
+
+    @Test func restoredRequestReceiptIsReplacedOnActivate() {
+        let queue = makeQueue(coalescer: replacingCoalescer)
+        let queuedResults = queue.addMessages([TestMessage(id: 101)], isChannelActive: false)
+        #expect(successValue(queuedResults[0]) == .queued)
+
+        let restoredRequest = makeRequest(messages: [TestMessage(id: 100)])
+        queue.currentRequests[.device] = restoredRequest
+
+        let extendedRoutes = queue.attemptRequestExtensionFromQueue()
+
+        #expect(extendedRoutes == [.device])
+        #expect(queue.currentRequests[.device]?.messages.map(\.id) == [101])
+        #expect(queue.currentRequests[.device]?.requestId != restoredRequest.requestId)
+        #expect(queue.dequeueMessagesForNewRequest() == nil)
     }
 }
 

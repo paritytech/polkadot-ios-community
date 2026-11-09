@@ -55,10 +55,31 @@ public final class AnyMessageCoalescer<M: MessageExchange.CodableMessage>: Messa
     }
 }
 
+enum MessageCoalescingOutcome<M> {
+    case append
+    case ignore
+    case replace(M)
+}
+
 extension AnyMessageCoalescer {
-    func shouldIgnore(_ message: M, pendingMessages: [M]) -> Bool {
-        canCoalesce(message) && pendingMessages.contains { pendingMessage in
-            canCoalesce(pendingMessage) && decision(for: message, against: pendingMessage) == .ignore
+    func outcome(for message: M, pendingMessages: [M]) -> MessageCoalescingOutcome<M> {
+        guard canCoalesce(message) else {
+            return .append
         }
+
+        var replacedMessage: M?
+
+        for pendingMessage in pendingMessages where canCoalesce(pendingMessage) {
+            switch decision(for: message, against: pendingMessage) {
+            case .ignore:
+                return .ignore
+            case .replace:
+                replacedMessage = replacedMessage ?? pendingMessage
+            case .append:
+                continue
+            }
+        }
+
+        return replacedMessage.map { .replace($0) } ?? .append
     }
 }

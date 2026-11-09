@@ -87,12 +87,18 @@ extension OutgoingChannelCompactionProxy: OutgoingMessageChanneling {
         var newMessages = [Message]()
 
         for message in messages {
-            if checkNotDuplicate(message: message) {
+            let outcome = checkNotDuplicate(message: message) ? coalescingOutcome(for: message) : .ignore
+
+            switch outcome {
+            case .append:
                 newMessages.append(message)
-            } else {
-                // mirror the queue's .ignored outcome so duplicates always
-                // produce a success callback regardless of which layer drops them
-                logger?.debug("Ignoring duplicate message already tracked by compaction proxy")
+            case let .replace(replacedMessage):
+                removeTrackedMessage(replacedMessage)
+                newMessages.append(message)
+            case .ignore:
+                // duplicates AND messages the coalescer ignores always produce a success callback
+                // regardless of which layer drops them
+                logger?.debug("Ignoring message already tracked or coalesced by compaction proxy")
                 delegate?.messageChannel(self, didFinishAddingMessageToQueue: message, withError: nil)
             }
         }
@@ -370,10 +376,20 @@ private extension OutgoingChannelCompactionProxy {
         let isPending = pendingMessages.values.contains { $0.contains(message) }
         let isInChannel = inChannelMessages.values.contains { $0.contains(message) }
 
+        return !isPending && !isInChannel
+    }
+
+    func removeTrackedMessage(_ replacedMessage: Message) {
+        for route in pendingMessages.keys {
+            pendingMessages[route]?.removeAll { $0 == replacedMessage }
+        }
+        removeFromInChannelMessages([replacedMessage])
+        optimisticallyAcknowledged.removeAll { $0 == replacedMessage }
+    }
+
+    func coalescingOutcome(for message: Message) -> MessageCoalescingOutcome<Message> {
         let route = routeSelector.route(for: message)
         let routeMessages = (pendingMessages[route] ?? []) + (inChannelMessages[route] ?? [])
-        let isCoalesced = coalescer.shouldIgnore(message, pendingMessages: routeMessages)
-
-        return !isPending && !isInChannel && !isCoalesced
+        return coalescer.outcome(for: message, pendingMessages: routeMessages)
     }
 }

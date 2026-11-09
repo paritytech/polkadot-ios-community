@@ -12,9 +12,16 @@ struct ChatMessageCoalescerTests {
         #expect(coalescer.decision(for: incoming, against: pending) == .ignore)
     }
 
-    @Test func differentSeenReceiptsAreAppended() {
+    @Test func differentSeenReceiptsAreReplaced() {
         let pending = makeSeen(messageId: "m1", timestamp: 10)
         let incoming = makeSeen(messageId: "m2", timestamp: 10)
+
+        #expect(coalescer.decision(for: incoming, against: pending) == .replace)
+    }
+
+    @Test func seenReceiptAgainstTextMessageIsAppended() {
+        let pending = makeMessage(.text("hi"))
+        let incoming = makeSeen(messageId: "m1", timestamp: 10)
 
         #expect(coalescer.decision(for: incoming, against: pending) == .append)
     }
