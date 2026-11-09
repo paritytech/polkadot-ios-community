@@ -10,6 +10,7 @@ final class OutgoingRequestQueue<M: MessageExchange.CodableMessage> {
     private let sizeValidator: OutgoingRequestSizeValidating
     private let supportedRoutes: [PeerSessionRoute]
     private let logger: SDKLoggerProtocol?
+    private let coalescer: AnyMessageCoalescer<M>
 
     private var queuedMessages = [PeerSessionRoute: [Message]]()
 
@@ -20,13 +21,15 @@ final class OutgoingRequestQueue<M: MessageExchange.CodableMessage> {
         routeSelector: PeerSessionRouteSelector<M>,
         sizeValidator: OutgoingRequestSizeValidating,
         supportedRoutes: [PeerSessionRoute],
-        logger: SDKLoggerProtocol?
+        logger: SDKLoggerProtocol?,
+        coalescer: AnyMessageCoalescer<M> = .none
     ) {
         self.statementDataCoder = statementDataCoder
         self.routeSelector = routeSelector
         self.sizeValidator = sizeValidator
         self.supportedRoutes = supportedRoutes
         self.logger = logger
+        self.coalescer = coalescer
     }
 }
 
@@ -200,6 +203,12 @@ private extension OutgoingRequestQueue {
     ) -> MessageExchange.AddToQueueResult {
         let route = routeSelector.route(for: message)
         let queue = queuedMessages[route] ?? []
+
+        // An inactive channel's current request may be stale; it is replaced on activate.
+        let activeMessages = isChannelActive ? (currentRequests[route]?.messages ?? []) : []
+        guard !coalescer.shouldIgnore(message, pendingMessages: activeMessages + queue) else {
+            return .ignored
+        }
 
         guard
             isChannelActive,

@@ -15,6 +15,7 @@ final class OutgoingChannelCompactionProxy<M: MessageExchange.CodableMessage>: @
 
     private let channel: AnyOutgoingMessageChannel<M>
     private let compacter: AnyMessageCompactor<M>
+    private let coalescer: AnyMessageCoalescer<M>
     private let routeSelector: PeerSessionRouteSelector<M>
     private let sizeValidator: OutgoingRequestSizeValidating
     private let statementDataCoder: StatementDataCoding
@@ -32,6 +33,7 @@ final class OutgoingChannelCompactionProxy<M: MessageExchange.CodableMessage>: @
     init(
         channel: AnyOutgoingMessageChannel<M>,
         compacter: AnyMessageCompactor<M>,
+        coalescer: AnyMessageCoalescer<M>,
         routeSelector: PeerSessionRouteSelector<M>,
         sizeValidator: OutgoingRequestSizeValidating,
         statementDataCoder: StatementDataCoding,
@@ -40,6 +42,7 @@ final class OutgoingChannelCompactionProxy<M: MessageExchange.CodableMessage>: @
     ) {
         self.channel = channel
         self.compacter = compacter
+        self.coalescer = coalescer
         self.routeSelector = routeSelector
         self.sizeValidator = sizeValidator
         self.statementDataCoder = statementDataCoder
@@ -367,6 +370,10 @@ private extension OutgoingChannelCompactionProxy {
         let isPending = pendingMessages.values.contains { $0.contains(message) }
         let isInChannel = inChannelMessages.values.contains { $0.contains(message) }
 
-        return !isPending && !isInChannel
+        let route = routeSelector.route(for: message)
+        let routeMessages = (pendingMessages[route] ?? []) + (inChannelMessages[route] ?? [])
+        let isCoalesced = coalescer.shouldIgnore(message, pendingMessages: routeMessages)
+
+        return !isPending && !isInChannel && !isCoalesced
     }
 }

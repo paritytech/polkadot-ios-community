@@ -179,7 +179,8 @@ private extension MessageExchangeChatCoordinator {
                 statementStoreConnection: statementStoreMonitor.observing(statementStoreConnection),
                 statementSignerResolver: signerResolver,
                 delegate: AnyPeerSessionDelegate(self),
-                compactorFactory: compactorFactory
+                compactorFactory: compactorFactory,
+                coalescer: AnyMessageCoalescer(ChatMessageCoalescer())
             )
 
             subscribeToAllContacts()
