@@ -208,7 +208,6 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
         let requestPipeline = try await makeRequestPipeline()
         let encryptionManager = makeAccountEncryptionManager()
         let signManager = makeAccountSignManager()
-        let consentStore = ChatSigningConsentStore(storageFacade: storageFacade)
 
         return try await ChatRequestCancelService(
             dependencies: ChatRequestCancelDependencies(
@@ -216,17 +215,17 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
                 delivery: requestPipeline.delivery,
                 builder: makeRequestStatementBuilder(),
                 signerManager: signManager,
-                allocator: notificationAllocator,
-                consentStore: consentStore,
+                periodProvider: notificationAllocator,
                 connection: makeConnection(),
                 priorityFactory: StatementPriorityFactory(),
                 removalCleanup: ChatRemovalCleanupService(
                     allowanceCleanupService: allowanceCleanupService,
-                    signingConsentStore: consentStore,
+                    signingConsentStore: ChatSigningConsentStore(storageFacade: storageFacade),
                     storageFacade: storageFacade
                 ),
                 requestStore: makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager),
-                backgroundExecutor: backgroundExecutor
+                backgroundExecutor: backgroundExecutor,
+                logger: logger
             )
         )
     }

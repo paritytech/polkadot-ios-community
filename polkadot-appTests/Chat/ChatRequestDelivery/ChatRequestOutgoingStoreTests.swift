@@ -117,7 +117,7 @@ struct ChatRequestOutgoingStoreTests {
         }
 
         #expect(try await store.renewalCandidates().isEmpty)
-        #expect(try await store.pendingRequest(requestId: requestId)?.period == 20_000)
+        #expect(try await store.pendingRequest(requestId: requestId)?.statementId == requestId)
     }
 }
 

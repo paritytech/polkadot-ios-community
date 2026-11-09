@@ -2,10 +2,12 @@ import AsyncExtensions
 import Foundation
 import os
 import StatementStore
+import SubstrateSdk
 
 final class RecordingStatementStoreConnection: StatementStoreConnecting, @unchecked Sendable {
     private struct State {
         var submitCount = 0
+        var submittedSenders: [Data?] = []
         var fetchCount = 0
         var failures: [Error]
     }
@@ -15,6 +17,7 @@ final class RecordingStatementStoreConnection: StatementStoreConnecting, @unchec
     private let fetchFailure: Error?
 
     var submitCount: Int { state.withLock { $0.submitCount } }
+    var submittedSenders: [Data?] { state.withLock { $0.submittedSenders } }
     var fetchCount: Int { state.withLock { $0.fetchCount } }
 
     /// Each submit fails with the next queued error, then succeeds.
@@ -24,9 +27,13 @@ final class RecordingStatementStoreConnection: StatementStoreConnecting, @unchec
         self.fetchFailure = fetchFailure
     }
 
-    func submitStatement(with _: StatementSubmitParametersBuilding) async throws {
+    func submitStatement(with builder: StatementSubmitParametersBuilding) async throws {
+        let parameters = try builder.build()
+        let sender = try Statement(scaleDecoder: ScaleDecoder(data: parameters.encodedStatement)).getSenderAccountId()
+
         let failure: Error? = state.withLock { state in
             state.submitCount += 1
+            state.submittedSenders.append(sender)
             return state.failures.isEmpty ? nil : state.failures.removeFirst()
         }
 

@@ -2,6 +2,7 @@ import BackgroundExecution
 import Foundation
 import Individuality
 import MessageExchangeKit
+import SDKLogger
 import StatementDelivery
 import StatementStore
 import SubstrateSdk
@@ -14,14 +15,8 @@ enum ChatRequestCancelError: Error {
     case notPending
 }
 
-struct PendingOutgoingRequest {
-    let input: OutgoingChatRequestInput
-    /// Nil when the request was never published.
-    let period: UInt32?
-}
-
 protocol PendingOutgoingChatRequestLoading {
-    func pendingRequest(requestId: String) async throws -> PendingOutgoingRequest?
+    func pendingRequest(requestId: String) async throws -> OutgoingChatRequestInput?
 }
 
 struct ChatRequestCancelDependencies {
@@ -29,17 +24,22 @@ struct ChatRequestCancelDependencies {
     let delivery: any OutgoingStatementDelivering<OutgoingChatRequestInput>
     let builder: any ChatRequestStatementBuilding
     let signerManager: StatementStoreSignerManaging
-    let allocator: NotificationStatementAccountAllocating
-    let consentStore: ChatSigningConsentStoring
+    let periodProvider: NotificationParametersProviding
     let connection: StatementStoreConnecting
     let priorityFactory: StatementPriorityMaking
     let removalCleanup: ChatRemovalCleanupServicing
     let requestStore: ChatRequestStoreServicing
     let backgroundExecutor: BackgroundExecuting
+    let logger: SDKLoggerProtocol
 }
 
-/// Publishes one cancel from the current period's one-shot account, falling back to the identity account when no slot
-/// is free and the user consented, then removes the request locally.
+private struct OwnRequestCopy {
+    let statement: Statement
+    let signer: StatementStoreSigning
+}
+
+/// Publishes one cancel per live copy of the request, each signed by the copy's own account, then removes the request
+/// locally. A copy the store already dropped for no allowance counts as done.
 final class ChatRequestCancelService {
     private let dependencies: ChatRequestCancelDependencies
     private let submitter: SigningStatementSubmitter
@@ -64,7 +64,7 @@ private extension ChatRequestCancelService {
     func cancelMarkedRequest(requestId: String) async throws {
         await dependencies.delivery.retire(requestId)
 
-        let pending: PendingOutgoingRequest
+        let pending: OutgoingChatRequestInput
         do {
             pending = try await publishCancelOfPendingRequest(requestId: requestId)
         } catch {
@@ -73,7 +73,7 @@ private extension ChatRequestCancelService {
         }
 
         try await dependencies.requestStore.deleteOutgoingRequest(requestId)
-        try await dependencies.removalCleanup.cleanUpAfterRemoval(of: pending.input.session.peer.accountId)
+        try await dependencies.removalCleanup.cleanUpAfterRemoval(of: pending.session.peer.accountId)
     }
 
     // A revert that fails here is recovered by the launch revert.
@@ -83,7 +83,7 @@ private extension ChatRequestCancelService {
     }
 
     // Read after retire: a first publish that finished during the wait must still be cancelled on the wire.
-    func publishCancelOfPendingRequest(requestId: String) async throws -> PendingOutgoingRequest {
+    func publishCancelOfPendingRequest(requestId: String) async throws -> OutgoingChatRequestInput {
         guard let pending = try await dependencies.loader.pendingRequest(requestId: requestId) else {
             throw ChatRequestCancelError.notPending
         }
@@ -93,34 +93,59 @@ private extension ChatRequestCancelService {
         return pending
     }
 
-    func publishCancel(for pending: PendingOutgoingRequest) async throws {
-        guard pending.period != nil else { return }
+    func publishCancel(for pending: OutgoingChatRequestInput) async throws {
+        let input = try makeCancelInput(from: pending)
+        let copies = try await fetchOwnCopies(for: input)
 
-        let input = try makeCancelInput(from: pending.input)
-        let stored = try await fetchStoredStatements(for: input)
+        var accepted = false
+        var lastFailure: Error?
 
-        let signer = try await makeCancelSigner(for: input)
-        try await submit(input, signer: signer, expiry: expiry(for: signer, among: stored))
-    }
-
-    func makeCancelSigner(for input: OutgoingChatRequestInput) async throws -> StatementStoreSigning {
-        do {
-            return try await makeCurrentPeriodOneShotSigner(for: input)
-        } catch NotificationAllocationError.noFreeSlotInPeriod {
-            guard try await dependencies.consentStore.hasConsent(for: input.session.peer.accountId) else {
-                throw NotificationAllocationError.noFreeSlotInPeriod
+        for copy in copies {
+            do {
+                try await submit(input, signer: copy.signer, expiry: expiry(after: copy.statement))
+                accepted = true
+            } catch let error as StatementSubmitError where error == .rejected(.noAllowance) {
+                // The store drops a copy it rejects for no allowance, so there is nothing left to cancel.
+            } catch {
+                dependencies.logger.warning("Request cancel failed for one copy: \(error)")
+                lastFailure = error
             }
+        }
 
-            return try dependencies.signerManager.makeSigner(for: input.identitySignKeyId)
+        if let lastFailure, !accepted {
+            throw lastFailure
         }
     }
 
-    func makeCurrentPeriodOneShotSigner(for input: OutgoingChatRequestInput) async throws -> StatementStoreSigning {
-        let period = try await dependencies.allocator.currentPeriod()
-        let signer = try dependencies.signerManager.makeSigner(for: input.oneShotKeyId(period: period))
-        try await dependencies.allocator.allocate(signer.accountId, timeout: ChatNotificationSlots.allocationTimeout)
+    func fetchOwnCopies(for input: OutgoingChatRequestInput) async throws -> [OwnRequestCopy] {
+        let stored = try await fetchStoredStatements(for: input)
+        let period = try await dependencies.periodProvider.currentPeriod()
+        let signers = try candidateKeyIds(for: input, period: period).map {
+            try dependencies.signerManager.makeSigner(for: $0)
+        }
 
-        return signer
+        return stored.compactMap { statement in
+            guard
+                let sender = statement.getSenderAccountId(),
+                let signer = signers.first(where: { $0.accountId == sender })
+            else {
+                dependencies.logger.warning("Skipping a request copy from an unknown account")
+                return nil
+            }
+
+            return OwnRequestCopy(statement: statement, signer: signer)
+        }
+    }
+
+    func candidateKeyIds(for input: OutgoingChatRequestInput, period: UInt32) throws -> [String] {
+        let currentOneShotKeyId = try input.oneShotKeyId(period: period)
+        var keyIds = [input.identitySignKeyId, currentOneShotKeyId]
+
+        if period > 0 {
+            try keyIds.append(input.oneShotKeyId(period: period - 1))
+        }
+
+        return keyIds
     }
 
     func makeCancelInput(from request: OutgoingChatRequestInput) throws -> OutgoingChatRequestInput {
@@ -146,19 +171,15 @@ private extension ChatRequestCancelService {
         return encoded.compactMap { try? Statement(scaleDecoder: ScaleDecoder(data: $0)) }
     }
 
-    // Expiry must exceed the signer's own previous copy on the channel, or the store keeps the old one.
-    func expiry(for signer: StatementStoreSigning, among statements: [Statement]) -> UInt64 {
+    // Expiry must exceed the copy's own previous statement on the channel, or the store keeps the old one.
+    func expiry(after statement: Statement) -> UInt64 {
         let timestampPriority = dependencies.priorityFactory.makeTimestampPriority()
 
-        let ownExpiries = statements
-            .filter { $0.getSenderAccountId() == signer.accountId }
-            .compactMap { $0.getExpiry() }
-
-        guard let lastExpiry = ownExpiries.max() else {
+        guard let copyExpiry = statement.getExpiry() else {
             return timestampPriority
         }
 
-        let (next, overflow) = lastExpiry.addingReportingOverflow(1)
+        let (next, overflow) = copyExpiry.addingReportingOverflow(1)
         return overflow ? .max : max(next, timestampPriority)
     }
 

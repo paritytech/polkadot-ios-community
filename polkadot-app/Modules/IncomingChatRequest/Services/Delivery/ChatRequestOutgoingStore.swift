@@ -94,8 +94,8 @@ extension ChatRequestOutgoingStore: OutgoingStatementStoring {
 }
 
 extension ChatRequestOutgoingStore: PendingOutgoingChatRequestLoading {
-    func pendingRequest(requestId: String) async throws -> PendingOutgoingRequest? {
-        try await databaseService.performRead { context throws -> PendingOutgoingRequest? in
+    func pendingRequest(requestId: String) async throws -> OutgoingChatRequestInput? {
+        try await databaseService.performRead { context throws -> OutgoingChatRequestInput? in
             guard
                 let request = try Self.fetchRequest(requestId, in: context),
                 Self.isOwnOutgoing(request),
@@ -109,7 +109,7 @@ extension ChatRequestOutgoingStore: PendingOutgoingChatRequestLoading {
 
             guard let candidate = Self.candidate(from: mappedContact, periods: periods) else { return nil }
 
-            return PendingOutgoingRequest(input: candidate.input, period: periods[requestId])
+            return candidate.input
         }
     }
 }
