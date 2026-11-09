@@ -5,6 +5,7 @@ import MessageExchangeKit
 import SDKLogger
 import StatementDelivery
 import StatementStore
+import StructuredConcurrency
 import SubstrateSdk
 
 protocol ChatRequestCancelServicing {
@@ -31,11 +32,17 @@ struct ChatRequestCancelDependencies {
     let requestStore: ChatRequestStoreServicing
     let backgroundExecutor: BackgroundExecuting
     let logger: SDKLoggerProtocol
+    let clock: any Clock<Duration>
 }
 
 private struct OwnRequestCopy {
     let statement: Statement
     let signer: StatementStoreSigning
+}
+
+private enum CancelRetry {
+    static let maxAttempts = 3
+    static let firstDelay: Duration = .seconds(1)
 }
 
 /// Publishes one cancel per live copy of the request, each signed by the copy's own account, then removes the request
@@ -102,7 +109,14 @@ private extension ChatRequestCancelService {
 
         for copy in copies {
             do {
-                try await submit(input, signer: copy.signer, expiry: expiry(after: copy.statement))
+                try await withRetry(
+                    maxAttempts: CancelRetry.maxAttempts,
+                    initialDelay: CancelRetry.firstDelay,
+                    clock: dependencies.clock,
+                    shouldRetry: Self.isTransient
+                ) {
+                    try await self.submit(input, signer: copy.signer, expiry: self.expiry(after: copy.statement))
+                }
                 accepted = true
             } catch let error as StatementSubmitError where error == .rejected(.noAllowance) {
                 // The store drops a copy it rejects for no allowance, so there is nothing left to cancel.
@@ -186,5 +200,13 @@ private extension ChatRequestCancelService {
     func submit(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning, expiry: UInt64) async throws {
         let unsigned = try dependencies.builder.makeUnsignedStatement(for: input, expiry: expiry)
         try await submitter.submit(unsigned, signer: signer)
+    }
+
+    static func isTransient(_ error: Error) -> Bool {
+        if let submitError = error as? StatementSubmitError {
+            return submitError == .rejected(.channelPriorityTooLow)
+        }
+
+        return !StatementSubmitTimeoutMatcher().match(error: error)
     }
 }
