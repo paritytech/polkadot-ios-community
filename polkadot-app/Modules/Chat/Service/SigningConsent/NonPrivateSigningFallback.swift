@@ -12,7 +12,7 @@ protocol NonPrivateSigningFallbacking: Sendable {
     /// - Throws: `ChatSigningConsentError.declined` after the contact's pending messages were marked failed.
     func identitySigner(for contactAccountId: AccountId, ownSignKeyId: String) async throws -> StatementStoreSigning
 
-    /// The identity signer only if the user already consented; never asks.
+    /// Never prompts.
     func consentedIdentitySigner(for contactAccountId: AccountId, ownSignKeyId: String) async throws
         -> StatementStoreSigning?
 }

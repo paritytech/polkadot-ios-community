@@ -14,8 +14,7 @@ struct DashboardServicesBackground {
 }
 
 /// Once no lease is left the coordinator is stopped and dropped, so a stopped instance is never started again.
-/// While the app is in the background the interactive part waits for the foreground or an explicit request:
-/// a background task launch also connects the scene, and its dashboard must not start chat or a second renewal.
+/// In the background the interactive part waits for the foreground or a call: a BG task launch also connects the scene.
 @MainActor
 final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating> {
     private let backgroundBootConfig: DashboardServicesBackground
@@ -104,7 +103,7 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
 
 private extension DashboardServicesManager {
     enum InteractiveState {
-        /// Waiting for the foreground; without a task, a call asked for the services before any dashboard lease.
+        /// Without a task: a call asked before any dashboard lease.
         case requested(pendingTask: Task<Void, Never>?)
         case started
     }
@@ -251,7 +250,7 @@ private extension DashboardServicesManager {
         interactiveState = nil
     }
 
-    /// A call's request made before any dashboard lease survives, so the next lease still starts at once.
+    /// Keeps a call's request made before any lease.
     func markInteractiveStopped() {
         guard case .started = interactiveState else { return }
 

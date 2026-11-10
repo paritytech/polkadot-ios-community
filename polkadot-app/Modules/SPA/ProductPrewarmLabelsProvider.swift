@@ -1,6 +1,5 @@
 import Foundation
 
-/// Names the products whose content is warmed ahead of the first open.
 protocol ProductPrewarmLabelsProviding {
     @MainActor func labels() async -> [String]
 }

@@ -3,11 +3,10 @@ import FoundationExt
 import StatementStore
 import SubstrateSdk
 
-/// The consent prompt can only be answered in the foreground; not terminal, so the statement is retried later.
+/// Not terminal: the statement is retried once consent can be asked in the foreground.
 struct ChatSigningConsentUnavailableError: Error {}
 
-/// Asks for consent only in the foreground. In the background (a BG task run) it signs with the identity account only
-/// when the user already consented, instead of waiting for an alert nobody can see.
+/// In the background signs only with stored consent instead of waiting on an alert nobody can see.
 final class ForegroundConsentSigningFallback: @unchecked Sendable {
     private let base: NonPrivateSigningFallbacking
     private let activity: any ApplicationActivityProviding

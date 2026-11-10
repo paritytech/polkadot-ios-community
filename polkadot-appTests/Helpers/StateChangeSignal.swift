@@ -1,8 +1,6 @@
 import Foundation
 
-/// Lets a test await a condition on a double's state without polling: the double calls `signal()` after
-/// every change, and `wait(until:)` re-checks the condition on each signal. Signals are buffered, so a change
-/// made before the wait starts is not missed. One waiter at a time.
+/// Buffered and single-waiter: a change signalled before `wait(until:)` starts is not missed.
 final class StateChangeSignal: @unchecked Sendable {
     private let changes: AsyncStream<Void>
     private let continuation: AsyncStream<Void>.Continuation

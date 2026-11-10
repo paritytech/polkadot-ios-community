@@ -34,7 +34,6 @@ enum ChainMock {
         )
     }
 
-    /// A bare chain for code that only needs the id to be known to the registry.
     static func makeChain(id: ChainModel.Id) -> ChainModel {
         ChainModel(
             chainId: id,

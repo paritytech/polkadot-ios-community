@@ -82,7 +82,6 @@ extension PushKitService: PKPushRegistryDelegate {
             completion: completion
         )
 
-        // A background launch defers chat services, but the call's signalling arrives through them.
         interactiveServices.requestInteractiveStart()
     }
 }

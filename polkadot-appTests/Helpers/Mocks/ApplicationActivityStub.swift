@@ -1,7 +1,6 @@
 import Foundation
 import FoundationExt
 
-/// Holds waiters until the test calls `enterForeground()`; a cancelled waiter is released too.
 @MainActor
 final class ApplicationActivityStub: ApplicationActivityProviding {
     private(set) var isInBackground: Bool
