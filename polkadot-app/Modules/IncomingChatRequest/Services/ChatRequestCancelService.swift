@@ -113,10 +113,11 @@ private extension ChatRequestCancelService {
                     maxAttempts: CancelRetry.maxAttempts,
                     initialDelay: CancelRetry.firstDelay,
                     clock: dependencies.clock,
-                    shouldRetry: Self.isTransient
-                ) {
-                    try await self.submit(input, signer: copy.signer, expiry: self.expiry(after: copy.statement))
-                }
+                    shouldRetry: { $0.allowsCancelRetry },
+                    operation: {
+                        try await self.submit(input, signer: copy.signer, expiry: self.expiry(after: copy.statement))
+                    }
+                )
                 accepted = true
             } catch let error as StatementSubmitError where error == .rejected(.noAllowance) {
                 // The store drops a copy it rejects for no allowance, so there is nothing left to cancel.
@@ -201,12 +202,14 @@ private extension ChatRequestCancelService {
         let unsigned = try dependencies.builder.makeUnsignedStatement(for: input, expiry: expiry)
         try await submitter.submit(unsigned, signer: signer)
     }
+}
 
-    static func isTransient(_ error: Error) -> Bool {
-        if let submitError = error as? StatementSubmitError {
+private extension Error {
+    var allowsCancelRetry: Bool {
+        if let submitError = self as? StatementSubmitError {
             return submitError == .rejected(.channelPriorityTooLow)
         }
 
-        return !StatementSubmitTimeoutMatcher().match(error: error)
+        return (self as? JSONRPCOperationError) != .timeout
     }
 }
