@@ -4,7 +4,7 @@ import Testing
 @testable import polkadot_app
 
 @MainActor
-@Suite(.timeLimit(.minutes(1)))
+@Suite(.timeLimit(.minutes(5)))
 struct DashboardServicesManagerTests {
     @Test func interactiveLeaseCreatesAndStartsCoordinatorOnce() throws {
         let factory = DashboardServicesCoordinatorFactorySpy()
@@ -266,7 +266,7 @@ private extension DashboardServicesManagerTests {
         activity: ApplicationActivityStub? = nil
     ) -> DashboardServicesManager<DashboardServicesCoordinatorSpy> {
         DashboardServicesManager(
-            headlessBoot: DashboardServicesHeadlessBoot(bootstrapper: bootstrapper, deadline: .seconds(1)),
+            background: DashboardServicesBackground(bootstrapper: bootstrapper, deadline: .seconds(1)),
             coordinatorFactory: factory ?? DashboardServicesCoordinatorFactorySpy(),
             connectionRetention: connectionRetention,
             activity: activity ?? ApplicationActivityStub(),

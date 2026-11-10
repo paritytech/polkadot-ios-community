@@ -8,7 +8,7 @@ protocol DashboardServicesCoordinatorMaking<Coordinator> {
     @MainActor func makeCoordinator() -> Coordinator?
 }
 
-struct DashboardServicesHeadlessBoot {
+struct DashboardServicesBackground {
     let bootstrapper: BackgroundTaskBootstrapping
     let deadline: Duration
 }
@@ -18,7 +18,7 @@ struct DashboardServicesHeadlessBoot {
 /// a background task launch also connects the scene, and its dashboard must not start chat or a second renewal.
 @MainActor
 final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating> {
-    private let headlessBootConfig: DashboardServicesHeadlessBoot
+    private let backgroundBootConfig: DashboardServicesBackground
     private let coordinatorFactory: any DashboardServicesCoordinatorMaking<Coordinator>
     private let connectionRetention: BackgroundConnectionRetaining
     private let activity: any ApplicationActivityProviding
@@ -27,19 +27,17 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
     private var coordinator: Coordinator?
     private var generation: UInt64 = 0
     private var leaseCounts: [DashboardServicesDemand: Int] = [:]
-    private var headlessBoot: Task<Coordinator?, Never>?
-    private var pendingInteractiveStart: Task<Void, Never>?
-    private var isInteractiveRequested = false
-    private var isInteractiveStarted = false
+    private var backgroundStartTask: Task<Coordinator?, Never>?
+    private var interactiveState: InteractiveState?
 
     init(
-        headlessBoot: DashboardServicesHeadlessBoot,
+        background: DashboardServicesBackground,
         coordinatorFactory: any DashboardServicesCoordinatorMaking<Coordinator>,
         connectionRetention: BackgroundConnectionRetaining,
         activity: any ApplicationActivityProviding,
         logger: LoggerProtocol
     ) {
-        headlessBootConfig = headlessBoot
+        backgroundBootConfig = background
         self.coordinatorFactory = coordinatorFactory
         self.connectionRetention = connectionRetention
         self.activity = activity
@@ -47,7 +45,7 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
     }
 
     var isInteractiveRunning: Bool {
-        isInteractiveStarted
+        if case .started = interactiveState { true } else { false }
     }
 
     func acquireInteractive() -> DashboardServicesLease<Coordinator>? {
@@ -65,8 +63,16 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
 
     /// An incoming call needs chat signalling even while the app stays in the background.
     func requestInteractiveStart() {
-        isInteractiveRequested = true
-        openInteractiveGate(generation: generation)
+        guard !isInteractiveRunning else { return }
+
+        cancelPendingInteractiveStart()
+
+        guard leaseCount(for: .interactive) > 0, let coordinator else {
+            interactiveState = .requested(pendingTask: nil)
+            return
+        }
+
+        startInteractiveNow(coordinator)
     }
 
     func acquireDurability() async -> DashboardServicesLease<Coordinator>? {
@@ -86,17 +92,23 @@ final class DashboardServicesManager<Coordinator: DashboardServicesCoordinating>
 
     func reset() {
         generation &+= 1
-        headlessBoot?.cancel()
-        headlessBoot = nil
+        backgroundStartTask?.cancel()
+        backgroundStartTask = nil
         cancelPendingInteractiveStart()
         coordinator?.stopAll()
         coordinator = nil
-        isInteractiveStarted = false
+        interactiveState = nil
         leaseCounts = [:]
     }
 }
 
 private extension DashboardServicesManager {
+    enum InteractiveState {
+        /// Waiting for the foreground; without a task, a call asked for the services before any dashboard lease.
+        case requested(pendingTask: Task<Void, Never>?)
+        case started
+    }
+
     func existingOrNewCoordinator() -> Coordinator? {
         if let coordinator {
             return coordinator
@@ -111,19 +123,19 @@ private extension DashboardServicesManager {
             return coordinator
         }
 
-        if let headlessBoot {
-            return await headlessBoot.value
+        if let backgroundStartTask {
+            return await backgroundStartTask.value
         }
 
         let boot = Task { await bootHeadless(generation: generation) }
-        headlessBoot = boot
+        backgroundStartTask = boot
         let result = await boot.value
-        headlessBoot = nil
+        backgroundStartTask = nil
         return result
     }
 
     func bootHeadless(generation bootGeneration: UInt64) async -> Coordinator? {
-        let readiness = await headlessBootConfig.bootstrapper.waitWhenReady(deadline: headlessBootConfig.deadline)
+        let readiness = await backgroundBootConfig.bootstrapper.waitWhenReady(deadline: backgroundBootConfig.deadline)
 
         guard readiness == .dashboard else {
             logger.info("Headless boot skipped: \(readiness)")
@@ -179,24 +191,33 @@ private extension DashboardServicesManager {
         case (_, false, false):
             coordinator.stopAll()
             self.coordinator = nil
-            isInteractiveStarted = false
+            markInteractiveStopped()
         case (.interactive, false, true):
             coordinator.stopInteractive()
-            isInteractiveStarted = false
+            markInteractiveStopped()
         default:
             break
         }
     }
 
     func startInteractiveWhenNeeded(_ coordinator: Coordinator) {
-        guard activity.isInBackground, !isInteractiveRequested else {
+        switch interactiveState {
+        case .requested(pendingTask: .none):
             startInteractiveNow(coordinator)
-            return
+        case nil where !activity.isInBackground:
+            startInteractiveNow(coordinator)
+        case nil:
+            interactiveState = .requested(pendingTask: makeForegroundWait())
+        case .requested,
+             .started:
+            break
         }
+    }
 
+    func makeForegroundWait() -> Task<Void, Never> {
         let startGeneration = generation
 
-        pendingInteractiveStart = Task { [weak self, activity] in
+        return Task { [weak self, activity] in
             await activity.waitUntilInForeground()
 
             guard !Task.isCancelled else { return }
@@ -208,24 +229,32 @@ private extension DashboardServicesManager {
     func openInteractiveGate(generation gateGeneration: UInt64) {
         guard
             gateGeneration == generation,
-            !isInteractiveStarted,
+            case .requested = interactiveState,
             leaseCount(for: .interactive) > 0,
             let coordinator
         else {
             return
         }
 
-        cancelPendingInteractiveStart()
         startInteractiveNow(coordinator)
     }
 
     func startInteractiveNow(_ coordinator: Coordinator) {
-        isInteractiveStarted = true
+        interactiveState = .started
         coordinator.startInteractive()
     }
 
     func cancelPendingInteractiveStart() {
-        pendingInteractiveStart?.cancel()
-        pendingInteractiveStart = nil
+        guard case let .requested(pendingTask?) = interactiveState else { return }
+
+        pendingTask.cancel()
+        interactiveState = nil
+    }
+
+    /// A call's request made before any dashboard lease survives, so the next lease still starts at once.
+    func markInteractiveStopped() {
+        guard case .started = interactiveState else { return }
+
+        interactiveState = nil
     }
 }

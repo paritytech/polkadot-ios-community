@@ -14,7 +14,7 @@ public protocol ApplicationActivityProviding: Sendable {
 public final class ApplicationActivity {
     private let streamFactory: ApplicationStateStreamFactory
 
-    public init(streamFactory: ApplicationStateStreamFactory = ApplicationStateStreamFactory()) {
+    public nonisolated init(streamFactory: ApplicationStateStreamFactory = ApplicationStateStreamFactory()) {
         self.streamFactory = streamFactory
     }
 }

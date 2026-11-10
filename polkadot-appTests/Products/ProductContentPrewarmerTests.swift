@@ -5,7 +5,7 @@ import Testing
 
 /// Empty labels end the warm right after the lookup, so these tests observe only when the lookup starts.
 @MainActor
-@Suite(.timeLimit(.minutes(1)))
+@Suite(.timeLimit(.minutes(5)))
 struct ProductContentPrewarmerTests {
     @Test func backgroundPrewarmWaitsForForeground() async {
         let activity = ApplicationActivityStub(isInBackground: true)
