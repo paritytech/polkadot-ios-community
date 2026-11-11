@@ -43,6 +43,18 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
     }
 
     func updateOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws {
+        try await writeOutgoing(messageId: messageId, state: state, marksModified: true)
+    }
+
+    func applySyncedOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws {
+        try await writeOutgoing(messageId: messageId, state: state, marksModified: false)
+    }
+}
+
+private extension TransferStateCoreDataStore {
+    func writeOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState, marksModified: Bool) async throws {
+        let now = await dateProvider.read()
+
         try await databaseService.performWrite { context in
             let message = try Self.message(messageId, in: context)
             let row = try message.outgoingTransferState ?? Self.insertOutgoingRow(for: message, in: context)
@@ -50,12 +62,13 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
             guard !TransferStateRows.isUnchanged(row, comparedTo: state) else { return }
 
             TransferStateRows.apply(state, to: row)
+            if marksModified {
+                row.modifiedAt = now
+            }
             Self.touch(message, key: #keyPath(CDChatMessage.outgoingTransferState))
         }
     }
-}
 
-private extension TransferStateCoreDataStore {
     func writeIncoming(messageId: Chat.MessageId, state: IncomingTransferState, marksModified: Bool) async throws {
         let now = await dateProvider.read()
 

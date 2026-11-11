@@ -21,6 +21,7 @@ extension Chat.DeviceSyncEntity {
         case let .coinsHandedOff(items): items.count
         case let .coinageMessagesStatusUpdated(items): items.count
         case let .contactDevicesChanged(items): items.count
+        case let .outgoingTransferStatesUpdated(items): items.count
         }
     }
 }

@@ -97,7 +97,7 @@ private struct DeviceTransferReceiverSession {
     private var applied = 0
     /// Updates and controls are separate streams, so an update can overtake `senderStarted`.
     private var earlyUpdates: [Chat.DeviceSyncUpdate] = []
-    private var waitingClaims: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
+    private var waitingStates: [Chat.DeviceSyncTransferStateUpdate] = []
 
     init(
         senderInstallationId: Data,
@@ -121,7 +121,7 @@ private struct DeviceTransferReceiverSession {
             reportProgress()
             try await applyEarlyUpdates()
         case .control(.senderCompleted):
-            dropWaitingClaims()
+            dropWaitingStates()
             return true
         case let .update(update):
             if total == nil {
@@ -154,40 +154,42 @@ private extension DeviceTransferReceiverSession {
             return
         }
 
-        waitingClaims += try await dependencies.updateApplier.apply(update)
+        waitingStates += try await dependencies.updateApplier.apply(update)
         applied += update.entities.reduce(0) { $0 + $1.itemCount }
         reportProgress()
     }
 
-    /// All of a round's messages precede its closing update, so waiting claims are retried here.
+    /// All of a round's messages precede its closing update, so waiting transfer states are retried here.
     mutating func closeRound(at update: Chat.DeviceSyncUpdate) async throws {
-        if !waitingClaims.isEmpty {
-            let claims = waitingClaims
-            waitingClaims = try await DeviceTransferLocalFailureHandler.withLocalFailure {
-                try await dependencies.coinageStateApplier.applyClaimStatuses(claims)
+        if !waitingStates.isEmpty {
+            let states = waitingStates
+            waitingStates = try await DeviceTransferLocalFailureHandler.withLocalFailure {
+                try await dependencies.coinageStateApplier.applyTransferStates(states)
             }
         }
 
         try await dependencies.updateApplier.apply(update)
 
-        guard waitingClaims.isEmpty else {
-            dependencies.logger.warning("Device transfer checkpoint held back by \(waitingClaims.count) claim(s)")
+        guard waitingStates.isEmpty else {
+            dependencies.logger
+                .warning("Device transfer checkpoint held back by \(waitingStates.count) transfer state(s)")
             return
         }
 
         dependencies.checkpointStore.save(update.timePoint, senderInstallationId: senderInstallationId)
     }
 
-    mutating func dropWaitingClaims() {
-        guard !waitingClaims.isEmpty else { return }
+    mutating func dropWaitingStates() {
+        guard !waitingStates.isEmpty else { return }
 
-        dependencies.logger.warning("Device transfer dropped \(waitingClaims.count) claim(s) without a message")
+        dependencies.logger
+            .warning("Device transfer dropped \(waitingStates.count) transfer state(s) without a message")
         dependencies.claimsDroppedDiagnostic.recordFailure(
             for: "claims",
             error: nil,
-            counters: ["claims": waitingClaims.count]
+            counters: ["claims": waitingStates.count]
         )
-        waitingClaims = []
+        waitingStates = []
     }
 
     func reportProgress() {

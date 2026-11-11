@@ -17,6 +17,7 @@ extension Chat {
         case coinsHandedOff([DeviceSyncHandedOffCoin])
         case coinageMessagesStatusUpdated([DeviceSyncCoinageMessageStatusUpdate])
         case contactDevicesChanged([DeviceSyncContactDeviceChange])
+        case outgoingTransferStatesUpdated([DeviceSyncCoinageMessageStatusUpdate])
 
         var logLabel: String {
             switch self {
@@ -32,6 +33,7 @@ extension Chat {
             case .coinsHandedOff: "coinsHandedOff"
             case .coinageMessagesStatusUpdated: "coinageMessagesStatusUpdated"
             case .contactDevicesChanged: "contactDevicesChanged"
+            case .outgoingTransferStatesUpdated: "outgoingTransferStatesUpdated"
             }
         }
     }
@@ -89,6 +91,10 @@ extension Chat.DeviceSyncEntity: ScaleCodable {
             )
         case 11:
             self = try .contactDevicesChanged([Chat.DeviceSyncContactDeviceChange](scaleDecoder: scaleDecoder))
+        case 12:
+            self = try .outgoingTransferStatesUpdated(
+                [Chat.DeviceSyncCoinageMessageStatusUpdate](scaleDecoder: scaleDecoder)
+            )
         default:
             throw ScaleCodingError.unexpectedDecodedValue
         }
@@ -133,6 +139,9 @@ extension Chat.DeviceSyncEntity: ScaleCodable {
         case let .contactDevicesChanged(changes):
             try UInt8(11).encode(scaleEncoder: scaleEncoder)
             try changes.encode(scaleEncoder: scaleEncoder)
+        case let .outgoingTransferStatesUpdated(updates):
+            try UInt8(12).encode(scaleEncoder: scaleEncoder)
+            try updates.encode(scaleEncoder: scaleEncoder)
         }
     }
 }

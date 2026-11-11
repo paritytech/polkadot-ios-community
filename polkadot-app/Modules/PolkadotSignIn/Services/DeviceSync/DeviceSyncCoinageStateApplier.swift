@@ -7,11 +7,11 @@ import StructuredConcurrency
 protocol DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_ coins: [Chat.DeviceSyncHandedOffCoin]) async throws
 
-    /// Returns the claims whose message isn't stored yet; a caller that keeps them applies them again later.
+    /// Returns the updates whose message isn't stored yet; a caller that keeps them applies them again later.
     @discardableResult
-    func applyClaimStatuses(
-        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
-    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    func applyTransferStates(
+        _ updates: [Chat.DeviceSyncTransferStateUpdate]
+    ) async throws -> [Chat.DeviceSyncTransferStateUpdate]
 }
 
 /// Writes coinage state received from a sibling. A handed-off coin is rebuilt from its derivation and stored as
@@ -58,23 +58,21 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
     }
 
     @discardableResult
-    func applyClaimStatuses(
-        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
-    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
-        var waiting: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
+    func applyTransferStates(
+        _ updates: [Chat.DeviceSyncTransferStateUpdate]
+    ) async throws -> [Chat.DeviceSyncTransferStateUpdate] {
+        var waiting: [Chat.DeviceSyncTransferStateUpdate] = []
 
         for update in updates {
-            guard let state = update.localState else { continue }
-
             do {
-                try await transferStateStore.applySyncedIncoming(messageId: update.messageId, state: state)
+                try await apply(update)
             } catch TransferStateStoreError.messageNotFound {
                 waiting.append(update)
             }
         }
 
         if !waiting.isEmpty {
-            logger.warning("\(waiting.count) synced claim status(es) arrived before their message")
+            logger.warning("\(waiting.count) synced transfer state(s) arrived before their message")
         }
 
         return waiting
@@ -82,6 +80,17 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
 }
 
 private extension DeviceSyncCoinageStateApplier {
+    func apply(_ update: Chat.DeviceSyncTransferStateUpdate) async throws {
+        switch update {
+        case let .incoming(update):
+            guard let state = update.incomingState else { return }
+            try await transferStateStore.applySyncedIncoming(messageId: update.messageId, state: state)
+        case let .outgoing(update):
+            guard let state = update.outgoingState else { return }
+            try await transferStateStore.applySyncedOutgoing(messageId: update.messageId, state: state)
+        }
+    }
+
     /// Saved as never seen on chain: chain sync fills in age and presence while the coin is there, and a coin
     /// the recipient already claimed is never spendable here anyway.
     func rebuild(_ coin: Chat.DeviceSyncHandedOffCoin) throws -> Coin {
@@ -102,11 +111,19 @@ private extension DeviceSyncCoinageStateApplier {
 }
 
 private extension Chat.DeviceSyncCoinageMessageStatusUpdate {
-    var localState: IncomingTransferState? {
+    var incomingState: IncomingTransferState? {
         switch status {
         case .none: nil
         case let .claimed(partial): IncomingTransferState(status: .claimed, actualValue: partial)
         case .failed: IncomingTransferState(status: .failed)
+        }
+    }
+
+    var outgoingState: OutgoingTransferState? {
+        switch status {
+        case .none: nil
+        case let .claimed(partial): OutgoingTransferState(status: .claimed, actualValue: partial)
+        case .failed: OutgoingTransferState(status: .failed)
         }
     }
 }
