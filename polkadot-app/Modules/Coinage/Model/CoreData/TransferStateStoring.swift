@@ -23,8 +23,7 @@ struct PendingPayments: Equatable, Sendable {
     let receiving: Int
     let sending: Int
 
-    var total: Int { receiving + sending }
-    var isEmpty: Bool { total == 0 }
+    var isEmpty: Bool { receiving == 0 && sending == 0 }
 }
 
 protocol PendingPaymentsCounting: Sendable {

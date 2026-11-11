@@ -32,5 +32,5 @@ protocol DeviceTransferRequestWireframeProtocol: AnyObject {
     func close(from view: DeviceTransferRequestViewProtocol?)
     func closeAsWithdrawn(from view: DeviceTransferRequestViewProtocol?)
     func confirm(_ request: DeviceTransferRequest, from view: DeviceTransferRequestViewProtocol?)
-    func showPendingPayments(_ payments: PendingPayments, from view: DeviceTransferRequestViewProtocol?)
+    func showPendingPayments(from view: DeviceTransferRequestViewProtocol?)
 }

@@ -84,7 +84,7 @@ struct DeviceTransferRequestModuleTests {
         presenter.transfer()
         await wireframe.waitForEvents(2)
 
-        #expect(wireframe.events == [.blocked(pending), .blocked(pending)])
+        #expect(wireframe.events == [.blocked, .blocked])
     }
 
     @Test("A count that can't be read doesn't hold the transfer back")
@@ -218,7 +218,7 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         case closed
         case closedAsWithdrawn
         case confirmed(DeviceTransferRequest)
-        case blocked(PendingPayments)
+        case blocked
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
@@ -237,8 +237,8 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         recorder.record(.confirmed(request))
     }
 
-    func showPendingPayments(_ payments: PendingPayments, from _: DeviceTransferRequestViewProtocol?) {
-        recorder.record(.blocked(payments))
+    func showPendingPayments(from _: DeviceTransferRequestViewProtocol?) {
+        recorder.record(.blocked)
     }
 
     func waitForEvents(_ count: Int) async {

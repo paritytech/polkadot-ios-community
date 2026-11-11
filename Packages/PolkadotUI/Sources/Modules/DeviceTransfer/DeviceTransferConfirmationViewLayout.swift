@@ -144,12 +144,10 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
     }
 
     /// Only this phone can finish payments it's still claiming or minting.
-    static func pendingPayments(count: Int) -> Self {
-        let format = NSLocalizedString("device.transfer.pending.body", bundle: .module, comment: "")
-
-        return Self(
+    static var pendingPayments: Self {
+        Self(
             title: String(localized: .deviceTransferPendingTitle),
-            message: String.localizedStringWithFormat(format, count),
+            message: String(localized: .deviceTransferPendingBody),
             points: [],
             confirmTitle: nil,
             dismissTitle: String(localized: .deviceTransferReceiverActionCancel)

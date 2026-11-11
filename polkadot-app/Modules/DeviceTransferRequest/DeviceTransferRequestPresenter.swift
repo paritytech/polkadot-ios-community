@@ -62,7 +62,7 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
         if pendingPayments.isEmpty {
             confirmTransfer()
         } else {
-            wireframe.showPendingPayments(pendingPayments, from: view)
+            wireframe.showPendingPayments(from: view)
         }
     }
 
