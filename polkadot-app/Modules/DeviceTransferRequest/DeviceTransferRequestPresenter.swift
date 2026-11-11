@@ -56,7 +56,6 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
         }
     }
 
-    /// Pending payments block the transfer: the sheet only lets the user go back and wait.
     func didReceive(pendingPayments: PendingPayments) {
         guard !isAnswered else { return }
 

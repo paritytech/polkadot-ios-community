@@ -143,19 +143,13 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
         )
     }
 
-    /// The old phone can't hand over while it's still claiming or minting payments: only it can finish them.
-    static func pendingPayments(receiving: Int, sending: Int) -> Self {
-        let parts = [
-            receiving > 0 ? String(localized: .deviceTransferPendingReceiving(receiving)) : nil,
-            sending > 0 ? String(localized: .deviceTransferPendingSending(sending)) : nil
-        ].compactMap { $0 }
-        let message = parts.count == 2
-            ? String(localized: .deviceTransferPendingBodyBoth(parts[0], parts[1]))
-            : String(localized: .deviceTransferPendingBodyOne(parts.first ?? ""))
+    /// Only this phone can finish payments it's still claiming or minting.
+    static func pendingPayments(count: Int) -> Self {
+        let format = NSLocalizedString("device.transfer.pending.body", bundle: .module, comment: "")
 
         return Self(
             title: String(localized: .deviceTransferPendingTitle),
-            message: message,
+            message: String.localizedStringWithFormat(format, count),
             points: [],
             confirmTitle: nil,
             dismissTitle: String(localized: .deviceTransferReceiverActionCancel)

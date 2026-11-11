@@ -31,7 +31,7 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
 
     func showPendingPayments(_ payments: PendingPayments, from view: DeviceTransferRequestViewProtocol?) {
         let sheet = DeviceTransferConfirmationViewFactory.createView(
-            viewModel: .pendingPayments(receiving: payments.receiving, sending: payments.sending),
+            viewModel: .pendingPayments(count: payments.total),
             onConfirm: {}
         )
         view?.controller.present(sheet, animated: true)

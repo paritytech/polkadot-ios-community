@@ -48,8 +48,7 @@ extension [PublicKey: CoinageTransferState] {
 }
 
 extension [PublicKey: RemoteDeviceTransferCoinState] {
-    /// Only the chain is visible: a coin on it is `sent`, every coin gone after being seen is `claimed`, and one
-    /// never seen keeps the message at `sending`, since it may not be minted yet.
+    /// Never `failed`: the mint result isn't visible from the chain.
     func outgoingState(context: DenominationBreakdownContext) -> OutgoingTransferState {
         let states = Array(values)
         guard !states.isEmpty else { return OutgoingTransferState(status: .sending) }

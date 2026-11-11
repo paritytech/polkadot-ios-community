@@ -159,8 +159,7 @@ private extension CoinageTransferMonitor {
         }
     }
 
-    /// A transfer sent from this device has its mint status here; one from another device is read from the chain
-    /// only, so it never reports `failed` (that state arrives by device sync).
+    /// A transfer from another device has no mint status here, so only the chain is read.
     func startOutgoing(for message: Chat.LocalMessage) async {
         guard case let .coinageSend(content) = message.content else { return }
         let messageId = message.messageId
@@ -199,8 +198,7 @@ private extension CoinageTransferMonitor {
         await taskRegistry.register(task, forMessageId: messageId)
     }
 
-    /// Distinct states up to the settled one. Deduplicated by hand: the context is not Sendable, so it cannot
-    /// ride a `map`.
+    /// Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
     func outgoingStates<Snapshot: Sendable>(
         of snapshots: AnyAsyncSequence<Snapshot>,
         state: @escaping @Sendable (Snapshot, DenominationBreakdownContext) -> OutgoingTransferState,

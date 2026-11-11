@@ -5,18 +5,15 @@ import NovaCrypto
 import SDKLogger
 import SubstrateSdk
 
-/// What the finalized chain shows for a coin another device handed off. `gone` means it was there once, so the
-/// peer (or a recall from here) took it; a coin never seen can't be told apart from one never minted.
+/// A coin never seen can't be told from one never minted; `gone` means it was there once.
 public enum RemoteDeviceTransferCoinState: Equatable, Sendable {
     case notSeen
     case onChain(exponent: Int16)
     case gone(exponent: Int16)
 }
 
-/// Status of a transfer sent from another device of this user. The mint ran there, so nothing local says
-/// whether it failed; only the finalized chain is consulted.
+/// Status of a transfer sent from another device: the mint ran there, so only the finalized chain is consulted.
 public protocol RemoteDeviceTransferStatusServicing: Sendable {
-    /// `coinKeys` are the secret keys carried in the transfer memo; their public keys are derived here.
     func subscribeStatuses(coinKeys: [Data]) -> AnyAsyncSequence<[PublicKey: RemoteDeviceTransferCoinState]>
 }
 
@@ -41,14 +38,13 @@ public final class RemoteDeviceTransferStatusService: RemoteDeviceTransferStatus
         self.logger = logger
     }
 
-    /// Re-read on every finalized head; a head that can't be read is skipped, not fatal.
+    /// A head that can't be read is skipped, not fatal.
     public func subscribeStatuses(coinKeys: [Data]) -> AnyAsyncSequence<[PublicKey: RemoteDeviceTransferCoinState]> {
         let requested = coinKeys.compactMap { try? snKeyFactory.createPublicKey(fromSecret: $0).rawData() }
         guard !requested.isEmpty else {
             return AsyncStream<[PublicKey: RemoteDeviceTransferCoinState]> { $0.finish() }.eraseToAnyAsyncSequence()
         }
 
-        // The leading tick reads the chain before any head arrives.
         let finalizedHeads = chainViewFactory.finalizedHeads(chainId: chainId).prepend(0)
 
         return AsyncThrowingStream<[PublicKey: RemoteDeviceTransferCoinState], Error> { continuation in

@@ -21,7 +21,7 @@ public protocol CoinageServicing: Actor {
     /// The Appendix-A derived payment status of coins we handed off.
     nonisolated var transferStatusService: any CoinageTransferStatusServicing { get }
 
-    /// The on-chain status of coins another device of this user handed off.
+    /// The on-chain status of coins another device handed off.
     nonisolated var remoteTransferStatusService: any RemoteDeviceTransferStatusServicing { get }
 
     /// The external payment service — exposed for dependency registration.

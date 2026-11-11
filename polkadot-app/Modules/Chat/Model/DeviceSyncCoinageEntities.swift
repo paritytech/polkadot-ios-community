@@ -21,14 +21,13 @@ extension Chat {
         case failed
     }
 
-    /// Carried by `coinageMessagesStatusUpdated` (incoming claims) and `outgoingTransferStatesUpdated`.
     struct DeviceSyncCoinageMessageStatusUpdate: Equatable {
         let chatId: DeviceSyncChatId
         let messageId: String
         let status: DeviceSyncCoinageMessageStatus
     }
 
-    /// A status update with the direction its entity gave it, kept while its message hasn't arrived.
+    /// Kept while its message hasn't arrived; the entity decides the direction.
     enum DeviceSyncTransferStateUpdate: Equatable {
         case incoming(DeviceSyncCoinageMessageStatusUpdate)
         case outgoing(DeviceSyncCoinageMessageStatusUpdate)
