@@ -17,3 +17,8 @@ protocol TransferStateStoring: Sendable {
     /// As `updateOutgoing`, for a state settled on the device that sent the transfer.
     func applySyncedOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws
 }
+
+/// Transfers sent from this device whose coins haven't reached the chain: only this device can finish their mint.
+protocol OutgoingTransfersCounting: Sendable {
+    func countTransfersStillSending() async throws -> Int
+}

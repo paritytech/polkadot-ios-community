@@ -30,8 +30,7 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestPresenterProtocol
 
     func transfer() {
         guard !isAnswered else { return }
-        isAnswered = true
-        wireframe.confirm(request, from: view)
+        interactor.countTransfersStillSending()
     }
 
     func decline() {
@@ -57,12 +56,31 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
         }
     }
 
+    func didReceive(transfersStillSending count: Int) {
+        guard !isAnswered else { return }
+
+        guard count > 0 else {
+            confirmTransfer()
+            return
+        }
+
+        wireframe.warnAboutSendingTransfers(count: count, from: view) { [weak self] in
+            self?.confirmTransfer()
+        }
+    }
+
     func didDecline() {
         wireframe.close(from: view)
     }
 }
 
 private extension DeviceTransferRequestPresenter {
+    func confirmTransfer() {
+        guard !isAnswered else { return }
+        isAnswered = true
+        wireframe.confirm(request, from: view)
+    }
+
     func provideNewPhone() {
         let newPhone = DeviceTransferPhone(model: request.deviceModel, operatingSystem: request.operatingSystem)
         view?.didReceive(newPhone: newPhone)

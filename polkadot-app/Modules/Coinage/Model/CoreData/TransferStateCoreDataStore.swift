@@ -51,6 +51,25 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
     }
 }
 
+extension TransferStateCoreDataStore: OutgoingTransfersCounting {
+    func countTransfersStillSending() async throws -> Int {
+        try await databaseService.performRead { context in
+            let request = NSFetchRequest<CDChatMessage>(entityName: String(describing: CDChatMessage.self))
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                .outgoingCoinageSendMessages(),
+                .byCreationSource(.localDevice),
+                NSPredicate(
+                    format: "%K == nil OR %K == %d",
+                    #keyPath(CDChatMessage.outgoingTransferState),
+                    #keyPath(CDChatMessage.outgoingTransferState.status),
+                    OutgoingTransferState.Status.sending.rawValue
+                )
+            ])
+            return try context.count(for: request)
+        }
+    }
+}
+
 private extension TransferStateCoreDataStore {
     func writeOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState, marksModified: Bool) async throws {
         let now = await dateProvider.read()

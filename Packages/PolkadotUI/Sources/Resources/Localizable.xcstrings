@@ -1451,6 +1451,84 @@
         }
       }
     },
+    "device.transfer.sending.action" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer anyway"
+          }
+        }
+      }
+    },
+    "device.transfer.sending.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld payment is still being sent."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld payments are still being sent."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device.transfer.sending.point.chain" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They haven’t reached the chain yet"
+          }
+        }
+      }
+    },
+    "device.transfer.sending.point.retry" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If sending doesn’t finish, your new phone can’t retry it"
+          }
+        }
+      }
+    },
+    "device.transfer.sending.point.sent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payments already sent are tracked on your new phone"
+          }
+        }
+      }
+    },
+    "device.transfer.sending.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer while payments are sending?"
+          }
+        }
+      }
+    },
     "device.transfer.waiting.oldPhone" : {
       "extractionState" : "manual",
       "localizations" : {

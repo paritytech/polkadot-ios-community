@@ -141,6 +141,21 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
         )
     }
 
+    /// The old phone's warning: coins of a sending transfer aren't on chain, and only it can finish the mint.
+    static func sendingPayments(count: Int) -> Self {
+        Self(
+            title: String(localized: .deviceTransferSendingTitle),
+            message: String(localized: .deviceTransferSendingBody(count)),
+            points: [
+                String(localized: .deviceTransferSendingPointChain),
+                String(localized: .deviceTransferSendingPointRetry),
+                String(localized: .deviceTransferSendingPointSent)
+            ],
+            confirmTitle: String(localized: .deviceTransferSendingAction),
+            dismissTitle: String(localized: .deviceTransferReceiverActionCancel)
+        )
+    }
+
     static var cancelReceivingTransfer: Self {
         cancelTransfer(message: String(localized: .deviceTransferCancelBody))
     }

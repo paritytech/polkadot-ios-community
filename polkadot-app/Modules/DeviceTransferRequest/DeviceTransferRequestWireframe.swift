@@ -28,4 +28,16 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
             observer.didConfirmDeviceTransfer(request)
         }
     }
+
+    func warnAboutSendingTransfers(
+        count: Int,
+        from view: DeviceTransferRequestViewProtocol?,
+        onConfirm: @escaping () -> Void
+    ) {
+        let confirmation = DeviceTransferConfirmationViewFactory.createView(
+            viewModel: .sendingPayments(count: count),
+            onConfirm: onConfirm
+        )
+        view?.controller.present(confirmation, animated: true)
+    }
 }

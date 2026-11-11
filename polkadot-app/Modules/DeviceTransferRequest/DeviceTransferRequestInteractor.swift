@@ -5,16 +5,19 @@ final class DeviceTransferRequestInteractor {
 
     private let listener: DeviceTransferRequestListening
     private let servicesFactory: DeviceTransferSenderServicesMaking
+    private let transfersCounter: OutgoingTransfersCounting
     private let logger: LoggerProtocol
     private var requestTask: Task<Void, Never>?
 
     init(
         listener: DeviceTransferRequestListening,
         servicesFactory: DeviceTransferSenderServicesMaking,
+        transfersCounter: OutgoingTransfersCounting,
         logger: LoggerProtocol
     ) {
         self.listener = listener
         self.servicesFactory = servicesFactory
+        self.transfersCounter = transfersCounter
         self.logger = logger
     }
 
@@ -33,6 +36,20 @@ extension DeviceTransferRequestInteractor: DeviceTransferRequestInteractorInputP
             } catch {
                 logger.error("Device transfer request stream failed: \(error)")
             }
+        }
+    }
+
+    /// A count that can't be read doesn't hold the transfer back.
+    func countTransfersStillSending() {
+        Task { [weak self, transfersCounter, logger] in
+            let count: Int
+            do {
+                count = try await transfersCounter.countTransfersStillSending()
+            } catch {
+                logger.error("Sending transfers can't be counted: \(error)")
+                count = 0
+            }
+            self?.presenter?.didReceive(transfersStillSending: count)
         }
     }
 

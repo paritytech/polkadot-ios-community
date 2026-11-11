@@ -177,4 +177,24 @@ struct TransferStateStoreTests {
 
         #expect(try await world.incomingRowCount() == 0)
     }
+
+    // MARK: - Sending count
+
+    @Test("only this device's outgoing transfers whose coins aren't on chain yet count as still sending")
+    func countsLocalTransfersStillSending() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let noRow = try await world.saveTransfer(.outgoing)
+        let sending = try await world.saveTransfer(.outgoing)
+        let sent = try await world.saveTransfer(.outgoing)
+        let claimed = try await world.saveTransfer(.outgoing)
+        _ = try await world.saveTransfer(.outgoing, creationSource: .deviceSync)
+        _ = try await world.saveTransfer(.incoming)
+        try await world.store.updateOutgoing(messageId: sending.messageId, state: .init(status: .sending))
+        try await world.store.updateOutgoing(messageId: sent.messageId, state: .init(status: .sent))
+        try await world.store.updateOutgoing(messageId: claimed.messageId, state: .init(status: .claimed))
+
+        #expect(try await world.store.countTransfersStillSending() == 2)
+        withExtendedLifetime(noRow) {}
+    }
 }
