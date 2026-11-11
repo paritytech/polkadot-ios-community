@@ -114,6 +114,38 @@ struct CoinageTransferMonitorTests {
         #expect(seen.count == distinct.count, "every emission must carry a change")
         #expect(statuses.subscriptions.count == 1)
     }
+
+    @Test("a transfer sent from another device is followed on chain only, up to the claimed amount")
+    func remoteOutgoingFollowsTheChain() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.outgoing, totalValue: 10, creationSource: .deviceSync)
+        let key = Data(repeating: 0x09, count: 32)
+        let remoteStatuses = MockRemoteDeviceTransferStatusService(snapshots: [
+            [key: .notSeen],
+            [key: .onChain(exponent: 2)],
+            [key: .gone(exponent: 2)]
+        ])
+        let statuses = MockCoinageTransferStatusService(snapshots: [])
+        let states = world.stateStream(of: message.messageId)
+
+        let monitor = makeMonitor(world: world, statuses: statuses, remoteStatuses: remoteStatuses)
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        let claimedValue = context.valueInPlanks(for: 2)
+        let seen = try await states.collect { $0 == .outgoing(.init(status: .claimed, actualValue: claimedValue)) }
+        let distinct = seen.enumerated().filter { $0.offset == 0 || seen[$0.offset - 1] != $0.element }.map(\.element)
+
+        #expect(distinct == [
+            nil,
+            .outgoing(.init(status: .sending)),
+            .outgoing(.init(status: .sent)),
+            .outgoing(.init(status: .claimed, actualValue: claimedValue))
+        ])
+        #expect(remoteStatuses.subscriptions.count == 1)
+        #expect(statuses.subscriptions.isEmpty)
+    }
 }
 
 private extension CoinageTransferMonitorTests {
@@ -121,11 +153,13 @@ private extension CoinageTransferMonitorTests {
         world: TransferStateTestWorld,
         claims: MockClaimCoinsService = MockClaimCoinsService(detections: []),
         statuses: MockCoinageTransferStatusService = MockCoinageTransferStatusService(snapshots: []),
+        remoteStatuses: MockRemoteDeviceTransferStatusService = MockRemoteDeviceTransferStatusService(snapshots: []),
         logger: MockLogger = MockLogger()
     ) -> CoinageTransferMonitor {
         CoinageTransferMonitor(
             claimCoinsService: claims,
             transferStatusService: statuses,
+            remoteTransferStatusService: remoteStatuses,
             denominationContext: { [context] in context },
             transferStateStore: world.store,
             storageFacade: world.facade,

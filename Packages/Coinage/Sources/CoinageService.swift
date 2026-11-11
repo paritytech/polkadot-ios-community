@@ -21,6 +21,9 @@ public protocol CoinageServicing: Actor {
     /// The Appendix-A derived payment status of coins we handed off.
     nonisolated var transferStatusService: any CoinageTransferStatusServicing { get }
 
+    /// The on-chain status of coins another device of this user handed off.
+    nonisolated var remoteTransferStatusService: any RemoteDeviceTransferStatusServicing { get }
+
     /// The external payment service — exposed for dependency registration.
     /// Lifecycle (setup/throttle) is managed internally by CoinageService.
     nonisolated var externalPaymentService: any ExternalPaymentServicing { get }
@@ -129,6 +132,7 @@ public actor CoinageService {
     public nonisolated let txService: any CoinageTxServicing
     public nonisolated let claimCoinsService: any ClaimCoinsServicing
     public nonisolated let transferStatusService: any CoinageTransferStatusServicing
+    public nonisolated let remoteTransferStatusService: any RemoteDeviceTransferStatusServicing
 
     // Sync services
     private let coinStateSyncService: CoinStateSyncService
@@ -184,6 +188,7 @@ public actor CoinageService {
         txService: any CoinageTxServicing,
         claimCoinsService: any ClaimCoinsServicing,
         transferStatusService: any CoinageTransferStatusServicing,
+        remoteTransferStatusService: any RemoteDeviceTransferStatusServicing,
         externalPaymentService: any ExternalPaymentServicing,
         contextLoader: DenominationContextLoaderProtocol,
         coinStateSyncService: CoinStateSyncService,
@@ -223,6 +228,7 @@ public actor CoinageService {
         self.txService = txService
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
+        self.remoteTransferStatusService = remoteTransferStatusService
         self.incomingPaymentService = incomingPaymentService
         self.logger = logger
     }

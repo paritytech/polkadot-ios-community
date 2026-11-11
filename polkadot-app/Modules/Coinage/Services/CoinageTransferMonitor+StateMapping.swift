@@ -46,3 +46,36 @@ extension [PublicKey: CoinageTransferState] {
         !isEmpty && values.allSatisfy(\.status.isTerminal)
     }
 }
+
+extension [PublicKey: RemoteDeviceTransferCoinState] {
+    /// Only the chain is visible: a coin on it is `sent`, every coin gone after being seen is `claimed`, and one
+    /// never seen keeps the message at `sending`, since it may not be minted yet.
+    func outgoingState(context: DenominationBreakdownContext) -> OutgoingTransferState {
+        let states = Array(values)
+        guard !states.isEmpty else { return OutgoingTransferState(status: .sending) }
+
+        var claimed = Balance(0)
+        var seen = false
+
+        for state in states {
+            switch state {
+            case .notSeen:
+                continue
+            case .onChain:
+                seen = true
+            case let .gone(exponent):
+                seen = true
+                claimed += context.valueInPlanks(for: exponent)
+            }
+        }
+
+        guard seen else { return OutgoingTransferState(status: .sending) }
+        guard isSettled else { return OutgoingTransferState(status: .sent) }
+
+        return OutgoingTransferState(status: .claimed, actualValue: claimed)
+    }
+
+    var isSettled: Bool {
+        !isEmpty && values.allSatisfy { if case .gone = $0 { true } else { false } }
+    }
+}

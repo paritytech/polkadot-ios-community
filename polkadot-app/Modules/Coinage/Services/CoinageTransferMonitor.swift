@@ -1,4 +1,5 @@
 import AsyncAlgorithms
+import AsyncExtensions
 import BigInt
 import Coinage
 import CommonService
@@ -16,6 +17,7 @@ final class CoinageTransferMonitor {
 
     private let claimCoinsService: any ClaimCoinsServicing
     private let transferStatusService: any CoinageTransferStatusServicing
+    private let remoteTransferStatusService: any RemoteDeviceTransferStatusServicing
     private let denominationContext: DenominationContextProvider
     private let transferStateStore: any TransferStateStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
@@ -32,6 +34,7 @@ final class CoinageTransferMonitor {
     init(
         claimCoinsService: any ClaimCoinsServicing,
         transferStatusService: any CoinageTransferStatusServicing,
+        remoteTransferStatusService: any RemoteDeviceTransferStatusServicing,
         denominationContext: @escaping DenominationContextProvider,
         transferStateStore: any TransferStateStoring,
         storageFacade: StorageFacadeProtocol,
@@ -40,6 +43,7 @@ final class CoinageTransferMonitor {
     ) {
         self.claimCoinsService = claimCoinsService
         self.transferStatusService = transferStatusService
+        self.remoteTransferStatusService = remoteTransferStatusService
         self.denominationContext = denominationContext
         self.transferStateStore = transferStateStore
         self.logger = logger
@@ -141,7 +145,7 @@ private extension CoinageTransferMonitor {
         outgoingTransfersSubscription = Task { [weak self] in
             guard let self else { return }
             do {
-                let stream = messageProviderFactory.subscribeMessages(with: .outgoingLocalDeviceCoinageSendMessages())
+                let stream = messageProviderFactory.subscribeMessages(with: .outgoingCoinageSendMessages())
                 for try await messages in stream {
                     try Task.checkCancellation()
                     for message in messages {
@@ -155,35 +159,75 @@ private extension CoinageTransferMonitor {
         }
     }
 
+    /// A transfer sent from this device has its mint status here; one from another device is read from the chain
+    /// only, so it never reports `failed` (that state arrives by device sync).
     func startOutgoing(for message: Chat.LocalMessage) async {
         guard case let .coinageSend(content) = message.content else { return }
         let messageId = message.messageId
         guard await taskRegistry.contains(messageId) == false else { return }
 
         let memo = content.transferMemo
-        let task = Task { [transferStatusService, denominationContext, transferStateStore, taskRegistry, logger] in
+        let states: AnyAsyncSequence<OutgoingTransferState> =
+            switch message.creationSource {
+            case .localDevice:
+                outgoingStates(
+                    of: transferStatusService.subscribeStatuses(coinKeys: memo.entries),
+                    state: { $0.outgoingState(context: $1) },
+                    isSettled: { $0.isSettled }
+                )
+            case .deviceSync:
+                outgoingStates(
+                    of: remoteTransferStatusService.subscribeStatuses(coinKeys: memo.entries),
+                    state: { $0.outgoingState(context: $1) },
+                    isSettled: { $0.isSettled }
+                )
+            }
+
+        let task = Task { [transferStateStore, taskRegistry, logger] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
-                let context = try await denominationContext()
-
                 logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
 
-                // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
-                var lastState: OutgoingTransferState?
-                for try await coinStates in transferStatusService.subscribeStatuses(coinKeys: memo.entries) {
-                    let state = coinStates.outgoingState(context: context)
-                    if state != lastState {
-                        lastState = state
-                        logger.debug("Status=\(state) message=\(messageId)")
-                        try await transferStateStore.updateOutgoing(messageId: messageId, state: state)
-                    }
-                    if coinStates.isSettled { break }
+                for try await state in states {
+                    logger.debug("Status=\(state) message=\(messageId)")
+                    try await transferStateStore.updateOutgoing(messageId: messageId, state: state)
                 }
             } catch {
                 logger.error("Send status monitoring failed for \(messageId): \(error)")
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
+    }
+
+    /// Distinct states up to the settled one. Deduplicated by hand: the context is not Sendable, so it cannot
+    /// ride a `map`.
+    func outgoingStates<Snapshot: Sendable>(
+        of snapshots: AnyAsyncSequence<Snapshot>,
+        state: @escaping @Sendable (Snapshot, DenominationBreakdownContext) -> OutgoingTransferState,
+        isSettled: @escaping @Sendable (Snapshot) -> Bool
+    ) -> AnyAsyncSequence<OutgoingTransferState> {
+        AsyncThrowingStream<OutgoingTransferState, Error> { [denominationContext] continuation in
+            let task = Task {
+                do {
+                    let context = try await denominationContext()
+                    var lastState: OutgoingTransferState?
+
+                    for try await snapshot in snapshots {
+                        let next = state(snapshot, context)
+                        if next != lastState {
+                            lastState = next
+                            continuation.yield(next)
+                        }
+                        if isSettled(snapshot) { break }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+        .eraseToAnyAsyncSequence()
     }
 }
 

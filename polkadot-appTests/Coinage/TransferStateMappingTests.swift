@@ -28,7 +28,8 @@ struct TransferStateMappingTests {
     @Test("no coin states yet means sending")
     func emptyIsSending() throws {
         let world = try CoinStateWorld()
-        #expect([:].outgoingState(context: world.context) == OutgoingTransferState(status: .sending))
+        let empty: [PublicKey: CoinageTransferState] = [:]
+        #expect(empty.outgoingState(context: world.context) == OutgoingTransferState(status: .sending))
     }
 
     @Test("coins still being detected with nothing awaiting or claimed means sending")
@@ -77,7 +78,35 @@ struct TransferStateMappingTests {
         #expect(try world.states([.claimed(finalized: true), .failed]).isSettled)
         #expect(try !world.states([.claimed(finalized: false)]).isSettled)
         #expect(try !world.states([.claimed(finalized: true), .awaitingClaim]).isSettled)
-        #expect(![:].isSettled)
+        #expect(!([:] as [PublicKey: CoinageTransferState]).isSettled)
+    }
+
+    @Test("a transfer from another device: nothing seen is sending, a coin on chain is sent")
+    func remoteUnseenAndOnChain() throws {
+        let world = try CoinStateWorld()
+        let empty: [PublicKey: RemoteDeviceTransferCoinState] = [:]
+        #expect(empty.outgoingState(context: world.context) == OutgoingTransferState(status: .sending))
+        #expect(world.remote([.notSeen, .notSeen]).outgoingState(context: world.context)
+            == OutgoingTransferState(status: .sending))
+        #expect(world.remote([.notSeen, .onChain(exponent: 1)]).outgoingState(context: world.context)
+            == OutgoingTransferState(status: .sent))
+        #expect(world.remote([.gone(exponent: 0), .onChain(exponent: 1)]).outgoingState(context: world.context)
+            == OutgoingTransferState(status: .sent))
+    }
+
+    @Test("a transfer from another device is claimed once every coin seen on chain is gone, summing them")
+    func remoteGoneSumsValue() throws {
+        let world = try CoinStateWorld()
+        let states = world.remote([.gone(exponent: 0), .gone(exponent: 2)])
+
+        let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 2)
+        #expect(
+            states.outgoingState(context: world.context)
+                == OutgoingTransferState(status: .claimed, actualValue: expectedValue)
+        )
+        #expect(states.isSettled)
+        #expect(!world.remote([.gone(exponent: 0), .notSeen]).isSettled)
+        #expect(!world.remote([.gone(exponent: 0), .onChain(exponent: 1)]).isSettled)
     }
 
     @Test("claimed and failed are the terminal statuses on both sides")
@@ -100,6 +129,12 @@ private struct CoinStateWorld {
 
     init() throws {
         installation = try CoinageInstallationId(value: Data(repeating: 0x01, count: 32))
+    }
+
+    func remote(_ states: [RemoteDeviceTransferCoinState]) -> [PublicKey: RemoteDeviceTransferCoinState] {
+        Dictionary(uniqueKeysWithValues: states.enumerated().map { offset, state in
+            (Data(repeating: UInt8(offset + 1), count: 32), state)
+        })
     }
 
     func states(_ statuses: [CoinageTransferStatus]) throws -> [PublicKey: CoinageTransferState] {

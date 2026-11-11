@@ -50,7 +50,8 @@ final class TestChatManager {
 
     func sendMessage(
         _ content: Chat.LocalMessage.Content,
-        status: Chat.LocalMessage.Status
+        status: Chat.LocalMessage.Status,
+        creationSource: Chat.LocalMessage.CreationSource = .localDevice
     ) async throws -> Chat.LocalMessage {
         let origin: Chat.LocalMessage.Origin =
             switch status {
@@ -68,7 +69,7 @@ final class TestChatManager {
             messageId: UUID().uuidString,
             chatId: chatId,
             origin: origin,
-            creationSource: .localDevice,
+            creationSource: creationSource,
             status: status,
             timestamp: UInt64(Date().timeIntervalSince1970),
             content: content,

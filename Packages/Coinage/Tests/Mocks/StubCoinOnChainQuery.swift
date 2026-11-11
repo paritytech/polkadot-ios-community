@@ -12,10 +12,15 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
 
     private let state = OSAllocatedUnfairLock<(
         presence: [Data?: [PublicKey: CoinSyncResult.OnChainCoin]],
-        reads: [Read]
-    )>(initialState: ([:], []))
+        reads: [Read],
+        failsNextRead: Bool
+    )>(initialState: ([:], [], false))
 
     var reads: [Read] { state.withLock { $0.reads } }
+
+    func failNextRead() {
+        state.withLock { $0.failsNextRead = true }
+    }
 
     func setPresent(_ key: PublicKey, atBlockHash blockHash: Data?, value: Int8 = 1, age: Int16 = 0) {
         state.withLock {
@@ -32,7 +37,11 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
     }
 
     func fetchCoins(for publicKeys: [Data], atBlockHash: Data?) async throws -> [CoinSyncResult.OnChainCoin?] {
-        state.withLock { state in
+        try state.withLock { state in
+            if state.failsNextRead {
+                state.failsNextRead = false
+                throw StubCoinOnChainQueryError.unsupported("fetchCoins")
+            }
             state.reads.append(Read(keys: publicKeys, atBlockHash: atBlockHash))
             let table = state.presence[atBlockHash] ?? [:]
             return publicKeys.map { table[$0] }
