@@ -51,11 +51,10 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
     }
 }
 
-extension TransferStateCoreDataStore: OutgoingTransfersCounting {
-    func countTransfersStillSending() async throws -> Int {
+extension TransferStateCoreDataStore: PendingPaymentsCounting {
+    func countPendingPayments() async throws -> PendingPayments {
         try await databaseService.performRead { context in
-            let request = NSFetchRequest<CDChatMessage>(entityName: String(describing: CDChatMessage.self))
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            let sending = NSCompoundPredicate(andPredicateWithSubpredicates: [
                 .outgoingCoinageSendMessages(),
                 .byCreationSource(.localDevice),
                 NSPredicate(
@@ -65,7 +64,11 @@ extension TransferStateCoreDataStore: OutgoingTransfersCounting {
                     OutgoingTransferState.Status.sending.rawValue
                 )
             ])
-            return try context.count(for: request)
+
+            return try PendingPayments(
+                receiving: context.count(for: Self.messages(matching: .incomingCoinageSendMessages())),
+                sending: context.count(for: Self.messages(matching: sending))
+            )
         }
     }
 }
@@ -104,6 +107,12 @@ private extension TransferStateCoreDataStore {
             }
             Self.touch(message, key: #keyPath(CDChatMessage.incomingTransferState))
         }
+    }
+
+    static func messages(matching predicate: NSPredicate) -> NSFetchRequest<CDChatMessage> {
+        let request = NSFetchRequest<CDChatMessage>(entityName: String(describing: CDChatMessage.self))
+        request.predicate = predicate
+        return request
     }
 
     static func message(_ messageId: Chat.MessageId, in context: NSManagedObjectContext) throws -> CDChatMessage {

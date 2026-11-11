@@ -4,15 +4,16 @@ internal import UIKit_iOS
 internal import SnapKit
 
 /// Figma "Bottom sheet base" for transfer confirmations: a warning, what follows, and a destructive confirm.
+/// Without a confirm title the sheet only informs, and dismiss is its one action.
 public final class DeviceTransferConfirmationViewLayout: BottomSheetBaseLayout {
     public struct ViewModel {
         let title: String
         let message: String
         let points: [String]
-        let confirmTitle: String
+        let confirmTitle: String?
         let dismissTitle: String
 
-        public init(title: String, message: String, points: [String], confirmTitle: String, dismissTitle: String) {
+        public init(title: String, message: String, points: [String], confirmTitle: String?, dismissTitle: String) {
             self.title = title
             self.message = message
             self.points = points
@@ -87,7 +88,8 @@ public final class DeviceTransferConfirmationViewLayout: BottomSheetBaseLayout {
     public func bind(viewModel: ViewModel) {
         titleLabel.text = viewModel.title
         messageLabel.text = viewModel.message
-        confirmButton.setTitle(viewModel.confirmTitle)
+        confirmButton.setTitle(viewModel.confirmTitle ?? "")
+        confirmButton.isHidden = viewModel.confirmTitle == nil
         dismissButton.setTitle(viewModel.dismissTitle)
 
         pointsView.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -141,17 +143,21 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
         )
     }
 
-    /// The old phone's warning: coins of a sending transfer aren't on chain, and only it can finish the mint.
-    static func sendingPayments(count: Int) -> Self {
-        Self(
-            title: String(localized: .deviceTransferSendingTitle),
-            message: String(localized: .deviceTransferSendingBody(count)),
-            points: [
-                String(localized: .deviceTransferSendingPointChain),
-                String(localized: .deviceTransferSendingPointRetry),
-                String(localized: .deviceTransferSendingPointSent)
-            ],
-            confirmTitle: String(localized: .deviceTransferSendingAction),
+    /// The old phone can't hand over while it's still claiming or minting payments: only it can finish them.
+    static func pendingPayments(receiving: Int, sending: Int) -> Self {
+        let parts = [
+            receiving > 0 ? String(localized: .deviceTransferPendingReceiving(receiving)) : nil,
+            sending > 0 ? String(localized: .deviceTransferPendingSending(sending)) : nil
+        ].compactMap { $0 }
+        let message = parts.count == 2
+            ? String(localized: .deviceTransferPendingBodyBoth(parts[0], parts[1]))
+            : String(localized: .deviceTransferPendingBodyOne(parts.first ?? ""))
+
+        return Self(
+            title: String(localized: .deviceTransferPendingTitle),
+            message: message,
+            points: [],
+            confirmTitle: nil,
             dismissTitle: String(localized: .deviceTransferReceiverActionCancel)
         )
     }

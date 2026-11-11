@@ -16,14 +16,14 @@ protocol DeviceTransferRequestPresenterProtocol: AnyObject {
 @MainActor
 protocol DeviceTransferRequestInteractorInputProtocol: AnyObject {
     func setup()
-    func countTransfersStillSending()
+    func countPendingPayments()
     func decline(_ request: DeviceTransferRequest)
 }
 
 @MainActor
 protocol DeviceTransferRequestInteractorOutputProtocol: AnyObject {
     func didReceive(pendingRequest: DeviceTransferRequest?)
-    func didReceive(transfersStillSending: Int)
+    func didReceive(pendingPayments: PendingPayments)
     func didDecline()
 }
 
@@ -32,9 +32,5 @@ protocol DeviceTransferRequestWireframeProtocol: AnyObject {
     func close(from view: DeviceTransferRequestViewProtocol?)
     func closeAsWithdrawn(from view: DeviceTransferRequestViewProtocol?)
     func confirm(_ request: DeviceTransferRequest, from view: DeviceTransferRequestViewProtocol?)
-    func warnAboutSendingTransfers(
-        count: Int,
-        from view: DeviceTransferRequestViewProtocol?,
-        onConfirm: @escaping () -> Void
-    )
+    func showPendingPayments(_ payments: PendingPayments, from view: DeviceTransferRequestViewProtocol?)
 }

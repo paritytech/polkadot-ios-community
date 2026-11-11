@@ -58,7 +58,7 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.closed])
     }
 
-    @Test("Transfer hands the request to the root when nothing is still being sent")
+    @Test("Transfer hands the request to the root when no payment is pending")
     func transferConfirmsRequest() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
@@ -71,27 +71,27 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.confirmed(request)])
     }
 
-    @Test("Transfer warns about payments still being sent and hands over only once the user confirms")
-    func transferWarnsAboutSendingPayments() async {
+    @Test("Pending payments block the transfer: the sheet is shown and nothing is handed to the root")
+    func pendingPaymentsBlockTransfer() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
-        let presenter = makeModule(showing: request, transfersStillSending: .success(2))
+        let pending = PendingPayments(receiving: 1, sending: 2)
+        let presenter = makeModule(showing: request, pendingPayments: .success(pending))
         presenter.setup()
 
         presenter.transfer()
         await wireframe.waitForEvents(1)
-        #expect(wireframe.events == [.warned(count: 2)])
-
-        wireframe.confirmWarning()
+        presenter.transfer()
         await wireframe.waitForEvents(2)
-        #expect(wireframe.events == [.warned(count: 2), .confirmed(request)])
+
+        #expect(wireframe.events == [.blocked(pending), .blocked(pending)])
     }
 
     @Test("A count that can't be read doesn't hold the transfer back")
     func unreadableCountStillConfirms() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
-        let presenter = makeModule(showing: request, transfersStillSending: .failure(CountError.unavailable))
+        let presenter = makeModule(showing: request, pendingPayments: .failure(CountError.unavailable))
         presenter.setup()
 
         presenter.transfer()
@@ -113,12 +113,12 @@ private extension DeviceTransferRequestModuleTests {
 
     func makeModule(
         showing request: DeviceTransferRequest,
-        transfersStillSending: Result<Int, Error> = .success(0)
+        pendingPayments: Result<PendingPayments, Error> = .success(PendingPayments(receiving: 0, sending: 0))
     ) -> DeviceTransferRequestPresenter {
         let interactor = DeviceTransferRequestInteractor(
             listener: listener,
             servicesFactory: FixedSenderServicesFactory(coordinator: coordinator),
-            transfersCounter: FixedTransfersCounter(result: transfersStillSending),
+            paymentsCounter: FixedPaymentsCounter(result: pendingPayments),
             logger: MockLogger()
         )
         let presenter = DeviceTransferRequestPresenter(request: request, interactor: interactor, wireframe: wireframe)
@@ -147,10 +147,10 @@ private enum CountError: Error {
     case unavailable
 }
 
-private struct FixedTransfersCounter: OutgoingTransfersCounting {
-    let result: Result<Int, Error>
+private struct FixedPaymentsCounter: PendingPaymentsCounting {
+    let result: Result<PendingPayments, Error>
 
-    func countTransfersStillSending() async throws -> Int {
+    func countPendingPayments() async throws -> PendingPayments {
         try result.get()
     }
 }
@@ -218,18 +218,12 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         case closed
         case closedAsWithdrawn
         case confirmed(DeviceTransferRequest)
-        case warned(count: Int)
+        case blocked(PendingPayments)
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
-    private var pendingConfirm: (() -> Void)?
 
     var events: [Event] { recorder.snapshot }
-
-    func confirmWarning() {
-        pendingConfirm?()
-        pendingConfirm = nil
-    }
 
     func close(from _: DeviceTransferRequestViewProtocol?) {
         recorder.record(.closed)
@@ -243,13 +237,8 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         recorder.record(.confirmed(request))
     }
 
-    func warnAboutSendingTransfers(
-        count: Int,
-        from _: DeviceTransferRequestViewProtocol?,
-        onConfirm: @escaping () -> Void
-    ) {
-        pendingConfirm = onConfirm
-        recorder.record(.warned(count: count))
+    func showPendingPayments(_ payments: PendingPayments, from _: DeviceTransferRequestViewProtocol?) {
+        recorder.record(.blocked(payments))
     }
 
     func waitForEvents(_ count: Int) async {

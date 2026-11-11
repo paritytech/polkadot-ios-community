@@ -30,7 +30,7 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestPresenterProtocol
 
     func transfer() {
         guard !isAnswered else { return }
-        interactor.countTransfersStillSending()
+        interactor.countPendingPayments()
     }
 
     func decline() {
@@ -56,16 +56,14 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
         }
     }
 
-    func didReceive(transfersStillSending count: Int) {
+    /// Pending payments block the transfer: the sheet only lets the user go back and wait.
+    func didReceive(pendingPayments: PendingPayments) {
         guard !isAnswered else { return }
 
-        guard count > 0 else {
+        if pendingPayments.isEmpty {
             confirmTransfer()
-            return
-        }
-
-        wireframe.warnAboutSendingTransfers(count: count, from: view) { [weak self] in
-            self?.confirmTransfer()
+        } else {
+            wireframe.showPendingPayments(pendingPayments, from: view)
         }
     }
 

@@ -29,15 +29,11 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
         }
     }
 
-    func warnAboutSendingTransfers(
-        count: Int,
-        from view: DeviceTransferRequestViewProtocol?,
-        onConfirm: @escaping () -> Void
-    ) {
-        let confirmation = DeviceTransferConfirmationViewFactory.createView(
-            viewModel: .sendingPayments(count: count),
-            onConfirm: onConfirm
+    func showPendingPayments(_ payments: PendingPayments, from view: DeviceTransferRequestViewProtocol?) {
+        let sheet = DeviceTransferConfirmationViewFactory.createView(
+            viewModel: .pendingPayments(receiving: payments.receiving, sending: payments.sending),
+            onConfirm: {}
         )
-        view?.controller.present(confirmation, animated: true)
+        view?.controller.present(sheet, animated: true)
     }
 }
