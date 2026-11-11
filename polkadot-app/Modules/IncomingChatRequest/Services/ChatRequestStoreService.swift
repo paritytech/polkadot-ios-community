@@ -187,7 +187,8 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
             requestId: requestId,
             incomingRequest: remoteIncoming,
             acceptorDevice: acceptorDevice,
-            peerAcceptance: peerAcceptance
+            peerAcceptance: peerAcceptance,
+            marksModified: true
         )
 
         try await storageFacade.createRepository(

@@ -49,7 +49,8 @@ extension ChatContactMapper: CoreDataMapperProtocol {
         let ownKeyId = try Chat.Contact.Own(entity: entity)
 
         let devices = (entity.devices as? Set<CDContactDevice>)?.compactMap { deviceEntity -> Chat.PeerDevice? in
-            guard let statementAccountId = deviceEntity.statementAccountId,
+            guard deviceEntity.status == Chat.ContactDeviceStatus.active.rawValue,
+                  let statementAccountId = deviceEntity.statementAccountId,
                   let encryptionPublicKey = deviceEntity.encryptionPublicKey else {
                 return nil
             }
@@ -114,16 +115,17 @@ extension ChatContactMapper {
         from model: DataProviderModel,
         using context: NSManagedObjectContext
     ) throws {
+        // Never delete here: inactive rows are tombstones.
         let existingDevices = entity.devices as? Set<CDContactDevice> ?? []
-        for device in existingDevices {
-            context.delete(device)
-        }
+        let storedAccountIds = Set(existingDevices.compactMap(\.statementAccountId))
 
-        for device in model.devices {
+        for device in model.devices where !storedAccountIds.contains(device.statementAccountId) {
             let deviceEntity = try context.insertNew(CDContactDevice.self)
             deviceEntity.statementAccountId = device.statementAccountId
             deviceEntity.encryptionPublicKey = device.encryptionPublicKey
             deviceEntity.contact = entity
+            deviceEntity.status = Chat.ContactDeviceStatus.active.rawValue
+            deviceEntity.markModified()
         }
     }
 }
@@ -135,23 +137,5 @@ private extension Chat.Contact.Own {
         }
         signKeyId = ownSignKeyId
         encryptionKeyId = entity.ownEncryptionKeyId ?? ChatEncryptionDomain.mainChat.rawValue
-    }
-}
-
-extension CDChatContact {
-    /// Inserts or updates a peer device, matching by `statementAccountId`.
-    func upsertDevice(
-        _ peerDevice: Chat.PeerDevice,
-        context: NSManagedObjectContext
-    ) throws {
-        let existingDevices = devices as? Set<CDContactDevice> ?? []
-        let existing = existingDevices.first {
-            $0.statementAccountId == peerDevice.statementAccountId
-        }
-
-        let deviceEntity = try existing ?? context.insertNew(CDContactDevice.self)
-        deviceEntity.statementAccountId = peerDevice.statementAccountId
-        deviceEntity.encryptionPublicKey = peerDevice.encryptionPublicKey
-        deviceEntity.contact = self
     }
 }

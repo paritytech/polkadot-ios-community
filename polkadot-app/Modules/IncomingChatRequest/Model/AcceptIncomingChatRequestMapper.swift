@@ -80,6 +80,7 @@ private extension AcceptIncomingChatRequestMapper {
         try storeRequesterDevice(
             requestId: remote.requestId,
             on: entity.contact ?? context.first(for: .contact(for: remote.peerAccountId)),
+            changedAt: remote.message.timestamp,
             using: context
         )
     }
@@ -103,7 +104,12 @@ private extension AcceptIncomingChatRequestMapper {
         entity.touchParent()
         entity.contact?.acceptedAt = Date()
         entity.contact?.pendingDevicesFanOut = true
-        try storeRequesterDevice(requestId: requestId, on: entity.contact, using: context)
+        try storeRequesterDevice(
+            requestId: requestId,
+            on: entity.contact,
+            changedAt: UInt64(bitPattern: entity.timestamp),
+            using: context
+        )
         entity.contact = nil
 
         try context.setupAcceptMessage(
@@ -117,6 +123,7 @@ private extension AcceptIncomingChatRequestMapper {
     func storeRequesterDevice(
         requestId: String,
         on contact: CDChatContact?,
+        changedAt: UInt64,
         using context: NSManagedObjectContext
     ) throws {
         guard
@@ -129,7 +136,7 @@ private extension AcceptIncomingChatRequestMapper {
         }
 
         let device = try ChatRequestPeerDeviceMapper().transform(entity: deviceEntity).peerDevice
-        try context.addPeerDevice(device, to: contact)
+        try context.addPeerDevice(device, to: contact, changedAt: changedAt)
     }
 
     func markPendingDevicesFanOut(

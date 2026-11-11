@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 import Operation_iOS
 import Testing
@@ -10,54 +11,111 @@ extension CoreDataMapperTests {
         private let facade = UserDataStorageTestFacade()
         private let contactAccountId = Data(repeating: 0x01, count: 32)
 
-        @Test("duplicate adds keep one device and update key")
-        func duplicateAddsKeepOneDeviceAndUpdateKey() async throws {
+        @Test("a newer add of the same device keeps one row with the newer key")
+        func newerAddUpdatesKey() async throws {
             try await seedContact(devices: [])
 
             let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
             let updatedDevice = makeDevice(accountByte: 0x02, keyByte: 0x04)
 
             try await updateDevices([
-                .added(device),
-                .added(updatedDevice)
+                .changed(device, status: .active, changedAt: 1),
+                .changed(updatedDevice, status: .active, changedAt: 2)
             ])
 
-            let devices = try await fetchDevices()
-            #expect(devices.count == 1)
-            #expect(devices.first?.statementAccountId == updatedDevice.statementAccountId)
-            #expect(devices.first?.encryptionPublicKey == updatedDevice.encryptionPublicKey)
+            let rows = try await fetchDeviceRows()
+            #expect(rows.count == 1)
+            #expect(rows.first?.encryptionPublicKey == updatedDevice.encryptionPublicKey)
+            #expect(rows.first?.status == .active)
+            #expect(rows.first?.changedAt == 2)
+            #expect(rows.first?.modifiedAt != nil)
         }
 
-        @Test("add then remove leaves no device")
-        func addThenRemoveLeavesNoDevice() async throws {
+        @Test("a removal keeps the device as an inactive row")
+        func removalKeepsInactiveRow() async throws {
             try await seedContact(devices: [])
 
             let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
 
             try await updateDevices([
-                .added(device),
-                .removed(statementAccountId: device.statementAccountId)
+                .changed(device, status: .active, changedAt: 1),
+                .removed(statementAccountId: device.statementAccountId, changedAt: 2)
             ])
 
-            let devices = try await fetchDevices()
-            #expect(devices.isEmpty)
+            let rows = try await fetchDeviceRows()
+            #expect(rows.count == 1)
+            #expect(rows.first?.status == .inactive)
+            #expect(rows.first?.changedAt == 2)
         }
 
-        @Test("remove then add existing device replaces key")
-        func removeThenAddExistingDeviceReplacesKey() async throws {
+        @Test("the contact lists only its active devices")
+        func contactListsOnlyActiveDevices() async throws {
+            let kept = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            let removed = makeDevice(accountByte: 0x04, keyByte: 0x05)
+            try await seedContact(devices: [kept, removed])
+
+            try await updateDevices([.removed(statementAccountId: removed.statementAccountId, changedAt: 1)])
+
+            #expect(try await fetchContact()?.devices == [kept])
+        }
+
+        @Test("a removal of a device the contact doesn't have stores nothing")
+        func removalOfUnknownDeviceStoresNothing() async throws {
+            try await seedContact(devices: [])
+
+            let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            try await updateDevices([.removed(statementAccountId: device.statementAccountId, changedAt: 1)])
+
+            #expect(try await fetchDeviceRows().isEmpty)
+        }
+
+        @Test("a change older than the stored one is ignored")
+        func olderChangeIsIgnored() async throws {
+            try await seedContact(devices: [])
+
+            let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            try await updateDevices([
+                .changed(device, status: .active, changedAt: 1),
+                .removed(statementAccountId: device.statementAccountId, changedAt: 5)
+            ])
+            try await updateDevices([.changed(device, status: .active, changedAt: 3)])
+
+            let rows = try await fetchDeviceRows()
+            #expect(rows.count == 1)
+            #expect(rows.first?.status == .inactive)
+            #expect(rows.first?.changedAt == 5)
+        }
+
+        @Test("a newer add reactivates a removed device with its new key")
+        func newerAddReactivatesRemovedDevice() async throws {
             let oldDevice = makeDevice(accountByte: 0x02, keyByte: 0x03)
             let newDevice = makeDevice(accountByte: 0x02, keyByte: 0x04)
             try await seedContact(devices: [oldDevice])
 
             try await updateDevices([
-                .removed(statementAccountId: oldDevice.statementAccountId),
-                .added(newDevice)
+                .removed(statementAccountId: oldDevice.statementAccountId, changedAt: 1),
+                .changed(newDevice, status: .active, changedAt: 2)
             ])
 
-            let devices = try await fetchDevices()
-            #expect(devices.count == 1)
-            #expect(devices.first?.statementAccountId == newDevice.statementAccountId)
-            #expect(devices.first?.encryptionPublicKey == newDevice.encryptionPublicKey)
+            let rows = try await fetchDeviceRows()
+            #expect(rows.count == 1)
+            #expect(rows.first?.encryptionPublicKey == newDevice.encryptionPublicKey)
+            #expect(rows.first?.status == .active)
+        }
+
+        @Test("saving the contact again keeps a removed device inactive")
+        func contactSaveKeepsInactiveDevice() async throws {
+            let device = makeDevice(accountByte: 0x02, keyByte: 0x03)
+            try await seedContact(devices: [device])
+            try await updateDevices([.removed(statementAccountId: device.statementAccountId, changedAt: 1)])
+
+            let contact = try #require(try await fetchContact())
+            try await contactRepository.saveOperation({ [contact] }, { [] }).asyncExecute()
+
+            let rows = try await fetchDeviceRows()
+            #expect(rows.count == 1)
+            #expect(rows.first?.status == .inactive)
+            #expect(rows.first?.changedAt == 1)
         }
     }
 }
@@ -103,12 +161,41 @@ private extension CoreDataMapperTests.ContactDeviceSettingsMapperTests {
         try await deviceSettingsRepository.saveOperation({ [settings] }, { [] }).asyncExecute()
     }
 
-    func fetchDevices() async throws -> [Chat.PeerDevice] {
-        let contact = try await contactRepository
+    func fetchContact() async throws -> Chat.Contact? {
+        try await contactRepository
             .fetchOperation(by: { contactAccountId.toHex() }, options: .init())
             .asyncExecute()
+    }
 
-        return contact?.devices ?? []
+    struct DeviceRow {
+        let encryptionPublicKey: Data?
+        let status: Chat.ContactDeviceStatus?
+        let changedAt: Int64
+        let modifiedAt: Date?
+    }
+
+    func fetchDeviceRows() async throws -> [DeviceRow] {
+        try await withCheckedThrowingContinuation { continuation in
+            facade.databaseService.performAsync { context, error in
+                guard let context else {
+                    continuation.resume(throwing: error ?? CoreDataRepositoryError.undefined)
+                    return
+                }
+
+                context.performAndWait {
+                    continuation.resume(with: Result {
+                        try context.fetch(CDContactDevice.fetchRequest()).map {
+                            DeviceRow(
+                                encryptionPublicKey: $0.encryptionPublicKey,
+                                status: Chat.ContactDeviceStatus(rawValue: $0.status),
+                                changedAt: $0.changedAt,
+                                modifiedAt: $0.modifiedAt
+                            )
+                        }
+                    })
+                }
+            }
+        }
     }
 
     func makeDevice(accountByte: UInt8, keyByte: UInt8) -> Chat.PeerDevice {

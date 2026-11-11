@@ -92,6 +92,7 @@ private struct EmptyChatStateApplier: DeviceSyncChatStateApplying {
     func applyIncomingStatusUpdates(_: [Chat.DeviceSyncIncomingRequestStatusUpdate]) async throws {}
     func applyOutgoingRequests(_: [Chat.DeviceSyncOutgoingChatRequest]) async throws {}
     func applyOutgoingStatusUpdates(_: [Chat.DeviceSyncOutgoingRequestStatusUpdate]) async throws {}
+    func applyContactDeviceChanges(_: [Chat.DeviceSyncContactDeviceChange]) async throws {}
 }
 
 private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
@@ -99,7 +100,7 @@ private struct EmptyCoinageStateCollector: DeviceSyncCoinageStateCollecting {
     func count(after _: Date?) async throws -> Int { 0 }
 }
 
-private struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
+struct EmptyCoinageStateApplier: DeviceSyncCoinageStateApplying {
     func applyHandedOffCoins(_: [Chat.DeviceSyncHandedOffCoin]) async throws {}
     func applyClaimStatuses(
         _: [Chat.DeviceSyncCoinageMessageStatusUpdate]

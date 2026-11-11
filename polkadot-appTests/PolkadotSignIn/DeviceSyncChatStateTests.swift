@@ -103,21 +103,149 @@ struct DeviceSyncChatStateTests {
             .collect(after: checkpoint)
         #expect(echoed.isEmpty)
     }
+
+    @Test("Contact devices arrive with their status and peer time; only active ones route, nothing is sent back")
+    func contactDevicesTravelWithStatus() async throws {
+        let kept = makeDevice(0x21)
+        let removed = makeDevice(0x22)
+        try await insertContact(in: sender)
+        try await insertContact(in: receiver)
+        try await updateDevices(
+            [
+                .changed(kept, status: .active, changedAt: 10),
+                .changed(removed, status: .active, changedAt: 11),
+                .removed(statementAccountId: removed.statementAccountId, changedAt: 12)
+            ],
+            in: sender
+        )
+        let checkpoint = Date()
+
+        try await transfer(after: nil)
+
+        let rows = try await deviceRows(in: receiver)
+        #expect(rows[kept.statementAccountId]?.status == .active)
+        #expect(rows[kept.statementAccountId]?.changedAt == 10)
+        #expect(rows[removed.statementAccountId]?.status == .inactive)
+        #expect(rows[removed.statementAccountId]?.changedAt == 12)
+        let contact = try await ContactsLocalStorageService(storageFacade: receiver, logger: MockLogger())
+            .getContact(by: peer)
+            .asyncExecute()
+        #expect(contact?.devices == [kept])
+        let echoed = try await DeviceSyncChatStateCollector(databaseService: receiver.databaseService)
+            .collect(after: checkpoint)
+        #expect(echoed.isEmpty)
+    }
+
+    @Test("An older synced device change doesn't overwrite the new phone's newer one")
+    func olderSyncedDeviceChangeIsIgnored() async throws {
+        let device = makeDevice(0x21)
+        try await insertContact(in: sender)
+        try await insertContact(in: receiver)
+        try await updateDevices([.changed(device, status: .active, changedAt: 10)], in: sender)
+        try await updateDevices(
+            [
+                .changed(device, status: .active, changedAt: 15),
+                .removed(statementAccountId: device.statementAccountId, changedAt: 20)
+            ],
+            in: receiver
+        )
+
+        try await transfer(after: nil)
+
+        let row = try await deviceRows(in: receiver)[device.statementAccountId]
+        #expect(row?.status == .inactive)
+        #expect(row?.changedAt == 20)
+    }
+
+    @Test("A peer's acceptance applied from sync accepts the request and isn't sent back")
+    func syncedAcceptanceIsNotEchoed() async throws {
+        let message = Chat.RequestMessage(
+            messageId: "outgoing",
+            timestamp: 1_000,
+            content: .v1(Chat.RequestContentV1(pushToken: nil, welcomeMessage: nil))
+        )
+        let device = Chat.PeerDevice(
+            statementAccountId: Data(repeating: 0x21, count: 32),
+            encryptionPublicKey: Data(repeating: 0x22, count: 32)
+        )
+        try await insertOutgoingRequest(message, in: receiver)
+        let checkpoint = Date()
+        let contacts = ContactsLocalStorageService(storageFacade: receiver, logger: MockLogger())
+
+        try await DeviceSyncChatAcceptedApplier(
+            storageFacade: receiver,
+            contactsStorageService: contacts,
+            peerLogger: MockLogger()
+        ).apply([makePeerAcceptance(requestId: message.messageId, device: device)])
+
+        let echoed = try await DeviceSyncChatStateCollector(databaseService: receiver.databaseService)
+            .collect(after: checkpoint)
+        #expect(echoed.isEmpty)
+        #expect(try await contacts.getContact(by: peer).asyncExecute()?.chatRequest == nil)
+    }
 }
 
 private extension DeviceSyncChatStateTests {
+    struct DeviceRow {
+        let status: Chat.ContactDeviceStatus?
+        let changedAt: Int64
+    }
+
+    func makeDevice(_ byte: UInt8) -> Chat.PeerDevice {
+        Chat.PeerDevice(
+            statementAccountId: Data(repeating: byte, count: 32),
+            encryptionPublicKey: Data(repeating: byte + 0x10, count: 32)
+        )
+    }
+
+    func updateDevices(_ changes: [Chat.DeviceChange], in facade: UserDataStorageTestFacade) async throws {
+        try await ContactsLocalStorageService(storageFacade: facade, logger: MockLogger())
+            .updateDeviceSettings([Chat.ContactDeviceSettings(accountId: peer, changes: changes)])
+            .asyncExecute()
+    }
+
+    func deviceRows(in facade: UserDataStorageTestFacade) async throws -> [Data: DeviceRow] {
+        try await facade.databaseService.performRead { context in
+            try context.fetch(CDContactDevice.fetchRequest()).reduce(into: [:]) { result, row in
+                guard let statementAccountId = row.statementAccountId else { return }
+                result[statementAccountId] = DeviceRow(
+                    status: Chat.ContactDeviceStatus(rawValue: row.status),
+                    changedAt: row.changedAt
+                )
+            }
+        }
+    }
+
+    func makePeerAcceptance(requestId: String, device: Chat.PeerDevice) -> Chat.DeviceSyncWireMessage {
+        Chat.DeviceSyncWireMessage(
+            remote: Chat.RemoteMessage(
+                messageId: "acceptance",
+                timestamp: 2_000,
+                versioned: .v1(Chat.RemoteMessageContentV1(
+                    content: .multiChatAccepted(.init(requestId: requestId, device: device))
+                ))
+            ),
+            peerId: peer,
+            status: .incoming(.seen),
+            order: 1
+        )
+    }
+
     func transfer(after cutoff: Date?) async throws {
         let entities = try await DeviceSyncChatStateCollector(databaseService: sender.databaseService)
             .collect(after: cutoff)
         let applier = makeApplier()
 
-        for entity in entities {
+        for sentEntity in entities {
+            let entity = try Chat.DeviceSyncEntity(scaleDecoder: ScaleDecoder(data: sentEntity.scaleEncoded()))
+
             switch entity {
             case let .chatsBlocked(states): try await applier.applyBlockStates(states)
             case let .incomingRequestsAdded(requests): try await applier.applyIncomingRequests(requests)
             case let .incomingRequestsStatusUpdated(updates): try await applier.applyIncomingStatusUpdates(updates)
             case let .outgoingRequestsAdded(requests): try await applier.applyOutgoingRequests(requests)
             case let .outgoingRequestsStatusUpdated(updates): try await applier.applyOutgoingStatusUpdates(updates)
+            case let .contactDevicesChanged(changes): try await applier.applyContactDeviceChanges(changes)
             default: Issue.record("Unexpected entity \(entity.logLabel)")
             }
         }

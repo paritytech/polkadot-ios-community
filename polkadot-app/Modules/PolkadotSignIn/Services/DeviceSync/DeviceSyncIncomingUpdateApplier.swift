@@ -10,7 +10,6 @@ final class DeviceSyncIncomingUpdateApplier {
     private let messageRepositoryFactory: ChatMessageRepositoryMaking
     private let removedChatRepositoryFactory: RemovedChatRepositoryMaking
     private let chatAcceptedApplier: DeviceSyncChatAcceptedApplier
-    private let deviceChangesApplier: DeviceSyncDeviceChangesApplier
     private let chatStateApplier: DeviceSyncChatStateApplying
     private let coinageStateApplier: DeviceSyncCoinageStateApplying
     private let flow: any DevicePeerConnectionFlowing
@@ -42,10 +41,6 @@ final class DeviceSyncIncomingUpdateApplier {
         self.skippedEntityDiagnostic = skippedEntityDiagnostic
         chatAcceptedApplier = DeviceSyncChatAcceptedApplier(
             storageFacade: storageFacade,
-            contactsStorageService: contactsStorageService,
-            peerLogger: peerLogger
-        )
-        deviceChangesApplier = DeviceSyncDeviceChangesApplier(
             contactsStorageService: contactsStorageService,
             peerLogger: peerLogger
         )
@@ -97,7 +92,8 @@ private extension DeviceSyncIncomingUpdateApplier {
                  .incomingRequestsAdded,
                  .incomingRequestsStatusUpdated,
                  .outgoingRequestsAdded,
-                 .outgoingRequestsStatusUpdated:
+                 .outgoingRequestsStatusUpdated,
+                 .contactDevicesChanged:
                 try await applyChatState(entity)
             case let .coinsHandedOff(coins):
                 try await coinageStateApplier.applyHandedOffCoins(coins)
@@ -131,6 +127,8 @@ private extension DeviceSyncIncomingUpdateApplier {
             try await chatStateApplier.applyOutgoingRequests(requests)
         case let .outgoingRequestsStatusUpdated(updates):
             try await chatStateApplier.applyOutgoingStatusUpdates(updates)
+        case let .contactDevicesChanged(changes):
+            try await chatStateApplier.applyContactDeviceChanges(changes)
         default:
             break
         }
@@ -236,8 +234,6 @@ private extension DeviceSyncIncomingUpdateApplier {
         )
         let operation = messageRepository.saveOperation({ messagesToSave }, { [] })
         try await operation.asyncExecute()
-
-        try await deviceChangesApplier.apply(wireMessages)
 
         peerLogger.debug("Applied \(messagesToSave.count) of \(localMessages.count) message(s) from sync")
     }

@@ -72,7 +72,11 @@ private extension AcceptOutgoingRequestDeviceTests {
             requestId,
             remoteIncoming: nil,
             acceptorDevice: nil,
-            peerAcceptance: ChatRequest.PeerAcceptance(device: acceptorDevice, message: acceptance)
+            peerAcceptance: ChatRequest.PeerAcceptance(
+                device: acceptorDevice,
+                changedAt: acceptance.timestamp,
+                message: acceptance
+            )
         )
     }
 

@@ -4,15 +4,17 @@ import Foundation
 /// sequence that `PeerSessionPriorityProvider` adds on each increment.
 public final class ShortLivedStatementPriorityFactory {
     private let lifetimeInSeconds: TimeInterval
+    private let timeProvider: SynchronousTimeProviding
 
-    public init(lifetimeInSeconds: TimeInterval) {
+    public init(lifetimeInSeconds: TimeInterval, timeProvider: SynchronousTimeProviding = SystemTimeProvider()) {
         self.lifetimeInSeconds = lifetimeInSeconds
+        self.timeProvider = timeProvider
     }
 }
 
 extension ShortLivedStatementPriorityFactory: StatementPriorityMaking {
     public func makeTimestampPriority() -> UInt64 {
-        let now = Date().timeIntervalSince1970
+        let now = timeProvider.now.timeIntervalSince1970
         return UInt64(now + lifetimeInSeconds) << 32
     }
 }

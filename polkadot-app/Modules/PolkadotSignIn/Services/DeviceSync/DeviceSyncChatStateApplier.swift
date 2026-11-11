@@ -11,6 +11,7 @@ protocol DeviceSyncChatStateApplying {
     func applyIncomingStatusUpdates(_ updates: [Chat.DeviceSyncIncomingRequestStatusUpdate]) async throws
     func applyOutgoingRequests(_ requests: [Chat.DeviceSyncOutgoingChatRequest]) async throws
     func applyOutgoingStatusUpdates(_ updates: [Chat.DeviceSyncOutgoingRequestStatusUpdate]) async throws
+    func applyContactDeviceChanges(_ changes: [Chat.DeviceSyncContactDeviceChange]) async throws
 }
 
 /// Writes block state and chat requests received from a sibling. Nothing here stamps `modifiedAt`: that would send
@@ -56,6 +57,31 @@ extension DeviceSyncChatStateApplier: DeviceSyncChatStateApplying {
 
     func applyIncomingRequests(_ requests: [Chat.DeviceSyncIncomingChatRequest]) async throws {
         try await upsertIncomingRows(requests)
+    }
+
+    func applyContactDeviceChanges(_ changes: [Chat.DeviceSyncContactDeviceChange]) async throws {
+        let logger = logger
+        let changesByContact = Dictionary(grouping: changes) { change in
+            switch change.chatId {
+            case let .contact(accountId): accountId
+            }
+        }
+
+        try await databaseService.performWrite { context in
+            for (accountId, contactChanges) in changesByContact {
+                guard let contact: CDChatContact = try context.first(for: .contact(for: accountId)) else {
+                    logger.debug("No contact for synced device changes, skipping")
+                    continue
+                }
+
+                let settings = Chat.ContactDeviceSettings(
+                    accountId: accountId,
+                    changes: contactChanges.map { .changed($0.device, status: $0.status, changedAt: $0.changedAt) },
+                    marksModified: false
+                )
+                try ContactDeviceSettingsMapper().populate(entity: contact, from: settings, using: context)
+            }
+        }
     }
 
     /// Only updates requests already stored: a status alone can't make a complete row.

@@ -31,10 +31,13 @@ extension ChatRequest {
         let acceptorDevice: Chat.PeerDevice?
         /// The acceptor's `DeviceChatAccepted`, stored in the same transaction as the acceptance.
         let peerAcceptance: PeerAcceptance?
+        /// False for an acceptance applied from sync, so it isn't sent back.
+        let marksModified: Bool
     }
 
     struct PeerAcceptance {
         let device: Chat.PeerDevice
+        let changedAt: UInt64
         /// `nil` when the caller stores the message itself.
         let message: Chat.RemoteMessage?
     }

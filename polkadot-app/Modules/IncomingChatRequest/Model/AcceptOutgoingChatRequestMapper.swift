@@ -38,7 +38,7 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
         // One save: a crash can never leave an accepted chat without the device its session needs.
         if let peerAcceptance = model.peerAcceptance {
             if let contact = try entity.contact ?? contact(for: entity, using: context) {
-                try context.addPeerDevice(peerAcceptance.device, to: contact)
+                try context.addPeerDevice(peerAcceptance.device, to: contact, changedAt: peerAcceptance.changedAt)
 
                 if let message = peerAcceptance.message {
                     try context.setupPeerAcceptanceMessage(message, from: contact)
@@ -50,7 +50,10 @@ extension AcceptOutgoingChatRequestMapper: CoreDataMapperProtocol {
         }
 
         entity.contact = nil
-        entity.markModified()
+
+        if model.marksModified {
+            entity.markModified()
+        }
 
         guard
             let incomingRequest = model.incomingRequest,
