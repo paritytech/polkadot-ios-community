@@ -7,17 +7,15 @@ extension ChatViewModelFactory {
         for metadata: MessageListMetadata,
         actions: ChatViewModelActions
     ) -> (any ChatInputViewConfigurationProtocol)? {
-        guard !metadata.isIncomingRequestCancelled else {
-            return ChatRequestCancelledBannerView.ViewModel(username: metadata.peerName)
-        }
-
-        return switch metadata.peerMetadata.input {
+        switch metadata.peerMetadata.input {
         case let .inputField(inputFieldMetadata):
             makeTextInputConfiguration(inputFieldMetadata)
         case .incomingRequest:
             makeIncomingRequestInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .outgoingRequest:
             makeOutgoingPendingRequestInputConfiguration(for: metadata.chatMetadata, actions: actions)
+        case .cancelledRequest:
+            ChatRequestCancelledBannerView.ViewModel(username: metadata.peerName)
         case .blockedUser:
             makeBlockedUserInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .empty:

@@ -5,7 +5,6 @@ import MessageExchangeKit
 import SDKLogger
 import StatementDelivery
 import StatementStore
-import StructuredConcurrency
 import SubstrateSdk
 
 protocol ChatRequestCancelServicing {
@@ -32,7 +31,6 @@ struct ChatRequestCancelDependencies {
     let requestStore: ChatRequestStoreServicing
     let backgroundExecutor: BackgroundExecuting
     let logger: SDKLoggerProtocol
-    let clock: any Clock<Duration>
 }
 
 private struct OwnRequestCopy {
@@ -40,13 +38,9 @@ private struct OwnRequestCopy {
     let signer: StatementStoreSigning
 }
 
-private enum CancelRetry {
-    static let maxAttempts = 3
-    static let firstDelay: Duration = .seconds(1)
-}
-
-/// Publishes one cancel per live copy of the request, each signed by the copy's own account, then removes the request
-/// locally. A copy the store already dropped for no allowance counts as done.
+/// Marks the request cancelled and removes its contact and chat at once, then publishes one cancel per live copy,
+/// each signed by the copy's own account. Publishing is best effort: a failed cancel is only logged and the store
+/// evicts the copy later.
 final class ChatRequestCancelService {
     private let dependencies: ChatRequestCancelDependencies
     private let submitter: SigningStatementSubmitter
@@ -59,76 +53,52 @@ final class ChatRequestCancelService {
 
 extension ChatRequestCancelService: ChatRequestCancelServicing {
     func cancel(requestId: String) async throws {
-        try await dependencies.requestStore.markOutgoingRequestCancelling(requestId)
+        guard let pending = try await dependencies.loader.pendingRequest(requestId: requestId) else {
+            throw ChatRequestCancelError.notPending
+        }
+
+        try await dependencies.requestStore.markOutgoingRequestCancelled(requestId)
+        await cleanUpAfterRemoval(of: pending)
 
         try await dependencies.backgroundExecutor.execute { [self] in
-            try await cancelMarkedRequest(requestId: requestId)
+            await publishCancel(for: pending)
         }
     }
 }
 
 private extension ChatRequestCancelService {
-    func cancelMarkedRequest(requestId: String) async throws {
-        await dependencies.delivery.retire(requestId)
-
-        let pending: OutgoingChatRequestInput
+    func cleanUpAfterRemoval(of pending: OutgoingChatRequestInput) async {
         do {
-            pending = try await publishCancelOfPendingRequest(requestId: requestId)
+            try await dependencies.removalCleanup.cleanUpAfterRemoval(of: pending.session.peer.accountId)
         } catch {
-            await restore(requestId: requestId)
-            throw error
+            dependencies.logger.error("Cleanup after request cancel failed: \(error)")
         }
-
-        try await dependencies.requestStore.deleteOutgoingRequest(requestId)
-        try await dependencies.removalCleanup.cleanUpAfterRemoval(of: pending.session.peer.accountId)
     }
 
-    // A revert that fails here is recovered by the launch revert.
-    func restore(requestId: String) async {
-        try? await dependencies.requestStore.revertOutgoingRequestCancelling(requestId)
-        await dependencies.delivery.reinstate(requestId)
-    }
+    // Copies are read after retire: a first publish that finished during the wait must still be cancelled.
+    func publishCancel(for pending: OutgoingChatRequestInput) async {
+        await dependencies.delivery.retire(pending.statementId)
 
-    // Read after retire: a first publish that finished during the wait must still be cancelled on the wire.
-    func publishCancelOfPendingRequest(requestId: String) async throws -> OutgoingChatRequestInput {
-        guard let pending = try await dependencies.loader.pendingRequest(requestId: requestId) else {
-            throw ChatRequestCancelError.notPending
-        }
+        do {
+            let input = try makeCancelInput(from: pending)
 
-        try await publishCancel(for: pending)
-
-        return pending
-    }
-
-    func publishCancel(for pending: OutgoingChatRequestInput) async throws {
-        let input = try makeCancelInput(from: pending)
-        let copies = try await fetchOwnCopies(for: input)
-
-        var accepted = false
-        var lastFailure: Error?
-
-        for copy in copies {
-            do {
-                try await withRetry(
-                    maxAttempts: CancelRetry.maxAttempts,
-                    initialDelay: CancelRetry.firstDelay,
-                    clock: dependencies.clock,
-                    shouldRetry: { $0.allowsCancelRetry },
-                    operation: {
-                        try await self.submit(input, signer: copy.signer, expiry: self.expiry(after: copy.statement))
-                    }
-                )
-                accepted = true
-            } catch let error as StatementSubmitError where error == .rejected(.noAllowance) {
-                // The store drops a copy it rejects for no allowance, so there is nothing left to cancel.
-            } catch {
-                dependencies.logger.warning("Request cancel failed for one copy: \(error)")
-                lastFailure = error
+            for copy in try await fetchOwnCopies(for: input) {
+                await submitCancel(input, replacing: copy)
             }
+        } catch {
+            dependencies.logger.warning("Request cancel was not published: \(error)")
         }
+    }
 
-        if let lastFailure, !accepted {
-            throw lastFailure
+    func submitCancel(_ input: OutgoingChatRequestInput, replacing copy: OwnRequestCopy) async {
+        do {
+            let unsigned = try dependencies.builder.makeUnsignedStatement(
+                for: input,
+                expiry: expiry(after: copy.statement)
+            )
+            try await submitter.submit(unsigned, signer: copy.signer)
+        } catch {
+            dependencies.logger.warning("Request cancel failed for one copy: \(error)")
         }
     }
 
@@ -196,20 +166,5 @@ private extension ChatRequestCancelService {
 
         let (next, overflow) = copyExpiry.addingReportingOverflow(1)
         return overflow ? .max : max(next, timestampPriority)
-    }
-
-    func submit(_ input: OutgoingChatRequestInput, signer: StatementStoreSigning, expiry: UInt64) async throws {
-        let unsigned = try dependencies.builder.makeUnsignedStatement(for: input, expiry: expiry)
-        try await submitter.submit(unsigned, signer: signer)
-    }
-}
-
-private extension Error {
-    var allowsCancelRetry: Bool {
-        if let submitError = self as? StatementSubmitError {
-            return submitError == .rejected(.channelPriorityTooLow)
-        }
-
-        return (self as? JSONRPCOperationError) != .timeout
     }
 }

@@ -192,10 +192,6 @@ extension Chat.Contact {
         chatRequest?.status.statusClass == .outgoing
     }
 
-    var hasCancellingChatRequest: Bool {
-        chatRequest?.status == .outgoing(.cancelling)
-    }
-
     var hasIncomingChatRequest: Bool {
         chatRequest?.status.statusClass == .incoming
     }

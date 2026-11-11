@@ -19,7 +19,7 @@ final class RecentChatsProvider {
                         return nil
                     }
 
-                    guard !contact.hasIncomingChatRequest, !contact.hasCancellingChatRequest else {
+                    guard !contact.hasIncomingChatRequest else {
                         return nil
                     }
 

@@ -43,7 +43,8 @@ extension ChatRequestOutgoingStore: OutgoingStatementStoring {
 
     func markPublished(_ input: OutgoingChatRequestInput, period: UInt32) async throws -> StatementPublication {
         try await databaseService.performWrite { context in
-            guard let request = try Self.fetchRequest(input.statementId, in: context) else {
+            // A publish that lands after a Cancel must not recreate the publication row the Cancel deleted.
+            guard let request = try Self.fetchRequest(input.statementId, in: context), Self.isPending(request) else {
                 return StatementPublication(period: period, isFirst: false)
             }
 
@@ -78,7 +79,7 @@ extension ChatRequestOutgoingStore: OutgoingStatementStoring {
         try await databaseService.performRead { context in
             guard let request = try Self.fetchRequest(input.statementId, in: context) else { return true }
 
-            return !Self.isOwnOutgoing(request)
+            return !Self.isPending(request)
         }
     }
 
@@ -98,7 +99,7 @@ extension ChatRequestOutgoingStore: PendingOutgoingChatRequestLoading {
         try await databaseService.performRead { context throws -> OutgoingChatRequestInput? in
             guard
                 let request = try Self.fetchRequest(requestId, in: context),
-                Self.isOwnOutgoing(request),
+                Self.isPending(request),
                 let contact = request.contact
             else {
                 return nil
@@ -121,12 +122,6 @@ enum ChatRequestOutgoingStoreError: Error {
 private extension ChatRequestOutgoingStore {
     static func isPending(_ request: CDChatRequest) -> Bool {
         request.status == Chat.RequestStatus.outgoing(.pending).rawValue && request.contact?.chatRequest == request
-    }
-
-    // A cancelling request is still ours: acknowledging it would drop the period its Cancel must sign for.
-    static func isOwnOutgoing(_ request: CDChatRequest) -> Bool {
-        Chat.RequestStatus(rawValue: request.status)?.statusClass == .outgoing && request.contact?
-            .chatRequest == request
     }
 
     static func renewablePredicate() -> NSPredicate {

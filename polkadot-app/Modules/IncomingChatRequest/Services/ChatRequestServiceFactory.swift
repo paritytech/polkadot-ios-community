@@ -32,8 +32,6 @@ protocol ChatRequestServiceMaking {
     func makeIncomingChatAcceptanceService() async throws -> IncomingChatAcceptanceService
 
     func makeIncomingChatAcceptanceContext() async -> IncomingChatAcceptanceCoordinationContext
-
-    func revertInterruptedOutgoingCancels() async throws
 }
 
 actor ChatRequestServiceFactory {
@@ -196,14 +194,6 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
         )
     }
 
-    func revertInterruptedOutgoingCancels() async throws {
-        let encryptionManager = makeAccountEncryptionManager()
-        let signManager = makeAccountSignManager()
-
-        try await makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager)
-            .revertInterruptedOutgoingCancels()
-    }
-
     func makeChatRequestCancelService() async throws -> ChatRequestCancelServicing {
         let requestPipeline = try await makeRequestPipeline()
         let encryptionManager = makeAccountEncryptionManager()
@@ -225,8 +215,7 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
                 ),
                 requestStore: makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager),
                 backgroundExecutor: backgroundExecutor,
-                logger: logger,
-                clock: ContinuousClock()
+                logger: logger
             )
         )
     }

@@ -73,8 +73,6 @@ protocol ChatInteractorOutputProtocol: AnyObject {
 
     func didDeclineChatRequest()
 
-    func didCancelIncomingRequest()
-
     func didRemoveChat()
 }
 

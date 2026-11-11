@@ -128,21 +128,6 @@ struct PerChatRequestAccountsTests {
         }
     }
 
-    @Test func acceptorRejectsV2ProofInCancel() async throws {
-        let senderKey = Curve25519.KeyAgreement.PrivateKey()
-        let acceptorKey = Curve25519.KeyAgreement.PrivateKey()
-        let v2Proof = try makeIdentityProof(senderKey: senderKey, acceptorKey: acceptorKey)
-
-        await #expect(throws: IdentityProofError.invalidProof) {
-            try await decodeCancel(
-                identityProof: v2Proof,
-                messageId: UUID().uuidString,
-                senderKey: senderKey,
-                acceptorKey: acceptorKey
-            )
-        }
-    }
-
     @Test func cancelProofMatchesKnownVector() throws {
         let proof = try IdentityProofFactory.makeCancelProof(
             identityAccountId: Data(repeating: 0x07, count: 32),
@@ -196,20 +181,6 @@ private extension PerChatRequestAccountsTests {
         try X25519ChaChaPolyEncryptorFactory(privateKey: senderKey)
             .makeEncryptor(remotePublicKey: acceptorKey.publicKey.rawRepresentation)
             .sharedSecret
-    }
-
-    func makeIdentityProof(
-        senderKey: Curve25519.KeyAgreement.PrivateKey,
-        acceptorKey: Curve25519.KeyAgreement.PrivateKey
-    ) throws -> Chat.IdentityProof {
-        let sharedSecret = try makeSharedSecret(senderKey: senderKey, acceptorKey: acceptorKey)
-        let senderAccountId = try identityAccountId()
-
-        return try IdentityProofFactory.makeProof(
-            identityAccountId: senderAccountId,
-            deviceAccountId: senderAccountId,
-            sharedSecret: sharedSecret
-        )
     }
 
     func makeCancelProof(

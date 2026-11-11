@@ -54,13 +54,7 @@ protocol ChatRequestStoreServicing {
         ownEncryptionKeyId: String
     ) throws -> Chat.IdentityProof
 
-    func deleteOutgoingRequest(_ requestId: String) async throws
-
-    func markOutgoingRequestCancelling(_ requestId: String) async throws
-
-    func revertOutgoingRequestCancelling(_ requestId: String) async throws
-
-    func revertInterruptedOutgoingCancels() async throws
+    func markOutgoingRequestCancelled(_ requestId: String) async throws
 }
 
 final class ChatRequestStoreService {
@@ -298,30 +292,12 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
         )
     }
 
-    func deleteOutgoingRequest(_ requestId: String) async throws {
-        try await storageFacade.databaseService.performWrite { context in
-            try context.deleteOutgoingChatRequest(requestId)
-        }
-    }
-
-    func markOutgoingRequestCancelling(_ requestId: String) async throws {
-        let marked = try await storageFacade.databaseService.performWrite { context in
-            try context.transitionOutgoingRequest(requestId, from: .pending, to: .cancelling)
+    func markOutgoingRequestCancelled(_ requestId: String) async throws {
+        let cancelled = try await storageFacade.databaseService.performWrite { context in
+            try context.cancelOutgoingChatRequest(requestId)
         }
 
-        guard marked else { throw ChatRequestCancelError.notPending }
-    }
-
-    func revertOutgoingRequestCancelling(_ requestId: String) async throws {
-        try await storageFacade.databaseService.performWrite { context in
-            _ = try context.transitionOutgoingRequest(requestId, from: .cancelling, to: .pending)
-        }
-    }
-
-    func revertInterruptedOutgoingCancels() async throws {
-        try await storageFacade.databaseService.performWrite { context in
-            try context.revertCancellingOutgoingRequests()
-        }
+        guard cancelled else { throw ChatRequestCancelError.notPending }
     }
 }
 

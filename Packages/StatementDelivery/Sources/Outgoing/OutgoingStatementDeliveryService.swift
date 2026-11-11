@@ -13,8 +13,6 @@ public protocol OutgoingStatementDelivering<Input>: Sendable {
 
     /// Blocks further delivery of the statement and waits for an attempt already in flight.
     func retire(_ statementId: String) async
-
-    func reinstate(_ statementId: String) async
 }
 
 public struct OutgoingStatementDeliveryDependencies<Input: OutgoingStatementInput>: Sendable {
@@ -121,10 +119,6 @@ extension OutgoingStatementDeliveryService: OutgoingStatementDelivering {
     public func retire(_ statementId: String) async {
         retiredIds.insert(statementId)
         _ = await attempts[statementId]?.result
-    }
-
-    public func reinstate(_ statementId: String) async {
-        retiredIds.remove(statementId)
     }
 }
 

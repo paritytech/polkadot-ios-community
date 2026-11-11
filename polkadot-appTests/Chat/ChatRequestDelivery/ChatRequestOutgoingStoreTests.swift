@@ -92,32 +92,34 @@ struct ChatRequestOutgoingStoreTests {
         #expect(candidates.first?.input.session.peer.accountId == Data(repeating: 2, count: 32))
     }
 
-    @Test func cancellingRequestIsNotAcknowledged() async throws {
-        try await insertRequest(
-            status: Chat.RequestStatus.outgoing(.cancelling).rawValue,
-            messageStatus: Chat.LocalMessage.Status.outgoing(.sent).rawValue,
-            period: 20_000
-        )
-
-        #expect(try await !makeStore().isAcknowledged(input(requestId)))
-    }
-
-    @Test func cancellingRequestIsNotAwaitingFirstDelivery() async throws {
-        try await insertRequest(status: Chat.RequestStatus.outgoing(.cancelling).rawValue)
-
-        #expect(try await !makeStore().isAwaitingFirstDelivery(input(requestId)))
-    }
-
-    @Test func cancellingRequestIsNotRenewedButStaysPendingForCancel() async throws {
+    @Test func cancelledRequestIsAcknowledgedAndNoLongerPending() async throws {
         let store = makeStore()
         try await recordRequest(requestId, peer: 9, timestamp: 1)
         _ = try await store.markPublished(input(requestId), period: 20_000)
-        try await facade.databaseService.performWrite { [requestId] context in
-            _ = try context.transitionOutgoingRequest(requestId, from: .pending, to: .cancelling)
+        _ = try await facade.databaseService.performWrite { [requestId] context in
+            try context.cancelOutgoingChatRequest(requestId)
         }
 
+        #expect(try await store.isAcknowledged(input(requestId)))
+        #expect(try await !store.isAwaitingFirstDelivery(input(requestId)))
         #expect(try await store.renewalCandidates().isEmpty)
-        #expect(try await store.pendingRequest(requestId: requestId)?.statementId == requestId)
+        #expect(try await store.pendingRequest(requestId: requestId) == nil)
+    }
+
+    @Test func publishLandingAfterCancelRecordsNoPeriod() async throws {
+        let store = makeStore()
+        try await recordRequest(requestId, peer: 9, timestamp: 1)
+        _ = try await facade.databaseService.performWrite { [requestId] context in
+            try context.cancelOutgoingChatRequest(requestId)
+        }
+
+        let publication = try await store.markPublished(input(requestId), period: 20_000)
+
+        let period = try await facade.databaseService.performRead { [requestId] context in
+            try context.outgoingStatementPeriod(for: requestId)
+        }
+        #expect(publication == StatementPublication(period: 20_000, isFirst: false))
+        #expect(period == nil)
     }
 }
 
@@ -140,12 +142,7 @@ private extension ChatRequestOutgoingStoreTests {
         )
     }
 
-    func insertRequest(
-        linkedToContact: Bool = true,
-        status: Int16 = Chat.RequestStatus.outgoing(.pending).rawValue,
-        messageStatus: Int16 = Chat.LocalMessage.Status.outgoing(.new).rawValue,
-        period: UInt32? = nil
-    ) async throws {
+    func insertRequest(linkedToContact: Bool = true) async throws {
         try await facade.databaseService.performWrite { [requestId] context in
             let contact = CDChatContact(context: context)
             contact.username = "peer"
@@ -153,17 +150,13 @@ private extension ChatRequestOutgoingStoreTests {
 
             let message = CDChatMessage(context: context)
             message.messageId = requestId
-            message.status = messageStatus
+            message.status = Chat.LocalMessage.Status.outgoing(.new).rawValue
 
             let request = CDChatRequest(context: context)
             request.identifier = requestId
-            request.status = status
+            request.status = Chat.RequestStatus.outgoing(.pending).rawValue
             request.message = message
             request.contact = linkedToContact ? contact : nil
-
-            if let period {
-                try context.setOutgoingStatementPeriod(period, for: requestId)
-            }
         }
     }
 

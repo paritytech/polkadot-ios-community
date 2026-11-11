@@ -95,27 +95,17 @@ struct OutgoingStatementDeliveryServiceTests {
         try await running.value
     }
 
-    @Test func retiredFirstDeliveryIsNotMarkedFailedAndPublishesAfterReinstate() async {
+    @Test func retiredFirstDeliveryStopsWithoutFailureOnceNoLongerAwaited() async {
         store.awaitFirstDelivery(of: "A")
         let delivery = makeDelivery()
         await delivery.retire("A")
 
         let loop = Task { await delivery.deliverUntilPublished(input) }
-        await delivery.reinstate("A")
+        store.stopAwaitingFirstDelivery(of: "A")
         await loop.value
 
         #expect(store.failed.isEmpty)
-        #expect(service.publishes.count == 1)
-    }
-
-    @Test func reinstatedStatementDeliversAgain() async throws {
-        let delivery = makeDelivery()
-        await delivery.retire("A")
-        await delivery.reinstate("A")
-
-        try await delivery.deliverOnce(input, signer: StubSigner(keyId: "x"), period: 10)
-
-        #expect(store.published.map(\.period) == [10])
+        #expect(service.publishes.isEmpty)
     }
 }
 

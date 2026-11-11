@@ -61,16 +61,16 @@ private extension ChatInteractor {
 
             do {
                 let metadataStream = engine.chatMetadataStream()
-                var hasReceivedChat = false
+                var lastMetadata: MessageListMetadata?
                 for try await chatMetadata in metadataStream {
                     if let chatMetadata {
-                        hasReceivedChat = true
                         let isIncomingRequest = chatMetadata.peerMetadata.input == .incomingRequest
                         self?.feedPolicy.withLock { $0.isIncomingRequest = isIncomingRequest }
                         let metadata = MessageListMetadata(chatMetadata: chatMetadata, myUsername: currentUsername)
+                        lastMetadata = metadata
                         await self?.presenter?.didReceive(metadata: metadata)
-                    } else if hasReceivedChat {
-                        await self?.handleChatRemoval()
+                    } else if let lastMetadata {
+                        await self?.handleChatRemoval(lastMetadata: lastMetadata)
                         break
                     }
                 }
@@ -123,13 +123,13 @@ private extension ChatInteractor {
         }
     }
 
-    func handleChatRemoval() async {
+    func handleChatRemoval(lastMetadata: MessageListMetadata) async {
         feedPolicy.withLock { $0.isFrozen = true }
         messagesTask?.cancel()
 
         switch await engine.removalReason() {
         case .requestCancelled:
-            await presenter?.didCancelIncomingRequest()
+            await presenter?.didReceive(metadata: lastMetadata.withCancelledRequest())
         case .other:
             await presenter?.didRemoveChat()
         }

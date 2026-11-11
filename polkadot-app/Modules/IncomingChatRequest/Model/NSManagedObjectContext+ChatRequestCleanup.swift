@@ -12,20 +12,26 @@ extension NSManagedObjectContext {
         }
     }
 
-    func deleteOutgoingChatRequest(_ requestId: String) throws {
-        try deleteOutgoingStatementPublication(for: requestId)
-
+    /// Keeps the request row as `outgoing(.cancelled)`; returns false when it is not the contact's pending request.
+    func cancelOutgoingChatRequest(_ requestId: String) throws -> Bool {
         let fetchRequest = CDChatRequest.fetchRequest()
         fetchRequest.predicate = .chatRequestById(requestId)
         fetchRequest.fetchLimit = 1
 
-        guard let request = try fetch(fetchRequest).first else { return }
-
-        if let contactId = try request.contactId?.fromHex() {
-            deleteChatContactAndChat(for: contactId)
+        guard
+            let request = try fetch(fetchRequest).first,
+            request.status == Chat.RequestStatus.outgoing(.pending).rawValue,
+            request.contact?.chatRequest == request,
+            let contactId = try request.contactId?.fromHex()
+        else {
+            return false
         }
 
-        delete(request)
+        request.status = Chat.RequestStatus.outgoing(.cancelled).rawValue
+        try deleteOutgoingStatementPublication(for: requestId)
+        deleteChatContactAndChat(for: contactId)
+
+        return true
     }
 
     func chatHasConversation(withContact contactId: AccountId) throws -> Bool {
