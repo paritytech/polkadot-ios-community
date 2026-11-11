@@ -1,9 +1,11 @@
 @testable import polkadot_app
 import BackgroundExecution
+import Clocks
 import CoreData
 import Foundation
 import MessageExchangeKit
 import StatementStore
+import StructuredConcurrencyTestSupport
 import SubstrateSdk
 import Testing
 
@@ -83,7 +85,7 @@ struct ChatRequestCancelServiceTests {
         #expect(store.calls == [.markCancelled(requestId: requestId)])
     }
 
-    @Test func everyCopyIsSubmittedOnceWithoutRetry() async throws {
+    @Test func channelPriorityTooLowIsRetriedWithFreshCancel() async throws {
         let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
         let submitter = RecordingStatementStoreConnection(
             failures: [StatementSubmitError.rejected(.channelPriorityTooLow)],
@@ -92,18 +94,85 @@ struct ChatRequestCancelServiceTests {
 
         try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
 
-        #expect(submitter.submitCount == 1)
-        #expect(store.calls == [.markCancelled(requestId: requestId)])
+        #expect(submitter.submitCount == 2)
+        #expect(builder.builtExpiries.count == 2)
     }
 
-    @Test func fetchFailureLeavesRequestCancelled() async throws {
-        let submitter = RecordingStatementStoreConnection(fetchFailure: TestSubmitFailure())
+    @Test func connectionFailuresAreRetried() async throws {
+        let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
+        let submitter = RecordingStatementStoreConnection(
+            failures: [TestSubmitFailure(), JSONRPCOperationError.timeout],
+            stored: [copy]
+        )
 
         try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
 
+        #expect(submitter.submitCount == 3)
+    }
+
+    @Test func storeRejectionIsNotRetried() async throws {
+        let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
+        let submitter = RecordingStatementStoreConnection(
+            failures: [StatementSubmitError.rejected(.noAllowance)],
+            stored: [copy]
+        )
+
+        try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
+
+        #expect(submitter.submitCount == 1)
+    }
+
+    @Test func failingCopyStopsAfterTenAttempts() async throws {
+        let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
+        let submitter = RecordingStatementStoreConnection(
+            failures: Array(repeating: TestSubmitFailure(), count: 10),
+            stored: [copy]
+        )
+
+        try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
+
+        #expect(submitter.submitCount == 10)
+        #expect(store.calls == [.markCancelled(requestId: requestId)])
+    }
+
+    @Test func failedFetchIsRetriedThenCopiesAreCancelled() async throws {
+        let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
+        let submitter = RecordingStatementStoreConnection(stored: [copy], fetchFailures: [TestSubmitFailure()])
+
+        try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
+
+        #expect(submitter.fetchCount == 2)
+        #expect(submitter.submitCount == 1)
+    }
+
+    @Test func fetchFailingEveryAttemptLeavesRequestCancelled() async throws {
+        let submitter = RecordingStatementStoreConnection(
+            fetchFailures: Array(repeating: TestSubmitFailure(), count: 10)
+        )
+
+        try await makeService(pending: makePending(), submitter: submitter).cancel(requestId: requestId)
+
+        #expect(submitter.fetchCount == 10)
         #expect(submitter.submitCount == 0)
         #expect(store.calls == [.markCancelled(requestId: requestId)])
         #expect(cleanup.accountIds == [peerAccountId])
+    }
+
+    @Test(.timeLimit(.minutes(5))) func retryWaitsDoubleFromOneSecond() async throws {
+        let copy = try storedCopy(signedBy: identityKeyId, expiry: timestampPriority + 1)
+        let submitter = RecordingStatementStoreConnection(
+            failures: [TestSubmitFailure(), TestSubmitFailure()],
+            stored: [copy]
+        )
+        let clock = ManualClock()
+        let service = makeService(pending: makePending(), submitter: submitter, clock: clock)
+        let cancellation = Task { try await service.cancel(requestId: requestId) }
+
+        await clock.resumeSleep(for: .seconds(1))
+        await clock.resumeSleep(for: .seconds(2))
+        try await cancellation.value
+
+        #expect(submitter.submitCount == 3)
     }
 
     @Test func emptyFetchPublishesNothing() async throws {
@@ -194,7 +263,8 @@ private extension ChatRequestCancelServiceTests {
         pending: OutgoingChatRequestInput?,
         submitter: RecordingStatementStoreConnection = RecordingStatementStoreConnection(),
         executor: BackgroundExecuting = InlineBackgroundExecutor(),
-        store: MockChatRequestStoreService? = nil
+        store: MockChatRequestStoreService? = nil,
+        clock: any Clock<Duration> = ImmediateClock()
     ) -> ChatRequestCancelService {
         loader.setPending(pending)
 
@@ -210,7 +280,8 @@ private extension ChatRequestCancelServiceTests {
                 removalCleanup: cleanup,
                 requestStore: store ?? self.store,
                 backgroundExecutor: executor,
-                logger: StubLogger()
+                logger: StubLogger(),
+                clock: clock
             )
         )
     }

@@ -10,21 +10,20 @@ final class RecordingStatementStoreConnection: StatementStoreConnecting, @unchec
         var submittedSenders: [Data?] = []
         var fetchCount = 0
         var failures: [Error]
+        var fetchFailures: [Error]
     }
 
     private let state: OSAllocatedUnfairLock<State>
     private let stored: [Data]
-    private let fetchFailure: Error?
 
     var submitCount: Int { state.withLock { $0.submitCount } }
     var submittedSenders: [Data?] { state.withLock { $0.submittedSenders } }
     var fetchCount: Int { state.withLock { $0.fetchCount } }
 
-    /// Each submit fails with the next queued error, then succeeds.
-    init(failures: [Error] = [], stored: [Data] = [], fetchFailure: Error? = nil) {
-        state = OSAllocatedUnfairLock(uncheckedState: State(failures: failures))
+    /// Each submit and each fetch fails with the next error queued for it, then succeeds.
+    init(failures: [Error] = [], stored: [Data] = [], fetchFailures: [Error] = []) {
+        state = OSAllocatedUnfairLock(uncheckedState: State(failures: failures, fetchFailures: fetchFailures))
         self.stored = stored
-        self.fetchFailure = fetchFailure
     }
 
     func submitStatement(with builder: StatementSubmitParametersBuilding) async throws {
@@ -43,10 +42,13 @@ final class RecordingStatementStoreConnection: StatementStoreConnecting, @unchec
     }
 
     func fetchStatements(with _: TopicFilter) async throws -> [Data] {
-        state.withLock { $0.fetchCount += 1 }
+        let failure: Error? = state.withLock { state in
+            state.fetchCount += 1
+            return state.fetchFailures.isEmpty ? nil : state.fetchFailures.removeFirst()
+        }
 
-        if let fetchFailure {
-            throw fetchFailure
+        if let failure {
+            throw failure
         }
 
         return stored

@@ -83,12 +83,7 @@ extension OutgoingStatementDeliveryService: OutgoingStatementDelivering {
                 await markFailed(input, failure: .terminal(error))
                 return
             } catch is OutgoingStatementRetiredError {
-                attempt += 1
-                do {
-                    try await execution.clock.sleep(for: Self.retryDelay(forAttempt: attempt))
-                } catch {
-                    return
-                }
+                return
             } catch {
                 attempt += 1
                 diagnostics.logger.error("Statement \(input.statementId) attempt \(attempt) failed: \(error)")

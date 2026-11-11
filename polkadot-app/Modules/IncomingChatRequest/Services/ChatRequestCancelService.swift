@@ -5,6 +5,7 @@ import MessageExchangeKit
 import SDKLogger
 import StatementDelivery
 import StatementStore
+import StructuredConcurrency
 import SubstrateSdk
 
 protocol ChatRequestCancelServicing {
@@ -31,6 +32,7 @@ struct ChatRequestCancelDependencies {
     let requestStore: ChatRequestStoreServicing
     let backgroundExecutor: BackgroundExecuting
     let logger: SDKLoggerProtocol
+    let clock: any Clock<Duration>
 }
 
 private struct OwnRequestCopy {
@@ -38,9 +40,15 @@ private struct OwnRequestCopy {
     let signer: StatementStoreSigning
 }
 
+/// Waits double from 1 s, so 10 attempts span about 8.5 minutes; iOS ending background time cancels earlier.
+private enum CancelRetry {
+    static let maxAttempts = 10
+    static let firstDelay: Duration = .seconds(1)
+}
+
 /// Marks the request cancelled and removes its contact and chat at once, then publishes one cancel per live copy,
-/// each signed by the copy's own account. Publishing is best effort: a failed cancel is only logged and the store
-/// evicts the copy later.
+/// each signed by the copy's own account. Connection failures are retried with backoff while the task runs; a cancel
+/// that still fails is only logged and the store evicts the copy later.
 final class ChatRequestCancelService {
     private let dependencies: ChatRequestCancelDependencies
     private let submitter: SigningStatementSubmitter
@@ -82,7 +90,11 @@ private extension ChatRequestCancelService {
         do {
             let input = try makeCancelInput(from: pending)
 
-            for copy in try await fetchOwnCopies(for: input) {
+            let copies = try await retryingTransientFailures {
+                try await self.fetchOwnCopies(for: input)
+            }
+
+            for copy in copies {
                 await submitCancel(input, replacing: copy)
             }
         } catch {
@@ -90,13 +102,27 @@ private extension ChatRequestCancelService {
         }
     }
 
+    func retryingTransientFailures<T: Sendable>(
+        _ operation: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withRetry(
+            maxAttempts: CancelRetry.maxAttempts,
+            initialDelay: CancelRetry.firstDelay,
+            clock: dependencies.clock,
+            shouldRetry: { $0.allowsCancelRetry },
+            operation: operation
+        )
+    }
+
     func submitCancel(_ input: OutgoingChatRequestInput, replacing copy: OwnRequestCopy) async {
         do {
-            let unsigned = try dependencies.builder.makeUnsignedStatement(
-                for: input,
-                expiry: expiry(after: copy.statement)
-            )
-            try await submitter.submit(unsigned, signer: copy.signer)
+            try await retryingTransientFailures {
+                let unsigned = try self.dependencies.builder.makeUnsignedStatement(
+                    for: input,
+                    expiry: self.expiry(after: copy.statement)
+                )
+                try await self.submitter.submit(unsigned, signer: copy.signer)
+            }
         } catch {
             dependencies.logger.warning("Request cancel failed for one copy: \(error)")
         }
@@ -166,5 +192,14 @@ private extension ChatRequestCancelService {
 
         let (next, overflow) = copyExpiry.addingReportingOverflow(1)
         return overflow ? .max : max(next, timestampPriority)
+    }
+}
+
+private extension Error {
+    // A store rejection is final, except contention on the channel; anything else is a connection problem.
+    var allowsCancelRetry: Bool {
+        guard let submitError = self as? StatementSubmitError else { return true }
+
+        return submitError == .rejected(.channelPriorityTooLow)
     }
 }

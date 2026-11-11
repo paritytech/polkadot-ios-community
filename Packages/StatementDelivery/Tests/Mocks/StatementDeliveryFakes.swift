@@ -62,10 +62,6 @@ final class FakeOutgoingStore: OutgoingStatementStoring, @unchecked Sendable {
         state.withLock { _ = $0.awaitingFirst.insert(id) }
     }
 
-    func stopAwaitingFirstDelivery(of id: String) {
-        state.withLock { _ = $0.awaitingFirst.remove(id) }
-    }
-
     func setCandidates(_ candidates: [PublishedStatement<TestInput>]) {
         state.withLock { state in
             state.candidates = candidates

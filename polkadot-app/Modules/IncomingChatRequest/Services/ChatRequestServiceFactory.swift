@@ -215,7 +215,8 @@ extension ChatRequestServiceFactory: ChatRequestServiceMaking {
                 ),
                 requestStore: makeRequestStoreService(encryptionManager: encryptionManager, signManager: signManager),
                 backgroundExecutor: backgroundExecutor,
-                logger: logger
+                logger: logger,
+                clock: ContinuousClock()
             )
         )
     }

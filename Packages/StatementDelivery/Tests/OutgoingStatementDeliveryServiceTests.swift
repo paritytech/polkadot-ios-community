@@ -95,14 +95,12 @@ struct OutgoingStatementDeliveryServiceTests {
         try await running.value
     }
 
-    @Test func retiredFirstDeliveryStopsWithoutFailureOnceNoLongerAwaited() async {
+    @Test func retiredFirstDeliveryStopsWithoutFailure() async {
         store.awaitFirstDelivery(of: "A")
         let delivery = makeDelivery()
         await delivery.retire("A")
 
-        let loop = Task { await delivery.deliverUntilPublished(input) }
-        store.stopAwaitingFirstDelivery(of: "A")
-        await loop.value
+        await delivery.deliverUntilPublished(input)
 
         #expect(store.failed.isEmpty)
         #expect(service.publishes.isEmpty)
