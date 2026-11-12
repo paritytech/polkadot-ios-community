@@ -21,25 +21,11 @@ extension Chat {
         case failed
     }
 
+    /// A settled claim or outgoing transfer; the stored message decides which, so one entity serves both.
     struct DeviceSyncCoinageMessageStatusUpdate: Equatable {
         let chatId: DeviceSyncChatId
         let messageId: String
         let status: DeviceSyncCoinageMessageStatus
-    }
-
-    /// Kept while its message hasn't arrived; the entity decides the direction.
-    enum DeviceSyncTransferStateUpdate: Equatable {
-        case incoming(DeviceSyncCoinageMessageStatusUpdate)
-        case outgoing(DeviceSyncCoinageMessageStatusUpdate)
-
-        var update: DeviceSyncCoinageMessageStatusUpdate {
-            switch self {
-            case let .incoming(update),
-                 let .outgoing(update): update
-            }
-        }
-
-        var messageId: String { update.messageId }
     }
 }
 

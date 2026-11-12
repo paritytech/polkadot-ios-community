@@ -10,8 +10,8 @@ protocol DeviceSyncCoinageStateApplying {
     /// Returns the updates whose message isn't stored yet; a caller that keeps them applies them again later.
     @discardableResult
     func applyTransferStates(
-        _ updates: [Chat.DeviceSyncTransferStateUpdate]
-    ) async throws -> [Chat.DeviceSyncTransferStateUpdate]
+        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate]
 }
 
 /// Writes coinage state received from a sibling. A handed-off coin is rebuilt from its derivation and stored as
@@ -59,9 +59,9 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
 
     @discardableResult
     func applyTransferStates(
-        _ updates: [Chat.DeviceSyncTransferStateUpdate]
-    ) async throws -> [Chat.DeviceSyncTransferStateUpdate] {
-        var waiting: [Chat.DeviceSyncTransferStateUpdate] = []
+        _ updates: [Chat.DeviceSyncCoinageMessageStatusUpdate]
+    ) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
+        var waiting: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
 
         for update in updates {
             do {
@@ -80,14 +80,23 @@ extension DeviceSyncCoinageStateApplier: DeviceSyncCoinageStateApplying {
 }
 
 private extension DeviceSyncCoinageStateApplier {
-    func apply(_ update: Chat.DeviceSyncTransferStateUpdate) async throws {
-        switch update {
-        case let .incoming(update):
+    func apply(_ update: Chat.DeviceSyncCoinageMessageStatusUpdate) async throws {
+        if try await isIncoming(update.messageId) {
             guard let state = update.incomingState else { return }
             try await transferStateStore.applySyncedIncoming(messageId: update.messageId, state: state)
-        case let .outgoing(update):
+        } else {
             guard let state = update.outgoingState else { return }
             try await transferStateStore.applySyncedOutgoing(messageId: update.messageId, state: state)
+        }
+    }
+
+    func isIncoming(_ messageId: Chat.MessageId) async throws -> Bool {
+        try await databaseService.performRead { context in
+            let predicate = NSPredicate(format: "%K == %@", #keyPath(CDChatMessage.messageId), messageId)
+            guard let message: CDChatMessage = try context.first(for: predicate) else {
+                throw TransferStateStoreError.messageNotFound(messageId)
+            }
+            return Chat.LocalMessage.Status(rawValue: message.status)?.isIncoming ?? false
         }
     }
 

@@ -29,10 +29,11 @@ extension DeviceSyncCoinageStateCollector: DeviceSyncCoinageStateCollecting {
             let claims = try Self.collectSettledClaims(after: cutoff, in: context)
             let outgoing = try Self.collectSettledOutgoing(after: cutoff, in: context)
 
+            let statuses = claims + outgoing
+
             return [
                 coins.isEmpty ? nil : .coinsHandedOff(coins),
-                claims.isEmpty ? nil : .coinageMessagesStatusUpdated(claims),
-                outgoing.isEmpty ? nil : .outgoingTransferStatesUpdated(outgoing)
+                statuses.isEmpty ? nil : .coinageMessagesStatusUpdated(statuses)
             ].compactMap { $0 }
         }
     }

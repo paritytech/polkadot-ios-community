@@ -80,7 +80,7 @@ struct DeviceSyncCoinageStateTests {
             return
         }
 
-        let waiting = try await applier.applyTransferStates(updates.map { .incoming($0) })
+        let waiting = try await applier.applyTransferStates(updates)
         try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
             .createRepository(forFilter: nil)
             .saveOperation({ [message] }, { [] })
@@ -147,12 +147,12 @@ struct DeviceSyncCoinageStateTests {
         let entities = try await DeviceSyncCoinageStateCollector(databaseService: sender.facade.databaseService)
             .collect(after: nil)
         let applier = makeApplier()
-        guard case let .outgoingTransferStatesUpdated(updates)? = entities.last else {
-            Issue.record("Expected outgoing states, got \(entities.map(\.logLabel))")
+        guard case let .coinageMessagesStatusUpdated(updates)? = entities.last else {
+            Issue.record("Expected transfer states, got \(entities.map(\.logLabel))")
             return
         }
 
-        let waiting = try await applier.applyTransferStates(updates.map { .outgoing($0) })
+        let waiting = try await applier.applyTransferStates(updates)
         try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
             .createRepository(forFilter: nil)
             .saveOperation({ [message] }, { [] })
@@ -197,10 +197,7 @@ private extension DeviceSyncCoinageStateTests {
         for entity in entities {
             switch entity {
             case let .coinsHandedOff(coins): try await applier.applyHandedOffCoins(coins)
-            case let .coinageMessagesStatusUpdated(updates):
-                try await applier.applyTransferStates(updates.map { .incoming($0) })
-            case let .outgoingTransferStatesUpdated(updates):
-                try await applier.applyTransferStates(updates.map { .outgoing($0) })
+            case let .coinageMessagesStatusUpdated(updates): try await applier.applyTransferStates(updates)
             default: Issue.record("Unexpected entity \(entity.logLabel)")
             }
         }

@@ -97,7 +97,7 @@ private struct DeviceTransferReceiverSession {
     private var applied = 0
     /// Updates and controls are separate streams, so an update can overtake `senderStarted`.
     private var earlyUpdates: [Chat.DeviceSyncUpdate] = []
-    private var waitingStates: [Chat.DeviceSyncTransferStateUpdate] = []
+    private var waitingStates: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
 
     init(
         senderInstallationId: Data,
