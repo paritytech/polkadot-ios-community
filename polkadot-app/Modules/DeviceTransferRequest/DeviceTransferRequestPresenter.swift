@@ -10,6 +10,7 @@ final class DeviceTransferRequestPresenter {
     private var request: DeviceTransferRequest
     /// Set once the user answers, so the request leaving the listener afterwards isn't reported as withdrawn.
     private var isAnswered = false
+    private var isBlockedByPendingPayments = false
 
     init(
         request: DeviceTransferRequest,
@@ -62,12 +63,18 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
         if pendingPayments.isEmpty {
             confirmTransfer()
         } else {
-            wireframe.showPendingPayments(from: view)
+            isAnswered = true
+            isBlockedByPendingPayments = true
+            interactor.decline(request)
         }
     }
 
     func didDecline() {
-        wireframe.close(from: view)
+        if isBlockedByPendingPayments {
+            wireframe.closeForPendingPayments(from: view)
+        } else {
+            wireframe.close(from: view)
+        }
     }
 }
 

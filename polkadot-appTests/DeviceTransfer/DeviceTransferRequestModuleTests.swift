@@ -71,7 +71,7 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.confirmed(request)])
     }
 
-    @Test("Pending payments block the transfer: the sheet is shown and nothing is handed to the root")
+    @Test("Pending payments decline the request and close the sheet for the warning; nothing goes to the root")
     func pendingPaymentsBlockTransfer() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
@@ -82,9 +82,9 @@ struct DeviceTransferRequestModuleTests {
         presenter.transfer()
         await wireframe.waitForEvents(1)
         presenter.transfer()
-        await wireframe.waitForEvents(2)
 
-        #expect(wireframe.events == [.blocked, .blocked])
+        #expect(coordinator.rejected == [request])
+        #expect(wireframe.events == [.closedForPendingPayments])
     }
 
     @Test("A count that can't be read doesn't hold the transfer back")
@@ -218,7 +218,7 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         case closed
         case closedAsWithdrawn
         case confirmed(DeviceTransferRequest)
-        case blocked
+        case closedForPendingPayments
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
@@ -237,8 +237,8 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         recorder.record(.confirmed(request))
     }
 
-    func showPendingPayments(from _: DeviceTransferRequestViewProtocol?) {
-        recorder.record(.blocked)
+    func closeForPendingPayments(from _: DeviceTransferRequestViewProtocol?) {
+        recorder.record(.closedForPendingPayments)
     }
 
     func waitForEvents(_ count: Int) async {

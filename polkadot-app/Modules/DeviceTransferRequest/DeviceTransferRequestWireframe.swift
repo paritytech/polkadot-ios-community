@@ -29,8 +29,11 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
         }
     }
 
-    func showPendingPayments(from view: DeviceTransferRequestViewProtocol?) {
-        let sheet = DeviceTransferConfirmationViewFactory.createView(viewModel: .pendingPayments, onConfirm: {})
-        view?.controller.present(sheet, animated: true)
+    func closeForPendingPayments(from view: DeviceTransferRequestViewProtocol?) {
+        let presenting = view?.controller.presentingViewController
+        presenting?.dismiss(animated: true) {
+            let sheet = DeviceTransferConfirmationViewFactory.createView(viewModel: .pendingPayments, onConfirm: {})
+            presenting?.present(sheet, animated: true)
+        }
     }
 }
