@@ -1,7 +1,7 @@
 import Foundation
 
 protocol ProductPrewarmLabelsProviding {
-    @MainActor func labels() async -> [String]
+    func labels() async -> [String]
 }
 
 struct ProductPrewarmLabelsProvider {
@@ -9,7 +9,6 @@ struct ProductPrewarmLabelsProvider {
 }
 
 extension ProductPrewarmLabelsProvider: ProductPrewarmLabelsProviding {
-    @MainActor
     func labels() async -> [String] {
         #if FEATURE_PRODUCTS
             let staticProducts = [AppConfig.DotNs.dotNsBrowse]
