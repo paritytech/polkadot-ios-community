@@ -47,13 +47,13 @@ final class DeviceSyncIncomingUpdateApplier {
         self.peerLogger = peerLogger
     }
 
-    /// Returns the claim statuses whose message hasn't arrived yet.
+    /// Returns the transfer states whose message hasn't arrived yet.
     @discardableResult
     func apply(_ update: Chat.DeviceSyncUpdate) async throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
-        var waitingClaims: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
+        var waitingStates: [Chat.DeviceSyncCoinageMessageStatusUpdate] = []
 
         for entity in update.entities {
-            waitingClaims += await applyEntity(
+            waitingStates += await applyEntity(
                 entity,
                 updateId: update.id,
                 updateTimePoint: update.timePoint
@@ -65,7 +65,7 @@ final class DeviceSyncIncomingUpdateApplier {
         try await flow.sendAck(ack)
         peerLogger.debug("Sent SyncUpdateAck id=\(ack.id)")
 
-        return waitingClaims
+        return waitingStates
     }
 }
 
@@ -98,7 +98,7 @@ private extension DeviceSyncIncomingUpdateApplier {
             case let .coinsHandedOff(coins):
                 try await coinageStateApplier.applyHandedOffCoins(coins)
             case let .coinageMessagesStatusUpdated(updates):
-                return try await coinageStateApplier.applyClaimStatuses(updates)
+                return try await coinageStateApplier.applyTransferStates(updates)
             }
         } catch {
             peerLogger.error(

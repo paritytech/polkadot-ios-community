@@ -13,4 +13,19 @@ protocol TransferStateStoring: Sendable {
     func applySyncedIncoming(messageId: Chat.MessageId, state: IncomingTransferState) async throws
 
     func updateOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws
+
+    /// As `updateOutgoing`, for a state settled on the device that sent the transfer.
+    func applySyncedOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws
+}
+
+/// Payments only this device can finish, so a device transfer waits for them.
+struct PendingPayments: Equatable, Sendable {
+    let receiving: Int
+    let sending: Int
+
+    var isEmpty: Bool { receiving == 0 && sending == 0 }
+}
+
+protocol PendingPaymentsCounting: Sendable {
+    func countPendingPayments() async throws -> PendingPayments
 }

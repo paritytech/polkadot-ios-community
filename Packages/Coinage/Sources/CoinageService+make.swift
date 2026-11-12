@@ -396,6 +396,14 @@ public extension CoinageService {
             logger: logger
         )
 
+        let remoteTransferStatusService = RemoteDeviceTransferStatusService(
+            chainViewFactory: chainViewFactory,
+            chainId: chain.chainId,
+            coinOnChainQuery: coinOnChainQuery,
+            snKeyFactory: SNKeyFactory(),
+            logger: logger
+        )
+
         let assetsTracking = AssetBalanceTracker(
             connection: connection,
             runtimeService: runtimeService,
@@ -442,6 +450,7 @@ public extension CoinageService {
             txService: txService,
             claimCoinsService: claimCoinsService,
             transferStatusService: transferStatusService,
+            remoteTransferStatusService: remoteTransferStatusService,
             externalPaymentService: externalPaymentService,
             contextLoader: contextLoader,
             coinStateSyncService: coinStateSyncService,

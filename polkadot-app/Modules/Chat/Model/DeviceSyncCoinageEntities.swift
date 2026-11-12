@@ -21,6 +21,7 @@ extension Chat {
         case failed
     }
 
+    /// A settled claim or outgoing transfer; the stored message decides which, so one entity serves both.
     struct DeviceSyncCoinageMessageStatusUpdate: Equatable {
         let chatId: DeviceSyncChatId
         let messageId: String

@@ -989,6 +989,28 @@
         }
       }
     },
+    "device.transfer.pending.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check your chats to see and track the payments’ statuses."
+          }
+        }
+      }
+    },
+    "device.transfer.pending.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have pending payments"
+          }
+        }
+      }
+    },
     "device.transfer.progress.bytes" : {
       "extractionState" : "manual",
       "localizations" : {

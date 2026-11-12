@@ -7,8 +7,8 @@ import SubstrateSdk
 import SubstrateSdkExt
 
 protocol DeviceSyncCoinageStateCollecting {
-    /// Handed-off coins and settled claims: everything on a full collection (`cutoff == nil`), otherwise what
-    /// changed after `cutoff`. Collected after the messages, which the claim statuses refer to.
+    /// Handed-off coins, settled claims and settled outgoing transfers: everything on a full collection
+    /// (`cutoff == nil`), otherwise what changed after `cutoff`. Collected after the messages the statuses refer to.
     func collect(after cutoff: Date?) async throws -> [Chat.DeviceSyncEntity]
     /// Rows `collect` reads; a row it can't map isn't sent, so this can be slightly higher.
     func count(after cutoff: Date?) async throws -> Int
@@ -27,10 +27,13 @@ extension DeviceSyncCoinageStateCollector: DeviceSyncCoinageStateCollecting {
         try await databaseService.performRead { context in
             let coins = try Self.collectHandedOffCoins(after: cutoff, in: context)
             let claims = try Self.collectSettledClaims(after: cutoff, in: context)
+            let outgoing = try Self.collectSettledOutgoing(after: cutoff, in: context)
+
+            let statuses = claims + outgoing
 
             return [
                 coins.isEmpty ? nil : .coinsHandedOff(coins),
-                claims.isEmpty ? nil : .coinageMessagesStatusUpdated(claims)
+                statuses.isEmpty ? nil : .coinageMessagesStatusUpdated(statuses)
             ].compactMap { $0 }
         }
     }
@@ -39,6 +42,7 @@ extension DeviceSyncCoinageStateCollector: DeviceSyncCoinageStateCollecting {
         try await databaseService.performRead { context in
             try context.count(for: Self.handedOffCoinsRequest(after: cutoff))
                 + context.count(for: Self.settledClaimsRequest(after: cutoff))
+                + context.count(for: Self.settledOutgoingRequest(after: cutoff))
         }
     }
 }
@@ -82,6 +86,29 @@ private extension DeviceSyncCoinageStateCollector {
             )
         }
     }
+
+    static func collectSettledOutgoing(
+        after cutoff: Date?,
+        in context: NSManagedObjectContext
+    ) throws -> [Chat.DeviceSyncCoinageMessageStatusUpdate] {
+        try context.fetch(settledOutgoingRequest(after: cutoff)).compactMap { row in
+            guard
+                let message = row.message,
+                let messageId = message.messageId,
+                let peer = try? message.chat?.contact?.identifier?.fromHex()
+            else {
+                return nil
+            }
+
+            let state = try TransferStateRows.outgoing(from: row)
+
+            return Chat.DeviceSyncCoinageMessageStatusUpdate(
+                chatId: .contact(accountId: peer),
+                messageId: messageId,
+                status: state.status == .claimed ? .claimed(partial: state.actualValue) : .failed
+            )
+        }
+    }
 }
 
 private extension DeviceSyncCoinageStateCollector {
@@ -99,6 +126,22 @@ private extension DeviceSyncCoinageStateCollector {
                 NSPredicate(format: "%K > %@", #keyPath(CDCoin.handoffCommittedAt), $0 as NSDate)
             ])
         } ?? committed
+        return request
+    }
+
+    static func settledOutgoingRequest(after cutoff: Date?) -> NSFetchRequest<CDOutgoingTransferState> {
+        let settled = NSPredicate(
+            format: "%K >= %d",
+            #keyPath(CDOutgoingTransferState.status),
+            Int(TransferStateStatus.firstTerminalRawValue)
+        )
+        let request = NSFetchRequest<CDOutgoingTransferState>(entityName: "CDOutgoingTransferState")
+        request.predicate = cutoff.map {
+            NSCompoundPredicate(andPredicateWithSubpredicates: [
+                settled,
+                NSPredicate(format: "%K > %@", #keyPath(CDOutgoingTransferState.modifiedAt), $0 as NSDate)
+            ])
+        } ?? settled
         return request
     }
 

@@ -41,7 +41,8 @@ final class TransferStateTestWorld {
     func saveTransfer(
         _ direction: Direction,
         totalValue: Balance = 10,
-        coinKeys: [Data] = [Data(repeating: 0x07, count: 32)]
+        coinKeys: [Data] = [Data(repeating: 0x07, count: 32)],
+        creationSource: Chat.LocalMessage.CreationSource = .localDevice
     ) async throws -> Chat.LocalMessage {
         let content = Chat.LocalMessage.Content.Transfer(totalValue: totalValue, coinKeys: coinKeys)
         let status: Chat.LocalMessage.Status =
@@ -49,7 +50,7 @@ final class TransferStateTestWorld {
             case .incoming: .incoming(.new)
             case .outgoing: .outgoing(.sent)
             }
-        return try await chatManager.sendMessage(.coinageSend(content), status: status)
+        return try await chatManager.sendMessage(.coinageSend(content), status: status, creationSource: creationSource)
     }
 
     func transfer(_ messageId: Chat.MessageId) async throws -> Chat.LocalMessage.Content.Transfer? {

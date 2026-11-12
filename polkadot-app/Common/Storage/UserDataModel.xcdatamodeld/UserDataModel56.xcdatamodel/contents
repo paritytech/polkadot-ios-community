@@ -373,6 +373,7 @@
     </entity>
     <entity name="CDOutgoingTransferState" representedClassName="CDOutgoingTransferState" syncable="YES" codeGenerationType="class">
         <attribute name="actualValue" optional="YES" attributeType="String"/>
+        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatMessage" inverseName="outgoingTransferState" inverseEntity="CDChatMessage"/>
     </entity>

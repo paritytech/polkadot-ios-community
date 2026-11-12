@@ -80,12 +80,12 @@ struct DeviceSyncCoinageStateTests {
             return
         }
 
-        let waiting = try await applier.applyClaimStatuses(updates)
+        let waiting = try await applier.applyTransferStates(updates)
         try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
             .createRepository(forFilter: nil)
             .saveOperation({ [message] }, { [] })
             .asyncExecute()
-        let stillWaiting = try await applier.applyClaimStatuses(waiting)
+        let stillWaiting = try await applier.applyTransferStates(waiting)
 
         #expect(waiting.map(\.messageId) == [message.messageId])
         #expect(stillWaiting.isEmpty)
@@ -112,6 +112,59 @@ struct DeviceSyncCoinageStateTests {
         #expect(try await claimableMessageIds().isEmpty)
     }
 
+    @Test("Settled outgoing transfers reach the new phone with their amount; one still sending doesn't")
+    func settledOutgoingStatesTravel() async throws {
+        let claimed = try await saveOutgoingTransfer(totalValue: 10)
+        let failed = try await saveOutgoingTransfer(totalValue: 5)
+        let sending = try await saveOutgoingTransfer(totalValue: 7)
+        try await sender.store.updateOutgoing(
+            messageId: claimed.messageId,
+            state: OutgoingTransferState(status: .claimed, actualValue: 8)
+        )
+        try await sender.store.updateOutgoing(
+            messageId: failed.messageId,
+            state: OutgoingTransferState(status: .failed)
+        )
+        try await sender.store.updateOutgoing(messageId: sending.messageId, state: OutgoingTransferState(status: .sent))
+
+        try await transfer(after: nil)
+
+        #expect(try await receiver.transfer(claimed.messageId)?.state == .outgoing(
+            OutgoingTransferState(status: .claimed, actualValue: 8)
+        ))
+        #expect(try await receiver.transfer(failed.messageId)?
+            .state == .outgoing(OutgoingTransferState(status: .failed)))
+        #expect(try await receiver.transfer(sending.messageId)?.state == nil)
+    }
+
+    @Test("An outgoing state that arrives before its message is held back and applies once the message is stored")
+    func outgoingStateBeforeItsMessageIsHeldBack() async throws {
+        let message = try await sender.saveTransfer(.outgoing, totalValue: 6)
+        try await sender.store.updateOutgoing(
+            messageId: message.messageId,
+            state: OutgoingTransferState(status: .failed)
+        )
+        let entities = try await DeviceSyncCoinageStateCollector(databaseService: sender.facade.databaseService)
+            .collect(after: nil)
+        let applier = makeApplier()
+        guard case let .coinageMessagesStatusUpdated(updates)? = entities.last else {
+            Issue.record("Expected transfer states, got \(entities.map(\.logLabel))")
+            return
+        }
+
+        let waiting = try await applier.applyTransferStates(updates)
+        try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
+            .createRepository(forFilter: nil)
+            .saveOperation({ [message] }, { [] })
+            .asyncExecute()
+        let stillWaiting = try await applier.applyTransferStates(waiting)
+
+        #expect(waiting.map(\.messageId) == [message.messageId])
+        #expect(stillWaiting.isEmpty)
+        #expect(try await receiver.transfer(message.messageId)?
+            .state == .outgoing(OutgoingTransferState(status: .failed)))
+    }
+
     @Test("Applying synced coinage state doesn't mark it modified, so it isn't sent back")
     func appliedStateIsNotEchoed() async throws {
         try await save(makeCoin(item: 5, handoffMark: .committed), in: sender.facade)
@@ -119,6 +172,11 @@ struct DeviceSyncCoinageStateTests {
         try await sender.store.updateIncoming(
             messageId: message.messageId,
             state: IncomingTransferState(status: .failed)
+        )
+        let outgoing = try await saveOutgoingTransfer(totalValue: 3)
+        try await sender.store.updateOutgoing(
+            messageId: outgoing.messageId,
+            state: OutgoingTransferState(status: .failed)
         )
         let checkpoint = Date()
 
@@ -139,7 +197,7 @@ private extension DeviceSyncCoinageStateTests {
         for entity in entities {
             switch entity {
             case let .coinsHandedOff(coins): try await applier.applyHandedOffCoins(coins)
-            case let .coinageMessagesStatusUpdated(updates): try await applier.applyClaimStatuses(updates)
+            case let .coinageMessagesStatusUpdated(updates): try await applier.applyTransferStates(updates)
             default: Issue.record("Unexpected entity \(entity.logLabel)")
             }
         }
@@ -185,6 +243,16 @@ private extension DeviceSyncCoinageStateTests {
     /// The same incoming transfer message on both phones, as the message sync leaves it.
     func saveIncomingTransfer(totalValue: Balance) async throws -> Chat.LocalMessage {
         let message = try await sender.saveTransfer(.incoming, totalValue: totalValue)
+        try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
+            .createRepository(forFilter: nil)
+            .saveOperation({ [message] }, { [] })
+            .asyncExecute()
+        return message
+    }
+
+    /// The same outgoing transfer message on both phones, as the message sync leaves it.
+    func saveOutgoingTransfer(totalValue: Balance) async throws -> Chat.LocalMessage {
+        let message = try await sender.saveTransfer(.outgoing, totalValue: totalValue)
         try await ChatMessageRepositoryFactory(storageFacade: receiver.facade)
             .createRepository(forFilter: nil)
             .saveOperation({ [message] }, { [] })

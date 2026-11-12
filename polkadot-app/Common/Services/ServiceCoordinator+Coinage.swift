@@ -56,6 +56,7 @@ extension ServiceCoordinator {
         let transferMonitor = CoinageTransferMonitor(
             claimCoinsService: coinageService.claimCoinsService,
             transferStatusService: coinageService.transferStatusService,
+            remoteTransferStatusService: coinageService.remoteTransferStatusService,
             denominationContext: { try await coinageService.denominationContext() },
             transferStateStore: TransferStateCoreDataStore(storageFacade: UserDataStorageFacade.shared),
             storageFacade: UserDataStorageFacade.shared

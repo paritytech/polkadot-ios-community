@@ -4,15 +4,16 @@ internal import UIKit_iOS
 internal import SnapKit
 
 /// Figma "Bottom sheet base" for transfer confirmations: a warning, what follows, and a destructive confirm.
+/// Without a confirm title the sheet only informs, and dismiss is its one action.
 public final class DeviceTransferConfirmationViewLayout: BottomSheetBaseLayout {
     public struct ViewModel {
         let title: String
         let message: String
         let points: [String]
-        let confirmTitle: String
+        let confirmTitle: String?
         let dismissTitle: String
 
-        public init(title: String, message: String, points: [String], confirmTitle: String, dismissTitle: String) {
+        public init(title: String, message: String, points: [String], confirmTitle: String?, dismissTitle: String) {
             self.title = title
             self.message = message
             self.points = points
@@ -87,7 +88,8 @@ public final class DeviceTransferConfirmationViewLayout: BottomSheetBaseLayout {
     public func bind(viewModel: ViewModel) {
         titleLabel.text = viewModel.title
         messageLabel.text = viewModel.message
-        confirmButton.setTitle(viewModel.confirmTitle)
+        confirmButton.setTitle(viewModel.confirmTitle ?? "")
+        confirmButton.isHidden = viewModel.confirmTitle == nil
         dismissButton.setTitle(viewModel.dismissTitle)
 
         pointsView.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -138,6 +140,17 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
             ],
             confirmTitle: String(localized: .deviceTransferActivateAction),
             dismissTitle: String(localized: .deviceTransferReceiverActionCancel)
+        )
+    }
+
+    /// Only this phone can finish payments it's still claiming or minting.
+    static var pendingPayments: Self {
+        Self(
+            title: String(localized: .deviceTransferPendingTitle),
+            message: String(localized: .deviceTransferPendingBody),
+            points: [],
+            confirmTitle: nil,
+            dismissTitle: String(localized: .actionClose)
         )
     }
 

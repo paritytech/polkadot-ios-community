@@ -177,4 +177,29 @@ struct TransferStateStoreTests {
 
         #expect(try await world.incomingRowCount() == 0)
     }
+
+    // MARK: - Pending payments
+
+    @Test("pending payments are the unclaimed incoming ones and this device's outgoing ones not on chain yet")
+    func countsPendingPayments() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        _ = try await world.saveTransfer(.outgoing)
+        let sending = try await world.saveTransfer(.outgoing)
+        let sent = try await world.saveTransfer(.outgoing)
+        let claimedOut = try await world.saveTransfer(.outgoing)
+        _ = try await world.saveTransfer(.outgoing, creationSource: .deviceSync)
+        _ = try await world.saveTransfer(.incoming)
+        let claiming = try await world.saveTransfer(.incoming)
+        let claimedIn = try await world.saveTransfer(.incoming)
+        let failedIn = try await world.saveTransfer(.incoming)
+        try await world.store.updateOutgoing(messageId: sending.messageId, state: .init(status: .sending))
+        try await world.store.updateOutgoing(messageId: sent.messageId, state: .init(status: .sent))
+        try await world.store.updateOutgoing(messageId: claimedOut.messageId, state: .init(status: .claimed))
+        try await world.store.updateIncoming(messageId: claiming.messageId, state: .init(status: .claiming))
+        try await world.store.updateIncoming(messageId: claimedIn.messageId, state: .init(status: .claimed))
+        try await world.store.updateIncoming(messageId: failedIn.messageId, state: .init(status: .failed))
+
+        #expect(try await world.store.countPendingPayments() == PendingPayments(receiving: 2, sending: 2))
+    }
 }

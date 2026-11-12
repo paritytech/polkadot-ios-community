@@ -43,6 +43,40 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
     }
 
     func updateOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws {
+        try await writeOutgoing(messageId: messageId, state: state, marksModified: true)
+    }
+
+    func applySyncedOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState) async throws {
+        try await writeOutgoing(messageId: messageId, state: state, marksModified: false)
+    }
+}
+
+extension TransferStateCoreDataStore: PendingPaymentsCounting {
+    func countPendingPayments() async throws -> PendingPayments {
+        try await databaseService.performRead { context in
+            let sending = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                .outgoingCoinageSendMessages(),
+                .byCreationSource(.localDevice),
+                NSPredicate(
+                    format: "%K == nil OR %K == %d",
+                    #keyPath(CDChatMessage.outgoingTransferState),
+                    #keyPath(CDChatMessage.outgoingTransferState.status),
+                    OutgoingTransferState.Status.sending.rawValue
+                )
+            ])
+
+            return try PendingPayments(
+                receiving: context.count(for: Self.messages(matching: .incomingCoinageSendMessages())),
+                sending: context.count(for: Self.messages(matching: sending))
+            )
+        }
+    }
+}
+
+private extension TransferStateCoreDataStore {
+    func writeOutgoing(messageId: Chat.MessageId, state: OutgoingTransferState, marksModified: Bool) async throws {
+        let now = await dateProvider.read()
+
         try await databaseService.performWrite { context in
             let message = try Self.message(messageId, in: context)
             let row = try message.outgoingTransferState ?? Self.insertOutgoingRow(for: message, in: context)
@@ -50,12 +84,13 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
             guard !TransferStateRows.isUnchanged(row, comparedTo: state) else { return }
 
             TransferStateRows.apply(state, to: row)
+            if marksModified {
+                row.modifiedAt = now
+            }
             Self.touch(message, key: #keyPath(CDChatMessage.outgoingTransferState))
         }
     }
-}
 
-private extension TransferStateCoreDataStore {
     func writeIncoming(messageId: Chat.MessageId, state: IncomingTransferState, marksModified: Bool) async throws {
         let now = await dateProvider.read()
 
@@ -72,6 +107,12 @@ private extension TransferStateCoreDataStore {
             }
             Self.touch(message, key: #keyPath(CDChatMessage.incomingTransferState))
         }
+    }
+
+    static func messages(matching predicate: NSPredicate) -> NSFetchRequest<CDChatMessage> {
+        let request = NSFetchRequest<CDChatMessage>(entityName: String(describing: CDChatMessage.self))
+        request.predicate = predicate
+        return request
     }
 
     static func message(_ messageId: Chat.MessageId, in context: NSManagedObjectContext) throws -> CDChatMessage {

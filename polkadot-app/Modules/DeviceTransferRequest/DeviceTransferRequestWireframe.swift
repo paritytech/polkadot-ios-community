@@ -28,4 +28,12 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
             observer.didConfirmDeviceTransfer(request)
         }
     }
+
+    func closeForPendingPayments(from view: DeviceTransferRequestViewProtocol?) {
+        let presenting = view?.controller.presentingViewController
+        presenting?.dismiss(animated: true) {
+            let sheet = DeviceTransferConfirmationViewFactory.createView(viewModel: .pendingPayments, onConfirm: {})
+            presenting?.present(sheet, animated: true)
+        }
+    }
 }

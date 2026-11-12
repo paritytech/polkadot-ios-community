@@ -58,11 +58,40 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.closed])
     }
 
-    @Test("Transfer hands the request to the root")
+    @Test("Transfer hands the request to the root when no payment is pending")
     func transferConfirmsRequest() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
         let presenter = makeModule(showing: request)
+        presenter.setup()
+
+        presenter.transfer()
+        await wireframe.waitForEvents(1)
+
+        #expect(wireframe.events == [.confirmed(request)])
+    }
+
+    @Test("Pending payments decline the request and close the sheet for the warning; nothing goes to the root")
+    func pendingPaymentsBlockTransfer() async {
+        let request = makeRequest(model: "iPhone 17 Pro")
+        listener.send(request)
+        let pending = PendingPayments(receiving: 1, sending: 2)
+        let presenter = makeModule(showing: request, pendingPayments: .success(pending))
+        presenter.setup()
+
+        presenter.transfer()
+        await wireframe.waitForEvents(1)
+        presenter.transfer()
+
+        #expect(coordinator.rejected == [request])
+        #expect(wireframe.events == [.closedForPendingPayments])
+    }
+
+    @Test("A count that can't be read doesn't hold the transfer back")
+    func unreadableCountStillConfirms() async {
+        let request = makeRequest(model: "iPhone 17 Pro")
+        listener.send(request)
+        let presenter = makeModule(showing: request, pendingPayments: .failure(CountError.unavailable))
         presenter.setup()
 
         presenter.transfer()
@@ -82,10 +111,14 @@ private extension DeviceTransferRequestModuleTests {
         )
     }
 
-    func makeModule(showing request: DeviceTransferRequest) -> DeviceTransferRequestPresenter {
+    func makeModule(
+        showing request: DeviceTransferRequest,
+        pendingPayments: Result<PendingPayments, Error> = .success(PendingPayments(receiving: 0, sending: 0))
+    ) -> DeviceTransferRequestPresenter {
         let interactor = DeviceTransferRequestInteractor(
             listener: listener,
             servicesFactory: FixedSenderServicesFactory(coordinator: coordinator),
+            paymentsCounter: FixedPaymentsCounter(result: pendingPayments),
             logger: MockLogger()
         )
         let presenter = DeviceTransferRequestPresenter(request: request, interactor: interactor, wireframe: wireframe)
@@ -107,6 +140,18 @@ private final class ScriptedRequestListener: DeviceTransferRequestListening, @un
 
     func send(_ request: DeviceTransferRequest?) {
         subject.send(request)
+    }
+}
+
+private enum CountError: Error {
+    case unavailable
+}
+
+private struct FixedPaymentsCounter: PendingPaymentsCounting {
+    let result: Result<PendingPayments, Error>
+
+    func countPendingPayments() async throws -> PendingPayments {
+        try result.get()
     }
 }
 
@@ -173,6 +218,7 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         case closed
         case closedAsWithdrawn
         case confirmed(DeviceTransferRequest)
+        case closedForPendingPayments
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
@@ -189,6 +235,10 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
 
     func confirm(_ request: DeviceTransferRequest, from _: DeviceTransferRequestViewProtocol?) {
         recorder.record(.confirmed(request))
+    }
+
+    func closeForPendingPayments(from _: DeviceTransferRequestViewProtocol?) {
+        recorder.record(.closedForPendingPayments)
     }
 
     func waitForEvents(_ count: Int) async {

@@ -13,6 +13,7 @@ enum DeviceTransferRequestViewFactory {
                 statusStore: InstallationStatusStore(logger: Logger.shared),
                 logger: Logger.shared
             ),
+            paymentsCounter: TransferStateCoreDataStore(storageFacade: UserDataStorageFacade.shared),
             logger: Logger.shared
         )
         let wireframe = DeviceTransferRequestWireframe(observer: observer)

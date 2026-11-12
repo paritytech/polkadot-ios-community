@@ -79,7 +79,7 @@ extension NSPredicate {
         ])
     }
 
-    static func outgoingLocalDeviceCoinageSendMessages() -> NSPredicate {
+    static func outgoingCoinageSendMessages() -> NSPredicate {
         let outgoingNewPredicate = byStatus(Chat.LocalMessage.Status.outgoing(.new))
         let outgoingSentPredicate = byStatus(Chat.LocalMessage.Status.outgoing(.sent))
         let outgoingDeliveredPredicate = byStatus(Chat.LocalMessage.Status.outgoing(.delivered))
@@ -91,13 +91,10 @@ extension NSPredicate {
 
         let chatTypePredicate = messageByChatType(.person)
         let contentTypePredicate = messageByContentType(.coinageSend)
-        let creationSourcePredicate = byCreationSource(.localDevice)
-
         return NSCompoundPredicate(andPredicateWithSubpredicates: [
             statusPredicate,
             chatTypePredicate,
             contentTypePredicate,
-            creationSourcePredicate,
             withoutTerminalTransferState(#keyPath(CDChatMessage.outgoingTransferState))
         ])
     }
