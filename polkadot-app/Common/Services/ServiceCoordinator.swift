@@ -467,7 +467,7 @@ private extension ServiceCoordinator {
                 logger: Logger.shared
             ),
             notificationAllocator: notificationAllocator,
-            signingFallback: signingFallback,
+            signingFallback: ForegroundConsentSigningFallback(base: signingFallback, activity: ApplicationActivity()),
             backgroundExecutor: ConnectionRetainingExecutor(provider: ChainRegistryFacade.sharedRegistry),
             issueReporter: IssueReportingFacade.shared,
             allowanceCleanupService: allowanceCleanupService
