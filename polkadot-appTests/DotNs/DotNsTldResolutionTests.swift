@@ -41,8 +41,7 @@ struct DotNsTldResolutionTests {
     func derivationPathsEmbedResolvedTld(_ tld: String) {
         #expect(BuiltInProduct.personhood(for: tld) == "peopl.\(tld)")
         #expect(BuiltInProduct.dim2(for: tld) == "dim2.\(tld)")
-        #expect(BuiltInProduct.uid(for: tld) == "uid.\(tld)")
-        #expect(WalletDerivationPath.main(for: tld).contains("uid.\(tld)"))
+        #expect(WalletDerivationPath.main(for: tld).contains("//product//peopl.\(tld)/"))
     }
 
     /// End-to-end proof that the TLD flows into real key material: two TLDs over the same root

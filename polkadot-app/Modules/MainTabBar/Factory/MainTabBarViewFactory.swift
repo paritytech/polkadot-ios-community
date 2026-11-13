@@ -96,6 +96,9 @@ enum MainTabBarViewFactory {
             flowStateProvider: flowStateProvider
         )
 
+        qrHandler.closeEmbeddedScanner = { [weak view] in
+            view?.closeScanPanel()
+        }
         presenter.view = view
         presenter.configureViews()
 
