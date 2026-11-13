@@ -7,6 +7,7 @@ final class ChatFlowState {
     let extensionsRegistry: ChatExtensionsRegistering
     let callCoordinator: CallCoordinating
     let outboxService: ChatOutboxServicing
+    let seenReceiptService: SeenReceiptSending
     let attachmentUploadStateProvider: AttachmentLoadProgressProvidable
     let attachmentDownloadStateProvider: AttachmentLoadProgressProvidable
     let audioSessionManager: AudioSessionManaging
@@ -23,6 +24,7 @@ final class ChatFlowState {
         extensionsRegistry: ChatExtensionsRegistering,
         callCoordinator: CallCoordinating,
         outboxService: ChatOutboxServicing,
+        seenReceiptService: SeenReceiptSending,
         attachmentUploadStateProvider: AttachmentLoadProgressProvidable,
         attachmentDownloadStateProvider: AttachmentLoadProgressProvidable,
         foregroundVisibilityReporter: PushForegroundVisibilityReporting?,
@@ -37,6 +39,7 @@ final class ChatFlowState {
         self.extensionsRegistry = extensionsRegistry
         self.callCoordinator = callCoordinator
         self.outboxService = outboxService
+        self.seenReceiptService = seenReceiptService
         self.attachmentUploadStateProvider = attachmentUploadStateProvider
         self.attachmentDownloadStateProvider = attachmentDownloadStateProvider
         self.foregroundVisibilityReporter = foregroundVisibilityReporter

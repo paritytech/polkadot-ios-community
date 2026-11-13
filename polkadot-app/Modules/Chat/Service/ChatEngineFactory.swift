@@ -70,7 +70,8 @@ final class ChatEngineFactory: ChatEngineFactoryProtocol {
             chatProvider: ChatContactDataProviderFactory(),
             settings: SettingsManager.shared,
             leaveChatService: leaveChatService,
-            blockUserService: blockUserService
+            blockUserService: blockUserService,
+            seenReceiptService: flowState.seenReceiptService
         )
     }
 }
