@@ -4,7 +4,7 @@ import PolkadotUI
 
 extension ChatViewModelFactory {
     func makeInputConfiguration(
-        for metadata: ChatMetadata,
+        for metadata: MessageListMetadata,
         actions: ChatViewModelActions
     ) -> (any ChatInputViewConfigurationProtocol)? {
         switch metadata.peerMetadata.input {
@@ -13,7 +13,9 @@ extension ChatViewModelFactory {
         case .incomingRequest:
             makeIncomingRequestInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .outgoingRequest:
-            makeOutgoingPendingRequestInputConfiguration(for: metadata)
+            makeOutgoingPendingRequestInputConfiguration(for: metadata.chatMetadata, actions: actions)
+        case .cancelledRequest:
+            ChatRequestCancelledBannerView.ViewModel(username: metadata.peerName)
         case .blockedUser:
             makeBlockedUserInputConfiguration(for: metadata.peerMetadata, actions: actions)
         case .empty:
@@ -54,12 +56,14 @@ private extension ChatViewModelFactory {
     }
 
     func makeOutgoingPendingRequestInputConfiguration(
-        for metadata: ChatMetadata
+        for metadata: ChatMetadata,
+        actions: ChatViewModelActions
     ) -> any ChatInputViewConfigurationProtocol {
         switch metadata.state {
         case .created:
             ChatRequestedBannerView.ViewModel(
-                username: metadata.peerMetadata.name
+                username: metadata.peerMetadata.name,
+                onCancel: actions.cancelChatRequest
             )
         case .pending:
             ChatRequestInProgressBannerView.ViewModel(
