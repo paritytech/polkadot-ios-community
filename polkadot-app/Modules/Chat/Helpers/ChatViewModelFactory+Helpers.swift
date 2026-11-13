@@ -52,9 +52,28 @@ extension Chat.LocalMessage.Content.Transfer {
         return incoming.status.viewState
     }
 
-    var outgoingViewState: ChatTransferMessageConfiguration.OutgoingState {
+    func outgoingViewState(reclaimedAmount: String?) -> ChatTransferMessageConfiguration.OutgoingState {
         guard case let .outgoing(outgoing) = state else { return .sending }
-        return outgoing.status.viewState
+        return outgoing.status.viewState(reclaimedAmount: reclaimedAmount)
+    }
+
+    /// Only an unclaimed or failed reclaim can be retried by the sender.
+    var isReclaimable: Bool {
+        guard case let .outgoing(outgoing) = state else { return false }
+        return outgoing.status == .unclaimed || outgoing.status == .reclaimFailed
+    }
+
+    /// The reclaimed amount when it falls short of the message total; `nil` when the whole payment came back.
+    var partialReclaimedValue: Balance? {
+        guard
+            case let .outgoing(outgoing) = state,
+            outgoing.status == .reclaimed,
+            let actualValue = outgoing.actualValue,
+            actualValue != totalValue
+        else {
+            return nil
+        }
+        return actualValue
     }
 }
 
@@ -65,17 +84,22 @@ private extension IncomingTransferState.Status {
         case .claiming: .claiming
         case .claimed: .claimed
         case .failed: .failed
+        case .returnedToSender: .returnedToSender
         }
     }
 }
 
 private extension OutgoingTransferState.Status {
-    var viewState: ChatTransferMessageConfiguration.OutgoingState {
+    func viewState(reclaimedAmount: String?) -> ChatTransferMessageConfiguration.OutgoingState {
         switch self {
         case .sending: .sending
         case .sent: .sent
+        case .unclaimed: .unclaimed
         case .claimed: .claimed
         case .failed: .failed
+        case .reclaiming: .reclaiming
+        case .reclaimed: .reclaimed(partialAmount: reclaimedAmount)
+        case .reclaimFailed: .reclaimFailed
         }
     }
 }
