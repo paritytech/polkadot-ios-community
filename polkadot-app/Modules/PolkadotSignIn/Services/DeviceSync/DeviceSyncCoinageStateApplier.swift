@@ -119,11 +119,12 @@ private extension DeviceSyncCoinageStateApplier {
     }
 }
 
+/// Only settled rows travel, so a synced claim lands as finalized.
 private extension Chat.DeviceSyncCoinageMessageStatusUpdate {
     var incomingState: IncomingTransferState? {
         switch status {
         case .none: nil
-        case let .claimed(partial): IncomingTransferState(status: .claimed, actualValue: partial)
+        case let .claimed(partial): IncomingTransferState(status: .claimedFinalized, actualValue: partial)
         case .failed: IncomingTransferState(status: .failed)
         }
     }
@@ -131,7 +132,7 @@ private extension Chat.DeviceSyncCoinageMessageStatusUpdate {
     var outgoingState: OutgoingTransferState? {
         switch status {
         case .none: nil
-        case let .claimed(partial): OutgoingTransferState(status: .claimed, actualValue: partial)
+        case let .claimed(partial): OutgoingTransferState(status: .claimedFinalized, actualValue: partial)
         case .failed: OutgoingTransferState(status: .failed)
         }
     }

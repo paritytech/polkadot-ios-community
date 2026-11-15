@@ -75,7 +75,10 @@ extension NSPredicate {
             statusPredicate,
             chatTypePredicate,
             contentTypePredicate,
-            withoutTerminalTransferState(#keyPath(CDChatMessage.incomingTransferState))
+            withoutTerminalTransferState(
+                #keyPath(CDChatMessage.incomingTransferState),
+                terminal: IncomingTransferState.Status.terminalRawValues
+            )
         ])
     }
 
@@ -95,7 +98,10 @@ extension NSPredicate {
             statusPredicate,
             chatTypePredicate,
             contentTypePredicate,
-            withoutTerminalTransferState(#keyPath(CDChatMessage.outgoingTransferState))
+            withoutTerminalTransferState(
+                #keyPath(CDChatMessage.outgoingTransferState),
+                terminal: OutgoingTransferState.Status.terminalRawValues
+            )
         ])
     }
 
@@ -219,13 +225,13 @@ extension NSPredicate {
         )
     }
 
-    /// A claimed or failed transfer never re-enters the monitor.
-    static func withoutTerminalTransferState(_ relationship: String) -> NSPredicate {
+    /// A finalized or failed transfer never re-enters the monitor; a best-head `claimed` still does.
+    static func withoutTerminalTransferState(_ relationship: String, terminal: [Int16]) -> NSPredicate {
         NSPredicate(
-            format: "%K == nil OR %K < %d",
+            format: "%K == nil OR NOT (%K IN %@)",
             relationship,
             "\(relationship).status",
-            TransferStateStatus.firstTerminalRawValue
+            terminal.map { NSNumber(value: $0) }
         )
     }
 

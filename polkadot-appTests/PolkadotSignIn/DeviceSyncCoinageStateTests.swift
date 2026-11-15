@@ -50,7 +50,7 @@ struct DeviceSyncCoinageStateTests {
         let pending = try await saveIncomingTransfer(totalValue: 7)
         try await sender.store.updateIncoming(
             messageId: partial.messageId,
-            state: IncomingTransferState(status: .claimed, actualValue: 4)
+            state: IncomingTransferState(status: .claimedFinalized, actualValue: 4)
         )
         try await sender.store.updateIncoming(
             messageId: failed.messageId,
@@ -61,7 +61,7 @@ struct DeviceSyncCoinageStateTests {
 
         #expect(try await claimableMessageIds() == [pending.messageId])
         #expect(try await receiver.transfer(partial.messageId)?.state == .incoming(
-            IncomingTransferState(status: .claimed, actualValue: 4)
+            IncomingTransferState(status: .claimedFinalized, actualValue: 4)
         ))
     }
 
@@ -119,7 +119,7 @@ struct DeviceSyncCoinageStateTests {
         let sending = try await saveOutgoingTransfer(totalValue: 7)
         try await sender.store.updateOutgoing(
             messageId: claimed.messageId,
-            state: OutgoingTransferState(status: .claimed, actualValue: 8)
+            state: OutgoingTransferState(status: .claimedFinalized, actualValue: 8)
         )
         try await sender.store.updateOutgoing(
             messageId: failed.messageId,
@@ -130,7 +130,7 @@ struct DeviceSyncCoinageStateTests {
         try await transfer(after: nil)
 
         #expect(try await receiver.transfer(claimed.messageId)?.state == .outgoing(
-            OutgoingTransferState(status: .claimed, actualValue: 8)
+            OutgoingTransferState(status: .claimedFinalized, actualValue: 8)
         ))
         #expect(try await receiver.transfer(failed.messageId)?
             .state == .outgoing(OutgoingTransferState(status: .failed)))

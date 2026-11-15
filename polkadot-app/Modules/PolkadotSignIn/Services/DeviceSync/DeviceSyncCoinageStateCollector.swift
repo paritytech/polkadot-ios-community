@@ -82,7 +82,7 @@ private extension DeviceSyncCoinageStateCollector {
             return Chat.DeviceSyncCoinageMessageStatusUpdate(
                 chatId: .contact(accountId: peer),
                 messageId: messageId,
-                status: state.status == .claimed ? .claimed(partial: state.actualValue) : .failed
+                status: state.status == .claimedFinalized ? .claimed(partial: state.actualValue) : .failed
             )
         }
     }
@@ -105,7 +105,7 @@ private extension DeviceSyncCoinageStateCollector {
             return Chat.DeviceSyncCoinageMessageStatusUpdate(
                 chatId: .contact(accountId: peer),
                 messageId: messageId,
-                status: state.status == .claimed ? .claimed(partial: state.actualValue) : .failed
+                status: state.status == .claimedFinalized ? .claimed(partial: state.actualValue) : .failed
             )
         }
     }
@@ -131,9 +131,9 @@ private extension DeviceSyncCoinageStateCollector {
 
     static func settledOutgoingRequest(after cutoff: Date?) -> NSFetchRequest<CDOutgoingTransferState> {
         let settled = NSPredicate(
-            format: "%K >= %d",
+            format: "%K IN %@",
             #keyPath(CDOutgoingTransferState.status),
-            Int(TransferStateStatus.firstTerminalRawValue)
+            OutgoingTransferState.Status.terminalRawValues.map { NSNumber(value: $0) }
         )
         let request = NSFetchRequest<CDOutgoingTransferState>(entityName: "CDOutgoingTransferState")
         request.predicate = cutoff.map {
@@ -147,9 +147,9 @@ private extension DeviceSyncCoinageStateCollector {
 
     static func settledClaimsRequest(after cutoff: Date?) -> NSFetchRequest<CDIncomingTransferState> {
         let settled = NSPredicate(
-            format: "%K >= %d",
+            format: "%K IN %@",
             #keyPath(CDIncomingTransferState.status),
-            Int(TransferStateStatus.firstTerminalRawValue)
+            IncomingTransferState.Status.terminalRawValues.map { NSNumber(value: $0) }
         )
         let request = NSFetchRequest<CDIncomingTransferState>(entityName: "CDIncomingTransferState")
         request.predicate = cutoff.map {
