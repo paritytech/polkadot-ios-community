@@ -11,23 +11,23 @@ struct ChatCallStateTests {
     private let contactId = Data(repeating: 0x01, count: 32)
 
     @Test func answeredCallIsTimedFromAnswerNotFromRinging() {
-        let message = makeOffer(at: 1000, related: [
-            answer(at: 11000),
-            closed(at: 71000)
+        let message = makeOffer(at: 1_000, related: [
+            answer(at: 11_000),
+            closed(at: 71_000)
         ])
 
-        #expect(message.resolveCallState() == .finished(durationMs: 60000))
+        #expect(message.resolveCallState() == .finished(durationMs: 60_000))
     }
 
     @Test func earliestAnswerAndCloseCountWhenSeveralArriveOutOfOrder() {
-        let message = makeOffer(at: 1000, related: [
-            closed(at: 71000),
-            answer(at: 12000),
-            closed(at: 65000),
-            answer(at: 11000)
+        let message = makeOffer(at: 1_000, related: [
+            closed(at: 71_000),
+            answer(at: 12_000),
+            closed(at: 65_000),
+            answer(at: 11_000)
         ])
 
-        #expect(message.resolveCallState() == .finished(durationMs: 54000))
+        #expect(message.resolveCallState() == .finished(durationMs: 54_000))
     }
 }
 
