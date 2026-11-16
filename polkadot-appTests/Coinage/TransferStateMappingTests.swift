@@ -54,26 +54,28 @@ struct TransferStateMappingTests {
         )
     }
 
-    @Test("sent is finalized only when every coin's reading comes from the finalized chain")
-    func sentFinalizedNeedsEveryReadingFinal() throws {
+    @Test(
+        "sent is finalized only when every coin's reading comes from the finalized chain",
+        arguments: [
+            (
+                [CoinageTransferStatus.awaitingClaim(finalized: true), .claimed(finalized: true), .failed],
+                .sentFinalized
+            ),
+            ([.awaitingClaim(finalized: true), .detecting], .sent),
+            ([.awaitingClaim(finalized: true), .awaitingClaim(finalized: false)], .sent)
+        ] as [([CoinageTransferStatus], OutgoingTransferState.Status)]
+    )
+    func sentFinalizedNeedsEveryReadingFinal(
+        statuses: [CoinageTransferStatus],
+        expected: OutgoingTransferState.Status
+    ) throws {
         let world = try CoinStateWorld()
-        let allFinal = try world.states([.awaitingClaim(finalized: true), .claimed(finalized: true), .failed])
-        #expect(
-            allFinal.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
-                == OutgoingTransferState(status: .sentFinalized)
+        let state = try world.states(statuses).outgoingState(
+            context: world.context,
+            failedReclaims: [],
+            windowClosed: false
         )
-
-        let stillDetecting = try world.states([.awaitingClaim(finalized: true), .detecting])
-        #expect(
-            stillDetecting.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
-                == OutgoingTransferState(status: .sent)
-        )
-
-        let bestHeadOnly = try world.states([.awaitingClaim(finalized: true), .awaitingClaim(finalized: false)])
-        #expect(
-            bestHeadOnly.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
-                == OutgoingTransferState(status: .sent)
-        )
+        #expect(state == OutgoingTransferState(status: expected))
     }
 
     @Test("a claimed coin next to one still outstanding keeps the message at sent")
