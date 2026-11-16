@@ -24,6 +24,7 @@ struct CancelIncomingChatRequestMapperTests {
         #expect(try await contactCount() == 0)
         #expect(try await chatCount() == 0)
         #expect(try await requestStatus() == .incoming(.cancelled))
+        #expect(try await removedChatCount() == 0)
     }
 
     @Test func cancelOfAcceptedRequestWithOnlySystemMessagesRemovesContactAndChat() async throws {
@@ -36,6 +37,7 @@ struct CancelIncomingChatRequestMapperTests {
         #expect(try await contactCount() == 0)
         #expect(try await chatCount() == 0)
         #expect(try await requestStatus() == .incoming(.cancelled))
+        #expect(try await removedChatCount() == 1)
     }
 
     @Test func cancelOfAcceptedRequestWithConversationKeepsEverything() async throws {
@@ -48,6 +50,7 @@ struct CancelIncomingChatRequestMapperTests {
         #expect(try await contactCount() == 1)
         #expect(try await chatCount() == 1)
         #expect(try await requestStatus() == .incoming(.accepted))
+        #expect(try await removedChatCount() == 0)
     }
 
     @Test func cancelOfAcceptedRequestKeepsBlockedContact() async throws {
@@ -61,6 +64,7 @@ struct CancelIncomingChatRequestMapperTests {
         #expect(try await contactCount() == 1)
         #expect(try await chatCount() == 1)
         #expect(try await requestStatus() == .incoming(.accepted))
+        #expect(try await removedChatCount() == 0)
         #expect(try await isPeerBlocked())
     }
 
@@ -154,6 +158,12 @@ private extension CancelIncomingChatRequestMapperTests {
     func chatCount() async throws -> Int {
         try await facade.databaseService.performRead { context in
             try context.count(for: CDChat.fetchRequest())
+        }
+    }
+
+    func removedChatCount() async throws -> Int {
+        try await facade.databaseService.performRead { context in
+            try context.count(for: CDRemovedChat.fetchRequest())
         }
     }
 }

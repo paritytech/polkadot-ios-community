@@ -360,6 +360,21 @@ struct ChatRequestOutgoingCancelWriteTests {
 
         #expect(results == [true, false])
     }
+
+    @Test func recordsRemovedChatInTheSameWrite() async throws {
+        try await insertOutgoingRequest()
+
+        _ = try await facade.databaseService.performWrite { [requestId] context in
+            try context.cancelOutgoingChatRequest(requestId)
+        }
+
+        let removedChatIdentifier = try await facade.databaseService.performRead { [peerAccountId] context in
+            let removedChat: CDRemovedChat? = try context.first(for: .removedChat(for: peerAccountId))
+            return removedChat?.identifier
+        }
+
+        #expect(removedChatIdentifier == peerAccountId.toHex())
+    }
 }
 
 private extension ChatRequestOutgoingCancelWriteTests {

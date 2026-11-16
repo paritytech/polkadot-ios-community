@@ -45,6 +45,9 @@ extension CancelIncomingChatRequestMapper: CoreDataMapperProtocol {
 
         entity.status = Chat.RequestStatus.incoming(.cancelled).rawValue
         context.deleteChatContactAndChat(for: contactId)
+        if isAccepted {
+            try context.saveRemovedChat(for: contactId)
+        }
     }
 }
 

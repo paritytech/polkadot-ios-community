@@ -30,8 +30,18 @@ extension NSManagedObjectContext {
         request.status = Chat.RequestStatus.outgoing(.cancelled).rawValue
         try deleteOutgoingStatementPublication(for: requestId)
         deleteChatContactAndChat(for: contactId)
+        try saveRemovedChat(for: contactId)
 
         return true
+    }
+
+    func saveRemovedChat(for contactId: AccountId) throws {
+        let entity: CDRemovedChat = try first(for: .removedChat(for: contactId)) ?? insertNew(CDRemovedChat.self)
+        try RemovedChatMapper().populate(
+            entity: entity,
+            from: Chat.RemovedChat(accountId: contactId, removedAt: Date()),
+            using: self
+        )
     }
 
     func chatHasConversation(withContact contactId: AccountId) throws -> Bool {
