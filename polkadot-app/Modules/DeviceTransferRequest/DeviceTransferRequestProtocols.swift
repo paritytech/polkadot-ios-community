@@ -32,7 +32,7 @@ protocol DeviceTransferRequestWireframeProtocol: AnyObject {
     func close(from view: DeviceTransferRequestViewProtocol?)
     func closeAsWithdrawn(from view: DeviceTransferRequestViewProtocol?)
     func confirm(_ request: DeviceTransferRequest, from view: DeviceTransferRequestViewProtocol?)
-    /// Replaces the request sheet with the pending-payments warning; the closures answer the request.
+    /// Shows the pending-payments warning over the request sheet; the closures answer the request.
     func warnPendingPayments(
         from view: DeviceTransferRequestViewProtocol?,
         onTransferAnyway: @escaping () -> Void,

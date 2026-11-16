@@ -63,11 +63,10 @@ extension DeviceTransferRequestPresenter: DeviceTransferRequestInteractorOutputP
             return
         }
 
-        // Strong: the request sheet is dismissed, so only the warning's actions keep this module alive.
         wireframe.warnPendingPayments(
             from: view,
-            onTransferAnyway: { self.confirmTransfer() },
-            onDecline: { self.decline() }
+            onTransferAnyway: { [weak self] in self?.confirmTransfer() },
+            onDecline: { [weak self] in self?.decline() }
         )
     }
 

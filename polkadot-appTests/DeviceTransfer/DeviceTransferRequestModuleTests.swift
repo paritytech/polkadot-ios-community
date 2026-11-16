@@ -71,7 +71,7 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.confirmed(request)])
     }
 
-    @Test("Pending payments replace the sheet with the warning; the request stays unanswered")
+    @Test("Pending payments show the warning; the request stays unanswered")
     func pendingPaymentsShowWarning() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)

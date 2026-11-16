@@ -4,8 +4,6 @@ import PolkadotUI
 final class DeviceTransferRequestWireframe {
     /// Strong: once the first route is shown, nothing else keeps the root presenter alive.
     private let observer: RootStateObserving
-    /// The request sheet is gone while the warning is up, so a withdrawal has to close the warning instead.
-    private weak var pendingPaymentsWarning: UIViewController?
 
     init(observer: RootStateObserving) {
         self.observer = observer
@@ -18,38 +16,30 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
     }
 
     func closeAsWithdrawn(from view: DeviceTransferRequestViewProtocol?) {
-        let presenting = (view?.controller ?? pendingPaymentsWarning)?.presentingViewController
+        let presenting = view?.controller.presentingViewController
         presenting?.dismiss(animated: true) {
             presenting?.showToast(message: String(localized: .deviceTransferRequestWithdrawn), type: .error)
         }
     }
 
-    /// The root replaces the tab bar with the sender screens once the sheet is gone. Without a view the
-    /// warning sheet has already dismissed itself.
+    /// The root replaces the tab bar with the sender screens once the sheet is gone.
     func confirm(_ request: DeviceTransferRequest, from view: DeviceTransferRequestViewProtocol?) {
-        guard let presenting = view?.controller.presentingViewController else {
-            observer.didConfirmDeviceTransfer(request)
-            return
-        }
-        presenting.dismiss(animated: true) { [observer] in
+        view?.controller.presentingViewController?.dismiss(animated: true) { [observer] in
             observer.didConfirmDeviceTransfer(request)
         }
     }
 
+    /// Presented over the request sheet, so closing the request takes the warning with it.
     func warnPendingPayments(
         from view: DeviceTransferRequestViewProtocol?,
         onTransferAnyway: @escaping () -> Void,
         onDecline: @escaping () -> Void
     ) {
-        let presenting = view?.controller.presentingViewController
-        presenting?.dismiss(animated: true) { [weak self] in
-            let warning = DeviceTransferConfirmationViewFactory.createView(
-                viewModel: .pendingPayments,
-                onConfirm: onTransferAnyway,
-                onDismiss: onDecline
-            )
-            self?.pendingPaymentsWarning = warning
-            presenting?.present(warning, animated: true)
-        }
+        let warning = DeviceTransferConfirmationViewFactory.createView(
+            viewModel: .pendingPayments,
+            onConfirm: onTransferAnyway,
+            onDismiss: onDecline
+        )
+        view?.controller.present(warning, animated: true)
     }
 }
