@@ -73,8 +73,7 @@ every installation known (`CDCoinageInstallation.isUserConfirmedCompletion`, `ma
 wallet card is shown while any previous installation has `initialScanCompleted && !isUserConfirmedCompletion`
 (`CoinageBackupSyncService` watches the rows through `subscribeSnapshot`), so a running or failed deep search
 never hides an offered balance; progress only drives the card's "Update" spinner. An installation recorded
-after a confirmation is unconfirmed by default, so it is shown again. A received device transfer records the old
-phone's installation and resets every previous installation's scan (`resetScans()`: cursors 0, unconfirmed) at
+after a confirmation is unconfirmed by default, so it is shown again. A received device transfer resets every previous installation's scan (`resetScans()`: cursors 0, unconfirmed) at
 finalize, so the launch pass that follows activation reads it again from index 0 — its last claims may have
 finalized after an earlier scan closed the cursor. On the old phone, Transfer counts the local transfers a fork
 can still undo (every non-terminal row except `sentFinalized`) and warns before continuing. A scan that could not read the chain ends the phase as `.failed`: no balance is
