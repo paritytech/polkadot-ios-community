@@ -232,7 +232,8 @@ extension ChatRequestStoreService: ChatRequestStoreServicing {
             .asyncExecute()
 
             return true
-        } catch CancelIncomingChatRequestMapper.MappingError.chatHasConversation {
+        } catch CancelIncomingChatRequestMapper.MappingError.chatHasConversation,
+            CancelIncomingChatRequestMapper.MappingError.contactBlocked {
             return false
         }
     }

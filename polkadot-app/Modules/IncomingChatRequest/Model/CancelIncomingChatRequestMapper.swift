@@ -17,6 +17,7 @@ extension CancelIncomingChatRequestMapper: CoreDataMapperProtocol {
     enum MappingError: Error {
         case noExistingRequest
         case chatHasConversation
+        case contactBlocked
     }
 
     func transform(entity _: CoreDataEntity) throws -> DataProviderModel {
@@ -30,6 +31,11 @@ extension CancelIncomingChatRequestMapper: CoreDataMapperProtocol {
     ) throws {
         guard let contactId = try entity.contactId?.fromHex() else {
             throw MappingError.noExistingRequest
+        }
+
+        let contact: CDChatContact? = try context.first(for: .contact(for: contactId))
+        if contact?.isBlocked == true {
+            throw MappingError.contactBlocked
         }
 
         let isAccepted = entity.status == Chat.RequestStatus.incoming(.accepted).rawValue

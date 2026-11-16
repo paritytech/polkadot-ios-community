@@ -49,6 +49,31 @@ struct CancelIncomingChatRequestMapperTests {
         #expect(try await chatCount() == 1)
         #expect(try await requestStatus() == .incoming(.accepted))
     }
+
+    @Test func cancelOfAcceptedRequestKeepsBlockedContact() async throws {
+        try await receiveRequest()
+        try await acceptRequest()
+        try await addMessage(content: .token(pushToken))
+        try await blockPeer()
+
+        #expect(try await !makeService().cancelIncomingRequest(requestId))
+
+        #expect(try await contactCount() == 1)
+        #expect(try await chatCount() == 1)
+        #expect(try await requestStatus() == .incoming(.accepted))
+        #expect(try await isPeerBlocked())
+    }
+
+    @Test func cancelOfPendingRequestKeepsBlockedContact() async throws {
+        try await receiveRequest()
+        try await blockPeer()
+
+        #expect(try await !makeService().cancelIncomingRequest(requestId))
+
+        #expect(try await contactCount() == 1)
+        #expect(try await requestStatus() == .incoming(.new))
+        #expect(try await isPeerBlocked())
+    }
 }
 
 private extension CancelIncomingChatRequestMapperTests {
@@ -99,6 +124,21 @@ private extension CancelIncomingChatRequestMapperTests {
         )
         .saveOperation({ [message] }, { [] })
         .asyncExecute()
+    }
+
+    func blockPeer() async throws {
+        let status = Chat.ContactBlockStatus(accountId: peer, isBlocked: true)
+
+        try await facade.createRepository(mapper: AnyCoreDataMapper(BlockContactMapper()))
+            .saveOperation({ [status] }, { [] })
+            .asyncExecute()
+    }
+
+    func isPeerBlocked() async throws -> Bool {
+        try await facade.databaseService.performRead { context in
+            let contact: CDChatContact? = try context.first(for: .contact(for: self.peer))
+            return contact?.isBlocked == true
+        }
     }
 
     func requestStatus() async throws -> Chat.RequestStatus? {
