@@ -1013,17 +1013,6 @@
         }
       }
     },
-    "device.transfer.pending.action.decline" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Decline"
-          }
-        }
-      }
-    },
     "device.transfer.pending.body" : {
       "extractionState" : "manual",
       "localizations" : {
