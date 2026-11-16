@@ -49,4 +49,8 @@ public protocol CoinageInstallationRepositoryProtocol: Sendable {
 
     /// The user accepted the recovered balance: every installation known now is confirmed.
     func markAllUserConfirmed() async throws
+
+    /// Every previous installation is scanned again from index 0 by the next launch pass and offered for
+    /// confirmation again, as after a device transfer.
+    func resetScans() async throws
 }

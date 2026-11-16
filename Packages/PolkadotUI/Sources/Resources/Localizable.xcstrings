@@ -978,13 +978,35 @@
         }
       }
     },
+    "device.transfer.pending.action.anyway" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer anyway"
+          }
+        }
+      }
+    },
+    "device.transfer.pending.action.decline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decline"
+          }
+        }
+      }
+    },
     "device.transfer.pending.body" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Check your chats to see and track the payments’ statuses."
+            "value" : "Some payments are still being sent or claimed. If you transfer now, they may be lost. Check your chats to track their statuses."
           }
         }
       }

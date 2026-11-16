@@ -101,6 +101,21 @@ struct CoinageBackupRecoveryServiceTests {
         #expect(scanner.scannedInstallations.isEmpty)
     }
 
+    @Test("a reset installation is scanned again from index 0 and finds what the first scan missed")
+    func resetInstallationIsRescanned() async throws {
+        dataStore.listed([Self.previous])
+        await service.runLaunchPass()
+        scanner.clearScanned()
+        scanner.coinsOnChain = [CoinageKeyIndex(installation: Self.previous, item: 6)]
+
+        try await installations.resetScans()
+        await service.runLaunchPass()
+
+        #expect(scanner.scannedInstallations == [Self.previous])
+        #expect(assetStore.savedCoins.map(\.derivationIndex) == [CoinageKeyIndex(installation: Self.previous, item: 6)])
+        #expect(installations.previous(Self.previous)?.awaitsUserConfirmation == true)
+    }
+
     @Test("an installation registered after the last launch is scanned on this one")
     func newInstallationScanned() async throws {
         dataStore.listed([Self.previous])

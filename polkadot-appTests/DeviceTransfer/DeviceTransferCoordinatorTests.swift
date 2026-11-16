@@ -428,7 +428,7 @@ private final class RecordingFinalizer: DeviceTransferFinalizing, @unchecked Sen
 
     var requests: [String] { lock.withLock { _requests } }
 
-    func finalize(after request: DeviceTransferRequest) async throws {
+    func finalize(after request: DeviceTransferRequest, from _: Data) async throws {
         lock.withLock { _requests.append(request.requestId) }
     }
 }

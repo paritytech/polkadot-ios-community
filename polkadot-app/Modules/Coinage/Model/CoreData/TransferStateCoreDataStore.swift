@@ -54,14 +54,16 @@ final class TransferStateCoreDataStore: TransferStateStoring, @unchecked Sendabl
 extension TransferStateCoreDataStore: PendingPaymentsCounting {
     func countPendingPayments() async throws -> PendingPayments {
         try await databaseService.performRead { context in
+            // Coins finalized on chain travel with the transfer (handoff mark and keys), so only
+            // readings a fork can still undo hold the transfer back.
             let sending = NSCompoundPredicate(andPredicateWithSubpredicates: [
                 .outgoingCoinageSendMessages(),
                 .byCreationSource(.localDevice),
                 NSPredicate(
-                    format: "%K == nil OR %K == %d",
+                    format: "%K == nil OR %K != %d",
                     #keyPath(CDChatMessage.outgoingTransferState),
                     #keyPath(CDChatMessage.outgoingTransferState.status),
-                    OutgoingTransferState.Status.sending.rawValue
+                    OutgoingTransferState.Status.sentFinalized.rawValue
                 )
             ])
 

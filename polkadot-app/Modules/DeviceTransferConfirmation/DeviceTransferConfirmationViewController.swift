@@ -7,10 +7,16 @@ final class DeviceTransferConfirmationViewController: UIViewController, ViewHold
 
     private let viewModel: DeviceTransferConfirmationViewLayout.ViewModel
     private let onConfirm: () -> Void
+    private let onDismiss: () -> Void
 
-    init(viewModel: DeviceTransferConfirmationViewLayout.ViewModel, onConfirm: @escaping () -> Void) {
+    init(
+        viewModel: DeviceTransferConfirmationViewLayout.ViewModel,
+        onConfirm: @escaping () -> Void,
+        onDismiss: @escaping () -> Void = {}
+    ) {
         self.viewModel = viewModel
         self.onConfirm = onConfirm
+        self.onDismiss = onDismiss
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -42,6 +48,8 @@ private extension DeviceTransferConfirmationViewController {
 
     @objc
     func handleDismiss() {
-        dismiss(animated: true)
+        dismiss(animated: true) { [onDismiss] in
+            onDismiss()
+        }
     }
 }

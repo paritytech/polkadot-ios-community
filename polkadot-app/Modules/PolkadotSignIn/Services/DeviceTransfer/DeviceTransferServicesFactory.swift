@@ -62,6 +62,8 @@ extension DeviceTransferServicesFactory: DeviceTransferReceiverServicesMaking {
                 installationPublisher: installationService,
                 processedStore: DeviceTransferProcessedCoreDataStore(storageFacade: UserDataStorageFacade.shared),
                 checkpointStore: DeviceTransferCheckpointStore(),
+                installationRepository: CoinageInstallationCoreDataRepository(storageFacade: UserDataStorageFacade
+                    .shared),
                 settings: DeviceTransferFinalizerSettings(
                     publishFailureDiagnostic: issueDiagnostics.finalizePublishFailed
                 ),

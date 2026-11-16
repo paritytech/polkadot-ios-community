@@ -73,6 +73,18 @@ final class CoinageInstallationCoreDataRepository: CoinageInstallationRepository
             }
         }
     }
+
+    func resetScans() async throws {
+        try await databaseService.performWrite { context in
+            let request = NSFetchRequest<CDCoinageInstallation>(entityName: Self.entityName)
+            for row in try context.fetch(request) {
+                row.coinScanNextIndex = 0
+                row.voucherScanNextIndex = 0
+                row.initialScanCompleted = false
+                row.isUserConfirmedCompletion = false
+            }
+        }
+    }
 }
 
 private extension CoinageInstallationCoreDataRepository {

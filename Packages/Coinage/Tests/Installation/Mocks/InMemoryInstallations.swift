@@ -63,6 +63,20 @@ final class InMemoryInstallations: CoinageInstallationRepositoryProtocol, @unche
         }
     }
 
+    func resetScans() async throws {
+        state.withLock { previous in
+            for id in previous.keys {
+                previous[id] = PreviousInstallation(
+                    id: id,
+                    coinScanNextIndex: 0,
+                    voucherScanNextIndex: 0,
+                    initialScanCompleted: false,
+                    isUserConfirmedCompletion: false
+                )
+            }
+        }
+    }
+
     private func update(
         _ installation: CoinageInstallationId,
         _ change: (PreviousInstallation) -> PreviousInstallation

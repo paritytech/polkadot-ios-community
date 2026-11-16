@@ -1,4 +1,5 @@
 @testable import polkadot_app
+import Coinage
 import Foundation
 import FoundationExt
 import Keystore_iOS
@@ -8,7 +9,9 @@ import Testing
 @Suite(.timeLimit(.minutes(1)))
 struct DeviceTransferFinalizerTests {
     private let store = MockStatementStore()
-    private let processedStore = DeviceTransferProcessedCoreDataStore(storageFacade: UserDataStorageTestFacade())
+    private let storageFacade = UserDataStorageTestFacade()
+    private let processedStore: DeviceTransferProcessedCoreDataStore
+    private let installations: CoinageInstallationCoreDataRepository
     private let checkpointStore = DeviceTransferCheckpointStore(settingsManager: InMemorySettingsManager())
     private let request = DeviceTransferRequest(
         requestId: "request",
@@ -20,6 +23,8 @@ struct DeviceTransferFinalizerTests {
     private let newPhoneId = Data(repeating: 0x02, count: 32)
 
     init() {
+        processedStore = DeviceTransferProcessedCoreDataStore(storageFacade: storageFacade)
+        installations = CoinageInstallationCoreDataRepository(storageFacade: storageFacade)
         checkpointStore.save(5_000, senderInstallationId: oldPhoneId)
     }
 
@@ -34,7 +39,7 @@ struct DeviceTransferFinalizerTests {
         await newPhone.setup(configuration: configuration())
         _ = await status(of: newPhone) { $0 != .unknown }
 
-        try await makeFinalizer(publisher: newPhone).finalize(after: request)
+        try await makeFinalizer(publisher: newPhone).finalize(after: request, from: oldPhoneId)
 
         #expect(await status(of: newPhone) { $0 == .active } == .active)
         let oldPhoneStatus = await status(of: oldPhone) { $0 != .active }
@@ -51,10 +56,35 @@ struct DeviceTransferFinalizerTests {
     func failedPublishIsRetried() async throws {
         let publisher = ScriptedPublisher(failures: Array(repeating: URLError(.timedOut), count: 2))
 
-        try await makeFinalizer(publisher: publisher).finalize(after: request)
+        try await makeFinalizer(publisher: publisher).finalize(after: request, from: oldPhoneId)
 
         #expect(publisher.attempts == 3)
         #expect(checkpointStore.checkpoint(for: oldPhoneId) == nil)
+    }
+
+    @Test("Finalize has the old phone's coinage scanned again from index 0 and offered for confirmation")
+    func finalizeResetsCoinageScans() async throws {
+        let oldPhone = try CoinageInstallationId(value: oldPhoneId)
+        try await installations.addPrevious([oldPhone])
+        try await installations.updateCoinScanNextIndex(2_000, for: oldPhone)
+        try await installations.updateVoucherScanNextIndex(2_000, for: oldPhone)
+        try await installations.markInitialScanCompleted(oldPhone)
+        try await installations.markAllUserConfirmed()
+
+        try await makeFinalizer(publisher: ScriptedPublisher(failures: [])).finalize(after: request, from: oldPhoneId)
+
+        let previous = try #require(try await installations.getPrevious().first { $0.id == oldPhone })
+        #expect(previous.coinScanNextIndex == 0)
+        #expect(previous.voucherScanNextIndex == 0)
+        #expect(!previous.initialScanCompleted)
+        #expect(!previous.isUserConfirmedCompletion)
+    }
+
+    @Test("An old phone the contract never listed is recorded at finalize")
+    func finalizeRecordsUnknownOldPhone() async throws {
+        try await makeFinalizer(publisher: ScriptedPublisher(failures: [])).finalize(after: request, from: oldPhoneId)
+
+        #expect(try await installations.getPrevious().map(\.id) == [CoinageInstallationId(value: oldPhoneId)])
     }
 
     @Test("A publish that keeps failing fails finalize and keeps the checkpoint and the request")
@@ -62,7 +92,7 @@ struct DeviceTransferFinalizerTests {
         let publisher = ScriptedPublisher(failures: Array(repeating: URLError(.timedOut), count: 3))
 
         await #expect(throws: URLError.self) {
-            try await makeFinalizer(publisher: publisher).finalize(after: request)
+            try await makeFinalizer(publisher: publisher).finalize(after: request, from: oldPhoneId)
         }
 
         #expect(publisher.attempts == 3)
@@ -75,7 +105,7 @@ struct DeviceTransferFinalizerTests {
         let publisher = ScriptedPublisher(failures: [ActiveInstallationServiceError.notConfigured])
 
         await #expect(throws: ActiveInstallationServiceError.self) {
-            try await makeFinalizer(publisher: publisher).finalize(after: request)
+            try await makeFinalizer(publisher: publisher).finalize(after: request, from: oldPhoneId)
         }
 
         #expect(publisher.attempts == 1)
@@ -88,6 +118,7 @@ private extension DeviceTransferFinalizerTests {
             installationPublisher: publisher,
             processedStore: processedStore,
             checkpointStore: checkpointStore,
+            installationRepository: installations,
             settings: DeviceTransferFinalizerSettings(publishRetry: ActiveInstallationPublishRetry(
                 attempts: 3,
                 delay: .zero

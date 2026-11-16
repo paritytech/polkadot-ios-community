@@ -71,20 +71,78 @@ struct DeviceTransferRequestModuleTests {
         #expect(wireframe.events == [.confirmed(request)])
     }
 
-    @Test("Pending payments decline the request and close the sheet for the warning; nothing goes to the root")
-    func pendingPaymentsBlockTransfer() async {
+    @Test("Pending payments replace the sheet with the warning; the request stays unanswered")
+    func pendingPaymentsShowWarning() async {
         let request = makeRequest(model: "iPhone 17 Pro")
         listener.send(request)
-        let pending = PendingPayments(receiving: 1, sending: 2)
-        let presenter = makeModule(showing: request, pendingPayments: .success(pending))
+        let presenter = makeModule(
+            showing: request,
+            pendingPayments: .success(PendingPayments(receiving: 1, sending: 2))
+        )
         presenter.setup()
 
         presenter.transfer()
         await wireframe.waitForEvents(1)
+
+        #expect(wireframe.events == [.warnedPendingPayments])
+        #expect(coordinator.rejected.isEmpty)
+    }
+
+    @Test("Transfer anyway from the warning hands the request to the root")
+    func transferAnywayConfirms() async {
+        let request = makeRequest(model: "iPhone 17 Pro")
+        listener.send(request)
+        let presenter = makeModule(
+            showing: request,
+            pendingPayments: .success(PendingPayments(receiving: 1, sending: 0))
+        )
+        presenter.setup()
         presenter.transfer()
+        await wireframe.waitForEvents(1)
+
+        wireframe.transferAnyway?()
+        await wireframe.waitForEvents(2)
+
+        #expect(wireframe.events == [.warnedPendingPayments, .confirmed(request)])
+        #expect(coordinator.rejected.isEmpty)
+    }
+
+    @Test("Decline from the warning rejects the request")
+    func declineFromWarningRejects() async {
+        let request = makeRequest(model: "iPhone 17 Pro")
+        listener.send(request)
+        let presenter = makeModule(
+            showing: request,
+            pendingPayments: .success(PendingPayments(receiving: 0, sending: 1))
+        )
+        presenter.setup()
+        presenter.transfer()
+        await wireframe.waitForEvents(1)
+
+        wireframe.declineFromWarning?()
+        await wireframe.waitForEvents(2)
 
         #expect(coordinator.rejected == [request])
-        #expect(wireframe.events == [.closedForPendingPayments])
+        #expect(wireframe.events == [.warnedPendingPayments, .closed])
+    }
+
+    @Test("A request withdrawn while the warning is up closes it with the notice")
+    func withdrawnWhileWarningCloses() async {
+        let request = makeRequest(model: "iPhone 17 Pro")
+        listener.send(request)
+        let presenter = makeModule(
+            showing: request,
+            pendingPayments: .success(PendingPayments(receiving: 1, sending: 1))
+        )
+        presenter.setup()
+        presenter.transfer()
+        await wireframe.waitForEvents(1)
+
+        listener.send(nil)
+        await wireframe.waitForEvents(2)
+
+        #expect(wireframe.events == [.warnedPendingPayments, .closedAsWithdrawn])
+        #expect(coordinator.rejected.isEmpty)
     }
 
     @Test("A count that can't be read doesn't hold the transfer back")
@@ -218,12 +276,14 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         case closed
         case closedAsWithdrawn
         case confirmed(DeviceTransferRequest)
-        case closedForPendingPayments
+        case warnedPendingPayments
     }
 
     private let recorder = DeviceSyncTestEventRecorder<Event>()
 
     var events: [Event] { recorder.snapshot }
+    private(set) var transferAnyway: (() -> Void)?
+    private(set) var declineFromWarning: (() -> Void)?
 
     func close(from _: DeviceTransferRequestViewProtocol?) {
         recorder.record(.closed)
@@ -237,8 +297,14 @@ private final class RequestWireframeSpy: DeviceTransferRequestWireframeProtocol 
         recorder.record(.confirmed(request))
     }
 
-    func closeForPendingPayments(from _: DeviceTransferRequestViewProtocol?) {
-        recorder.record(.closedForPendingPayments)
+    func warnPendingPayments(
+        from _: DeviceTransferRequestViewProtocol?,
+        onTransferAnyway: @escaping () -> Void,
+        onDecline: @escaping () -> Void
+    ) {
+        transferAnyway = onTransferAnyway
+        declineFromWarning = onDecline
+        recorder.record(.warnedPendingPayments)
     }
 
     func waitForEvents(_ count: Int) async {
