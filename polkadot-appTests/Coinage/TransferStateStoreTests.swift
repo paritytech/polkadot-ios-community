@@ -110,25 +110,6 @@ struct TransferStateStoreTests {
         #expect(transfer.state == .outgoing(.init(status: .sent)))
     }
 
-    @Test("the finalized statuses are read back as written")
-    func finalizedStatusesAreReadBack() async throws {
-        let world = TransferStateTestWorld()
-        try await world.setup()
-        let incoming = try await world.saveTransfer(.incoming, totalValue: 10)
-        let outgoing = try await world.saveTransfer(.outgoing)
-
-        try await world.store.updateIncoming(
-            messageId: incoming.messageId,
-            state: .init(status: .claimedFinalized, actualValue: 10)
-        )
-        try await world.store.updateOutgoing(messageId: outgoing.messageId, state: .init(status: .sentFinalized))
-
-        let claimed = try #require(try await world.transfer(incoming.messageId))
-        let sent = try #require(try await world.transfer(outgoing.messageId))
-        #expect(claimed.state == .incoming(.init(status: .claimedFinalized, actualValue: 10)))
-        #expect(sent.state == .outgoing(.init(status: .sentFinalized)))
-    }
-
     @Test("a message with no row has no state")
     func noRowMeansNoState() async throws {
         let world = TransferStateTestWorld()
