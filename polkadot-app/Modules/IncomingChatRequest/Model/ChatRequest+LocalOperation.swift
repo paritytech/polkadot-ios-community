@@ -59,4 +59,8 @@ extension ChatRequest {
     struct DeclineIncoming {
         let requestId: String
     }
+
+    struct CancelIncoming {
+        let requestId: String
+    }
 }

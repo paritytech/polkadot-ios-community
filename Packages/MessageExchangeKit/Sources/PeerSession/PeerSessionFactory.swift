@@ -26,6 +26,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
     private let maxStatementSize: Int
     private let priorityFactory: StatementPriorityMaking
     private let compactorFactory: AnyMessageCompactorFactory<M>?
+    private let coalescer: AnyMessageCoalescer<M>
     private let operationQueue: OperationQueue
     private let logger: SDKLoggerProtocol?
 
@@ -45,6 +46,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
         maxStatementSize: Int,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         compactorFactory: AnyMessageCompactorFactory<M>? = nil,
+        coalescer: AnyMessageCoalescer<M> = .none,
         operationQueue: OperationQueue,
         logger: SDKLoggerProtocol?
     ) {
@@ -63,6 +65,7 @@ public final class PeerSessionFactory<M: MessageExchange.CodableMessage> {
         self.maxStatementSize = maxStatementSize
         self.priorityFactory = priorityFactory
         self.compactorFactory = compactorFactory
+        self.coalescer = coalescer
         self.operationQueue = operationQueue
         self.logger = logger
     }
@@ -151,7 +154,8 @@ extension PeerSessionFactory: PeerSessionMaking {
                     routeSelector: routeConfiguration.effectiveRouteSelector,
                     sizeValidator: sizeValidator,
                     supportedRoutes: routeConfiguration.supportedRoutes,
-                    logger: logger
+                    logger: logger,
+                    coalescer: coalescer
                 ))
             )
 
@@ -164,6 +168,7 @@ extension PeerSessionFactory: PeerSessionMaking {
                 let proxy = OutgoingChannelCompactionProxy(
                     channel: AnyOutgoingMessageChannel(outgoingChannel),
                     compacter: messageCompacter,
+                    coalescer: coalescer,
                     routeSelector: routeConfiguration.effectiveRouteSelector,
                     sizeValidator: sizeValidator,
                     statementDataCoder: statementDataCoder,
