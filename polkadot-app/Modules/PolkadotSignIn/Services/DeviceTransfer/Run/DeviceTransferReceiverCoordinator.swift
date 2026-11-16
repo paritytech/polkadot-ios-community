@@ -3,7 +3,7 @@ import AsyncExtensions
 import StructuredConcurrency
 
 protocol DeviceTransferFinalizing: Sendable {
-    func finalize(after request: DeviceTransferRequest, from senderInstallationId: Data) async throws
+    func finalize(after request: DeviceTransferRequest) async throws
 }
 
 protocol DeviceTransferReceiverCoordinating: Sendable {
@@ -99,7 +99,7 @@ private extension DeviceTransferReceiverCoordinator {
         do {
             let request = try await runUntilFinished(configuration: configuration, from: senderInstallationId)
             update(.finalizing)
-            try await finalizer.finalize(after: request, from: senderInstallationId)
+            try await finalizer.finalize(after: request)
             update(.completed)
         } catch {
             logger.error("Device transfer as receiver ended: \(error)")
