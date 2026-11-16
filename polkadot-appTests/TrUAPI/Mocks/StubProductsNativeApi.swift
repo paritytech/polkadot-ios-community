@@ -14,15 +14,22 @@ final class StubProductsNativeApi: ProductsNativeApiProtocol {
     func accountGet(_: Products.ProductAccountId) async throws -> ProductAccountResult { fatalError() }
 
     func accountGetAlias(
+        keyHandle _: Products.RingVrfKeyHandle,
         context _: Products.ProductProofContext,
         ring _: Products.RingLocation
     ) async throws -> AccountGetAliasResult { fatalError() }
 
     func accountCreateProof(
+        keyHandle _: Products.RingVrfKeyHandle,
         context _: Products.ProductProofContext,
         ring _: Products.RingLocation,
         message _: Data
     ) async throws -> RingVrfProofResult { fatalError() }
+
+    func listRingVrfKeys(
+        owner _: Products.ProductId,
+        disclosure _: Products.RingVrfKeyDisclosure
+    ) async throws -> [Products.RegisteredRingVrfKey] { fatalError() }
 
     func chainNodes(genesisHash _: String) async throws -> [String] { fatalError() }
     func chainSupported(genesisHash _: String) async throws -> Bool { fatalError() }

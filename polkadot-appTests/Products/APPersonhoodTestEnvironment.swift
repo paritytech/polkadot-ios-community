@@ -5,19 +5,17 @@ import SubstrateSdk
 
 @testable import polkadot_app
 
-/// Shared fixture for Accounts Protocol handler tests: mocked seams wired
-/// around resolvable membership deps.
 final class APPersonhoodTestEnvironment {
     let genesisHash = Data.random(of: 32)!
     let message = Data.random(of: 64)!
-    let fullCollectionId = PeoplePallet.membersIdentifier
     let liteCollectionId = PeopleLitePallet.membersIdentifier
 
+    let liteHandle = RingVrfKeyHandle(productId: "peopl.paseo", index: .index(1))
     let sameProductContext = ProductProofContext(productId: "caller.product", suffix: .index(0))
     let crossProductContext = ProductProofContext(productId: "other.product", suffix: .index(0))
 
-    let fullKeyManager = MockBandersnatchKeyManager()
-    let liteKeyManager = MockBandersnatchKeyManager()
+    let keyManager = MockBandersnatchKeyManager()
+    let builtInKeys = MockBuiltInPersonhoodKeys()
     let statusChecker = MockMembershipStatusChecker()
     let paramsFetcher = MockMembershipProofParamsFetcher()
     let blockInfoProvider = MockBlockInfoProvider()
@@ -26,10 +24,11 @@ final class APPersonhoodTestEnvironment {
     let accountAccess = MockAccountAccessPermissionHandler()
 
     var ring: RingLocation {
-        RingLocation(chainId: genesisHash, junctions: [])
+        RingLocation(chainId: genesisHash, junctions: [.collectionId(liteCollectionId)])
     }
 
     init() {
+        builtInKeys.resolvedKeyManager = keyManager
         depsResolver.deps = MembershipDeps(
             statusChecker: statusChecker,
             proofParamsFetcher: paramsFetcher,
@@ -40,7 +39,7 @@ final class APPersonhoodTestEnvironment {
     func makeCreateProofHandler(callingProductId: ProductId? = "caller.product") -> APCreateProofHandler {
         APCreateProofHandler(
             callingProductId: callingProductId,
-            options: makeOptions(),
+            builtInKeys: builtInKeys,
             depsResolver: depsResolver,
             confirmationRequester: confirmation,
             logger: Logger.shared
@@ -50,19 +49,10 @@ final class APPersonhoodTestEnvironment {
     func makeAliasHandler(callingProductId: ProductId? = "caller.product") -> APAliasHandler {
         APAliasHandler(
             callingProductId: callingProductId,
-            options: makeOptions(),
+            builtInKeys: builtInKeys,
             depsResolver: depsResolver,
             accountAccessHandler: accountAccess,
             logger: Logger.shared
         )
-    }
-}
-
-private extension APPersonhoodTestEnvironment {
-    func makeOptions() -> [CreateProofOrAliasOption] {
-        [
-            CreateProofOrAliasOption(collectionId: fullCollectionId, keyManager: fullKeyManager),
-            CreateProofOrAliasOption(collectionId: liteCollectionId, keyManager: liteKeyManager)
-        ]
     }
 }

@@ -78,7 +78,7 @@ extension ChatViewModelFactory: ChatViewModelMaking {
     ) -> ChatViewLayout.ViewModel {
         let headerConfiguration = metadata.chatMetadata.chatContactInfo
 
-        let inputConfiguration = makeInputConfiguration(for: metadata.chatMetadata, actions: actions)
+        let inputConfiguration = makeInputConfiguration(for: metadata, actions: actions)
 
         let scrollDownConfiguration = ChatViewLayout.ViewModel.ScrollDownButtonConfiguration(
             available: true,
@@ -269,10 +269,12 @@ private extension ChatViewModelFactory {
         layoutContext: MessageLayoutContext
     ) -> [IdentifiableAnyContentConfiguration<ChatViewLayout.ItemIdentifierType>] {
         let status = message.status
+        let isSeenByPeer = metadata.isSeenByPeer(message)
         let latestEdit = listModel.getLatestEdit(for: message.messageId)
         let isEdited = listModel.isEdited(message.messageId)
 
-        let deliveryDate: Date? = (layoutContext.showTimestamp || isEdited)
+        let hidesTime = listModel.outOfDayMessageIds.contains(message.messageId)
+        let deliveryDate: Date? = (layoutContext.showTimestamp || isEdited) && !hidesTime
             ? Date.fromChatTimestamp(message.timestamp)
             : nil
 
@@ -291,6 +293,7 @@ private extension ChatViewModelFactory {
                         isEdited: isEdited
                     ),
                     status: status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     layoutContext: layoutContext,
                     reactions: reactions,
@@ -310,6 +313,7 @@ private extension ChatViewModelFactory {
                         isEdited: isEdited
                     ),
                     status: status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     layoutContext: layoutContext,
                     attachments: richText.attachments,
@@ -358,6 +362,7 @@ private extension ChatViewModelFactory {
                     peerMetadata: metadata.peerMetadata,
                     content: claimContent,
                     status: message.status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     reactions: reactions,
                     actions: actions
@@ -400,6 +405,7 @@ private extension ChatViewModelFactory {
                         isEdited: isEdited
                     ),
                     status: status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     layoutContext: layoutContext,
                     replyInfo: replyInfo,
@@ -452,6 +458,7 @@ private extension ChatViewModelFactory {
                     text: String(localized: .chatUnsupportedContent),
                     messageActions: [],
                     status: status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     layoutContext: layoutContext,
                     reactions: reactions,
@@ -465,6 +472,7 @@ private extension ChatViewModelFactory {
                 for: payload,
                 message: message,
                 status: status,
+                isSeenByPeer: isSeenByPeer,
                 deliveryDate: deliveryDate,
                 actions: actions
             )
@@ -498,6 +506,7 @@ private extension ChatViewModelFactory {
                     peerMetadata: metadata.peerMetadata,
                     content: content,
                     status: message.status,
+                    isSeenByPeer: isSeenByPeer,
                     deliveryDate: deliveryDate,
                     reactions: reactions,
                     actions: actions
@@ -579,6 +588,7 @@ private extension ChatViewModelFactory {
         text: String,
         messageActions: [ChatMessageBubbleAction],
         status: Chat.LocalMessage.Status,
+        isSeenByPeer: Bool,
         deliveryDate: Date?,
         layoutContext: MessageLayoutContext = .standard,
         replyInfo: ChatMessageContainerConfiguration.ReplyInfo? = nil,
@@ -651,6 +661,7 @@ private extension ChatViewModelFactory {
             attachments: attachmentViewModels,
             productLinkPreview: productLinkPreview,
             status: status,
+            isSeenByPeer: isSeenByPeer,
             deliveryDate: deliveryDate,
             layoutContext: layoutContext,
             replyInfo: replyInfo,
@@ -709,6 +720,7 @@ private extension ChatViewModelFactory {
         peerMetadata: Chat.PeerMetadata,
         content: Chat.LocalMessage.Content.Transfer,
         status: Chat.LocalMessage.Status,
+        isSeenByPeer: Bool,
         deliveryDate: Date?,
         reactions: [ReactionViewModel],
         actions: ChatViewModelActions
@@ -770,7 +782,7 @@ private extension ChatViewModelFactory {
             statusConfiguration = .outbox(
                 date: deliveryDate,
                 formatter: timeFormatter,
-                status: outgoingStatus.configurationStatus()
+                status: outgoingStatus.configurationStatus(isSeenByPeer: isSeenByPeer)
             )
 
             configuration = ChatTransferMessageConfiguration.outbox(
@@ -870,6 +882,7 @@ private extension ChatViewModelFactory {
                 text: text,
                 messageActions: messageActions,
                 status: status,
+                isSeenByPeer: metadata.isSeenByPeer(message),
                 deliveryDate: deliveryDate,
                 layoutContext: layoutContext,
                 reactions: reactions,
@@ -989,11 +1002,11 @@ private extension ChatViewModelFactory {
 }
 
 extension Chat.LocalMessage.Status.OutgoingStatus {
-    func configurationStatus() -> ChatMessageStatusViewConfiguration.OutboxStatus {
+    func configurationStatus(isSeenByPeer: Bool) -> ChatMessageStatusViewConfiguration.OutboxStatus {
         switch self {
         case .new: .pending
-        case .sent: .sent
-        case .delivered: .delivered
+        case .sent: isSeenByPeer ? .seen : .sent
+        case .delivered: isSeenByPeer ? .seen : .delivered
         case .failed: .failed
         }
     }

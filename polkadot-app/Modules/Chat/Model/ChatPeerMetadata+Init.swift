@@ -26,6 +26,11 @@ extension Chat.LocalModel {
     func chatMetadata(using registry: ChatExtensionsRegistering) -> ChatMetadata {
         let peerMetadata = peerMetadata(using: registry)
 
-        return ChatMetadata(chatId: chatId, peerMetadata: peerMetadata, state: .created)
+        return ChatMetadata(
+            chatId: chatId,
+            peerMetadata: peerMetadata,
+            state: .created,
+            peerSeenOrder: peerSeenOrder
+        )
     }
 }

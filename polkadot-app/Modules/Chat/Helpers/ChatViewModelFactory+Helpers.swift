@@ -82,7 +82,8 @@ private extension IncomingTransferState.Status {
         switch self {
         case .detecting: .detecting
         case .claiming: .claiming
-        case .claimed: .claimed
+        case .claimed,
+             .claimedFinalized: .claimed
         case .failed: .failed
         case .returnedToSender: .returnedToSender
         }
@@ -93,9 +94,11 @@ private extension OutgoingTransferState.Status {
     func viewState(reclaimedAmount: String?) -> ChatTransferMessageConfiguration.OutgoingState {
         switch self {
         case .sending: .sending
-        case .sent: .sent
+        case .sent,
+             .sentFinalized: .sent
         case .unclaimed: .unclaimed
-        case .claimed: .claimed
+        case .claimed,
+             .claimedFinalized: .claimed
         case .failed: .failed
         case .reclaiming: .reclaiming
         case .reclaimed: .reclaimed(partialAmount: reclaimedAmount)

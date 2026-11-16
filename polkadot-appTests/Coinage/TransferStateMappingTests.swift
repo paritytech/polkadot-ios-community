@@ -16,8 +16,8 @@ struct TransferStateMappingTests {
             (.claiming, IncomingTransferState(status: .claiming)),
             (.claimingRest(claimed: 4), IncomingTransferState(status: .claiming)),
             (.claimed(amount: 10, finalized: false), IncomingTransferState(status: .claimed, actualValue: 10)),
-            (.claimed(amount: 10, finalized: true), IncomingTransferState(status: .claimed, actualValue: 10)),
-            (.claimedPartially(claimed: 6), IncomingTransferState(status: .claimed, actualValue: 6)),
+            (.claimed(amount: 10, finalized: true), IncomingTransferState(status: .claimedFinalized, actualValue: 10)),
+            (.claimedPartially(claimed: 6), IncomingTransferState(status: .claimedFinalized, actualValue: 6)),
             (.notClaimed, IncomingTransferState(status: .returnedToSender))
         ]
     )
@@ -47,9 +47,31 @@ struct TransferStateMappingTests {
     @Test("a coin on chain waiting for the peer means sent")
     func awaitingIsSent() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.awaitingClaim, .detecting])
+        let states = try world.states([.awaitingClaim(finalized: false), .detecting])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
+                == OutgoingTransferState(status: .sent)
+        )
+    }
+
+    @Test("sent is finalized only when every coin's reading comes from the finalized chain")
+    func sentFinalizedNeedsEveryReadingFinal() throws {
+        let world = try CoinStateWorld()
+        let allFinal = try world.states([.awaitingClaim(finalized: true), .claimed(finalized: true), .failed])
+        #expect(
+            allFinal.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
+                == OutgoingTransferState(status: .sentFinalized)
+        )
+
+        let stillDetecting = try world.states([.awaitingClaim(finalized: true), .detecting])
+        #expect(
+            stillDetecting.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
+                == OutgoingTransferState(status: .sent)
+        )
+
+        let bestHeadOnly = try world.states([.awaitingClaim(finalized: true), .awaitingClaim(finalized: false)])
+        #expect(
+            bestHeadOnly.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
                 == OutgoingTransferState(status: .sent)
         )
     }
@@ -57,7 +79,7 @@ struct TransferStateMappingTests {
     @Test("a claimed coin next to one still outstanding keeps the message at sent")
     func claimedWithOutstandingIsSent() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.claimed(finalized: true), .awaitingClaim])
+        let states = try world.states([.claimed(finalized: true), .awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
                 == OutgoingTransferState(status: .sent)
@@ -67,7 +89,7 @@ struct TransferStateMappingTests {
     @Test("a coin still awaiting its claim once the window has closed means unclaimed")
     func awaitingAfterWindowIsUnclaimed() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.awaitingClaim, .claimed(finalized: true)])
+        let states = try world.states([.awaitingClaim(finalized: false), .claimed(finalized: true)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [], windowClosed: true)
                 == OutgoingTransferState(status: .unclaimed)
@@ -106,7 +128,7 @@ struct TransferStateMappingTests {
         )
     }
 
-    @Test("nothing outstanding sums the claimed coins into the actual value")
+    @Test("nothing outstanding sums the claimed coins into the actual value, claimed until every claim is final")
     func claimedSumsValue() throws {
         let world = try CoinStateWorld()
         let states = try world.states([.claimed(finalized: true), .failed, .claimed(finalized: false)])
@@ -121,7 +143,7 @@ struct TransferStateMappingTests {
     @Test("a reclaim that is not final yet reads as reclaiming, even once the window has closed")
     func nonFinalReclaimIsReclaiming() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.reclaimed(finalized: false), .awaitingClaim])
+        let states = try world.states([.reclaimed(finalized: false), .awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [], windowClosed: true)
                 == OutgoingTransferState(status: .reclaiming)
@@ -131,7 +153,7 @@ struct TransferStateMappingTests {
     @Test("a reclaim in flight reads as reclaiming")
     func inFlightReclaimIsReclaiming() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.reclaiming, .awaitingClaim])
+        let states = try world.states([.reclaiming, .awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [], windowClosed: true)
                 == OutgoingTransferState(status: .reclaiming)
@@ -157,7 +179,7 @@ struct TransferStateMappingTests {
     @Test("a coin awaiting its claim whose reclaim failed means reclaimFailed, ahead of unclaimed")
     func failedReclaimBeatsUnclaimed() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.awaitingClaim, .claimed(finalized: true)])
+        let states = try world.states([.awaitingClaim(finalized: false), .claimed(finalized: true)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [world.key(at: 0)], windowClosed: true)
                 == OutgoingTransferState(status: .reclaimFailed)
@@ -167,7 +189,7 @@ struct TransferStateMappingTests {
     @Test("a failed reclaim inside the window still means reclaimFailed")
     func failedReclaimInsideWindow() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.awaitingClaim])
+        let states = try world.states([.awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [world.key(at: 0)], windowClosed: false)
                 == OutgoingTransferState(status: .reclaimFailed)
@@ -177,7 +199,7 @@ struct TransferStateMappingTests {
     @Test("a reclaim in flight beats a failed one on another coin")
     func reclaimingBeatsReclaimFailed() throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.reclaiming, .awaitingClaim])
+        let states = try world.states([.reclaiming, .awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [world.key(at: 1)], windowClosed: true)
                 == OutgoingTransferState(status: .reclaiming)
@@ -192,7 +214,18 @@ struct TransferStateMappingTests {
         let expectedValue = world.context.valueInPlanks(for: 0)
         #expect(
             states.outgoingState(context: world.context, failedReclaims: [world.key(at: 0)], windowClosed: true)
-                == OutgoingTransferState(status: .claimed, actualValue: expectedValue)
+                == OutgoingTransferState(status: .claimedFinalized, actualValue: expectedValue)
+        )
+    }
+
+    @Test("every claim final is claimedFinalized with the same value")
+    func settledClaimIsFinalized() throws {
+        let world = try CoinStateWorld()
+        let states = try world.states([.claimed(finalized: true), .failed])
+
+        #expect(
+            states.outgoingState(context: world.context, failedReclaims: [], windowClosed: false)
+                == OutgoingTransferState(status: .claimedFinalized, actualValue: world.context.valueInPlanks(for: 0))
         )
     }
 
@@ -204,21 +237,24 @@ struct TransferStateMappingTests {
         #expect(try !world.states([.claimed(finalized: false)]).isSettled)
         #expect(try !world.states([.reclaimed(finalized: false)]).isSettled)
         #expect(try !world.states([.reclaiming]).isSettled)
-        #expect(try !world.states([.claimed(finalized: true), .awaitingClaim]).isSettled)
+        #expect(try !world.states([.claimed(finalized: true), .awaitingClaim(finalized: true)]).isSettled)
         #expect(![:].isSettled)
     }
 
-    @Test("claimed and failed are the terminal statuses on both sides")
+    @Test("finalized claims and failures are the terminal statuses on both sides")
     func terminalStatuses() {
-        #expect(IncomingTransferState.Status.claimed.isTerminal)
+        #expect(IncomingTransferState.Status.claimedFinalized.isTerminal)
         #expect(IncomingTransferState.Status.failed.isTerminal)
         #expect(!IncomingTransferState.Status.detecting.isTerminal)
         #expect(!IncomingTransferState.Status.claiming.isTerminal)
-        #expect(IncomingTransferState.Status.returnedToSender.isTerminal)
-        #expect(OutgoingTransferState.Status.claimed.isTerminal)
+        #expect(!IncomingTransferState.Status.claimed.isTerminal)
+        #expect(OutgoingTransferState.Status.claimedFinalized.isTerminal)
         #expect(OutgoingTransferState.Status.failed.isTerminal)
         #expect(!OutgoingTransferState.Status.sending.isTerminal)
         #expect(!OutgoingTransferState.Status.sent.isTerminal)
+        #expect(!OutgoingTransferState.Status.sentFinalized.isTerminal)
+        #expect(!OutgoingTransferState.Status.claimed.isTerminal)
+        #expect(IncomingTransferState.Status.returnedToSender.isTerminal)
         #expect(!OutgoingTransferState.Status.unclaimed.isTerminal)
     }
 

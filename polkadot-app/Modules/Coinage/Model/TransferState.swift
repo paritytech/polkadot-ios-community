@@ -3,22 +3,23 @@ import Foundation
 import SubstrateSdk
 
 /// A partial claim is `claimed` with `actualValue` short of the message total; there is no partial status.
+/// `claimed` is a best-head reading a fork can still undo; only `claimedFinalized`, `failed` and
+/// `returnedToSender` are terminal.
 struct IncomingTransferState: Equatable, Sendable {
     enum Status: Int16, Sendable {
         case detecting = 0
         case claiming = 1
         case claimed = 2
         case failed = 3
+        case claimedFinalized = 4
         /// The claim gave up. Kept apart from `failed`: the chat row tells the recipient the
         /// sender can reclaim the funds.
-        case returnedToSender = 4
+        case returnedToSender = 5
 
-        static let nonTerminalRawValues: [Int16] = [
-            Self.detecting.rawValue,
-            Self.claiming.rawValue
-        ]
+        static let terminal: [Status] = [.claimedFinalized, .failed, .returnedToSender]
+        static var terminalRawValues: [Int16] { terminal.map(\.rawValue) }
 
-        var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
+        var isTerminal: Bool { Self.terminal.contains(self) }
     }
 
     let status: Status
@@ -33,29 +34,28 @@ struct IncomingTransferState: Equatable, Sendable {
 }
 
 /// A partial claim is `claimed` with `actualValue` short of the message total; there is no partial status.
+/// `sent` and `claimed` are best-head readings; `sentFinalized` means every coin reached the finalized chain
+/// and only `claimedFinalized`, `failed` and `reclaimed` are terminal.
 struct OutgoingTransferState: Equatable, Sendable {
     enum Status: Int16, Sendable {
         case sending = 0
         case sent = 1
         case claimed = 2
         case failed = 3
-        case unclaimed = 4
+        case sentFinalized = 4
+        case claimedFinalized = 5
+        case unclaimed = 6
         /// Our reclaim of the unclaimed coins is in flight. Not terminal: it may still fail or be reclaimed.
-        case reclaiming = 5
+        case reclaiming = 7
         /// The reclaim landed. `actualValue` is the reclaimed amount, which may be short of the message total.
-        case reclaimed = 6
+        case reclaimed = 8
         /// The reclaim failed and the sender may try again.
-        case reclaimFailed = 7
+        case reclaimFailed = 9
 
-        static let nonTerminalRawValues: [Int16] = [
-            Self.sending.rawValue,
-            Self.sent.rawValue,
-            Self.unclaimed.rawValue,
-            Self.reclaiming.rawValue,
-            Self.reclaimFailed.rawValue
-        ]
+        static let terminal: [Status] = [.claimedFinalized, .failed, .reclaimed]
+        static var terminalRawValues: [Int16] { terminal.map(\.rawValue) }
 
-        var isTerminal: Bool { !Self.nonTerminalRawValues.contains(rawValue) }
+        var isTerminal: Bool { Self.terminal.contains(self) }
     }
 
     let status: Status

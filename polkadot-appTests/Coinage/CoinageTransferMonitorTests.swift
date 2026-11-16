@@ -27,18 +27,41 @@ struct CoinageTransferMonitorTests {
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
 
-        let seen = try await states.collect { $0 == .incoming(.init(status: .claimed, actualValue: 10)) }
+        let seen = try await states.collect {
+            $0 == .incoming(.init(status: .claimedFinalized, actualValue: 10))
+        }
         let distinct = seen.enumerated().filter { $0.offset == 0 || seen[$0.offset - 1] != $0.element }.map(\.element)
 
         #expect(distinct == [
             nil,
             .incoming(.init(status: .detecting)),
             .incoming(.init(status: .claiming)),
-            .incoming(.init(status: .claimed, actualValue: 10))
+            .incoming(.init(status: .claimed, actualValue: 10)),
+            .incoming(.init(status: .claimedFinalized, actualValue: 10))
         ])
         #expect(seen.count == distinct.count, "every emission must carry a change")
         #expect(claims.calls.count == 1)
         #expect(claims.calls.first?.groupId == message.messageId)
+    }
+
+    @Test("a best-head claimed row is tracked again on the next launch until it is finalized")
+    func bestHeadClaimedRowIsReprocessed() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        try await world.store.updateIncoming(
+            messageId: message.messageId,
+            state: .init(status: .claimed, actualValue: 10)
+        )
+        let claims = MockClaimCoinsService(detections: [.claimed(amount: 10, finalized: true)])
+        let states = world.stateStream(of: message.messageId)
+
+        let monitor = makeMonitor(world: world, claims: claims)
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        _ = try await states.collect { $0 == .incoming(.init(status: .claimedFinalized, actualValue: 10)) }
+        #expect(claims.calls.count == 1)
     }
 
     @Test("a terminal row keeps the message out of the monitor on the next launch")
@@ -48,7 +71,7 @@ struct CoinageTransferMonitorTests {
         let message = try await world.saveTransfer(.incoming)
         try await world.store.updateIncoming(
             messageId: message.messageId,
-            state: .init(status: .claimed, actualValue: 10)
+            state: .init(status: .claimedFinalized, actualValue: 10)
         )
         let claims = MockClaimCoinsService(detections: [.claimed(amount: 10, finalized: true)])
 
@@ -92,8 +115,8 @@ struct CoinageTransferMonitorTests {
         let coin = try makeCoin(exponent: 2)
         let statuses = MockCoinageTransferStatusService(snapshots: [
             [:],
-            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim)],
-            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim)],
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim(finalized: false))],
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim(finalized: true))],
             [coin.publicKey: CoinageTransferState(coin: coin, status: .claimed(finalized: true))]
         ])
         let states = world.stateStream(of: message.messageId)
@@ -107,14 +130,17 @@ struct CoinageTransferMonitorTests {
         defer { Task { await monitor.throttle() } }
 
         let claimedValue = context.valueInPlanks(for: 2)
-        let seen = try await states.collect { $0 == .outgoing(.init(status: .claimed, actualValue: claimedValue)) }
+        let seen = try await states.collect {
+            $0 == .outgoing(.init(status: .claimedFinalized, actualValue: claimedValue))
+        }
         let distinct = seen.enumerated().filter { $0.offset == 0 || seen[$0.offset - 1] != $0.element }.map(\.element)
 
         #expect(distinct == [
             nil,
             .outgoing(.init(status: .sending)),
             .outgoing(.init(status: .sent)),
-            .outgoing(.init(status: .claimed, actualValue: claimedValue))
+            .outgoing(.init(status: .sentFinalized)),
+            .outgoing(.init(status: .claimedFinalized, actualValue: claimedValue))
         ])
         #expect(seen.count == distinct.count, "every emission must carry a change")
         #expect(statuses.subscriptions.count == 1)
@@ -199,7 +225,7 @@ struct CoinageTransferMonitorTests {
         try await world.setup()
         let message = try await world.saveTransfer(.incoming, totalValue: 10)
         let claims = MockClaimCoinsService(detections: [.detecting, .claimed(amount: 10, finalized: true)])
-        let claimed = IncomingTransferState(status: .claimed, actualValue: 10)
+        let claimed = IncomingTransferState(status: .claimedFinalized, actualValue: 10)
 
         let monitor = makeMonitor(world: world, claims: claims)
         await monitor.setup()
@@ -444,7 +470,7 @@ private extension CoinageTransferMonitorTests {
     func awaitingStatuses() throws -> MockCoinageTransferStatusService {
         let coin = try makeCoin(exponent: 2)
         return MockCoinageTransferStatusService(snapshots: [
-            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim)]
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim(finalized: false))]
         ])
     }
 

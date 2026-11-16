@@ -10,6 +10,7 @@ extension Chat {
         case inputField(InputField)
         case incomingRequest
         case outgoingRequest
+        case cancelledRequest
         case blockedUser
         case empty
 

@@ -21,6 +21,7 @@ final class ChatInteractor {
     private var footerTask: Task<Void, Never>?
     private let state = ChatInteractorState()
     private let pendingReclaims = OSAllocatedUnfairLock<Set<Chat.MessageId>>(initialState: [])
+    private let feedPolicy = OSAllocatedUnfairLock(initialState: ChatFeedPolicy())
 
     private let notificationsCleaner: any PushNotificationsCleaning
 
@@ -65,10 +66,17 @@ private extension ChatInteractor {
 
             do {
                 let metadataStream = engine.chatMetadataStream()
+                var lastMetadata: MessageListMetadata?
                 for try await chatMetadata in metadataStream {
                     if let chatMetadata {
+                        let isIncomingRequest = chatMetadata.peerMetadata.input == .incomingRequest
+                        self?.feedPolicy.withLock { $0.isIncomingRequest = isIncomingRequest }
                         let metadata = MessageListMetadata(chatMetadata: chatMetadata, myUsername: currentUsername)
+                        lastMetadata = metadata
                         await self?.presenter?.didReceive(metadata: metadata)
+                    } else if let lastMetadata {
+                        await self?.handleChatRemoval(lastMetadata: lastMetadata)
+                        break
                     }
                 }
             } catch {
@@ -103,15 +111,32 @@ private extension ChatInteractor {
                 }
 
                 for try await messages in messageSeq {
+                    let hadMessages = await self?.state.model?.allMessages.isEmpty == false
+
                     guard let model = await self?.state.onMessagesUpdate(messages) else {
                         return
                     }
+
+                    let isAllowed = self?.feedPolicy.withLock { $0.allows(model, hadMessages: hadMessages) } ?? true
+                    guard isAllowed else { continue }
 
                     await self?.presenter?.didReceive(listModel: model)
                 }
             } catch {
                 self?.logger.error("Can't update due to error: \(error)")
             }
+        }
+    }
+
+    func handleChatRemoval(lastMetadata: MessageListMetadata) async {
+        feedPolicy.withLock { $0.isFrozen = true }
+        messagesTask?.cancel()
+
+        switch await engine.removalReason() {
+        case .requestCancelled:
+            await presenter?.didReceive(metadata: lastMetadata.withCancelledRequest())
+        case .other:
+            await presenter?.didRemoveChat()
         }
     }
 }
@@ -351,6 +376,18 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         }
     }
 
+    func cancelChatRequest() {
+        Task { [engine, logger] in
+            do {
+                try await engine.cancelChatRequest()
+            } catch ChatRequestCancelError.notPending {
+                logger.debug("Chat request is no longer pending")
+            } catch {
+                logger.error("Unexpected error while cancelling request: \(error)")
+            }
+        }
+    }
+
     func processAction(_ action: Chat.Action) {
         Task {
             await engine.processAction(action)
@@ -394,5 +431,17 @@ extension ChatInteractor {
         case let .chatExtension(chatExtensionId, _):
             foregroundVisibilityReporter.updateVisibleScreen(.chatExtension(extensionId: chatExtensionId))
         }
+    }
+}
+
+private struct ChatFeedPolicy {
+    var isFrozen = false
+    var isIncomingRequest = false
+
+    // An incoming request always holds its request message, so an empty feed means deletion.
+    func allows(_ model: MessageListModel, hadMessages: Bool) -> Bool {
+        guard !isFrozen else { return false }
+
+        return !(isIncomingRequest && hadMessages && model.allMessages.isEmpty)
     }
 }

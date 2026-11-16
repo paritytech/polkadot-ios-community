@@ -20,10 +20,16 @@ struct CoinageTransferStatusTests {
         #expect(status(tracked, atFinalized: [:]) == .failed)
     }
 
-    @Test("Present on the best head is awaiting claim")
+    @Test("Present on the best head only is awaiting claim, not yet finalized")
     func awaitingOnChain() {
         let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .pending)
-        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim)
+        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim(finalized: false))
+    }
+
+    @Test("Present on both heads is awaiting claim at finality")
+    func awaitingFinalized() {
+        let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .finalizedSuccess)
+        #expect(status(tracked, atFinalized: [key: true]) == .awaitingClaim(finalized: true))
     }
 
     @Test("Seen on chain, now gone, minter arrived — a best-head claim")
@@ -35,7 +41,7 @@ struct CoinageTransferStatusTests {
     @Test("Absent on best but present at finality reports awaiting, not claimed")
     func awaitingAtFinality() {
         let tracked = trackedCoin(onChain: false, everOnChain: false, minter: .pending)
-        #expect(status(tracked, atFinalized: [key: true]) == .awaitingClaim)
+        #expect(status(tracked, atFinalized: [key: true]) == .awaitingClaim(finalized: true))
     }
 
     @Test("Nothing observed yet is detecting")
@@ -94,7 +100,7 @@ struct CoinageTransferStatusTests {
     @Test("A failed reclaim falls through to the presence rules")
     func failedReclaimFallsThrough() {
         let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .pending, consumer: .failure)
-        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim)
+        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim(finalized: false))
     }
 
     @Test("Only a finalized reclaim and a finalized claim are terminal")
@@ -105,7 +111,7 @@ struct CoinageTransferStatusTests {
         #expect(CoinageTransferStatus.reclaimed(finalized: true).isTerminal)
         #expect(!CoinageTransferStatus.reclaimed(finalized: false).isTerminal)
         #expect(!CoinageTransferStatus.reclaiming.isTerminal)
-        #expect(!CoinageTransferStatus.awaitingClaim.isTerminal)
+        #expect(!CoinageTransferStatus.awaitingClaim(finalized: true).isTerminal)
         #expect(!CoinageTransferStatus.detecting.isTerminal)
     }
 }

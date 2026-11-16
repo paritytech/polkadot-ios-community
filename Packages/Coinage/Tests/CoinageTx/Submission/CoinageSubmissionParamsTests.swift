@@ -109,11 +109,6 @@ struct CoinageSubmissionParamsTests {
         #expect(try CoinageSubmissionParams.reclaimPolicy(transfer).id == CoinageSubmissionParams.reclaimPolicyId)
     }
 
-    @Test("the claim window outlasts the claim retry window")
-    func claimWindowOutlastsRetryWindow() {
-        #expect(CoinageConstants.claimWindow >= CoinageConstants.claimRetryWindow)
-    }
-
     @Test("split and unload share one encoding, so a row of either reads back the same")
     func transferEncodingIsShared() throws {
         let params = TransferSubmissionParams(
@@ -137,14 +132,14 @@ struct CoinageSubmissionParamsTests {
         }
     }
 
-    @Test("a retried transfer's window is the claim's, so neither side gives up first")
-    func retriedTransferMatchesClaimWindow() {
+    @Test("a retried transfer is rebuilt for the chat payment window")
+    func retriedTransferUsesChatPaymentWindow() {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
 
         let params = TransferSubmissionParams.retriedTransfer(from: start)
 
         #expect(params.retryFailures)
-        #expect(params.buildUntil == start.addingTimeInterval(CoinageConstants.claimRetryWindow))
+        #expect(params.buildUntil == start.addingTimeInterval(CoinageConstants.chatPaymentRetryWindow))
     }
 
     @Test("an attempt that never landed is always worth rebuilding, however late")
