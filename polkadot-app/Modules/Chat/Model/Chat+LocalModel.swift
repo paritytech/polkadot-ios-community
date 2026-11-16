@@ -65,6 +65,7 @@ extension Chat {
         let hasIncomingReaction: Bool
         let createdAt: Date?
         let roomMetadata: Chat.RoomMetadata?
+        var peerSeenOrder: UInt64 = 0
 
         var chatId: Chat.Id {
             peer.chatId
