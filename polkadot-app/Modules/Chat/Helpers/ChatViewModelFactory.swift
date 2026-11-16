@@ -78,7 +78,7 @@ extension ChatViewModelFactory: ChatViewModelMaking {
     ) -> ChatViewLayout.ViewModel {
         let headerConfiguration = metadata.chatMetadata.chatContactInfo
 
-        let inputConfiguration = makeInputConfiguration(for: metadata.chatMetadata, actions: actions)
+        let inputConfiguration = makeInputConfiguration(for: metadata, actions: actions)
 
         let scrollDownConfiguration = ChatViewLayout.ViewModel.ScrollDownButtonConfiguration(
             available: true,
