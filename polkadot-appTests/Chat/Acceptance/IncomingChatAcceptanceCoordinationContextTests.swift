@@ -52,12 +52,21 @@ struct IncomingChatAcceptanceCoordinationContextTests {
         )
         let store = MockChatRequestStoreService(localRequests: [cancelled.requestId: cancelled])
 
+        let device = Chat.PeerDevice(
+            statementAccountId: Data(repeating: 2, count: 32),
+            encryptionPublicKey: Data(repeating: 3, count: 32)
+        )
         let result = try await makeContext(requestStoreService: store).handle(IncomingChatAcceptanceInput(
             peerAccountId: fixture.peerAccountId,
             requestId: cancelled.requestId,
-            device: Chat.PeerDevice(
-                statementAccountId: Data(repeating: 2, count: 32),
-                encryptionPublicKey: Data(repeating: 3, count: 32)
+            device: device,
+            message: Chat.RemoteMessage(
+                messageId: "acceptance",
+                timestamp: 1,
+                versioned: .v1(.init(content: .multiChatAccepted(.init(
+                    requestId: cancelled.requestId,
+                    device: device
+                ))))
             )
         ))
 

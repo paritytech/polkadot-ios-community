@@ -139,7 +139,7 @@ struct SeenReceiptServiceTests {
             requestId: "request",
             contactAccountId: fixture.peerAccountId,
             timestamp: 1,
-            status: .outgoing,
+            status: .outgoing(.pending),
             message: nil
         )
         try await fixture.seedChat(pendingRequest: request)

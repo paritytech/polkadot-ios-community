@@ -26,7 +26,12 @@ extension MessageListMetadata {
             input: .cancelledRequest,
             moreActions: []
         )
-        let chat = ChatMetadata(chatId: chatMetadata.chatId, peerMetadata: peer, state: chatMetadata.state)
+        let chat = ChatMetadata(
+            chatId: chatMetadata.chatId,
+            peerMetadata: peer,
+            state: chatMetadata.state,
+            peerSeenOrder: chatMetadata.peerSeenOrder
+        )
 
         return MessageListMetadata(chatMetadata: chat, myUsername: myUsername)
     }
