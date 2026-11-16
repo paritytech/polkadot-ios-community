@@ -12,7 +12,8 @@ protocol MessageExchageServiceMaking {
         statementStoreConnection: StatementStoreConnecting,
         statementSignerResolver: PeerSessionSignerResolving,
         delegate: AnyPeerSessionDelegate<M>,
-        compactorFactory: AnyMessageCompactorFactory<M>?
+        compactorFactory: AnyMessageCompactorFactory<M>?,
+        coalescer: AnyMessageCoalescer<M>
     ) throws -> AnyMessageExchangeService<M>
 }
 
@@ -26,7 +27,8 @@ extension MessageExchageServiceMaking {
             statementStoreConnection: statementStoreConnection,
             statementSignerResolver: statementSignerResolver,
             delegate: delegate,
-            compactorFactory: nil
+            compactorFactory: nil,
+            coalescer: .none
         )
     }
 }
@@ -97,7 +99,8 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
         statementStoreConnection: StatementStoreConnecting,
         statementSignerResolver: PeerSessionSignerResolving,
         delegate: AnyPeerSessionDelegate<M>,
-        compactorFactory: AnyMessageCompactorFactory<M>?
+        compactorFactory: AnyMessageCompactorFactory<M>?,
+        coalescer: AnyMessageCoalescer<M>
     ) throws -> AnyMessageExchangeService<M> {
         let subscriptionFactory = StatementSubscriptionFactory(
             statementStoreFetcher: statementStoreConnection,
@@ -122,6 +125,7 @@ extension MessageExchangeServiceFactory: MessageExchageServiceMaking {
             maxStatementSize: maxStatementSize,
             priorityFactory: priorityFactory,
             compactorFactory: compactorFactory,
+            coalescer: coalescer,
             operationQueue: operationQueue,
             logger: logger
         )

@@ -118,12 +118,10 @@ Transfer plans determine how coins are spent:
 row is not terminal (`NSPredicate.withoutTerminalTransferState`). Statuses come in best-head and finalized pairs:
 incoming `claimed` → `claimedFinalized`, outgoing `sent` → `sentFinalized` and `claimed` → `claimedFinalized`.
 A best-head reading is one a fork can still undo, so only `claimedFinalized` and `failed` are terminal — an
-explicit set (`Status.terminal`), not a raw-value threshold, since the finalized values were appended above
-`failed`. A relaunch while a row is `claimed`/`sent` therefore tracks the message again until the finalized chain
+explicit set (`Status.terminal`). A relaunch while a row is `claimed`/`sent` therefore tracks the message again until the finalized chain
 agrees; the bubbles render a finalized status like its best-head twin. Per coin, the package ladder
 (`CoinageTransferStatusService.transferStatus`) reports `awaitingClaim(finalized:)` / `claimed(finalized:)` from the
-finalized head's presence map; the row mapping (`CoinageTransferMonitor+StateMapping`) reaches a finalized
-status only when every coin's reading is final.
+finalized head's presence map.
 
 ## Submission Policies (retries)
 

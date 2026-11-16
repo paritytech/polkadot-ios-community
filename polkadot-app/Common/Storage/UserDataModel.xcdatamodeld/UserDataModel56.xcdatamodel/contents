@@ -14,6 +14,9 @@
         <attribute name="chatTypeContext" optional="YES" attributeType="String"/>
         <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
+        <attribute name="lastSentSeenOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="lastSentSeenTimestamp" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="peerSeenOrder" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contact" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="chat" inverseEntity="CDChatContact"/>
         <relationship name="lastDisplayMessage" optional="YES" maxCount="1" deletionRule="Cascade" destinationEntity="CDChatMessage" inverseName="lastDisplayMessageChat" inverseEntity="CDChatMessage"/>
         <relationship name="messages" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDChatMessage" inverseName="chat" inverseEntity="CDChatMessage"/>
@@ -27,7 +30,6 @@
         <attribute name="imageData" optional="YES" attributeType="Binary"/>
         <attribute name="isBlocked" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="lastOwnToken" optional="YES" attributeType="Binary"/>
-        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="ownEncryptionKeyId" optional="YES" attributeType="String"/>
         <attribute name="ownSignKeyId" optional="YES" attributeType="String"/>
         <attribute name="pendingDevicesFanOut" optional="YES" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -108,7 +110,6 @@
     <entity name="CDChatRequest" representedClassName="CDChatRequest" syncable="YES" codeGenerationType="class">
         <attribute name="contactId" optional="YES" attributeType="String"/>
         <attribute name="identifier" optional="YES" attributeType="String"/>
-        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="timestamp" optional="YES" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contact" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="chatRequest" inverseEntity="CDChatContact"/>
@@ -130,11 +131,8 @@
         <relationship name="chat" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChat" inverseName="unreadMessages" inverseEntity="CDChat"/>
     </entity>
     <entity name="CDContactDevice" representedClassName="CDContactDevice" syncable="YES" codeGenerationType="class">
-        <attribute name="changedAt" attributeType="Integer 64" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="encryptionPublicKey" attributeType="Binary"/>
-        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="statementAccountId" attributeType="Binary"/>
-        <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="contact" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatContact" inverseName="devices" inverseEntity="CDChatContact"/>
     </entity>
     <entity name="CDIncomingPayment" representedClassName="CDIncomingPayment" syncable="YES" codeGenerationType="class">
@@ -266,7 +264,6 @@
         <attribute name="installationId" optional="YES" attributeType="String"/>
         <attribute name="exponent" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <attribute name="handoffMark" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <attribute name="handoffCommittedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="hops" optional="YES" attributeType="Binary"/>
         <attribute name="identifier" attributeType="String"/>
         <attribute name="isOnchain" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
@@ -358,7 +355,6 @@
     <entity name="CDIncomingTransferState" representedClassName="CDIncomingTransferState" syncable="YES" codeGenerationType="class">
         <attribute name="actualValue" optional="YES" attributeType="String"/>
         <attribute name="firstAttemptAt" attributeType="Date" usesScalarValueType="NO"/>
-        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatMessage" inverseName="incomingTransferState" inverseEntity="CDChatMessage"/>
     </entity>
@@ -373,17 +369,7 @@
     </entity>
     <entity name="CDOutgoingTransferState" representedClassName="CDOutgoingTransferState" syncable="YES" codeGenerationType="class">
         <attribute name="actualValue" optional="YES" attributeType="String"/>
-        <attribute name="modifiedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="status" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
         <relationship name="message" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="CDChatMessage" inverseName="outgoingTransferState" inverseEntity="CDChatMessage"/>
-    </entity>
-    <entity name="CDProcessedTransfer" representedClassName="CDProcessedTransfer" syncable="YES" codeGenerationType="class">
-        <attribute name="identifier" attributeType="String"/>
-        <attribute name="outcome" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
-        <uniquenessConstraints>
-            <uniquenessConstraint>
-                <constraint value="identifier"/>
-            </uniquenessConstraint>
-        </uniquenessConstraints>
     </entity>
 </model>

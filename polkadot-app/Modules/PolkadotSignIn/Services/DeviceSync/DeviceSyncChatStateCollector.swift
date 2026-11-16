@@ -188,7 +188,7 @@ private extension DeviceSyncChatStateCollector {
         let outgoing = NSPredicate(
             format: "%K == %d",
             #keyPath(CDChatRequest.status),
-            Chat.RequestStatus.outgoing.rawValue
+            Chat.RequestStatus.outgoing(.pending).rawValue
         )
         return cutoff.map { NSCompoundPredicate(andPredicateWithSubpredicates: [outgoing, modified(after: $0)]) }
             ?? outgoing
@@ -232,7 +232,9 @@ private extension CDChatRequest {
         case .incoming(.new): .pending
         case .incoming(.accepted): .accepted
         case .incoming(.declined): .declined
-        case .outgoing,
+        // Cancellation doesn't travel yet; a cancelled row is skipped like an unknown status.
+        case .incoming(.cancelled),
+             .outgoing,
              nil: nil
         }
     }
