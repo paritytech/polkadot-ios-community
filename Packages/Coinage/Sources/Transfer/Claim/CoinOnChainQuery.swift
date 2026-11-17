@@ -56,15 +56,18 @@ extension CoinOnChainQuerying {
 
 /// Default implementation that queries the Coinage pallet storage via RPC.
 final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
+    private let instanceId: CoinageInstanceId
     private let connection: any JSONRPCEngine
     private let runtimeService: any RuntimeCodingServiceProtocol
     private let storageRequestFactory: any StorageRequestFactoryProtocol
 
     init(
+        instanceId: CoinageInstanceId,
         connection: any JSONRPCEngine,
         runtimeService: any RuntimeCodingServiceProtocol,
         storageRequestFactory: any StorageRequestFactoryProtocol
     ) {
+        self.instanceId = instanceId
         self.connection = connection
         self.runtimeService = runtimeService
         self.storageRequestFactory = storageRequestFactory
@@ -86,7 +89,7 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
             )
 
         let responses = try await queryWrapper.asyncExecute()
-        return responses.map(\.value)
+        return responses.map { $0.value.filtered(by: instanceId) }
     }
 
     /// Subscribes to on-chain coin storage and resolves when all requested keys have a non-nil coin.
@@ -100,9 +103,9 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         let mappingKeys = Set(publicKeys.map { $0.toHex() })
 
         let accumulatedStream = subscribeCoins(for: publicKeys)
-            .scan([String: CoinSyncResult.OnChainCoin]()) { accumulated, result in
+            .scan([String: CoinSyncResult.OnChainCoin]()) { accumulated, updates in
                 var next = accumulated
-                for (key, coin) in result.updates where coin != nil {
+                for (key, coin) in updates where coin != nil {
                     next[key] = coin
                 }
                 return next
@@ -129,9 +132,9 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         let mappingKeys = Set(publicKeys.map { $0.toHex() })
 
         let accumulatedStream = subscribeCoins(for: publicKeys)
-            .scan([String: CoinSyncResult.OnChainCoin]()) { accumulated, result in
+            .scan([String: CoinSyncResult.OnChainCoin]()) { accumulated, updates in
                 var next = accumulated
-                for (key, coin) in result.updates {
+                for (key, coin) in updates {
                     if coin != nil {
                         next[key] = coin
                     } else {
@@ -160,10 +163,10 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         let mappingKeys = Set(publicKeys.map { $0.toHex() })
 
         let accumulatedStream = subscribeCoins(for: publicKeys)
-            .scan((seen: Set<String>(), present: Set<String>())) { state, result in
+            .scan((seen: Set<String>(), present: Set<String>())) { state, updates in
                 var seen = state.seen
                 var present = state.present
-                for (key, coin) in result.updates {
+                for (key, coin) in updates {
                     if coin != nil {
                         seen.insert(key)
                         present.insert(key)
@@ -192,9 +195,9 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         let dataByHex = Dictionary(publicKeys.map { ($0.toHex(), $0) }, uniquingKeysWith: { first, _ in first })
 
         return subscribeCoins(for: publicKeys)
-            .scan([String: ClaimableCoinInfo]()) { accumulated, result in
+            .scan([String: ClaimableCoinInfo]()) { accumulated, updates in
                 var next = accumulated
-                for (key, coin) in result.updates {
+                for (key, coin) in updates {
                     if let coin {
                         next[key] = ClaimableCoinInfo(exponent: Int16(coin.value), age: coin.age)
                     } else {
@@ -216,9 +219,9 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
     /// Opens a Substrate storage subscription for `CoinsByOwner` entries keyed by public key.
     ///
     /// Uses the same `MapSubscriptionRequest` + `CallbackBatchStorageSubscription` pattern
-    /// as `CoinStateSyncService.performSync()`. The returned stream emits `CoinSyncResult`
+    /// as `CoinStateSyncService.performSync()`. The returned stream emits instance-filtered updates
     /// on every block where any of the watched storage keys change.
-    private func subscribeCoins(for publicKeys: [Data]) -> AnyAsyncSequence<CoinSyncResult> {
+    private func subscribeCoins(for publicKeys: [Data]) -> AnyAsyncSequence<[String: CoinSyncResult.OnChainCoin?]> {
         let requests: [BatchStorageSubscriptionRequest] = publicKeys.map { publicKey in
             let mappingKey = publicKey.toHex()
             let storagePath = CoinagePallet.Storage.coinsByOwner
@@ -230,11 +233,15 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
             return BatchStorageSubscriptionRequest(innerRequest: innerRequest, mappingKey: mappingKey)
         }
 
-        return CallbackBatchStorageSubscription.asyncStream(
+        let results: AnyAsyncSequence<CoinSyncResult> = CallbackBatchStorageSubscription.asyncStream(
             requests: requests,
             connection: connection,
             runtimeService: runtimeService,
             logger: nil
         )
+
+        return results
+            .map { [instanceId] in $0.updates(in: instanceId) }
+            .eraseToAnyAsyncSequence()
     }
 }

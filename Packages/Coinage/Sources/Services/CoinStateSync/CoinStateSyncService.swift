@@ -14,6 +14,7 @@ public final class CoinStateSyncService: BaseSyncService {
     private let databaseFactory: any DatabaseDependencyFactoring
     private let connection: JSONRPCEngine
     private let runtimeService: RuntimeCodingServiceProtocol
+    private let instanceId: CoinageInstanceId
 
     private var localCoinsMonitoringTask: Task<Void, Error>?
     private var syncTask: Task<Void, Error>?
@@ -23,12 +24,14 @@ public final class CoinStateSyncService: BaseSyncService {
         databaseFactory: any DatabaseDependencyFactoring,
         connection: JSONRPCEngine,
         runtimeService: RuntimeCodingServiceProtocol,
+        instanceId: CoinageInstanceId,
         logger: any SDKLoggerProtocol
     ) {
         self.coinService = coinService
         self.databaseFactory = databaseFactory
         self.connection = connection
         self.runtimeService = runtimeService
+        self.instanceId = instanceId
         super.init(logger: logger)
     }
 
@@ -122,7 +125,7 @@ extension CoinStateSyncService {
 
         var updates: [CoinPresenceUpdate] = []
 
-        for (mappingKey, onChainCoin) in result.updates {
+        for (mappingKey, onChainCoin) in result.updates(in: instanceId) {
             guard let coin = coinMap[mappingKey] else { continue }
 
             if let onChainCoin {

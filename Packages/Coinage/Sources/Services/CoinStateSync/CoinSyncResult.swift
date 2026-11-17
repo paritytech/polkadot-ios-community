@@ -31,3 +31,17 @@ extension CoinSyncResult {
         @StringCodable var age: Int16
     }
 }
+
+extension CoinSyncResult.OnChainCoin? {
+    /// `CoinsByOwner` is keyed by public key alone, so a key can hold a coin of a foreign Coinage instance
+    /// (another unit or asset). Such a coin reads as absent.
+    func filtered(by instanceId: CoinageInstanceId) -> CoinSyncResult.OnChainCoin? {
+        flatMap { $0.instanceId == instanceId ? $0 : nil }
+    }
+}
+
+extension CoinSyncResult {
+    func updates(in instanceId: CoinageInstanceId) -> [String: OnChainCoin?] {
+        updates.mapValues { $0.filtered(by: instanceId) }
+    }
+}
