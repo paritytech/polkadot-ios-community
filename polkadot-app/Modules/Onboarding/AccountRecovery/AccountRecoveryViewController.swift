@@ -12,7 +12,6 @@ final class AccountRecoveryViewController: UIViewController, ViewHolder {
 
     var keyboardHandler: KeyboardHandler?
 
-    private var isSceneCaptured = false
     private var isResignedActive = false
     private var appStateTask: Task<Void, Never>?
 
@@ -60,7 +59,6 @@ final class AccountRecoveryViewController: UIViewController, ViewHolder {
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
 
-        isSceneCaptured = traitCollection.sceneCaptureState == .active
         updateInputCover()
     }
 
@@ -86,6 +84,10 @@ extension AccountRecoveryViewController: KeyboardAdoptable {}
 // MARK: - Private
 
 private extension AccountRecoveryViewController {
+    var isSceneCaptured: Bool {
+        traitCollection.sceneCaptureState == .active
+    }
+
     func addHandlers() {
         rootView.proceedButton.addTarget(
             self,
@@ -101,7 +103,6 @@ private extension AccountRecoveryViewController {
 
     func observeInputExposure() {
         registerForTraitChanges([UITraitSceneCaptureState.self]) { (self: Self, _: UITraitCollection) in
-            self.isSceneCaptured = self.traitCollection.sceneCaptureState == .active
             self.updateInputCover()
         }
 
