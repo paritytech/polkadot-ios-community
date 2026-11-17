@@ -124,6 +124,7 @@ private extension ProductsAccountManager {
                 let accountId = try wallet.getRawPublicKey()
                 try await allowanceSupport.sssManager.allocate(
                     accountId: accountId,
+                    signerKeyId: accountHolder.statementStoreSignerKeyId(for: productId),
                     policy: policy,
                     priority: .normal,
                     domain: .product

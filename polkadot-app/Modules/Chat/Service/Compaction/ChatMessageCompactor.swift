@@ -65,6 +65,7 @@ private extension ChatMessageCompactor {
         let accountId = try proofWallet.getRawPublicKey()
         try await allowanceManager.allocate(
             accountId: accountId,
+            signerKeyId: signerProvider.getSignerKeyId(),
             policy: .ignore,
             priority: .normal,
             domain: .chat

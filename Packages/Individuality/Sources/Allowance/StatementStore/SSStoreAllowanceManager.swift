@@ -32,16 +32,20 @@ public final class SSStoreAllowanceManager {
 extension SSStoreAllowanceManager: AllowanceManaging {
     public func allocate(
         accountId: AccountId,
+        signerKeyId: String?,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
         try await issueDiagnostics.observeAllocation {
             try await allocateInBackground(
-                accountId: accountId,
-                policy: policy,
-                priority: priority,
-                domain: domain
+                AllocationRequest(
+                    accountId: accountId,
+                    signerKeyId: signerKeyId,
+                    policy: policy,
+                    priority: priority,
+                    domain: domain
+                )
             )
         }
     }
@@ -77,49 +81,69 @@ extension SSStoreAllowanceManager: StatementAccountFunding {
 
     public func ensureFunded(
         accountId: AccountId,
+        signerKeyId: String?,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
         try await issueDiagnostics.observeAllocation {
             try await allocateInBackground(
-                accountId: accountId,
-                policy: .ignore,
-                priority: priority,
-                domain: domain
+                AllocationRequest(
+                    accountId: accountId,
+                    signerKeyId: signerKeyId,
+                    policy: .ignore,
+                    priority: priority,
+                    domain: domain
+                )
             )
         }
     }
 }
 
 private extension SSStoreAllowanceManager {
-    func allocateInBackground(
-        accountId: AccountId,
-        policy: OnExistingAllowancePolicy,
-        priority: AllowanceRecord.Priority,
-        domain: AllowanceRecord.Domain
-    ) async throws {
+    struct AllocationRequest {
+        let accountId: AccountId
+        let signerKeyId: String?
+        let policy: OnExistingAllowancePolicy
+        let priority: AllowanceRecord.Priority
+        let domain: AllowanceRecord.Domain
+    }
+
+    func allocateInBackground(_ request: AllocationRequest) async throws {
         try await backgroundExecutor.execute { [allocator, repository, slotInfoProvider] in
             try await markStallActivity("Allocating SS allowance") {
                 let existing = try await markStallRegion("Check existing slot") {
-                    try await slotInfoProvider.hasExistingSlot(for: accountId)
+                    try await slotInfoProvider.hasExistingSlot(for: request.accountId)
                 }
 
-                if policy == .ignore, existing {
+                if request.policy == .ignore, existing {
+                    try await self.backfillSignerKeyId(request.signerKeyId, for: request.accountId)
                     return
                 }
 
-                let period = try await allocator.assignSlot(accountId: accountId, priority: priority)
+                let period = try await allocator.assignSlot(accountId: request.accountId, priority: request.priority)
 
                 let record = AllowanceRecord(
-                    accountId: accountId,
+                    accountId: request.accountId,
                     allocatedAt: Date(),
                     kind: .statementStore,
-                    domain: domain,
-                    priority: priority,
-                    latestRenewedPeriod: period
+                    domain: request.domain,
+                    priority: request.priority,
+                    latestRenewedPeriod: period,
+                    signerKeyId: request.signerKeyId
                 )
                 try await repository.saveOperation({ [record] }, { [] }).asyncExecute()
             }
         }
+    }
+
+    /// Rows written before the key reference existed learn it the next time their account is funded.
+    func backfillSignerKeyId(_ signerKeyId: String?, for accountId: AccountId) async throws {
+        guard let signerKeyId else { return }
+
+        let stored = try await repository.fetchOperation(by: { accountId.toHex() }, options: .init()).asyncExecute()
+        guard let stored, stored.signerKeyId == nil else { return }
+
+        let updated = stored.replacingSignerKeyId(signerKeyId)
+        try await repository.saveOperation({ [updated] }, { [] }).asyncExecute()
     }
 }

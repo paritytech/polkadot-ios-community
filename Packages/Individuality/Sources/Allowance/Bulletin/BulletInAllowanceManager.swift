@@ -36,6 +36,7 @@ extension BulletInAllowanceManager: AllowanceManaging {
 
     public func allocate(
         accountId: AccountId,
+        signerKeyId _: String?,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain _: AllowanceRecord.Domain

@@ -47,9 +47,28 @@ A statement consists of:
 ## Communication Session
 
 Bidirectional communication sessions between peers:
-- Statement store slot allocation (per-period LRU)
+- Statement store slot allocation (see below)
 - Shared secret derivation per feature domain
 - Binary payloads (not JSON) for wire format
+
+## Statement Store Slot Allocation
+
+`StatementStoreSlotAllocator` (Individuality) funds a statement account for the current period with one
+of two calls, chosen by `StatementStoreSlotInfoProvider.slotPlan`:
+
+- **Free slot** → `set_statement_store_account`, authorized by a ring proof (`AsResources(RegisterStatementStoreAllowance)`).
+- **Occupied slot** → `replace_statement_store_account`, authorized by a plain sr25519 signature of the account
+  currently holding the slot (`AsResources(ReplaceStatementStoreAccount)`), with the `RestrictOrigins`
+  extension enabled. The call carries the slot alias and the entry's `since` timestamp as replay protection.
+
+Eviction candidates are the occupied slots whose holder's `AllowanceRecord` is evictable, does not outrank
+the caller, and carries a `signerKeyId`; they are ranked by `(priority, since)` oldest first. The chain
+rate-limits each slot holder through the origin-restriction pallet, and the recovery window is not
+readable from storage, so the allocator dry-runs the signed replacement with
+`TaggedTransactionQueue_validate_transaction` (`SlotReplacementValidator`): `Payment` or
+`Custom(228)` means "cooling down, try the next candidate", any other invalid reason is
+`replacementRejected`, and an inconclusive answer proceeds to submission. Every evictable candidate
+cooling down raises `noSlotsAvailable`; nothing to evict raises `noEvictableSlots`.
 
 ## Hard Rules
 
@@ -57,6 +76,9 @@ Bidirectional communication sessions between peers:
 2. **Binary payloads on wire** — use SCALE-encoded binary, not JSON
 3. **Feature envelopes** — each feature wraps its data in a typed envelope
 4. **Slot allocation is managed** — use `StatementStoreSlotAllocator` for proper slot lifecycle
+5. **Allowance rows carry `signerKeyId`** — pass the derivation path of the funded account to
+   `allocate`/`ensureFunded`; rows without it (desktop-held device accounts, other installations of the
+   same seed) are never evicted because the replacement cannot be signed
 
 ## Seams
 

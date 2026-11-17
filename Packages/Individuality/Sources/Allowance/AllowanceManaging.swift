@@ -26,8 +26,11 @@ public enum OnExistingAllowancePolicy: Equatable, ScaleCodable {
 }
 
 public protocol AllowanceManaging {
+    /// `signerKeyId` references the key that signs as `accountId`. Managers that hand slots over by
+    /// signature store it; the others ignore it. Pass `nil` when this installation does not hold the key.
     func allocate(
         accountId: AccountId,
+        signerKeyId: String?,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
@@ -45,6 +48,15 @@ public protocol AllowanceManaging {
 }
 
 public extension AllowanceManaging {
+    func allocate(
+        accountId: AccountId,
+        policy: OnExistingAllowancePolicy,
+        priority: AllowanceRecord.Priority,
+        domain: AllowanceRecord.Domain
+    ) async throws {
+        try await allocate(accountId: accountId, signerKeyId: nil, policy: policy, priority: priority, domain: domain)
+    }
+
     func ensureCanSubmit(
         accountId: AccountId,
         priority: AllowanceRecord.Priority,

@@ -136,6 +136,7 @@ private final class FakeAllowanceManager: AllowanceManaging, @unchecked Sendable
 
     func allocate(
         accountId: AccountId,
+        signerKeyId _: String?,
         policy: OnExistingAllowancePolicy,
         priority _: AllowanceRecord.Priority,
         domain _: AllowanceRecord.Domain

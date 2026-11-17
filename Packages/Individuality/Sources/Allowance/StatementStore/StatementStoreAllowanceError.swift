@@ -1,6 +1,11 @@
 import Foundation
+import SubstrateOperation
 
 public enum StatementStoreAllowanceError: Error, Equatable {
-    case noSlotsAvailable(secsToWait: TimeInterval)
+    /// Every evictable slot is still rate-limited by the chain; retry later.
+    case noSlotsAvailable
+    /// No occupied slot may be evicted, or none belongs to a key this installation holds.
     case noEvictableSlots
+    /// The chain rejected the replacement for a reason other than rate limiting.
+    case replacementRejected(InvalidTransaction)
 }

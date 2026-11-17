@@ -10,6 +10,7 @@ final class MockAllowanceManager: AllowanceManaging {
 
     func allocate(
         accountId _: AccountId,
+        signerKeyId _: String?,
         policy _: OnExistingAllowancePolicy,
         priority _: AllowanceRecord.Priority,
         domain _: AllowanceRecord.Domain

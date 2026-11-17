@@ -48,7 +48,8 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
                 chainId: KnownChainId.previewNetPeople,
                 chainRegistry: chainRegistry,
                 storageRequestFactory: storageRequestFactory
-            )
+            ),
+            signerResolver: DerivationPathSignerResolver(entropyManager: setupResult.entropyManager)
         )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
@@ -100,11 +101,23 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
 
         let serialQueue = SerialOperationQueue()
 
+        let replacementValidator = try SlotReplacementValidator(
+            operationFactory: facade.createOperationFactory(chain: chain),
+            validationApi: TaggedTransactionQueueApi(chainRegistry: chainRegistry, operationQueue: operationQueue),
+            blockInfoProvider: BlockInfoProvider(
+                chainRegistry: chainRegistry,
+                operationQueue: operationQueue,
+                chainId: KnownChainId.previewNetPeople
+            ),
+            logger: MockLogger()
+        )
+
         let allocator = StatementStoreSlotAllocator(
             chainId: KnownChainId.previewNetPeople,
             originFactory: originFactory,
             submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory),
             slotInfoProvider: slotInfoProvider,
+            replacementValidator: replacementValidator,
             serialQueue: serialQueue
         )
 

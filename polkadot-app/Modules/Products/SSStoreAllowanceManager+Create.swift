@@ -43,7 +43,8 @@ extension SSStoreAllowanceManager {
             wallet: wallet,
             keyResolver: keyResolver,
             chainRegistry: chainRegistry,
-            networkSuffixProvider: tldProvider
+            networkSuffixProvider: tldProvider,
+            signerResolver: DerivationPathSignerResolver(entropyManager: entropyManager)
         )
 
         let extrinsicFacade = ExtrinsicSubmissionMonitorFacade(
@@ -54,7 +55,8 @@ extension SSStoreAllowanceManager {
 
         guard
             let chatChain = chainRegistry.getChain(for: AppConfig.Chains.chatChain),
-            let monitorFactory = try? extrinsicFacade.createMonitorFactory(chain: chatChain)
+            let monitorFactory = try? extrinsicFacade.createMonitorFactory(chain: chatChain),
+            let operationFactory = try? extrinsicFacade.createOperationFactory(chain: chatChain)
         else {
             return nil
         }
@@ -92,11 +94,23 @@ extension SSStoreAllowanceManager {
 
         let submitter = SlotAssignmentSubmitter(monitorFactory: monitorFactory)
 
+        let replacementValidator = SlotReplacementValidator(
+            operationFactory: operationFactory,
+            validationApi: TaggedTransactionQueueApi(chainRegistry: chainRegistry, operationQueue: operationQueue),
+            blockInfoProvider: BlockInfoProvider(
+                chainRegistry: chainRegistry,
+                operationQueue: operationQueue,
+                chainId: chatChain.chainId
+            ),
+            logger: logger
+        )
+
         let allocator = StatementStoreSlotAllocator(
             chainId: chatChain.chainId,
             originFactory: originFactory,
             submitter: submitter,
             slotInfoProvider: slotInfoProvider,
+            replacementValidator: replacementValidator,
             serialQueue: serialQueue
         )
 

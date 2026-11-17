@@ -9,6 +9,9 @@ public struct AllowanceRecord: Equatable {
     public let domain: Domain
     public let priority: Priority
     public let latestRenewedPeriod: UInt32?
+    /// Derivation path of the account's sr25519 key. `nil` means this installation cannot sign for the
+    /// account, so its statement-store slot is never handed over to another account.
+    public let signerKeyId: String?
 
     public init(
         accountId: AccountId,
@@ -16,7 +19,8 @@ public struct AllowanceRecord: Equatable {
         kind: Kind?,
         domain: Domain,
         priority: Priority,
-        latestRenewedPeriod: UInt32?
+        latestRenewedPeriod: UInt32?,
+        signerKeyId: String? = nil
     ) {
         self.accountId = accountId
         self.allocatedAt = allocatedAt
@@ -24,6 +28,19 @@ public struct AllowanceRecord: Equatable {
         self.domain = domain
         self.priority = priority
         self.latestRenewedPeriod = latestRenewedPeriod
+        self.signerKeyId = signerKeyId
+    }
+
+    public func replacingSignerKeyId(_ signerKeyId: String?) -> AllowanceRecord {
+        AllowanceRecord(
+            accountId: accountId,
+            allocatedAt: allocatedAt,
+            kind: kind,
+            domain: domain,
+            priority: priority,
+            latestRenewedPeriod: latestRenewedPeriod,
+            signerKeyId: signerKeyId
+        )
     }
 }
 

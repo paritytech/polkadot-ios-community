@@ -47,6 +47,74 @@ struct SSStoreAllowanceManagerTests {
         #expect(capturingRepo.savedRecords.map(\.domain) == [.chat])
     }
 
+    @Test func ensureFundedStoresSignerKeyId() async throws {
+        let capturingRepo = CapturingRepository()
+        let manager = makeManager(
+            allocator: FakeAllowanceSlotAllocating(period: 100),
+            repository: AnyDataProviderRepository(capturingRepo),
+            slotInfoProvider: FakeSlotInfoProvider()
+        )
+
+        try await manager.ensureFunded(
+            accountId: testAccountId,
+            signerKeyId: "//chat//peer",
+            priority: .critical,
+            domain: .chat
+        )
+
+        #expect(capturingRepo.savedRecords.map(\.signerKeyId) == ["//chat//peer"])
+    }
+
+    @Test func existingSlotBackfillsMissingSignerKeyId() async throws {
+        let stored = AllowanceRecord(
+            accountId: testAccountId,
+            allocatedAt: Date(),
+            kind: .statementStore,
+            domain: .chat,
+            priority: .critical,
+            latestRenewedPeriod: 100
+        )
+        let capturingRepo = CapturingRepository(storedRecords: [stored])
+        let allocator = FakeAllowanceSlotAllocating(period: 100)
+        let manager = makeManager(
+            allocator: allocator,
+            repository: AnyDataProviderRepository(capturingRepo),
+            slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
+        )
+
+        try await manager.ensureFunded(
+            accountId: testAccountId,
+            signerKeyId: "//chat//peer",
+            priority: .critical,
+            domain: .chat
+        )
+
+        #expect(allocator.assignSlotCalls.isEmpty)
+        #expect(capturingRepo.savedRecords.map(\.signerKeyId) == ["//chat//peer"])
+        #expect(capturingRepo.savedRecords.map(\.latestRenewedPeriod) == [100])
+    }
+
+    @Test func existingSlotWithoutSignerKeyIdLeavesRowUntouched() async throws {
+        let stored = AllowanceRecord(
+            accountId: testAccountId,
+            allocatedAt: Date(),
+            kind: .statementStore,
+            domain: .device,
+            priority: .high,
+            latestRenewedPeriod: 100
+        )
+        let capturingRepo = CapturingRepository(storedRecords: [stored])
+        let manager = makeManager(
+            allocator: FakeAllowanceSlotAllocating(period: 100),
+            repository: AnyDataProviderRepository(capturingRepo),
+            slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
+        )
+
+        try await manager.ensureFunded(accountId: testAccountId, signerKeyId: nil, priority: .high, domain: .device)
+
+        #expect(capturingRepo.savedRecords.isEmpty)
+    }
+
     @Test func ensureFundedSkipsAccountWithSlot() async throws {
         let allocator = FakeAllowanceSlotAllocating(period: 100)
         let manager = makeManager(
@@ -286,10 +354,10 @@ final class CustomFakeSlotInfoProvider: StatementStoreSlotInfoProviding {
         existingSlot
     }
 
-    func freeSlot(
+    func slotPlan(
         excluding _: AccountId,
         callerPriority _: AllowanceRecord.Priority
-    ) async throws -> SSSSlotInfo {
+    ) async throws -> SSSSlotPlan {
         fatalError("Should not be called")
     }
 

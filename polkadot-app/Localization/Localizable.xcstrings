@@ -2639,17 +2639,6 @@
         }
       }
     },
-    "polkadot.sign.in.no.slots.available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Please, try again in %1$(time)@"
-          }
-        }
-      }
-    },
     "polkadot.signing.failure" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -7,4 +7,8 @@ struct MockAttachmentsSenderProvider: AttachmentsSenderProviding {
     func getWallet() async throws -> WalletManaging {
         try MockWalletManager.mockedWallet()
     }
+
+    func getSignerKeyId() throws -> String {
+        "//mock"
+    }
 }
