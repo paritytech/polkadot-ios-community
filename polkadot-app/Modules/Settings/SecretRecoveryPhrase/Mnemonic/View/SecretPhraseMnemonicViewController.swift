@@ -31,6 +31,7 @@ final class SecretPhraseMnemonicViewController: UIViewController, ViewHolder {
         super.viewDidLoad()
 
         observeApplicationState()
+        observeCaptureState()
         configureController()
         presenter.setup()
     }
@@ -45,6 +46,17 @@ final class SecretPhraseMnemonicViewController: UIViewController, ViewHolder {
             name: UIApplication.willResignActiveNotification,
             object: nil
         )
+    }
+
+    private var isSceneCaptured: Bool {
+        traitCollection.sceneCaptureState == .active
+    }
+
+    private func observeCaptureState() {
+        registerForTraitChanges([UITraitSceneCaptureState.self]) { (self: Self, _: UITraitCollection) in
+            guard self.isSceneCaptured else { return }
+            self.rootView.hideData()
+        }
     }
 
     private func configureController() {
@@ -72,7 +84,11 @@ final class SecretPhraseMnemonicViewController: UIViewController, ViewHolder {
     private func onViewMnemonic() {
         switch rootView.mnemonicView.currentType {
         case .hidden:
-            presenter.onShowMnemonic()
+            if isSceneCaptured {
+                presenter.onShowMnemonicWhileCaptured()
+            } else {
+                presenter.onShowMnemonic()
+            }
         case .shown:
             presenter.onHideMnemonic()
         }

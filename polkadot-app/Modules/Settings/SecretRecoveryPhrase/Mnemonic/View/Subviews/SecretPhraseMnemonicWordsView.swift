@@ -3,6 +3,7 @@ import UIKit_iOS
 import SnapKit
 import PolkadotUI
 import DesignSystem
+import UIKitExt
 
 protocol SecretPhraseMnemonicWordsDelegate: AnyObject {
     func didTapMnemonic(_ type: SecretPhraseMnemonicWordsView.ViewState)
@@ -163,6 +164,7 @@ extension SecretPhraseMnemonicWordsView {
         collectionView.alwaysBounceVertical = true
         collectionView.isScrollEnabled = false
         collectionView.registerCellClass(MnemonicWordCollectionCell.self)
+        collectionView.layer.setScreenCaptureDisabled(true)
 
         addSubview(collectionView)
         addSubview(blurView)

@@ -2903,6 +2903,17 @@
         }
       }
     },
+    "secret.recovery.reveal.captured" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop screen recording or mirroring to reveal the recovery phrase"
+          }
+        }
+      }
+    },
     "secret.recovery.subtitle" : {
       "extractionState" : "manual",
       "localizations" : {
