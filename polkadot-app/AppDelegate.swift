@@ -61,6 +61,13 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) {
         logger.error("DidFailToRegisterForRemoteNotificationsWithError \(error)")
     }
+
+    func application(
+        _: UIApplication,
+        shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication.ExtensionPointIdentifier
+    ) -> Bool {
+        extensionPointIdentifier != .keyboard || !RoundedTextView.isEditing
+    }
 }
 
 private extension AppDelegate {

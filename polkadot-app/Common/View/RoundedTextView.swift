@@ -5,6 +5,9 @@ import DesignSystem
 import PolkadotUI
 
 final class RoundedTextView: UIControl {
+    /// Read by `AppDelegate` to refuse third-party keyboards while the recovery phrase is typed.
+    private(set) static var isEditing = false
+
     var textInsets = NSDirectionalEdgeInsets(
         top: 16,
         leading: 16,
@@ -142,6 +145,15 @@ private extension RoundedTextView {
 // MARK: - UITextViewDelegate
 
 extension RoundedTextView: UITextViewDelegate {
+    func textViewShouldBeginEditing(_: UITextView) -> Bool {
+        Self.isEditing = true
+        return true
+    }
+
+    func textViewDidEndEditing(_: UITextView) {
+        Self.isEditing = false
+    }
+
     func textViewDidChange(_ textView: UITextView) {
         if inputViewModel?.inputHandler.value != textView.text {
             textView.text = inputViewModel?.inputHandler.value
