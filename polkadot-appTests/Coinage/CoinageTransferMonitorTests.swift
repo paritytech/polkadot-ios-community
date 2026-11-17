@@ -160,14 +160,16 @@ struct CoinageTransferMonitorTests {
         defer { Task { await monitor.throttle() } }
 
         let claimedValue = context.valueInPlanks(for: 2)
-        let seen = try await states.collect { $0 == .outgoing(.init(status: .claimed, actualValue: claimedValue)) }
+        let seen = try await states.collect {
+            $0 == .outgoing(.init(status: .claimedFinalized, actualValue: claimedValue))
+        }
         let distinct = seen.enumerated().filter { $0.offset == 0 || seen[$0.offset - 1] != $0.element }.map(\.element)
 
         #expect(distinct == [
             nil,
             .outgoing(.init(status: .sending)),
-            .outgoing(.init(status: .sent)),
-            .outgoing(.init(status: .claimed, actualValue: claimedValue))
+            .outgoing(.init(status: .sentFinalized)),
+            .outgoing(.init(status: .claimedFinalized, actualValue: claimedValue))
         ])
         #expect(remoteStatuses.subscriptions.count == 1)
         #expect(statuses.subscriptions.isEmpty)

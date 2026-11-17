@@ -52,7 +52,8 @@ extension [PublicKey: CoinageTransferState] {
 }
 
 extension [PublicKey: RemoteDeviceTransferCoinState] {
-    /// Never `failed`: the mint result isn't visible from the chain.
+    /// Never `failed`: the mint result isn't visible from the chain. Read at the finalized head only,
+    /// so every status it reports is already final.
     func outgoingState(context: DenominationBreakdownContext) -> OutgoingTransferState {
         let states = Array(values)
         guard !states.isEmpty else { return OutgoingTransferState(status: .sending) }
@@ -73,9 +74,9 @@ extension [PublicKey: RemoteDeviceTransferCoinState] {
         }
 
         guard seen else { return OutgoingTransferState(status: .sending) }
-        guard isSettled else { return OutgoingTransferState(status: .sent) }
+        guard isSettled else { return OutgoingTransferState(status: .sentFinalized) }
 
-        return OutgoingTransferState(status: .claimed, actualValue: claimed)
+        return OutgoingTransferState(status: .claimedFinalized, actualValue: claimed)
     }
 
     var isSettled: Bool {

@@ -29,11 +29,17 @@ extension DeviceTransferRequestWireframe: DeviceTransferRequestWireframeProtocol
         }
     }
 
-    func closeForPendingPayments(from view: DeviceTransferRequestViewProtocol?) {
-        let presenting = view?.controller.presentingViewController
-        presenting?.dismiss(animated: true) {
-            let sheet = DeviceTransferConfirmationViewFactory.createView(viewModel: .pendingPayments, onConfirm: {})
-            presenting?.present(sheet, animated: true)
-        }
+    /// Presented over the request sheet, so closing the request takes the warning with it.
+    func warnPendingPayments(
+        from view: DeviceTransferRequestViewProtocol?,
+        onTransferAnyway: @escaping () -> Void,
+        onDecline: @escaping () -> Void
+    ) {
+        let warning = DeviceTransferConfirmationViewFactory.createView(
+            viewModel: .pendingPayments,
+            onConfirm: onTransferAnyway,
+            onDismiss: onDecline
+        )
+        view?.controller.present(warning, animated: true)
     }
 }

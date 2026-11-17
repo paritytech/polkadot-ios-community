@@ -149,8 +149,8 @@ public extension DeviceTransferConfirmationViewLayout.ViewModel {
             title: String(localized: .deviceTransferPendingTitle),
             message: String(localized: .deviceTransferPendingBody),
             points: [],
-            confirmTitle: nil,
-            dismissTitle: String(localized: .actionClose)
+            confirmTitle: String(localized: .deviceTransferPendingActionAnyway),
+            dismissTitle: String(localized: .deviceTransferRequestActionDecline)
         )
     }
 
