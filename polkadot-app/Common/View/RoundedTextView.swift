@@ -53,6 +53,12 @@ final class RoundedTextView: UIControl {
         $0.textContainerInset = .zero
         $0.textContainer.lineFragmentPadding = 0
         $0.autocapitalizationType = .none
+        $0.autocorrectionType = .no
+        $0.spellCheckingType = .no
+        $0.inlinePredictionType = .no
+        $0.smartQuotesType = .no
+        $0.smartDashesType = .no
+        $0.smartInsertDeleteType = .no
         $0.showsVerticalScrollIndicator = false
         $0.showsHorizontalScrollIndicator = false
     }
