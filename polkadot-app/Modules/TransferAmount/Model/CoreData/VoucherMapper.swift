@@ -38,8 +38,12 @@ extension VoucherMapper: CoreDataMapperProtocol {
                 nil
             }
 
+        // Raw 3 wins over a ring the row may still hold: an unloaded write keeps the ring columns so a
+        // retraction can restore them, but the voucher is spent until then.
         let state: Voucher.OnChainState =
-            if entity.onChainState == 1 {
+            if entity.onChainState == 3 {
+                .unloaded
+            } else if entity.onChainState == 1 {
                 .onboarding
             } else if entity.onChainState == 2, let recycler {
                 .inRecycler(recycler)
@@ -86,6 +90,7 @@ extension VoucherMapper: CoreDataMapperProtocol {
             case .unlocated: 0
             case .onboarding: 1
             case .inRecycler: 2
+            case .unloaded: 3
             }
     }
 }

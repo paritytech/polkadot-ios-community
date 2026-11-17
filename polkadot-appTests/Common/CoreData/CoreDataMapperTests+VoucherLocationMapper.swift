@@ -231,6 +231,51 @@ extension CoreDataMapperTests {
             #expect(afterConfirmation == original.adjusting(state: confirmed.remoteState))
         }
 
+        /// An unload seen on chain can be retracted by a fork, so the write keeps the ring the voucher
+        /// sat in: the retraction then finds its inclusion time and frozen ceiling where it left them.
+        @Test("an unloaded verdict hides the ring without clearing it, and a retraction restores it")
+        func unloadedKeepsRingColumnsForRetraction() async throws {
+            let entered = Date(timeIntervalSince1970: 5_000)
+            let original = unlocatedVoucher(index: 304)
+            try await fullRepo.saveOperation({ [original] }, { [] }).asyncExecute()
+
+            try await locationRepo.saveOperation({
+                [VoucherLocationUpdate(
+                    derivationIndex: 304,
+                    remoteState: .inRecycler(.init(index: 6, membersCount: 30, enteredAt: entered)),
+                    recyclerFungibility: 50,
+                    maxRecyclerFungibility: 70
+                )]
+            }, { [] }).asyncExecute()
+
+            try await locationRepo.saveOperation({
+                [VoucherLocationUpdate(derivationIndex: 304, remoteState: .unloaded)]
+            }, { [] }).asyncExecute()
+
+            let spent = try await stored(original)
+            #expect(spent.remoteState == .unloaded)
+            #expect(spent.recycler == nil)
+            #expect(spent.maxRecyclerFungibility == 70)
+
+            try await locationRepo.saveOperation({
+                [VoucherLocationUpdate(
+                    derivationIndex: 304,
+                    remoteState: .inRecycler(.init(
+                        index: 6,
+                        membersCount: 31,
+                        enteredAt: entered.addingTimeInterval(tenMinutes)
+                    )),
+                    recyclerFungibility: 48,
+                    maxRecyclerFungibility: 99
+                )]
+            }, { [] }).asyncExecute()
+
+            let restored = try await stored(original)
+            #expect(restored.remoteState == .inRecycler(.init(index: 6, membersCount: 31, enteredAt: entered)))
+            #expect(restored.maxRecyclerFungibility == 70)
+            #expect(restored.recyclerFungibility == 48)
+        }
+
         @Test("throws missingVoucher when entity does not exist")
         func throwsForNewEntity() async throws {
             let update = VoucherLocationUpdate(

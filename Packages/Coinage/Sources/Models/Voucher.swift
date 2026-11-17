@@ -27,12 +27,17 @@ public struct Voucher: Equatable, CoinageDerivable, Sendable {
         case unlocated
         case onboarding
         case inRecycler(Recycler)
+        /// Its recycler alias reads unloaded on chain: spent by an unload this installation did not
+        /// submit, or one whose entry is already settled. Reversible — a fork that retracts the alias
+        /// re-resolves the voucher from its ring position.
+        case unloaded
 
         var recycler: Recycler? {
             switch self {
             case let .inRecycler(recycler): recycler
             case .unlocated,
-                 .onboarding: nil
+                 .onboarding,
+                 .unloaded: nil
             }
         }
 
@@ -40,7 +45,8 @@ public struct Voucher: Equatable, CoinageDerivable, Sendable {
             switch self {
             case .unlocated,
                  .onboarding: true
-            case .inRecycler: false
+            case .inRecycler,
+                 .unloaded: false
             }
         }
     }

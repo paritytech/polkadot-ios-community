@@ -38,48 +38,53 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
             throw MappingError.missingVoucher
         }
 
+        // An unloaded verdict is reversible, so the ring columns it would otherwise clear are kept: a
+        // fork that retracts it writes the same ring back and finds the inclusion time and ceiling intact.
+        guard case .unloaded = model.remoteState else {
+            populateLocation(entity: entity, from: model)
+            return
+        }
+
+        entity.onChainState = Self.rawState(of: model.remoteState)
+    }
+}
+
+private extension VoucherLocationMapper {
+    func populateLocation(entity: CoreDataEntity, from model: DataProviderModel) {
         // Read before any write below: both the inclusion time and the ceiling are keyed on
         // whether this is the same ring the entity already held.
         let previousRecyclerIndex = entity.recyclerIndex
+        let recycler: Voucher.Recycler? =
+            if case let .inRecycler(recycler) = model.remoteState { recycler } else { nil }
 
-        entity.enteredAt =
-            switch model.remoteState {
-            case let .inRecycler(recycler):
-                previousRecyclerIndex == Int64(recycler.index)
-                    ? entity.enteredAt ?? recycler.enteredAt
-                    : recycler.enteredAt
-            case .unlocated,
-                 .onboarding: nil
-            }
+        if let recycler {
+            entity.enteredAt = previousRecyclerIndex == Int64(recycler.index)
+                ? entity.enteredAt ?? recycler.enteredAt
+                : recycler.enteredAt
+            entity.recyclerIndex = Int64(recycler.index)
+            entity.recyclerMembers = Int64(recycler.membersCount)
+        } else {
+            entity.enteredAt = nil
+            entity.recyclerIndex = -1
+            entity.recyclerMembers = 0
+        }
 
-        entity.recyclerIndex =
-            switch model.remoteState {
-            case let .inRecycler(recycler): Int64(recycler.index)
-            case .unlocated,
-                 .onboarding: -1
-            }
-
-        entity.recyclerMembers =
-            switch model.remoteState {
-            case let .inRecycler(recycler): Int64(recycler.membersCount)
-            case .unlocated,
-                 .onboarding: 0
-            }
-
-        entity.onChainState =
-            switch model.remoteState {
-            case .unlocated: 0
-            case .onboarding: 1
-            case .inRecycler: 2
-            }
+        entity.onChainState = Self.rawState(of: model.remoteState)
 
         let enteredNewRing = entity.recyclerIndex != previousRecyclerIndex
 
         populateFungibility(entity: entity, from: model, enteredNewRing: enteredNewRing)
     }
-}
 
-private extension VoucherLocationMapper {
+    static func rawState(of state: Voucher.OnChainState) -> Int16 {
+        switch state {
+        case .unlocated: 0
+        case .onboarding: 1
+        case .inRecycler: 2
+        case .unloaded: 3
+        }
+    }
+
     /// The current score tracks every reading; the ceiling is captured once per ring membership —
     /// on entry, and again only if the voucher is ever placed in a different ring.
     ///

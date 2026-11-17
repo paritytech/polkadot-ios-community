@@ -22,7 +22,7 @@ struct VoucherOnChainInfo {
     /// The reconciled on-chain location: an unloaded read overrides everything, a ring-placed voucher
     /// becomes in-recycler carrying its real member count, otherwise it is still onboarding.
     var onChainState: Voucher.OnChainState {
-        guard !isUnloaded else { return .unlocated }
+        guard !isUnloaded else { return .unloaded }
         guard let ringIndex = ringPosition.ringIndex else { return .onboarding }
         return .inRecycler(Voucher.Recycler(index: ringIndex, membersCount: ringMembersCount ?? 0))
     }
@@ -190,30 +190,6 @@ private struct RecyclerAssignment: Decodable {
         var container = try decoder.unkeyedContainer()
         instanceId = try container.decode(StringCodable<CoinageInstanceId>.self).wrappedValue
         exponent = try container.decode(StringCodable<Int16>.self).wrappedValue
-    }
-}
-
-// MARK: - NMap key
-
-private struct RecyclerAliasStateKey: NMapKeyStorageKeyProtocol {
-    let instanceId: CoinageInstanceId
-    let exponent: Int16
-    let ringIndex: MembersPallet.RingIndex
-    let publicKey: Data
-
-    func appendSubkey(to encoder: any DynamicScaleEncoding, type: String, index: Int) throws {
-        switch index {
-        case 0:
-            try encoder.append(StringCodable(wrappedValue: instanceId), ofType: type)
-        case 1:
-            try encoder.append(StringCodable(wrappedValue: exponent), ofType: type)
-        case 2:
-            try encoder.append(StringCodable(wrappedValue: ringIndex), ofType: type)
-        case 3:
-            try encoder.append(BytesCodable(wrappedValue: publicKey), ofType: type)
-        default:
-            break
-        }
     }
 }
 

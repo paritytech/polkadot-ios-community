@@ -68,6 +68,17 @@ extension CoreDataMapperTests {
             #expect(recycler.index == 7)
         }
 
+        @Test("remoteState .unloaded round-trips")
+        func roundTripUnloaded() async throws {
+            let original = makeVoucher(derivationIndex: 53, remoteState: .unloaded)
+            try await repo.saveOperation({ [original] }, { [] }).asyncExecute()
+
+            let result = try #require(
+                try await repo.fetchOperation(by: { original.identifier }, options: .init()).asyncExecute()
+            )
+            #expect(result.remoteState == .unloaded)
+        }
+
         // MARK: - recyclerFungibility
 
         @Test("both fungibility fields round-trip", arguments: [UInt8.min, 37, CoinageConstants.fullFungibility])

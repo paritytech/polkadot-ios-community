@@ -7,11 +7,13 @@ import SubstrateSdk
 /// itself is built from; the service maps it back to the voucher. Ring state is per *ring*: several
 /// vouchers commonly share one, and subscribing per voucher would ask the node for the same key
 /// repeatedly. The ring cases are therefore keyed by ``RecyclerKey`` so one request serves every
-/// voucher in that ring.
+/// voucher in that ring. The alias row is per voucher again, keyed by derivation index because the
+/// alias is derived from the voucher's secret rather than being its member key.
 enum SubscriptionKey: Hashable {
     case member(publicKey: PublicKey)
     case ringStatus(recycler: RecyclerKey)
     case unloadedCount(recycler: RecyclerKey)
+    case alias(index: CoinageKeyIndex)
 
     static let separator = ":"
 
@@ -32,6 +34,11 @@ enum SubscriptionKey: Hashable {
         case "uc":
             guard let recycler = Self.recycler(from: components.dropFirst()) else { return nil }
             self = .unloadedCount(recycler: recycler)
+        case "a":
+            guard components.count == 2,
+                  let index = try? CoinageKeyIndex.fromString(String(components[1]))
+            else { return nil }
+            self = .alias(index: index)
         default:
             return nil
         }
@@ -45,6 +52,8 @@ enum SubscriptionKey: Hashable {
             (["rs"] + Self.components(of: recycler)).joined(separator: Self.separator)
         case let .unloadedCount(recycler):
             (["uc"] + Self.components(of: recycler)).joined(separator: Self.separator)
+        case let .alias(index):
+            ["a", index.toString()].joined(separator: Self.separator)
         }
     }
 }

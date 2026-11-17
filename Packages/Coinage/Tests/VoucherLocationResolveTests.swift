@@ -106,11 +106,13 @@ struct VoucherLocationResolveTests {
 private extension VoucherLocationResolveTests {
     func resolve(
         _ positions: [CoinageKeyIndex: UncertainStorage<MembersPallet.RingPosition?>],
-        _ statuses: [CoinageKeyIndex: UncertainStorage<MembersPallet.RingKeysStatus?>] = [:]
+        _ statuses: [CoinageKeyIndex: UncertainStorage<MembersPallet.RingKeysStatus?>] = [:],
+        aliases: [CoinageKeyIndex: UncertainStorage<CoinagePallet.AliasState?>] = [:]
     ) -> [CoinageKeyIndex: Voucher.OnChainState] {
         VoucherLocationService.resolveLocations(
             positions: positions,
             statuses: statuses,
+            aliasStates: aliases,
             keysPerPage: keysPerPage,
             observedAt: observedAt
         )

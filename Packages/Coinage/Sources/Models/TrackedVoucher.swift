@@ -43,9 +43,17 @@ extension TrackedVoucher {
 
     /// Whether the location service should keep this voucher subscribed on-chain. A ring keeps
     /// filling after a voucher lands in it, so an in-recycler voucher stays tracked to refresh its
-    /// member count — until it is spent (`isConsumed`) or its mint provably failed.
+    /// member count — until it is spent (`isConsumed`) or its mint provably failed. An `.unloaded`
+    /// voucher stays tracked too, so a fork that retracts the alias can bring it back.
     var shouldTrackOnchain: Bool {
         !state.isConsumed && !state.isMintingFailed || voucher.remoteState != .unlocated
+    }
+
+    /// Whether the location service may judge this voucher spent from its recycler alias. A voucher a
+    /// live local entry is unloading is the durability engine's to judge: a self-inflicted `.unloaded`
+    /// during a reorg window would read to its rebuild as "redeemed by someone else".
+    var isAliasEligible: Bool {
+        !state.isInUse
     }
 }
 

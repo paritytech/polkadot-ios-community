@@ -336,11 +336,14 @@ public extension CoinageService {
 
         let voucherLocationService = VoucherLocationService(
             instanceId: instanceId,
-            voucherRepository: voucherRepository,
             databaseFactory: databaseFactory,
-            connection: connection,
-            runtimeService: runtimeService,
+            chainReader: VoucherLocationChainReader(
+                connection: connection,
+                runtimeService: runtimeService,
+                logger: logger
+            ),
             ringCapacityProvider: ringCapacityProvider,
+            aliasProvider: { try voucherKeypairFactory.alias(for: $0) },
             logger: logger
         )
 

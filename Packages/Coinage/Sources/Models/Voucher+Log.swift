@@ -16,6 +16,8 @@ extension Voucher.OnChainState: CustomDebugStringConvertible {
             "Onboarding"
         case .unlocated:
             "Unlocated"
+        case .unloaded:
+            "Unloaded"
         case let .inRecycler(recycler):
             "In Recycler: \(recycler.debugDescription)"
         }

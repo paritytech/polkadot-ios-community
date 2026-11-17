@@ -22,10 +22,32 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
         let unloadedCount: UInt32?
     }
 
+    /// `RecyclerAliasStates` for one voucher. Absent means no alias row, which is how an unspent voucher
+    /// reads; only `.unloaded` proves a spend.
+    struct AliasUpdate {
+        let index: CoinageKeyIndex
+        let aliasState: CoinagePallet.AliasState?
+    }
+
     let ringPositionUpdates: [MemberUpdate]
     let ringStatusUpdates: [RingStatusUpdate]
     let unloadedCountUpdates: [UnloadedCountUpdate]
+    let aliasUpdates: [AliasUpdate]
     let blockHash: BlockHashData?
+
+    init(
+        ringPositionUpdates: [MemberUpdate] = [],
+        ringStatusUpdates: [RingStatusUpdate] = [],
+        unloadedCountUpdates: [UnloadedCountUpdate] = [],
+        aliasUpdates: [AliasUpdate] = [],
+        blockHash: BlockHashData? = nil
+    ) {
+        self.ringPositionUpdates = ringPositionUpdates
+        self.ringStatusUpdates = ringStatusUpdates
+        self.unloadedCountUpdates = unloadedCountUpdates
+        self.aliasUpdates = aliasUpdates
+        self.blockHash = blockHash
+    }
 
     init(
         values: [BatchStorageSubscriptionResultValue],
@@ -35,6 +57,7 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
         var updates: [MemberUpdate] = []
         var ringStatusUpdates: [RingStatusUpdate] = []
         var unloadedCountUpdates: [UnloadedCountUpdate] = []
+        var aliasUpdates: [AliasUpdate] = []
 
         for item in values {
             guard
@@ -77,12 +100,21 @@ struct MemberStatusResult: BatchStorageSubscriptionResult {
                     recycler: recycler,
                     unloadedCount: count?.value
                 ))
+
+            case let .alias(index):
+                let aliasState = try? item.value.map(
+                    to: CoinagePallet.AliasState?.self,
+                    with: context
+                )
+
+                aliasUpdates.append(.init(index: index, aliasState: aliasState))
             }
         }
 
         ringPositionUpdates = updates
         self.ringStatusUpdates = ringStatusUpdates
         self.unloadedCountUpdates = unloadedCountUpdates
+        self.aliasUpdates = aliasUpdates
         blockHash = try blockHashJson.map(to: BlockHashData?.self, with: context)
     }
 }
