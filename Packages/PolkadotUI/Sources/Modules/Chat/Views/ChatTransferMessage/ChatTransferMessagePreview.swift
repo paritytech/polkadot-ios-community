@@ -68,6 +68,7 @@
                     amount: originalAmount == nil ? "99" : "40",
                     tokenSymbol: "DOT",
                     originalAmount: originalAmount,
+                    to: "Jake",
                     state: state,
                     statusConfiguration: .init(
                         dateFormatter: TimestampFormatter(),

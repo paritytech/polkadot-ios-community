@@ -46,6 +46,7 @@ public extension ChatTransferMessageConfiguration {
         amount: String,
         tokenSymbol: String,
         originalAmount: String? = nil,
+        to username: String? = nil,
         state: ChatTransferMessageConfiguration.OutgoingState,
         statusConfiguration: ChatMessageStatusViewConfiguration,
         addReaction: ChatMessageContainerConfiguration.AddReactionViewModel? = nil,
@@ -65,7 +66,8 @@ public extension ChatTransferMessageConfiguration {
             amountTextColor: .fgPrimaryInverted,
             tokenSymbolColor: .fgSecondaryInverted,
             originalAmountTextColor: .fgSecondaryInverted,
-            side: .trailing
+            side: .trailing,
+            peerName: username
         )
 
         return ChatMessageContainerConfiguration(

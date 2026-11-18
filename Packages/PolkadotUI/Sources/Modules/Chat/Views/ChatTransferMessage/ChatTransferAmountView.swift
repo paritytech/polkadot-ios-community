@@ -27,9 +27,10 @@ final class ChatTransferAmountView: UIView {
     override var intrinsicContentSize: CGSize {
         let amountSize = amountLabel.intrinsicContentSize
         let unitSize = unitLabel.intrinsicContentSize
+        let gap = unitGap(for: amountLabel.font ?? UIFont.app(typography))
 
         return CGSize(
-            width: amountSize.width + unitSize.width,
+            width: amountSize.width + gap + unitSize.width,
             height: max(amountSize.height, unitSize.height)
         )
     }
@@ -44,7 +45,7 @@ final class ChatTransferAmountView: UIView {
 
         amountLabel.frame = CGRect(origin: .zero, size: amountSize)
         unitLabel.frame = CGRect(
-            x: amountSize.width,
+            x: amountSize.width + unitGap(for: amountFont),
             y: amountFont.ascender - unitFont.ascender,
             width: unitSize.width,
             height: unitSize.height
@@ -80,9 +81,14 @@ private extension ChatTransferAmountView {
 
     func fits(amountText: String, unit: String, typography: TypographyStyle) -> Bool {
         let font = UIFont.app(typography)
-        let total = width(of: amountText, font: font) + CashLogo.unit(unit, fallback: unitFont(for: font)).size().width
+        let total = width(of: amountText, font: font) + unitGap(for: font)
+            + CashLogo.unit(unit, fallback: unitFont(for: font)).size().width
 
         return total <= Constants.maxWidth
+    }
+
+    func unitGap(for font: UIFont) -> CGFloat {
+        width(of: " ", font: font)
     }
 
     func width(of text: String, font: UIFont) -> CGFloat {

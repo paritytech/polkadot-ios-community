@@ -784,6 +784,7 @@ private extension ChatViewModelFactory {
                 amount: amountString,
                 tokenSymbol: tokenSymbol,
                 originalAmount: originalAmountString,
+                to: peerMetadata.name,
                 state: content.outgoingViewState,
                 statusConfiguration: statusConfiguration,
                 addReaction: addReaction,
