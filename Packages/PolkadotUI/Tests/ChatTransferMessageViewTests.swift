@@ -126,7 +126,7 @@ private extension ChatTransferMessageViewTests {
         peerName: String? = nil
     ) -> ChatTransferMessageConfiguration {
         ChatTransferMessageConfiguration(
-            title: "You Sent",
+            title: "You sent",
             currencySymbol: "$",
             amountText: amount,
             tokenSymbol: "CASH",
