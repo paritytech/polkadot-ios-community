@@ -15,14 +15,27 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
         reads: [Read]
     )>(initialState: ([:], []))
 
+    /// The Coinage instance the stub reads coins against; a coin of any other instance is a foreign coin.
+    static let appInstance: CoinageInstanceId = 0
+
     var reads: [Read] { state.withLock { $0.reads } }
 
     func setPresent(_ key: PublicKey, atBlockHash blockHash: Data?, value: Int8 = 1, age: Int16 = 0) {
         state.withLock {
             $0.presence[blockHash, default: [:]][key] = CoinSyncResult.OnChainCoin(
-                instanceId: 0,
+                instanceId: Self.appInstance,
                 value: value,
                 age: age
+            )
+        }
+    }
+
+    func setForeign(_ key: PublicKey, atBlockHash blockHash: Data?, instanceId: CoinageInstanceId) {
+        state.withLock {
+            $0.presence[blockHash, default: [:]][key] = CoinSyncResult.OnChainCoin(
+                instanceId: instanceId,
+                value: 1,
+                age: 0
             )
         }
     }
@@ -35,7 +48,7 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
         state.withLock { state in
             state.reads.append(Read(keys: publicKeys, atBlockHash: atBlockHash))
             let table = state.presence[atBlockHash] ?? [:]
-            return publicKeys.map { table[$0].map(OnChainCoinRead.present) ?? .absent }
+            return publicKeys.map { table[$0].read(in: Self.appInstance) }
         }
     }
 
@@ -51,7 +64,7 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
     func subscribeCoinInfos(for publicKeys: [Data]) -> AnyAsyncSequence<CoinInfosSnapshot> {
         let present = state.withLock { $0.presence[nil] ?? [:] }
         let infos = publicKeys.reduce(into: [Data: ClaimableCoinInfo]()) { result, key in
-            guard let coin = present[key] else { return }
+            guard let coin = present[key].read(in: Self.appInstance).coin else { return }
             result[key] = ClaimableCoinInfo(exponent: Int16(coin.value), age: coin.age)
         }
 
