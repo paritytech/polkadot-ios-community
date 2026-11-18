@@ -732,7 +732,9 @@ private extension ChatViewModelFactory {
         let originalAmountString: String? = projection.originalValue.flatMap {
             balanceFactory.amount(from: $0)
         }
-        let reclaimedAmountString = content.partialReclaimedValue.map { balanceFactory.amount(from: $0) }
+        let reclaimedAmountString = content.partialReclaimedValue.map {
+            AppConfig.Brand.fiatSymbol + balanceFactory.amount(from: $0).trimmingCharacters(in: .whitespaces)
+        }
         let reclaimAction = content.isReclaimable
             ? ChatTransferMessageConfiguration.ReclaimAction(onReclaim: { [messageId, actions] in
                 actions.reclaimTransfer(messageId)
@@ -790,6 +792,7 @@ private extension ChatViewModelFactory {
                 amount: amountString,
                 tokenSymbol: tokenSymbol,
                 originalAmount: originalAmountString,
+                to: peerMetadata.name,
                 state: content.outgoingViewState(reclaimedAmount: reclaimedAmountString),
                 statusConfiguration: statusConfiguration,
                 addReaction: addReaction,
