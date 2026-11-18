@@ -15,9 +15,9 @@ enum CoinOnChainQueryError: Error {
 
 /// Batch-fetches on-chain coin state for given public keys.
 protocol CoinOnChainQuerying: Sendable {
-    /// Fetches on-chain coins for multiple public keys at a specific block hash.
-    /// Returns an array of optionals in the same order as the input keys.
-    func fetchCoins(for publicKeys: [Data], atBlockHash: Data?) async throws -> [CoinSyncResult.OnChainCoin?]
+    /// Reads `CoinsByOwner` for multiple public keys at a specific block hash, judged against the app's
+    /// Coinage instance. Returns one read per key, in input order.
+    func fetchCoinReads(for publicKeys: [Data], atBlockHash: Data?) async throws -> [OnChainCoinRead]
 
     /// Waits until all coins for the given public keys appear on-chain, or throws when the subscription terminates.
     func awaitAllCoinsOnChain(for publicKeys: [Data]) async throws
@@ -40,6 +40,12 @@ protocol CoinOnChainQuerying: Sendable {
 }
 
 extension CoinOnChainQuerying {
+    /// Fetches on-chain coins of the app's Coinage instance at a specific block hash; a foreign coin
+    /// reads as `nil`. Returns an array of optionals in the same order as the input keys.
+    func fetchCoins(for publicKeys: [Data], atBlockHash: Data?) async throws -> [CoinSyncResult.OnChainCoin?] {
+        try await fetchCoinReads(for: publicKeys, atBlockHash: atBlockHash).map(\.coin)
+    }
+
     /// Fetches on-chain coins for multiple public keys in a single RPC call.
     /// Returns an array of optionals in the same order as the input keys.
     func fetchCoins(for publicKeys: [Data]) async throws -> [CoinSyncResult.OnChainCoin?] {
@@ -73,7 +79,7 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         self.storageRequestFactory = storageRequestFactory
     }
 
-    func fetchCoins(for publicKeys: [Data], atBlockHash: Data?) async throws -> [CoinSyncResult.OnChainCoin?] {
+    func fetchCoinReads(for publicKeys: [Data], atBlockHash: Data?) async throws -> [OnChainCoinRead] {
         guard !publicKeys.isEmpty else { return [] }
 
         let coderFactory = try await runtimeService.fetchCoderFactoryOperation().asyncExecute()
@@ -89,7 +95,7 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
             )
 
         let responses = try await queryWrapper.asyncExecute()
-        return responses.map { $0.value.filtered(by: instanceId) }
+        return responses.map { $0.value.read(in: instanceId) }
     }
 
     /// Subscribes to on-chain coin storage and resolves when all requested keys have a non-nil coin.

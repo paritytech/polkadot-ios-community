@@ -31,11 +31,11 @@ final class StubCoinOnChainQuery: CoinOnChainQuerying, @unchecked Sendable {
         state.withLock { $0.presence[blockHash]?[key] = nil }
     }
 
-    func fetchCoins(for publicKeys: [Data], atBlockHash: Data?) async throws -> [CoinSyncResult.OnChainCoin?] {
+    func fetchCoinReads(for publicKeys: [Data], atBlockHash: Data?) async throws -> [OnChainCoinRead] {
         state.withLock { state in
             state.reads.append(Read(keys: publicKeys, atBlockHash: atBlockHash))
             let table = state.presence[atBlockHash] ?? [:]
-            return publicKeys.map { table[$0] }
+            return publicKeys.map { table[$0].map(OnChainCoinRead.present) ?? .absent }
         }
     }
 

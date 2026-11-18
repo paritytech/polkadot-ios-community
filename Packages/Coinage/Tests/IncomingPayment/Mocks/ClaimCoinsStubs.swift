@@ -78,7 +78,7 @@ final class ScriptedCoinInfoQuery: CoinOnChainQuerying, @unchecked Sendable {
         return stream.eraseToAnyAsyncSequence()
     }
 
-    func fetchCoins(for _: [Data], atBlockHash _: Data?) async throws -> [CoinSyncResult.OnChainCoin?] {
+    func fetchCoinReads(for _: [Data], atBlockHash _: Data?) async throws -> [OnChainCoinRead] {
         throw Unsupported()
     }
 
