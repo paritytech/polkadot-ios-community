@@ -71,7 +71,13 @@ private extension ServiceCoordinator {
                     chainId: chainId,
                     chainRegistry: chainRegistry,
                     storageRequestFactory: storageRequestFactory
-                )
+                ),
+                statementStorageParameters: StatementStorageParametersProvider(
+                    chainId: chainId,
+                    chainRegistry: chainRegistry,
+                    storageRequestFactory: storageRequestFactory
+                ),
+                logger: Logger.shared
             ),
             issueDiagnostics: NotificationSlotIssueDiagnostics.make(reporter: IssueReportingFacade.shared),
             logger: Logger.shared
