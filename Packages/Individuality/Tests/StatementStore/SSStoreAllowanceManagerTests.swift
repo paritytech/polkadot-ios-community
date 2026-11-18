@@ -40,7 +40,7 @@ struct SSStoreAllowanceManagerTests {
             slotInfoProvider: FakeSlotInfoProvider()
         )
 
-        try await manager.ensureFunded(accountId: testAccountId, priority: .critical, domain: .chat)
+        try await manager.ensureFunded(holder: .remote(accountId: testAccountId), priority: .critical, domain: .chat)
 
         #expect(allocator.priorities == [.critical])
         #expect(capturingRepo.savedRecords.map(\.accountId) == [testAccountId])
@@ -56,8 +56,7 @@ struct SSStoreAllowanceManagerTests {
         )
 
         try await manager.ensureFunded(
-            accountId: testAccountId,
-            signerKeyId: "//chat//peer",
+            holder: .local(accountId: testAccountId, signerKeyId: "//chat//peer"),
             priority: .critical,
             domain: .chat
         )
@@ -83,8 +82,7 @@ struct SSStoreAllowanceManagerTests {
         )
 
         try await manager.ensureFunded(
-            accountId: testAccountId,
-            signerKeyId: "//chat//peer",
+            holder: .local(accountId: testAccountId, signerKeyId: "//chat//peer"),
             priority: .critical,
             domain: .chat
         )
@@ -110,7 +108,7 @@ struct SSStoreAllowanceManagerTests {
             slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
         )
 
-        try await manager.ensureFunded(accountId: testAccountId, signerKeyId: nil, priority: .high, domain: .device)
+        try await manager.ensureFunded(holder: .remote(accountId: testAccountId), priority: .high, domain: .device)
 
         #expect(capturingRepo.savedRecords.isEmpty)
     }
@@ -123,7 +121,7 @@ struct SSStoreAllowanceManagerTests {
             slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
         )
 
-        try await manager.ensureFunded(accountId: testAccountId, priority: .normal, domain: .chat)
+        try await manager.ensureFunded(holder: .remote(accountId: testAccountId), priority: .normal, domain: .chat)
 
         #expect(allocator.assignSlotCalls.isEmpty)
     }
@@ -145,7 +143,7 @@ struct SSStoreAllowanceManagerTests {
         )
 
         try await manager.allocate(
-            accountId: testAccountId,
+            holder: .remote(accountId: testAccountId),
             policy: .ignore,
             priority: .normal,
             domain: .product
@@ -173,7 +171,7 @@ struct SSStoreAllowanceManagerTests {
         )
 
         try await manager.allocate(
-            accountId: testAccountId,
+            holder: .remote(accountId: testAccountId),
             policy: .increase,
             priority: .normal,
             domain: .product
@@ -202,7 +200,7 @@ struct SSStoreAllowanceManagerTests {
         )
 
         try await manager.allocate(
-            accountId: testAccountId,
+            holder: .remote(accountId: testAccountId),
             policy: .ignore,
             priority: .normal,
             domain: .product

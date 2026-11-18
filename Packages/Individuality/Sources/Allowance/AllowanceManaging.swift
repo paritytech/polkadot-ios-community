@@ -25,21 +25,21 @@ public enum OnExistingAllowancePolicy: Equatable, ScaleCodable {
     }
 }
 
-public protocol AllowanceManaging {
-    /// `signerKeyId` references the key that signs as `accountId`. Managers that hand slots over by
-    /// signature store it; the others ignore it. Pass `nil` when this installation does not hold the key.
+/// `Holder` is the funded account as the manager needs it: an `AccountId`, or a `StatementStoreAllowanceHolder`.
+public protocol AllowanceManaging<Holder> {
+    associatedtype Holder
+
     func allocate(
-        accountId: AccountId,
-        signerKeyId: String?,
+        holder: Holder,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws
-    /// Ensures [accountId] can submit to HOP. Managers that do not distinguish this from a plain
+    /// Ensures the holder can submit to HOP. Managers that do not distinguish this from a plain
     /// allowance fall back to `allocate(policy: .ignore)`; the Bulletin manager overrides this to
     /// gate on `HopRuntimeApi.can_account_promote` instead of the stored allowance extent.
     func ensureCanSubmit(
-        accountId: AccountId,
+        holder: Holder,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws
@@ -48,13 +48,26 @@ public protocol AllowanceManaging {
 }
 
 public extension AllowanceManaging {
+    func ensureCanSubmit(
+        holder: Holder,
+        priority: AllowanceRecord.Priority,
+        domain: AllowanceRecord.Domain
+    ) async throws {
+        try await allocate(holder: holder, policy: .ignore, priority: priority, domain: domain)
+    }
+
+    func renew() async throws {}
+    func release(with _: AllowanceReleaseStrategy) async throws {}
+}
+
+public extension AllowanceManaging where Holder == AccountId {
     func allocate(
         accountId: AccountId,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
-        try await allocate(accountId: accountId, signerKeyId: nil, policy: policy, priority: priority, domain: domain)
+        try await allocate(holder: accountId, policy: policy, priority: priority, domain: domain)
     }
 
     func ensureCanSubmit(
@@ -62,9 +75,6 @@ public extension AllowanceManaging {
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
-        try await allocate(accountId: accountId, policy: .ignore, priority: priority, domain: domain)
+        try await ensureCanSubmit(holder: accountId, priority: priority, domain: domain)
     }
-
-    func renew() async throws {}
-    func release(with _: AllowanceReleaseStrategy) async throws {}
 }

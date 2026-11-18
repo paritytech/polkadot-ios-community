@@ -110,8 +110,7 @@ private extension ChatAccountFunding {
             // A caller may have read the record just before a previous funding finished.
             if try await !isFundedForCurrentPeriod(accountId) {
                 try await funding.ensureFunded(
-                    accountId: accountId,
-                    signerKeyId: signerKeyId,
+                    holder: .local(accountId: accountId, signerKeyId: signerKeyId),
                     priority: .critical,
                     domain: .chat
                 )

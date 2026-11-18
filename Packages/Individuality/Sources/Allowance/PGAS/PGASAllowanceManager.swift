@@ -25,8 +25,7 @@ public final class PGASAllowanceManager {
 
 extension PGASAllowanceManager: AllowanceManaging {
     public func allocate(
-        accountId: AccountId,
-        signerKeyId _: String?,
+        holder accountId: AccountId,
         policy _: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain

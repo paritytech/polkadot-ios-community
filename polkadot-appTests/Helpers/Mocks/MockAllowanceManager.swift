@@ -3,14 +3,15 @@ import Individuality
 import SubstrateSdk
 
 final class MockAllowanceManager: AllowanceManaging {
+    typealias Holder = AccountId
+
     var allocateCallCount = 0
     var allocateError: Error?
     var releaseCallCount = 0
     var releaseError: Error?
 
     func allocate(
-        accountId _: AccountId,
-        signerKeyId _: String?,
+        holder _: AccountId,
         policy _: OnExistingAllowancePolicy,
         priority _: AllowanceRecord.Priority,
         domain _: AllowanceRecord.Domain

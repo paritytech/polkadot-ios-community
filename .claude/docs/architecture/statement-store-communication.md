@@ -76,9 +76,9 @@ cooling down raises `noSlotsAvailable`; nothing to evict raises `noEvictableSlot
 2. **Binary payloads on wire** — use SCALE-encoded binary, not JSON
 3. **Feature envelopes** — each feature wraps its data in a typed envelope
 4. **Slot allocation is managed** — use `StatementStoreSlotAllocator` for proper slot lifecycle
-5. **Allowance rows carry `signerKeyId`** — pass the derivation path of the funded account to
-   `allocate`/`ensureFunded`; rows without it (desktop-held device accounts, other installations of the
-   same seed) are never evicted because the replacement cannot be signed
+5. **Statement-store allocation takes a `StatementStoreAllowanceHolder`** — `.local(accountId:signerKeyId:)`
+   when this installation holds the key, `.remote(accountId:)` otherwise (desktop-held device accounts,
+   other installations of the same seed). Only `.local` rows are ever evicted
 
 ## Seams
 

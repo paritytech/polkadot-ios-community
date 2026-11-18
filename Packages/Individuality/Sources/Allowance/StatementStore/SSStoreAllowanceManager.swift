@@ -30,22 +30,17 @@ public final class SSStoreAllowanceManager {
 }
 
 extension SSStoreAllowanceManager: AllowanceManaging {
+    public typealias Holder = StatementStoreAllowanceHolder
+
     public func allocate(
-        accountId: AccountId,
-        signerKeyId: String?,
+        holder: StatementStoreAllowanceHolder,
         policy: OnExistingAllowancePolicy,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
         try await issueDiagnostics.observeAllocation {
             try await allocateInBackground(
-                AllocationRequest(
-                    accountId: accountId,
-                    signerKeyId: signerKeyId,
-                    policy: policy,
-                    priority: priority,
-                    domain: domain
-                )
+                AllocationRequest(holder: holder, policy: policy, priority: priority, domain: domain)
             )
         }
     }
@@ -80,20 +75,13 @@ extension SSStoreAllowanceManager: StatementAccountFunding {
     }
 
     public func ensureFunded(
-        accountId: AccountId,
-        signerKeyId: String?,
+        holder: StatementStoreAllowanceHolder,
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws {
         try await issueDiagnostics.observeAllocation {
             try await allocateInBackground(
-                AllocationRequest(
-                    accountId: accountId,
-                    signerKeyId: signerKeyId,
-                    policy: .ignore,
-                    priority: priority,
-                    domain: domain
-                )
+                AllocationRequest(holder: holder, policy: .ignore, priority: priority, domain: domain)
             )
         }
     }
@@ -101,11 +89,12 @@ extension SSStoreAllowanceManager: StatementAccountFunding {
 
 private extension SSStoreAllowanceManager {
     struct AllocationRequest {
-        let accountId: AccountId
-        let signerKeyId: String?
+        let holder: StatementStoreAllowanceHolder
         let policy: OnExistingAllowancePolicy
         let priority: AllowanceRecord.Priority
         let domain: AllowanceRecord.Domain
+
+        var accountId: AccountId { holder.accountId }
     }
 
     func allocateInBackground(_ request: AllocationRequest) async throws {
@@ -116,7 +105,7 @@ private extension SSStoreAllowanceManager {
                 }
 
                 if request.policy == .ignore, existing {
-                    try await self.backfillSignerKeyId(request.signerKeyId, for: request.accountId)
+                    try await self.backfillSignerKeyId(for: request.holder)
                     return
                 }
 
@@ -129,7 +118,7 @@ private extension SSStoreAllowanceManager {
                     domain: request.domain,
                     priority: request.priority,
                     latestRenewedPeriod: period,
-                    signerKeyId: request.signerKeyId
+                    signerKeyId: request.holder.signerKeyId
                 )
                 try await repository.saveOperation({ [record] }, { [] }).asyncExecute()
             }
@@ -137,10 +126,11 @@ private extension SSStoreAllowanceManager {
     }
 
     /// Rows written before the key reference existed learn it the next time their account is funded.
-    func backfillSignerKeyId(_ signerKeyId: String?, for accountId: AccountId) async throws {
-        guard let signerKeyId else { return }
+    func backfillSignerKeyId(for holder: StatementStoreAllowanceHolder) async throws {
+        guard let signerKeyId = holder.signerKeyId else { return }
 
-        let stored = try await repository.fetchOperation(by: { accountId.toHex() }, options: .init()).asyncExecute()
+        let stored = try await repository.fetchOperation(by: { holder.accountId.toHex() }, options: .init())
+            .asyncExecute()
         guard let stored, stored.signerKeyId == nil else { return }
 
         let updated = stored.replacingSignerKeyId(signerKeyId)
