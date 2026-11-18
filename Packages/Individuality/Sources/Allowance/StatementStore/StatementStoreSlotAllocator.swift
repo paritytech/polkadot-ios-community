@@ -12,26 +12,38 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
     /// `StmtStoreReplacementTooEarly`: the slot entry was written in the current block.
     static let tooEarlyValidityCode: UInt8 = 228
 
+    public struct Dependencies {
+        let originFactory: AsResourcesOriginCreating
+        let submitter: SlotAssignmentSubmitting
+        let slotInfoProvider: StatementStoreSlotInfoProviding
+        let replacementValidator: SlotReplacementValidating
+        let capabilities: StatementStoreRuntimeCapabilities
+        let resourcesParameters: ResourcesParametersProviding
+
+        public init(
+            originFactory: AsResourcesOriginCreating,
+            submitter: SlotAssignmentSubmitting,
+            slotInfoProvider: StatementStoreSlotInfoProviding,
+            replacementValidator: SlotReplacementValidating,
+            capabilities: StatementStoreRuntimeCapabilities,
+            resourcesParameters: ResourcesParametersProviding
+        ) {
+            self.originFactory = originFactory
+            self.submitter = submitter
+            self.slotInfoProvider = slotInfoProvider
+            self.replacementValidator = replacementValidator
+            self.capabilities = capabilities
+            self.resourcesParameters = resourcesParameters
+        }
+    }
+
     private let chainId: ChainId
-    private let originFactory: AsResourcesOriginCreating
-    private let submitter: SlotAssignmentSubmitting
-    private let slotInfoProvider: StatementStoreSlotInfoProviding
-    private let replacementValidator: SlotReplacementValidating
+    private let dependencies: Dependencies
     private let serialQueue: SerialOperationQueue
 
-    public init(
-        chainId: ChainId,
-        originFactory: AsResourcesOriginCreating,
-        submitter: SlotAssignmentSubmitting,
-        slotInfoProvider: StatementStoreSlotInfoProviding,
-        replacementValidator: SlotReplacementValidating,
-        serialQueue: SerialOperationQueue
-    ) {
+    public init(chainId: ChainId, dependencies: Dependencies, serialQueue: SerialOperationQueue) {
         self.chainId = chainId
-        self.originFactory = originFactory
-        self.submitter = submitter
-        self.slotInfoProvider = slotInfoProvider
-        self.replacementValidator = replacementValidator
+        self.dependencies = dependencies
         self.serialQueue = serialQueue
     }
 
@@ -41,15 +53,18 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
                 guard let self else { throw AllowanceSlotAssignmentError.noSlotsAvailable }
 
                 let plan = try await markStallRegion("Reading chain state") {
-                    try await self.slotInfoProvider.slotPlan(excluding: accountId, callerPriority: priority)
+                    try await self.dependencies.slotInfoProvider.slotPlan(
+                        excluding: accountId,
+                        callerPriority: priority
+                    )
                 }
 
                 switch plan {
                 case let .free(slot):
                     try await claimFreeSlot(slot, accountId: accountId)
                     return slot.period
-                case let .evict(period, candidates):
-                    try await replaceSlot(period: period, candidates: candidates, accountId: accountId)
+                case let .evict(period, nowSeconds, candidates):
+                    try await evict(period: period, nowSeconds: nowSeconds, candidates: candidates, for: accountId)
                     return period
                 }
             }
@@ -58,21 +73,70 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
 }
 
 private extension StatementStoreSlotAllocator {
+    func evict(
+        period: UInt32,
+        nowSeconds: UInt64,
+        candidates: [SSSEvictionCandidate],
+        for accountId: AccountId
+    ) async throws {
+        if try await dependencies.capabilities.supportsSlotReplacement() {
+            try await replaceSlot(period: period, candidates: candidates, accountId: accountId)
+        } else {
+            try await evictWithProof(
+                period: period,
+                nowSeconds: nowSeconds,
+                candidates: candidates,
+                accountId: accountId
+            )
+        }
+    }
+
     func claimFreeSlot(_ slot: SSSSlotInfo, accountId: AccountId) async throws {
-        let callData = ResourcesPallet.SetStatementStoreAccountCall(
+        try await submitSetCall(
             period: slot.period,
             seq: slot.seq,
+            personOrigin: slot.personOrigin,
             targetAccount: accountId
+        )
+    }
+
+    /// Pre-#234 runtimes let the ring proof take an occupied slot once its cooldown has elapsed.
+    func evictWithProof(
+        period: UInt32,
+        nowSeconds: UInt64,
+        candidates: [SSSEvictionCandidate],
+        accountId: AccountId
+    ) async throws {
+        let cooldown = try await dependencies.resourcesParameters.stmtStoreReplacementCooldown(chainId: chainId)
+
+        guard let slot = LegacyEvictionPolicy.firstCooledDown(candidates, cooldown: cooldown, nowSeconds: nowSeconds)
+        else {
+            throw StatementStoreAllowanceError.noSlotsAvailable
+        }
+
+        try await submitSetCall(
+            period: period,
+            seq: slot.seq,
+            personOrigin: slot.personOrigin,
+            targetAccount: accountId
+        )
+    }
+
+    func submitSetCall(period: UInt32, seq: UInt32, personOrigin: PersonOrigin, targetAccount: AccountId) async throws {
+        let callData = ResourcesPallet.SetStatementStoreAccountCall(
+            period: period,
+            seq: seq,
+            targetAccount: targetAccount
         )()
 
         try await markStallRegion("Submitting") {
-            try await submitter.submit(
+            try await dependencies.submitter.submit(
                 call: callData,
-                makeOrigin: { [originFactory] chain in
+                makeOrigin: { [originFactory = dependencies.originFactory] chain in
                     try await originFactory.createSSSOrigin(
-                        personOrigin: slot.personOrigin,
-                        period: slot.period,
-                        seq: slot.seq,
+                        personOrigin: personOrigin,
+                        period: period,
+                        seq: seq,
                         chain: chain
                     )
                 },
@@ -81,8 +145,17 @@ private extension StatementStoreSlotAllocator {
         }
     }
 
+    /// Post-#234 runtimes need the holder's signature, so only slots whose key this installation holds qualify.
     func replaceSlot(period: UInt32, candidates: [SSSEvictionCandidate], accountId: AccountId) async throws {
-        for candidate in candidates.prefix(Self.maxReplacementAttempts) {
+        let signable = candidates.compactMap { candidate -> (candidate: SSSEvictionCandidate, signerKeyId: String)? in
+            candidate.signerKeyId.map { (candidate, $0) }
+        }
+
+        guard !signable.isEmpty else {
+            throw StatementStoreAllowanceError.noEvictableSlots
+        }
+
+        for (candidate, signerKeyId) in signable.prefix(Self.maxReplacementAttempts) {
             let callData = ResourcesPallet.ReplaceStatementStoreAccountCall(
                 period: period,
                 alias: candidate.alias,
@@ -90,16 +163,21 @@ private extension StatementStoreSlotAllocator {
                 since: candidate.since
             )()
 
-            let makeOrigin: @Sendable (ChainId) async throws -> ExtrinsicOriginDefining = { [originFactory] chain in
+            let makeOrigin: @Sendable (ChainId) async throws -> ExtrinsicOriginDefining = {
+                [originFactory = dependencies.originFactory] chain in
                 try await originFactory.createStmtStoreHolderOrigin(
-                    signerKeyId: candidate.signerKeyId,
+                    signerKeyId: signerKeyId,
                     holder: candidate.holder,
                     chain: chain
                 )
             }
 
             let validity = try await markStallRegion("Validating replacement") {
-                try await replacementValidator.validate(call: callData, origin: makeOrigin(chainId), chainId: chainId)
+                try await dependencies.replacementValidator.validate(
+                    call: callData,
+                    origin: makeOrigin(chainId),
+                    chainId: chainId
+                )
             }
 
             switch validity {
@@ -111,7 +189,7 @@ private extension StatementStoreSlotAllocator {
             case .valid,
                  .inconclusive:
                 try await markStallRegion("Submitting") {
-                    try await submitter.submit(call: callData, makeOrigin: makeOrigin, chainId: chainId)
+                    try await dependencies.submitter.submit(call: callData, makeOrigin: makeOrigin, chainId: chainId)
                 }
                 return
             }

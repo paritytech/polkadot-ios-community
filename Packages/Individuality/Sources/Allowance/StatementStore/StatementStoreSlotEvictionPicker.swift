@@ -17,15 +17,15 @@ struct SSSOccupiedSlot {
     }
 }
 
-/// An occupied slot this installation may take over: the holder outranks nobody above the caller and
-/// its key is referenced locally, so the replacement can be signed.
+/// An occupied slot whose holder does not outrank the caller. `signerKeyId` references the holder's key
+/// when this installation holds it; a post-#234 runtime needs it to sign the takeover, a pre-#234 one does not.
 public struct SSSEvictionCandidate {
     public let personOrigin: PersonOrigin
     public let seq: UInt32
     public let alias: Data
     public let holder: AccountId
     public let since: UInt64
-    public let signerKeyId: String
+    public let signerKeyId: String?
 
     public init(
         personOrigin: PersonOrigin,
@@ -33,7 +33,7 @@ public struct SSSEvictionCandidate {
         alias: Data,
         holder: AccountId,
         since: UInt64,
-        signerKeyId: String
+        signerKeyId: String?
     ) {
         self.personOrigin = personOrigin
         self.seq = seq
@@ -68,12 +68,11 @@ final class StatementStoreSlotEvictionPicker: StatementStoreSlotEvictionPicking 
         let records = try await accounting.records(for: slotsOfOthers.map(\.accountId))
 
         let ranked = slotsOfOthers.compactMap { slot -> RankedCandidate? in
-            guard
-                let record = records[slot.accountId],
-                let signerKeyId = record.signerKeyId,
-                record.priority.isEvictable,
-                record.priority <= callerPriority
-            else {
+            // A slot with no local row belongs to another installation; it ranks as a normal allowance.
+            let record = records[slot.accountId]
+            let priority = record?.priority ?? .normal
+
+            guard priority.isEvictable, priority <= callerPriority else {
                 return nil
             }
 
@@ -83,9 +82,9 @@ final class StatementStoreSlotEvictionPicker: StatementStoreSlotEvictionPicking 
                 alias: slot.alias,
                 holder: slot.accountId,
                 since: slot.since,
-                signerKeyId: signerKeyId
+                signerKeyId: record?.signerKeyId
             )
-            return RankedCandidate(priority: record.priority, candidate: candidate)
+            return RankedCandidate(priority: priority, candidate: candidate)
         }
 
         guard !ranked.isEmpty else {

@@ -310,3 +310,35 @@ final class FakeReplacementValidator: SlotReplacementValidating {
 enum FakeReplacementValidatorError: Error {
     case scriptExhausted
 }
+
+// MARK: - FakeStatementStoreRuntimeCapabilities
+
+struct FakeStatementStoreRuntimeCapabilities: StatementStoreRuntimeCapabilities {
+    let supportsReplacement: Bool
+
+    func supportsSlotReplacement() async throws -> Bool {
+        supportsReplacement
+    }
+}
+
+// MARK: - FakeResourcesParameters
+
+final class FakeResourcesParameters: ResourcesParametersProviding, @unchecked Sendable {
+    let cooldown: UInt32
+    private(set) var cooldownReads = 0
+
+    init(cooldown: UInt32) {
+        self.cooldown = cooldown
+    }
+
+    func stmtStoreSlotsPerPeriod(chainId _: ChainId, origin _: PersonOrigin) async throws -> UInt32 { 0 }
+
+    func stmtStoreReplacementCooldown(chainId _: ChainId) async throws -> UInt32 {
+        cooldownReads += 1
+        return cooldown
+    }
+
+    func longTermStorageClaimsPerPeriod(chainId _: ChainId) async throws -> UInt8 { 0 }
+
+    func notificationHighestSeq(chainId _: ChainId, origin _: PersonOrigin) async throws -> UInt8 { 0 }
+}

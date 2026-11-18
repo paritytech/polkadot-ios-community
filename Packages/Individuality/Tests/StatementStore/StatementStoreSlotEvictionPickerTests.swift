@@ -56,7 +56,7 @@ struct StatementStoreSlotEvictionPickerTests {
     }
 
     @Test
-    func slotsWithoutLocalRecordOrSignerKeyAreNotCandidates() async throws {
+    func unknownAccountsRankAsNormalAndMissingSignerKeysAreKept() async throws {
         let caller = try Data.randomOrError(of: 32)
         let unknown = try Data.randomOrError(of: 32)
         let unsignable = try Data.randomOrError(of: 32)
@@ -75,7 +75,23 @@ struct StatementStoreSlotEvictionPickerTests {
 
         let candidates = try await picker.rankCandidates(from: slots, excluding: caller, callerPriority: .high)
 
-        #expect(candidates.map(\.holder) == [signable])
+        #expect(candidates.map(\.holder) == [unknown, unsignable, signable])
+        #expect(candidates.map(\.signerKeyId) == [nil, nil, "//signer"])
+    }
+
+    @Test
+    func unknownAccountIsNotEvictedByNormalCallerBelowItsRank() async throws {
+        let caller = try Data.randomOrError(of: 32)
+        let unknown = try Data.randomOrError(of: 32)
+        let picker = makePicker(records: [])
+
+        let candidates = try await picker.rankCandidates(
+            from: [makeSlot(liteOrigin(), seq: 0, accountId: unknown, since: 10)],
+            excluding: caller,
+            callerPriority: .normal
+        )
+
+        #expect(candidates.map(\.holder) == [unknown])
     }
 
     @Test

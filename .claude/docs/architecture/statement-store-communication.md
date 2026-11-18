@@ -53,16 +53,22 @@ Bidirectional communication sessions between peers:
 
 ## Statement Store Slot Allocation
 
-`StatementStoreSlotAllocator` (Individuality) funds a statement account for the current period with one
-of two calls, chosen by `StatementStoreSlotInfoProvider.slotPlan`:
+`StatementStoreSlotAllocator` (Individuality) funds a statement account for the current period, chosen by
+`StatementStoreSlotInfoProvider.slotPlan`:
 
 - **Free slot** → `set_statement_store_account`, authorized by a ring proof (`AsResources(RegisterStatementStoreAllowance)`).
-- **Occupied slot** → `replace_statement_store_account`, authorized by a plain sr25519 signature of the account
-  currently holding the slot (`AsResources(ReplaceStatementStoreAccount)`), with the `RestrictOrigins`
-  extension enabled. The call carries the slot alias and the entry's `since` timestamp as replay protection.
+- **Occupied slot** → one of two strategies, selected per allocation by `StatementStoreRuntimeCapabilities`
+  (the `replace_statement_store_account` call is present in the loaded metadata iff the runtime is past
+  individuality-community #234):
+  - *pre-#234 (mainnet, Paseo)*: `set_statement_store_account` with the ring proof, allowed once the entry's
+    `since` plus the runtime's `get_stmt_store_replacement_cooldown` has elapsed (`LegacyEvictionPolicy`, chain time).
+  - *post-#234 (previewnet)*: `replace_statement_store_account`, authorized by a plain sr25519 signature of the
+    account currently holding the slot (`AsResources(ReplaceStatementStoreAccount)`), with the `RestrictOrigins`
+    extension enabled. The call carries the slot alias and the entry's `since` timestamp as replay protection.
 
-Eviction candidates are the occupied slots whose holder's `AllowanceRecord` is evictable, does not outrank
-the caller, and carries a `signerKeyId`; they are ranked by `(priority, since)` oldest first. The chain
+Eviction candidates are the occupied slots whose holder does not outrank the caller (accounts without a local
+`AllowanceRecord` rank as normal), ranked by `(priority, since)` oldest first. Only the replacement strategy
+additionally requires a `signerKeyId`, because it must sign as the holder. The chain
 rate-limits each slot holder through the origin-restriction pallet, and the recovery window is not
 readable from storage, so the allocator dry-runs the signed replacement with
 `TaggedTransactionQueue_validate_transaction` (`SlotReplacementValidator`): `Payment` or
@@ -78,7 +84,8 @@ cooling down raises `noSlotsAvailable`; nothing to evict raises `noEvictableSlot
 4. **Slot allocation is managed** — use `StatementStoreSlotAllocator` for proper slot lifecycle
 5. **Statement-store allocation takes a `StatementStoreAllowanceHolder`** — `.local(accountId:signerKeyId:)`
    when this installation holds the key, `.remote(accountId:)` otherwise (desktop-held device accounts,
-   other installations of the same seed). Only `.local` rows are ever evicted
+   other installations of the same seed). On post-#234 runtimes only `.local` rows are ever evicted;
+   pre-#234 runtimes evict either, since the ring proof needs no holder key
 
 ## Seams
 

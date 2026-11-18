@@ -10,6 +10,7 @@ struct StatementStoreSlotAllocatorTests {
     private let chainId = "polkadot"
     private let accountId = Data(repeating: 0x01, count: 32)
     private let period: UInt32 = 100
+    private let now: UInt64 = 1_000
 
     @Test func freeSlotIsClaimedWithSetCall() async throws {
         let submitter = FakeSubmitter()
@@ -36,7 +37,7 @@ struct StatementStoreSlotAllocatorTests {
         let originFactory = FakeOriginFactory()
         let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
         let allocator = makeAllocator(
-            plan: .evict(period: period, candidates: candidates),
+            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -65,7 +66,7 @@ struct StatementStoreSlotAllocatorTests {
         let originFactory = FakeOriginFactory()
         let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
         let allocator = makeAllocator(
-            plan: .evict(period: period, candidates: candidates),
+            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -87,6 +88,7 @@ struct StatementStoreSlotAllocatorTests {
         let allocator = makeAllocator(
             plan: .evict(
                 period: period,
+                nowSeconds: now,
                 candidates: [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
             ),
             submitter: submitter,
@@ -106,7 +108,7 @@ struct StatementStoreSlotAllocatorTests {
         let validator = FakeReplacementValidator(script: [.invalid(.payment)])
         let candidates = (0 ..< 5).map { makeCandidate(seq: UInt32($0), since: UInt64($0)) }
         let allocator = makeAllocator(
-            plan: .evict(period: period, candidates: candidates),
+            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
             submitter: submitter,
             validator: validator,
             originFactory: FakeOriginFactory()
@@ -123,7 +125,7 @@ struct StatementStoreSlotAllocatorTests {
         let submitter = FakeSubmitter()
         let validator = FakeReplacementValidator(script: [.inconclusive])
         let allocator = makeAllocator(
-            plan: .evict(period: period, candidates: [makeCandidate(seq: 0, since: 10)]),
+            plan: .evict(period: period, nowSeconds: now, candidates: [makeCandidate(seq: 0, since: 10)]),
             submitter: submitter,
             validator: validator,
             originFactory: FakeOriginFactory()
@@ -133,6 +135,94 @@ struct StatementStoreSlotAllocatorTests {
 
         #expect(outcome == period)
         #expect(submitter.submittedCalls.map(\.callName) == ["replace_statement_store_account"])
+    }
+
+    @Test func replacementSkipsCandidatesWithoutSignerKey() async throws {
+        let submitter = FakeSubmitter()
+        let validator = FakeReplacementValidator(script: [.valid])
+        let originFactory = FakeOriginFactory()
+        let candidates = [makeCandidate(seq: 0, since: 10, signable: false), makeCandidate(seq: 1, since: 20)]
+        let allocator = makeAllocator(
+            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            submitter: submitter,
+            validator: validator,
+            originFactory: originFactory
+        )
+
+        try await allocator.assignSlot(accountId: accountId, priority: .normal)
+
+        #expect(Set(originFactory.holderOriginCalls.map(\.holder)) == [candidates[1].holder])
+        #expect(submitter.submittedCalls.count == 1)
+    }
+
+    @Test func replacementWithOnlyUnsignableCandidatesThrowsNoEvictableSlots() async throws {
+        let submitter = FakeSubmitter()
+        let allocator = makeAllocator(
+            plan: .evict(
+                period: period,
+                nowSeconds: now,
+                candidates: [makeCandidate(seq: 0, since: 10, signable: false)]
+            ),
+            submitter: submitter,
+            validator: FakeReplacementValidator(script: [.valid]),
+            originFactory: FakeOriginFactory()
+        )
+
+        await #expect(throws: StatementStoreAllowanceError.noEvictableSlots) {
+            try await allocator.assignSlot(accountId: accountId, priority: .normal)
+        }
+        #expect(submitter.submittedCalls.isEmpty)
+    }
+
+    @Test func legacyRuntimeEvictsFirstCooledDownCandidateWithProofCall() async throws {
+        let submitter = FakeSubmitter()
+        let validator = FakeReplacementValidator(script: [.valid])
+        let originFactory = FakeOriginFactory()
+        let parameters = FakeResourcesParameters(cooldown: 100)
+        let candidates = [
+            makeCandidate(seq: 0, since: now - 50, signable: false),
+            makeCandidate(seq: 1, since: now - 100),
+            makeCandidate(seq: 2, since: now - 500)
+        ]
+        let allocator = makeAllocator(
+            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            submitter: submitter,
+            validator: validator,
+            originFactory: originFactory,
+            supportsReplacement: false,
+            resourcesParameters: parameters
+        )
+
+        let outcome = try await allocator.assignSlot(accountId: accountId, priority: .normal)
+
+        #expect(outcome == period)
+        let submitted = try #require(
+            submitter.submittedCalls.last as? RuntimeCall<ResourcesPallet.SetStatementStoreAccountCall>
+        )
+        #expect(submitted.args.period == period)
+        #expect(submitted.args.seq == 1)
+        #expect(submitted.args.targetAccount == accountId)
+        #expect(originFactory.sssOriginCalls.map(\.seq) == [1])
+        #expect(originFactory.holderOriginCalls.isEmpty)
+        #expect(validator.validatedCalls.isEmpty)
+        #expect(parameters.cooldownReads == 1)
+    }
+
+    @Test func legacyRuntimeWithNoCooledDownCandidateThrowsNoSlotsAvailable() async throws {
+        let submitter = FakeSubmitter()
+        let allocator = makeAllocator(
+            plan: .evict(period: period, nowSeconds: now, candidates: [makeCandidate(seq: 0, since: now - 10)]),
+            submitter: submitter,
+            validator: FakeReplacementValidator(script: [.valid]),
+            originFactory: FakeOriginFactory(),
+            supportsReplacement: false,
+            resourcesParameters: FakeResourcesParameters(cooldown: 60)
+        )
+
+        await #expect(throws: StatementStoreAllowanceError.noSlotsAvailable) {
+            try await allocator.assignSlot(accountId: accountId, priority: .normal)
+        }
+        #expect(submitter.submittedCalls.isEmpty)
     }
 
     @Test func noSlotsAvailableThrowsError() async throws {
@@ -154,13 +244,17 @@ private extension StatementStoreSlotAllocatorTests {
         plan: SSSSlotPlan,
         submitter: FakeSubmitter,
         validator: FakeReplacementValidator,
-        originFactory: FakeOriginFactory
+        originFactory: FakeOriginFactory,
+        supportsReplacement: Bool = true,
+        resourcesParameters: FakeResourcesParameters = FakeResourcesParameters(cooldown: 0)
     ) -> StatementStoreSlotAllocator {
         makeAllocator(
             planResult: .success(plan),
             submitter: submitter,
             validator: validator,
-            originFactory: originFactory
+            originFactory: originFactory,
+            supportsReplacement: supportsReplacement,
+            resourcesParameters: resourcesParameters
         )
     }
 
@@ -168,29 +262,35 @@ private extension StatementStoreSlotAllocatorTests {
         planResult: Result<SSSSlotPlan, Error>,
         submitter: FakeSubmitter,
         validator: FakeReplacementValidator,
-        originFactory: FakeOriginFactory
+        originFactory: FakeOriginFactory,
+        supportsReplacement: Bool = true,
+        resourcesParameters: FakeResourcesParameters = FakeResourcesParameters(cooldown: 0)
     ) -> StatementStoreSlotAllocator {
         let slotProvider = FakeSlotInfoProvider()
         slotProvider.updateSlotPlan(planResult)
 
         return StatementStoreSlotAllocator(
             chainId: chainId,
-            originFactory: originFactory,
-            submitter: submitter,
-            slotInfoProvider: slotProvider,
-            replacementValidator: validator,
+            dependencies: .init(
+                originFactory: originFactory,
+                submitter: submitter,
+                slotInfoProvider: slotProvider,
+                replacementValidator: validator,
+                capabilities: FakeStatementStoreRuntimeCapabilities(supportsReplacement: supportsReplacement),
+                resourcesParameters: resourcesParameters
+            ),
             serialQueue: SerialOperationQueue()
         )
     }
 
-    func makeCandidate(seq: UInt32, since: UInt64) -> SSSEvictionCandidate {
+    func makeCandidate(seq: UInt32, since: UInt64, signable: Bool = true) -> SSSEvictionCandidate {
         SSSEvictionCandidate(
             personOrigin: .lite(0, keyManager),
             seq: seq,
             alias: Data(repeating: UInt8(seq), count: 32),
             holder: Data(repeating: 0xA0 + UInt8(seq), count: 32),
             since: since,
-            signerKeyId: "//slot//\(seq)"
+            signerKeyId: signable ? "//slot//\(seq)" : nil
         )
     }
 }

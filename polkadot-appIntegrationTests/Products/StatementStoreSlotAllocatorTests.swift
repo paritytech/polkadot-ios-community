@@ -114,10 +114,23 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
 
         let allocator = StatementStoreSlotAllocator(
             chainId: KnownChainId.previewNetPeople,
-            originFactory: originFactory,
-            submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory),
-            slotInfoProvider: slotInfoProvider,
-            replacementValidator: replacementValidator,
+            dependencies: .init(
+                originFactory: originFactory,
+                submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory),
+                slotInfoProvider: slotInfoProvider,
+                replacementValidator: replacementValidator,
+                capabilities: MetadataStatementStoreRuntimeCapabilities(
+                    chainId: KnownChainId.previewNetPeople,
+                    chainRegistry: chainRegistry
+                ),
+                resourcesParameters: CachedResourcesParametersProvider(
+                    viewFunctionExecutor: ViewFunctionExecutor(
+                        chainRegistry: chainRegistry,
+                        operationQueue: operationQueue
+                    ),
+                    ttl: 0
+                )
+            ),
             serialQueue: serialQueue
         )
 

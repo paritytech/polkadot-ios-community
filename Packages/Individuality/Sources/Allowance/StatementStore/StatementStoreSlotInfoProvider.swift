@@ -34,10 +34,10 @@ public struct SSSRenewalSlot {
 }
 
 /// How an account gets a slot this period: a free slot is claimed with a ring proof, an occupied one
-/// is taken over from one of the ranked candidates with the holder's signature.
+/// is taken over from one of the ranked candidates. `nowSeconds` is the chain time the candidates were read at.
 public enum SSSSlotPlan {
     case free(SSSSlotInfo)
-    case evict(period: UInt32, candidates: [SSSEvictionCandidate])
+    case evict(period: UInt32, nowSeconds: UInt64, candidates: [SSSEvictionCandidate])
 }
 
 public protocol StatementStoreSlotInfoProviding {
@@ -128,7 +128,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         )
         logger.debug("Found \(candidates.count) slots to evict for period \(state.period)")
 
-        return .evict(period: state.period, candidates: candidates)
+        return .evict(period: state.period, nowSeconds: state.nowSeconds, candidates: candidates)
     }
 }
 
@@ -149,6 +149,7 @@ private extension StatementStoreSlotInfoProvider {
     struct SlotState {
         let originEntries: [OriginEntries]
         let period: UInt32
+        let nowSeconds: UInt64
     }
 
     func fetchState() async throws -> SlotState {
@@ -157,7 +158,7 @@ private extension StatementStoreSlotInfoProvider {
 
         let originEntries = try await fetchAllowanceEntries(period: period)
 
-        return SlotState(originEntries: originEntries, period: period)
+        return SlotState(originEntries: originEntries, period: period, nowSeconds: nowSeconds)
     }
 
     func fetchAllowanceEntries(

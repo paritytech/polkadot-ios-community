@@ -118,8 +118,10 @@ public extension ResourcesPallet {
     /// Origin: StmtStoreHolder(alias) via AsResources(ReplaceStatementStoreAccount(signature)), signed by the
     /// account currently in the slot. `since` is the timestamp stored in the slot entry (replay protection).
     struct ReplaceStatementStoreAccountCall: RuntimeCallConvertible {
+        public static let callName = "replace_statement_store_account"
+
         public var moduleName: String { ResourcesPallet.name }
-        public var name: String { "replace_statement_store_account" }
+        public var name: String { Self.callName }
 
         enum CodingKeys: String, CodingKey {
             case period
