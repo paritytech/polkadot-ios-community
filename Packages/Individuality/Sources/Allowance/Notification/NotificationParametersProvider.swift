@@ -1,5 +1,6 @@
 import ChainStore
 import Foundation
+import SDKLogger
 import SubstrateSdk
 import SubstrateStorageQuery
 
@@ -16,11 +17,21 @@ public final class NotificationParametersProvider: @unchecked Sendable {
     private let chainId: ChainId
     private let chainRegistry: ChainResourceProtocol
     private let chainTimeProvider: ChainTimeProviding
+    private let statementStorageParameters: StatementStorageParametersProviding
+    private let logger: SDKLoggerProtocol
 
-    public init(chainId: ChainId, chainRegistry: ChainResourceProtocol, chainTimeProvider: ChainTimeProviding) {
+    public init(
+        chainId: ChainId,
+        chainRegistry: ChainResourceProtocol,
+        chainTimeProvider: ChainTimeProviding,
+        statementStorageParameters: StatementStorageParametersProviding,
+        logger: SDKLoggerProtocol
+    ) {
         self.chainId = chainId
         self.chainRegistry = chainRegistry
         self.chainTimeProvider = chainTimeProvider
+        self.statementStorageParameters = statementStorageParameters
+        self.logger = logger
     }
 }
 
@@ -32,9 +43,13 @@ extension NotificationParametersProvider: NotificationParametersProviding {
     }
 
     public func maxStatementSize() async throws -> Int {
-        let allowance: ResourcesPallet.StatementAllowance = try await constant(.notificationAllowance)
+        if let allowance = try await statementStorageParameters.notificationAllowance() {
+            return Int(allowance.maxSize)
+        }
 
-        return Int(allowance.maxSize)
+        logger.info("NotificationAllowance is not set on \(chainId); using the runtime default")
+
+        return Int(ResourcesPallet.StatementAllowance.notificationDefault.maxSize)
     }
 }
 
