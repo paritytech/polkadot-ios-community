@@ -5,7 +5,8 @@ import ChainStore
 import StructuredConcurrency
 
 public protocol StatementStorageParametersProviding: Sendable {
-    /// The notification allowance governance set on chain, or `nil` while the runtime default applies.
+    /// The notification allowance the chain exposes: the pallet constant on runtimes that still export it,
+    /// otherwise the value governance set in `pallet_parameters`; `nil` while the runtime default applies.
     func notificationAllowance() async throws -> ResourcesPallet.StatementAllowance?
 }
 
@@ -31,9 +32,32 @@ public final class StatementStorageParametersProvider: StatementStorageParameter
     }
 
     public func notificationAllowance() async throws -> ResourcesPallet.StatementAllowance? {
-        let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)
         let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chainId)
         let codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
+
+        let constantPath = ResourcesPallet.Constants.notificationAllowance()
+
+        if codingFactory.getConstant(for: constantPath) != nil {
+            return try await constant(at: constantPath, codingFactory: codingFactory)
+        }
+
+        return try await parameter(codingFactory: codingFactory)
+    }
+}
+
+private extension StatementStorageParametersProvider {
+    func constant(
+        at path: ConstantCodingPath,
+        codingFactory: RuntimeCoderFactoryProtocol
+    ) async throws -> ResourcesPallet.StatementAllowance {
+        let operation = StorageConstantOperation<ResourcesPallet.StatementAllowance>(path: path, fallbackValue: nil)
+        operation.codingFactory = codingFactory
+
+        return try await operation.asyncExecute()
+    }
+
+    func parameter(codingFactory: RuntimeCoderFactoryProtocol) async throws -> ResourcesPallet.StatementAllowance? {
+        let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)
 
         let key = ParametersPallet.StatementStorageKey(parameter: .notificationAllowance)
         let responses: [StorageResponse<ParametersPallet.StatementStorageValue<ResourcesPallet.StatementAllowance>>]
