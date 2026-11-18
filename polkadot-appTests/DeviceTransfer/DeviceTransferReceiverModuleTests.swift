@@ -220,7 +220,8 @@ private final class ScriptedReceiverServicesFactory: DeviceTransferReceiverServi
 
         let configuration = ActiveInstallationConfiguration(
             connection: MockStatementStore(),
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: .included
         )
         return DeviceTransferReceiverServices(
             coordinator: coordinator,

@@ -1,8 +1,12 @@
 import Foundation
 import StatementStore
 import ChainRegistry
+import ChainStore
+import Individuality
 import KeyDerivation
 import IssueMonitoring
+import Products
+import SubstrateSdk
 
 protocol ActiveInstallationServiceMaking {
     func makeService() -> ActiveInstallationServicing
@@ -34,14 +38,37 @@ extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
     }
 
     func makeConfiguration() throws -> ActiveInstallationConfiguration {
-        let connection = try ChainRegistryFacade.sharedRegistry.getConnectionOrError(for: AppConfig.Chains.chatChain)
-        let statementsConnection = StatementStoreConnection(
-            connection: connection,
+        let registry = ChainRegistryFacade.sharedRegistry
+        let chainId = AppConfig.Chains.chatChain
+        let statementsConnection = try StatementStoreConnection(
+            connection: registry.getConnectionOrError(for: chainId),
             retryMatcher: StatementSubmitErrorMatcher.retryWhenTimeoutOrNoAllowance(),
             logger: logger
         )
         let signer = try ChatSignerManager().makeSigner(for: Chat.Contact.Own.main().signKeyId)
 
-        return ActiveInstallationConfiguration(connection: statementsConnection, signer: signer)
+        return try ActiveInstallationConfiguration(
+            connection: statementsConnection,
+            signer: signer,
+            lightPerson: makeLightPersonMembership(chainId: chainId, registry: registry)
+        )
+    }
+}
+
+private extension ActiveInstallationServiceFactory {
+    func makeLightPersonMembership(chainId: ChainId, registry: ChainRegistryProtocol) throws -> LightPersonMembership {
+        let tld = try DotNsTldProviderFacade.shared.currentTldOrError()
+        let subscriber = try ChainMembershipSubscriber(
+            connection: registry.getRpcConnectionOrError(for: chainId),
+            runtimeCodingService: registry.getRuntimeCodingServiceOrError(for: chainId)
+        )
+
+        return try LightPersonMembership(
+            waiter: MembershipStatusWaiter(subscriber: subscriber),
+            input: MembershipStatusInput(
+                memberKey: BandersnatchKeyManager.litePerson(for: tld).getMemberKey(),
+                collection: PeopleLitePallet.membersIdentifier
+            )
+        )
     }
 }

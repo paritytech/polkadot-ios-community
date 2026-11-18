@@ -11,6 +11,7 @@ import IssueMonitoring
 struct ActiveInstallationConfiguration {
     let connection: StatementStoreConnecting
     let signer: StatementStoreSigning
+    let lightPerson: LightPersonMembership
 }
 
 protocol CurrentInstallationObserving: Sendable {
@@ -52,30 +53,34 @@ struct ActiveInstallationPublishSettings {
     let priorityFactory: StatementPriorityMaking
     /// Stamps `activatedAt` on the published record.
     let dateProvider: any DateProviding
-    let firstInstallAttempts: Int
+    /// The first-install publish keeps retrying while the service runs; the delay doubles up to the cap.
     let firstInstallRetryDelay: Duration
-    /// Reports a status that stays unknown because the record can't be published or followed.
+    let firstInstallMaxRetryDelay: Duration
+    /// Reports a record that can't be followed, or a first-install publish still failing after many attempts.
     var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
 
     init(
         deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         dateProvider: any DateProviding = NowDateProvider(),
-        firstInstallAttempts: Int = 10,
-        firstInstallRetryDelay: Duration = .seconds(1)
+        firstInstallRetryDelay: Duration = .seconds(1),
+        firstInstallMaxRetryDelay: Duration = .seconds(60)
     ) {
         self.deviceInfo = deviceInfo
         self.priorityFactory = priorityFactory
         self.dateProvider = dateProvider
-        self.firstInstallAttempts = firstInstallAttempts
         self.firstInstallRetryDelay = firstInstallRetryDelay
+        self.firstInstallMaxRetryDelay = firstInstallMaxRetryDelay
     }
 }
 
 /// Follows the active installation record on `active_device_topic` and works out whether this installation is the
 /// active one. It publishes its own record only when the topic holds none, never on a timer, so an old phone
-/// coming online late can't take the active status back.
+/// coming online late can't take the active status back. An empty topic already makes this installation active:
+/// the record only defends that claim against a phone arriving later, so publishing it waits for nobody.
 actor ActiveInstallationService {
+    private static let firstInstallFailuresBeforeDiagnostic = 10
+
     fileprivate struct Context {
         let configuration: ActiveInstallationConfiguration
         let topic: Data
@@ -190,32 +195,43 @@ private extension ActiveInstallationService {
         }
     }
 
+    /// Unbounded: the identity account's allowance can wait on the person's registration for a long time.
     func startFirstInstallDelivery() {
         let settings = publishSettings
         let logger = logger
 
         firstInstallTask = Task { [weak self] in
-            do {
-                try await withRetry(
-                    maxAttempts: settings.firstInstallAttempts,
-                    initialDelay: settings.firstInstallRetryDelay
-                ) { [weak self] in
+            var delay = settings.firstInstallRetryDelay
+            var failures = 0
+
+            while !Task.isCancelled {
+                do {
                     try await self?.deliverFirstInstall()
+                    return
+                } catch is CancellationError {
+                    return
+                } catch {
+                    failures += 1
+                    logger.warning("Active installation record not published yet (\(failures)): \(error)")
+                    if failures == Self.firstInstallFailuresBeforeDiagnostic {
+                        settings.stopDiagnostic.recordFailure(
+                            for: "first-install",
+                            error: error,
+                            counters: ["attempts": failures]
+                        )
+                    }
+                    guard await (try? Task.sleep(for: delay)) != nil else { return }
+                    delay = min(delay * 2, settings.firstInstallMaxRetryDelay)
                 }
-            } catch {
-                guard !Task.isCancelled else { return }
-                logger.error("Failed to publish active installation record: \(error)")
-                settings.stopDiagnostic.recordFailure(
-                    for: "first-install",
-                    error: error,
-                    counters: ["attempts": settings.firstInstallAttempts]
-                )
             }
         }
     }
 
-    /// A record that arrived while retrying means another installation got there first, so this one stays quiet.
+    /// A record that arrived meanwhile means another installation got there first, so this one stays quiet.
     func deliverFirstInstall() async throws {
+        guard isTopicEmpty, let context else { return }
+
+        try await context.configuration.lightPerson.waitUntilIncluded()
         guard isTopicEmpty else { return }
 
         try await publishSelf()
@@ -239,6 +255,7 @@ private extension ActiveInstallationService {
                 isHistoryLoaded = true
 
                 if isTopicEmpty {
+                    update(.active)
                     startFirstInstallDelivery()
                 }
             }

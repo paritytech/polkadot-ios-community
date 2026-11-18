@@ -222,7 +222,8 @@ private struct FixedSenderServicesFactory: DeviceTransferSenderServicesMaking {
             installationService: IdleInstallationService(),
             installationConfiguration: ActiveInstallationConfiguration(
                 connection: MockStatementStore(),
-                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+                lightPerson: .included
             )
         )
     }
