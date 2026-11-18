@@ -57,6 +57,7 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
     }
 
     func accountGetAlias(
+        keyHandle _: RingVrfKeyHandle,
         context: ProductProofContext,
         ring _: RingLocation
     ) async throws -> AccountGetAliasResult {
@@ -69,6 +70,7 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
     }
 
     func accountCreateProof(
+        keyHandle _: RingVrfKeyHandle,
         context _: ProductProofContext,
         ring _: RingLocation,
         message _: Data
@@ -79,6 +81,13 @@ final class MockProductsNativeApi: ProductsNativeApiProtocol, @unchecked Sendabl
             ringIndex: 0,
             ringRevision: 0
         )
+    }
+
+    func listRingVrfKeys(
+        owner _: ProductId,
+        disclosure _: RingVrfKeyDisclosure
+    ) async throws -> [RegisteredRingVrfKey] {
+        []
     }
 
     func signVrf(_: SignVrfPayload) async throws -> VrfSignature {
