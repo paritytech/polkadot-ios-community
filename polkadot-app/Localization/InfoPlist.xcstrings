@@ -80,7 +80,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Unlock the app and confirm transfers, signing, device pairing and backups."
+            "value" : "Confirm transfers, signing, device pairing and backups."
           }
         }
       }
