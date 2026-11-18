@@ -19,6 +19,7 @@ public struct ChatTransferMessageConfiguration: HashableContentConfiguration {
     let originalAmountTextColor: UIColor
     let side: ChatBubbleTailSide
     var reclaimAction: ReclaimAction?
+    var peerName: String?
 
     public func makeContentView() -> any UIView & UIContentView {
         ChatTransferMessageView(configuration: self)
@@ -246,7 +247,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         } else {
             originalAmountLabel.attributedText = nil
             originalAmountLabel.isHidden = true
-            subtitleLabel.text = configuration.state.title
+            subtitleLabel.text = statusText(configuration)
             subtitleLabel.textColor = configuration.state.color
             subtitleIconView.isHidden = configuration.state.icon == nil
             subtitleIconView.image = configuration.state.icon
@@ -389,6 +390,15 @@ private extension ChatTransferMessageConfiguration.OutgoingState {
         case .reclaimFailed:
             String(localized: .transferStatusReclaimFailed)
         }
+    }
+}
+
+private extension ChatTransferMessageView {
+    func statusText(_ configuration: ChatTransferMessageConfiguration) -> String {
+        if case .outgoing(.unclaimed) = configuration.state, let peerName = configuration.peerName {
+            return String(localized: .transferStatusUnclaimedBy(username: peerName))
+        }
+        return configuration.state.title
     }
 }
 

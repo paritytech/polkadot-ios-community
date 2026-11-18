@@ -46,6 +46,7 @@ public extension ChatTransferMessageConfiguration {
         amount: String,
         tokenSymbol: String,
         originalAmount: String? = nil,
+        to username: String,
         state: ChatTransferMessageConfiguration.OutgoingState,
         statusConfiguration: ChatMessageStatusViewConfiguration,
         addReaction: ChatMessageContainerConfiguration.AddReactionViewModel? = nil,
@@ -69,6 +70,7 @@ public extension ChatTransferMessageConfiguration {
             side: .trailing
         )
         configuration.reclaimAction = reclaimAction
+        configuration.peerName = username
 
         return ChatMessageContainerConfiguration(
             innerContent: configuration,

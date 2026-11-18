@@ -65,7 +65,7 @@
                 (.failed, nil),
                 (.reclaiming, nil),
                 (.reclaimed(partialAmount: nil), nil),
-                (.reclaimed(partialAmount: "40"), nil),
+                (.reclaimed(partialAmount: "$40"), nil),
                 (.reclaimFailed, nil)
             ]
             return states.map { state, originalAmount in
@@ -74,6 +74,7 @@
                     amount: originalAmount == nil ? "99" : "40",
                     tokenSymbol: "DOT",
                     originalAmount: originalAmount,
+                    to: "Jake",
                     state: state,
                     statusConfiguration: .init(
                         dateFormatter: TimestampFormatter(),
