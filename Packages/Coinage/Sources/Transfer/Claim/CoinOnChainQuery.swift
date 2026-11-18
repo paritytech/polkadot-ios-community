@@ -13,6 +13,13 @@ enum CoinOnChainQueryError: Error {
     case subscriptionTerminated
 }
 
+/// What the chain shows for the coins a claim waits on: the ones of the app's Coinage instance it can
+/// claim, and the foreign coins it must refuse, with their Coinage instance.
+struct CoinInfosSnapshot: Equatable {
+    var claimable: [Data: ClaimableCoinInfo] = [:]
+    var foreign: [Data: CoinageInstanceId] = [:]
+}
+
 /// Batch-fetches on-chain coin state for given public keys.
 protocol CoinOnChainQuerying: Sendable {
     /// Reads `CoinsByOwner` for multiple public keys at a specific block hash, judged against the app's
@@ -33,10 +40,10 @@ protocol CoinOnChainQuerying: Sendable {
     /// a block timeout.
     func awaitAllCoinsSentOrClaimed(for publicKeys: [Data]) async throws -> Bool
 
-    /// Subscribes to on-chain coin state for `publicKeys`, yielding the present value exponent per
-    /// key on every block where any of them change. A key that goes absent (spent) drops out of the
-    /// map; a never-landed coin never appears. Callers bound the wait themselves.
-    func subscribeCoinInfos(for publicKeys: [Data]) -> AnyAsyncSequence<[Data: ClaimableCoinInfo]>
+    /// Subscribes to on-chain coin state for `publicKeys`, yielding on every block where any of them
+    /// change: the claimable coins with their value exponent, and the foreign coins. A key that goes absent
+    /// (spent) drops out; a never-landed coin never appears. Callers bound the wait themselves.
+    func subscribeCoinInfos(for publicKeys: [Data]) -> AnyAsyncSequence<CoinInfosSnapshot>
 }
 
 extension CoinOnChainQuerying {
@@ -193,41 +200,48 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         throw CoinOnChainQueryError.subscriptionTerminated
     }
 
-    func subscribeCoinInfos(for publicKeys: [Data]) -> AnyAsyncSequence<[Data: ClaimableCoinInfo]> {
+    func subscribeCoinInfos(for publicKeys: [Data]) -> AnyAsyncSequence<CoinInfosSnapshot> {
         guard !publicKeys.isEmpty else {
-            return AsyncStream<[Data: ClaimableCoinInfo]> { $0.finish() }.eraseToAnyAsyncSequence()
+            return AsyncStream<CoinInfosSnapshot> { $0.finish() }.eraseToAnyAsyncSequence()
         }
 
         let dataByHex = Dictionary(publicKeys.map { ($0.toHex(), $0) }, uniquingKeysWith: { first, _ in first })
 
-        return subscribeCoins(for: publicKeys)
-            .scan([String: ClaimableCoinInfo]()) { accumulated, updates in
-                var next = accumulated
-                for (key, coin) in updates {
-                    if let coin {
-                        next[key] = ClaimableCoinInfo(exponent: Int16(coin.value), age: coin.age)
-                    } else {
-                        next.removeValue(forKey: key)
+        return subscribeCoinReads(for: publicKeys)
+            .scan([String: OnChainCoinRead]()) { accumulated, reads in
+                accumulated.merging(reads) { _, latest in latest }
+            }
+            .map { readsByHex -> CoinInfosSnapshot in
+                var snapshot = CoinInfosSnapshot()
+                for (hex, read) in readsByHex {
+                    guard let key = dataByHex[hex] else { continue }
+                    switch read {
+                    case let .present(coin):
+                        snapshot.claimable[key] = ClaimableCoinInfo(exponent: Int16(coin.value), age: coin.age)
+                    case let .foreign(instanceId):
+                        snapshot.foreign[key] = instanceId
+                    case .absent:
+                        break
                     }
                 }
-                return next
+                return snapshot
             }
-            .map { infosByHex -> [Data: ClaimableCoinInfo] in
-                var out: [Data: ClaimableCoinInfo] = [:]
-                for (hex, info) in infosByHex {
-                    if let data = dataByHex[hex] { out[data] = info }
-                }
-                return out
-            }
+            .eraseToAnyAsyncSequence()
+    }
+
+    /// `subscribeCoinReads` with a foreign coin read as absent.
+    private func subscribeCoins(for publicKeys: [Data]) -> AnyAsyncSequence<[String: CoinSyncResult.OnChainCoin?]> {
+        subscribeCoinReads(for: publicKeys)
+            .map { $0.mapValues(\.coin) }
             .eraseToAnyAsyncSequence()
     }
 
     /// Opens a Substrate storage subscription for `CoinsByOwner` entries keyed by public key.
     ///
     /// Uses the same `MapSubscriptionRequest` + `CallbackBatchStorageSubscription` pattern
-    /// as `CoinStateSyncService.performSync()`. The returned stream emits instance-filtered updates
-    /// on every block where any of the watched storage keys change.
-    private func subscribeCoins(for publicKeys: [Data]) -> AnyAsyncSequence<[String: CoinSyncResult.OnChainCoin?]> {
+    /// as `CoinStateSyncService.performSync()`. The returned stream emits each key's read against the
+    /// app's Coinage instance on every block where any of the watched storage keys change.
+    private func subscribeCoinReads(for publicKeys: [Data]) -> AnyAsyncSequence<[String: OnChainCoinRead]> {
         let requests: [BatchStorageSubscriptionRequest] = publicKeys.map { publicKey in
             let mappingKey = publicKey.toHex()
             let storagePath = CoinagePallet.Storage.coinsByOwner
@@ -247,7 +261,7 @@ final class CoinOnChainQueryService: CoinOnChainQuerying, @unchecked Sendable {
         )
 
         return results
-            .map { [instanceId] in $0.updates(in: instanceId) }
+            .map { [instanceId] in $0.reads(in: instanceId) }
             .eraseToAnyAsyncSequence()
     }
 }

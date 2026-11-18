@@ -60,8 +60,4 @@ extension CoinSyncResult {
     func reads(in instanceId: CoinageInstanceId) -> [String: OnChainCoinRead] {
         updates.mapValues { $0.read(in: instanceId) }
     }
-
-    func updates(in instanceId: CoinageInstanceId) -> [String: OnChainCoin?] {
-        reads(in: instanceId).mapValues(\.coin)
-    }
 }
