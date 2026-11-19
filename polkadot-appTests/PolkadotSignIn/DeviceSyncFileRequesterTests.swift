@@ -29,7 +29,12 @@ final class DeviceSyncFileRequesterTests {
 
         let outcomes = Task { await requester.request([item("a.jpg")]) }
         let request = try await sentRequest()
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 150)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 150,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(chunk(request, offset: 0, data: contents.prefix(100)))
         await requester.handle(chunk(request, offset: 100, data: contents.suffix(from: 100)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -48,7 +53,12 @@ final class DeviceSyncFileRequesterTests {
 
         #expect(request.files.map(\.offset) == [100, 0])
 
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 100)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 100,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(.unavailable(.init(requestId: request.requestId, fileIndex: 1, reason: .downloading)))
         await requester.handle(.completed(requestId: request.requestId))
 
@@ -61,7 +71,12 @@ final class DeviceSyncFileRequesterTests {
 
         let outcomes = Task { await requester.request([item("a.jpg")]) }
         let request = try await sentRequest()
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 100)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 100,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.handle(.completed(requestId: request.requestId))
 
@@ -75,7 +90,12 @@ final class DeviceSyncFileRequesterTests {
 
         let outcomes = Task { await requester.request([item("a.jpg")]) }
         let request = try await sentRequest()
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 100)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 100,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 10)))
         await requester.handle(chunk(request, offset: 50, data: Data(count: 10)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -90,7 +110,12 @@ final class DeviceSyncFileRequesterTests {
 
         let outcomes = Task { await requester.request([item("a.jpg")]) }
         let request = try await sentRequest()
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 100)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 100,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.close()
 
@@ -160,7 +185,12 @@ final class DeviceSyncFileRequesterTests {
 
         let outcomes = Task { await requester.request([item("a.jpg")], onBytes: { bytes.record($0) }) }
         let request = try await sentRequest()
-        await requester.handle(.header(.init(requestId: request.requestId, fileIndex: 0, totalSize: 150)))
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 150,
+            hash: .unverifiedFileHash
+        )))
         await requester.handle(chunk(request, offset: 100, data: Data(count: 50)))
         await requester.handle(.completed(requestId: request.requestId))
 

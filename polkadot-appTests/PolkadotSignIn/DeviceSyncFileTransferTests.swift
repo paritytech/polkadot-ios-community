@@ -33,7 +33,7 @@ final class DeviceSyncFileTransferTests {
         let sent = await flow.waitForSentFileMessageCount(3)
 
         #expect(sent == [
-            .header(.init(requestId: 4, fileIndex: 0, totalSize: 3)),
+            .header(.init(requestId: 4, fileIndex: 0, totalSize: 3, hash: Data([1, 2, 3]).sha256Digest)),
             .chunk(.init(requestId: 4, fileIndex: 0, offset: 0, data: Data([1, 2, 3]))),
             .completed(requestId: 4)
         ])

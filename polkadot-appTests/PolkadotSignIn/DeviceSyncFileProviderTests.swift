@@ -29,7 +29,12 @@ final class DeviceSyncFileProviderTests {
         await provider.handle(Message.Request(requestId: 7, files: [.init(file: file, offset: 0)]))
         let sent = await flow.waitForSentFileMessageCount(5)
 
-        #expect(sent.first == .header(.init(requestId: 7, fileIndex: 0, totalSize: UInt64(size))))
+        #expect(sent.first == .header(.init(
+            requestId: 7,
+            fileIndex: 0,
+            totalSize: UInt64(size),
+            hash: contents.sha256Digest
+        )))
         #expect(sent.chunks.map(\.offset) == [0, 61_440, 122_880])
         #expect(sent.chunks.reduce(Data()) { $0 + $1.data } == contents)
         #expect(sent.last == .completed(requestId: 7))
@@ -50,13 +55,16 @@ final class DeviceSyncFileProviderTests {
 
     @Test("An offset at the end of the file gets only the header")
     func offsetAtEndSendsHeaderOnly() async throws {
-        let (file, location, _) = try makeStoredFile(name: "f0", size: 100)
+        let (file, location, contents) = try makeStoredFile(name: "f0", size: 100)
         let provider = makeProvider(locations: [file: location])
 
         await provider.handle(Message.Request(requestId: 1, files: [.init(file: file, offset: 100)]))
         let sent = await flow.waitForSentFileMessageCount(2)
 
-        #expect(sent == [.header(.init(requestId: 1, fileIndex: 0, totalSize: 100)), .completed(requestId: 1)])
+        #expect(sent == [
+            .header(.init(requestId: 1, fileIndex: 0, totalSize: 100, hash: contents.sha256Digest)),
+            .completed(requestId: 1)
+        ])
     }
 
     @Test("Files are served in request order, an unavailable one in place of its header")
@@ -79,23 +87,22 @@ final class DeviceSyncFileProviderTests {
         #expect(sent == [
             .unavailable(.init(requestId: 3, fileIndex: 0, reason: .notStored)),
             .unavailable(.init(requestId: 3, fileIndex: 1, reason: .downloading)),
-            .header(.init(requestId: 3, fileIndex: 2, totalSize: 10)),
+            .header(.init(requestId: 3, fileIndex: 2, totalSize: 10, hash: contents.sha256Digest)),
             .chunk(.init(requestId: 3, fileIndex: 2, offset: 0, data: contents)),
             .completed(requestId: 3)
         ])
     }
 
-    @Test("A file that disappears after its header is reported unavailable")
-    func deletedFileAfterHeaderIsUnavailable() async throws {
+    @Test("A file that can't be read any more is reported unavailable instead of a header")
+    func unreadableFileIsUnavailable() async throws {
         let file = makeReference("gone")
         let url = directory.appendingPathComponent("gone")
         let provider = makeProvider(locations: [file: .stored(url: url, size: 500)])
 
         await provider.handle(Message.Request(requestId: 4, files: [.init(file: file, offset: 0)]))
-        let sent = await flow.waitForSentFileMessageCount(3)
+        let sent = await flow.waitForSentFileMessageCount(2)
 
         #expect(sent == [
-            .header(.init(requestId: 4, fileIndex: 0, totalSize: 500)),
             .unavailable(.init(requestId: 4, fileIndex: 0, reason: .notStored)),
             .completed(requestId: 4)
         ])
@@ -103,7 +110,7 @@ final class DeviceSyncFileProviderTests {
 
     @Test("Cancelling the request being served stops before the next chunk and still completes it")
     func cancelCurrentRequestStopsStreaming() async throws {
-        let (first, firstLocation, _) = try makeStoredFile(name: "f0", size: 200_000)
+        let (first, firstLocation, firstContents) = try makeStoredFile(name: "f0", size: 200_000)
         let (second, secondLocation, _) = try makeStoredFile(name: "f1", size: 10)
         let locator = MockDeviceSyncFileLocator(
             locations: [first: firstLocation, second: secondLocation],
@@ -120,12 +127,15 @@ final class DeviceSyncFileProviderTests {
         locator.openGate()
         let sent = await flow.waitForSentFileMessageCount(2)
 
-        #expect(sent == [.header(.init(requestId: 5, fileIndex: 0, totalSize: 200_000)), .completed(requestId: 5)])
+        #expect(sent == [
+            .header(.init(requestId: 5, fileIndex: 0, totalSize: 200_000, hash: firstContents.sha256Digest)),
+            .completed(requestId: 5)
+        ])
     }
 
     @Test("A queued request is cancelled at once, while requests and availability don't wait for each other")
     func queuedCancelAndAvailabilityAreAnsweredImmediately() async throws {
-        let (slow, slowLocation, _) = try makeStoredFile(name: "slow", size: 10)
+        let (slow, slowLocation, slowContents) = try makeStoredFile(name: "slow", size: 10)
         let (other, otherLocation, _) = try makeStoredFile(name: "other", size: 20)
         let locator = MockDeviceSyncFileLocator(
             locations: [slow: slowLocation, other: otherLocation],
@@ -152,7 +162,12 @@ final class DeviceSyncFileProviderTests {
         locator.openGate()
         let all = await flow.waitForSentFileMessageCount(5)
 
-        #expect(all.suffix(3).first == .header(.init(requestId: 1, fileIndex: 0, totalSize: 10)))
+        #expect(all.suffix(3).first == .header(.init(
+            requestId: 1,
+            fileIndex: 0,
+            totalSize: 10,
+            hash: slowContents.sha256Digest
+        )))
         #expect(all.last == .completed(requestId: 1))
     }
 }

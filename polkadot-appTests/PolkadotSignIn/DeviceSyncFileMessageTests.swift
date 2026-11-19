@@ -25,8 +25,13 @@ struct DeviceSyncFileMessageTests {
                 "00" + "07000000" + "04" + attachmentHex + "0010000000000000"
             ),
             (
-                Message.header(.init(requestId: 7, fileIndex: 2, totalSize: 300)),
-                "01" + "07000000" + "02000000" + "2c01000000000000"
+                Message.header(.init(
+                    requestId: 7,
+                    fileIndex: 2,
+                    totalSize: 300,
+                    hash: Data(repeating: 0xCD, count: 32)
+                )),
+                "01" + "07000000" + "02000000" + "2c01000000000000" + String(repeating: "cd", count: 32)
             ),
             (
                 Message.chunk(.init(requestId: 7, fileIndex: 0, offset: 4_096, data: Data([1, 2, 3]))),
@@ -61,6 +66,7 @@ struct DeviceSyncFileMessageTests {
         "Unknown enum indices fail to decode",
         arguments: [
             "08" + "07000000",
+            "01" + "07000000" + "02000000" + "2c01000000000000",
             "03" + "07000000" + "01000000" + "02",
             "00" + "07000000" + "04" + "01086d3108aabb" + "0000000000000000",
             "07" + "09000000" + "04" + "02"

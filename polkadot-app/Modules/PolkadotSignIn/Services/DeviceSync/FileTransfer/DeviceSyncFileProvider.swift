@@ -137,7 +137,13 @@ private extension DeviceSyncFileProvider {
         case let .unavailable(reason):
             try await sendUnavailable(reason, fileIndex: fileIndex, requestId: requestId)
         case let .stored(url, size):
-            try await flow.sendFileMessage(.header(.init(requestId: requestId, fileIndex: fileIndex, totalSize: size)))
+            guard let hash = try? FileDigest.sha256(contentsOf: url) else {
+                try await sendUnavailable(.notStored, fileIndex: fileIndex, requestId: requestId)
+                return
+            }
+            try await flow.sendFileMessage(
+                .header(.init(requestId: requestId, fileIndex: fileIndex, totalSize: size, hash: hash))
+            )
 
             let range = FileRange(url: url, offset: item.offset, size: size)
             let isComplete = try await streamChunks(of: range, fileIndex: fileIndex, requestId: requestId)
