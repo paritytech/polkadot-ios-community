@@ -3,12 +3,12 @@ import SubstrateSdk
 import ChainStore
 import StructuredConcurrency
 
-public protocol StatementStoreRuntimeCapabilities {
+public protocol StatementStoreRuntimeCapabilitiesProviding {
     /// Old runtimes take over occupied slots with `set_statement_store_account` under a cooldown instead.
     func supportsSlotReplacement() async throws -> Bool
 }
 
-public final class MetadataStatementStoreRuntimeCapabilities: StatementStoreRuntimeCapabilities {
+public final class StatementStoreRuntimeCapabilities: StatementStoreRuntimeCapabilitiesProviding {
     private let chainId: ChainId
     private let chainRegistry: ChainResourceProtocol
 

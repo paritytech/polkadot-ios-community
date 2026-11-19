@@ -313,7 +313,7 @@ enum FakeReplacementValidatorError: Error {
 
 // MARK: - FakeStatementStoreRuntimeCapabilities
 
-struct FakeStatementStoreRuntimeCapabilities: StatementStoreRuntimeCapabilities {
+struct FakeStatementStoreRuntimeCapabilities: StatementStoreRuntimeCapabilitiesProviding {
     let supportsReplacement: Bool
 
     func supportsSlotReplacement() async throws -> Bool {

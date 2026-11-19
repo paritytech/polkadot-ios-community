@@ -119,7 +119,7 @@ final class StatementStoreSlotAllocatorTests: XCTestCase {
                 submitter: SlotAssignmentSubmitter(monitorFactory: monitorFactory),
                 slotInfoProvider: slotInfoProvider,
                 replacementValidator: replacementValidator,
-                capabilities: MetadataStatementStoreRuntimeCapabilities(
+                capabilities: StatementStoreRuntimeCapabilities(
                     chainId: KnownChainId.previewNetPeople,
                     chainRegistry: chainRegistry
                 ),

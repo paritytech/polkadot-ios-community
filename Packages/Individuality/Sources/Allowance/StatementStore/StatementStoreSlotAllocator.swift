@@ -14,7 +14,7 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
         let submitter: SlotAssignmentSubmitting
         let slotInfoProvider: StatementStoreSlotInfoProviding
         let replacementValidator: SlotReplacementValidating
-        let capabilities: StatementStoreRuntimeCapabilities
+        let capabilities: StatementStoreRuntimeCapabilitiesProviding
         let resourcesParameters: ResourcesParametersProviding
 
         public init(
@@ -22,7 +22,7 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
             submitter: SlotAssignmentSubmitting,
             slotInfoProvider: StatementStoreSlotInfoProviding,
             replacementValidator: SlotReplacementValidating,
-            capabilities: StatementStoreRuntimeCapabilities,
+            capabilities: StatementStoreRuntimeCapabilitiesProviding,
             resourcesParameters: ResourcesParametersProviding
         ) {
             self.originFactory = originFactory

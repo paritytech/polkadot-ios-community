@@ -92,7 +92,7 @@ extension SSStoreAllowanceManager {
 
         let submitter = SlotAssignmentSubmitter(monitorFactory: monitorFactory)
 
-        let capabilities = MetadataStatementStoreRuntimeCapabilities(
+        let capabilities = StatementStoreRuntimeCapabilities(
             chainId: chatChain.chainId,
             chainRegistry: chainRegistry
         )
