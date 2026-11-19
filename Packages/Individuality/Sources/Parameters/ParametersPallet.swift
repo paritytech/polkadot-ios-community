@@ -1,13 +1,13 @@
 import Foundation
 import SubstrateSdk
-import SubstrateStorageSubscription
+import SubstrateSdkExt
 
 /// An unset parameter has no storage entry; the runtime then applies a default that no metadata exposes.
 public enum ParametersPallet {
     public static let name = "Parameters"
 
-    public static var parameters: StorageCodingPath {
-        StorageCodingPath(moduleName: name, itemName: "Parameters")
+    public enum Storage {
+        case parameters
     }
 
     public enum StatementStorageParameter: String {
@@ -50,6 +50,17 @@ public enum ParametersPallet {
             var inner = try container.nestedUnkeyedContainer()
             parameter = try inner.decode(String.self)
             value = try inner.decode(Value.self)
+        }
+    }
+}
+
+extension ParametersPallet.Storage: StoragePathConvertible {
+    public var moduleName: String { ParametersPallet.name }
+
+    public var name: String {
+        switch self {
+        case .parameters:
+            "Parameters"
         }
     }
 }

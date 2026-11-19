@@ -2,7 +2,6 @@ import ChainStore
 import Foundation
 import SDKLogger
 import SubstrateSdk
-import SubstrateStorageQuery
 
 public protocol NotificationParametersProviding: Sendable {
     func currentPeriod() async throws -> UInt32
@@ -43,13 +42,13 @@ extension NotificationParametersProvider: NotificationParametersProviding {
     }
 
     public func maxStatementSize() async throws -> Int {
-        if let allowance = try await statementStorageParameters.notificationAllowance() {
-            return Int(allowance.maxSize)
+        guard let allowance = try await statementStorageParameters.notificationAllowance() else {
+            logger.info("NotificationAllowance is not set on \(chainId); using the runtime default")
+
+            return Int(ResourcesPallet.StatementAllowance.notificationDefault.maxSize)
         }
 
-        logger.info("NotificationAllowance is not set on \(chainId); using the runtime default")
-
-        return Int(ResourcesPallet.StatementAllowance.notificationDefault.maxSize)
+        return Int(allowance.maxSize)
     }
 }
 
@@ -65,10 +64,6 @@ extension NotificationParametersProvider {
 
 private extension NotificationParametersProvider {
     func constant<T: Decodable>(_ path: ResourcesPallet.Constants) async throws -> T {
-        let runtimeProvider = try chainRegistry.getRuntimeCodingServiceOrError(for: chainId)
-        let operation = StorageConstantOperation<T>(path: path(), fallbackValue: nil)
-        operation.codingFactory = try await runtimeProvider.fetchCoderFactoryOperation().asyncExecute()
-
-        return try await operation.asyncExecute()
+        try await chainRegistry.getRuntimeCodingServiceOrError(for: chainId).fetchConstant(path: path())
     }
 }

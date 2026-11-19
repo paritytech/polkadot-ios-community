@@ -36,7 +36,7 @@ public final class StatementStorageParametersProvider: StatementStorageParameter
         let constantPath = ResourcesPallet.Constants.notificationAllowance()
 
         if codingFactory.getConstant(for: constantPath) != nil {
-            return try await constant(at: constantPath, codingFactory: codingFactory)
+            return try await runtimeProvider.fetchConstant(path: constantPath)
         }
 
         return try await parameter(codingFactory: codingFactory)
@@ -44,16 +44,6 @@ public final class StatementStorageParametersProvider: StatementStorageParameter
 }
 
 private extension StatementStorageParametersProvider {
-    func constant(
-        at path: ConstantCodingPath,
-        codingFactory: RuntimeCoderFactoryProtocol
-    ) async throws -> ResourcesPallet.StatementAllowance {
-        let operation = StorageConstantOperation<ResourcesPallet.StatementAllowance>(path: path, fallbackValue: nil)
-        operation.codingFactory = codingFactory
-
-        return try await operation.asyncExecute()
-    }
-
     func parameter(codingFactory: RuntimeCoderFactoryProtocol) async throws -> ResourcesPallet.StatementAllowance? {
         let connection = try chainRegistry.getRpcConnectionOrError(for: chainId)
 
@@ -63,7 +53,7 @@ private extension StatementStorageParametersProvider {
             engine: connection,
             keyParams: { [key] },
             factory: { codingFactory },
-            storagePath: ParametersPallet.parameters
+            storagePath: ParametersPallet.Storage.parameters()
         )
         .asyncExecute()
 
