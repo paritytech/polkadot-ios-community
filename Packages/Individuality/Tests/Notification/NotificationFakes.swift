@@ -225,7 +225,6 @@ struct FixedStatementStorageParameters: StatementStorageParametersProviding {
 
 // MARK: - UnavailableChainResource
 
-/// A chain registry that knows no chain, for code paths that must not touch the chain.
 final class UnavailableChainResource: ChainResourceProtocol {
     func getChainInterface(for _: ChainId) -> ChainProtocol? { nil }
     func getChainInterfaceByGenesis(_: ChainId) -> ChainProtocol? { nil }

@@ -5,14 +5,12 @@ import ChainStore
 import StructuredConcurrency
 
 public protocol StatementStorageParametersProviding: Sendable {
-    /// The notification allowance the chain exposes: the pallet constant on runtimes that still export it,
-    /// otherwise the value governance set in `pallet_parameters`; `nil` while the runtime default applies.
+    /// Constant on old runtimes, `pallet_parameters` value afterwards; `nil` while the runtime default applies.
     func notificationAllowance() async throws -> ResourcesPallet.StatementAllowance?
 }
 
 public extension ResourcesPallet.StatementAllowance {
-    /// The People runtime's `NotificationAllowance` default (`runtimes/next-people-paseo/src/parameters.rs`),
-    /// in force while governance has not set the parameter; no metadata exposes it.
+    /// Applies while the parameter is unset and no metadata exposes it.
     static let notificationDefault = ResourcesPallet.StatementAllowance(maxCount: 1, maxSize: 5 * 1_024 / 2)
 }
 
