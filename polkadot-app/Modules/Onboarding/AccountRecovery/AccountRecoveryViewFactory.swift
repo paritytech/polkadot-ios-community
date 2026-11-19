@@ -33,7 +33,7 @@ enum AccountRecoveryViewFactory {
 
         let view = AccountRecoveryViewController(
             presenter: presenter,
-            appStateStreamFactory: ApplicationStateStreamFactory()
+            screenCaptureProtector: ScreenCaptureProtector(appStateStreamFactory: ApplicationStateStreamFactory())
         )
 
         presenter.view = view

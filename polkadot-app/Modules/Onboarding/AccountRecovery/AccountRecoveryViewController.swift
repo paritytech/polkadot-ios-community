@@ -2,37 +2,29 @@ import UIKit
 import UIKit_iOS
 import Foundation_iOS
 import FoundationExt
-import AsyncExtensions
 
 final class AccountRecoveryViewController: UIViewController, ViewHolder {
     typealias RootViewType = AccountRecoveryViewLayout
 
     let presenter: AccountRecoveryPresenterProtocol
-    private let appStateStreamFactory: ApplicationStateStreamFactory
+    private let screenCaptureProtector: ScreenCaptureProtector
 
     var keyboardHandler: KeyboardHandler?
-
-    private var isResignedActive = false
-    private var appStateTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
 
     init(
         presenter: AccountRecoveryPresenterProtocol,
-        appStateStreamFactory: ApplicationStateStreamFactory
+        screenCaptureProtector: ScreenCaptureProtector
     ) {
         self.presenter = presenter
-        self.appStateStreamFactory = appStateStreamFactory
+        self.screenCaptureProtector = screenCaptureProtector
         super.init(nibName: nil, bundle: nil)
     }
 
     @available(*, unavailable)
     required init?(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    deinit {
-        appStateTask?.cancel()
     }
 
     override func loadView() {
@@ -43,7 +35,7 @@ final class AccountRecoveryViewController: UIViewController, ViewHolder {
         super.viewDidLoad()
 
         addHandlers()
-        observeInputExposure()
+        protectInput()
 
         presenter.setup()
     }
@@ -59,7 +51,7 @@ final class AccountRecoveryViewController: UIViewController, ViewHolder {
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
 
-        updateInputCover()
+        rootView.setInputCovered(screenCaptureProtector.isExposed)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -84,10 +76,6 @@ extension AccountRecoveryViewController: KeyboardAdoptable {}
 // MARK: - Private
 
 private extension AccountRecoveryViewController {
-    var isSceneCaptured: Bool {
-        traitCollection.sceneCaptureState == .active
-    }
-
     func addHandlers() {
         rootView.proceedButton.addTarget(
             self,
@@ -101,27 +89,9 @@ private extension AccountRecoveryViewController {
         presenter.proceed()
     }
 
-    func observeInputExposure() {
-        registerForTraitChanges([UITraitSceneCaptureState.self]) { (self: Self, _: UITraitCollection) in
-            self.updateInputCover()
+    func protectInput() {
+        screenCaptureProtector.protect([rootView.textView], in: self) { [weak self] isExposed in
+            self?.rootView.setInputCovered(isExposed)
         }
-
-        appStateTask = observeApplicationActivity()
-    }
-
-    func observeApplicationActivity() -> Task<Void, Never> {
-        let resignEvents = appStateStreamFactory.stream(for: .willResignActive).map { true }
-        let activeEvents = appStateStreamFactory.stream(for: .didBecomeActive).map { false }
-
-        return Task { [weak self] in
-            for await isResignedActive in merge(resignEvents, activeEvents) {
-                self?.isResignedActive = isResignedActive
-                self?.updateInputCover()
-            }
-        }
-    }
-
-    func updateInputCover() {
-        rootView.setInputCovered(isSceneCaptured || isResignedActive)
     }
 }

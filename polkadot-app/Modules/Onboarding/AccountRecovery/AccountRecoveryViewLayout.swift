@@ -60,8 +60,6 @@ class AccountRecoveryViewLayout: ScrollableContainerLayoutView {
         }
         addArrangedSubview(textView, spacingAfter: 24)
 
-        textView.layer.setScreenCaptureDisabled(true)
-
         addSubview(proceedButton)
         proceedButton.snp.makeConstraints { make in
             make.leading.trailing.equalToSuperview().inset(UIConstants.horizontalInsetWide)

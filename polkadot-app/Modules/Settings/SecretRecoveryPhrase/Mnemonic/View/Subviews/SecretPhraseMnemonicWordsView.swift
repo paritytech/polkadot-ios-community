@@ -50,6 +50,8 @@ final class SecretPhraseMnemonicWordsView: UIView {
         hintView.sView
     }
 
+    var sensitiveContentView: UIView { collectionView }
+
     private lazy var collectionView = UICollectionView(frame: .zero, collectionViewLayout: createLayout())
     private lazy var dataSource = configureDataSource()
 
@@ -164,7 +166,6 @@ extension SecretPhraseMnemonicWordsView {
         collectionView.alwaysBounceVertical = true
         collectionView.isScrollEnabled = false
         collectionView.registerCellClass(MnemonicWordCollectionCell.self)
-        collectionView.layer.setScreenCaptureDisabled(true)
 
         addSubview(collectionView)
         addSubview(blurView)
