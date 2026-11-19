@@ -33,7 +33,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 150,
-            hash: .unverifiedFileHash
+            hash: contents.sha256Digest
         )))
         await requester.handle(chunk(request, offset: 0, data: contents.prefix(100)))
         await requester.handle(chunk(request, offset: 100, data: contents.suffix(from: 100)))
@@ -41,6 +41,27 @@ final class DeviceSyncFileRequesterTests {
 
         #expect(await outcomes.value == [.completed])
         #expect(try store.loadAttachment(by: "a.jpg") == contents)
+    }
+
+    @Test("A file whose bytes don't match the announced digest is discarded")
+    func wrongDigestIsHashMismatch() async throws {
+        let contents = try Data.randomOrError(of: 60)
+        let requester = makeRequester()
+
+        let outcomes = Task { await requester.request([item("a.jpg")]) }
+        let request = try await sentRequest()
+        await requester.handle(.header(.init(
+            requestId: request.requestId,
+            fileIndex: 0,
+            totalSize: 60,
+            hash: Data(count: 60).sha256Digest
+        )))
+        await requester.handle(chunk(request, offset: 0, data: contents))
+        await requester.handle(.completed(requestId: request.requestId))
+
+        #expect(await outcomes.value == [.hashMismatch])
+        #expect(!store.hasFile(for: "a.jpg.sync.part"))
+        #expect(!store.hasFile(for: "a.jpg"))
     }
 
     @Test("Each file is requested from the bytes already stored")
@@ -57,7 +78,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: .unverifiedFileHash
+            hash: Data(count: 100).sha256Digest
         )))
         await requester.handle(.unavailable(.init(requestId: request.requestId, fileIndex: 1, reason: .downloading)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -75,7 +96,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: .unverifiedFileHash
+            hash: Data(count: 100).sha256Digest
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -94,7 +115,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: .unverifiedFileHash
+            hash: Data(count: 100).sha256Digest
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 10)))
         await requester.handle(chunk(request, offset: 50, data: Data(count: 10)))
@@ -114,7 +135,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: .unverifiedFileHash
+            hash: Data(count: 100).sha256Digest
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.close()
@@ -189,7 +210,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 150,
-            hash: .unverifiedFileHash
+            hash: Data(count: 150).sha256Digest
         )))
         await requester.handle(chunk(request, offset: 100, data: Data(count: 50)))
         await requester.handle(.completed(requestId: request.requestId))

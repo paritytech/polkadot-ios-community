@@ -28,6 +28,19 @@ struct SiblingFileFetcherTests {
         #expect(await latest.requests.flatMap { $0 } == items)
         #expect(await older.requests.isEmpty)
     }
+
+    @Test("A file that fails the digest check is requested again on the same channel")
+    func retriesHashMismatch() async {
+        let registry = DeviceSyncFileChannelRegistry()
+        let requester = MockDeviceSyncFileRequester(scriptedOutcomes: [[.completed, .hashMismatch], [.completed]])
+        await registry.register(requester, connectionId: UUID())
+        let items = makeItems(count: 2)
+
+        let outcomes = await SiblingFileFetcher(channels: registry).fetch(items)
+
+        #expect(outcomes == [.completed, .completed])
+        #expect(await requester.requests == [items, [items[1]]])
+    }
 }
 
 private extension SiblingFileFetcherTests {

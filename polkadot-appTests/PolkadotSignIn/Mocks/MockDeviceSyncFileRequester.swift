@@ -7,9 +7,15 @@ actor MockDeviceSyncFileRequester: DeviceSyncFileRequesting {
     private(set) var didClose = false
 
     private let outcome: DeviceSyncFileRequestOutcome
+    private var scriptedOutcomes: [[DeviceSyncFileRequestOutcome]]
 
-    init(outcome: DeviceSyncFileRequestOutcome = .completed) {
+    /// Each request consumes the next scripted list, positionally; missing entries and later requests get `outcome`.
+    init(
+        outcome: DeviceSyncFileRequestOutcome = .completed,
+        scriptedOutcomes: [[DeviceSyncFileRequestOutcome]] = []
+    ) {
         self.outcome = outcome
+        self.scriptedOutcomes = scriptedOutcomes
     }
 
     func request(
@@ -17,7 +23,8 @@ actor MockDeviceSyncFileRequester: DeviceSyncFileRequesting {
         onBytes _: @escaping DeviceSyncFileBytesHandler
     ) async -> [DeviceSyncFileRequestOutcome] {
         requests.append(items)
-        return items.map { _ in outcome }
+        let script = scriptedOutcomes.isEmpty ? [] : scriptedOutcomes.removeFirst()
+        return items.indices.map { script.indices.contains($0) ? script[$0] : outcome }
     }
 
     func requestAvailability(

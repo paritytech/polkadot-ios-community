@@ -11,9 +11,11 @@ final class SiblingFileFetcher: Sendable {
     static let maxFilesPerRequest = 64
 
     private let channels: any DeviceSyncFileChannelProviding
+    private let retrier: DeviceSyncFileRequestRetrier
 
-    init(channels: any DeviceSyncFileChannelProviding) {
+    init(channels: any DeviceSyncFileChannelProviding, retrier: DeviceSyncFileRequestRetrier = .init()) {
         self.channels = channels
+        self.retrier = retrier
     }
 }
 
@@ -30,7 +32,11 @@ extension SiblingFileFetcher: SiblingFileFetching {
 
         for batchStart in stride(from: 0, to: items.count, by: Self.maxFilesPerRequest) {
             let batchEnd = min(batchStart + Self.maxFilesPerRequest, items.count)
-            outcomes += await requester.request(Array(items[batchStart ..< batchEnd]))
+            outcomes += await retrier.request(
+                Array(items[batchStart ..< batchEnd]),
+                using: requester,
+                onBytes: { _ in }
+            )
         }
 
         return outcomes
