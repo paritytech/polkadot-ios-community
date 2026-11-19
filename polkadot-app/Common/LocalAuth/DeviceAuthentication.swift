@@ -19,6 +19,8 @@ enum DeviceAuthError: Error {
 }
 
 class DeviceAuthentication {
+    private lazy var context = LAContext()
+
     private func converError(error: Error) -> DeviceAuthError? {
         guard let laError = error as? LAError else {
             return .unknown(error.localizedDescription)
@@ -44,7 +46,7 @@ class DeviceAuthentication {
 
 extension DeviceAuthentication: DeviceAuthProtocol {
     var isAvailable: Bool {
-        LAContext().canEvaluatePolicy(LAPolicy.deviceOwnerAuthentication, error: nil)
+        context.canEvaluatePolicy(LAPolicy.deviceOwnerAuthentication, error: nil)
     }
 
     func authenticate(
@@ -59,12 +61,10 @@ extension DeviceAuthentication: DeviceAuthProtocol {
             return
         }
 
-        let context = LAContext()
         context.evaluatePolicy(
             LAPolicy.deviceOwnerAuthentication,
             localizedReason: localizedReason
         ) { [weak self] (result: Bool, error: Error?) in
-            withExtendedLifetime(context) {}
             completionQueue.async {
                 if result {
                     completionBlock(.success(true))
