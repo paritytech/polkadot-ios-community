@@ -5,7 +5,6 @@ internal import SnapKit
 
 public struct ChatTransferMessageConfiguration: HashableContentConfiguration {
     let title: String
-    let currencySymbol: String
     let amountText: String
     let tokenSymbol: String
     let originalAmountText: String?
@@ -189,11 +188,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
         appliedConfiguration = configuration
 
         titleLabel.text = configuration.title
-        amountView.bind(
-            currencySymbol: configuration.currencySymbol,
-            amount: configuration.amountText,
-            unit: configuration.tokenSymbol
-        )
+        amountView.bind(amount: configuration.amountText, unit: configuration.tokenSymbol)
         amountView.amountLabel.textColor = configuration.amountTextColor
         amountView.unitLabel.textColor = configuration.tokenSymbolColor
 
@@ -208,7 +203,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
             ).attributes(for: .left)
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
             originalAmountLabel.attributedText = NSAttributedString(
-                string: configuration.currencySymbol + originalAmount,
+                string: originalAmount,
                 attributes: attributes
             )
             originalAmountLabel.isHidden = false
@@ -338,15 +333,15 @@ private extension ChatTransferMessageView {
         switch configuration.state {
         case .incoming:
             String(localized: .transferStatusAmountReceived(
-                received: configuration.currencySymbol + configuration.amountText,
-                sent: configuration.currencySymbol + originalAmount
+                received: configuration.amountText,
+                sent: originalAmount
             ))
         case .outgoing:
             if let peerName = configuration.peerName {
                 String(localized: .transferStatusAmountReceivedBy(
                     username: peerName,
-                    received: configuration.currencySymbol + configuration.amountText,
-                    sent: configuration.currencySymbol + originalAmount
+                    received: configuration.amountText,
+                    sent: originalAmount
                 ))
             } else {
                 String(localized: .transferStatusAmountDiffers)

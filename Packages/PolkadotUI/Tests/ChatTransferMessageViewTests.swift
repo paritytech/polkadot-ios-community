@@ -18,14 +18,14 @@ struct ChatTransferMessageViewTests {
 
     @Test("The row steps down the typography ladder as the amount grows")
     func scalesWithAmount() {
-        #expect(makeView(amount: "20").amountView.typography == .headlineLarge)
-        #expect(makeView(amount: "20,000").amountView.typography == .headlineSmall)
-        #expect(makeView(amount: "2,000,000").amountView.typography == .titleExtraLarge)
+        #expect(makeView(amount: "$20").amountView.typography == .headlineLarge)
+        #expect(makeView(amount: "$20,000").amountView.typography == .headlineSmall)
+        #expect(makeView(amount: "$2,000,000").amountView.typography == .titleExtraLarge)
     }
 
     @Test("The asset is drawn as the CASH wordmark at the amount's size")
     func assetFollowsAmountSize() {
-        let view = makeView(amount: "20")
+        let view = makeView(amount: "$20")
         let amountFont = view.amountView.amountLabel.font
         let unitFont = view.amountView.unitLabel.font
 
@@ -35,7 +35,7 @@ struct ChatTransferMessageViewTests {
 
     @Test("A short claim strikes the original amount through and warns that it differs")
     func partialClaimShowsOriginalAmount() {
-        let configuration = makeConfiguration(state: .outgoing(.claimed), originalAmountText: "50")
+        let configuration = makeConfiguration(state: .outgoing(.claimed), originalAmountText: "$50")
         let view = ChatTransferMessageView(configuration: configuration)
 
         #expect(view.originalAmountLabel.isHidden == false)
@@ -47,9 +47,9 @@ struct ChatTransferMessageViewTests {
     @Test("A short outgoing claim tells the sender how much of the sent amount the peer received")
     func outgoingPartialClaimNamesThePeer() {
         let configuration = makeConfiguration(
-            amount: "2,000,000",
+            amount: "$2,000,000",
             state: .outgoing(.claimed),
-            originalAmountText: "3,000,000",
+            originalAmountText: "$3,000,000",
             peerName: "Jake"
         )
         let view = ChatTransferMessageView(configuration: configuration)
@@ -70,9 +70,9 @@ struct ChatTransferMessageViewTests {
     @Test("A short incoming claim tells the receiver how much of the sent amount arrived")
     func incomingPartialClaimShowsReceivedOfSent() {
         let configuration = makeConfiguration(
-            amount: "2,000,000",
+            amount: "$2,000,000",
             state: .incoming(.claimed),
-            originalAmountText: "3,000,000"
+            originalAmountText: "$3,000,000"
         )
         let view = ChatTransferMessageView(configuration: configuration)
 
@@ -120,14 +120,13 @@ private extension ChatTransferMessageViewTests {
     }
 
     func makeConfiguration(
-        amount: String = "20",
+        amount: String = "$20",
         state: ChatTransferMessageConfiguration.DirectionalState = .outgoing(.sent),
         originalAmountText: String? = nil,
         peerName: String? = nil
     ) -> ChatTransferMessageConfiguration {
         ChatTransferMessageConfiguration(
             title: "You sent",
-            currencySymbol: "$",
             amountText: amount,
             tokenSymbol: "CASH",
             originalAmountText: originalAmountText,

@@ -52,9 +52,7 @@ final class ChatTransferAmountView: UIView {
         )
     }
 
-    func bind(currencySymbol: String, amount: String, unit: String) {
-        let amountText = currencySymbol + amount
-
+    func bind(amount amountText: String, unit: String) {
         typography = Constants.typographyLadder.first { fits(amountText: amountText, unit: unit, typography: $0) }
             ?? Constants.typographyLadder[Constants.typographyLadder.count - 1]
 
