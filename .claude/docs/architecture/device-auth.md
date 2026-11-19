@@ -4,21 +4,9 @@
 
 Device authentication asks the person holding the phone for Face ID, Touch ID or the device passcode. The app uses it at each control that confirms a transfer, a signing, a device pairing, a product prompt or a manual backup.
 
-Why: an unlocked phone must not be enough to sign, pay, pair or export a secret. Device pairing sends the identity chat private key and the root entropy source to the new device.
+Why: an unlocked phone must not be enough to sign, pay, pair or export a secret.
 
 The gate sits at the confirm control, not at key access. Keys stay readable without device authentication.
-
-
-## Build Skip
-
-```swift
-#if !(DISABLE_AUTH || F_DEV || E2E_TEST)
-```
-
-- `polkadot-app/Modules/LocalAuth/LocalAuthPresentable.swift` completes `true` at once when the condition is true. Every gate passes.
-- `F_DEV` is set by `Configs/base.debug.xcconfig` and `Configs/base.devci.xcconfig`.
-- `E2E_TEST` is set only by the simulator build lane in `fastlane/lanes/lane_simulator_build.rb`.
-- Nightly and Release builds run the real checks.
 
 ## Confirmation Gates
 
@@ -45,13 +33,6 @@ On a confirm tap, the app shows the device authentication prompt before the acti
 
 The product prompts cover both the host API path and the product-runtime path, because both show the same prompts.
 
-### Not Gated
-
-- Automatic backup during wallet setup.
-- Allowance and permission prompts.
-- Device unpair.
-- Chat request accept and decline.
-
 ### Existing Device Authentication
 
 These flows prompt today. They are not in the gated actions above. Account recovery, cloud restore and username claim pass `retriable: true`, so a cancel keeps the prompt open for another try (`LocalAuthPresenter`).
@@ -69,7 +50,7 @@ These flows prompt today. They are not in the gated actions above. Account recov
 
 ### Helper Behaviour
 
-The helper lives in `polkadot-app/Modules/LocalAuth/LocalAuthPresentable.swift`.
+The helper lives in `LocalAuthPresentable`.
 
 - A request while a prompt is live completes `false` at once.
 - A request with no screen to present from completes `false` at once.
@@ -78,4 +59,4 @@ The helper lives in `polkadot-app/Modules/LocalAuth/LocalAuthPresentable.swift`.
 
 ### Device Authentication Wrapper
 
-`polkadot-app/Common/LocalAuth/DeviceAuthentication.swift` creates a new `LAContext` for every availability check and every evaluation. A context that already succeeded never passes again without a prompt.
+`DeviceAuthentication` keeps one `LAContext` for its lifetime. `LocalAuthViewFactory` creates a new instance for each prompt, so a context never outlives one prompt module. A retry reuses the context only after a failure or cancel. A success closes the module, so a context that already succeeded never passes again without a prompt.
