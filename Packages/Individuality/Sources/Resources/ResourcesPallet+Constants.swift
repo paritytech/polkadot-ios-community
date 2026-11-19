@@ -4,7 +4,7 @@ import SubstrateSdkExt
 public extension ResourcesPallet {
     enum Constants {
         case longTermStoragePeriodDuration
-        /// Exported by runtimes before individuality-community #227; later ones keep it in `pallet_parameters`.
+        /// Exported by old runtimes; later ones keep it in `pallet_parameters`.
         case notificationAllowance
         case notificationPeriodDuration
     }

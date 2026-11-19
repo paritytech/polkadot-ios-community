@@ -10,7 +10,7 @@ public protocol StatementStorageParametersProviding: Sendable {
 }
 
 public extension ResourcesPallet.StatementAllowance {
-    /// Mirrors `next-people-paseo/src/parameters.rs`; applies while the parameter is unset and no metadata exposes it.
+    /// Applies while the parameter is unset and no metadata exposes it.
     static let notificationDefault = ResourcesPallet.StatementAllowance(maxCount: 1, maxSize: 5 * 1_024 / 2)
 }
 
