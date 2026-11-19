@@ -105,7 +105,6 @@ private extension SSStoreAllowanceManager {
                 }
 
                 if request.policy == .ignore, existing {
-                    try await self.backfillSignerKeyId(for: request.holder)
                     return
                 }
 
@@ -123,17 +122,5 @@ private extension SSStoreAllowanceManager {
                 try await repository.saveOperation({ [record] }, { [] }).asyncExecute()
             }
         }
-    }
-
-    /// Rows written before the key reference existed learn it the next time their account is funded.
-    func backfillSignerKeyId(for holder: StatementStoreAllowanceHolder) async throws {
-        guard let signerKeyId = holder.signerKeyId else { return }
-
-        let stored = try await repository.fetchOperation(by: { holder.accountId.toHex() }, options: .init())
-            .asyncExecute()
-        guard let stored, stored.signerKeyId == nil else { return }
-
-        let updated = stored.replacingSignerKeyId(signerKeyId)
-        try await repository.saveOperation({ [updated] }, { [] }).asyncExecute()
     }
 }

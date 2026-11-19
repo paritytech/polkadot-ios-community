@@ -29,18 +29,6 @@ public struct AllowanceRecord: Equatable {
         self.latestRenewedPeriod = latestRenewedPeriod
         self.signerKeyId = signerKeyId
     }
-
-    public func replacingSignerKeyId(_ signerKeyId: String?) -> AllowanceRecord {
-        AllowanceRecord(
-            accountId: accountId,
-            allocatedAt: allocatedAt,
-            kind: kind,
-            domain: domain,
-            priority: priority,
-            latestRenewedPeriod: latestRenewedPeriod,
-            signerKeyId: signerKeyId
-        )
-    }
 }
 
 extension AllowanceRecord: Identifiable {

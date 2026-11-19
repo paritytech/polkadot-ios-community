@@ -64,55 +64,6 @@ struct SSStoreAllowanceManagerTests {
         #expect(capturingRepo.savedRecords.map(\.signerKeyId) == ["//chat//peer"])
     }
 
-    @Test func existingSlotBackfillsMissingSignerKeyId() async throws {
-        let stored = AllowanceRecord(
-            accountId: testAccountId,
-            allocatedAt: Date(),
-            kind: .statementStore,
-            domain: .chat,
-            priority: .critical,
-            latestRenewedPeriod: 100
-        )
-        let capturingRepo = CapturingRepository(storedRecords: [stored])
-        let allocator = FakeAllowanceSlotAllocating(period: 100)
-        let manager = makeManager(
-            allocator: allocator,
-            repository: AnyDataProviderRepository(capturingRepo),
-            slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
-        )
-
-        try await manager.ensureFunded(
-            holder: .local(accountId: testAccountId, signerKeyId: "//chat//peer"),
-            priority: .critical,
-            domain: .chat
-        )
-
-        #expect(allocator.assignSlotCalls.isEmpty)
-        #expect(capturingRepo.savedRecords.map(\.signerKeyId) == ["//chat//peer"])
-        #expect(capturingRepo.savedRecords.map(\.latestRenewedPeriod) == [100])
-    }
-
-    @Test func existingSlotWithoutSignerKeyIdLeavesRowUntouched() async throws {
-        let stored = AllowanceRecord(
-            accountId: testAccountId,
-            allocatedAt: Date(),
-            kind: .statementStore,
-            domain: .device,
-            priority: .high,
-            latestRenewedPeriod: 100
-        )
-        let capturingRepo = CapturingRepository(storedRecords: [stored])
-        let manager = makeManager(
-            allocator: FakeAllowanceSlotAllocating(period: 100),
-            repository: AnyDataProviderRepository(capturingRepo),
-            slotInfoProvider: CustomFakeSlotInfoProvider(hasExistingSlot: true)
-        )
-
-        try await manager.ensureFunded(holder: .remote(accountId: testAccountId), priority: .high, domain: .device)
-
-        #expect(capturingRepo.savedRecords.isEmpty)
-    }
-
     @Test func ensureFundedSkipsAccountWithSlot() async throws {
         let allocator = FakeAllowanceSlotAllocating(period: 100)
         let manager = makeManager(
