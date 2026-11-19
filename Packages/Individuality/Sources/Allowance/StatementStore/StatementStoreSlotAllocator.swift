@@ -63,9 +63,9 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
                 case let .free(slot):
                     try await claimFreeSlot(slot, accountId: accountId)
                     return slot.period
-                case let .evict(period, nowSeconds, candidates):
-                    try await evict(period: period, nowSeconds: nowSeconds, candidates: candidates, for: accountId)
-                    return period
+                case let .evict(slot):
+                    try await evict(slot, for: accountId)
+                    return slot.period
                 }
             }
         }
@@ -73,25 +73,20 @@ public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
 }
 
 private extension StatementStoreSlotAllocator {
-    func evict(
-        period: UInt32,
-        nowSeconds: UInt64,
-        candidates: [SSSEvictionCandidate],
-        for accountId: AccountId
-    ) async throws {
+    func evict(_ slot: SSSEvictSlotInfo, for accountId: AccountId) async throws {
         if try await dependencies.capabilities.supportsSlotReplacement() {
-            try await replaceSlot(period: period, candidates: candidates, accountId: accountId)
+            try await replaceSlot(period: slot.period, candidates: slot.candidates, accountId: accountId)
         } else {
             try await evictWithProof(
-                period: period,
-                nowSeconds: nowSeconds,
-                candidates: candidates,
+                period: slot.period,
+                nowSeconds: slot.nowSeconds,
+                candidates: slot.candidates,
                 accountId: accountId
             )
         }
     }
 
-    func claimFreeSlot(_ slot: SSSSlotInfo, accountId: AccountId) async throws {
+    func claimFreeSlot(_ slot: SSSFreeSlotInfo, accountId: AccountId) async throws {
         try await submitSetCall(
             period: slot.period,
             seq: slot.seq,

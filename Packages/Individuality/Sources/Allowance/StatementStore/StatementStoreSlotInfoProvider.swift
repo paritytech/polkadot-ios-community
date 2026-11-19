@@ -7,7 +7,8 @@ import FoundationExt
 import ChainStore
 import SDKLogger
 
-public struct SSSSlotInfo {
+/// A slot nobody holds this period, claimed with a ring proof.
+public struct SSSFreeSlotInfo {
     public let period: UInt32
     public let seq: UInt32
     public let personOrigin: PersonOrigin
@@ -23,6 +24,24 @@ public struct SSSSlotInfo {
     }
 }
 
+/// The occupied slots an account may take over this period, ranked by the eviction picker.
+/// `nowSeconds` is the chain time the candidates were read at.
+public struct SSSEvictSlotInfo {
+    public let period: UInt32
+    public let nowSeconds: UInt64
+    public let candidates: [SSSEvictionCandidate]
+
+    public init(
+        period: UInt32,
+        nowSeconds: UInt64,
+        candidates: [SSSEvictionCandidate]
+    ) {
+        self.period = period
+        self.nowSeconds = nowSeconds
+        self.candidates = candidates
+    }
+}
+
 public struct SSSRenewalSlot {
     public let personOrigin: PersonOrigin
     public let seq: UInt32
@@ -34,10 +53,10 @@ public struct SSSRenewalSlot {
 }
 
 /// How an account gets a slot this period: a free slot is claimed with a ring proof, an occupied one
-/// is taken over from one of the ranked candidates. `nowSeconds` is the chain time the candidates were read at.
+/// is taken over from one of the ranked candidates.
 public enum SSSSlotPlan {
-    case free(SSSSlotInfo)
-    case evict(period: UInt32, nowSeconds: UInt64, candidates: [SSSEvictionCandidate])
+    case free(SSSFreeSlotInfo)
+    case evict(SSSEvictSlotInfo)
 }
 
 public protocol StatementStoreSlotInfoProviding {
@@ -113,7 +132,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
             logger.debug("Found free slot: \(originEntry.personOrigin.label) idx: \(freeIndex)")
 
             return .free(
-                SSSSlotInfo(
+                SSSFreeSlotInfo(
                     period: state.period,
                     seq: UInt32(freeIndex),
                     personOrigin: originEntry.personOrigin
@@ -128,7 +147,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         )
         logger.debug("Found \(candidates.count) slots to evict for period \(state.period)")
 
-        return .evict(period: state.period, nowSeconds: state.nowSeconds, candidates: candidates)
+        return .evict(SSSEvictSlotInfo(period: state.period, nowSeconds: state.nowSeconds, candidates: candidates))
     }
 }
 

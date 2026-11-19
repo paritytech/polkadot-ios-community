@@ -17,7 +17,7 @@ struct StatementStoreSlotAllocatorTests {
         let validator = FakeReplacementValidator(script: [.valid])
         let originFactory = FakeOriginFactory()
         let allocator = makeAllocator(
-            plan: .free(SSSSlotInfo(period: period, seq: 5, personOrigin: .lite(0, keyManager))),
+            plan: .free(SSSFreeSlotInfo(period: period, seq: 5, personOrigin: .lite(0, keyManager))),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -37,7 +37,7 @@ struct StatementStoreSlotAllocatorTests {
         let originFactory = FakeOriginFactory()
         let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -66,7 +66,7 @@ struct StatementStoreSlotAllocatorTests {
         let originFactory = FakeOriginFactory()
         let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -86,11 +86,11 @@ struct StatementStoreSlotAllocatorTests {
         let submitter = FakeSubmitter()
         let validator = FakeReplacementValidator(script: [.invalid(.custom(237))])
         let allocator = makeAllocator(
-            plan: .evict(
+            plan: .evict(SSSEvictSlotInfo(
                 period: period,
                 nowSeconds: now,
                 candidates: [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
-            ),
+            )),
             submitter: submitter,
             validator: validator,
             originFactory: FakeOriginFactory()
@@ -108,7 +108,7 @@ struct StatementStoreSlotAllocatorTests {
         let validator = FakeReplacementValidator(script: [.invalid(.payment)])
         let candidates = (0 ..< 5).map { makeCandidate(seq: UInt32($0), since: UInt64($0)) }
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
             submitter: submitter,
             validator: validator,
             originFactory: FakeOriginFactory()
@@ -125,7 +125,11 @@ struct StatementStoreSlotAllocatorTests {
         let submitter = FakeSubmitter()
         let validator = FakeReplacementValidator(script: [.inconclusive])
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: [makeCandidate(seq: 0, since: 10)]),
+            plan: .evict(SSSEvictSlotInfo(
+                period: period,
+                nowSeconds: now,
+                candidates: [makeCandidate(seq: 0, since: 10)]
+            )),
             submitter: submitter,
             validator: validator,
             originFactory: FakeOriginFactory()
@@ -143,7 +147,7 @@ struct StatementStoreSlotAllocatorTests {
         let originFactory = FakeOriginFactory()
         let candidates = [makeCandidate(seq: 0, since: 10, signable: false), makeCandidate(seq: 1, since: 20)]
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory
@@ -158,11 +162,11 @@ struct StatementStoreSlotAllocatorTests {
     @Test func replacementWithOnlyUnsignableCandidatesThrowsNoEvictableSlots() async throws {
         let submitter = FakeSubmitter()
         let allocator = makeAllocator(
-            plan: .evict(
+            plan: .evict(SSSEvictSlotInfo(
                 period: period,
                 nowSeconds: now,
                 candidates: [makeCandidate(seq: 0, since: 10, signable: false)]
-            ),
+            )),
             submitter: submitter,
             validator: FakeReplacementValidator(script: [.valid]),
             originFactory: FakeOriginFactory()
@@ -185,7 +189,7 @@ struct StatementStoreSlotAllocatorTests {
             makeCandidate(seq: 2, since: now - 500)
         ]
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: candidates),
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
             submitter: submitter,
             validator: validator,
             originFactory: originFactory,
@@ -211,7 +215,11 @@ struct StatementStoreSlotAllocatorTests {
     @Test func legacyRuntimeWithNoCooledDownCandidateThrowsNoSlotsAvailable() async throws {
         let submitter = FakeSubmitter()
         let allocator = makeAllocator(
-            plan: .evict(period: period, nowSeconds: now, candidates: [makeCandidate(seq: 0, since: now - 10)]),
+            plan: .evict(SSSEvictSlotInfo(
+                period: period,
+                nowSeconds: now,
+                candidates: [makeCandidate(seq: 0, since: now - 10)]
+            )),
             submitter: submitter,
             validator: FakeReplacementValidator(script: [.valid]),
             originFactory: FakeOriginFactory(),
