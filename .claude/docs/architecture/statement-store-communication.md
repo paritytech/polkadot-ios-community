@@ -82,8 +82,8 @@ cooling down raises `noSlotsAvailable`; nothing to evict raises `noEvictableSlot
 4. **Slot allocation is managed** — use `StatementStoreSlotAllocator` for proper slot lifecycle
 5. **Statement-store allocation takes a `StatementStoreAllowanceHolder`** — `.local(accountId:signerKeyId:)`
    when this installation holds the key, `.remote(accountId:)` otherwise (desktop-held device accounts,
-   other installations of the same seed). On post-#234 runtimes only `.local` rows are ever evicted;
-   pre-#234 runtimes evict either, since the ring proof needs no holder key
+   other installations of the same seed). On new runtimes only `.local` rows are ever evicted;
+   old runtimes evict either, since the ring proof needs no holder key
 
 ## Seams
 
