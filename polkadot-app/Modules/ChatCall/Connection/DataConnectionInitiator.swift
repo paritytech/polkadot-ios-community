@@ -11,16 +11,19 @@ final class DataConnectionInitiator: DataConnectionCreator {
     private let initiatorContext = Context()
 
     let purpose: String
+    let reliability: DataChannelReliability
 
     init(
         signaling: PeerConnectionSignaling,
         peerConnectionFactory: RTCPeerConnectionFactory,
         configFactory: WebRTCConfigMaking,
         purpose: String,
+        reliability: DataChannelReliability,
         candidateFilter: ConnectionCandidateFiltering? = nil,
         logger: LoggerProtocol
     ) {
         self.purpose = purpose
+        self.reliability = reliability
 
         super.init(
             signaling: signaling,
@@ -51,7 +54,7 @@ private extension DataConnectionInitiator {
         do {
             dataChannel = try await wrapper.createDataChannel(
                 label: purpose,
-                configuration: configFactory.makeDataChannelConfiguration()
+                configuration: configFactory.makeDataChannelConfiguration(reliability)
             )
         } catch {
             throw DataConnectionInitiatorError.dataChannelCreationFailed

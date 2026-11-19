@@ -230,6 +230,7 @@ private extension DevicePeerConnectionFlow {
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
                 purpose: Self.purpose,
+                reliability: .reliable,
                 logger: peerLogger
             )
         case .acceptor:

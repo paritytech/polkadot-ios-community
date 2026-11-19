@@ -1,9 +1,23 @@
 import Foundation
 import WebRTC
 
+/// Best effort skips a message once its retransmissions run out, which a file stream can't survive.
+enum DataChannelReliability: Equatable, Sendable {
+    case bestEffort(maxRetransmits: Int32)
+    case reliable
+
+    /// Read from here, not the configuration: WebRTC's getter aborts on an unset limit.
+    var maxRetransmits: Int32? {
+        switch self {
+        case let .bestEffort(maxRetransmits): maxRetransmits
+        case .reliable: nil
+        }
+    }
+}
+
 protocol WebRTCConfigMaking: Sendable {
     func makeConnectionConfiguration() async throws -> RTCConfiguration
-    func makeDataChannelConfiguration() -> RTCDataChannelConfiguration
+    func makeDataChannelConfiguration(_ reliability: DataChannelReliability) -> RTCDataChannelConfiguration
 }
 
 final class WebRTCConfigFactory: WebRTCConfigMaking {
@@ -28,11 +42,14 @@ final class WebRTCConfigFactory: WebRTCConfigMaking {
         return configuration
     }
 
-    func makeDataChannelConfiguration() -> RTCDataChannelConfiguration {
+    func makeDataChannelConfiguration(_ reliability: DataChannelReliability) -> RTCDataChannelConfiguration {
         let dataChannelConfig = RTCDataChannelConfiguration()
         dataChannelConfig.isOrdered = true
-        dataChannelConfig.maxRetransmits = 3
         dataChannelConfig.isNegotiated = false
+
+        if let maxRetransmits = reliability.maxRetransmits {
+            dataChannelConfig.maxRetransmits = maxRetransmits
+        }
 
         return dataChannelConfig
     }
