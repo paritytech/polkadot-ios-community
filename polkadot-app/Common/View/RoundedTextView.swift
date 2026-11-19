@@ -4,10 +4,12 @@ import Foundation_iOS
 import DesignSystem
 import PolkadotUI
 
-final class RoundedTextView: UIControl {
-    /// Read by `AppDelegate` to refuse third-party keyboards while the recovery phrase is typed.
-    private(set) static var isEditing = false
+extension UIControl.Event {
+    /// Sent before the control becomes first responder, ahead of the system's keyboard choice.
+    static let editingWillBegin = UIControl.Event(rawValue: 1 << 24)
+}
 
+final class RoundedTextView: UIControl {
     var textInsets = NSDirectionalEdgeInsets(
         top: 16,
         leading: 16,
@@ -146,12 +148,16 @@ private extension RoundedTextView {
 
 extension RoundedTextView: UITextViewDelegate {
     func textViewShouldBeginEditing(_: UITextView) -> Bool {
-        Self.isEditing = true
+        sendActions(for: .editingWillBegin)
         return true
     }
 
+    func textViewDidBeginEditing(_: UITextView) {
+        sendActions(for: .editingDidBegin)
+    }
+
     func textViewDidEndEditing(_: UITextView) {
-        Self.isEditing = false
+        sendActions(for: .editingDidEnd)
     }
 
     func textViewDidChange(_ textView: UITextView) {

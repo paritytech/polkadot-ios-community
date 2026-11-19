@@ -66,7 +66,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         _: UIApplication,
         shouldAllowExtensionPointIdentifier extensionPointIdentifier: UIApplication.ExtensionPointIdentifier
     ) -> Bool {
-        extensionPointIdentifier != .keyboard || !RoundedTextView.isEditing
+        extensionPointIdentifier != .keyboard || !ThirdPartyKeyboardPolicy.isRestricted
     }
 }
 
