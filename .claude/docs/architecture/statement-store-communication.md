@@ -71,8 +71,9 @@ rate-limits each slot holder through the origin-restriction pallet, and the reco
 readable from storage, so the allocator dry-runs the signed replacement with
 `TaggedTransactionQueue_validate_transaction` (`SlotReplacementValidator`): `Payment` or
 `Custom(228)` means "cooling down, try the next candidate", any other invalid reason is
-`replacementRejected`, and an inconclusive answer proceeds to submission. Every evictable candidate
-cooling down raises `noSlotsAvailable`; nothing to evict raises `noEvictableSlots`.
+`replacementRejected`, and an inconclusive answer proceeds to submission. A stored key that no longer
+derives its holder is skipped like a keyless row. Every evictable candidate cooling down raises
+`noSlotsAvailable`; nothing signable to evict raises `noEvictableSlots`.
 
 ## Hard Rules
 

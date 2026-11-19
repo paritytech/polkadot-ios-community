@@ -178,6 +178,48 @@ struct StatementStoreSlotAllocatorTests {
         #expect(submitter.submittedCalls.isEmpty)
     }
 
+    @Test func mismatchedSignerKeyIsSkippedLikeAKeylessCandidate() async throws {
+        let submitter = FakeSubmitter()
+        let validator = FakeReplacementValidator(script: [.valid])
+        let originFactory = FakeOriginFactory()
+        let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
+        originFactory.mismatchedSignerKeyIds = try [#require(candidates[0].signerKeyId)]
+        let allocator = makeAllocator(
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
+            submitter: submitter,
+            validator: validator,
+            originFactory: originFactory
+        )
+
+        try await allocator.assignSlot(accountId: accountId, priority: .normal)
+
+        #expect(validator.validatedCalls.count == 1)
+        let submitted = try #require(
+            submitter.submittedCalls.last as? RuntimeCall<ResourcesPallet.ReplaceStatementStoreAccountCall>
+        )
+        #expect(submitted.args.since == 20)
+    }
+
+    @Test func everySignerKeyMismatchedThrowsNoEvictableSlots() async throws {
+        let submitter = FakeSubmitter()
+        let validator = FakeReplacementValidator(script: [.valid])
+        let originFactory = FakeOriginFactory()
+        let candidates = [makeCandidate(seq: 0, since: 10), makeCandidate(seq: 1, since: 20)]
+        originFactory.mismatchedSignerKeyIds = Set(candidates.compactMap(\.signerKeyId))
+        let allocator = makeAllocator(
+            plan: .evict(SSSEvictSlotInfo(period: period, nowSeconds: now, candidates: candidates)),
+            submitter: submitter,
+            validator: validator,
+            originFactory: originFactory
+        )
+
+        await #expect(throws: StatementStoreAllowanceError.noEvictableSlots) {
+            try await allocator.assignSlot(accountId: accountId, priority: .normal)
+        }
+        #expect(validator.validatedCalls.isEmpty)
+        #expect(submitter.submittedCalls.isEmpty)
+    }
+
     @Test func legacyRuntimeEvictsFirstCooledDownCandidateWithProofCall() async throws {
         let submitter = FakeSubmitter()
         let validator = FakeReplacementValidator(script: [.valid])

@@ -139,15 +139,13 @@ private extension StatementStoreSlotAllocator {
 
     /// New runtimes need the holder's signature, so only slots whose key this installation holds qualify.
     func replaceSlot(period: UInt32, candidates: [SSSEvictionCandidate], accountId: AccountId) async throws {
-        let signable = candidates.compactMap { candidate -> (candidate: SSSEvictionCandidate, signerKeyId: String)? in
-            candidate.signerKeyId.map { (candidate, $0) }
-        }
+        var anyRateLimited = false
 
-        guard !signable.isEmpty else {
-            throw StatementStoreAllowanceError.noEvictableSlots
-        }
+        for candidate in candidates {
+            guard let origin = try await holderOrigin(for: candidate) else {
+                continue
+            }
 
-        for (candidate, signerKeyId) in signable {
             let callData = ResourcesPallet.ReplaceStatementStoreAccountCall(
                 period: period,
                 alias: candidate.alias,
@@ -155,38 +153,47 @@ private extension StatementStoreSlotAllocator {
                 since: candidate.since
             )()
 
-            let makeOrigin: @Sendable (ChainId) async throws -> ExtrinsicOriginDefining = {
-                [originFactory = dependencies.originFactory] chain in
-                try await originFactory.createStmtStoreHolderOrigin(
-                    signerKeyId: signerKeyId,
-                    holder: candidate.holder,
-                    chain: chain
-                )
-            }
-
             let validity = try await markStallRegion("Validating replacement") {
-                try await dependencies.replacementValidator.validate(
-                    call: callData,
-                    origin: makeOrigin(chainId),
-                    chainId: chainId
-                )
+                try await dependencies.replacementValidator.validate(call: callData, origin: origin, chainId: chainId)
             }
 
             switch validity {
             case .invalid(.payment),
                  .invalid(.custom(Self.tooEarlyValidityCode)):
+                anyRateLimited = true
                 continue
             case let .invalid(reason):
                 throw StatementStoreAllowanceError.replacementRejected(reason)
             case .valid,
                  .inconclusive:
                 try await markStallRegion("Submitting") {
-                    try await dependencies.submitter.submit(call: callData, makeOrigin: makeOrigin, chainId: chainId)
+                    try await dependencies.submitter.submit(
+                        call: callData,
+                        makeOrigin: { _ in origin },
+                        chainId: chainId
+                    )
                 }
                 return
             }
         }
 
-        throw StatementStoreAllowanceError.noSlotsAvailable
+        throw anyRateLimited ? StatementStoreAllowanceError.noSlotsAvailable : .noEvictableSlots
+    }
+
+    /// A stored key that no longer derives the holder cannot sign the takeover, so the row counts as keyless.
+    func holderOrigin(for candidate: SSSEvictionCandidate) async throws -> ExtrinsicOriginDefining? {
+        guard let signerKeyId = candidate.signerKeyId else {
+            return nil
+        }
+
+        do {
+            return try await dependencies.originFactory.createStmtStoreHolderOrigin(
+                signerKeyId: signerKeyId,
+                holder: candidate.holder,
+                chain: chainId
+            )
+        } catch is SlotHolderSignerError {
+            return nil
+        }
     }
 }

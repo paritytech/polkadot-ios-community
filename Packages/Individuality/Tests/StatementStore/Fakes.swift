@@ -201,6 +201,7 @@ final class FakeOriginFactory: AsResourcesOriginCreating {
     }
 
     private(set) var holderOriginCalls: [(signerKeyId: String, holder: AccountId)] = []
+    var mismatchedSignerKeyIds: Set<String> = []
 
     func createStmtStoreHolderOrigin(
         signerKeyId: String,
@@ -208,6 +209,11 @@ final class FakeOriginFactory: AsResourcesOriginCreating {
         chain _: ChainId
     ) async throws -> ExtrinsicOriginDefining {
         holderOriginCalls.append((signerKeyId: signerKeyId, holder: holder))
+
+        if mismatchedSignerKeyIds.contains(signerKeyId) {
+            throw SlotHolderSignerError.accountMismatch(signerKeyId: signerKeyId)
+        }
+
         return StubExtrinsicOrigin()
     }
 
