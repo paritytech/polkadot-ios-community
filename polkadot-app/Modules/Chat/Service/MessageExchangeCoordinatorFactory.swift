@@ -24,7 +24,7 @@ protocol MessageExchangeCoordinatorMaking {
 final class MessageExchangeCoordinatorFactory {
     private let entropyManager: RootEntropyManaging
     private let storageFacade: StorageFacadeProtocol
-    private let bulletInManager: AllowanceManaging
+    private let bulletInManager: any AllowanceManaging<AccountId>
     private let statementAccountFunding: StatementAccountFunding
     private let identitySigningFallback: NonPrivateSigningFallbacking
     private let statementStoreMonitor: StatementStoreActivityMonitoring
@@ -34,7 +34,7 @@ final class MessageExchangeCoordinatorFactory {
     init(
         entropyManager: RootEntropyManaging = RootEntropyManager.shared,
         storageFacade: StorageFacadeProtocol = UserDataStorageFacade.shared,
-        bulletInManager: AllowanceManaging,
+        bulletInManager: any AllowanceManaging<AccountId>,
         statementAccountFunding: StatementAccountFunding,
         identitySigningFallback: NonPrivateSigningFallbacking,
         statementStoreMonitor: StatementStoreActivityMonitoring,

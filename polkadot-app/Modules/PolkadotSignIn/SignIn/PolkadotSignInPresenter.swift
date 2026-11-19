@@ -89,11 +89,11 @@ private extension PolkadotSignInPresenter {
         }
 
         switch allowanceError {
-        case .noEvictableSlots:
+        case .noEvictableSlots,
+             .noSlotsAvailable:
             return String(localized: .polkadotSignInNoSlots)
-        case let .noSlotsAvailable(secsToWait):
-            let timeString = secsToWait.localizedDaysHoursOrFallbackMinutes()
-            return String(localized: .polkadotSignInNoSlotsAvailable(time: timeString))
+        case .replacementRejected:
+            return nil
         }
     }
 

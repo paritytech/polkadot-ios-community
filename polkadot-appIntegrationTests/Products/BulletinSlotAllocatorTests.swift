@@ -48,7 +48,8 @@ final class BulletinSlotAllocatorTests: XCTestCase {
                 chainId: AppConfig.Chains.usernameChain,
                 chainRegistry: chainRegistry,
                 storageRequestFactory: storageRequestFactory
-            )
+            ),
+            signerResolver: DerivationPathSignerResolver(entropyManager: setupResult.entropyManager)
         )
 
         let facade = ExtrinsicSubmissionMonitorFacade(
