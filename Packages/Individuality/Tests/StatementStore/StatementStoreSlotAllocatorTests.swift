@@ -103,7 +103,7 @@ struct StatementStoreSlotAllocatorTests {
         #expect(submitter.submittedCalls.isEmpty)
     }
 
-    @Test func everyCandidateRateLimitedThrowsNoSlotsAvailableAfterCappedAttempts() async throws {
+    @Test func everyCandidateRateLimitedThrowsNoSlotsAvailable() async throws {
         let submitter = FakeSubmitter()
         let validator = FakeReplacementValidator(script: [.invalid(.payment)])
         let candidates = (0 ..< 5).map { makeCandidate(seq: UInt32($0), since: UInt64($0)) }
@@ -117,7 +117,7 @@ struct StatementStoreSlotAllocatorTests {
         await #expect(throws: StatementStoreAllowanceError.noSlotsAvailable) {
             try await allocator.assignSlot(accountId: accountId, priority: .normal)
         }
-        #expect(validator.validatedCalls.count == StatementStoreSlotAllocator.maxReplacementAttempts)
+        #expect(validator.validatedCalls.count == candidates.count)
         #expect(submitter.submittedCalls.isEmpty)
     }
 

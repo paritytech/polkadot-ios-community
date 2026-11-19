@@ -6,8 +6,6 @@ import ExtrinsicService
 import StructuredConcurrency
 
 public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
-    /// A rate-limited candidate is almost always the slot this installation just replaced, so a few tries suffice.
-    static let maxReplacementAttempts = 3
     /// `StmtStoreReplacementTooEarly`: the slot entry was written in the current block.
     static let tooEarlyValidityCode: UInt8 = 228
 
@@ -149,7 +147,7 @@ private extension StatementStoreSlotAllocator {
             throw StatementStoreAllowanceError.noEvictableSlots
         }
 
-        for (candidate, signerKeyId) in signable.prefix(Self.maxReplacementAttempts) {
+        for (candidate, signerKeyId) in signable {
             let callData = ResourcesPallet.ReplaceStatementStoreAccountCall(
                 period: period,
                 alias: candidate.alias,
