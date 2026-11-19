@@ -104,7 +104,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
     public func hasExistingSlot(for accountId: AccountId) async throws -> Bool {
         let state = try await fetchState()
         return state.originEntries.contains { originEntry in
-            originEntry.entries.contains { $0.value?.accountId == accountId }
+            originEntry.slots.entries.contains { $0.value?.accountId == accountId }
         }
     }
 
@@ -112,7 +112,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         let originEntries = try await fetchAllowanceEntries(period: period)
 
         return originEntries.flatMap { originEntry in
-            originEntry.entries.enumerated().compactMap { index, response in
+            originEntry.slots.entries.enumerated().compactMap { index, response in
                 guard response.value == nil else { return nil }
                 return SSSRenewalSlot(personOrigin: originEntry.personOrigin, seq: UInt32(index))
             }
@@ -126,7 +126,7 @@ public final class StatementStoreSlotInfoProvider: StatementStoreSlotInfoProvidi
         let state = try await fetchState()
 
         for originEntry in state.originEntries {
-            guard let freeIndex = originEntry.entries.firstIndex(where: { $0.value == nil }) else {
+            guard let freeIndex = originEntry.slots.entries.firstIndex(where: { $0.value == nil }) else {
                 continue
             }
             logger.debug("Found free slot: \(originEntry.personOrigin.label) idx: \(freeIndex)")
@@ -161,8 +161,7 @@ private extension StatementStoreSlotInfoProvider {
 
     struct OriginEntries {
         let personOrigin: PersonOrigin
-        let aliases: [Data]
-        let entries: AllowanceEntries
+        let slots: OriginSlots
     }
 
     struct SlotState {
@@ -210,7 +209,7 @@ private extension StatementStoreSlotInfoProvider {
 
         let originEntries = origins.compactMap { origin -> OriginEntries? in
             guard let slots = collected[origin.collectionIdentifier], !slots.entries.isEmpty else { return nil }
-            return OriginEntries(personOrigin: origin, aliases: slots.aliases, entries: slots.entries)
+            return OriginEntries(personOrigin: origin, slots: slots)
         }
         guard !originEntries.isEmpty else { throw AllowanceSlotAssignmentError.noSlotsAvailable }
 
@@ -255,12 +254,12 @@ private extension StatementStoreSlotInfoProvider {
 
     func occupiedSlots(from state: SlotState) -> [SSSOccupiedSlot] {
         state.originEntries.flatMap { originEntry in
-            originEntry.entries.enumerated().compactMap { index, response in
+            originEntry.slots.entries.enumerated().compactMap { index, response in
                 guard let entry = response.value else { return nil }
                 return SSSOccupiedSlot(
                     personOrigin: originEntry.personOrigin,
                     seq: UInt32(index),
-                    alias: originEntry.aliases[index],
+                    alias: originEntry.slots.aliases[index],
                     accountId: entry.accountId,
                     since: entry.since
                 )
