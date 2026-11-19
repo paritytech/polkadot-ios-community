@@ -72,6 +72,8 @@ private extension AccountRecoveryViewController {
             action: #selector(actionProceed),
             for: .touchUpInside
         )
+
+        ThirdPartyKeyboardPolicy.restrict(rootView.textView)
     }
 
     @objc
