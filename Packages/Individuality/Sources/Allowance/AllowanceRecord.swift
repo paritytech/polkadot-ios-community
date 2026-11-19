@@ -9,8 +9,7 @@ public struct AllowanceRecord: Equatable {
     public let domain: Domain
     public let priority: Priority
     public let latestRenewedPeriod: UInt32?
-    /// Derivation path of the account's sr25519 key. `nil` means this installation cannot sign for the
-    /// account, so its statement-store slot is never handed over to another account.
+    /// `nil` means this installation cannot sign for the account, so its slot is never handed over.
     public let signerKeyId: String?
 
     public init(

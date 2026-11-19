@@ -114,9 +114,6 @@ public extension ResourcesPallet {
         }
     }
 
-    /// call_index: 14
-    /// Origin: StmtStoreHolder(alias) via AsResources(ReplaceStatementStoreAccount(signature)), signed by the
-    /// account currently in the slot. `since` is the timestamp stored in the slot entry (replay protection).
     struct ReplaceStatementStoreAccountCall: RuntimeCallConvertible {
         public static let callName = "replace_statement_store_account"
 

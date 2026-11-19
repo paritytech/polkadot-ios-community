@@ -3,7 +3,6 @@ import SubstrateSdk
 
 /// Only `.local` slots are ever evicted: the replacement must be signed by the holder.
 public enum StatementStoreAllowanceHolder: Equatable, Sendable {
-    /// `signerKeyId` is the derivation path of the key this installation holds for the account.
     case local(accountId: AccountId, signerKeyId: String)
     case remote(accountId: AccountId)
 

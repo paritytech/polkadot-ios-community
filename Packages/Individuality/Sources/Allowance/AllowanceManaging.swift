@@ -25,7 +25,6 @@ public enum OnExistingAllowancePolicy: Equatable, ScaleCodable {
     }
 }
 
-/// `Holder` is the funded account as the manager needs it: an `AccountId`, or a `StatementStoreAllowanceHolder`.
 public protocol AllowanceManaging<Holder> {
     associatedtype Holder
 
@@ -35,9 +34,7 @@ public protocol AllowanceManaging<Holder> {
         priority: AllowanceRecord.Priority,
         domain: AllowanceRecord.Domain
     ) async throws
-    /// Ensures the holder can submit to HOP. Managers that do not distinguish this from a plain
-    /// allowance fall back to `allocate(policy: .ignore)`; the Bulletin manager overrides this to
-    /// gate on `HopRuntimeApi.can_account_promote` instead of the stored allowance extent.
+    /// Defaults to `allocate(policy: .ignore)`; Bulletin gates on `can_account_promote` instead of the stored extent.
     func ensureCanSubmit(
         holder: Holder,
         priority: AllowanceRecord.Priority,

@@ -4,8 +4,7 @@ import ExtrinsicService
 import Operation_iOS
 import KeyDerivation
 
-/// Origin for `replace_statement_store_account`: the account holding the slot signs the transaction
-/// payload, which the runtime checks in the `AsResources(ReplaceStatementStoreAccount(..))` extension.
+/// The slot holder signs the transaction payload; the runtime checks it in the `AsResources` extension.
 public final class StmtStoreHolderOriginDefinition: ExtrinsicOriginDefining {
     private let signer: any TypedSigningProviding
 

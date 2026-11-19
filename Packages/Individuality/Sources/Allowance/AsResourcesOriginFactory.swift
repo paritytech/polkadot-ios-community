@@ -13,8 +13,6 @@ public protocol AsResourcesOriginCreating {
         chain: ChainId
     ) async throws -> ExtrinsicOriginDefining
 
-    /// Origin that hands a statement-store slot over to another account: signed by `holder`, whose key
-    /// `signerKeyId` references, with the origin-restriction extension enabled as the runtime requires.
     func createStmtStoreHolderOrigin(
         signerKeyId: String,
         holder: AccountId,

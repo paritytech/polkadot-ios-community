@@ -5,7 +5,7 @@ public extension ResourcesPallet {
     enum ViewFunction {
         case stmtStoreSlotsPerPeriod
         case liteStmtStoreSlotsPerPeriod
-        /// Exported by runtimes before individuality-community #234 only.
+        /// Exported by old runtimes only.
         case stmtStoreReplacementCooldown
         case longTermStorageClaimsPerPeriod
         /// Highest claimable notification seq of a full person; seqs `0...value` are valid.

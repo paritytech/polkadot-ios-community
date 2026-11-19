@@ -3,11 +3,8 @@ import SubstrateSdk
 import ChainStore
 import StructuredConcurrency
 
-/// Which generation of the statement-store slot API the connected runtime speaks.
 public protocol StatementStoreRuntimeCapabilities {
-    /// Whether occupied slots are taken over with `replace_statement_store_account`
-    /// (individuality-community #234); older runtimes replace through `set_statement_store_account`
-    /// under a cooldown instead.
+    /// Old runtimes take over occupied slots with `set_statement_store_account` under a cooldown instead.
     func supportsSlotReplacement() async throws -> Bool
 }
 

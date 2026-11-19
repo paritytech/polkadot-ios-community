@@ -13,9 +13,8 @@ public enum SlotReplacementValidity: Equatable {
     case inconclusive
 }
 
-/// Dry-runs `replace_statement_store_account` before it is broadcast. The chain rate-limits the slot
-/// holder with a recovery window that is not readable from storage, so the runtime's own validation
-/// is the only exact source of "may this slot be replaced now".
+/// The holder's recovery window is not readable from storage, so only a dry run can tell whether the slot
+/// may be replaced now.
 public protocol SlotReplacementValidating {
     func validate(
         call: any RuntimeCallable,

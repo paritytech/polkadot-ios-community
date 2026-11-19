@@ -17,8 +17,7 @@ struct SSSOccupiedSlot {
     }
 }
 
-/// An occupied slot whose holder does not outrank the caller. `signerKeyId` references the holder's key
-/// when this installation holds it; a post-#234 runtime needs it to sign the takeover, a pre-#234 one does not.
+/// `signerKeyId` is set only when this installation holds the holder's key; new runtimes need it to sign the takeover.
 public struct SSSEvictionCandidate {
     public let personOrigin: PersonOrigin
     public let seq: UInt32

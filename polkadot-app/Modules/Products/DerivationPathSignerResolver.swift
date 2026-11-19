@@ -3,7 +3,6 @@ import Individuality
 import KeyDerivation
 import SubstrateSdk
 
-/// Resolves slot-holder signers from the derivation path stored with the allowance row.
 final class DerivationPathSignerResolver: SlotHolderSignerResolving {
     private let entropyManager: RootEntropyManaging
 

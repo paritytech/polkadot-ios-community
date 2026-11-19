@@ -6,8 +6,7 @@ import ExtrinsicService
 import StructuredConcurrency
 
 public final class StatementStoreSlotAllocator: AllowanceSlotAllocating {
-    /// Candidates are ordered oldest-first, so a rate-limited one is almost always the slot this
-    /// installation just replaced; a few tries cover that without walking every slot.
+    /// A rate-limited candidate is almost always the slot this installation just replaced, so a few tries suffice.
     static let maxReplacementAttempts = 3
     /// `StmtStoreReplacementTooEarly`: the slot entry was written in the current block.
     static let tooEarlyValidityCode: UInt8 = 228
@@ -95,7 +94,7 @@ private extension StatementStoreSlotAllocator {
         )
     }
 
-    /// Pre-#234 runtimes let the ring proof take an occupied slot once its cooldown has elapsed.
+    /// Old runtimes let the ring proof take an occupied slot once its cooldown has elapsed.
     func evictWithProof(
         period: UInt32,
         nowSeconds: UInt64,
@@ -140,7 +139,7 @@ private extension StatementStoreSlotAllocator {
         }
     }
 
-    /// Post-#234 runtimes need the holder's signature, so only slots whose key this installation holds qualify.
+    /// New runtimes need the holder's signature, so only slots whose key this installation holds qualify.
     func replaceSlot(period: UInt32, candidates: [SSSEvictionCandidate], accountId: AccountId) async throws {
         let signable = candidates.compactMap { candidate -> (candidate: SSSEvictionCandidate, signerKeyId: String)? in
             candidate.signerKeyId.map { (candidate, $0) }

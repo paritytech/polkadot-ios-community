@@ -8,7 +8,6 @@ import SubstrateSdk
 
 protocol ChatPeerStatementSignerManaging: StatementStoreSignerManaging {
     func makeSigner(with peerAccountId: AccountId) throws -> StatementStoreSigning
-    /// Key reference of the per-chat statement account, stored with its allowance so the slot can be handed over.
     func statementSignerKeyId(with peerAccountId: AccountId) throws -> String
 }
 

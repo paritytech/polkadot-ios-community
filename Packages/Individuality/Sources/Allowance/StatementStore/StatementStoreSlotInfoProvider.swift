@@ -7,7 +7,6 @@ import FoundationExt
 import ChainStore
 import SDKLogger
 
-/// A slot nobody holds this period, claimed with a ring proof.
 public struct SSSFreeSlotInfo {
     public let period: UInt32
     public let seq: UInt32
@@ -24,7 +23,6 @@ public struct SSSFreeSlotInfo {
     }
 }
 
-/// The occupied slots an account may take over this period, ranked by the eviction picker.
 /// `nowSeconds` is the chain time the candidates were read at.
 public struct SSSEvictSlotInfo {
     public let period: UInt32
@@ -52,8 +50,6 @@ public struct SSSRenewalSlot {
     }
 }
 
-/// How an account gets a slot this period: a free slot is claimed with a ring proof, an occupied one
-/// is taken over from one of the ranked candidates.
 public enum SSSSlotPlan {
     case free(SSSFreeSlotInfo)
     case evict(SSSEvictSlotInfo)

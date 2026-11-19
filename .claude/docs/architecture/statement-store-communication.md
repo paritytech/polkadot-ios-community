@@ -47,22 +47,20 @@ A statement consists of:
 ## Communication Session
 
 Bidirectional communication sessions between peers:
-- Statement store slot allocation (see below)
+- Statement store slot allocation
 - Shared secret derivation per feature domain
 - Binary payloads (not JSON) for wire format
 
 ## Statement Store Slot Allocation
 
 `StatementStoreSlotAllocator` (Individuality) funds a statement account for the current period, chosen by
-`StatementStoreSlotInfoProvider.slotPlan`:
+`StatementStoreSlotInfoProvider`:
 
 - **Free slot** → `set_statement_store_account`, authorized by a ring proof (`AsResources(RegisterStatementStoreAllowance)`).
 - **Occupied slot** → one of two strategies, selected per allocation by `StatementStoreRuntimeCapabilities`
-  (the `replace_statement_store_account` call is present in the loaded metadata iff the runtime is past
-  individuality-community #234):
-  - *pre-#234 (mainnet, Paseo)*: `set_statement_store_account` with the ring proof, allowed once the entry's
+  - *old runtime*: `set_statement_store_account` with the ring proof, allowed once the entry's
     `since` plus the runtime's `get_stmt_store_replacement_cooldown` has elapsed (`LegacyEvictionPolicy`, chain time).
-  - *post-#234 (previewnet)*: `replace_statement_store_account`, authorized by a plain sr25519 signature of the
+  - *new runtime*: `replace_statement_store_account`, authorized by a plain sr25519 signature of the
     account currently holding the slot (`AsResources(ReplaceStatementStoreAccount)`), with the `RestrictOrigins`
     extension enabled. The call carries the slot alias and the entry's `since` timestamp as replay protection.
 
