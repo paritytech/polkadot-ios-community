@@ -2,8 +2,7 @@ import Foundation
 import SubstrateSdk
 import SubstrateStorageSubscription
 
-/// `pallet_parameters`: runtime values governance can change without an upgrade. An unset parameter has no
-/// storage entry; the runtime then applies a default that no metadata exposes.
+/// An unset parameter has no storage entry; the runtime then applies a default that no metadata exposes.
 public enum ParametersPallet {
     public static let name = "Parameters"
 
@@ -11,13 +10,11 @@ public enum ParametersPallet {
         StorageCodingPath(moduleName: name, itemName: "Parameters")
     }
 
-    /// The `statement_storage` parameter group of the People runtime.
     public enum StatementStorageParameter: String {
         case notificationAllowance = "NotificationAllowance"
     }
 
-    /// `RuntimeParametersKey::StatementStorage(ParametersKey::<name>(<name>))`. The innermost value is the
-    /// parameter's unit key struct, which the dynamic encoder takes as a struct with no fields.
+    /// `RuntimeParametersKey::StatementStorage(ParametersKey::<name>(<name>))`; the unit key encodes as `{}`.
     public struct StatementStorageKey: Encodable {
         public let parameter: StatementStorageParameter
 
@@ -35,7 +32,6 @@ public enum ParametersPallet {
         }
     }
 
-    /// `RuntimeParametersValue::StatementStorage(ParametersValue::<name>(value))`.
     public struct StatementStorageValue<Value: Decodable>: Decodable {
         public let parameter: String
         public let value: Value
