@@ -25,6 +25,11 @@ enum PrivacyModeMetrics {
     static let glowOpacity: Double = 0.5
     static let boxHeight: CGFloat = 78
     static let headerMinHeight: CGFloat = 52
+    static let shieldSize: CGFloat = 20
+    static let shieldFrame: CGFloat = 32
+    /// How far the info button's hit area overhangs the card's content edge: half the 44pt target less
+    /// half the 24pt glyph would leave the glyph 10pt short of the edge; Figma has it 2pt in.
+    static let infoButtonOutset: CGFloat = 12
     static let inset: CGFloat = 20
     static let selectionAnimation: Animation = .easeInOut(duration: 0.2)
     static let slowDragFade: Double = 0.28
