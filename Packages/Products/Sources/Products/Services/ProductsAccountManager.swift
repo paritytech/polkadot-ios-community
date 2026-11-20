@@ -123,7 +123,10 @@ private extension ProductsAccountManager {
                 let wallet = try accountHolder.deriveStatementStoreAccount(for: productId)
                 let accountId = try wallet.getRawPublicKey()
                 try await allowanceSupport.sssManager.allocate(
-                    accountId: accountId,
+                    holder: .local(
+                        accountId: accountId,
+                        signerKeyId: accountHolder.statementStoreSignerKeyId(for: productId)
+                    ),
                     policy: policy,
                     priority: .normal,
                     domain: .product
