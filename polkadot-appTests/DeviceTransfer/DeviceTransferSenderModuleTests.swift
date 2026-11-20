@@ -165,7 +165,7 @@ private struct ScriptedSenderServicesFactory: DeviceTransferSenderServicesMaking
         let configuration = ActiveInstallationConfiguration(
             connection: MockStatementStore(),
             signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
-            lightPerson: .included
+            lightPerson: IncludedPersonStatusWaiter()
         )
         return DeviceTransferSenderServices(
             coordinator: coordinator,

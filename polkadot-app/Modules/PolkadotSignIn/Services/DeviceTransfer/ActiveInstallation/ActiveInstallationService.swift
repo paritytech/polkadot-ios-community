@@ -7,11 +7,14 @@ import SubstrateSdk
 import StructuredConcurrency
 import SubstrateSdkExt
 import IssueMonitoring
+import Individuality
 
 struct ActiveInstallationConfiguration {
     let connection: StatementStoreConnecting
     let signer: StatementStoreSigning
-    let lightPerson: LightPersonMembership
+    /// The lite person this seed registers as. Its ring inclusion is what lets the identity account take a
+    /// statement-store slot, so a record submitted before it only collects `noAllowance` rejections.
+    let lightPerson: any PersonStatusWaiting
 }
 
 protocol CurrentInstallationObserving: Sendable {
@@ -58,6 +61,7 @@ struct ActiveInstallationPublishSettings {
     let firstInstallMaxRetryDelay: Duration
     /// Reports a record that can't be followed, or a first-install publish still failing after many attempts.
     var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
+    var clock: any Clock<Duration> = ContinuousClock()
 
     init(
         deviceInfo: DeviceSystemInfo,
@@ -220,7 +224,7 @@ private extension ActiveInstallationService {
                             counters: ["attempts": failures]
                         )
                     }
-                    guard await (try? Task.sleep(for: delay)) != nil else { return }
+                    guard await (try? settings.clock.sleep(for: delay)) != nil else { return }
                     delay = min(delay * 2, settings.firstInstallMaxRetryDelay)
                 }
             }

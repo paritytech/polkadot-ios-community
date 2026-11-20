@@ -50,20 +50,20 @@ extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
         return try ActiveInstallationConfiguration(
             connection: statementsConnection,
             signer: signer,
-            lightPerson: makeLightPersonMembership(chainId: chainId, registry: registry)
+            lightPerson: makeLightPersonWaiter(chainId: chainId, registry: registry)
         )
     }
 }
 
 private extension ActiveInstallationServiceFactory {
-    func makeLightPersonMembership(chainId: ChainId, registry: ChainRegistryProtocol) throws -> LightPersonMembership {
+    func makeLightPersonWaiter(chainId: ChainId, registry: ChainRegistryProtocol) throws -> PersonStatusWaiter {
         let tld = try DotNsTldProviderFacade.shared.currentTldOrError()
         let subscriber = try ChainMembershipSubscriber(
             connection: registry.getRpcConnectionOrError(for: chainId),
             runtimeCodingService: registry.getRuntimeCodingServiceOrError(for: chainId)
         )
 
-        return try LightPersonMembership(
+        return try PersonStatusWaiter(
             waiter: MembershipStatusWaiter(subscriber: subscriber),
             input: MembershipStatusInput(
                 memberKey: BandersnatchKeyManager.litePerson(for: tld).getMemberKey(),
