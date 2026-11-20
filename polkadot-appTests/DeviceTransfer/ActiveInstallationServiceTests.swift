@@ -317,7 +317,6 @@ struct ActiveInstallationServiceTests {
 }
 
 private extension ActiveInstallationServiceTests {
-    /// Retries sleep on `clock`, one second apart unless `maxRetryDelay` lets the delay grow.
     func makeService(
         installationId: Data,
         dates: MockDateProvider = MockDateProvider(),

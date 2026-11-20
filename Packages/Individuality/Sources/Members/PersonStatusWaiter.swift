@@ -1,12 +1,10 @@
 import Foundation
 
 public protocol PersonStatusWaiting: Sendable {
-    /// Returns once the person is an included member whose key the ring root covers, or throws when the
-    /// subscription ends first.
+    /// Returns once the ring root covers the person's key.
     func waitUntilIncluded() async throws
 }
 
-/// One person's membership over a `MembershipStatusWaiting`.
 public struct PersonStatusWaiter: PersonStatusWaiting, @unchecked Sendable {
     private let waiter: any MembershipStatusWaiting
     private let input: MembershipStatusInput

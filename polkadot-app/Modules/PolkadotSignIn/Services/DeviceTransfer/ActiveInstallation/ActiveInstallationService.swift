@@ -12,8 +12,7 @@ import Individuality
 struct ActiveInstallationConfiguration {
     let connection: StatementStoreConnecting
     let signer: StatementStoreSigning
-    /// The lite person this seed registers as. Its ring inclusion is what lets the identity account take a
-    /// statement-store slot, so a record submitted before it only collects `noAllowance` rejections.
+    /// Ring inclusion gives the identity account its statement-store allowance; a record submitted earlier is rejected.
     let lightPerson: any PersonStatusWaiting
 }
 
