@@ -83,8 +83,13 @@ enum ChatViewFactory {
             targetAssetInfo: asset.asset.digitalDollarDisplayInfo,
             formatterFactory: AssetBalanceFormatterFactory()
         )
+        let fiatAmountFormatter = TransferAmountViewModelFactory(
+            targetAssetInfo: asset.asset.digitalDollarFigureDisplayInfo,
+            formatterFactory: AssetBalanceFormatterFactory()
+        )
         let viewModelFactory = ChatViewModelFactory(
             balanceFactory: amountFormatter,
+            fiatAmountFactory: fiatAmountFormatter,
             customDecoders: messageDecoders,
             attachmentViewModelFactory: ChatAttachmentViewModelFactory(
                 uploadAttachmentStore: uploadAttachmentStore,

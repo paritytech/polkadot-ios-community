@@ -156,6 +156,7 @@ public extension CoinageService {
         )
 
         let coinOnChainQuery = CoinOnChainQueryService(
+            instanceId: instanceId,
             connection: connection,
             runtimeService: runtimeService,
             storageRequestFactory: storageRequestFactory
@@ -334,6 +335,7 @@ public extension CoinageService {
             databaseFactory: databaseFactory,
             connection: connection,
             runtimeService: runtimeService,
+            instanceId: instanceId,
             logger: logger
         )
 

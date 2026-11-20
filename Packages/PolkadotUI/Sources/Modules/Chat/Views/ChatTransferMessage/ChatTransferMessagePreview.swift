@@ -31,14 +31,13 @@
                 (.detecting, nil),
                 (.claiming, nil),
                 (.claimed, nil),
-                (.claimed, "55"),
+                (.claimed, "$55"),
                 (.failed, nil),
                 (.returnedToSender, nil)
             ]
             return states.map { state, originalAmount in
                 let configuration = ChatTransferMessageConfiguration.inbox(
-                    currencySymbol: "$",
-                    amount: "17",
+                    amount: "$17",
                     tokenSymbol: "DOT",
                     originalAmount: originalAmount,
                     from: "Samuel.long.long.18",
@@ -61,19 +60,19 @@
                 (.sent, nil),
                 (.unclaimed, nil),
                 (.claimed, nil),
-                (.claimed, "99"),
+                (.claimed, "$99"),
                 (.failed, nil),
                 (.reclaiming, nil),
                 (.reclaimed(partialAmount: nil), nil),
-                (.reclaimed(partialAmount: "40"), nil),
+                (.reclaimed(partialAmount: "$40"), nil),
                 (.reclaimFailed, nil)
             ]
             return states.map { state, originalAmount in
                 let configuration = ChatTransferMessageConfiguration.outbox(
-                    currencySymbol: "$",
-                    amount: originalAmount == nil ? "99" : "40",
+                    amount: originalAmount == nil ? "$99" : "$40",
                     tokenSymbol: "DOT",
                     originalAmount: originalAmount,
+                    to: "Jake",
                     state: state,
                     statusConfiguration: .init(
                         dateFormatter: TimestampFormatter(),
