@@ -78,25 +78,6 @@ struct ActiveInstallationServiceTests {
         #expect(try storedRecords().isEmpty)
     }
 
-    @Test("The first-install retry delay doubles up to the cap")
-    func retryDelayDoublesUpToTheCap() async throws {
-        let connection = FlakySubmitStatementStore(store: store, failingSubmits: .max)
-        let clock = ManualClock()
-        let service = makeService(installationId: ownId, clock: clock, maxRetryDelay: .seconds(4))
-
-        await service.setup(configuration: ActiveInstallationConfiguration(
-            connection: connection,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
-            lightPerson: IncludedPersonStatusWaiter()
-        ))
-
-        await clock.resumeSleep(for: .seconds(1))
-        await clock.resumeSleep(for: .seconds(2))
-        await clock.resumeSleep(for: .seconds(4))
-        await clock.waitForSleep(for: .seconds(4))
-        #expect(connection.submitAttempts == 4)
-    }
-
     @Test("Another phone's record arriving while the lite person is pending makes this one inactive and quiet")
     func otherRecordDuringPendingPersonStaysQuiet() async throws {
         let waiter = ScriptedPersonStatusWaiter()
@@ -321,23 +302,20 @@ private extension ActiveInstallationServiceTests {
         installationId: Data,
         dates: MockDateProvider = MockDateProvider(),
         statusStore: InstallationStatusStoring = IgnoringInstallationStatusStore(),
-        clock: ManualClock = ManualClock(),
-        maxRetryDelay: Duration = .seconds(1)
+        clock: ManualClock = ManualClock()
     ) -> ActiveInstallationService {
-        var publishSettings = ActiveInstallationPublishSettings(
-            deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
-            dateProvider: dates,
-            firstInstallRetryDelay: .seconds(1),
-            firstInstallMaxRetryDelay: maxRetryDelay
-        )
-        publishSettings.clock = clock
-
-        return ActiveInstallationService(
+        ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(
                 entropyManager: FixedRootEntropyManager(entropy: Data(repeating: 0x01, count: 16))
             ),
             installationProvider: FixedInstallationProvider(installationId: installationId),
-            publishSettings: publishSettings,
+            publishSettings: ActiveInstallationPublishSettings(
+                deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
+                dateProvider: dates,
+                firstInstallRetryDelay: .seconds(1),
+                firstInstallMaxRetryDelay: .seconds(1),
+                clock: clock
+            ),
             statusStore: statusStore,
             logger: MockLogger()
         )

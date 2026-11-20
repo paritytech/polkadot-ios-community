@@ -23,15 +23,12 @@ struct ActiveInstallationServiceFactory {
 
 extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
     func makeService() -> ActiveInstallationServicing {
-        var publishSettings = ActiveInstallationPublishSettings(deviceInfo: .current())
-        publishSettings.stopDiagnostic = stopDiagnostic
-
-        return ActiveInstallationService(
+        ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(entropyManager: RootEntropyManager.shared),
             installationProvider: CoinageCurrentInstallationProvider(
                 repository: CoinageCurrentInstallationCoreDataRepository(storageFacade: UserDataStorageFacade.shared)
             ),
-            publishSettings: publishSettings,
+            publishSettings: ActiveInstallationPublishSettings(deviceInfo: .current(), stopDiagnostic: stopDiagnostic),
             statusStore: statusStore,
             logger: logger
         )

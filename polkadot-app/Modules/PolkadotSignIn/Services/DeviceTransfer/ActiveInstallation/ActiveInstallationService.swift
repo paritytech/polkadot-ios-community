@@ -59,21 +59,25 @@ struct ActiveInstallationPublishSettings {
     let firstInstallRetryDelay: Duration
     let firstInstallMaxRetryDelay: Duration
     /// Reports a record that can't be followed, or a first-install publish still failing after many attempts.
-    var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
-    var clock: any Clock<Duration> = ContinuousClock()
+    let stopDiagnostic: IssueDiagnostic
+    let clock: any Clock<Duration>
 
     init(
         deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         dateProvider: any DateProviding = NowDateProvider(),
         firstInstallRetryDelay: Duration = .seconds(1),
-        firstInstallMaxRetryDelay: Duration = .seconds(60)
+        firstInstallMaxRetryDelay: Duration = .seconds(60),
+        stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic(),
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.deviceInfo = deviceInfo
         self.priorityFactory = priorityFactory
         self.dateProvider = dateProvider
         self.firstInstallRetryDelay = firstInstallRetryDelay
         self.firstInstallMaxRetryDelay = firstInstallMaxRetryDelay
+        self.stopDiagnostic = stopDiagnostic
+        self.clock = clock
     }
 }
 
