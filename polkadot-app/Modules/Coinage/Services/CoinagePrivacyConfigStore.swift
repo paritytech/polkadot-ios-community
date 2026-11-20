@@ -3,7 +3,9 @@ import Coinage
 import Foundation
 import os
 
-final class CoinagePrivacyConfigStore: CoinagePrivacyConfigProviding {
+/// `@unchecked Sendable`: the only mutable state is the observation task behind its lock, and the
+/// non-Sendable config observer is called only inside that lock.
+final class CoinagePrivacyConfigStore: CoinagePrivacyConfigProviding, @unchecked Sendable {
     static let shared = CoinagePrivacyConfigStore()
 
     private let subject: AsyncCurrentValueSubject<CoinagePrivacyConfig>

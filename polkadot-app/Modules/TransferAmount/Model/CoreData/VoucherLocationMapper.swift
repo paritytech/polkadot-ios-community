@@ -66,19 +66,7 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
                  .onboarding: 0
             }
 
-        entity.recyclerUnloaded =
-            switch model.remoteState {
-            case let .inRecycler(recycler):
-                if let unloadedCount = recycler.unloadedCount {
-                    NSNumber(value: Int64(unloadedCount))
-                } else if previousRecyclerIndex == Int64(recycler.index) {
-                    entity.recyclerUnloaded
-                } else {
-                    nil
-                }
-            case .unlocated,
-                 .onboarding: nil
-            }
+        populateUnloaded(entity: entity, from: model, previousRecyclerIndex: previousRecyclerIndex)
 
         entity.onChainState =
             switch model.remoteState {
@@ -94,6 +82,28 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
 }
 
 private extension VoucherLocationMapper {
+    /// A delivered count is written. An undelivered count keeps the stored value within the same
+    /// ring and becomes unknown in a new ring.
+    func populateUnloaded(
+        entity: CoreDataEntity,
+        from model: DataProviderModel,
+        previousRecyclerIndex: Int64
+    ) {
+        entity.recyclerUnloaded =
+            switch model.remoteState {
+            case let .inRecycler(recycler):
+                if let unloadedCount = recycler.unloadedCount {
+                    NSNumber(value: Int64(unloadedCount))
+                } else if previousRecyclerIndex == Int64(recycler.index) {
+                    entity.recyclerUnloaded
+                } else {
+                    nil
+                }
+            case .unlocated,
+                 .onboarding: nil
+            }
+    }
+
     /// The current score tracks every reading; the ceiling is captured once per ring membership —
     /// on entry, and again only if the voucher is ever placed in a different ring.
     ///
