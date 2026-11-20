@@ -169,7 +169,10 @@ private extension CoinageBalanceService {
     }
 
     func nextUnlock(among gainingPrivacy: [TrackedVoucher], now: Date) -> Date? {
-        let readiness = settings.strategy.params(forcedRecyclingAge: CoinageConstants.recycleAtAge).voucherReadiness
+        let readiness = settings.strategy.params(
+            forcedRecyclingAge: CoinageConstants.recycleAtAge,
+            privacyConfig: .bundled
+        ).voucherReadiness
         return gainingPrivacy
             .compactMap { readiness.readyAt(for: $0.voucher) }
             .filter { $0 > now }

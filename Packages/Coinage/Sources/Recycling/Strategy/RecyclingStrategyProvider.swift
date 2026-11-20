@@ -50,7 +50,12 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
 
         return EnsureChainLimitsStrategy(
             inner: EnsureQuotaLimitsStrategy(
-                inner: ParametricRecyclingStrategy(params: type.params(forcedRecyclingAge: forcedRecyclingAge)),
+                inner: ParametricRecyclingStrategy(
+                    params: type.params(
+                        forcedRecyclingAge: forcedRecyclingAge,
+                        privacyConfig: .bundled
+                    )
+                ),
                 quotaExhausted: quotaExhausted
             ),
             forcedRecyclingAge: forcedRecyclingAge
@@ -66,6 +71,11 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
     /// Voucher usability only: both decorators delegate it untouched, so a bare policy suffices and
     /// no quota read happens on the balance path.
     public func voucherStrategy(for type: RecyclingStrategyType) -> CoinRecyclingStrategyProtocol {
-        ParametricRecyclingStrategy(params: type.params(forcedRecyclingAge: forcedRecyclingAge))
+        ParametricRecyclingStrategy(
+            params: type.params(
+                forcedRecyclingAge: forcedRecyclingAge,
+                privacyConfig: .bundled
+            )
+        )
     }
 }
