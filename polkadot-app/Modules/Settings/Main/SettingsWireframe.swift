@@ -88,9 +88,7 @@ final class SettingsWireframe: SettingsWireframeProtocol {
     }
 
     func showPrivacyModeInfo(from view: (any SettingsViewProtocol)?) {
-        guard let view else { return }
-
         let controller = PaymentPrivacyInfoViewFactory.createView()
-        view.controller.present(controller, animated: true)
+        view?.controller.present(controller, animated: true)
     }
 }

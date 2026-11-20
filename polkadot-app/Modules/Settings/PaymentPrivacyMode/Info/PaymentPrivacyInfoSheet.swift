@@ -114,8 +114,8 @@ private extension PaymentPrivacyInfoSheet {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// The copy marks its key terms with Markdown `**…**`; Figma sets them in the primary text colour at
-    /// the paragraph's own weight, so the emphasis becomes a colour rather than bold.
+    /// The copy marks its key terms with Markdown `**…**`; they are set in the primary text colour at the
+    /// paragraph's own weight, so the emphasis becomes a colour rather than bold.
     static func highlighted(_ resource: LocalizedStringResource) -> AttributedString {
         var text = AttributedString(localized: resource)
         let emphasized = text.runs
@@ -152,6 +152,20 @@ private extension PaymentPrivacyInfoSheet {
 
     func show(_ target: Page) {
         withAnimation(.easeInOut(duration: 0.2)) { page = target }
+    }
+}
+
+// MARK: - Illustration
+
+/// Three mismatched coins become three identical ones, going from lower to higher quality. The source
+/// export ships with a sub-caption under each label; those lines are masked out of the asset.
+private struct CoinQualityIllustration: View {
+    var body: some View {
+        Image(.coinQualityIllustration)
+            .resizable()
+            .scaledToFit()
+            .clipShape(RoundedRectangle(cornerRadius: DSRadii.large, style: .continuous))
+            .accessibilityLabel(Text(.settingsPrivacymodeInfoQualityIllustration))
     }
 }
 
