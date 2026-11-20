@@ -6,7 +6,8 @@ actor MockChainLivenessAnchorProvider: ChainLivenessAnchorProviding {
     private var anchorToReturn: ChainLivenessAnchor?
     private var errorToThrow: Error?
     private var isGateClosed = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [UUID: CheckedContinuation<Void, Never>] = [:]
+    private var parkObservers: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     func setAnchor(_ anchor: ChainLivenessAnchor?) {
         anchorToReturn = anchor
@@ -29,9 +30,18 @@ actor MockChainLivenessAnchorProvider: ChainLivenessAnchorProviding {
 
     /// Resumes everything parked so far. Does not change whether new calls park.
     func release() {
-        let resumed = waiters
-        waiters = []
+        let resumed = waiters.values
+        waiters = [:]
         resumed.forEach { $0.resume() }
+    }
+
+    /// Suspends until at least `count` fetches are parked at the gate.
+    func waitForParkedFetches(_ count: Int) async {
+        guard waiters.count < count else {
+            return
+        }
+
+        await withCheckedContinuation { parkObservers.append((count: count, continuation: $0)) }
     }
 
     func fetchAnchor(
@@ -41,7 +51,7 @@ actor MockChainLivenessAnchorProvider: ChainLivenessAnchorProviding {
         fetchAnchorCalls.append((target: target, slotCount: slotCount))
 
         if isGateClosed {
-            await withCheckedContinuation { waiters.append($0) }
+            try await park()
         }
 
         if let error = errorToThrow {
@@ -53,5 +63,40 @@ actor MockChainLivenessAnchorProvider: ChainLivenessAnchorProviding {
         }
 
         return anchor
+    }
+}
+
+private extension MockChainLivenessAnchorProvider {
+    /// A cancelled fetch leaves the gate, as a real request would, so the provider's timeout can
+    /// end a parked probe.
+    func park() async throws {
+        let id = UUID()
+
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume()
+                    return
+                }
+
+                waiters[id] = continuation
+                notifyParkObservers()
+            }
+        } onCancel: {
+            Task { await self.unpark(id) }
+        }
+
+        try Task.checkCancellation()
+    }
+
+    func unpark(_ id: UUID) {
+        waiters.removeValue(forKey: id)?.resume()
+    }
+
+    func notifyParkObservers() {
+        let parkedCount = waiters.count
+        let ready = parkObservers.filter { $0.count <= parkedCount }
+        parkObservers.removeAll { $0.count <= parkedCount }
+        ready.forEach { $0.continuation.resume() }
     }
 }
