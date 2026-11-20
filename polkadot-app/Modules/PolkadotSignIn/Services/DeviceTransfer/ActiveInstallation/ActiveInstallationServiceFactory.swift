@@ -23,15 +23,12 @@ struct ActiveInstallationServiceFactory {
 
 extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
     func makeService() -> ActiveInstallationServicing {
-        var publishSettings = ActiveInstallationPublishSettings(deviceInfo: .current())
-        publishSettings.stopDiagnostic = stopDiagnostic
-
-        return ActiveInstallationService(
+        ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(entropyManager: RootEntropyManager.shared),
             installationProvider: CoinageCurrentInstallationProvider(
                 repository: CoinageCurrentInstallationCoreDataRepository(storageFacade: UserDataStorageFacade.shared)
             ),
-            publishSettings: publishSettings,
+            publishSettings: ActiveInstallationPublishSettings(deviceInfo: .current(), stopDiagnostic: stopDiagnostic),
             statusStore: statusStore,
             logger: logger
         )
@@ -50,20 +47,20 @@ extension ActiveInstallationServiceFactory: ActiveInstallationServiceMaking {
         return try ActiveInstallationConfiguration(
             connection: statementsConnection,
             signer: signer,
-            lightPerson: makeLightPersonMembership(chainId: chainId, registry: registry)
+            lightPerson: makeLightPersonWaiter(chainId: chainId, registry: registry)
         )
     }
 }
 
 private extension ActiveInstallationServiceFactory {
-    func makeLightPersonMembership(chainId: ChainId, registry: ChainRegistryProtocol) throws -> LightPersonMembership {
+    func makeLightPersonWaiter(chainId: ChainId, registry: ChainRegistryProtocol) throws -> PersonStatusWaiter {
         let tld = try DotNsTldProviderFacade.shared.currentTldOrError()
         let subscriber = try ChainMembershipSubscriber(
             connection: registry.getRpcConnectionOrError(for: chainId),
             runtimeCodingService: registry.getRuntimeCodingServiceOrError(for: chainId)
         )
 
-        return try LightPersonMembership(
+        return try PersonStatusWaiter(
             waiter: MembershipStatusWaiter(subscriber: subscriber),
             input: MembershipStatusInput(
                 memberKey: BandersnatchKeyManager.litePerson(for: tld).getMemberKey(),

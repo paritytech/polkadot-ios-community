@@ -7,11 +7,13 @@ import SubstrateSdk
 import StructuredConcurrency
 import SubstrateSdkExt
 import IssueMonitoring
+import Individuality
 
 struct ActiveInstallationConfiguration {
     let connection: StatementStoreConnecting
     let signer: StatementStoreSigning
-    let lightPerson: LightPersonMembership
+    /// Ring inclusion gives the identity account its statement-store allowance; a record submitted earlier is rejected.
+    let lightPerson: any PersonStatusWaiting
 }
 
 protocol CurrentInstallationObserving: Sendable {
@@ -57,20 +59,25 @@ struct ActiveInstallationPublishSettings {
     let firstInstallRetryDelay: Duration
     let firstInstallMaxRetryDelay: Duration
     /// Reports a record that can't be followed, or a first-install publish still failing after many attempts.
-    var stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic()
+    let stopDiagnostic: IssueDiagnostic
+    let clock: any Clock<Duration>
 
     init(
         deviceInfo: DeviceSystemInfo,
         priorityFactory: StatementPriorityMaking = StatementPriorityFactory(),
         dateProvider: any DateProviding = NowDateProvider(),
         firstInstallRetryDelay: Duration = .seconds(1),
-        firstInstallMaxRetryDelay: Duration = .seconds(60)
+        firstInstallMaxRetryDelay: Duration = .seconds(60),
+        stopDiagnostic: IssueDiagnostic = NoopIssueDiagnostic(),
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.deviceInfo = deviceInfo
         self.priorityFactory = priorityFactory
         self.dateProvider = dateProvider
         self.firstInstallRetryDelay = firstInstallRetryDelay
         self.firstInstallMaxRetryDelay = firstInstallMaxRetryDelay
+        self.stopDiagnostic = stopDiagnostic
+        self.clock = clock
     }
 }
 
@@ -220,7 +227,7 @@ private extension ActiveInstallationService {
                             counters: ["attempts": failures]
                         )
                     }
-                    guard await (try? Task.sleep(for: delay)) != nil else { return }
+                    guard await (try? settings.clock.sleep(for: delay)) != nil else { return }
                     delay = min(delay * 2, settings.firstInstallMaxRetryDelay)
                 }
             }
