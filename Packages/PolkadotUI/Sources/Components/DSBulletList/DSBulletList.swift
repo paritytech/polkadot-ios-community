@@ -37,8 +37,8 @@ public struct DSBulletList: View {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
                     Text(verbatim: "\u{2022}")
                         .typography(typography)
-                        .frame(width: indent - Self.dotGap, alignment: .trailing)
-                        .padding(.trailing, Self.dotGap)
+                        .frame(width: indent - DSSpacings.small, alignment: .trailing)
+                        .padding(.trailing, DSSpacings.small)
 
                     Text(item)
                         .typography(typography)
@@ -51,9 +51,6 @@ public struct DSBulletList: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(items.joined(separator: "\n"))
     }
-
-    /// Space between the dot and the item text.
-    private static let dotGap: CGFloat = 8
 }
 
 #Preview {
