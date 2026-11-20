@@ -1,8 +1,8 @@
 import SwiftUI
 import DesignSystem
 
-/// "Lower quality → Higher quality": three mismatched coins become three identical ones. The Figma export
-/// ships with a sub-caption under each label; those lines are masked out of the asset, as in the mock.
+/// Three mismatched coins become three identical ones, going from lower to higher quality. The Figma
+/// export ships with a sub-caption under each label; those lines are masked out of the asset, as in the mock.
 struct CoinQualityIllustration: View {
     var body: some View {
         Image(.coinQualityIllustration)

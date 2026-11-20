@@ -2,8 +2,8 @@ import SwiftUI
 import DesignSystem
 import PolkadotUI
 
-/// Explains coin quality in two pages: "What is coin quality?" with an illustration, then "Why does it
-/// matter?". Back on the second page returns to the first; "Got it" closes the sheet from either.
+/// Explains coin quality in two pages: what it is, with an illustration, then why it matters. Back on the
+/// second page returns to the first; the dismiss button closes the sheet from either.
 ///
 /// The page text scrolls when it outgrows the sheet (large Dynamic Type sizes, small screens) so the
 /// buttons below always stay on screen.

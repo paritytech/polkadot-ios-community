@@ -101,8 +101,6 @@ private extension PaymentPrivacyModeCard {
         .frame(minHeight: PrivacyModeMetrics.headerMinHeight)
     }
 
-    /// A ghost icon button: the full 44pt tap target with the glyph in the primary colour, pulled towards
-    /// the card's edge so the glyph, not the invisible hit area, lines up with the content below.
     var infoButton: some View {
         Button(action: onShowInfo) {
             Image(.iconInfo20)
