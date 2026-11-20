@@ -26,6 +26,21 @@ public enum CoinageTransferDetection: Equatable, Sendable {
 }
 
 public extension CoinageTransferDetection {
+    /// Whether nothing further will be reported for this claim.
+    var isLastWord: Bool {
+        switch self {
+        case .claimed(_, finalized: true),
+             .claimedPartially,
+             .notClaimed:
+            true
+        case .detecting,
+             .claiming,
+             .claimingRest,
+             .claimed(_, finalized: false):
+            false
+        }
+    }
+
     /// The last word for a claim valued by what finalized: the full `amount` is `claimed`, anything
     /// less that still claimed something is `claimedPartially`, nothing is `notClaimed`.
     static func verdict(finalized value: Balance, of amount: Balance) -> CoinageTransferDetection {

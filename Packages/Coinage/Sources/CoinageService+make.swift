@@ -269,6 +269,15 @@ public extension CoinageService {
             logger: logger
         )
 
+        let reclaimCoinsService = ReclaimCoinsService(
+            txService: txService,
+            databaseFactory: databaseFactory,
+            minter: coinageMinter,
+            snKeyFactory: SNKeyFactory(),
+            dateProvider: dateProvider,
+            logger: logger
+        )
+
         // Coinage's three submission policies, registered before anything carrying one is submitted:
         // a row naming an unregistered policy is abandoned rather than left waiting for ever.
         CoinageSubmissionPolicies.register(
@@ -302,6 +311,7 @@ public extension CoinageService {
                     factory: durable.factory,
                     chainId: chain.chainId
                 ),
+                coinKeyFactory: coinKeypairFactory,
                 snKeyFactory: SNKeyFactory(),
                 dateProvider: dateProvider,
                 logger: logger
@@ -443,6 +453,7 @@ public extension CoinageService {
             ongoingTransferService: recipientService,
             txService: txService,
             claimCoinsService: claimCoinsService,
+            reclaimCoinsService: reclaimCoinsService,
             transferStatusService: transferStatusService,
             externalPaymentService: externalPaymentService,
             contextLoader: contextLoader,

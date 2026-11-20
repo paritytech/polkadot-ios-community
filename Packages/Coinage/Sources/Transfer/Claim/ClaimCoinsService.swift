@@ -184,8 +184,8 @@ private extension ClaimCoinsService {
             // `receivedPublicKeys()` counts terminal entries too, so a coin whose policy has already
             // given up reads as registered and is not re-registered here. That is deliberate — see the
             // note on `CoinageClaimSubmitting` — and it means no layer retries such a coin: the policy
-            // is dead and this loop treats it as handled. It stays on chain, claimable by nobody, until
-            // the sender-side reclaim UI exists.
+            // is dead and this loop treats it as handled. It stays on chain, claimable by nobody, and the
+            // sender can reclaim it once the claim window closes.
             let unregistered = coins.subtracting(settled.receivedPublicKeys()).subtracting(refused)
             if unregistered.isEmpty {
                 logger?.debug("Every coin has a claim or was refused group=\(groupId)")

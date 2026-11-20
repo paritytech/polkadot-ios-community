@@ -101,6 +101,40 @@ struct ClaimCoinsServiceTests {
     }
 
     @Test
+    func emptyLookWithNothingClaimedEndsNotClaimed() async throws {
+        let rig = try Rig(windowFromNow: 60)
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        rig.moveNow(by: 120)
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        let detections = await run.detections()
+
+        #expect(detections.last == .notClaimed)
+    }
+
+    @Test
+    func priorClaimEndsClaimedPartially() async throws {
+        let rig = try Rig(windowFromNow: -1, coinCount: 2)
+        rig.txService.seedClaim(
+            "claim-coins-test",
+            receivedPublicKey: rig.coinPublicKeys[1],
+            status: .finalizedSuccess
+        )
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        let detections = await run.detections()
+
+        #expect(detections.last == .claimedPartially(claimed: 0))
+    }
+
+    @Test
     func foreignBundleEndsNotClaimedInsideWindow() async throws {
         let rig = try Rig(windowFromNow: 60)
         let run = rig.start()
@@ -139,6 +173,7 @@ private extension ClaimCoinsServiceTests {
         let clock: ManualClock
         let query: ScriptedCoinInfoQuery
         let submitter: RecordingClaimSubmitter
+        let txService: StubGroupTxService
         let coinSecrets: [Data]
         let coinPublicKeys: [Data]
         let retryUntil: Date
@@ -158,9 +193,10 @@ private extension ClaimCoinsServiceTests {
             let clock = ManualClock()
             let query = ScriptedCoinInfoQuery()
             let submitter = RecordingClaimSubmitter()
+            let txService = StubGroupTxService()
 
             service = ClaimCoinsService(
-                txService: MockCoinageTxService(),
+                txService: txService,
                 coinOnChainQuery: query,
                 claimSubmitter: submitter,
                 snKeyFactory: keyFactory,
@@ -177,6 +213,7 @@ private extension ClaimCoinsServiceTests {
             self.query = query
             self.submitter = submitter
             self.dateProvider = dateProvider
+            self.txService = txService
             coinSecrets = keypairs.map { $0.privateKey().rawData() }
             coinPublicKeys = keypairs.map { $0.publicKey().rawData() }
             retryUntil = start.addingTimeInterval(windowFromNow)

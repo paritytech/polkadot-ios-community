@@ -12,6 +12,8 @@ final class ChatTransferAmountView: UIView {
 
     private(set) var typography: TypographyStyle = Constants.typographyLadder[0]
 
+    private let shimmer = ShimmerMask()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
 
@@ -50,20 +52,32 @@ final class ChatTransferAmountView: UIView {
             width: unitSize.width,
             height: unitSize.height
         )
+
+        shimmer.layout(in: self)
     }
 
-    func bind(amount amountText: String, unit: String) {
+    func bind(amount amountText: String, unit: String, isStruckThrough: Bool = false) {
         typography = Constants.typographyLadder.first { fits(amountText: amountText, unit: unit, typography: $0) }
             ?? Constants.typographyLadder[Constants.typographyLadder.count - 1]
 
         let font = UIFont.app(typography)
         amountLabel.font = font
         amountLabel.text = amountText
+        if isStruckThrough {
+            amountLabel.attributedText = NSAttributedString(
+                string: amountText,
+                attributes: [.strikethroughStyle: NSUnderlineStyle.single.rawValue]
+            )
+        }
         unitLabel.attributedText = CashLogo.unit(unit, fallback: unitFont(for: font))
         unitLabel.accessibilityLabel = unit
 
         invalidateIntrinsicContentSize()
         setNeedsLayout()
+    }
+
+    func setShimmering(_ isActive: Bool) {
+        shimmer.setActive(isActive, on: self)
     }
 }
 

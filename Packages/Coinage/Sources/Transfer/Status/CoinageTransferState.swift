@@ -17,6 +17,12 @@ public enum CoinageTransferStatus: Equatable, Sendable {
     /// is absent from the finalized chain. Until then it is inferred from the best head, where a fork
     /// can put the coin back.
     case claimed(finalized: Bool)
+
+    /// Our own reclaim of the handed-off coin is in flight.
+    case reclaiming
+
+    /// Absent after our reclaim landed. `finalized` as for ``claimed(finalized:)``.
+    case reclaimed(finalized: Bool)
 }
 
 public extension CoinageTransferStatus {
@@ -24,8 +30,10 @@ public extension CoinageTransferStatus {
         switch self {
         case .failed: true
         case let .claimed(finalized): finalized
+        case let .reclaimed(finalized): finalized
         case .awaitingClaim,
-             .detecting: false
+             .detecting,
+             .reclaiming: false
         }
     }
 }
