@@ -15,6 +15,7 @@ protocol RecyclingStrategyProviding {
 /// call because `quotaExhausted` moves. The voucher arm needs no quota read, so it is offered bare.
 public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
     private let quotaTracker: any UnloadQuotaTracking
+    private let privacyConfigProvider: any CoinagePrivacyConfigProviding
     private let forcedRecyclingAge: Int16
     private let quotaReserve: BigRational
 
@@ -22,10 +23,12 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
     /// payments; the valve engages once remaining crosses it.
     public init(
         quotaTracker: any UnloadQuotaTracking,
+        privacyConfigProvider: any CoinagePrivacyConfigProviding,
         forcedRecyclingAge: Int16 = CoinageConstants.recycleAtAge,
         quotaReserve: BigRational = .percent(of: 20)
     ) {
         self.quotaTracker = quotaTracker
+        self.privacyConfigProvider = privacyConfigProvider
         self.forcedRecyclingAge = forcedRecyclingAge
         self.quotaReserve = quotaReserve
     }
@@ -53,7 +56,7 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
                 inner: ParametricRecyclingStrategy(
                     params: type.params(
                         forcedRecyclingAge: forcedRecyclingAge,
-                        privacyConfig: .bundled
+                        privacyConfig: privacyConfigProvider.privacyConfig
                     )
                 ),
                 quotaExhausted: quotaExhausted
@@ -74,7 +77,7 @@ public struct RecyclingStrategyProvider: RecyclingStrategyProviding {
         ParametricRecyclingStrategy(
             params: type.params(
                 forcedRecyclingAge: forcedRecyclingAge,
-                privacyConfig: .bundled
+                privacyConfig: privacyConfigProvider.privacyConfig
             )
         )
     }

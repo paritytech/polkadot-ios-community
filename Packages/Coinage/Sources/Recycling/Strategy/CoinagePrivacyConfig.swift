@@ -22,7 +22,7 @@ public struct CoinagePrivacyConfig: Equatable, Sendable {
         self.maxPrivacy = maxPrivacy
     }
 
-    /// Bundled defaults.
+    /// Bundled defaults; Remote Config `coinage_privacy_config` overrides them.
     public static let bundled = CoinagePrivacyConfig(
         balanced: .init(ringFillPercent: 20, anonymityMinutes: 10, anonymityMembers: 8),
         maxPrivacy: .init(ringFillPercent: 90, anonymityMinutes: 10, anonymityMembers: 16)
