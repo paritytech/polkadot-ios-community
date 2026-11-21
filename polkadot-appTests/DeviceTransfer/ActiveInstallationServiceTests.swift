@@ -2,7 +2,9 @@
 import AsyncExtensions
 import Foundation
 import FoundationExt
+import Individuality
 import StatementStore
+import StructuredConcurrencyTestSupport
 import SubstrateSdk
 import SubstrateSdkExt
 import Testing
@@ -18,29 +20,86 @@ struct ActiveInstallationServiceTests {
         schedule = try DeviceTransferKeySchedule(entropy: Data(repeating: 0x01, count: 16))
     }
 
-    @Test("With no record on the topic, the installation publishes its own and becomes active")
-    func firstInstallPublishesAndBecomesActive() async throws {
+    @Test("With no record on the topic the installation is active at once; its record lands once the lite person is in")
+    func firstInstallIsActiveBeforeItsRecordLands() async throws {
+        let waiter = ScriptedPersonStatusWaiter()
         let service = makeService(installationId: ownId)
 
-        await service.setup(configuration: configuration())
+        await service.setup(configuration: configuration(lightPerson: waiter))
 
         #expect(await waitForStatus(of: service) { $0 == .active } == .active)
+        #expect(try storedRecords().isEmpty)
+
+        waiter.include()
+        try await waitForRecords(1)
         #expect(try storedRecords().map(\.installationId) == [ownId])
     }
 
-    @Test("A failed first-install publish is retried until it lands")
+    @Test("A failed first-install publish is retried past any fixed budget until it lands")
     func failedFirstInstallIsRetried() async throws {
-        let connection = FlakySubmitStatementStore(store: store, failingSubmits: 2)
-        let service = makeService(installationId: ownId)
+        let connection = FlakySubmitStatementStore(store: store, failingSubmits: 12)
+        let clock = ManualClock()
+        let service = makeService(installationId: ownId, clock: clock)
 
         await service.setup(configuration: ActiveInstallationConfiguration(
             connection: connection,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
         ))
 
         #expect(await waitForStatus(of: service) { $0 == .active } == .active)
-        #expect(connection.submitAttempts == 3)
+        for _ in 0 ..< 12 {
+            await clock.resumeSleep(for: .seconds(1))
+        }
+        try await waitForRecords(1)
+        #expect(connection.submitAttempts == 13)
         #expect(try storedRecords().map(\.installationId) == [ownId])
+    }
+
+    @Test("A publish that keeps failing leaves the installation active and keeps trying")
+    func failingPublishKeepsActive() async throws {
+        let connection = FlakySubmitStatementStore(store: store, failingSubmits: .max)
+        let clock = ManualClock()
+        let service = makeService(installationId: ownId, clock: clock)
+
+        await service.setup(configuration: ActiveInstallationConfiguration(
+            connection: connection,
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
+        ))
+
+        #expect(await waitForStatus(of: service) { $0 == .active } == .active)
+        for _ in 0 ..< 10 {
+            await clock.resumeSleep(for: .seconds(1))
+        }
+        await clock.waitForSleep(for: .seconds(1))
+        #expect(await currentStatus(of: service) == .active)
+        #expect(connection.submitAttempts == 11)
+        #expect(try storedRecords().isEmpty)
+    }
+
+    @Test("Another phone's record arriving while the lite person is pending makes this one inactive and quiet")
+    func otherRecordDuringPendingPersonStaysQuiet() async throws {
+        let waiter = ScriptedPersonStatusWaiter()
+        let connection = FlakySubmitStatementStore(store: store, failingSubmits: 0)
+        let service = makeService(installationId: ownId)
+        await service.setup(configuration: ActiveInstallationConfiguration(
+            connection: connection,
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: waiter
+        ))
+        _ = await waitForStatus(of: service) { $0 == .active }
+
+        let other = makeService(installationId: otherId)
+        await other.setup(configuration: configuration())
+        _ = await waitForStatus(of: other) { $0 == .active }
+        let status = await waitForStatus(of: service) { $0 != .active }
+
+        waiter.include()
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(try status == .inactive(#require(storedRecords().first)))
+        #expect(connection.submitAttempts == 0)
+        #expect(try storedRecords().map(\.installationId) == [otherId])
     }
 
     @Test("Another installation's record makes this one inactive without publishing")
@@ -48,6 +107,7 @@ struct ActiveInstallationServiceTests {
         let other = makeService(installationId: otherId)
         await other.setup(configuration: configuration())
         _ = await waitForStatus(of: other) { $0 == .active }
+        try await waitForRecords(1)
 
         let service = makeService(installationId: ownId)
         await service.setup(configuration: configuration())
@@ -62,6 +122,7 @@ struct ActiveInstallationServiceTests {
         let first = makeService(installationId: ownId)
         await first.setup(configuration: configuration())
         _ = await waitForStatus(of: first) { $0 == .active }
+        try await waitForRecords(1)
         await first.throttle()
 
         let restarted = makeService(installationId: ownId)
@@ -89,7 +150,8 @@ struct ActiveInstallationServiceTests {
 
         await service.setup(configuration: ActiveInstallationConfiguration(
             connection: connection,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
         ))
         await connection.waitForSubscription()
         await service.throttle()
@@ -106,6 +168,7 @@ struct ActiveInstallationServiceTests {
             let service = makeService(installationId: ownId, dates: dates, statusStore: ownStore)
             await service.setup(configuration: configuration())
             _ = await waitForStatus(of: service) { $0 == .active }
+            try await waitForRecords(1)
             #expect(ownStore.status == .active)
 
             await dates.advance(by: 10)
@@ -134,7 +197,8 @@ struct ActiveInstallationServiceTests {
 
             await service.setup(configuration: ActiveInstallationConfiguration(
                 connection: connection,
-                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+                signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+                lightPerson: IncludedPersonStatusWaiter()
             ))
             await connection.waitForSubscription()
             await service.throttle()
@@ -148,6 +212,7 @@ struct ActiveInstallationServiceTests {
         let other = makeService(installationId: otherId)
         await other.setup(configuration: configuration())
         _ = await waitForStatus(of: other) { $0 == .active }
+        try await waitForRecords(1)
         let connection = try PagedStatementStore(pages: [
             StatementsPage(statements: [], isComplete: false),
             StatementsPage(statements: store.getStatements(with: topicFilter()), isComplete: true)
@@ -156,7 +221,8 @@ struct ActiveInstallationServiceTests {
 
         await service.setup(configuration: ActiveInstallationConfiguration(
             connection: connection,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
         ))
 
         let status = await waitForStatus(of: service) { $0 != .unknown }
@@ -170,6 +236,7 @@ struct ActiveInstallationServiceTests {
         let service = makeService(installationId: ownId, dates: dates)
         await service.setup(configuration: configuration())
         _ = await waitForStatus(of: service) { $0 == .active }
+        try await waitForRecords(1)
 
         await dates.advance(by: 10)
         let other = makeService(installationId: otherId, dates: dates)
@@ -193,6 +260,7 @@ struct ActiveInstallationServiceTests {
         let service = makeService(installationId: ownId, dates: dates)
         await service.setup(configuration: configuration())
         _ = await waitForStatus(of: service) { $0 == .active }
+        try await waitForRecords(1)
 
         await dates.advance(by: -5)
         await late.setup(configuration: configuration())
@@ -214,6 +282,7 @@ struct ActiveInstallationServiceTests {
         let greater = makeService(installationId: otherId, dates: dates)
         await lower.setup(configuration: configuration())
         _ = await waitForStatus(of: lower) { $0 == .active }
+        try await waitForRecords(1)
 
         await greater.setup(configuration: configuration())
         _ = await waitForStatus(of: greater) { $0 != .unknown }
@@ -232,7 +301,8 @@ private extension ActiveInstallationServiceTests {
     func makeService(
         installationId: Data,
         dates: MockDateProvider = MockDateProvider(),
-        statusStore: InstallationStatusStoring = IgnoringInstallationStatusStore()
+        statusStore: InstallationStatusStoring = IgnoringInstallationStatusStore(),
+        clock: ManualClock = ManualClock()
     ) -> ActiveInstallationService {
         ActiveInstallationService(
             keyScheduleFactory: DeviceTransferKeyScheduleFactory(
@@ -242,7 +312,9 @@ private extension ActiveInstallationServiceTests {
             publishSettings: ActiveInstallationPublishSettings(
                 deviceInfo: DeviceSystemInfo(model: "iPhone 17 Pro", operatingSystem: "iOS 26.1"),
                 dateProvider: dates,
-                firstInstallRetryDelay: .milliseconds(1)
+                firstInstallRetryDelay: .seconds(1),
+                firstInstallMaxRetryDelay: .seconds(1),
+                clock: clock
             ),
             statusStore: statusStore,
             logger: MockLogger()
@@ -257,11 +329,20 @@ private extension ActiveInstallationServiceTests {
         try await body(defaults)
     }
 
-    func configuration() -> ActiveInstallationConfiguration {
+    func configuration(
+        lightPerson: any PersonStatusWaiting = IncludedPersonStatusWaiter()
+    ) -> ActiveInstallationConfiguration {
         ActiveInstallationConfiguration(
             connection: store,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: lightPerson
         )
+    }
+
+    func waitForRecords(_ count: Int) async throws {
+        while try storedRecords().count < count {
+            try await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     func topicFilter() -> TopicFilter {

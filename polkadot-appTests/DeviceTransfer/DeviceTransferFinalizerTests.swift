@@ -138,7 +138,8 @@ private extension DeviceTransferFinalizerTests {
     func configuration() -> ActiveInstallationConfiguration {
         ActiveInstallationConfiguration(
             connection: store,
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
         )
     }
 

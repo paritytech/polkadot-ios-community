@@ -55,7 +55,8 @@ private struct ScriptedInstallationServiceFactory: ActiveInstallationServiceMaki
     func makeConfiguration() throws -> ActiveInstallationConfiguration {
         ActiveInstallationConfiguration(
             connection: MockStatementStore(),
-            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32))
+            signer: StubStatementSigner(accountId: Data(repeating: 0x0A, count: 32)),
+            lightPerson: IncludedPersonStatusWaiter()
         )
     }
 }
