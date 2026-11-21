@@ -29,7 +29,7 @@ struct DeviceSyncFileMessageTests {
                     requestId: 7,
                     fileIndex: 2,
                     totalSize: 300,
-                    hash: Data(repeating: 0xCD, count: 32)
+                    fileHash: Data(repeating: 0xCD, count: 32)
                 )),
                 "01" + "07000000" + "02000000" + "2c01000000000000" + String(repeating: "cd", count: 32)
             ),

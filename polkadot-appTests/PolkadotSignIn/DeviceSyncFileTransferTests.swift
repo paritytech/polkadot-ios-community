@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -33,7 +34,7 @@ final class DeviceSyncFileTransferTests {
         let sent = await flow.waitForSentFileMessageCount(3)
 
         #expect(sent == [
-            .header(.init(requestId: 4, fileIndex: 0, totalSize: 3, hash: Data([1, 2, 3]).sha256Digest)),
+            .header(.init(requestId: 4, fileIndex: 0, totalSize: 3, fileHash: Data([1, 2, 3]).sha256())),
             .chunk(.init(requestId: 4, fileIndex: 0, offset: 0, data: Data([1, 2, 3]))),
             .completed(requestId: 4)
         ])

@@ -1,12 +1,12 @@
 import Foundation
 import WebRTC
 
-/// Best effort skips a message once its retransmissions run out, which a file stream can't survive.
 enum DataChannelReliability: Equatable, Sendable {
+    /// Best effort skips a message once its retransmissions run out, which, for example, a file stream can't survive.
     case bestEffort(maxRetransmits: Int32)
+    /// Used for reliable tranmission of large data, for example, files
     case reliable
 
-    /// Read from here, not the configuration: WebRTC's getter aborts on an unset limit.
     var maxRetransmits: Int32? {
         switch self {
         case let .bestEffort(maxRetransmits): maxRetransmits

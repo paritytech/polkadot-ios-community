@@ -11,7 +11,6 @@ enum DeviceSyncFileWriterError: Error, Equatable {
 /// under `filename` once complete. The suffix keeps it apart from the HOP `.part` resume state.
 final class DeviceSyncFileWriter {
     static let partialSuffix = ".sync.part"
-    static let replayReadSize = 1 << 20
 
     let filename: String
 
@@ -57,7 +56,7 @@ final class DeviceSyncFileWriter {
     }
 
     /// Moves the partial file into place; a size or digest mismatch discards it.
-    func finish(totalSize: UInt64, hash: Data) throws {
+    func finish(totalSize: UInt64, fileHash: Data) throws {
         closeHandle()
 
         guard !store.hasFile(for: filename) else {
@@ -73,7 +72,7 @@ final class DeviceSyncFileWriter {
         }
 
         try hashStoredBytes(upTo: stored)
-        guard Data(hasher.finalize()) == hash else {
+        guard Data(hasher.finalize()) == fileHash else {
             discard()
             throw DeviceSyncFileWriterError.hashMismatch
         }
@@ -111,7 +110,7 @@ private extension DeviceSyncFileWriter {
         try reader.seek(toOffset: hashedBytes)
 
         while hashedBytes < stored,
-              let data = try reader.read(upToCount: Int(min(stored - hashedBytes, UInt64(Self.replayReadSize)))),
+              let data = try reader.read(upToCount: Int(min(stored - hashedBytes, UInt64(FileDigest.readSize)))),
               !data.isEmpty {
             hasher.update(data: data)
             hashedBytes += UInt64(data.count)

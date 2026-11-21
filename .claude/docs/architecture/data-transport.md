@@ -39,7 +39,7 @@ UseCaseId multiplexing (multiple concerns per connection)
 3. **Exclude `disconnected` from terminal states** — a disconnected state is not necessarily terminal for the connection
 4. **Detect call disconnect robustly** — use multiple signals, not just WebRTC state
 5. **Rename config for actual scope** — if a config is used for data-channel-only cases too, name it accordingly (e.g., `P2PConnectionConfigFactory`) (PR review)
-6. **Device-sync data channel is fully reliable** — `DataChannelReliability.reliable` (ordered, no retransmit limit); only the calls' channel is `bestEffort`. A file stream cannot survive a skipped message, and the receiver verifies the sha256 from the file header (#465)
+6. **Device-sync data channel is fully reliable** — `DataChannelReliability.reliable` (ordered, no retransmit limit); only the calls' channel is `bestEffort`. A file stream cannot survive a skipped message, and the receiver verifies the sha256 from the file header
 
 ## Connection Lifecycle
 

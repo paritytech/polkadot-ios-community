@@ -43,8 +43,7 @@ extension Chat.DeviceSyncFileMessage {
         let requestId: UInt32
         let fileIndex: UInt32
         let totalSize: UInt64
-        /// sha256 of the whole file, so the requester can tell a corrupted copy from a short one.
-        let hash: Data
+        let fileHash: Data
     }
 
     struct Chunk: Equatable {
@@ -207,17 +206,17 @@ extension Chat.DeviceSyncFileMessage.Header: ScaleCodable {
         requestId = try UInt32(scaleDecoder: scaleDecoder)
         fileIndex = try UInt32(scaleDecoder: scaleDecoder)
         totalSize = try UInt64(scaleDecoder: scaleDecoder)
-        hash = try scaleDecoder.readAndConfirm(count: Self.hashSize)
+        fileHash = try scaleDecoder.readAndConfirm(count: Self.hashSize)
     }
 
     func encode(scaleEncoder: any ScaleEncoding) throws {
-        guard hash.count == Self.hashSize else {
+        guard fileHash.count == Self.hashSize else {
             throw ScaleCodingError.unexpectedDecodedValue
         }
         try requestId.encode(scaleEncoder: scaleEncoder)
         try fileIndex.encode(scaleEncoder: scaleEncoder)
         try totalSize.encode(scaleEncoder: scaleEncoder)
-        scaleEncoder.appendRaw(data: hash)
+        scaleEncoder.appendRaw(data: fileHash)
     }
 }
 

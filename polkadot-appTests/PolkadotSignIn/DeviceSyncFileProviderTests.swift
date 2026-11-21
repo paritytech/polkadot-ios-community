@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -33,7 +34,7 @@ final class DeviceSyncFileProviderTests {
             requestId: 7,
             fileIndex: 0,
             totalSize: UInt64(size),
-            hash: contents.sha256Digest
+            fileHash: contents.sha256()
         )))
         #expect(sent.chunks.map(\.offset) == [0, 61_440, 122_880])
         #expect(sent.chunks.reduce(Data()) { $0 + $1.data } == contents)
@@ -62,7 +63,7 @@ final class DeviceSyncFileProviderTests {
         let sent = await flow.waitForSentFileMessageCount(2)
 
         #expect(sent == [
-            .header(.init(requestId: 1, fileIndex: 0, totalSize: 100, hash: contents.sha256Digest)),
+            .header(.init(requestId: 1, fileIndex: 0, totalSize: 100, fileHash: contents.sha256())),
             .completed(requestId: 1)
         ])
     }
@@ -87,7 +88,7 @@ final class DeviceSyncFileProviderTests {
         #expect(sent == [
             .unavailable(.init(requestId: 3, fileIndex: 0, reason: .notStored)),
             .unavailable(.init(requestId: 3, fileIndex: 1, reason: .downloading)),
-            .header(.init(requestId: 3, fileIndex: 2, totalSize: 10, hash: contents.sha256Digest)),
+            .header(.init(requestId: 3, fileIndex: 2, totalSize: 10, fileHash: contents.sha256())),
             .chunk(.init(requestId: 3, fileIndex: 2, offset: 0, data: contents)),
             .completed(requestId: 3)
         ])
@@ -128,7 +129,7 @@ final class DeviceSyncFileProviderTests {
         let sent = await flow.waitForSentFileMessageCount(2)
 
         #expect(sent == [
-            .header(.init(requestId: 5, fileIndex: 0, totalSize: 200_000, hash: firstContents.sha256Digest)),
+            .header(.init(requestId: 5, fileIndex: 0, totalSize: 200_000, fileHash: firstContents.sha256())),
             .completed(requestId: 5)
         ])
     }
@@ -166,7 +167,7 @@ final class DeviceSyncFileProviderTests {
             requestId: 1,
             fileIndex: 0,
             totalSize: 10,
-            hash: slowContents.sha256Digest
+            fileHash: slowContents.sha256()
         )))
         #expect(all.last == .completed(requestId: 1))
     }

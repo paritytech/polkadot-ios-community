@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Testing
 
 @Suite(.timeLimit(.minutes(1)))
@@ -33,7 +34,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 150,
-            hash: contents.sha256Digest
+            fileHash: contents.sha256()
         )))
         await requester.handle(chunk(request, offset: 0, data: contents.prefix(100)))
         await requester.handle(chunk(request, offset: 100, data: contents.suffix(from: 100)))
@@ -54,7 +55,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 60,
-            hash: Data(count: 60).sha256Digest
+            fileHash: Data(count: 60).sha256()
         )))
         await requester.handle(chunk(request, offset: 0, data: contents))
         await requester.handle(.completed(requestId: request.requestId))
@@ -78,7 +79,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: Data(count: 100).sha256Digest
+            fileHash: Data(count: 100).sha256()
         )))
         await requester.handle(.unavailable(.init(requestId: request.requestId, fileIndex: 1, reason: .downloading)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -96,7 +97,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: Data(count: 100).sha256Digest
+            fileHash: Data(count: 100).sha256()
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.handle(.completed(requestId: request.requestId))
@@ -115,7 +116,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: Data(count: 100).sha256Digest
+            fileHash: Data(count: 100).sha256()
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 10)))
         await requester.handle(chunk(request, offset: 50, data: Data(count: 10)))
@@ -135,7 +136,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 100,
-            hash: Data(count: 100).sha256Digest
+            fileHash: Data(count: 100).sha256()
         )))
         await requester.handle(chunk(request, offset: 0, data: Data(count: 40)))
         await requester.close()
@@ -210,7 +211,7 @@ final class DeviceSyncFileRequesterTests {
             requestId: request.requestId,
             fileIndex: 0,
             totalSize: 150,
-            hash: Data(count: 150).sha256Digest
+            fileHash: Data(count: 150).sha256()
         )))
         await requester.handle(chunk(request, offset: 100, data: Data(count: 50)))
         await requester.handle(.completed(requestId: request.requestId))

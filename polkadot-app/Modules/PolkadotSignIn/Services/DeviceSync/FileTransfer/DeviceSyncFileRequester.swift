@@ -218,7 +218,7 @@ private extension DeviceSyncFileRequester {
 
         markResponse(for: header.requestId)
         inFlight[header.requestId]?.files[Int(header.fileIndex)].totalSize = header.totalSize
-        inFlight[header.requestId]?.files[Int(header.fileIndex)].hash = header.hash
+        inFlight[header.requestId]?.files[Int(header.fileIndex)].fileHash = header.fileHash
         inFlight[header.requestId]?.onBytes(file.writer.storedBytes())
 
         if file.writer.storedBytes() >= header.totalSize {
@@ -252,10 +252,10 @@ private extension DeviceSyncFileRequester {
     }
 
     func completeFile(_ fileIndex: UInt32, of requestId: UInt32, totalSize: UInt64) {
-        guard let file = inFlight[requestId]?.file(at: fileIndex), let hash = file.hash else { return }
+        guard let file = inFlight[requestId]?.file(at: fileIndex), let fileHash = file.fileHash else { return }
 
         do {
-            try file.writer.finish(totalSize: totalSize, hash: hash)
+            try file.writer.finish(totalSize: totalSize, fileHash: fileHash)
             resolveFile(fileIndex, of: requestId, with: .completed)
         } catch DeviceSyncFileWriterError.hashMismatch {
             logger.error("Sync file \(file.writer.filename) doesn't match the provider's digest")
@@ -292,7 +292,7 @@ private struct InFlightFile {
     let item: DeviceSyncFileRequestItem
     let writer: DeviceSyncFileWriter
     var totalSize: UInt64?
-    var hash: Data?
+    var fileHash: Data?
     var outcome: DeviceSyncFileRequestOutcome?
 
     init(item: DeviceSyncFileRequestItem, store: AttachmentStoring) {
