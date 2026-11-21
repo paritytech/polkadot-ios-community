@@ -6,7 +6,7 @@ struct MockDeviceSyncWebRTCConfigFactory: WebRTCConfigMaking {
         RTCConfiguration()
     }
 
-    func makeDataChannelConfiguration() -> RTCDataChannelConfiguration {
+    func makeDataChannelConfiguration(_: DataChannelReliability) -> RTCDataChannelConfiguration {
         RTCDataChannelConfiguration()
     }
 }

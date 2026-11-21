@@ -321,6 +321,7 @@ private extension CallEngine {
                 peerConnectionFactory: peerConnectionFactory,
                 configFactory: configFactory,
                 purpose: purpose,
+                reliability: .bestEffort(maxRetransmits: 3),
                 logger: logger
             )
         case .acceptor:

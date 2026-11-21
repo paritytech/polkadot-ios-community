@@ -1,6 +1,7 @@
 @testable import polkadot_app
 import Foundation
 import SubstrateSdk
+import SubstrateSdkExt
 import Testing
 
 final class DeviceSyncFileWriterTests {
@@ -24,7 +25,7 @@ final class DeviceSyncFileWriterTests {
 
         try writer.write(contents.prefix(100), at: 0)
         try writer.write(contents.suffix(from: 100), at: 100)
-        try writer.finish(totalSize: 300)
+        try writer.finish(totalSize: 300, fileHash: contents.sha256())
 
         #expect(try store.loadAttachment(by: "file.jpg") == contents)
         #expect(!store.hasFile(for: "file.jpg.sync.part"))
@@ -39,7 +40,18 @@ final class DeviceSyncFileWriterTests {
         #expect(writer.storedBytes() == 20)
 
         try writer.write(contents.suffix(from: 20), at: 20)
-        try writer.finish(totalSize: 50)
+        try writer.finish(totalSize: 50, fileHash: contents.sha256())
+
+        #expect(try store.loadAttachment(by: "file.jpg") == contents)
+    }
+
+    @Test("A partial file that is already complete is verified without a write")
+    func finishesFullyStoredPartial() throws {
+        let contents = try Data.randomOrError(of: 40)
+        try store.store(attachment: contents, filename: "file.jpg.sync.part")
+        let writer = DeviceSyncFileWriter(filename: "file.jpg", store: store)
+
+        try writer.finish(totalSize: 40, fileHash: contents.sha256())
 
         #expect(try store.loadAttachment(by: "file.jpg") == contents)
     }
@@ -61,7 +73,20 @@ final class DeviceSyncFileWriterTests {
         try writer.write(Data(count: 10), at: 0)
 
         #expect(throws: DeviceSyncFileWriterError.sizeMismatch(expected: 11, stored: 10)) {
-            try writer.finish(totalSize: 11)
+            try writer.finish(totalSize: 11, fileHash: Data(count: 10).sha256())
+        }
+        #expect(!store.hasFile(for: "file.jpg.sync.part"))
+        #expect(!store.hasFile(for: "file.jpg"))
+    }
+
+    @Test("A digest mismatch on finish discards the partial file")
+    func hashMismatchDiscards() throws {
+        let contents = try Data.randomOrError(of: 30)
+        let writer = DeviceSyncFileWriter(filename: "file.jpg", store: store)
+        try writer.write(contents, at: 0)
+
+        #expect(throws: DeviceSyncFileWriterError.hashMismatch) {
+            try writer.finish(totalSize: 30, fileHash: Data(count: 30).sha256())
         }
         #expect(!store.hasFile(for: "file.jpg.sync.part"))
         #expect(!store.hasFile(for: "file.jpg"))
@@ -74,7 +99,7 @@ final class DeviceSyncFileWriterTests {
         let writer = DeviceSyncFileWriter(filename: "file.jpg", store: store)
         try writer.write(Data(count: 10), at: 0)
 
-        try writer.finish(totalSize: 10)
+        try writer.finish(totalSize: 10, fileHash: Data(count: 10).sha256())
 
         #expect(try store.loadAttachment(by: "file.jpg") == existing)
         #expect(!store.hasFile(for: "file.jpg.sync.part"))

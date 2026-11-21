@@ -10,6 +10,8 @@ enum DeviceSyncFileRequestOutcome: Equatable {
     case completed
     case unavailable(Chat.DeviceSyncFileMessage.UnavailableReason)
     case sizeMismatch
+    /// The bytes differ from the provider's digest; the partial file is discarded.
+    case hashMismatch
     /// The request ended before the file finished; its partial bytes are kept for a later resume.
     case interrupted
 }
@@ -216,6 +218,7 @@ private extension DeviceSyncFileRequester {
 
         markResponse(for: header.requestId)
         inFlight[header.requestId]?.files[Int(header.fileIndex)].totalSize = header.totalSize
+        inFlight[header.requestId]?.files[Int(header.fileIndex)].fileHash = header.fileHash
         inFlight[header.requestId]?.onBytes(file.writer.storedBytes())
 
         if file.writer.storedBytes() >= header.totalSize {
@@ -249,11 +252,14 @@ private extension DeviceSyncFileRequester {
     }
 
     func completeFile(_ fileIndex: UInt32, of requestId: UInt32, totalSize: UInt64) {
-        guard let file = inFlight[requestId]?.file(at: fileIndex) else { return }
+        guard let file = inFlight[requestId]?.file(at: fileIndex), let fileHash = file.fileHash else { return }
 
         do {
-            try file.writer.finish(totalSize: totalSize)
+            try file.writer.finish(totalSize: totalSize, fileHash: fileHash)
             resolveFile(fileIndex, of: requestId, with: .completed)
+        } catch DeviceSyncFileWriterError.hashMismatch {
+            logger.error("Sync file \(file.writer.filename) doesn't match the provider's digest")
+            resolveFile(fileIndex, of: requestId, with: .hashMismatch)
         } catch {
             logger.error("Sync file \(file.writer.filename) could not be finished: \(error)")
             resolveFile(fileIndex, of: requestId, with: .sizeMismatch)
@@ -286,6 +292,7 @@ private struct InFlightFile {
     let item: DeviceSyncFileRequestItem
     let writer: DeviceSyncFileWriter
     var totalSize: UInt64?
+    var fileHash: Data?
     var outcome: DeviceSyncFileRequestOutcome?
 
     init(item: DeviceSyncFileRequestItem, store: AttachmentStoring) {
