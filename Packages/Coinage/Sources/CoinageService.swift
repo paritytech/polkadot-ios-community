@@ -144,6 +144,7 @@ public actor CoinageService {
 
     // Recycling strategy evaluation — the evaluator is built lazily once the context resolves.
     private nonisolated let recyclingStrategySettings: any CoinageRecyclingStrategyProviding
+    private nonisolated let privacyConfigProvider: any CoinagePrivacyConfigProviding
     private let recyclingStrategyResolver: any RecyclingStrategyProviding
     private let ringCapacityProvider: any RingCapacityProviding
     private let preClassificator: any CoinageAssetsPreClassificating
@@ -195,6 +196,7 @@ public actor CoinageService {
         voucherLocationService: VoucherLocationService,
         recyclingService: any CoinageRecyclingServicing,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
+        privacyConfigProvider: any CoinagePrivacyConfigProviding,
         recyclingStrategyResolver: any RecyclingStrategyProviding,
         ringCapacityProvider: any RingCapacityProviding,
         preClassificator: any CoinageAssetsPreClassificating,
@@ -217,6 +219,7 @@ public actor CoinageService {
         self.voucherLocationService = voucherLocationService
         self.recyclingService = recyclingService
         self.recyclingStrategySettings = recyclingStrategySettings
+        self.privacyConfigProvider = privacyConfigProvider
         self.recyclingStrategyResolver = recyclingStrategyResolver
         self.ringCapacityProvider = ringCapacityProvider
         self.preClassificator = preClassificator
@@ -427,6 +430,7 @@ extension CoinageService: CoinageServicing {
             databaseFactory: databaseFactory,
             verdicts: evaluator.verdicts,
             settings: recyclingStrategySettings,
+            privacyConfigProvider: privacyConfigProvider,
             strategyResolver: recyclingStrategyResolver,
             ringCapacityProvider: ringCapacityProvider,
             preClassificator: preClassificator,

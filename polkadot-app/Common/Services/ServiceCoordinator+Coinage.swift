@@ -206,6 +206,7 @@ private extension ServiceCoordinator {
             incomingPaymentAcknowledger: incomingPaymentAcknowledger,
             backgroundExecutor: ConnectionRetainingExecutor(provider: chainRegistry),
             recyclingStrategySettings: CoinageRecyclingStrategyStore.shared,
+            privacyConfigProvider: CoinagePrivacyConfigStore.shared,
             personOriginProvider: coinageOriginFactory.personOriginProvider,
             viewFunctionFetcher: viewFunctionFetcher,
             installation: installation,
