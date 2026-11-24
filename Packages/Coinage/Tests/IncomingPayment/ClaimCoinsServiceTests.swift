@@ -30,6 +30,7 @@ struct ClaimCoinsServiceTests {
 
         #expect(!run.isFinished)
         #expect(rig.submitter.submittedPublicKeys.isEmpty)
+        #expect(run.detectionsSoFar == [.detecting])
         run.cancel()
     }
 
@@ -97,6 +98,25 @@ struct ClaimCoinsServiceTests {
         await rig.clock.waitForSleep(for: Self.detectionTimeout)
 
         #expect(!run.isFinished)
+        #expect(run.detectionsSoFar == [.detecting, .noCoinsOnChain])
+        run.cancel()
+    }
+
+    @Test
+    func coinAppearingAfterEmptyLookIsClaimed() async throws {
+        let rig = try Rig(windowFromNow: 60)
+        let run = rig.start()
+
+        await rig.query.waitForSubscriptions(1)
+        rig.query.send([:])
+        await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.coinPublicKey, status: .pending)
+        rig.query.send([rig.coinPublicKey: Self.coinInfo])
+        await rig.submitter.waitForSubmissions(1)
+        await run.waitForDetections(3)
+
+        #expect(run.detectionsSoFar == [.detecting, .noCoinsOnChain, .claiming])
         run.cancel()
     }
 
@@ -237,22 +257,32 @@ private extension ClaimCoinsServiceTests {
     final class ClaimRun: @unchecked Sendable {
         private let task: Task<[CoinageTransferDetection], Never>
         private let finished = OSAllocatedUnfairLock(initialState: false)
+        private let collected = OSAllocatedUnfairLock(initialState: [CoinageTransferDetection]())
+        private let arrivals = CountSignal()
 
         init(stream: AnyAsyncSequence<CoinageTransferDetection>) {
             let finished = finished
+            let collected = collected
+            let arrivals = arrivals
             task = Task {
-                var detections: [CoinageTransferDetection] = []
                 do {
                     for try await detection in stream {
-                        detections.append(detection)
+                        collected.withLock { $0.append(detection) }
+                        arrivals.increment()
                     }
                 } catch {}
                 finished.withLock { $0 = true }
-                return detections
+                return collected.withLock { $0 }
             }
         }
 
         var isFinished: Bool { finished.withLock { $0 } }
+
+        var detectionsSoFar: [CoinageTransferDetection] { collected.withLock { $0 } }
+
+        func waitForDetections(_ count: Int) async {
+            await arrivals.wait(for: count)
+        }
 
         func detections() async -> [CoinageTransferDetection] { await task.value }
 

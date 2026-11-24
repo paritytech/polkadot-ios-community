@@ -366,7 +366,7 @@ private extension Chat.LocalMessage.Content.Transfer.State {
     }
 
     var reclaimedValue: Balance? {
-        guard case let .outgoing(outgoing) = self, outgoing.status == .reclaimed else { return nil }
+        guard case let .outgoing(outgoing) = self, outgoing.status.isReclaimed else { return nil }
         return outgoing.actualValue
     }
 }

@@ -197,6 +197,9 @@ private extension ClaimCoinsService {
             let look = await awaitOnChainWithTimeout(onChain, unclaimed: unregistered)
             hasLooked = hasLooked || look.looked
             refused.formUnion(refuse(look.foreign, groupId: groupId))
+            if look.looked, look.answered.isEmpty, settled.isEmpty {
+                report(.noCoinsOnChain)
+            }
 
             logger?.debug("Claimable \(look.claimable.count) coins for group=\(groupId)")
 
@@ -232,7 +235,10 @@ private extension ClaimCoinsService {
         do {
             for try await states in txService.subscribeOperationGroupStatuses(groupId) {
                 last = states
-                try await report(toProgress(states, coins: coins, context: context))
+                // An empty group adds nothing to the opening `.detecting` and must not undo a later look.
+                if !states.isEmpty {
+                    try await report(toProgress(states, coins: coins, context: context))
+                }
                 if states.allSatisfy({ !$0.status.isLive }) { break }
             }
         } catch let error as ClaimValuationError {
@@ -386,7 +392,7 @@ private extension ClaimCoinsService {
             return try await .claimingRest(claimed: valueMinted(by: arrived, context: context))
         }
 
-        return states.isEmpty ? .detecting : .claiming
+        return .claiming
     }
 
     /// The last word, once nothing further will be attempted — the only place a shortfall may be final.

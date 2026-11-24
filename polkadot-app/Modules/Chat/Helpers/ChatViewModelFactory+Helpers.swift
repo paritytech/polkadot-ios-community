@@ -67,7 +67,7 @@ extension Chat.LocalMessage.Content.Transfer {
     var partialReclaimedValue: Balance? {
         guard
             case let .outgoing(outgoing) = state,
-            outgoing.status == .reclaimed,
+            outgoing.status.isReclaimed,
             let actualValue = outgoing.actualValue,
             actualValue != totalValue
         else {
@@ -101,7 +101,8 @@ private extension OutgoingTransferState.Status {
              .claimedFinalized: .claimed
         case .failed: .failed
         case .reclaiming: .reclaiming
-        case .reclaimed: .reclaimed(partialAmount: reclaimedAmount)
+        case .reclaimed,
+             .reclaimedFinalized: .reclaimed(partialAmount: reclaimedAmount)
         case .reclaimFailed: .reclaimFailed
         }
     }

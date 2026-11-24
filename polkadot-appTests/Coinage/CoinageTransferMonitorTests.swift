@@ -237,15 +237,39 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .incoming(claimed))
     }
 
-    @Test("a claim that gave up is returned to the sender, never failed")
-    func notClaimedIsReturned() async throws {
+    @Test("a claim that gave up inside the window is failed")
+    func notClaimedInsideWindowIsFailed() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.notClaimed])
+        let failed = IncomingTransferState(status: .failed)
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timeSource: monitorTimeSource(for: message, elapsed: insideWindow)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(failed) }
+        #expect(seen.last == .incoming(failed))
+    }
+
+    @Test("a claim that gave up after the window is returned to the sender")
+    func notClaimedAfterWindowIsReturned() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
         let message = try await world.saveTransfer(.incoming, totalValue: 10)
         let claims = MockClaimCoinsService(detections: [.notClaimed])
         let returned = IncomingTransferState(status: .returnedToSender)
 
-        let monitor = makeMonitor(world: world, claims: claims)
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
+        )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
 
@@ -253,8 +277,37 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .incoming(returned))
     }
 
-    @Test("a detecting row re-enters the incoming candidates while a returned one does not")
-    func detectingRowIsReprocessedReturnedIsNot() async throws {
+    @Test("coins absent inside the window keep the row detecting and flip it to returned when the window closes")
+    func absentCoinsFlipToReturnedAtWindowClose() async throws {
+        let world = TransferStateTestWorld()
+        try await world.setup()
+        let message = try await world.saveTransfer(.incoming, totalValue: 10)
+        let claims = MockClaimCoinsService(detections: [.noCoinsOnChain])
+        let clock = ManualClock()
+        let dateProvider = MockDateProvider(
+            now: Date.fromChatTimestamp(message.timestamp).addingTimeInterval(insideWindow)
+        )
+
+        let monitor = makeMonitor(
+            world: world,
+            claims: claims,
+            timeSource: TimeSource(clock: clock, dateProvider: dateProvider)
+        )
+        await monitor.setup()
+        defer { Task { await monitor.throttle() } }
+
+        _ = try await world.stateStream(of: message.messageId)
+            .collect { $0 == .incoming(.init(status: .detecting)) }
+        await dateProvider.advance(by: CoinageConstants.claimWindow - insideWindow)
+        await clock.resumeSleep(for: .seconds(CoinageConstants.claimWindow - insideWindow))
+
+        let returned = IncomingTransferState(status: .returnedToSender)
+        let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(returned) }
+        #expect(seen.last == .incoming(returned))
+    }
+
+    @Test("detecting and returned rows re-enter the incoming candidates while a failed one does not")
+    func detectingAndReturnedRowsAreReprocessedFailedIsNot() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
         let detecting = try await world.saveTransfer(.incoming)
@@ -267,10 +320,15 @@ struct CoinageTransferMonitorTests {
             messageId: returned.messageId,
             state: .init(status: .returnedToSender)
         )
+        let failed = try await world.saveTransfer(.incoming)
+        try await world.store.updateIncoming(
+            messageId: failed.messageId,
+            state: .init(status: .failed)
+        )
 
         let candidates = world.messageProviderFactory.subscribeMessages(with: .incomingCoinageSendMessages())
         for try await messages in candidates {
-            #expect(messages.map(\.messageId) == [detecting.messageId])
+            #expect(Set(messages.map(\.messageId)) == [detecting.messageId, returned.messageId])
             break
         }
     }
@@ -289,7 +347,7 @@ struct CoinageTransferMonitorTests {
         }
     }
 
-    @Test("a final reclaim settles the payment as reclaimed with the reclaimed value")
+    @Test("a final reclaim settles the payment as reclaimedFinalized with the reclaimed value")
     func finalReclaimSettlesReclaimed() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
@@ -299,7 +357,7 @@ struct CoinageTransferMonitorTests {
             [coin.publicKey: CoinageTransferState(coin: coin, status: .reclaiming)],
             [coin.publicKey: CoinageTransferState(coin: coin, status: .reclaimed(finalized: true))]
         ])
-        let reclaimed = OutgoingTransferState(status: .reclaimed, actualValue: context.valueInPlanks(for: 2))
+        let reclaimed = OutgoingTransferState(status: .reclaimedFinalized, actualValue: context.valueInPlanks(for: 2))
         let states = world.stateStream(of: message.messageId)
 
         let monitor = makeMonitor(
@@ -314,8 +372,8 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .outgoing(reclaimed))
     }
 
-    @Test("a reclaim that is not final yet writes reclaiming, never reclaimed")
-    func nonFinalReclaimWritesReclaiming() async throws {
+    @Test("a reclaim on the best head writes reclaimed, never reclaimedFinalized")
+    func bestHeadReclaimWritesReclaimed() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
         let message = try await world.saveTransfer(.outgoing, totalValue: 10)
@@ -333,10 +391,11 @@ struct CoinageTransferMonitorTests {
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
 
-        let reclaiming = OutgoingTransferState(status: .reclaiming)
-        let seen = try await states.collect { $0 == .outgoing(reclaiming) }
-        #expect(seen.last == .outgoing(reclaiming))
-        #expect(!seen.contains(.outgoing(.init(status: .reclaimed, actualValue: context.valueInPlanks(for: 2)))))
+        let value = context.valueInPlanks(for: 2)
+        let reclaimed = OutgoingTransferState(status: .reclaimed, actualValue: value)
+        let seen = try await states.collect { $0 == .outgoing(reclaimed) }
+        #expect(seen.last == .outgoing(reclaimed))
+        #expect(!seen.contains(.outgoing(.init(status: .reclaimedFinalized, actualValue: value))))
     }
 
     @Test("a failed reclaim of an unclaimed coin writes reclaimFailed once the window has closed")
@@ -386,7 +445,7 @@ struct CoinageTransferMonitorTests {
         #expect(seen.last == .outgoing(.init(status: .unclaimed)))
     }
 
-    @Test("reclaiming and reclaim-failed rows re-enter the outgoing candidates while a reclaimed one does not")
+    @Test("reclaiming, reclaim-failed and best-head reclaimed rows re-enter the candidates, a final one does not")
     func reclaimRowsReEnterCandidates() async throws {
         let world = TransferStateTestWorld()
         try await world.setup()
@@ -394,15 +453,20 @@ struct CoinageTransferMonitorTests {
         try await world.store.updateOutgoing(messageId: reclaiming.messageId, state: .init(status: .reclaiming))
         let failed = try await world.saveTransfer(.outgoing)
         try await world.store.updateOutgoing(messageId: failed.messageId, state: .init(status: .reclaimFailed))
+        let bestHead = try await world.saveTransfer(.outgoing)
+        try await world.store.updateOutgoing(
+            messageId: bestHead.messageId,
+            state: .init(status: .reclaimed, actualValue: 4)
+        )
         let finished = try await world.saveTransfer(.outgoing)
         try await world.store.updateOutgoing(
             messageId: finished.messageId,
-            state: .init(status: .reclaimed, actualValue: 4)
+            state: .init(status: .reclaimedFinalized, actualValue: 4)
         )
 
         let candidates = world.messageProviderFactory.subscribeMessages(with: .outgoingLocalDeviceCoinageSendMessages())
         for try await messages in candidates {
-            #expect(Set(messages.map(\.messageId)) == [reclaiming.messageId, failed.messageId])
+            #expect(Set(messages.map(\.messageId)) == [reclaiming.messageId, failed.messageId, bestHead.messageId])
             break
         }
     }

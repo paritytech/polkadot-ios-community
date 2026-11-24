@@ -12,17 +12,25 @@ struct TransferStateMappingTests {
     @Test(
         "receiver detections project onto the incoming state",
         arguments: [
-            (CoinageTransferDetection.detecting, IncomingTransferState(status: .detecting)),
-            (.claiming, IncomingTransferState(status: .claiming)),
-            (.claimingRest(claimed: 4), IncomingTransferState(status: .claiming)),
-            (.claimed(amount: 10, finalized: false), IncomingTransferState(status: .claimed, actualValue: 10)),
-            (.claimed(amount: 10, finalized: true), IncomingTransferState(status: .claimedFinalized, actualValue: 10)),
-            (.claimedPartially(claimed: 6), IncomingTransferState(status: .claimedFinalized, actualValue: 6)),
-            (.notClaimed, IncomingTransferState(status: .returnedToSender))
-        ]
+            (CoinageTransferDetection.detecting, false, IncomingTransferState(status: .detecting)),
+            (.detecting, true, IncomingTransferState(status: .detecting)),
+            (.noCoinsOnChain, false, IncomingTransferState(status: .detecting)),
+            (.noCoinsOnChain, true, IncomingTransferState(status: .returnedToSender)),
+            (.claiming, false, IncomingTransferState(status: .claiming)),
+            (.claimingRest(claimed: 4), true, IncomingTransferState(status: .claiming)),
+            (.claimed(amount: 10, finalized: false), false, IncomingTransferState(status: .claimed, actualValue: 10)),
+            (
+                .claimed(amount: 10, finalized: true),
+                true,
+                IncomingTransferState(status: .claimedFinalized, actualValue: 10)
+            ),
+            (.claimedPartially(claimed: 6), false, IncomingTransferState(status: .claimedFinalized, actualValue: 6)),
+            (.notClaimed, false, IncomingTransferState(status: .failed)),
+            (.notClaimed, true, IncomingTransferState(status: .returnedToSender))
+        ] as [(CoinageTransferDetection, Bool, IncomingTransferState)]
     )
-    func incomingMapping(detection: CoinageTransferDetection, expected: IncomingTransferState) {
-        #expect(detection.incomingState == expected)
+    func incomingMapping(detection: CoinageTransferDetection, windowClosed: Bool, expected: IncomingTransferState) {
+        #expect(detection.incomingState(windowClosed: windowClosed) == expected)
     }
 
     @Test("no coin states yet means sending")
@@ -141,13 +149,35 @@ struct TransferStateMappingTests {
         )
     }
 
-    @Test("a reclaim that is not final yet reads as reclaiming, even once the window has closed")
-    func nonFinalReclaimIsReclaiming() throws {
+    @Test("a reclaim on the best head reads as reclaimed with its value, not finalized")
+    func bestHeadReclaimIsReclaimed() throws {
+        let world = try CoinStateWorld()
+        let states = try world.states([.reclaimed(finalized: false)])
+        #expect(
+            states.outgoingState(context: world.context, windowClosed: true)
+                == OutgoingTransferState(status: .reclaimed, actualValue: world.context.valueInPlanks(for: 0))
+        )
+    }
+
+    @Test("a best-head reclaim next to a coin still awaiting after the window is unclaimed")
+    func bestHeadReclaimWithAwaitingAfterWindowIsUnclaimed() throws {
         let world = try CoinStateWorld()
         let states = try world.states([.reclaimed(finalized: false), .awaitingClaim(finalized: false)])
         #expect(
             states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaiming)
+                == OutgoingTransferState(status: .unclaimed)
+        )
+    }
+
+    @Test("a reclaim final on one coin but not another is reclaimed, not finalized")
+    func mixedReclaimFinalityIsReclaimed() throws {
+        let world = try CoinStateWorld()
+        let states = try world.states([.reclaimed(finalized: true), .reclaimed(finalized: false)])
+
+        let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 1)
+        #expect(
+            states.outgoingState(context: world.context, windowClosed: false)
+                == OutgoingTransferState(status: .reclaimed, actualValue: expectedValue)
         )
     }
 
@@ -173,7 +203,7 @@ struct TransferStateMappingTests {
         let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 2)
         #expect(
             states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaimed, actualValue: expectedValue)
+                == OutgoingTransferState(status: .reclaimedFinalized, actualValue: expectedValue)
         )
     }
 
@@ -244,13 +274,14 @@ struct TransferStateMappingTests {
         #expect(!OutgoingTransferState.Status.sent.isTerminal)
         #expect(!OutgoingTransferState.Status.sentFinalized.isTerminal)
         #expect(!OutgoingTransferState.Status.claimed.isTerminal)
-        #expect(IncomingTransferState.Status.returnedToSender.isTerminal)
+        #expect(!IncomingTransferState.Status.returnedToSender.isTerminal)
         #expect(!OutgoingTransferState.Status.unclaimed.isTerminal)
     }
 
-    @Test("reclaimed is terminal while reclaiming and reclaimFailed are not")
+    @Test("only a finalized reclaim is terminal")
     func reclaimStatusesTerminal() {
-        #expect(OutgoingTransferState.Status.reclaimed.isTerminal)
+        #expect(OutgoingTransferState.Status.reclaimedFinalized.isTerminal)
+        #expect(!OutgoingTransferState.Status.reclaimed.isTerminal)
         #expect(!OutgoingTransferState.Status.reclaiming.isTerminal)
         #expect(!OutgoingTransferState.Status.reclaimFailed.isTerminal)
     }

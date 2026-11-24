@@ -16,10 +16,8 @@ protocol CoinageTransferMonitoring: AsyncApplicationServicing {}
 final class CoinageTransferMonitor {
     typealias DenominationContextProvider = @Sendable () async throws -> DenominationBreakdownContext
 
-    private let claimCoinsService: any ClaimCoinsServicing
+    private let incoming: IncomingDependencies
     private let outgoing: OutgoingDependencies
-    private let denominationContext: DenominationContextProvider
-    private let transferStateStore: any TransferStateStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
     private let logger: LoggerProtocol
 
@@ -41,10 +39,14 @@ final class CoinageTransferMonitor {
         timeSource: TimeSource = .live,
         logger: LoggerProtocol = Logger.shared
     ) {
-        self.claimCoinsService = claimCoinsService
-        self.denominationContext = denominationContext
-        self.transferStateStore = transferStateStore
         self.logger = logger
+        incoming = IncomingDependencies(
+            claimCoinsService: claimCoinsService,
+            denominationContext: denominationContext,
+            transferStateStore: transferStateStore,
+            logger: logger,
+            timeSource: timeSource
+        )
         outgoing = OutgoingDependencies(
             transferStatusService: transferStatusService,
             denominationContext: denominationContext,
@@ -108,19 +110,20 @@ private extension CoinageTransferMonitor {
 
         let memo = content.transferMemo
         let storedState = content.storedIncomingState
+        let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
 
-        let task = Task { [claimCoinsService, denominationContext, transferStateStore, taskRegistry, logger] in
+        let task = Task { [incoming, taskRegistry] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
-                let context = try await denominationContext()
+                let context = try await incoming.denominationContext()
 
                 // Anchored to this device's first attempt so two devices' clocks never decide the window.
-                let claimAnchor = try await transferStateStore.beginIncoming(messageId: messageId)
+                let claimAnchor = try await incoming.transferStateStore.beginIncoming(messageId: messageId)
                 let retryUntil = CoinageConstants.claimRetryWindow.map(claimAnchor.addingTimeInterval) ?? .distantFuture
 
-                logger.debug("Starting processing incoming coinage message=\(messageId)")
+                incoming.logger.debug("Starting processing incoming coinage message=\(messageId)")
 
-                let detections = claimCoinsService.claim(
+                let detections = incoming.claimCoinsService.claim(
                     coinKeys: memo.entries,
                     groupId: messageId,
                     retryUntil: retryUntil,
@@ -129,12 +132,17 @@ private extension CoinageTransferMonitor {
                 let feed = IncomingFeed(
                     messageId: messageId,
                     detections: detections,
-                    store: transferStateStore
+                    windowEvents: incoming.timeSource.fires(at: closesAt),
+                    store: incoming.transferStateStore
                 )
-                try await CoinageTransferMonitor.followIncoming(feed, storedState: storedState)
+                try await CoinageTransferMonitor.followIncoming(
+                    feed,
+                    storedState: storedState,
+                    isWindowClosed: incoming.timeSource.dateProvider.read() >= closesAt
+                )
             } catch {
                 // Not a status: the message is retried on the next snapshot or launch.
-                logger.error("Failed to claim coinage for \(messageId): \(error)")
+                incoming.logger.error("Failed to claim coinage for \(messageId): \(error)")
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
@@ -142,28 +150,46 @@ private extension CoinageTransferMonitor {
 }
 
 private extension CoinageTransferMonitor {
-    /// The claim's detections for one incoming message.
+    /// The claim's detections and the window's close, for one incoming message.
     struct IncomingFeed {
         let messageId: Chat.MessageId
         let detections: AnyAsyncSequence<CoinageTransferDetection>
+        /// Merged with the detections so the state is recomputed at close even when the claim reports nothing then.
+        let windowEvents: AsyncStream<Void>
         let store: any TransferStateStoring
     }
 
     static func followIncoming(
         _ feed: IncomingFeed,
-        storedState: IncomingTransferState?
+        storedState: IncomingTransferState?,
+        isWindowClosed: Bool
     ) async throws {
+        var windowClosed = isWindowClosed
+        var lastDetection: CoinageTransferDetection?
         var lastState = storedState
-        for try await detection in feed.detections {
-            let state = detection.incomingState
+        let events = merge(
+            feed.detections.map { IncomingMonitorEvent.detection($0) },
+            feed.windowEvents.map { _ in IncomingMonitorEvent.windowClosed }
+        )
+        for try await event in events {
+            switch event {
+            case let .detection(detection): lastDetection = detection
+            case .windowClosed: windowClosed = true
+            }
+            guard let state = lastDetection?.incomingState(windowClosed: windowClosed) else { continue }
             if state != lastState {
                 lastState = state
                 try await feed.store.updateIncoming(messageId: feed.messageId, state: state)
             }
-            // Without this the loop would wait out the window after the claim's last word.
-            if detection.isLastWord, state.isTerminal { break }
+            if state.isTerminal { break }
         }
     }
+}
+
+/// One input to the incoming loop: a claim detection or the one-time close of the claim window.
+private enum IncomingMonitorEvent: Sendable {
+    case detection(CoinageTransferDetection)
+    case windowClosed
 }
 
 // MARK: - Outgoing (payment status)
@@ -277,6 +303,14 @@ private extension CoinageTransferMonitor {
             if coinStates.isSettled { break }
         }
     }
+}
+
+private struct IncomingDependencies {
+    let claimCoinsService: any ClaimCoinsServicing
+    let denominationContext: CoinageTransferMonitor.DenominationContextProvider
+    let transferStateStore: any TransferStateStoring
+    let logger: LoggerProtocol
+    let timeSource: TimeSource
 }
 
 private struct OutgoingDependencies {

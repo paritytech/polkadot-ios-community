@@ -4,13 +4,16 @@ import Foundation
 import SubstrateSdk
 
 extension CoinageTransferDetection {
-    /// A chat claim only gives up after its retry window, so a give-up always reads as expired.
-    /// `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
-    /// `claimedPartially` is a verdict reached only after every claim entry settled, so it is final.
-    var incomingState: IncomingTransferState {
+    /// Absent coins and a claim that gave up both read as returned to the sender once the window has closed;
+    /// inside it absence is still `detecting` and a give-up is `failed`. `claimingRest` is plain `claiming`:
+    /// the claimed-so-far amount is deliberately not persisted. `claimedPartially` is a verdict reached only
+    /// after every claim entry settled, so it is final.
+    func incomingState(windowClosed: Bool) -> IncomingTransferState {
         switch self {
         case .detecting:
             IncomingTransferState(status: .detecting)
+        case .noCoinsOnChain:
+            IncomingTransferState(status: windowClosed ? .returnedToSender : .detecting)
         case .claiming,
              .claimingRest:
             IncomingTransferState(status: .claiming)
@@ -19,7 +22,7 @@ extension CoinageTransferDetection {
         case let .claimedPartially(claimed):
             IncomingTransferState(status: .claimedFinalized, actualValue: claimed)
         case .notClaimed:
-            IncomingTransferState(status: .returnedToSender)
+            IncomingTransferState(status: windowClosed ? .returnedToSender : .failed)
         }
     }
 }
@@ -34,8 +37,8 @@ extension [PublicKey: CoinageTransferState] {
         let claimed = states.filter { if case .claimed = $0.status { true } else { false } }
         let awaiting = states.filter { if case .awaitingClaim = $0.status { true } else { false } }
         let outstanding = states.filter(\.status.isOutstanding)
-        let reclaiming = states.filter { $0.status == .reclaiming || $0.status == .reclaimed(finalized: false) }
-        let reclaimed = states.filter { $0.status == .reclaimed(finalized: true) }
+        let reclaiming = states.filter { $0.status == .reclaiming }
+        let reclaimed = states.filter { if case .reclaimed = $0.status { true } else { false } }
         let reclaimFailed = states.filter { $0.status == .reclaimFailed }
 
         if !reclaiming.isEmpty {
@@ -48,8 +51,7 @@ extension [PublicKey: CoinageTransferState] {
             return OutgoingTransferState(status: .unclaimed)
         }
         if !reclaimed.isEmpty {
-            let amount = reclaimed.reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.coin.exponent) }
-            return OutgoingTransferState(status: .reclaimed, actualValue: amount)
+            return reclaimed.reclaimedState(context: context)
         }
         if !outstanding.isEmpty {
             guard !awaiting.isEmpty || !claimed.isEmpty else { return OutgoingTransferState(status: .sending) }
@@ -65,6 +67,14 @@ extension [PublicKey: CoinageTransferState] {
     /// Settled once every coin is terminal; a reclaim that is not final keeps the payment open.
     var isSettled: Bool {
         !isEmpty && values.allSatisfy(\.status.isTerminal)
+    }
+}
+
+private extension [CoinageTransferState] {
+    func reclaimedState(context: DenominationBreakdownContext) -> OutgoingTransferState {
+        let amount = reduce(Balance(0)) { $0 + context.valueInPlanks(for: $1.coin.exponent) }
+        let everyReclaimFinal = allSatisfy { $0.status == .reclaimed(finalized: true) }
+        return OutgoingTransferState(status: everyReclaimFinal ? .reclaimedFinalized : .reclaimed, actualValue: amount)
     }
 }
 
