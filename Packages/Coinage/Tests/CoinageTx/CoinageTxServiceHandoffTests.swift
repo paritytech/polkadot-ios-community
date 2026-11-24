@@ -110,7 +110,7 @@ private extension CoinageTxServiceHandoffTests {
 
     func makeSchedulingService(repository: MockCoinageTxRepository) -> CoinageTxService {
         CoinageTxService(
-            engine: StoreSchedulingEngine(store: repository.durable),
+            engine: InMemorySchedulingEngine(store: repository.durable),
             ledger: repository.ledger,
             logger: nil
         )
