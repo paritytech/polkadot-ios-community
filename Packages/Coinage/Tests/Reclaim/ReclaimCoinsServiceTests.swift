@@ -1,4 +1,6 @@
+import AsyncExtensions
 import Foundation
+import FoundationExt
 import FoundationExtTestSupport
 import NovaCrypto
 import SubstrateSdk
@@ -89,6 +91,25 @@ struct ReclaimCoinsServiceTests {
         #expect(harness.txService.scheduledRequests.isEmpty)
         #expect(await harness.allocator.mintedCoins.isEmpty)
     }
+
+    @Test("a reclaim already being scheduled for the group is not scheduled twice, a later one is")
+    func inFlightReclaimIsNotRepeated() async throws {
+        let coin = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true)
+        let gate = GatedDateProvider(now)
+        let harness = makeHarness(tracked: [coin], dateProvider: gate)
+
+        let first = Task { try await harness.sut.reclaim(coinKeys: [coin.secret], groupId: group) }
+        await gate.waitForReader()
+        try await harness.sut.reclaim(coinKeys: [coin.secret], groupId: group)
+        #expect(await harness.allocator.mintedCoins.isEmpty)
+
+        gate.open()
+        try await first.value
+        #expect(harness.txService.scheduledRequests.count == 1)
+
+        try await harness.sut.reclaim(coinKeys: [coin.secret], groupId: group)
+        #expect(harness.txService.scheduledRequests.count == 2)
+    }
 }
 
 private extension ReclaimCoinsServiceTests {
@@ -135,7 +156,11 @@ private extension ReclaimCoinsServiceTests {
         return FakeCoin(secret: secret, publicKey: publicKey, tracked: TrackedCoin(coin: coin, state: state))
     }
 
-    func makeHarness(tracked: [FakeCoin], store: MockCoinageTxRepository = MockCoinageTxRepository()) -> Harness {
+    func makeHarness(
+        tracked: [FakeCoin],
+        store: MockCoinageTxRepository = MockCoinageTxRepository(),
+        dateProvider: (any DateProviding)? = nil
+    ) -> Harness {
         let databaseFactory = StubDatabaseDependencyFactory()
         databaseFactory.trackedCoins.send(tracked.map(\.tracked))
 
@@ -146,10 +171,39 @@ private extension ReclaimCoinsServiceTests {
             databaseFactory: databaseFactory,
             minter: allocator,
             snKeyFactory: snKeyFactory,
-            dateProvider: FixedDateProvider(now),
+            dateProvider: dateProvider ?? FixedDateProvider(now),
             logger: nil
         )
 
         return Harness(sut: sut, txService: txService, allocator: allocator)
+    }
+}
+
+/// Holds every reader until `open()`, so a reclaim can be caught between its coin fetch and its mint.
+private final class GatedDateProvider: DateProviding, @unchecked Sendable {
+    private let date: Date
+    private let isOpen = AsyncCurrentValueSubject<Bool>(false)
+    private let readers = AsyncCurrentValueSubject<Int>(0)
+
+    init(_ date: Date) {
+        self.date = date
+    }
+
+    func read() async -> Date {
+        readers.send(readers.value + 1)
+        for await open in isOpen where open {
+            break
+        }
+        return date
+    }
+
+    func open() {
+        isOpen.send(true)
+    }
+
+    func waitForReader() async {
+        for await count in readers where count > 0 {
+            break
+        }
     }
 }

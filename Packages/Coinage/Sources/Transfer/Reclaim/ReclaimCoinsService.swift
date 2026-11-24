@@ -11,11 +11,14 @@ import SubstrateSdk
 /// Decides only which coins are reclaimable. When the claim window has closed is the caller's call.
 public protocol ReclaimCoinsServicing: Sendable {
     /// Schedules a reclaim of every coin of the payment still unclaimed. Returns once they are registered,
-    /// not once they settle. Schedules nothing when no coin qualifies.
+    /// not once they settle. Schedules nothing when no coin qualifies, or while a reclaim of `groupId` is
+    /// already being scheduled.
     func reclaim(coinKeys: [Data], groupId: CoinageTxGroupId) async throws
 }
 
-public final class ReclaimCoinsService: ReclaimCoinsServicing, @unchecked Sendable {
+public actor ReclaimCoinsService: ReclaimCoinsServicing {
+    private var inFlight: Set<CoinageTxGroupId> = []
+
     private let txService: any CoinageTxServicing
     private let databaseFactory: any DatabaseDependencyFactoring
     private let minter: any CoinMinting
@@ -40,6 +43,12 @@ public final class ReclaimCoinsService: ReclaimCoinsServicing, @unchecked Sendab
     }
 
     public func reclaim(coinKeys: [Data], groupId: CoinageTxGroupId) async throws {
+        guard inFlight.insert(groupId).inserted else {
+            logger?.debug("Reclaim already in flight group=\(groupId)")
+            return
+        }
+        defer { inFlight.remove(groupId) }
+
         let keys = coinKeys.compactMap { try? snKeyFactory.createPublicKey(fromSecret: $0).rawData() }
         let tracked = try await databaseFactory.makeTrackedCoinRepository(publicKeys: keys)
             .fetchAllOperation(with: RepositoryFetchOptions())
