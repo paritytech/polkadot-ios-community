@@ -82,8 +82,6 @@ extension VoucherLocationMapper: CoreDataMapperProtocol {
 }
 
 private extension VoucherLocationMapper {
-    /// A delivered count is written. An undelivered count keeps the stored value within the same
-    /// ring and becomes unknown in a new ring.
     func populateUnloaded(
         entity: CoreDataEntity,
         from model: DataProviderModel,

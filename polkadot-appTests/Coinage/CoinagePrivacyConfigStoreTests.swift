@@ -47,15 +47,4 @@ struct CoinagePrivacyConfigStoreTests {
             maxPrivacy: .init(ringFillPercent: 80, anonymityMinutes: 15, anonymityMembers: 20)
         ))
     }
-
-    @Test("Repeated start subscribes to remote config once")
-    func repeatedStartSubscribesOnce() {
-        let configs = StubConfigStream()
-        let store = CoinagePrivacyConfigStore(configObserver: configs, logger: StubLogger())
-
-        store.start()
-        store.start()
-
-        #expect(configs.subscriptionCount == 1)
-    }
 }

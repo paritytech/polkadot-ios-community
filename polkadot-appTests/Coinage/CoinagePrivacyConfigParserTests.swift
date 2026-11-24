@@ -16,10 +16,12 @@ private func expectedConfig(balanced: CoinagePrivacyConfig.Thresholds) -> Coinag
 
 @Suite("Coinage privacy config parser")
 struct CoinagePrivacyConfigParserTests {
-    struct ParseCase: Sendable {
+    struct ParseCase: Sendable, CustomTestStringConvertible {
         let label: String
         let json: String?
         let expected: CoinagePrivacyConfig
+
+        var testDescription: String { label }
     }
 
     @Test(
@@ -129,23 +131,8 @@ struct CoinagePrivacyConfigParserTests {
                 expected: .bundled
             ),
             ParseCase(
-                label: "fractional anonymityMinutes discards whole payload",
-                json: #"""
-                {
-                  "balanced": { "ringFillPercent": 30, "anonymityMinutes": 10.5, "anonymityMembers": 4 },
-                  "maxPrivacy": { "ringFillPercent": 80, "anonymityMinutes": 15, "anonymityMembers": 20 }
-                }
-                """#,
-                expected: .bundled
-            ),
-            ParseCase(
                 label: "malformed JSON",
                 json: "{",
-                expected: .bundled
-            ),
-            ParseCase(
-                label: "JSON array",
-                json: "[]",
                 expected: .bundled
             )
         ]

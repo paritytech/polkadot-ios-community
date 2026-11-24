@@ -17,7 +17,6 @@ public extension RecyclingStrategyType {
 
     /// Resolves the preset into concrete parameters. `forcedRecyclingAge` is the chain ceiling
     /// (`getCoinRecyclingAge()` = `coinMaxAge - 2`), the anchor the presets are expressed against.
-    /// Balanced and Max take their voucher release thresholds from `privacyConfig`; Min ignores it.
     func params(forcedRecyclingAge: Int16, privacyConfig: CoinagePrivacyConfig) -> RecyclingParams {
         switch self {
         case .minPrivacy:

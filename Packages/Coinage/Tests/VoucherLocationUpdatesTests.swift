@@ -4,9 +4,6 @@ import Foundation_iOS
 import Individuality
 @testable import Coinage
 
-/// Covers `VoucherLocationService.updates` — the join that attaches a ring's delivered unloaded count to
-/// the in-recycler location, independent of capacity, and attaches fungibility only when both the count
-/// and the denomination's capacity are known.
 @Suite("VoucherLocationService.updates")
 struct VoucherLocationUpdatesTests {
     private let enteredAt = Date(timeIntervalSince1970: 1_000)
@@ -48,35 +45,34 @@ struct VoucherLocationUpdatesTests {
         #expect(recycler.enteredAt == enteredAt)
     }
 
-    @Test("A delivered count is carried even when ring capacity is unknown")
-    func unloadedCountCarriedWithoutCapacity() throws {
+    struct ScoreCase: Sendable {
+        let capacities: [Int16: Int]
+        let expectedCurrent: UInt8?
+        let expectedMaximum: UInt8?
+    }
+
+    @Test(
+        "A delivered count is carried regardless of capacity; scores need a known capacity",
+        arguments: [
+            ScoreCase(capacities: [:], expectedCurrent: nil, expectedMaximum: nil),
+            ScoreCase(capacities: [5: 10], expectedCurrent: 17, expectedMaximum: 96)
+        ]
+    )
+    func scoresNeedKnownCapacity(_ testCase: ScoreCase) throws {
         // Given
         let location = Voucher.OnChainState.inRecycler(.init(index: 5, membersCount: 3, enteredAt: enteredAt))
 
         // When
         let update = try #require(resolveUpdate(
             location: location,
-            unloadedCounts: [0: .defined(3)],
-            capacities: [:]
+            unloadedCounts: [0: .defined(2)],
+            capacities: testCase.capacities
         ))
 
         // Then
-        #expect(update.remoteState.recycler?.unloadedCount == 3)
-        #expect(update.recyclerFungibility == nil)
-        #expect(update.maxRecyclerFungibility == nil)
-    }
-
-    @Test("Fungibility is attached only with a delivered count and a known capacity")
-    func fungibilityAttachedWithCountAndCapacity() throws {
-        // Given
-        let location = Voucher.OnChainState.inRecycler(.init(index: 5, membersCount: 3, enteredAt: enteredAt))
-
-        // When
-        let update = try #require(resolveUpdate(location: location, unloadedCounts: [0: .defined(2)]))
-
-        // Then
-        #expect(update.recyclerFungibility != nil)
-        #expect(update.maxRecyclerFungibility != nil)
+        #expect(update.remoteState.recycler?.unloadedCount == 2)
+        #expect(update.recyclerFungibility == testCase.expectedCurrent)
+        #expect(update.maxRecyclerFungibility == testCase.expectedMaximum)
     }
 
     @Test("A non-recycler location passes through with no scores even when a count is delivered")

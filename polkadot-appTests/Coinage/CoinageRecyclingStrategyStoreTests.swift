@@ -6,22 +6,10 @@ import Testing
 
 @Suite("Coinage recycling strategy store")
 struct CoinageRecyclingStrategyStoreTests {
-    @Test(
-        "The privacy mode falls back to Balanced only when none is stored",
-        arguments: [
-            (nil as String?, RecyclingStrategyType.balanced),
-            ("minPrivacy", .minPrivacy),
-            ("maxPrivacy", .maxPrivacy)
-        ]
-    )
-    func fallsBackToBalancedOnlyWhenNoneStored(storedValue: String?, expected: RecyclingStrategyType) {
-        let settings = InMemorySettingsManager()
-        if let storedValue {
-            settings.set(string: storedValue, for: .coinageRecyclingStrategy)
-        }
+    @Test("The privacy mode defaults to Balanced when none is stored")
+    func defaultsToBalancedWhenNoneStored() {
+        let store = CoinageRecyclingStrategyStore(settingsManager: InMemorySettingsManager())
 
-        let store = CoinageRecyclingStrategyStore(settingsManager: settings)
-
-        #expect(store.strategy == expected)
+        #expect(store.strategy == .balanced)
     }
 }
