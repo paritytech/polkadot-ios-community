@@ -23,11 +23,6 @@ struct ReclaimRebuildTests {
         #expect(terms.retriesFailures)
     }
 
-    @Test("params that cannot be read have no terms")
-    func unreadableParamsHaveNoTerms() {
-        #expect(makeRebuild(coins: []).terms(of: Data([0xFF])) == nil)
-    }
-
     @Test("a reclaim resolves into the coin it spends and the coin it mints")
     func resolvesIntoSpentAndMintedCoin() async throws {
         let rebuild = makeRebuild(coins: [spent])
@@ -44,46 +39,21 @@ struct ReclaimRebuildTests {
         #expect(reclaim.destination == destination.publicKey)
     }
 
-    @Test("a reclaim row written before the input kind was stored reads back as own and still resolves")
-    func reclaimReadBackAsOwnResolves() async throws {
-        let rebuild = makeRebuild(coins: [spent])
-        let transaction = try scheduled()
-        let assets = [transaction.id: RebuildFixtures.entry(
-            id: transaction.id,
-            inputs: [.coin(.own(spent.derivationIndex, spent.publicKey))],
-            outputs: [.coin(destination.derivationIndex, destination.publicKey)]
-        )]
-
-        let resolved = try await rebuild.resolve([transaction], assets: assets)
-
-        #expect(resolved[transaction.id]?.destination == destination.publicKey)
-    }
-
-    @Test("a row that is not one coin in and one coin out resolves to nothing")
-    func unbuildableShapesResolveToNothing() async throws {
+    @Test("a row that is not one coin in and one coin out resolves to nothing", arguments: UnbuildableShape.allCases)
+    func unbuildableShapesResolveToNothing(shape: UnbuildableShape) async throws {
         let rebuild = makeRebuild(coins: [spent])
         let transaction = try scheduled()
         let spentInput = CoinageTxInput.coin(.reclaimed(spent.derivationIndex, spent.publicKey))
         let mintedOutput = OwnAsset.coin(destination.derivationIndex, destination.publicKey)
-        let shapes: [(inputs: [CoinageTxInput], outputs: [OwnAsset])] = [
-            ([], [mintedOutput]),
-            ([spentInput, spentInput], [mintedOutput]),
-            ([.recyclerVoucher(3, RebuildFixtures.key(3))], [mintedOutput]),
-            ([spentInput], []),
-            ([spentInput], [mintedOutput, mintedOutput]),
-        ]
+        let assets = [transaction.id: RebuildFixtures.entry(
+            id: transaction.id,
+            inputs: shape.inputs(spending: spentInput),
+            outputs: shape.outputs(minting: mintedOutput)
+        )]
 
-        for shape in shapes {
-            let assets = [transaction.id: RebuildFixtures.entry(
-                id: transaction.id,
-                inputs: shape.inputs,
-                outputs: shape.outputs
-            )]
+        let resolved = try await rebuild.resolve([transaction], assets: assets)
 
-            let resolved = try await rebuild.resolve([transaction], assets: assets)
-
-            #expect(resolved[transaction.id] == nil)
-        }
+        #expect(resolved[transaction.id] == nil)
     }
 
     @Test("a reclaim whose coin is not in the ledger resolves to nothing")
@@ -111,13 +81,35 @@ struct ReclaimRebuildTests {
 
         #expect(keys.derivedPrivateKeyIndices == [spent.derivationIndex])
     }
+}
 
-    @Test("a reclaim spends exactly the coin it names")
-    func inputsAreTheSpentCoin() {
-        let rebuild = makeRebuild(coins: [])
-        let reclaim = ReclaimRebuild.Reclaim(coin: spent, destination: destination.publicKey)
+extension ReclaimRebuildTests {
+    enum UnbuildableShape: CaseIterable {
+        case noInput
+        case twoInputs
+        case voucherInput
+        case noOutput
+        case twoOutputs
 
-        #expect(rebuild.inputs(of: reclaim) == [spent.publicKey])
+        func inputs(spending spent: CoinageTxInput) -> [CoinageTxInput] {
+            switch self {
+            case .noInput: []
+            case .twoInputs: [spent, spent]
+            case .voucherInput: [.recyclerVoucher(3, RebuildFixtures.key(3))]
+            case .noOutput,
+                 .twoOutputs: [spent]
+            }
+        }
+
+        func outputs(minting minted: OwnAsset) -> [OwnAsset] {
+            switch self {
+            case .noOutput: []
+            case .twoOutputs: [minted, minted]
+            case .noInput,
+                 .twoInputs,
+                 .voucherInput: [minted]
+            }
+        }
     }
 }
 

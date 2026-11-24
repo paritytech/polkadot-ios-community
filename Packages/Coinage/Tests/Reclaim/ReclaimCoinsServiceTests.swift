@@ -29,36 +29,26 @@ struct ReclaimCoinsServiceTests {
         #expect(requests.first?.inputs == [.coin(.reclaimed(1, eligible.publicKey))])
     }
 
-    @Test("a reclaim mints its destination at the reclaimed coin's exponent")
-    func destinationKeepsExponent() async throws {
-        let coin = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true, exponent: 5)
-        let harness = makeHarness(tracked: [coin])
-
-        try await harness.sut.reclaim(coinKeys: [coin.secret], groupId: group)
-
-        let minted = await harness.allocator.mintedCoins
-        #expect(minted.map(\.exponent) == [5])
-        #expect(harness.txService.scheduledRequests.first?.outputs == minted.map {
-            OwnAsset.coin($0.derivationIndex, $0.publicKey)
-        })
-    }
-
-    @Test("the destination adds one transfer hop of the bundle size and keeps the parent's chain")
-    func destinationProvenance() async throws {
-        let first = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true, hops: [.split(fanout: 2)])
-        let second = try makeCoin(seed: 2, index: 2, handoff: .committed, onChain: true, hops: [.split(fanout: 2)])
+    @Test("each destination keeps its coin's exponent and chain, plus one transfer hop of the bundle size")
+    func destinationMintsLikeItsCoin() async throws {
+        let parentHops: [Hop] = [.split(fanout: 2)]
+        let first = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true, exponent: 5, hops: parentHops)
+        let second = try makeCoin(seed: 2, index: 2, handoff: .committed, onChain: true, exponent: 3, hops: parentHops)
         let harness = makeHarness(tracked: [first, second])
 
         try await harness.sut.reclaim(coinKeys: [first.secret, second.secret], groupId: group)
 
         let minted = await harness.allocator.mintedCoins
-        #expect(minted.count == 2)
+        #expect(minted.map(\.exponent) == [5, 3])
         #expect(minted.allSatisfy { $0.hops == [.split(fanout: 2), .transfer(bundleSize: 2)] })
         #expect(minted.allSatisfy { $0.recyclerFungibility == first.coin.recyclerFungibility })
+        #expect(harness.txService.scheduledRequests.flatMap(\.outputs) == minted.map {
+            OwnAsset.coin($0.derivationIndex, $0.publicKey)
+        })
     }
 
-    @Test("the reclaim is scheduled under the reclaim policy and retried until its window closes")
-    func policyWindow() async throws {
+    @Test("the reclaim is scheduled under the reclaim policy and group, retried until its window closes")
+    func scheduledUnderReclaimPolicyAndGroup() async throws {
         let coin = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true)
         let harness = makeHarness(tracked: [coin])
 
@@ -69,15 +59,6 @@ struct ReclaimCoinsServiceTests {
         let params = try CoinageSubmissionParams.decodeTransfer(policy.params)
         #expect(params.buildUntil == now.addingTimeInterval(CoinageConstants.reclaimRetryWindow))
         #expect(params.retryFailures)
-    }
-
-    @Test("the reclaims are scheduled under the group they were asked for")
-    func groupIdPassesThrough() async throws {
-        let coin = try makeCoin(seed: 1, index: 1, handoff: .committed, onChain: true)
-        let harness = makeHarness(tracked: [coin])
-
-        try await harness.sut.reclaim(coinKeys: [coin.secret], groupId: group)
-
         #expect(harness.txService.scheduledGroupIds == [group])
     }
 

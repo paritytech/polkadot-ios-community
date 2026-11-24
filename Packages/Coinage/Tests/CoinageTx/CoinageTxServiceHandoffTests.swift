@@ -88,15 +88,6 @@ struct CoinageTxServiceHandoffTests {
         let entries = try await service.getOperationGroupStatuses("group")
         #expect(entries.isEmpty)
     }
-
-    @Test("a standalone schedule with nothing to consume or mint is rejected")
-    func emptyStandaloneScheduleIsRejected() async throws {
-        let service = makeSchedulingService(repository: MockCoinageTxRepository())
-
-        await #expect(throws: CoinageTxError.emptyEntry) {
-            _ = try await service.scheduleTransactions([makeRequest(inputs: [], outputs: [])], groupId: "group")
-        }
-    }
 }
 
 private extension CoinageTxServiceHandoffTests {

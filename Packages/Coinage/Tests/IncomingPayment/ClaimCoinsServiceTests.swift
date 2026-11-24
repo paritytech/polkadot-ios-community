@@ -111,9 +111,11 @@ struct ClaimCoinsServiceTests {
         rig.query.send([:])
         await rig.clock.resumeSleep(for: Self.detectionTimeout)
         await rig.clock.waitForSleep(for: Self.detectionTimeout)
-        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.coinPublicKey, status: .pending)
         rig.query.send([rig.coinPublicKey: Self.coinInfo])
         await rig.submitter.waitForSubmissions(1)
+        // Stands in for the entry the submission would have registered; seeded only once the look has
+        // been consumed, so the loop cannot read a live entry before it submits.
+        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.coinPublicKey, status: .pending)
         await run.waitForDetections(3)
 
         #expect(run.detectionsSoFar == [.detecting, .noCoinsOnChain, .claiming])
@@ -137,7 +139,7 @@ struct ClaimCoinsServiceTests {
     }
 
     @Test
-    func priorClaimEndsClaimedPartially() async throws {
+    func emptyLookWithSettledClaimDoesNotReportNoCoinsOnChain() async throws {
         let rig = try Rig(windowFromNow: -1, coinCount: 2)
         rig.txService.seedClaim(
             "claim-coins-test",
@@ -151,6 +153,7 @@ struct ClaimCoinsServiceTests {
         await rig.clock.resumeSleep(for: Self.detectionTimeout)
         let detections = await run.detections()
 
+        #expect(!detections.contains(.noCoinsOnChain))
         #expect(detections.last == .claimedPartially(claimed: 0))
     }
 

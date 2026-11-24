@@ -37,20 +37,6 @@ struct CoinageSubmissionParamsTests {
         #expect(decoded.retryFailures == retryFailures)
     }
 
-    @Test("a reclaim's params round-trip, retry flag included")
-    func reclaimRoundTrips() throws {
-        let params = TransferSubmissionParams(
-            buildUntil: Date(timeIntervalSince1970: 1_700_000_000),
-            retryFailures: true
-        )
-
-        let decoded = try CoinageSubmissionParams.decodeTransfer(
-            CoinageSubmissionParams.reclaimPolicy(params).params
-        )
-
-        #expect(decoded == params)
-    }
-
     @Test("a claim's params round-trip, key included")
     func claimRoundTrips() throws {
         let params = ClaimSubmissionParams(
@@ -109,7 +95,7 @@ struct CoinageSubmissionParamsTests {
         #expect(try CoinageSubmissionParams.reclaimPolicy(transfer).id == CoinageSubmissionParams.reclaimPolicyId)
     }
 
-    @Test("split and unload share one encoding, so a row of either reads back the same")
+    @Test("split, unload and reclaim share one encoding, so a row of any reads back the same")
     func transferEncodingIsShared() throws {
         let params = TransferSubmissionParams(
             buildUntil: Date(timeIntervalSince1970: 1_700_000_000),
@@ -118,8 +104,10 @@ struct CoinageSubmissionParamsTests {
 
         let split = try CoinageSubmissionParams.splitPolicy(params).params
         let unload = try CoinageSubmissionParams.unloadPolicy(params).params
+        let reclaim = try CoinageSubmissionParams.reclaimPolicy(params).params
 
         #expect(split == unload)
+        #expect(split == reclaim)
     }
 
     @Test("params that cannot be read throw rather than yielding a wrong deadline")

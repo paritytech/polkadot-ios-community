@@ -5,29 +5,30 @@ import Testing
 
 @testable import polkadot_app
 
+/// The coin link alone cannot tell a reclaim from an own spend; the stored kind must survive the round trip.
 @Suite("Coinage reclaim ledger")
 struct CoinageReclaimLedgerTests {
-    @Test("a reclaimed input of a handed-off coin reads back as reclaimed")
-    func reclaimedInputReadsBackAsReclaimed() async throws {
-        let world = try await CoinageLedgerWorld()
-        try await world.precommit([world.coin(1)])
-        let reclaimed = CoinageTxInput.coin(.reclaimed(CoinageLedgerWorld.keyIndex(1), CoinageLedgerWorld.coinKey(1)))
-
-        try await world.ledger.register([registration(inputs: [reclaimed], groupId: world.messageId)])
-
-        let entry = try #require(try await world.scheduledEntries().first)
-        #expect(entry.inputs == [reclaimed])
+    enum InputKind: CaseIterable {
+        case own
+        case reclaimed
     }
 
-    @Test("an own input reads back as own")
-    func ownInputReadsBackAsOwn() async throws {
+    @Test("a coin input reads back with the kind it was registered as", arguments: InputKind.allCases)
+    func inputKindRoundTrips(kind: InputKind) async throws {
         let world = try await CoinageLedgerWorld()
-        let coin = world.coin(1)
+        let input: CoinageTxInput
+        switch kind {
+        case .own:
+            input = world.coin(1).asInput
+        case .reclaimed:
+            try await world.precommit([world.coin(1)])
+            input = .coin(.reclaimed(CoinageLedgerWorld.keyIndex(1), CoinageLedgerWorld.coinKey(1)))
+        }
 
-        try await world.ledger.register([registration(inputs: [coin.asInput], groupId: world.messageId)])
+        try await world.ledger.register([registration(inputs: [input], groupId: world.messageId)])
 
         let entry = try #require(try await world.scheduledEntries().first)
-        #expect(entry.inputs == [coin.asInput])
+        #expect(entry.inputs == [input])
     }
 }
 

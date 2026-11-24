@@ -95,35 +95,74 @@ struct TransferStateMappingTests {
         )
     }
 
-    @Test("a coin still awaiting its claim once the window has closed means unclaimed")
-    func awaitingAfterWindowIsUnclaimed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.awaitingClaim(finalized: false), .claimed(finalized: true)])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .unclaimed)
+    @Test("the window and the reclaim statuses rank as Android ranks them", arguments: [
+        OutgoingCase(
+            name: "awaiting after the window is unclaimed",
+            statuses: [.awaitingClaim(finalized: false), .claimed(finalized: true)], windowClosed: true,
+            status: .unclaimed
+        ),
+        OutgoingCase(
+            name: "every coin claimed after the window is claimed, not unclaimed",
+            statuses: [.claimed(finalized: true), .claimed(finalized: false)], windowClosed: true,
+            status: .claimed, valuedCoins: [0, 1]
+        ),
+        OutgoingCase(
+            name: "only detecting after the window is still sending",
+            statuses: [.detecting, .detecting], windowClosed: true,
+            status: .sending
+        ),
+        OutgoingCase(
+            name: "a best-head reclaim is reclaimed with its value, not finalized",
+            statuses: [.reclaimed(finalized: false)], windowClosed: true,
+            status: .reclaimed, valuedCoins: [0]
+        ),
+        OutgoingCase(
+            name: "a best-head reclaim beside a coin still awaiting after the window is unclaimed",
+            statuses: [.reclaimed(finalized: false), .awaitingClaim(finalized: false)], windowClosed: true,
+            status: .unclaimed
+        ),
+        OutgoingCase(
+            name: "a reclaim final on one coin but not another is reclaimed, not finalized",
+            statuses: [.reclaimed(finalized: true), .reclaimed(finalized: false)], windowClosed: false,
+            status: .reclaimed, valuedCoins: [0, 1]
+        ),
+        OutgoingCase(
+            name: "a reclaim in flight is reclaiming",
+            statuses: [.reclaiming, .awaitingClaim(finalized: false)], windowClosed: true,
+            status: .reclaiming
+        ),
+        OutgoingCase(
+            name: "a final reclaim sums only the reclaimed coins",
+            statuses: [.reclaimed(finalized: true), .claimed(finalized: true), .reclaimed(finalized: true)],
+            windowClosed: true,
+            status: .reclaimedFinalized, valuedCoins: [0, 2]
+        ),
+        OutgoingCase(
+            name: "a failed reclaim beats unclaimed",
+            statuses: [.reclaimFailed, .claimed(finalized: true)], windowClosed: true,
+            status: .reclaimFailed
+        ),
+        OutgoingCase(
+            name: "a failed reclaim inside the window is still reclaimFailed",
+            statuses: [.reclaimFailed], windowClosed: false,
+            status: .reclaimFailed
+        ),
+        OutgoingCase(
+            name: "a reclaim in flight beats a failed one on another coin",
+            statuses: [.reclaiming, .reclaimFailed], windowClosed: true,
+            status: .reclaiming
         )
-    }
-
-    @Test("every coin claimed once the window has closed means claimed, not unclaimed")
-    func claimedAfterWindowIsClaimed() throws {
+    ])
+    func outgoingPrecedence(_ outgoingCase: OutgoingCase) throws {
         let world = try CoinStateWorld()
-        let states = try world.states([.claimed(finalized: true), .claimed(finalized: false)])
+        let states = try world.states(outgoingCase.statuses)
+        let value = outgoingCase.valuedCoins.isEmpty
+            ? nil
+            : outgoingCase.valuedCoins.reduce(Balance(0)) { $0 + world.context.valueInPlanks(for: Int16($1)) }
 
-        let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 1)
         #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .claimed, actualValue: expectedValue)
-        )
-    }
-
-    @Test("coins still being detected once the window has closed are not unclaimed")
-    func onlyDetectingAfterWindowIsSending() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.detecting, .detecting])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .sending)
+            states.outgoingState(context: world.context, windowClosed: outgoingCase.windowClosed)
+                == OutgoingTransferState(status: outgoingCase.status, actualValue: value)
         )
     }
 
@@ -146,94 +185,6 @@ struct TransferStateMappingTests {
         #expect(
             states.outgoingState(context: world.context, windowClosed: false)
                 == OutgoingTransferState(status: .claimed, actualValue: expectedValue)
-        )
-    }
-
-    @Test("a reclaim on the best head reads as reclaimed with its value, not finalized")
-    func bestHeadReclaimIsReclaimed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaimed(finalized: false)])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaimed, actualValue: world.context.valueInPlanks(for: 0))
-        )
-    }
-
-    @Test("a best-head reclaim next to a coin still awaiting after the window is unclaimed")
-    func bestHeadReclaimWithAwaitingAfterWindowIsUnclaimed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaimed(finalized: false), .awaitingClaim(finalized: false)])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .unclaimed)
-        )
-    }
-
-    @Test("a reclaim final on one coin but not another is reclaimed, not finalized")
-    func mixedReclaimFinalityIsReclaimed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaimed(finalized: true), .reclaimed(finalized: false)])
-
-        let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 1)
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: false)
-                == OutgoingTransferState(status: .reclaimed, actualValue: expectedValue)
-        )
-    }
-
-    @Test("a reclaim in flight reads as reclaiming")
-    func inFlightReclaimIsReclaiming() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaiming, .awaitingClaim(finalized: false)])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaiming)
-        )
-    }
-
-    @Test("a final reclaim sums only the reclaimed coins into the actual value")
-    func finalReclaimSumsReclaimedOnly() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([
-            .reclaimed(finalized: true),
-            .claimed(finalized: true),
-            .reclaimed(finalized: true)
-        ])
-
-        let expectedValue = world.context.valueInPlanks(for: 0) + world.context.valueInPlanks(for: 2)
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaimedFinalized, actualValue: expectedValue)
-        )
-    }
-
-    @Test("a coin whose reclaim failed means reclaimFailed, ahead of unclaimed")
-    func failedReclaimBeatsUnclaimed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaimFailed, .claimed(finalized: true)])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaimFailed)
-        )
-    }
-
-    @Test("a failed reclaim inside the window still means reclaimFailed")
-    func failedReclaimInsideWindow() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaimFailed])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: false)
-                == OutgoingTransferState(status: .reclaimFailed)
-        )
-    }
-
-    @Test("a reclaim in flight beats a failed one on another coin")
-    func reclaimingBeatsReclaimFailed() throws {
-        let world = try CoinStateWorld()
-        let states = try world.states([.reclaiming, .reclaimFailed])
-        #expect(
-            states.outgoingState(context: world.context, windowClosed: true)
-                == OutgoingTransferState(status: .reclaiming)
         )
     }
 
@@ -276,14 +227,23 @@ struct TransferStateMappingTests {
         #expect(!OutgoingTransferState.Status.claimed.isTerminal)
         #expect(!IncomingTransferState.Status.returnedToSender.isTerminal)
         #expect(!OutgoingTransferState.Status.unclaimed.isTerminal)
-    }
-
-    @Test("only a finalized reclaim is terminal")
-    func reclaimStatusesTerminal() {
         #expect(OutgoingTransferState.Status.reclaimedFinalized.isTerminal)
         #expect(!OutgoingTransferState.Status.reclaimed.isTerminal)
         #expect(!OutgoingTransferState.Status.reclaiming.isTerminal)
         #expect(!OutgoingTransferState.Status.reclaimFailed.isTerminal)
+    }
+}
+
+extension TransferStateMappingTests {
+    struct OutgoingCase: CustomTestStringConvertible {
+        let name: String
+        let statuses: [CoinageTransferStatus]
+        let windowClosed: Bool
+        let status: OutgoingTransferState.Status
+        /// Offsets of the coins whose value the state carries; empty when it carries none.
+        var valuedCoins: [Int] = []
+
+        var testDescription: String { name }
     }
 }
 

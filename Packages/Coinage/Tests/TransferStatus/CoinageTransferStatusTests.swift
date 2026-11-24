@@ -50,69 +50,54 @@ struct CoinageTransferStatusTests {
         #expect(status(tracked, atFinalized: [:]) == .detecting)
     }
 
-    @Test("A reclaim beats a finalized mint that reads absent at finality")
-    func reclaimBeatsFinalizedAbsence() {
-        let tracked = trackedCoin(
-            onChain: false,
-            everOnChain: true,
-            minter: .finalizedSuccess,
-            consumer: .pendingSuccess
+    @Test("The consumer decides before any presence rule, except a failed reclaim of a gone coin", arguments: [
+        ReclaimLadderCase(
+            name: "a landed reclaim beats a finalized mint absent at finality",
+            consumer: .pendingSuccess, onChain: false, presentAtFinality: false,
+            expected: .reclaimed(finalized: false)
+        ),
+        ReclaimLadderCase(
+            name: "a finalized reclaim is a finalized reclaim",
+            consumer: .finalizedSuccess, onChain: false, presentAtFinality: false,
+            expected: .reclaimed(finalized: true)
+        ),
+        ReclaimLadderCase(
+            name: "a reclaim still being built is reclaiming",
+            consumer: .pending, onChain: false, presentAtFinality: false,
+            expected: .reclaiming
+        ),
+        ReclaimLadderCase(
+            name: "a reclaim awaiting inclusion is reclaiming",
+            consumer: .pendingSubmission, onChain: false, presentAtFinality: false,
+            expected: .reclaiming
+        ),
+        ReclaimLadderCase(
+            name: "a failed consumer falls through to the presence rules",
+            consumer: .failure, onChain: true, minter: .pending,
+            expected: .awaitingClaim(finalized: false)
+        ),
+        ReclaimLadderCase(
+            name: "a failed reclaim of a coin still on chain is reclaimFailed",
+            inFailedReclaims: true, onChain: true, presentAtFinality: true,
+            expected: .reclaimFailed
+        ),
+        ReclaimLadderCase(
+            name: "a failed reclaim of a coin that is gone reads as the peer's claim",
+            inFailedReclaims: true, onChain: false, presentAtFinality: false,
+            expected: .claimed(finalized: true)
         )
-        #expect(status(tracked, atFinalized: [key: false]) == .reclaimed(finalized: false))
-    }
-
-    @Test("A finalized reclaim is a terminal reclaim")
-    func reclaimedFinalized() {
-        let tracked = trackedCoin(
-            onChain: false,
-            everOnChain: true,
-            minter: .finalizedSuccess,
-            consumer: .finalizedSuccess
-        )
-        #expect(status(tracked, atFinalized: [key: false]) == .reclaimed(finalized: true))
-    }
-
-    @Test("A reclaim included but not finalized is not yet final, though pendingSuccess is also live")
-    func reclaimedPending() {
-        let tracked = trackedCoin(
-            onChain: false,
-            everOnChain: true,
-            minter: .finalizedSuccess,
-            consumer: .pendingSuccess
-        )
-        #expect(status(tracked, atFinalized: [:]) == .reclaimed(finalized: false))
-    }
-
-    @Test("A reclaim still being built or awaiting inclusion is reclaiming", arguments: [
-        CoinageTxStatus.pending,
-        .pendingSubmission,
     ])
-    func reclaiming(consumer: CoinageTxStatus) {
+    func reclaimLadder(_ ladderCase: ReclaimLadderCase) {
         let tracked = trackedCoin(
-            onChain: false,
+            onChain: ladderCase.onChain,
             everOnChain: true,
-            minter: .finalizedSuccess,
-            consumer: consumer
+            minter: ladderCase.minter,
+            consumer: ladderCase.consumer
         )
-        #expect(status(tracked, atFinalized: [key: false]) == .reclaiming)
-    }
+        let atFinalized = ladderCase.presentAtFinality.map { [key: $0] } ?? [:]
+        let failedReclaims: Set<PublicKey> = ladderCase.inFailedReclaims ? [key] : []
 
-    @Test("A failed reclaim falls through to the presence rules")
-    func failedReclaimFallsThrough() {
-        let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .pending, consumer: .failure)
-        #expect(status(tracked, atFinalized: [:]) == .awaitingClaim(finalized: false))
-    }
-
-    @Test("A failed reclaim of a coin still on chain is reclaimFailed")
-    func failedReclaimStillOnChain() {
-        let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .finalizedSuccess)
-        #expect(status(tracked, failedReclaims: [key], atFinalized: [key: true]) == .reclaimFailed)
-    }
-
-    @Test("A failed reclaim of a coin that is gone reads as the peer's claim")
-    func failedReclaimOfGoneCoinIsClaimed() {
-        let tracked = trackedCoin(onChain: false, everOnChain: true, minter: .finalizedSuccess)
-        #expect(status(tracked, failedReclaims: [key], atFinalized: [key: false]) == .claimed(finalized: true))
+        #expect(status(tracked, failedReclaims: failedReclaims, atFinalized: atFinalized) == ladderCase.expected)
     }
 
     @Test("Only a finalized reclaim and a finalized claim are terminal")
@@ -126,6 +111,20 @@ struct CoinageTransferStatusTests {
         #expect(!CoinageTransferStatus.reclaiming.isTerminal)
         #expect(!CoinageTransferStatus.awaitingClaim(finalized: true).isTerminal)
         #expect(!CoinageTransferStatus.detecting.isTerminal)
+    }
+}
+
+extension CoinageTransferStatusTests {
+    struct ReclaimLadderCase: CustomTestStringConvertible {
+        let name: String
+        var consumer: CoinageTxStatus?
+        var inFailedReclaims = false
+        let onChain: Bool
+        var minter: CoinageTxStatus = .finalizedSuccess
+        var presentAtFinality: Bool?
+        let expected: CoinageTransferStatus
+
+        var testDescription: String { name }
     }
 }
 
