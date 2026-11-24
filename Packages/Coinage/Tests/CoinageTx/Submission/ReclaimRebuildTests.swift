@@ -44,7 +44,7 @@ struct ReclaimRebuildTests {
         #expect(reclaim.destination == destination.publicKey)
     }
 
-    @Test("a reclaim the ledger reads back as own resolves")
+    @Test("a reclaim row written before the input kind was stored reads back as own and still resolves")
     func reclaimReadBackAsOwnResolves() async throws {
         let rebuild = makeRebuild(coins: [spent])
         let transaction = try scheduled()
