@@ -227,13 +227,7 @@ final class ChatTransferMessageView: UIView, UIContentView, ReactableContentView
 
         originalAmountLabel.textColor = configuration.originalAmountTextColor
         if let originalAmount = configuration.originalAmountText {
-            let typography: TypographyStyle = .bodyMedium
-            let spec = typography.resolvedSpec
-            var attributes = LabelStyle(
-                font: .app(typography),
-                lineHeight: spec.lineHeight,
-                tracking: spec.tracking
-            ).attributes(for: .left)
+            var attributes = LabelStyle(typography: .bodyMedium).attributes(for: .left)
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
             originalAmountLabel.attributedText = NSAttributedString(
                 string: originalAmount,

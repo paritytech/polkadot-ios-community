@@ -62,13 +62,11 @@ final class ChatTransferAmountView: UIView {
 
         let font = UIFont.app(typography)
         amountLabel.font = font
-        amountLabel.text = amountText
+        var attributes = LabelStyle(typography: typography).attributes(for: .left)
         if isStruckThrough {
-            amountLabel.attributedText = NSAttributedString(
-                string: amountText,
-                attributes: [.strikethroughStyle: NSUnderlineStyle.single.rawValue]
-            )
+            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         }
+        amountLabel.attributedText = NSAttributedString(string: amountText, attributes: attributes)
         unitLabel.attributedText = CashLogo.unit(unit, fallback: unitFont(for: font))
         unitLabel.accessibilityLabel = unit
 
