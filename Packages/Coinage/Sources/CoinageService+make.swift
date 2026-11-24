@@ -50,6 +50,7 @@ public extension CoinageService {
         incomingPaymentAcknowledger: IncomingPaymentAcknowledging,
         backgroundExecutor: any BackgroundExecuting,
         recyclingStrategySettings: any CoinageRecyclingStrategyProviding,
+        privacyConfigProvider: any CoinagePrivacyConfigProviding,
         personOriginProvider: any OriginPersonProviding,
         viewFunctionFetcher: any ViewFunctionFetching,
         installation: CoinageInstallationDependency,
@@ -357,7 +358,10 @@ public extension CoinageService {
             logger: logger
         )
 
-        let recyclingStrategyResolver = RecyclingStrategyProvider(quotaTracker: quotaTracker)
+        let recyclingStrategyResolver = RecyclingStrategyProvider(
+            quotaTracker: quotaTracker,
+            privacyConfigProvider: privacyConfigProvider
+        )
         let preClassificator = CoinageAssetPreClassificator()
 
         let externalPaymentDependency = ExternalPaymentDependency(
@@ -450,6 +454,7 @@ public extension CoinageService {
             voucherLocationService: voucherLocationService,
             recyclingService: recyclingService,
             recyclingStrategySettings: recyclingStrategySettings,
+            privacyConfigProvider: privacyConfigProvider,
             recyclingStrategyResolver: recyclingStrategyResolver,
             ringCapacityProvider: ringCapacityProvider,
             preClassificator: preClassificator,
