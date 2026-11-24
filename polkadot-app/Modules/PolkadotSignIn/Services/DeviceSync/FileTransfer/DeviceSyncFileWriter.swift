@@ -1,8 +1,10 @@
+import CryptoKit
 import Foundation
 
 enum DeviceSyncFileWriterError: Error, Equatable {
     case unexpectedOffset(expected: UInt64, received: UInt64)
     case sizeMismatch(expected: UInt64, stored: UInt64)
+    case hashMismatch
 }
 
 /// Appends a file received from a sibling to `<filename>.sync.part` in the downloads store and moves it
@@ -15,6 +17,8 @@ final class DeviceSyncFileWriter {
     private let store: AttachmentStoring
     private let fileManager: FileManager
     private var handle: FileHandle?
+    private var hasher = SHA256()
+    private var hashedBytes: UInt64 = 0
 
     init(filename: String, store: AttachmentStoring, fileManager: FileManager = .default) {
         self.filename = filename
@@ -43,13 +47,16 @@ final class DeviceSyncFileWriter {
             throw DeviceSyncFileWriterError.unexpectedOffset(expected: stored, received: offset)
         }
 
+        try hashStoredBytes(upTo: stored)
         let handle = try openHandle()
         try handle.seekToEnd()
         try handle.write(contentsOf: data)
+        hasher.update(data: data)
+        hashedBytes += UInt64(data.count)
     }
 
-    /// Moves the partial file into place; on a size mismatch the partial file is discarded.
-    func finish(totalSize: UInt64) throws {
+    /// Moves the partial file into place; a size or digest mismatch discards it.
+    func finish(totalSize: UInt64, fileHash: Data) throws {
         closeHandle()
 
         guard !store.hasFile(for: filename) else {
@@ -64,6 +71,12 @@ final class DeviceSyncFileWriter {
             throw DeviceSyncFileWriterError.sizeMismatch(expected: totalSize, stored: stored)
         }
 
+        try hashStoredBytes(upTo: stored)
+        guard Data(hasher.finalize()) == fileHash else {
+            discard()
+            throw DeviceSyncFileWriterError.hashMismatch
+        }
+
         if totalSize == 0, !store.hasFile(for: partialFilename) {
             try store.createEmptyFile(for: partialFilename)
         }
@@ -73,6 +86,8 @@ final class DeviceSyncFileWriter {
 
     func discard() {
         closeHandle()
+        hasher = SHA256()
+        hashedBytes = 0
 
         if store.hasFile(for: partialFilename) {
             try? store.remove(for: partialFilename)
@@ -86,6 +101,22 @@ final class DeviceSyncFileWriter {
 }
 
 private extension DeviceSyncFileWriter {
+    /// Bytes stored by an earlier connection never went through this hasher.
+    func hashStoredBytes(upTo stored: UInt64) throws {
+        guard hashedBytes < stored else { return }
+
+        let reader = try FileHandle(forReadingFrom: store.fileURL(for: partialFilename))
+        defer { try? reader.close() }
+        try reader.seek(toOffset: hashedBytes)
+
+        while hashedBytes < stored,
+              let data = try reader.read(upToCount: Int(min(stored - hashedBytes, UInt64(FileDigest.readSize)))),
+              !data.isEmpty {
+            hasher.update(data: data)
+            hashedBytes += UInt64(data.count)
+        }
+    }
+
     func openHandle() throws -> FileHandle {
         if let handle {
             return handle

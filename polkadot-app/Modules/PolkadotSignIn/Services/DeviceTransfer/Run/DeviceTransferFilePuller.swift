@@ -14,17 +14,20 @@ protocol DeviceTransferFilePulling {
 final class DeviceTransferFilePuller {
     private let scanner: DeviceTransferMissingFileScanning
     private let requester: any DeviceSyncFileRequesting
+    private let retrier: DeviceSyncFileRequestRetrier
     private let batchSize: Int
     private let logger: LoggerProtocol
 
     init(
         scanner: DeviceTransferMissingFileScanning,
         requester: any DeviceSyncFileRequesting,
+        retrier: DeviceSyncFileRequestRetrier = .init(),
         batchSize: Int = SiblingFileFetcher.maxFilesPerRequest,
         logger: LoggerProtocol
     ) {
         self.scanner = scanner
         self.requester = requester
+        self.retrier = retrier
         self.batchSize = batchSize
         self.logger = logger
     }
@@ -77,7 +80,7 @@ private extension DeviceTransferFilePuller {
         var outcomes: [DeviceSyncFileRequestOutcome] = []
 
         for batch in items.chunks(ofCount: batchSize) {
-            outcomes += await requester.request(Array(batch), onBytes: onBytes)
+            outcomes += await retrier.request(Array(batch), using: requester, onBytes: onBytes)
         }
 
         return outcomes
