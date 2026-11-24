@@ -64,13 +64,12 @@ struct ReclaimRebuild: CoinageRebuild {
 }
 
 private extension ReclaimRebuild {
-    /// One of our coins in and one coin out, or nothing: a reclaim with any other shape is not one this
+    /// One reclaimed coin in and one coin out, or nothing: a reclaim with any other shape is not one this
     /// rebuild can sign.
     func reclaim(of entry: CoinageTxEntry, coins: [PublicKey: Coin]) -> Reclaim? {
         guard entry.inputs.count == 1,
               let input = entry.inputs.first,
-              input.isCoin,
-              input.isOwn,
+              input.isReclaimed,
               let coin = coins[input.publicKey],
               entry.outputs.count == 1,
               let output = entry.outputs.first,

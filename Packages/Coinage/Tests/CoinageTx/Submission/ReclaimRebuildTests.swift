@@ -39,15 +39,17 @@ struct ReclaimRebuildTests {
         #expect(reclaim.destination == destination.publicKey)
     }
 
-    @Test("a row that is not one coin in and one coin out resolves to nothing", arguments: UnbuildableShape.allCases)
+    @Test(
+        "a row that is not one reclaimed coin in and one coin out resolves to nothing",
+        arguments: UnbuildableShape.allCases
+    )
     func unbuildableShapesResolveToNothing(shape: UnbuildableShape) async throws {
         let rebuild = makeRebuild(coins: [spent])
         let transaction = try scheduled()
-        let spentInput = CoinageTxInput.coin(.reclaimed(spent.derivationIndex, spent.publicKey))
         let mintedOutput = OwnAsset.coin(destination.derivationIndex, destination.publicKey)
         let assets = [transaction.id: RebuildFixtures.entry(
             id: transaction.id,
-            inputs: shape.inputs(spending: spentInput),
+            inputs: shape.inputs(spending: spent),
             outputs: shape.outputs(minting: mintedOutput)
         )]
 
@@ -88,16 +90,19 @@ extension ReclaimRebuildTests {
         case noInput
         case twoInputs
         case voucherInput
+        case ownInput
         case noOutput
         case twoOutputs
 
-        func inputs(spending spent: CoinageTxInput) -> [CoinageTxInput] {
-            switch self {
+        func inputs(spending spent: Coin) -> [CoinageTxInput] {
+            let reclaimed = CoinageTxInput.coin(.reclaimed(spent.derivationIndex, spent.publicKey))
+            return switch self {
             case .noInput: []
-            case .twoInputs: [spent, spent]
+            case .twoInputs: [reclaimed, reclaimed]
             case .voucherInput: [.recyclerVoucher(3, RebuildFixtures.key(3))]
+            case .ownInput: [.coin(.own(spent.derivationIndex, spent.publicKey))]
             case .noOutput,
-                 .twoOutputs: [spent]
+                 .twoOutputs: [reclaimed]
             }
         }
 
@@ -107,7 +112,8 @@ extension ReclaimRebuildTests {
             case .twoOutputs: [minted, minted]
             case .noInput,
                  .twoInputs,
-                 .voucherInput: [minted]
+                 .voucherInput,
+                 .ownInput: [minted]
             }
         }
     }
