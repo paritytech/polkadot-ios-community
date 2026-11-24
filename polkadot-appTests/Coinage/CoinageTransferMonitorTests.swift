@@ -145,6 +145,7 @@ struct CoinageTransferMonitorTests {
         ])
         #expect(seen.count == distinct.count, "every emission must carry a change")
         #expect(statuses.subscriptions.count == 1)
+        #expect(statuses.reclaimGroupIds == [ChatTransferGroups.reclaim(message.messageId)])
     }
 
     @Test("a payment still awaiting its claim after six hours from its send time is unclaimed")
@@ -343,13 +344,14 @@ struct CoinageTransferMonitorTests {
         let world = TransferStateTestWorld()
         try await world.setup()
         let message = try await world.saveTransfer(.outgoing, totalValue: 10)
-        let statuses = try awaitingStatuses()
-        let reclaims = try MockReclaimCoinsService(failedReclaims: [[makeCoin(exponent: 2).publicKey]])
+        let coin = try makeCoin(exponent: 2)
+        let statuses = MockCoinageTransferStatusService(snapshots: [
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .reclaimFailed)]
+        ])
         let states = world.stateStream(of: message.messageId)
 
         let monitor = makeMonitor(
             world: world,
-            reclaims: reclaims,
             statuses: statuses,
             timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
@@ -365,13 +367,15 @@ struct CoinageTransferMonitorTests {
         let world = TransferStateTestWorld()
         try await world.setup()
         let message = try await world.saveTransfer(.outgoing, totalValue: 10)
-        let statuses = try awaitingStatuses()
-        let reclaims = try MockReclaimCoinsService(failedReclaims: [[makeCoin(exponent: 2).publicKey], []])
+        let coin = try makeCoin(exponent: 2)
+        let statuses = MockCoinageTransferStatusService(snapshots: [
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .reclaimFailed)],
+            [coin.publicKey: CoinageTransferState(coin: coin, status: .awaitingClaim(finalized: false))]
+        ])
         let states = world.stateStream(of: message.messageId)
 
         let monitor = makeMonitor(
             world: world,
-            reclaims: reclaims,
             statuses: statuses,
             timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
@@ -380,35 +384,6 @@ struct CoinageTransferMonitorTests {
 
         let seen = try await states.collect { $0 == .outgoing(.init(status: .unclaimed)) }
         #expect(seen.last == .outgoing(.init(status: .unclaimed)))
-    }
-
-    @Test("a relaunched reclaim-failed row never flickers to unclaimed before its failed reclaim is read")
-    func relaunchedReclaimFailedNeverFlickersToUnclaimed() async throws {
-        let world = TransferStateTestWorld()
-        try await world.setup()
-        let message = try await world.saveTransfer(.outgoing, totalValue: 10)
-        try await world.store.updateOutgoing(messageId: message.messageId, state: .init(status: .reclaimFailed))
-        let coin = try makeCoin(exponent: 2)
-        let statuses = try awaitingStatuses()
-        let reclaims = MockReclaimCoinsService(failedReclaims: [[coin.publicKey]])
-        let recorder = RecordingTransferStateStore(base: world.store)
-
-        let monitor = makeMonitor(
-            world: world,
-            reclaims: reclaims,
-            statuses: statuses,
-            store: recorder,
-            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
-        )
-        await monitor.setup()
-        defer { Task { await monitor.throttle() } }
-
-        var written: [OutgoingTransferState] = []
-        for await state in recorder.outgoingWrites {
-            written.append(state)
-            if state.status == .reclaimFailed { break }
-        }
-        #expect(!written.map(\.status).contains(.unclaimed))
     }
 
     @Test("reclaiming and reclaim-failed rows re-enter the outgoing candidates while a reclaimed one does not")
@@ -440,7 +415,6 @@ private extension CoinageTransferMonitorTests {
     func makeMonitor(
         world: TransferStateTestWorld,
         claims: MockClaimCoinsService = MockClaimCoinsService(detections: []),
-        reclaims: MockReclaimCoinsService = MockReclaimCoinsService(),
         statuses: MockCoinageTransferStatusService = MockCoinageTransferStatusService(snapshots: []),
         store: (any TransferStateStoring)? = nil,
         timeSource: TimeSource = .live,
@@ -448,7 +422,6 @@ private extension CoinageTransferMonitorTests {
     ) -> CoinageTransferMonitor {
         CoinageTransferMonitor(
             claimCoinsService: claims,
-            reclaimCoinsService: reclaims,
             transferStatusService: statuses,
             denominationContext: { [context] in context },
             transferStateStore: store ?? world.store,

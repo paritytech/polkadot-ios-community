@@ -33,7 +33,6 @@ final class CoinageTransferMonitor {
 
     init(
         claimCoinsService: any ClaimCoinsServicing,
-        reclaimCoinsService: any ReclaimCoinsServicing,
         transferStatusService: any CoinageTransferStatusServicing,
         denominationContext: @escaping DenominationContextProvider,
         transferStateStore: any TransferStateStoring,
@@ -48,7 +47,6 @@ final class CoinageTransferMonitor {
         self.logger = logger
         outgoing = OutgoingDependencies(
             transferStatusService: transferStatusService,
-            reclaimCoinsService: reclaimCoinsService,
             denominationContext: denominationContext,
             transferStateStore: transferStateStore,
             logger: logger,
@@ -208,9 +206,9 @@ private extension CoinageTransferMonitor {
                 let isWindowClosed = await outgoing.timeSource.dateProvider.read() >= closesAt
                 let feed = OutgoingFeed(
                     messageId: messageId,
-                    statuses: outgoing.transferStatusService.subscribeStatuses(coinKeys: memo.entries),
-                    failedReclaims: outgoing.reclaimCoinsService.subscribeFailedReclaims(
-                        groupId: ChatTransferGroups.reclaim(messageId)
+                    statuses: outgoing.transferStatusService.subscribeStatuses(
+                        coinKeys: memo.entries,
+                        reclaimGroupId: ChatTransferGroups.reclaim(messageId)
                     ),
                     windowEvents: outgoing.timeSource.fires(at: closesAt),
                     store: outgoing.transferStateStore,
@@ -241,11 +239,10 @@ private extension Chat.LocalMessage.Content.Transfer {
 }
 
 private extension CoinageTransferMonitor {
-    /// The coin statuses, the failed reclaims and the window's close, for one outgoing message.
+    /// The coin statuses and the window's close, for one outgoing message.
     struct OutgoingFeed {
         let messageId: Chat.MessageId
         let statuses: AnyAsyncSequence<[PublicKey: CoinageTransferState]>
-        let failedReclaims: AnyAsyncSequence<Set<PublicKey>>
         /// Merged with the statuses so the state is recomputed at close even when no coin status changes then.
         let windowEvents: AsyncStream<Void>
         let store: any TransferStateStoring
@@ -258,29 +255,20 @@ private extension CoinageTransferMonitor {
         isWindowClosed: Bool
     ) async throws {
         var windowClosed = isWindowClosed
-        var failedIterator = feed.failedReclaims.makeAsyncIterator()
-        // Seeded with the current failed set, so no status is read before its failed reclaims are known.
-        var latestFailedReclaims = try await failedIterator.next() ?? []
         var latestCoinStates: [PublicKey: CoinageTransferState]?
         // Deduplicated by hand: the context is not Sendable, so it cannot ride a `map`.
         var lastState: OutgoingTransferState?
         let events = merge(
             feed.statuses.map { OutgoingMonitorEvent.statuses($0) },
-            laterFailedReclaims(failedIterator).map { OutgoingMonitorEvent.failedReclaims($0) },
             feed.windowEvents.map { _ in OutgoingMonitorEvent.windowClosed }
         )
         for try await event in events {
             switch event {
             case let .statuses(coinStates): latestCoinStates = coinStates
-            case let .failedReclaims(failedKeys): latestFailedReclaims = failedKeys
             case .windowClosed: windowClosed = true
             }
             guard let coinStates = latestCoinStates else { continue }
-            let state = coinStates.outgoingState(
-                context: context,
-                failedReclaims: latestFailedReclaims,
-                windowClosed: windowClosed
-            )
+            let state = coinStates.outgoingState(context: context, windowClosed: windowClosed)
             if state != lastState {
                 lastState = state
                 feed.logger.debug("Status=\(state) message=\(feed.messageId)")
@@ -289,41 +277,19 @@ private extension CoinageTransferMonitor {
             if coinStates.isSettled { break }
         }
     }
-
-    /// The failed reclaims after the first value, pulled from the iterator that already produced that value.
-    static func laterFailedReclaims(
-        _ iterator: AnyAsyncSequence<Set<PublicKey>>.AsyncIterator
-    ) -> AsyncThrowingStream<Set<PublicKey>, Error> {
-        AsyncThrowingStream { continuation in
-            var iterator = iterator
-            let pump = Task {
-                do {
-                    while let failed = try await iterator.next() {
-                        continuation.yield(failed)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in pump.cancel() }
-        }
-    }
 }
 
 private struct OutgoingDependencies {
     let transferStatusService: any CoinageTransferStatusServicing
-    let reclaimCoinsService: any ReclaimCoinsServicing
     let denominationContext: CoinageTransferMonitor.DenominationContextProvider
     let transferStateStore: any TransferStateStoring
     let logger: LoggerProtocol
     let timeSource: TimeSource
 }
 
-/// One input to the outgoing loop: coin statuses, the failed reclaims, or the one-time close of the claim window.
+/// One input to the outgoing loop: coin statuses or the one-time close of the claim window.
 private enum OutgoingMonitorEvent: Sendable {
     case statuses([PublicKey: CoinageTransferState])
-    case failedReclaims(Set<PublicKey>)
     case windowClosed
 }
 

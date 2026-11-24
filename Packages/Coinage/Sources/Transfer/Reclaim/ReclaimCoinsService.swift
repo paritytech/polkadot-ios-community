@@ -1,5 +1,3 @@
-import AsyncAlgorithms
-import AsyncExtensions
 import Foundation
 import FoundationExt
 import NovaCrypto
@@ -15,9 +13,6 @@ public protocol ReclaimCoinsServicing: Sendable {
     /// Schedules a reclaim of every coin of the payment still unclaimed. Returns once they are registered,
     /// not once they settle. Schedules nothing when no coin qualifies.
     func reclaim(coinKeys: [Data], groupId: CoinageTxGroupId) async throws
-
-    /// The coins whose reclaim failed in `groupId` and was not followed by a later attempt.
-    func subscribeFailedReclaims(groupId: CoinageTxGroupId) -> AnyAsyncSequence<Set<PublicKey>>
 }
 
 public final class ReclaimCoinsService: ReclaimCoinsServicing, @unchecked Sendable {
@@ -65,13 +60,6 @@ public final class ReclaimCoinsService: ReclaimCoinsServicing, @unchecked Sendab
         logger?.debug("Scheduling \(requests.count) reclaim(s) group=\(groupId)")
         try await txService.scheduleTransactions(requests, groupId: groupId)
     }
-
-    public func subscribeFailedReclaims(groupId: CoinageTxGroupId) -> AnyAsyncSequence<Set<PublicKey>> {
-        txService.subscribeOperationGroupStatuses(groupId)
-            .map { ReclaimCoinsService.failedInputKeys(of: $0) }
-            .removeDuplicates()
-            .eraseToAnyAsyncSequence()
-    }
 }
 
 private extension ReclaimCoinsService {
@@ -81,17 +69,6 @@ private extension ReclaimCoinsService {
         tracked.coin.isOnchain
             && tracked.coin.handoffMark == .committed
             && tracked.state.consumerStatus == nil
-    }
-
-    /// A reclaim retries failures, so a key with both a failed and a later non-failed entry is not failed.
-    static func failedInputKeys(of entries: [CoinageTxEntry]) -> Set<PublicKey> {
-        let failed = inputKeys(of: entries.filter { $0.status == .failure })
-        let stillAttempted = inputKeys(of: entries.filter { $0.status != .failure })
-        return failed.subtracting(stillAttempted)
-    }
-
-    static func inputKeys(of entries: [CoinageTxEntry]) -> Set<PublicKey> {
-        Set(entries.flatMap { $0.inputs.map(\.publicKey) })
     }
 
     /// Mints the destination before scheduling, so the row can link its output, as the claim does.

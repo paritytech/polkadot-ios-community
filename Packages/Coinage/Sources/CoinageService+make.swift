@@ -408,6 +408,7 @@ public extension CoinageService {
             chainViewFactory: chainViewFactory,
             chainId: chain.chainId,
             coinOnChainQuery: coinOnChainQuery,
+            txService: txService,
             snKeyFactory: SNKeyFactory(),
             logger: logger
         )

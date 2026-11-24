@@ -25,17 +25,9 @@ extension CoinageTransferDetection {
 }
 
 extension [PublicKey: CoinageTransferState] {
-    /// Mirrors Android's `toPaymentStatus`: any coin still to be taken keeps the message at
-    /// `sending`/`sent`; once nothing is outstanding, the claimed value is final. The finalized
-    /// variants are reached only when every coin's reading comes from the finalized chain. Our own reclaim
-    /// reads `reclaiming` until it is final, then `reclaimed` with the reclaimed amount. A coin still awaiting
-    /// its claim after a failed reclaim reads `reclaimFailed`, which beats `unclaimed`: the sender can retry.
-    /// Once the claim window has closed, a coin still awaiting its claim makes the payment `unclaimed`.
-    func outgoingState(
-        context: DenominationBreakdownContext,
-        failedReclaims: Set<PublicKey>,
-        windowClosed: Bool
-    ) -> OutgoingTransferState {
+    /// Ranked as Android's `toPaymentStatus` ranks them; a finalized variant needs every coin's reading
+    /// to come from the finalized chain.
+    func outgoingState(context: DenominationBreakdownContext, windowClosed: Bool) -> OutgoingTransferState {
         let states = Array(values)
         guard !states.isEmpty else { return OutgoingTransferState(status: .sending) }
 
@@ -44,12 +36,12 @@ extension [PublicKey: CoinageTransferState] {
         let outstanding = states.filter(\.status.isOutstanding)
         let reclaiming = states.filter { $0.status == .reclaiming || $0.status == .reclaimed(finalized: false) }
         let reclaimed = states.filter { $0.status == .reclaimed(finalized: true) }
-        let failedAwaiting = awaiting.filter { failedReclaims.contains($0.coin.publicKey) }
+        let reclaimFailed = states.filter { $0.status == .reclaimFailed }
 
         if !reclaiming.isEmpty {
             return OutgoingTransferState(status: .reclaiming)
         }
-        if !failedAwaiting.isEmpty {
+        if !reclaimFailed.isEmpty {
             return OutgoingTransferState(status: .reclaimFailed)
         }
         if windowClosed, !awaiting.isEmpty {
@@ -80,7 +72,8 @@ private extension CoinageTransferStatus {
     var isOutstanding: Bool {
         switch self {
         case .awaitingClaim,
-             .detecting: true
+             .detecting,
+             .reclaimFailed: true
         case .claimed,
              .failed,
              .reclaiming,
@@ -96,7 +89,8 @@ private extension CoinageTransferStatus {
              let .claimed(finalized),
              let .reclaimed(finalized): finalized
         case .detecting,
-             .reclaiming: false
+             .reclaiming,
+             .reclaimFailed: false
         }
     }
 }

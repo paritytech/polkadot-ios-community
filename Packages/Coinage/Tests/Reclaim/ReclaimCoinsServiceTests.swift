@@ -1,4 +1,3 @@
-import DurableTransactions
 import Foundation
 import FoundationExtTestSupport
 import NovaCrypto
@@ -90,23 +89,6 @@ struct ReclaimCoinsServiceTests {
         #expect(harness.txService.scheduledRequests.isEmpty)
         #expect(await harness.allocator.mintedCoins.isEmpty)
     }
-
-    @Test("a failed reclaim is reported until a later attempt for its coin supersedes it")
-    func failedReclaimsAreReportedUntilSuperseded() async throws {
-        let store = MockCoinageTxRepository()
-        try await store.markHandedOff(.coin(1, keyA))
-        try await store.markHandedOff(.coin(2, keyB))
-        try await store.register(entry(.coin(.reclaimed(1, keyA)), status: .failure))
-        try await store.register(entry(.coin(.reclaimed(2, keyB)), status: .failure))
-        try await store.register(entry(.coin(.reclaimed(2, keyB)), status: .pending))
-        let sut = makeHarness(tracked: [], store: store).sut
-
-        var updates = sut.subscribeFailedReclaims(groupId: group).makeAsyncIterator()
-        #expect(try await updates.next() == Set([keyA]))
-
-        try await store.register(entry(.coin(.reclaimed(1, keyA)), status: .pending))
-        #expect(try await updates.next() == Set<PublicKey>())
-    }
 }
 
 private extension ReclaimCoinsServiceTests {
@@ -123,9 +105,6 @@ private extension ReclaimCoinsServiceTests {
         let txService: MockCoinageTxService
         let allocator: MockCoinAllocator
     }
-
-    var keyA: PublicKey { Data(repeating: 1, count: 32) }
-    var keyB: PublicKey { Data(repeating: 2, count: 32) }
 
     func makeCoin(
         seed: UInt8,
@@ -172,17 +151,5 @@ private extension ReclaimCoinsServiceTests {
         )
 
         return Harness(sut: sut, txService: txService, allocator: allocator)
-    }
-
-    func entry(_ input: CoinageTxInput, status: CoinageTxStatus) -> CoinageTxEntry {
-        CoinageTxEntry(
-            inputs: [input],
-            outputs: [],
-            groupId: group,
-            txHash: Data(repeating: 0xAB, count: 32),
-            checkpoint: BlockRef(number: 0, hash: Data(repeating: 0, count: 32)),
-            mortality: 300,
-            status: status
-        )
     }
 }

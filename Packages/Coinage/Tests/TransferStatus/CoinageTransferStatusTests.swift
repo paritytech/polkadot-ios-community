@@ -103,9 +103,22 @@ struct CoinageTransferStatusTests {
         #expect(status(tracked, atFinalized: [:]) == .awaitingClaim(finalized: false))
     }
 
+    @Test("A failed reclaim of a coin still on chain is reclaimFailed")
+    func failedReclaimStillOnChain() {
+        let tracked = trackedCoin(onChain: true, everOnChain: true, minter: .finalizedSuccess)
+        #expect(status(tracked, failedReclaims: [key], atFinalized: [key: true]) == .reclaimFailed)
+    }
+
+    @Test("A failed reclaim of a coin that is gone reads as the peer's claim")
+    func failedReclaimOfGoneCoinIsClaimed() {
+        let tracked = trackedCoin(onChain: false, everOnChain: true, minter: .finalizedSuccess)
+        #expect(status(tracked, failedReclaims: [key], atFinalized: [key: false]) == .claimed(finalized: true))
+    }
+
     @Test("Only a finalized reclaim and a finalized claim are terminal")
     func terminalFlags() {
         #expect(CoinageTransferStatus.failed.isTerminal)
+        #expect(!CoinageTransferStatus.reclaimFailed.isTerminal)
         #expect(CoinageTransferStatus.claimed(finalized: true).isTerminal)
         #expect(!CoinageTransferStatus.claimed(finalized: false).isTerminal)
         #expect(CoinageTransferStatus.reclaimed(finalized: true).isTerminal)
@@ -136,7 +149,11 @@ private extension CoinageTransferStatusTests {
         )
     }
 
-    func status(_ tracked: TrackedCoin, atFinalized: [PublicKey: Bool]) -> CoinageTransferStatus {
-        CoinageTransferStatusService.transferStatus(tracked, atFinalized: atFinalized)
+    func status(
+        _ tracked: TrackedCoin,
+        failedReclaims: Set<PublicKey> = [],
+        atFinalized: [PublicKey: Bool]
+    ) -> CoinageTransferStatus {
+        CoinageTransferStatusService.status(tracked, failedReclaims: failedReclaims, atFinalized: atFinalized)
     }
 }

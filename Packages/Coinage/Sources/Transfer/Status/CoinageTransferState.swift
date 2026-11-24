@@ -23,6 +23,9 @@ public enum CoinageTransferStatus: Equatable, Sendable {
 
     /// Absent after our reclaim landed. `finalized` as for ``claimed(finalized:)``.
     case reclaimed(finalized: Bool)
+
+    /// Still on chain, and our last reclaim of it failed with no later attempt.
+    case reclaimFailed
 }
 
 public extension CoinageTransferStatus {
@@ -33,7 +36,8 @@ public extension CoinageTransferStatus {
         case let .reclaimed(finalized): finalized
         case .awaitingClaim,
              .detecting,
-             .reclaiming: false
+             .reclaiming,
+             .reclaimFailed: false
         }
     }
 }
