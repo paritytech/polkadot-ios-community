@@ -1,6 +1,12 @@
 import UIKit
+import DesignSystem
 
 public extension LabelStyle {
+    init(typography: TypographyStyle) {
+        let spec = typography.resolvedSpec
+        self.init(font: .app(typography), lineHeight: spec.lineHeight, tracking: spec.tracking)
+    }
+
     static func body14Regular() -> LabelStyle {
         LabelStyle(
             font: UIFont.body14Regular(),

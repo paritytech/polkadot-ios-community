@@ -15,6 +15,7 @@ struct SettingsContentInput {
     let isTabBarLabelsEnabled: Bool
     let onSelect: (SettingsViewModel.CellType) -> Void
     let onSelectPrivacyStrategy: (RecyclingStrategyType) -> Void
+    let onShowPrivacyInfo: () -> Void
     let onToggleTabBarLabels: (Bool) -> Void
 }
 
@@ -48,7 +49,11 @@ private extension SettingsViewModelFactory {
     ) -> AnyView? {
         guard section == .security, let selectedStrategy = input.selectedPrivacyStrategy else { return nil }
         return AnyView(
-            PaymentPrivacyModeCard(selected: selectedStrategy, onSelect: input.onSelectPrivacyStrategy)
+            PaymentPrivacyModeCard(
+                selected: selectedStrategy,
+                onSelect: input.onSelectPrivacyStrategy,
+                onShowInfo: input.onShowPrivacyInfo
+            )
         )
     }
 

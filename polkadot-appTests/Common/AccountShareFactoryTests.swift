@@ -50,6 +50,7 @@ private func makeConfig(appSharingUrl: URL?) -> RemoteAppConfig {
         offrampUrl: nil,
         accountDataStoreContract: nil,
         paymentAsset: nil,
-        appSharingUrl: appSharingUrl
+        appSharingUrl: appSharingUrl,
+        coinagePrivacyConfig: nil
     )
 }
