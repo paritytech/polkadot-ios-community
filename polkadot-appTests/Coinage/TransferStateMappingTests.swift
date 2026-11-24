@@ -95,7 +95,7 @@ struct TransferStateMappingTests {
         )
     }
 
-    @Test("the window and the reclaim statuses rank as Android ranks them", arguments: [
+    @Test("the window and the reclaim statuses rank", arguments: [
         OutgoingCase(
             name: "awaiting after the window is unclaimed",
             statuses: [.awaitingClaim(finalized: false), .claimed(finalized: true)], windowClosed: true,
