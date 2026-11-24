@@ -4,10 +4,8 @@ import Foundation
 import SubstrateSdk
 
 extension CoinageTransferDetection {
-    /// Absent coins and a claim that gave up both read as returned to the sender once the window has closed;
-    /// inside it absence is still `detecting` and a give-up is `failed`. `claimingRest` is plain `claiming`:
-    /// the claimed-so-far amount is deliberately not persisted. `claimedPartially` is a verdict reached only
-    /// after every claim entry settled, so it is final.
+    /// `claimingRest` is plain `claiming`: the claimed-so-far amount is deliberately not persisted.
+    /// `claimedPartially` is a verdict reached only after every claim entry settled, so it is final.
     func incomingState(windowClosed: Bool) -> IncomingTransferState {
         switch self {
         case .detecting:
@@ -38,7 +36,7 @@ extension [PublicKey: CoinageTransferState] {
         let awaiting = states.filter { if case .awaitingClaim = $0.status { true } else { false } }
         let outstanding = states.filter(\.status.isOutstanding)
         let reclaiming = states.filter { $0.status == .reclaiming }
-        let reclaimed = states.filter { if case .reclaimed = $0.status { true } else { false } }
+        let reclaimed = states.filter(\.status.isReclaimed)
         let reclaimFailed = states.filter { $0.status == .reclaimFailed }
 
         if !reclaiming.isEmpty {
@@ -79,6 +77,10 @@ private extension [CoinageTransferState] {
 }
 
 private extension CoinageTransferStatus {
+    var isReclaimed: Bool {
+        if case .reclaimed = self { true } else { false }
+    }
+
     var isOutstanding: Bool {
         switch self {
         case .awaitingClaim,

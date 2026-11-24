@@ -296,10 +296,13 @@ struct CoinageTransferMonitorTests {
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
 
-        _ = try await world.stateStream(of: message.messageId)
+        let remaining = CoinageConstants.claimWindow - insideWindow
+        await clock.waitForSleep(for: .seconds(remaining))
+        let beforeClose = try await world.stateStream(of: message.messageId)
             .collect { $0 == .incoming(.init(status: .detecting)) }
-        await dateProvider.advance(by: CoinageConstants.claimWindow - insideWindow)
-        await clock.resumeSleep(for: .seconds(CoinageConstants.claimWindow - insideWindow))
+        #expect(!beforeClose.contains(.incoming(.init(status: .returnedToSender))))
+        await dateProvider.advance(by: remaining)
+        await clock.resumeSleep(for: .seconds(remaining))
 
         let returned = IncomingTransferState(status: .returnedToSender)
         let seen = try await world.stateStream(of: message.messageId).collect { $0 == .incoming(returned) }
