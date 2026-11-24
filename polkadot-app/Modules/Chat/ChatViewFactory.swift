@@ -155,6 +155,7 @@ enum ChatViewFactory {
             chatId: chatId,
             engine: chatEngine,
             reactionRepository: reactionRepository,
+            reclaimCoinsService: flowState.coinageService.reclaimCoinsService,
             foregroundVisibilityReporter: flowState.foregroundVisibilityReporter,
             notificationsCleaner: flowState.notificationsCleaner
         )
