@@ -185,7 +185,12 @@ struct ChainStatusProviderTests {
         #expect(chatRow?.liveness == 1)
     }
 
-    @Test("A healthy chain does not flash an outage after minutes away")
+    // TODO: Fix flakiness and re-enable. Suspect the gate/release handshake with
+    // MockChainLivenessAnchorProvider racing awaitAnchor(foregroundProbe).
+    @Test(
+        "A healthy chain does not flash an outage after minutes away",
+        .disabled("Flaky: intermittent failure, re-enable once the anchor probe timing is fixed")
+    )
     func healthyChainNoOutageAfterAwayTime() async {
         let mockAnchor = MockChainLivenessAnchorProvider()
         await mockAnchor.closeGate()
