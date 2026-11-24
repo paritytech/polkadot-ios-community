@@ -46,6 +46,7 @@ struct TimeSourceTests {
         let source = TimeSource(clock: clock, dateProvider: dateProvider)
         var events = source.fires(at: start.addingTimeInterval(delay)).makeAsyncIterator()
 
+        await clock.waitForSleep(for: .seconds(delay))
         await dateProvider.advance(by: delay / 2)
         await clock.resumeSleep(for: .seconds(delay))
         await clock.waitForSleep(for: .seconds(delay / 2))

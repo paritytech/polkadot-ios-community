@@ -26,7 +26,7 @@ extension CoinageTransferDetection {
 }
 
 extension [PublicKey: CoinageTransferState] {
-    /// Ranked as Android's `toPaymentStatus` ranks them; a finalized variant needs every coin's reading
+    /// a finalized variant needs every coin's reading
     /// to come from the finalized chain.
     func outgoingState(context: DenominationBreakdownContext, windowClosed: Bool) -> OutgoingTransferState {
         let states = Array(values)

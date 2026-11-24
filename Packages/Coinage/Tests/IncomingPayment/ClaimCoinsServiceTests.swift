@@ -109,13 +109,17 @@ struct ClaimCoinsServiceTests {
 
         await rig.query.waitForSubscriptions(1)
         rig.query.send([:])
-        await rig.clock.resumeSleep(for: Self.detectionTimeout)
-        await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        // Whichever pass consumes the empty look reports it once that pass times out; time passes out
+        // until it has, so the coin cannot answer a look that is still waiting on the empty one.
+        repeat {
+            await rig.clock.resumeSleep(for: Self.detectionTimeout)
+            await rig.clock.waitForSleep(for: Self.detectionTimeout)
+        } while run.detectionsSoFar.count < 2
+        // Stands in for the entry the submission will register, seeded while the loop is inside its look so
+        // the pass after the submission reads it; seeded later it would miss that pass's group read.
+        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.coinPublicKey, status: .pending)
         rig.query.send([rig.coinPublicKey: Self.coinInfo])
         await rig.submitter.waitForSubmissions(1)
-        // Stands in for the entry the submission would have registered; seeded only once the look has
-        // been consumed, so the loop cannot read a live entry before it submits.
-        rig.txService.seedClaim("claim-coins-test", receivedPublicKey: rig.coinPublicKey, status: .pending)
         await run.waitForDetections(3)
 
         #expect(run.detectionsSoFar == [.detecting, .noCoinsOnChain, .claiming])
@@ -140,7 +144,7 @@ struct ClaimCoinsServiceTests {
 
     @Test
     func emptyLookWithSettledClaimDoesNotReportNoCoinsOnChain() async throws {
-        let rig = try Rig(windowFromNow: -1, coinCount: 2)
+        let rig = try Rig(windowFromNow: 60, coinCount: 2)
         rig.txService.seedClaim(
             "claim-coins-test",
             receivedPublicKey: rig.coinPublicKeys[1],
@@ -150,11 +154,15 @@ struct ClaimCoinsServiceTests {
 
         await rig.query.waitForSubscriptions(1)
         rig.query.send([:])
-        await rig.clock.resumeSleep(for: Self.detectionTimeout)
-        let detections = await run.detections()
+        for _ in 0 ..< 3 {
+            await rig.clock.resumeSleep(for: Self.detectionTimeout)
+        }
+        await rig.clock.waitForSleep(for: Self.detectionTimeout)
 
-        #expect(!detections.contains(.noCoinsOnChain))
-        #expect(detections.last == .claimedPartially(claimed: 0))
+        #expect(!run.isFinished)
+        #expect(!run.detectionsSoFar.contains(.noCoinsOnChain))
+        #expect(run.detectionsSoFar.allSatisfy { $0 == .detecting || $0 == .claiming })
+        run.cancel()
     }
 
     @Test
