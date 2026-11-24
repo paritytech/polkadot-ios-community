@@ -21,7 +21,7 @@ public extension RecyclingStrategyType {
         switch self {
         case .minPrivacy:
             // Zero budget never voluntarily gates; only the chain-limits decorator forces coins at
-            // the ceiling. Reproduces today's behaviour, which is why it is the default.
+            // the ceiling.
             RecyclingParams(
                 maxUnavailableBalance: .percent(of: 0),
                 minRecyclingAge: forcedRecyclingAge,
