@@ -17,5 +17,5 @@ struct ChatViewModelActions {
     let unblockUser: () -> Void
     let startCall: (_ callType: ChatCallType) -> Void
     let openProduct: (ProductPage) -> Void
-    let reclaimTransfer: (_ messageId: String) -> Void
+    let reclaimTransfer: (_ messageId: Chat.MessageId) -> Void
 }

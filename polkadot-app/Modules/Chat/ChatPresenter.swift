@@ -228,7 +228,9 @@ private extension ChatPresenter {
                 }
             },
             reclaimTransfer: { [weak self] messageId in
-                self?.handleReclaimTransfer(for: messageId)
+                Task {
+                    @MainActor in self?.handleReclaimTransfer(for: messageId)
+                }
             }
         )
 

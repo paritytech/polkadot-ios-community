@@ -15,7 +15,8 @@ extension ChatPresenter {
         }
     }
 
-    func handleReclaimTransfer(for messageId: String) {
+    @MainActor
+    func handleReclaimTransfer(for messageId: Chat.MessageId) {
         guard
             let message = listModel?.getMessage(by: messageId),
             case let .coinageSend(content) = message.content,
@@ -24,6 +25,9 @@ extension ChatPresenter {
             return
         }
 
-        interactor.reclaimTransfer(messageId: messageId, coinKeys: content.coinKeys)
+        wireframe.authorize(animated: true, retriable: false) { [weak self] isAuthorized in
+            guard isAuthorized else { return }
+            self?.interactor.reclaimTransfer(messageId: messageId, coinKeys: content.coinKeys)
+        }
     }
 }

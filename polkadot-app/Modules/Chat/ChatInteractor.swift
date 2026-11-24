@@ -393,7 +393,7 @@ extension ChatInteractor: ChatInteractorInputProtocol {
         }
     }
 
-    func reclaimTransfer(messageId: String, coinKeys: [Data]) {
+    func reclaimTransfer(messageId: Chat.MessageId, coinKeys: [Data]) {
         Task {
             do {
                 try await reclaimCoinsService.reclaim(
