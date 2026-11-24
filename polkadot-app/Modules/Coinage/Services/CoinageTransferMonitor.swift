@@ -16,20 +16,11 @@ protocol CoinageTransferMonitoring: AsyncApplicationServicing {}
 final class CoinageTransferMonitor {
     typealias DenominationContextProvider = @Sendable () async throws -> DenominationBreakdownContext
 
-    /// The clock and date the claim window is checked against. Injected so tests drive the window from a test clock.
-    struct Timing: Sendable {
-        let clock: any Clock<Duration>
-        let dateProvider: any DateProviding
-
-        static let live = Timing(clock: ContinuousClock(), dateProvider: NowDateProvider())
-    }
-
     private let claimCoinsService: any ClaimCoinsServicing
     private let outgoing: OutgoingDependencies
     private let denominationContext: DenominationContextProvider
     private let transferStateStore: any TransferStateStoring
     private let messageProviderFactory: ChatMessageDataProviderMaking
-    private let timing: Timing
     private let logger: LoggerProtocol
 
     /// Top-level tasks that listen to the CoreData message streams.
@@ -48,13 +39,12 @@ final class CoinageTransferMonitor {
         transferStateStore: any TransferStateStoring,
         storageFacade: StorageFacadeProtocol,
         operationQueue: OperationQueue = OperationManagerFacade.sharedDefaultQueue,
-        timing: Timing = .live,
+        timeSource: TimeSource = .live,
         logger: LoggerProtocol = Logger.shared
     ) {
         self.claimCoinsService = claimCoinsService
         self.denominationContext = denominationContext
         self.transferStateStore = transferStateStore
-        self.timing = timing
         self.logger = logger
         outgoing = OutgoingDependencies(
             transferStatusService: transferStatusService,
@@ -62,7 +52,7 @@ final class CoinageTransferMonitor {
             denominationContext: denominationContext,
             transferStateStore: transferStateStore,
             logger: logger,
-            timing: timing
+            timeSource: timeSource
         )
 
         let repositoryFactory = ChatMessageRepositoryFactory(storageFacade: storageFacade)
@@ -208,22 +198,21 @@ private extension CoinageTransferMonitor {
 
         let memo = content.transferMemo
         let closesAt = Date.fromChatTimestamp(message.timestamp).addingTimeInterval(CoinageConstants.claimWindow)
-        let windowEvents = windowCloses(at: closesAt)
-        let task = Task { [outgoing, taskRegistry, closesAt, windowEvents] in
+        let task = Task { [outgoing, taskRegistry, closesAt] in
             defer { Task { await taskRegistry.remove(forMessageId: messageId) } }
             do {
                 let context = try await outgoing.denominationContext()
 
                 outgoing.logger.debug("Processing transfer for message: \(messageId) entries=\(memo.entries.count)")
 
-                let isWindowClosed = await outgoing.timing.dateProvider.read() >= closesAt
+                let isWindowClosed = await outgoing.timeSource.dateProvider.read() >= closesAt
                 let feed = OutgoingFeed(
                     messageId: messageId,
                     statuses: outgoing.transferStatusService.subscribeStatuses(coinKeys: memo.entries),
                     failedReclaims: outgoing.reclaimCoinsService.subscribeFailedReclaims(
                         groupId: ChatTransferGroups.reclaim(messageId)
                     ),
-                    windowEvents: windowEvents,
+                    windowEvents: outgoing.timeSource.fires(at: closesAt),
                     store: outgoing.transferStateStore,
                     logger: outgoing.logger
                 )
@@ -237,28 +226,6 @@ private extension CoinageTransferMonitor {
             }
         }
         await taskRegistry.register(task, forMessageId: messageId)
-    }
-
-    /// Fires once when the claim window closes. An already-closed window fires at once without sleeping.
-    /// Merged into the outgoing loop so the state is recomputed at close even when no coin status changes.
-    func windowCloses(at closesAt: Date) -> AsyncStream<Void> {
-        let timing = timing
-        return AsyncStream { continuation in
-            let task = Task {
-                do {
-                    var now = await timing.dateProvider.read()
-                    while now < closesAt {
-                        try await timing.clock.sleep(for: .seconds(closesAt.timeIntervalSince(now)))
-                        now = await timing.dateProvider.read()
-                    }
-                } catch {
-                    return
-                }
-                continuation.yield()
-                continuation.finish()
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 }
 
@@ -279,6 +246,7 @@ private extension CoinageTransferMonitor {
         let messageId: Chat.MessageId
         let statuses: AnyAsyncSequence<[PublicKey: CoinageTransferState]>
         let failedReclaims: AnyAsyncSequence<Set<PublicKey>>
+        /// Merged with the statuses so the state is recomputed at close even when no coin status changes then.
         let windowEvents: AsyncStream<Void>
         let store: any TransferStateStoring
         let logger: LoggerProtocol
@@ -349,7 +317,7 @@ private struct OutgoingDependencies {
     let denominationContext: CoinageTransferMonitor.DenominationContextProvider
     let transferStateStore: any TransferStateStoring
     let logger: LoggerProtocol
-    let timing: CoinageTransferMonitor.Timing
+    let timeSource: TimeSource
 }
 
 /// One input to the outgoing loop: coin statuses, the failed reclaims, or the one-time close of the claim window.

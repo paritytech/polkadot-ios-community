@@ -1,5 +1,6 @@
 import Coinage
 import Foundation
+import FoundationExt
 import StructuredConcurrencyTestSupport
 import SubstrateSdk
 import Testing
@@ -124,7 +125,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: insideWindow)
+            timeSource: monitorTimeSource(for: message, elapsed: insideWindow)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -157,7 +158,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -179,7 +180,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: insideWindow)
+            timeSource: monitorTimeSource(for: message, elapsed: insideWindow)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -204,7 +205,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: CoinageTransferMonitor.Timing(clock: clock, dateProvider: dateProvider)
+            timeSource: TimeSource(clock: clock, dateProvider: dateProvider)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -303,7 +304,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: insideWindow)
+            timeSource: monitorTimeSource(for: message, elapsed: insideWindow)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -326,7 +327,7 @@ struct CoinageTransferMonitorTests {
         let monitor = makeMonitor(
             world: world,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: insideWindow)
+            timeSource: monitorTimeSource(for: message, elapsed: insideWindow)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -350,7 +351,7 @@ struct CoinageTransferMonitorTests {
             world: world,
             reclaims: reclaims,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -372,7 +373,7 @@ struct CoinageTransferMonitorTests {
             world: world,
             reclaims: reclaims,
             statuses: statuses,
-            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -397,7 +398,7 @@ struct CoinageTransferMonitorTests {
             reclaims: reclaims,
             statuses: statuses,
             store: recorder,
-            timing: monitorTiming(for: message, elapsed: CoinageConstants.claimWindow + 1)
+            timeSource: monitorTimeSource(for: message, elapsed: CoinageConstants.claimWindow + 1)
         )
         await monitor.setup()
         defer { Task { await monitor.throttle() } }
@@ -442,7 +443,7 @@ private extension CoinageTransferMonitorTests {
         reclaims: MockReclaimCoinsService = MockReclaimCoinsService(),
         statuses: MockCoinageTransferStatusService = MockCoinageTransferStatusService(snapshots: []),
         store: (any TransferStateStoring)? = nil,
-        timing: CoinageTransferMonitor.Timing = .live,
+        timeSource: TimeSource = .live,
         logger: MockLogger = MockLogger()
     ) -> CoinageTransferMonitor {
         CoinageTransferMonitor(
@@ -453,15 +454,15 @@ private extension CoinageTransferMonitorTests {
             transferStateStore: store ?? world.store,
             storageFacade: world.facade,
             operationQueue: OperationQueue(),
-            timing: timing,
+            timeSource: timeSource,
             logger: logger
         )
     }
 
     /// The window is anchored to the message's send timestamp, so the provider's clock is placed relative to it.
-    func monitorTiming(for message: Chat.LocalMessage, elapsed: TimeInterval) -> CoinageTransferMonitor.Timing {
+    func monitorTimeSource(for message: Chat.LocalMessage, elapsed: TimeInterval) -> TimeSource {
         let sentAt = Date.fromChatTimestamp(message.timestamp)
-        return CoinageTransferMonitor.Timing(
+        return TimeSource(
             clock: ManualClock(),
             dateProvider: MockDateProvider(now: sentAt.addingTimeInterval(elapsed))
         )
