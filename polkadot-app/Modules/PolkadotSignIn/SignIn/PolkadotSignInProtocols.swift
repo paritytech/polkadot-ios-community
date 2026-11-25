@@ -35,6 +35,6 @@ enum PolkadotSignInResult {
 }
 
 @MainActor
-protocol PolkadotSignInWireframeProtocol: AuthorizationPresentable {
+protocol PolkadotSignInWireframeProtocol: AnyObject {
     func hide(view: PolkadotSignInViewProtocol?, with result: PolkadotSignInResult?)
 }

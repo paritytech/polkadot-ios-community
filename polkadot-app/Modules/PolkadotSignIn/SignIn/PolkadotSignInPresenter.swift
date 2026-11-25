@@ -36,12 +36,7 @@ extension PolkadotSignInPresenter: PolkadotSignInPresenterProtocol {
         guard case let .loaded(input) = state else {
             return
         }
-        wireframe.authorize(animated: true, retriable: false) { [weak self] isAuthorized in
-            guard isAuthorized else {
-                return
-            }
-            self?.interactor.approve(with: input)
-        }
+        interactor.approve(with: input)
     }
 
     func cancel() {

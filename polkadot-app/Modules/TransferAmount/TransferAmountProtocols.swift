@@ -81,8 +81,7 @@ protocol TransferAmountWireframeProtocol: TransferValidationErrorPresentable,
     FeeRetryable,
     TransactionResultPresentable,
     ChatNavigating,
-    CoinagePrivacyPresenting,
-    AuthorizationPresentable {
+    CoinagePrivacyPresenting {
     func hide(view: ControllerBackedProtocol?)
 }
 

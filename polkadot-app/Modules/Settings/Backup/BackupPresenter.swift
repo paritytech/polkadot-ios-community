@@ -43,7 +43,7 @@ extension BackupPresenter: BackupPresenterProtocol {
     func handleButtonTap(type: BackupButtonsView.ButtonType) {
         switch type {
         case .backup:
-            authorizeBackup()
+            interactor.backupMnemonic()
         case .secretPhase:
             wireframe.showWarning(from: view) { [weak self] in
                 self?.authorize()
@@ -61,15 +61,6 @@ private extension BackupPresenter {
                 return
             }
             wireframe?.openSecretRecoveryPhase(from: view)
-        }
-    }
-
-    func authorizeBackup() {
-        wireframe.authorizeInPlace { [weak self] isAuthorized in
-            guard isAuthorized else {
-                return
-            }
-            self?.interactor.backupMnemonic()
         }
     }
 }
