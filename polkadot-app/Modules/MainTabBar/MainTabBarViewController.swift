@@ -46,6 +46,8 @@ final class MainTabBarViewController: UIViewController {
         private var isSearchSwipePending = false
         /// Set while the landing focuses search, so the bar's hide plays no feedback.
         private var isFocusingFromSwipe = false
+        /// Set while a programmatic open carries the panel toward Search; the open's settle lands it.
+        private var landsSearchOnOpen = false
     #endif
 
     init(
@@ -106,6 +108,8 @@ final class MainTabBarViewController: UIViewController {
             #if FEATURE_INPUT
                 if !isOpen {
                     self?.cancelSearchSwipe()
+                } else if self?.landsSearchOnOpen == true {
+                    self?.landSearchSwipe()
                 }
             #endif
             guard isOpen else { return }
@@ -335,8 +339,21 @@ extension MainTabBarViewController: MainTabBarViewProtocol {
 // MARK: - Scan panel
 
 extension MainTabBarViewController {
-    func openScanPanel() {
-        chromeController.setPanel(.content(.scan))
+    /// Opens contact search: the scan panel with its search field focused, or full-screen search without
+    /// the in-panel field.
+    func openContactSearch() {
+        #if FEATURE_INPUT
+            if chromeController.panelController.open == .content(.scan), let scanPanel {
+                scanPanel.focusSearch()
+                return
+            }
+            beginSearchSwipe()
+            landsSearchOnOpen = true
+            chromeController.setPanel(.content(.scan))
+        #else
+            chromeController.setPanel(nil)
+            presenter.didRequestContactSearch()
+        #endif
     }
 
     func closeScanPanel() {
@@ -386,6 +403,7 @@ extension MainTabBarViewController {
 
         func landSearchSwipe() {
             isSearchSwipePending = false
+            landsSearchOnOpen = false
             isFocusingFromSwipe = true
             scanPanel?.focusSearch()
             isFocusingFromSwipe = false
@@ -394,6 +412,7 @@ extension MainTabBarViewController {
         /// Drops a swipe that did not land, and returns the scan panel to the Scan state's layout.
         func cancelSearchSwipe() {
             isSearchSwipePending = false
+            landsSearchOnOpen = false
             scanPanel?.setSearchPending(false)
         }
     }

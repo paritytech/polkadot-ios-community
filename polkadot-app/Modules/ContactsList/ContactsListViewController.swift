@@ -92,7 +92,7 @@ final class ContactsListViewController: UIViewController, ViewHolder, RootScreen
 private extension ContactsListViewController {
     func setupBarItems() {
         let action = UIAction { [weak self] _ in
-            self?.presenter.showScanPanel()
+            self?.presenter.showContactSearch()
         }
 
         navigationItem.rightBarButtonItem = UIBarButtonItem(
