@@ -123,7 +123,8 @@ final class ProductsNativeApiFactory: ProductsNativeApiMaking {
             paymentApprovalRequester: PaymentApprovalRequesterFactory.create(
                 router: routers.productsRouter,
                 fundingProvider: fundingProvider,
-                paymentsSupport: paymentsSupport
+                paymentsSupport: paymentsSupport,
+                chainRegistry: chainRegistry
             ),
             paymentPrivacyConfirmer: PaymentPrivacyConfirmer(router: routers.productsRouter),
             recyclingStrategy: CoinageRecyclingStrategyStore.shared,

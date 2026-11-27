@@ -1,22 +1,15 @@
 import Foundation
 import SubstrateSdk
 
-/// Approves payments without a prompt for an allowlisted set of products. Each auto-allowed payment
-/// still goes through `confirmAutoApproval`, which decides by amount whether the device owner must
-/// authenticate. Wraps the real requester for everything else. Same shape and rationale as
+/// Approves payments without a prompt for an allowlisted set of products.
+/// Wraps the real requester for everything else. Same shape and rationale as
 /// ``AutoAllowProductPermissionRequester``.
 public struct AutoAllowPaymentApprovalRequester: PaymentApprovalRequesting {
     private let allowedLabels: Set<String>
-    private let confirmAutoApproval: @Sendable (Balance) async -> Bool
     private let wrapped: PaymentApprovalRequesting
 
-    public init(
-        allowedLabels: Set<String>,
-        confirmAutoApproval: @escaping @Sendable (Balance) async -> Bool,
-        wrapped: PaymentApprovalRequesting
-    ) {
+    public init(allowedLabels: Set<String>, wrapped: PaymentApprovalRequesting) {
         self.allowedLabels = allowedLabels
-        self.confirmAutoApproval = confirmAutoApproval
         self.wrapped = wrapped
     }
 
@@ -25,9 +18,7 @@ public struct AutoAllowPaymentApprovalRequester: PaymentApprovalRequesting {
         amount: Balance,
         destination: AccountId
     ) async -> PaymentApprovalDecision {
-        guard !isAutoAllowed(productId: productId) else {
-            return await confirmAutoApproval(amount) ? .approved : .rejected
-        }
+        guard !isAutoAllowed(productId: productId) else { return .approved }
 
         return await wrapped.requestApproval(
             productId: productId,

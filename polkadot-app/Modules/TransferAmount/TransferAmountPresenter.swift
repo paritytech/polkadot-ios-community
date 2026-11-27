@@ -47,7 +47,7 @@ final class TransferAmountPresenter {
         dataValidationFactory: TransferDataValidatorFactoryProtocol,
         config: TransferAmountConfig = .default,
         paymentAssetViewModelFactory: PaymentAssetViewModelMaking = PaymentAssetViewModelFactory(),
-        confirmationGateRule: ConfirmationGateRuleProtocol = ConfirmationGateRule()
+        confirmationGateRule: ConfirmationGateRuleProtocol
     ) {
         self.interactor = interactor
         self.wireframe = wireframe
@@ -392,9 +392,10 @@ private extension TransferAmountPresenter {
     }
 
     func requiresAuthentication(for validation: TransferPreviewValidation) -> Bool {
-        let amount = validation.fullAmount.decimal(assetInfo: chainAsset.assetDisplayInfo)
-        let totalCash = spendableBreakdown?.total.decimal(assetInfo: chainAsset.assetDisplayInfo)
-        return confirmationGateRule.requiresAuthentication(amount: amount, totalCash: totalCash)
+        confirmationGateRule.requiresAuthentication(
+            amount: validation.fullAmount,
+            total: spendableBreakdown?.total
+        )
     }
 
     func applyConfig() {

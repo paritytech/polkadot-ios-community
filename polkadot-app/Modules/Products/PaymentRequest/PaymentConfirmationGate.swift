@@ -1,6 +1,5 @@
 import Foundation
 import Coinage
-import ChainRegistry
 import SubstrateSdk
 
 /// Decides whether a product payment needs device authentication, from the user's total Cash.
@@ -10,37 +9,26 @@ protocol PaymentConfirmationGating: Sendable {
 
 final class PaymentConfirmationGate: PaymentConfirmationGating {
     private let coinageService: CoinageServicing?
-    private let chainAssetProvider: @Sendable () async -> ChainAsset?
     private let rule: ConfirmationGateRuleProtocol
 
-    init(
-        coinageService: CoinageServicing?,
-        chainAssetProvider: @escaping @Sendable () async -> ChainAsset?,
-        rule: ConfirmationGateRuleProtocol
-    ) {
+    init(coinageService: CoinageServicing?, rule: ConfirmationGateRuleProtocol) {
         self.coinageService = coinageService
-        self.chainAssetProvider = chainAssetProvider
         self.rule = rule
     }
 
     func requiresAuthentication(amount: Balance) async -> Bool {
-        guard let chainAsset = await chainAssetProvider() else { return true }
-
-        let amountCash = amount.decimal(assetInfo: chainAsset.assetDisplayInfo)
-        let totalCash = await totalCash(chainAsset: chainAsset)
-
-        return rule.requiresAuthentication(amount: amountCash, totalCash: totalCash)
+        await rule.requiresAuthentication(amount: amount, total: total())
     }
 }
 
 private extension PaymentConfirmationGate {
-    func totalCash(chainAsset: ChainAsset) async -> Decimal? {
+    func total() async -> Balance? {
         guard let coinageService else { return nil }
 
         do {
             let balanceService = try await coinageService.coinageBalanceService()
             for try await balance in balanceService.balanceStream.prefix(1) {
-                return balance.total.decimal(assetInfo: chainAsset.assetDisplayInfo)
+                return balance.total
             }
             return nil
         } catch {

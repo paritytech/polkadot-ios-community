@@ -8,20 +8,13 @@ final class PaymentRequestContext {
     let productId: ProductId
     let amountInPlanks: Balance
     let destination: AccountId
-    let requiresAuthentication: Bool
 
     private var continuation: CheckedContinuation<PaymentApprovalDecision, Never>?
 
-    init(
-        productId: ProductId,
-        amountInPlanks: Balance,
-        destination: AccountId,
-        requiresAuthentication: Bool
-    ) {
+    init(productId: ProductId, amountInPlanks: Balance, destination: AccountId) {
         self.productId = productId
         self.amountInPlanks = amountInPlanks
         self.destination = destination
-        self.requiresAuthentication = requiresAuthentication
     }
 
     func setContinuation(_ continuation: CheckedContinuation<PaymentApprovalDecision, Never>) {

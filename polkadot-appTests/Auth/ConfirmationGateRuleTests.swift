@@ -1,38 +1,38 @@
 import Foundation
 import Testing
+import SubstrateSdk
+import ChainRegistry
 @testable import polkadot_app
 
 @Suite("ConfirmationGateRule")
 struct ConfirmationGateRuleTests {
     @Test(
-        "Asks above 50 Cash or above half of the total, and when the total is unknown",
+        "Asks above the absolute limit or above the share of the total, and when the total is unknown",
         arguments: [
-            (amount: Decimal(49), totalCash: Decimal?(1_000), expected: false),
-            (amount: 50, totalCash: 1_000, expected: false),
-            (amount: 51, totalCash: 1_000, expected: true),
-            (amount: 19, totalCash: 40, expected: false),
-            (amount: 20, totalCash: 40, expected: false),
-            (amount: 21, totalCash: 40, expected: true),
-            (amount: 1, totalCash: 0, expected: true),
-            (amount: 1, totalCash: nil, expected: true)
+            (amount: Balance(50), total: Balance?(1_000), expected: false),
+            (amount: 51, total: 1_000, expected: true),
+            (amount: 20, total: 40, expected: false),
+            (amount: 21, total: 40, expected: true),
+            (amount: 1, total: nil, expected: true)
         ]
     )
-    func requiresAuthentication(amount: Decimal, totalCash: Decimal?, expected: Bool) {
-        let rule = ConfirmationGateRule(absoluteLimit: 50, shareOfTotal: 0.5)
-        #expect(rule.requiresAuthentication(amount: amount, totalCash: totalCash) == expected)
+    func requiresAuthentication(amount: Balance, total: Balance?, expected: Bool) {
+        let rule = ConfirmationGateRule(absoluteLimit: 50, shareOfTotal: .percent(of: 50))
+
+        #expect(rule.requiresAuthentication(amount: amount, total: total) == expected)
     }
 
     @Test(
-        "Share is clamped to 0...1",
+        "Converts 50 Cash to planks of the asset",
         arguments: [
-            (shareOfTotal: Decimal(2), amount: Decimal(40), expected: false),
-            (shareOfTotal: 2, amount: 41, expected: true),
-            (shareOfTotal: -1, amount: 0, expected: false),
-            (shareOfTotal: -1, amount: 0.01, expected: true)
+            (amount: Balance(500_000_000_000), expected: false),
+            (amount: 500_000_000_001, expected: true)
         ]
     )
-    func clampsShare(shareOfTotal: Decimal, amount: Decimal, expected: Bool) {
-        let rule = ConfirmationGateRule(absoluteLimit: 1_000, shareOfTotal: shareOfTotal)
-        #expect(rule.requiresAuthentication(amount: amount, totalCash: 40) == expected)
+    func appLimits(amount: Balance, expected: Bool) {
+        let tenDecimalAsset = AssetModel(remoteModel: ChainMock.makeRemoteAsset(), enabled: true)
+        let rule = ConfirmationGateRule(asset: tenDecimalAsset)
+
+        #expect(rule.requiresAuthentication(amount: amount, total: 10_000_000_000_000) == expected)
     }
 }

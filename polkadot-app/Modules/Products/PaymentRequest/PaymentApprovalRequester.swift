@@ -5,11 +5,9 @@ import SubstrateSdk
 /// Presents the payment request sheet and suspends until the user decides.
 final class PaymentApprovalRequester: PaymentApprovalRequesting, @unchecked Sendable {
     private let router: ProductsRouting
-    private let gate: PaymentConfirmationGating
 
-    init(router: ProductsRouting, gate: PaymentConfirmationGating) {
+    init(router: ProductsRouting) {
         self.router = router
-        self.gate = gate
     }
 
     func requestApproval(
@@ -17,15 +15,12 @@ final class PaymentApprovalRequester: PaymentApprovalRequesting, @unchecked Send
         amount: Balance,
         destination: AccountId
     ) async -> PaymentApprovalDecision {
-        let requiresAuthentication = await gate.requiresAuthentication(amount: amount)
-
-        return await withCheckedContinuation { continuation in
+        await withCheckedContinuation { continuation in
             Task { @MainActor [router] in
                 let context = PaymentRequestContext(
                     productId: productId,
                     amountInPlanks: amount,
-                    destination: destination,
-                    requiresAuthentication: requiresAuthentication
+                    destination: destination
                 )
                 context.setContinuation(continuation)
                 router.showPaymentRequest(context: context)

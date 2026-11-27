@@ -1,25 +1,31 @@
 import Foundation
 import Products
+import ChainRegistry
 
 enum PaymentApprovalRequesterFactory {
     static func create(
         router: ProductsRouting,
         fundingProvider: FundingDomainProviding,
-        paymentsSupport: PaymentsSupport?
+        paymentsSupport: PaymentsSupport?,
+        chainRegistry: ChainRegistryProtocol
     ) -> PaymentApprovalRequesting {
+        let mainAssetId = AppConfig.Assets.mainAsset
+        let mainAsset = chainRegistry.getChain(for: mainAssetId.chainId)?.asset(for: mainAssetId.assetId)
+        // Without the main asset the limit is zero, so every payment asks.
+        let rule = mainAsset.map { ConfirmationGateRule(asset: $0) }
+            ?? ConfirmationGateRule(absoluteLimit: 0, shareOfTotal: AppConfig.ConfirmationLimit.shareOfTotal)
         let gate = PaymentConfirmationGate(
             coinageService: paymentsSupport?.coinageService,
-            chainAssetProvider: { await PaymentRequestViewFactory.mainChainAsset() },
-            rule: ConfirmationGateRule()
+            rule: rule
         )
 
-        return AutoAllowPaymentApprovalRequester(
-            allowedLabels: ProductAutoAllowList.labels(fundingProvider: fundingProvider),
-            confirmAutoApproval: { amount in
-                guard await gate.requiresAuthentication(amount: amount) else { return true }
-                return await authorizeDeviceOwner()
-            },
-            wrapped: PaymentApprovalRequester(router: router, gate: gate)
+        return AuthenticatingPaymentApprovalRequester(
+            gate: gate,
+            authorizeDeviceOwner: { await authorizeDeviceOwner() },
+            wrapped: AutoAllowPaymentApprovalRequester(
+                allowedLabels: ProductAutoAllowList.labels(fundingProvider: fundingProvider),
+                wrapped: PaymentApprovalRequester(router: router)
+            )
         )
     }
 }

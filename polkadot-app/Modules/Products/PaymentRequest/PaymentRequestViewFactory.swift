@@ -78,20 +78,7 @@ private extension PaymentRequestViewFactory {
             message: LocalizableResource { _ in .normal(formattedAmount) },
             mainAction: makeAction(
                 title: String(localized: .Common.approve)
-            ) {
-                guard context.requiresAuthentication else {
-                    context.deliverApproved()
-                    return
-                }
-
-                let authorizer = DeviceOwnerAuthorizer()
-                authorizer.authorize(animated: true, retriable: false) { isAuthorized in
-                    guard isAuthorized else {
-                        return
-                    }
-                    context.deliverApproved()
-                }
-            },
+            ) { context.deliverApproved() },
             secondaryAction: makeAction(
                 title: String(localized: .Common.reject)
             ) { context.deliverRejected() }
