@@ -61,7 +61,6 @@ private extension PaymentRequestViewFactory {
         context: PaymentRequestContext,
         chainAsset: ChainAsset
     ) -> TitleDetailsSheetViewModel {
-        let authorizer = DeviceOwnerAuthorizer()
         let formattedAmount = formatAmount(
             context.amountInPlanks,
             chainAsset: chainAsset
@@ -80,6 +79,12 @@ private extension PaymentRequestViewFactory {
             mainAction: makeAction(
                 title: String(localized: .Common.approve)
             ) {
+                guard context.requiresAuthentication else {
+                    context.deliverApproved()
+                    return
+                }
+
+                let authorizer = DeviceOwnerAuthorizer()
                 authorizer.authorize(animated: true, retriable: false) { isAuthorized in
                     guard isAuthorized else {
                         return
