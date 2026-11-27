@@ -6,7 +6,7 @@ protocol ModuleNavigating: AnyObject {
     func openChat(_ model: ChatOpenModel)
     func presentModally(_ viewController: UIViewController)
     func openProduct(page: ProductPage)
-    func openScanPanel()
+    func openContactSearch()
 }
 
 extension ModuleNavigating {
@@ -41,8 +41,8 @@ extension ModuleNavigator: ModuleNavigating {
         UIApplication.shared.mainTabBarController?.openProduct(page: page)
     }
 
-    func openScanPanel() {
-        UIApplication.shared.mainTabBarController?.openScanPanel()
+    func openContactSearch() {
+        UIApplication.shared.mainTabBarController?.openContactSearch()
     }
 }
 
