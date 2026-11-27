@@ -49,7 +49,7 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
     private var latestVerdicts: RecyclingVerdicts = [:]
 
     /// One subject for both, so an evaluation reaches every subscriber as a single value.
-    private nonisolated let summarySubject: AsyncCurrentValueSubject<CoinageSummary>
+    private nonisolated let summarySubject: AsyncCurrentValueSubject<CoinageSummary?>
 
     init(
         denominationContext: DenominationBreakdownContext,
@@ -72,17 +72,17 @@ public actor CoinageBalanceService: CoinageBalanceServiceProtocol {
         self.preClassificator = preClassificator
         self.logger = logger
 
-        summarySubject = AsyncCurrentValueSubject<CoinageSummary>(.empty)
+        summarySubject = AsyncCurrentValueSubject<CoinageSummary?>(nil)
     }
 
     /// Projected off ``summaryStream`` rather than kept in step with it, for the callers that need
-    /// only the totals.
+    /// only the totals. Emits nothing until the first balance is computed.
     public nonisolated var balanceStream: AnyAsyncSequence<CoinageBalance> {
-        summarySubject.map(\.balance).removeDuplicates().eraseToAnyAsyncSequence()
+        summaryStream.map(\.balance).removeDuplicates().eraseToAnyAsyncSequence()
     }
 
     public nonisolated var summaryStream: AnyAsyncSequence<CoinageSummary> {
-        summarySubject.removeDuplicates().eraseToAnyAsyncSequence()
+        summarySubject.compactMap { $0 }.removeDuplicates().eraseToAnyAsyncSequence()
     }
 
     public nonisolated func start() {
