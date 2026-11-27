@@ -15,6 +15,4 @@ public struct CoinageSummary: Equatable {
         self.balance = balance
         self.holdings = holdings
     }
-
-    public static let empty = CoinageSummary(balance: .empty, holdings: .empty)
 }
